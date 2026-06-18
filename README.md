@@ -3,7 +3,7 @@
 v2 client application for [Invoice Ninja](https://github.com/invoiceninja/invoiceninja).
 
 #### Desktop Apps
-- [Windows](https://apps.microsoft.com/detail/restricted/9NB3MBDBJCH7)
+- [Windows](https://apps.microsoft.com/detail/restricted/9NN6PVZSXWWB)
 - [macOS](https://testflight.apple.com/join/YY1BZ7uR)
 - [Linux] `sudo snap install invoiceninja --edge`
 

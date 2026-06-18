@@ -148,3 +148,21 @@ flutter:
     - family: Material Design Icons
       fonts:
         - asset: assets/fonts/MaterialDesignIcons.ttf
+
+# Microsoft Store packaging for the `msix` dev-dependency (dart run msix:create).
+# identity_name / publisher / publisher_display_name MUST match Partner Center →
+# Product management → Product identity exactly, or upload validation rejects the
+# package. Without this section the package derives `com.flutter.admin` from the
+# pubspec `name:` and the Store rejects the PublisherDisplayName mismatch.
+# `store: true` emits an unsigned package (the Store re-signs on ingestion — no
+# self-signed certificate). `msix_version` is auto-derived from `version:` above
+# as 5.1.2.0; bump `version:` for each new submission. `display_name` is plain
+# "Invoice Ninja" (no "beta"). Logo intentionally omitted for now — see the plan;
+# no finished square PNG exists yet, so the first submission ships the default.
+msix_config:
+  display_name: Invoice Ninja
+  publisher_display_name: Invoice Ninja
+  identity_name: InvoiceNinja.InvoiceNinja-AdminPortal
+  publisher: CN=2B7AA393-06A0-46F5-AF85-1917142440C3
+  store: true
+  languages: en-us

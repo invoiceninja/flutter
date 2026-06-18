@@ -1,4 +1,4 @@
-# Invoice Ninja (Beta)
+# Invoice Ninja - Beta
 
 v2 client application for [Invoice Ninja](https://github.com/invoiceninja/invoiceninja).
 

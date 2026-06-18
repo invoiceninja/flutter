@@ -162,7 +162,7 @@ flutter:
 msix_config:
   display_name: Invoice Ninja
   publisher_display_name: Invoice Ninja
-  identity_name: InvoiceNinja.InvoiceNinja-AdminPortal
+  identity_name: InvoiceNinja.AdminPortal
   publisher: CN=2B7AA393-06A0-46F5-AF85-1917142440C3
   store: true
   languages: en-us

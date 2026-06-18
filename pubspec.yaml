@@ -160,7 +160,7 @@ flutter:
 # "Invoice Ninja" (no "beta"). Logo intentionally omitted for now — see the plan;
 # no finished square PNG exists yet, so the first submission ships the default.
 msix_config:
-  display_name: Invoice Ninja
+  display_name: Invoice Ninja - Beta
   publisher_display_name: Invoice Ninja
   identity_name: InvoiceNinja.AdminPortal
   publisher: CN=2B7AA393-06A0-46F5-AF85-1917142440C3

@@ -1,0 +1,113 @@
+name: Deploy to Google Play
+
+# Manual only — building + uploading an Android App Bundle is a deliberate
+# release action, not a per-push gate. Mirrors snapcraft.yml. Publishes to the
+# `internal` testing track with status `completed`: the bundle is released to
+# internal testers automatically, the Play analogue of the snap's `edge`
+# channel + `grade: devel` (the service account is granted only "Release apps
+# to testing tracks", so this workflow is structurally incapable of touching
+# production). Promote internal -> closed -> production by hand in the Console.
+on:
+  workflow_dispatch:
+
+# Least privilege: this job only checks out code, builds, and uploads to an
+# external store. It never writes back to the repo.
+permissions:
+  contents: read
+
+jobs:
+  deploy-play:
+    name: Build and Publish App Bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # JDK 17 pinned explicitly. AGP 8.11.1 + Gradle require JDK 17, and
+      # android/app/build.gradle.kts compiles against JavaVersion.VERSION_17.
+      # The CI `build-android` compile gate leans on the runner's default JDK,
+      # but a publish workflow shouldn't let a runner-image bump silently change
+      # the bytecode target out from under a shipped release build.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Pinned to match ci.yaml / snapcraft.yml (no .flutter-version file).
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Reconstruct the release signing material from secrets. Both files are
+      # gitignored (android/.gitignore) and never tracked, so CI has zero
+      # signing material until this step. Without android/key.properties the
+      # release build silently falls back to DEBUG signing, which Play rejects.
+      # Paths are exact:
+      #   * key.properties -> android/key.properties (rootProject.file = android/)
+      #   * key.jks        -> android/app/key.jks    (storeFile rel. to :app)
+      - name: Inject Android signing config
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is empty — cannot produce a Play-signed bundle." >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/key.jks
+          {
+            echo "storePassword=${ANDROID_KEYSTORE_PASSWORD}"
+            echo "keyPassword=${ANDROID_KEY_PASSWORD}"
+            echo "keyAlias=${ANDROID_KEY_ALIAS}"
+            echo "storeFile=key.jks"
+          } > android/key.properties
+
+      - name: Build Android App Bundle (release)
+        # IN_SENTRY_DSN is baked in at compile time (String.fromEnvironment),
+        # same pattern as snapcraft.yml / tools/build_release.sh. Empty/unset
+        # secret is a safe no-op (Env.sentryDsn defaults to '' -> Sentry stays
+        # disabled). Output: build/app/outputs/bundle/release/app-release.aab,
+        # signed with the release keystore injected above. versionCode comes
+        # from pubspec (5.1.3+6 -> 6); Play requires it to strictly increase, so
+        # bump the `+N` in pubspec.yaml before each release dispatch.
+        run: flutter build appbundle --release --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+
+      # Upload to the Play Console via the de-facto community action
+      # (r0adkll/upload-google-play, @v1 = latest v1.1.x, Play Developer API v3).
+      # Credentials: a Google Cloud service-account JSON with the Play Developer
+      # API enabled and "Release apps to testing tracks" granted in the Play
+      # Console, stored verbatim in the PLAY_SERVICE_ACCOUNT_JSON secret.
+      #   track:  internal   — the safest testing track; promote by hand after.
+      #   status: completed  — released to internal testers automatically (the
+      #                        action default), the closest mirror of snap edge.
+      # NOTE: the app must already have >=1 release created in the Console (it
+      # does — it's live on the testing track), or the first API upload is
+      # rejected. If a run ever fails with "Changes cannot be sent for review
+      # automatically. Please set the query parameter changesNotSentForReview to
+      # true.", add `changesNotSentForReview: true` below (see docs/setup.md).
+      - name: Publish to Google Play (internal)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.invoiceninja.admin
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+
+      # Best practice even on an ephemeral runner: wipe the decoded signing
+      # material so it can't survive into a later step, a cache, or an uploaded
+      # artifact. `if: always()` runs it even when the build or publish fails.
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/app/key.jks android/key.properties

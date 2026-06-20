@@ -92,6 +92,46 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
     return clientId.equals('') | clientId.isNotInQuery(deletedClientIds);
   }
 
+  /// Predicate matching rows whose client's name matches the free-text search
+  /// [needle] (already lowercased and `%`-wrapped). Mirrors the server's
+  /// `orWhereHas('client', name LIKE)` so the local search view surfaces the
+  /// same client-name hits the API returns — without this the UI (which reads
+  /// from Drift, not the API response) filters the server's client-name
+  /// matches back out, so e.g. searching invoices by client name shows nothing.
+  ///
+  /// OR this into `watchPage`'s search predicate on client-bearing DAOs. The
+  /// `clients` subquery keeps the watch reactive to client renames.
+  Expression<bool> clientNameMatchesFilter({
+    required GeneratedColumn<String> clientId,
+    required String companyId,
+    required String needle,
+  }) {
+    final clients = attachedDatabase.clients;
+    final matchingClientIds = selectOnly(clients)
+      ..addColumns([clients.id])
+      ..where(
+        clients.companyId.equals(companyId) & clients.name.lower().like(needle),
+      );
+    return clientId.isInQuery(matchingClientIds);
+  }
+
+  /// Vendor-name counterpart of [clientNameMatchesFilter]. Mirrors the server
+  /// `orWhereHas('vendor', name LIKE)` for vendor-bearing DAOs (expense,
+  /// purchase_order, recurring_expense).
+  Expression<bool> vendorNameMatchesFilter({
+    required GeneratedColumn<String> vendorId,
+    required String companyId,
+    required String needle,
+  }) {
+    final vendors = attachedDatabase.vendors;
+    final matchingVendorIds = selectOnly(vendors)
+      ..addColumns([vendors.id])
+      ..where(
+        vendors.companyId.equals(companyId) & vendors.name.lower().like(needle),
+      );
+    return vendorId.isInQuery(matchingVendorIds);
+  }
+
   /// Insert-or-update one row. The repository uses this on every applyXxx
   /// response handler.
   Future<void> upsert(Insertable<RowT> row) =>

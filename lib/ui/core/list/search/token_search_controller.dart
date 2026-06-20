@@ -249,8 +249,14 @@ class TokenSearchController {
   /// query under search-as-you-type, and clearing would fire
   /// `_onTextChange` with empty text — which then pushes empty back into
   /// `vm.search` and wipes the filter the user just submitted.
+  ///
+  /// Applies immediately (`immediate: true`) rather than through the
+  /// search-as-you-type debounce: this is an explicit "show me the results"
+  /// commit, and the narrow-mode sheet (which has no live search at all)
+  /// pops straight back to the list right after, so the term must already
+  /// be applied by then.
   void commitFreeText(String value) {
-    vm.setSearch(value);
+    vm.setSearch(value, immediate: true);
   }
 
   /// Remove [token] from the VM's applied filters.

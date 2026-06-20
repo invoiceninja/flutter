@@ -25,7 +25,7 @@ Plus two non-negotiables carried from admin-portal:
 | Sync / outbox / 401-403-404-409-412-422 behavior | § Sync — non-obvious rules |
 | Bundled vs per-entity data loading | § Data loading — bundled vs per-entity |
 | Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
-| Squashing Drift migrations (pre-launch) | `docs/squashing-migrations.md` |
+| Changing the Drift schema (forward migration) | `docs/migrations.md` |
 | Localization / Transifex import | § Localization |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
@@ -48,6 +48,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Money is `Decimal`, never `double`.** Enforced by a CI test (greps entity models).
 - **Date-only is the custom `Date` type; `DateTime` is for timestamps only.** Mixing them silently breaks invoice math.
 - **Drift is the only thing the UI reads from.** The network writes to Drift; the UI watches Drift. Never read API responses straight into UI state.
+- **Schema changes need a forward Drift migration now (post-beta).** The app is shipped — installed databases hold real user data and unsynced outbox edits. Any schema change (table / column / index) must bump `AppDatabase.schemaVersion`, add an `onUpgrade` step, re-dump (`drift_dev schema dump`) + re-generate (`schema generate`), and extend the matrix test. **Never re-squash to v1 or overwrite a shipped `drift_schemas/drift_schema_v*.json`** — a frozen-checksum CI test (`test/data/db/migration_test.dart`) fails the build if you do. Skipping the migration silently wipes the user's local DB (and pending offline edits) via the `isSchemaIntact()` reset backstop. Full workflow: `docs/migrations.md`.
 - **Auth user data flows in through `/refresh`, not `GET /users/{id}`.** `_persistAndActivate` upserts each `data[N].user` block into the `users` Drift table on every login/refresh. `GET /users/{id}` is 412-gated (password-required). `auth.refresh()` runs a full `_persistAndActivate` — use it for a fresh session snapshot, not for incidental work. Never call `UsersApi.get` from incidental paths.
 - **Every write goes through the outbox.** Repositories never call mutation endpoints directly.
 - **Every list query is scoped by `company_id`.** Use `CompanyScopedDao` — direct table access bypassing the DAO fails a lint check.

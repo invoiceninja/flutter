@@ -153,7 +153,17 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
       q.where(
         (e) =>
             e.number.lower().like(needle) |
-            e.transactionReferenceLikePayload(needle),
+            e.transactionReferenceLikePayload(needle) |
+            clientNameMatchesFilter(
+              clientId: e.clientId,
+              companyId: companyId,
+              needle: needle,
+            ) |
+            vendorNameMatchesFilter(
+              vendorId: e.vendorId,
+              companyId: companyId,
+              needle: needle,
+            ),
       );
     }
 

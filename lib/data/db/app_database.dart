@@ -186,16 +186,19 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    // Single squashed schema — no migrations yet. This is a pre-launch app
-    // with no installed databases to upgrade, so the whole schema is built
-    // fresh by `createAll()` from the current Dart table definitions. The
-    // company-scoped performance indexes and the Client filter indexes are
+    // v1 is the shipped baseline (squashed pre-launch). The app is now in beta,
+    // so installed databases hold real user data — every schema change from
+    // here needs a real forward migration: bump `schemaVersion`, add an
+    // `onUpgrade` step below, re-dump + re-generate, and extend the matrix test.
+    // Skipping that is silent data loss — `isSchemaIntact()` (below) wipes any
+    // DB whose columns don't match. Full workflow: `docs/migrations.md`.
+    //
+    // The company-scoped performance indexes and the Client filter indexes are
     // created imperatively (drift doesn't model them, so they're not part of
     // `createAll()`), hence the explicit calls here; `CREATE INDEX IF NOT
-    // EXISTS` keeps this idempotent.
-    //
-    // When the first post-launch schema change lands, bump `schemaVersion` and
-    // add an `onUpgrade` step — see `docs/squashing-migrations.md`.
+    // EXISTS` keeps this idempotent. NOTE: `onCreate` runs for fresh installs
+    // only — when you add an `onUpgrade`, call these two helpers there too so
+    // new indexes reach already-installed databases.
     onCreate: (m) async {
       await m.createAll();
       await createPerformanceIndexes(this);

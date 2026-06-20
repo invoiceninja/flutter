@@ -116,7 +116,12 @@ class RecurringExpenseDao
       q.where(
         (e) =>
             e.number.lower().like(needle) |
-            e.transactionReferenceLikePayload(needle),
+            e.transactionReferenceLikePayload(needle) |
+            vendorNameMatchesFilter(
+              vendorId: e.vendorId,
+              companyId: companyId,
+              needle: needle,
+            ),
       );
     }
 

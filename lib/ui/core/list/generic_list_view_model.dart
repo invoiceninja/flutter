@@ -754,10 +754,18 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     }
   }
 
-  void setSearch(String value) {
+  void setSearch(String value, {bool immediate = false}) {
     final next = value.trim();
     if (next == _search) return;
     _searchTimer?.cancel();
+    if (immediate) {
+      // Explicit commit (Enter / "Search for" row / soft-keyboard Done):
+      // apply now instead of debouncing, so the result is deterministic and
+      // the list shows it the instant we pop back to it. Search-as-you-type
+      // keeps the default debounced path.
+      unawaited(_applySearch(next));
+      return;
+    }
     _searchTimer = Timer(_searchDebounce, () => _applySearch(next));
   }
 

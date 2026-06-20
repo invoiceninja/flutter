@@ -76,6 +76,10 @@ class InvoiceOverdueFilterKey extends FilterKey {
   @override
   bool get singleValue => true;
 
+  // Boolean filter: tapping "Overdue" applies it in one tap (no value to pick).
+  @override
+  String? get directApplyValue => _on;
+
   @override
   bool isAtDefault(GenericListViewModel<dynamic> vm) =>
       !(vm.extraFilters[_serverKey] ?? const <String>{}).contains(_on);

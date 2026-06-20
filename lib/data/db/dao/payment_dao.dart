@@ -172,7 +172,12 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
         (p) =>
             p.number.lower().like(needle) |
             p.transactionReference.lower().like(needle) |
-            p.privateNotesLikePayload(needle),
+            p.privateNotesLikePayload(needle) |
+            clientNameMatchesFilter(
+              clientId: p.clientId,
+              companyId: companyId,
+              needle: needle,
+            ),
       );
     }
 

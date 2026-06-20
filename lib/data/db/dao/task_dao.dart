@@ -106,7 +106,12 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
       q.where(
         (t) =>
             t.taskNumber.lower().like(needle) |
-            t.description.lower().like(needle),
+            t.description.lower().like(needle) |
+            clientNameMatchesFilter(
+              clientId: t.clientId,
+              companyId: companyId,
+              needle: needle,
+            ),
       );
     }
 

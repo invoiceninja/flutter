@@ -74,6 +74,13 @@ abstract class FilterKey {
   /// key keeps the default toggle-and-close picker.
   bool get checkboxMultiSelect => false;
 
+  /// When non-null, selecting this key from the picker applies this value
+  /// IMMEDIATELY rather than opening a value picker. For single-value boolean
+  /// keys (e.g. Overdue) whose only choice is "on" — there's nothing to pick,
+  /// so a one-item value list is pure friction. The narrow filter sheet's
+  /// `_onSelectKey` honours this; default null keeps the normal pick flow.
+  String? get directApplyValue => null;
+
   /// Currently-applied tokens for this key, derived from VM state. Empty
   /// when the key is at its default and no chip should appear.
   Iterable<FilterToken> tokensFrom(

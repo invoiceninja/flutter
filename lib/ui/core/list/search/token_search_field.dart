@@ -9,6 +9,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/entity_list_result_scope.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/custom_field_filter_key.dart';
 import 'package:admin/ui/core/list/search/date_column_filter_key.dart';
@@ -522,39 +523,53 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     if (shared == KeyEventResult.handled) return shared;
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      final input = _controller.text.text.trim();
-      if (input.isEmpty) return KeyEventResult.ignored;
-      final parse = _controller.parseInput();
-      if (parse.matchedKey != null && parse.query.trim().isNotEmpty) {
-        final key = parse.matchedKey!;
-        final value = parse.query.trim();
-        // Pre-flight validation — keys can reject inputs that would
-        // silently produce no chip (e.g. `balance:>` with no number).
-        // Reject = keep the input + overlay open so the user sees their
-        // partial input and can finish it.
-        if (!key.isValidValue(value)) {
-          return KeyEventResult.handled;
-        }
-        // `is:archived` typed verbatim → apply the value, then dismiss
-        // the overlay (same dismiss order as `_onSelectValue` to avoid
-        // the menu re-rendering during the addValue await).
-        _controller.text.clear();
-        _hideOverlay();
-        key.addValue(widget.vm, value);
-        return KeyEventResult.handled;
-      }
-      // Free-text branch. `_onTextChange` keeps `vm.search` in sync as the
-      // user types — except for a term that collides with a filter-key name
-      // (`_isKeyPrefix`), where the live commit is suppressed. On Enter the
-      // user signalled "I'm done picking; show me the results", so commit the
-      // pending term as a search. We must NOT clear the input here: clearing
-      // would fire `_onTextChange` with empty text and wipe `vm.search` along
-      // with the field — turning Enter into a destructive "clear filter".
-      _commitPendingFreeText();
-      _hideOverlay();
-      return KeyEventResult.handled;
+      return _commitEnter() ? KeyEventResult.handled : KeyEventResult.ignored;
     }
     return KeyEventResult.ignored;
+  }
+
+  /// Commit on Enter (hardware) or the soft-keyboard "Search"/"Done" action
+  /// (`onSubmitted`). Soft keyboards deliver the action key as a
+  /// `TextInputAction`, not a hardware `KeyEvent`, so `_handleKey` alone
+  /// missed it (flaky on tablets/iPad) — both entry points route here.
+  /// Returns true when it acted.
+  ///
+  /// Order mirrors the hardware path: a highlighted suggestion row wins (what
+  /// `handleArrowEnterBackspace` does for Enter), then `is:archived` verbatim
+  /// value-apply, then a pending free-text search. Idempotent under a
+  /// synthetic-ENTER + onSubmitted double-fire (`addValue` set-dedups,
+  /// `setSearch` same-value no-ops, `_hideOverlay` no-ops).
+  bool _commitEnter() {
+    if (_overlay.isShowing && _controller.suggestions.commit()) return true;
+    final input = _controller.text.text.trim();
+    if (input.isEmpty) return false;
+    final parse = _controller.parseInput();
+    if (parse.matchedKey != null && parse.query.trim().isNotEmpty) {
+      final key = parse.matchedKey!;
+      final value = parse.query.trim();
+      // Pre-flight validation — keys can reject inputs that would
+      // silently produce no chip (e.g. `balance:>` with no number).
+      // Reject = keep the input + overlay open so the user sees their
+      // partial input and can finish it.
+      if (!key.isValidValue(value)) return true;
+      // `is:archived` typed verbatim → apply the value, then dismiss
+      // the overlay (same dismiss order as `_onSelectValue` to avoid
+      // the menu re-rendering during the addValue await).
+      _controller.text.clear();
+      _hideOverlay();
+      key.addValue(widget.vm, value);
+      return true;
+    }
+    // Free-text branch. `_onTextChange` keeps `vm.search` in sync as the
+    // user types — except for a term that collides with a filter-key name
+    // (`_isKeyPrefix`), where the live commit is suppressed. On Enter the
+    // user signalled "I'm done picking; show me the results", so commit the
+    // pending term as a search. We must NOT clear the input here: clearing
+    // would fire `_onTextChange` with empty text and wipe `vm.search` along
+    // with the field — turning Enter into a destructive "clear filter".
+    _commitPendingFreeText();
+    _hideOverlay();
+    return true;
   }
 
   // ── Build ────────────────────────────────────────────────────────────
@@ -824,6 +839,12 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
                           child: TextField(
                             controller: _controller.text,
                             focusNode: _controller.focus,
+                            // Soft keyboards (tablet/iPad in the wide layout)
+                            // send the action key as a TextInputAction, not a
+                            // hardware KeyEvent — wire onSubmitted so it
+                            // reliably commits, same as the `_handleKey` path.
+                            textInputAction: TextInputAction.search,
+                            onSubmitted: (_) => _commitEnter(),
                             decoration: InputDecoration(
                               hintText: active.isEmpty
                                   ? context.tr(widget.hintKey)
@@ -1044,6 +1065,10 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
   }
 
   Future<void> _openSheet(BuildContext context) async {
+    // Read the scaffold-provided result scope BEFORE pushing — the pushed
+    // route can't reach it through the element tree. Null on lists with no
+    // tile builder (the sheet then simply shows no live-results section).
+    final scope = EntityListResultScope.maybeOf(context);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
@@ -1051,6 +1076,8 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
           vm: widget.vm,
           filterKeys: widget.filterKeys,
           hintKey: widget.hintKey,
+          resultTile: scope?.resultTile,
+          onOpenRecord: scope?.onOpenRecord,
         ),
       ),
     );

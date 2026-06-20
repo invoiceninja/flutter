@@ -1,7 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:admin/app/router.dart'
-    show entityRecordPath, highlightSelectedIdFromRoute, selectedIdFromRoute;
+    show
+        entityRecordPath,
+        goEntityRecord,
+        highlightSelectedIdFromRoute,
+        selectedIdFromRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +20,7 @@ import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_bulk_message.dart';
 import 'package:admin/ui/core/list/embedded_list_scope.dart';
+import 'package:admin/ui/core/list/entity_list_result_scope.dart';
 import 'package:admin/ui/core/list/entity_list_app_bar.dart';
 import 'package:admin/ui/core/list/entity_list_top_row.dart';
 import 'package:admin/ui/core/list/entity_list_column_headers.dart';
@@ -653,6 +658,33 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     });
   }
 
+  /// Wrap the search field in an [EntityListResultScope] so the narrow
+  /// `FilterEntrySheet` it opens can render live matching results as the real
+  /// per-entity tiles and open a tapped record. The closures capture this
+  /// scaffold's tile builder + VM + formatter + navigation, none of which the
+  /// pushed sheet route can reach through the element tree.
+  Widget _withResultScope(Widget searchField) {
+    return EntityListResultScope(
+      resultTile: (ctx, item, index) => widget.tileBuilder(
+        ctx,
+        _vm,
+        item as T,
+        index,
+        EntityListTileOptions(
+          wide: false,
+          isLast: true,
+          selecting: false,
+          formatter: widget.wantsFormatter ? formatter : null,
+        ),
+      ),
+      // Pop happens in the sheet before this fires; navigate from the
+      // scaffold's (still-mounted) context — goEntityRecord needs Services +
+      // GoRouter from above the popped route.
+      onOpenRecord: (id) => goEntityRecord(context, _vm.entityType, id),
+      child: searchField,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _maybeApplyListIntent(context);
@@ -845,10 +877,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                       // value-keyed-identity idiom as the row KeyedSubtree.
                       searchField: KeyedSubtree(
                         key: ValueKey(_companyId),
-                        child: widget.searchFieldBuilder(
-                          context,
-                          _vm,
-                          searchWide,
+                        child: _withResultScope(
+                          widget.searchFieldBuilder(context, _vm, searchWide),
                         ),
                       ),
                     ),
@@ -916,10 +946,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                       // switch rather than reused with a stale, disposed VM.
                       searchField: KeyedSubtree(
                         key: ValueKey(_companyId),
-                        child: widget.searchFieldBuilder(
-                          context,
-                          _vm,
-                          searchWide,
+                        child: _withResultScope(
+                          widget.searchFieldBuilder(context, _vm, searchWide),
                         ),
                       ),
                       extraActions:

@@ -118,7 +118,12 @@ class RecurringInvoiceDao
         (e) =>
             e.number.lower().like(needle) |
             e.poNumber.lower().like(needle) |
-            e.notesLikePayload(needle),
+            e.notesLikePayload(needle) |
+            clientNameMatchesFilter(
+              clientId: e.clientId,
+              companyId: companyId,
+              needle: needle,
+            ),
       );
     }
     q.orderBy([

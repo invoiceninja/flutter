@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/entity_list_result_scope.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_chip_data.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
@@ -12,6 +13,7 @@ import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/filter_token_chip.dart';
 import 'package:admin/ui/core/list/search/segment_menu.dart';
 import 'package:admin/ui/core/list/search/token_search_controller.dart';
+import 'package:admin/ui/core/widgets/empty_state.dart';
 
 /// Narrow-mode editor for the token search field. Pushed as a full-screen
 /// modal page from [TokenSearchField] on phone widths. Chips + input occupy
@@ -22,6 +24,8 @@ class FilterEntrySheet extends StatefulWidget {
     required this.vm,
     required this.filterKeys,
     required this.hintKey,
+    this.resultTile,
+    this.onOpenRecord,
     super.key,
   });
 
@@ -29,13 +33,25 @@ class FilterEntrySheet extends StatefulWidget {
   final List<FilterKey> filterKeys;
   final String hintKey;
 
+  /// Renders one live-results row (the real per-entity list tile) — supplied
+  /// by the list scaffold via [EntityListResultScope]. Null on lists without
+  /// a tile builder (then the sheet shows no live results, only suggestions).
+  final ResultTileBuilder? resultTile;
+
+  /// Opens the tapped result's record. Paired with [resultTile].
+  final OpenRecordCallback? onOpenRecord;
+
   @override
   State<FilterEntrySheet> createState() => _FilterEntrySheetState();
 }
 
 class _FilterEntrySheetState extends State<FilterEntrySheet> {
   late final TokenSearchController _controller;
-  String _committedSearch = '';
+
+  /// Last free-text value pushed to [widget.vm] via search-as-you-type.
+  /// Tracked so a VM notify during the debounce window doesn't keep
+  /// re-pushing (which would reset the debounce timer and stall the search).
+  String _lastSyncedSearch = '';
 
   @override
   void initState() {
@@ -45,6 +61,7 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
       filterKeys: widget.filterKeys,
       initialText: widget.vm.search,
     );
+    _lastSyncedSearch = widget.vm.search;
     _controller.text.addListener(_onChange);
     widget.vm.addListener(_onChange);
     // Pin changes touch neither text nor vm — rebuild so the always-built
@@ -85,13 +102,38 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
     if (_controller.text.text.isNotEmpty) {
       _controller.clearPinnedValueKey();
     }
-    if (_controller.text.text != widget.vm.search &&
-        !_controller.focus.hasFocus &&
-        widget.vm.search != _committedSearch) {
-      // External clear-all reset the search — reflect that visually.
-      _controller.text.text = widget.vm.search;
+    _syncLiveSearch();
+    // External clear-all reset the search to empty — reflect it in the input.
+    // Gated to FREE-TEXT only (not a `key:` prefix or pinned value picker):
+    // tapping a key row writes e.g. `client:` and momentarily drops focus (the
+    // TextField's onTapOutside), and without this guard the branch would wipe
+    // that prefix before value mode could render. Also narrowed to the empty
+    // case so it can't clobber an as-you-type query mid-debounce.
+    if (widget.vm.search.isEmpty &&
+        _controller.parseInput().matchedKey == null &&
+        _controller.pinnedValueKey == null &&
+        _controller.text.text.isNotEmpty &&
+        !_controller.focus.hasFocus) {
+      _controller.text.clear();
     }
     setState(() {});
+  }
+
+  /// Search-as-you-type: keep `vm.search` in sync with free-text input so the
+  /// live results below update as the user types. `setSearch` already
+  /// debounces (250 ms), so we just forward — but only on an actual text
+  /// change (tracked via [_lastSyncedSearch]), never on an incidental VM
+  /// notify, which would otherwise keep resetting the debounce timer.
+  /// Skipped in `key:`/value mode and when the list exposes no result tile
+  /// (no live-results section to feed).
+  void _syncLiveSearch() {
+    if (widget.resultTile == null) return;
+    if (_controller.pinnedValueKey != null) return;
+    if (_controller.parseInput().matchedKey != null) return;
+    final text = _controller.text.text.trim();
+    if (text == _lastSyncedSearch) return;
+    _lastSyncedSearch = text;
+    widget.vm.setSearch(text);
   }
 
   Future<void> _onSelectValue(FilterKey key, FilterValueSuggestion value) {
@@ -128,8 +170,42 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
 
   void _onCommitFreeText(String value) {
     _controller.commitFreeText(value);
-    _committedSearch = value;
-    _controller.focus.requestFocus();
+    // Pop straight back to the list so the user sees the full filtered list.
+    // Mirrors `_onPickExclusive`. Value/key taps deliberately stay (batch-edit).
+    if (mounted) unawaited(Navigator.of(context).maybePop());
+  }
+
+  /// Soft-keyboard "Search"/"Done" submit. The on-screen action key arrives
+  /// as a `TextInputAction` (→ `onSubmitted`), NOT a reliable hardware
+  /// `KeyEvent`, so the `Focus(onKeyEvent:)` Enter path alone was flaky.
+  /// Mirror that path here: the suggestion list is always visible in the
+  /// sheet, so commit the highlighted row (row 0 is `Search for <query>` when
+  /// the query is non-empty); fall back to a free-text search if the menu is
+  /// empty. The `!mounted` guard keeps a synthetic-ENTER + onSubmitted
+  /// double-fire harmless.
+  void _onSubmit() {
+    if (!mounted) return;
+    // In results mode the suggestion menu isn't built (so its rows aren't
+    // published) and the query is already applied live — just pop to the
+    // filtered list, same as the back arrow.
+    if (_showingResults) {
+      _onCommitFreeText(_controller.text.text);
+      return;
+    }
+    if (_controller.suggestions.commit()) return;
+    final text = _controller.text.text.trim();
+    if (text.isNotEmpty) _onCommitFreeText(text);
+  }
+
+  /// Free-text input with live results available — the sheet shows matching
+  /// records instead of the suggestion menu.
+  bool get _showingResults {
+    final parse = _controller.parseInput();
+    return widget.resultTile != null &&
+        widget.onOpenRecord != null &&
+        _controller.pinnedValueKey == null &&
+        parse.matchedKey == null &&
+        parse.query.trim().isNotEmpty;
   }
 
   /// Mirror of wide-mode `_onSelectKey`. Checkbox keys (State / Status)
@@ -138,6 +214,14 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
   void _onSelectKey(FilterKey key) {
     if (key.checkboxMultiSelect) {
       _controller.pinValueKey(key);
+      return;
+    }
+    // Boolean keys (e.g. Overdue) have a single value — apply it in one tap
+    // instead of opening a one-item picker. The chip appears; the sheet stays
+    // open (batch-edit). The key drops out of the picker once applied.
+    final direct = key.directApplyValue;
+    if (direct != null) {
+      unawaited(key.addValue(widget.vm, direct));
       return;
     }
     _controller.selectKey(key);
@@ -204,6 +288,93 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
     );
   }
 
+  /// The area below the input + divider. Free-text input with live results
+  /// available → a results-focused view (real tiles + "Show all results");
+  /// otherwise the filter-category / value suggestion menu.
+  Widget _buildBody(BuildContext context) {
+    return _showingResults ? _buildResults(context) : _buildSuggestionMenu();
+  }
+
+  Widget _buildSuggestionMenu() {
+    return FilterSuggestionMenu(
+      vm: widget.vm,
+      keys: widget.filterKeys,
+      parse: _controller.parseInput(),
+      controller: _controller.suggestions,
+      onSelectKey: _onSelectKey,
+      onSelectValue: _onSelectValue,
+      onToggleValue: _onToggleValue,
+      onPickExclusive: _onPickExclusive,
+      onPickOp: _onPickOp,
+      onCommitFreeText: _onCommitFreeText,
+      maxHeight: double.infinity,
+      // Full-bleed panel below the divider — flat, not a floating
+      // popup, so skip the bordered/elevated chrome.
+      floating: false,
+    );
+  }
+
+  /// Live matching results for the typed query. Rows are the real per-entity
+  /// list tiles ([widget.resultTile]); a whole-row tap opens that record. The
+  /// search is already applied to the underlying list (as-you-type), so the
+  /// AppBar back arrow returns to the full filtered list — no extra commit row.
+  Widget _buildResults(BuildContext context) {
+    final vm = widget.vm;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Thin progress while a refetch is in flight — prior results stay
+        // visible underneath, so there's no blank flash between keystrokes.
+        SizedBox(
+          height: 2,
+          child: vm.isLoadingPage
+              ? const LinearProgressIndicator(minHeight: 2)
+              : null,
+        ),
+        Expanded(child: _buildResultsList(context)),
+      ],
+    );
+  }
+
+  Widget _buildResultsList(BuildContext context) {
+    final vm = widget.vm;
+    final items = vm.items;
+    if (items.isEmpty) {
+      // Full spinner only when there's nothing prior to show; otherwise the
+      // thin top bar covers refetches without blanking results.
+      if (vm.isLoadingPage) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      return EmptyState(
+        icon: Icons.search_off,
+        title: context.tr('no_records_found'),
+      );
+    }
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: items.length,
+      itemBuilder: (rowContext, index) {
+        final item = items[index];
+        // Reuse the real tile for visuals; IgnorePointer kills its own
+        // InkWell + secondary buttons so the whole row maps to one action:
+        // open the record (after popping the sheet).
+        return Semantics(
+          button: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              Navigator.of(context).maybePop();
+              widget.onOpenRecord!(vm.idOf(item));
+            },
+            child: IgnorePointer(
+              child: widget.resultTile!(rowContext, item, index),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
@@ -229,11 +400,18 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
         ],
       ),
       body: Column(
+        // Stretch so the input band + bordered box fill the width; otherwise
+        // the box sizes to its (short) content and the Column centers it,
+        // leaving big gaps on both sides.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             color: tokens.surface,
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: Container(
+              // Fill the band width (the chips + input left-align inside) so
+              // the box spans the sheet like the results below it.
+              width: double.infinity,
               decoration: BoxDecoration(
                 color: tokens.surfaceAlt,
                 borderRadius: BorderRadius.circular(InRadii.r1),
@@ -271,6 +449,13 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
                         child: TextField(
                           controller: _controller.text,
                           focusNode: _controller.focus,
+                          // Soft keyboards deliver the action key as a
+                          // TextInputAction, not a hardware KeyEvent — wire
+                          // onSubmitted so "Done"/"Search" reliably commits
+                          // (the `Focus(onKeyEvent:)` path catches only the
+                          // hardware key, which IMEs emit inconsistently).
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _onSubmit(),
                           decoration: InputDecoration(
                             hintText: active.isEmpty
                                 ? context.tr(widget.hintKey)
@@ -299,24 +484,7 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
             ),
           ),
           const Divider(height: 1),
-          Expanded(
-            child: FilterSuggestionMenu(
-              vm: widget.vm,
-              keys: widget.filterKeys,
-              parse: _controller.parseInput(),
-              controller: _controller.suggestions,
-              onSelectKey: _onSelectKey,
-              onSelectValue: _onSelectValue,
-              onToggleValue: _onToggleValue,
-              onPickExclusive: _onPickExclusive,
-              onPickOp: _onPickOp,
-              onCommitFreeText: _onCommitFreeText,
-              maxHeight: double.infinity,
-              // Full-bleed panel below the divider — flat, not a floating
-              // popup, so skip the bordered/elevated chrome.
-              floating: false,
-            ),
-          ),
+          Expanded(child: _buildBody(context)),
         ],
       ),
     );

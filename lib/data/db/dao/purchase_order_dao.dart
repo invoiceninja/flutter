@@ -100,7 +100,12 @@ class PurchaseOrderDao
         (e) =>
             e.number.lower().like(needle) |
             e.poNumber.lower().like(needle) |
-            e.notesLikePayload(needle),
+            e.notesLikePayload(needle) |
+            vendorNameMatchesFilter(
+              vendorId: e.vendorId,
+              companyId: companyId,
+              needle: needle,
+            ),
       );
     }
     q.orderBy([

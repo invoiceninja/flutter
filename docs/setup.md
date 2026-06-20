@@ -40,6 +40,22 @@ The release `.aab` is large (~119 MB) mostly because the Dart AOT `libapp.so` sh
 
 Unless the upload-artifact size is an actual problem, leaving the build as-is is fine — the symbols cost users nothing and currently double as the de-facto Sentry symbol source.
 
+## Android / Google Play
+
+The signed `.aab` is published to the **Internal testing** track of the existing `com.invoiceninja.admin` Play listing by the manually-triggered `.github/workflows/playstore.yml` (`workflow_dispatch` only — publishing is a deliberate release action, not a per-push gate). It mirrors `snapcraft.yml`: one job, store credentials as a repo secret, `IN_SENTRY_DSN` baked in at compile time. Internal testing is the safe-by-default analogue of the snap's `edge`/`grade: devel` — the service account is granted only **"Release apps to testing tracks"**, so the workflow is structurally incapable of touching production. The build half is the same `flutter build appbundle --release` covered in § Android release build; promote internal → closed → production by hand in the Console.
+
+- **Track & status.** `track: internal`, `status: completed` (released to internal testers automatically — the action default, the closest mirror of snap `edge`). `completed` is accepted because the app already has testing-track releases. (A *brand-new* package still in Play Console "draft" state accepts only `status: draft` and rejects `completed` with *"Only releases with status draft may be created on draft app"* — not our case.) The very first bundle for any new app must be uploaded **manually** in the Console before the API will accept uploads; already satisfied here.
+- **Signing.** CI restores the release keystore + `key.properties` from secrets (the same files local release machines have), so the existing `signingConfigs` in `android/app/build.gradle.kts` signs the bundle unchanged. Both `android/key.properties` and `android/app/key.jks` are gitignored, so without this step the release build silently falls back to **debug** signing, which Play rejects on upload. If the app is enrolled in Play App Signing, `key.jks` is the **upload key** (recoverable via Play Console support if lost) and Google re-signs delivered APKs with the app signing key it holds; back up `key.jks` + its passwords off-CI regardless.
+- **versionCode must always increase.** Play rejects any upload whose `versionCode` is ≤ the highest already on the track (*"Version code N has already been used"*). It comes from the pubspec build number (`+N`), advanced only by `tools/bump_client_version.sh`. **Run the bump, commit it, then trigger the workflow** — re-running without a bump fails at the upload step.
+- **Release notes** are optional for a testing-track upload; omit `whatsNewDirectory` (add `distribution/whatsnew/whatsnew-en-US` later if you want changelog text in the tester UI).
+- **Troubleshooting `changesNotSentForReview`.** If a run fails with *"Changes cannot be sent for review automatically. Please set the query parameter changesNotSentForReview to true."*, add `changesNotSentForReview: true` under the publish step. It's account/app-state-dependent — leave it unset by default, since some accounts get the inverse error (*"...must not be set"*) when it *is* set.
+- **Repo secrets** (Settings → Secrets and variables → Actions):
+  - `PLAY_SERVICE_ACCOUNT_JSON` — full text of the Play Developer API service-account JSON key.
+  - `ANDROID_KEYSTORE_BASE64` — `base64 -i android/app/key.jks | pbcopy` (Linux: `base64 -w0`).
+  - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS` — the three values from local `android/key.properties` (alias is currently `key`).
+  - Reuses the existing `IN_SENTRY_DSN` secret for symbolicated crash reports.
+- **One-time Play setup** (already done for this listing; redo only for a new package): create/select a Google Cloud project → enable the **Google Play Android Developer API** → create a service account → add a JSON key → in Play Console → Users and permissions, invite the service-account email with **app-level** "Release apps to testing tracks" on `com.invoiceninja.admin` (do **not** grant the production permission).
+
 ## Dependency updates
 
 Routine bump: raise the `^` floors in `pubspec.yaml`, run `flutter pub upgrade`, regenerate codegen (`dart run build_runner build --delete-conflicting-outputs`), and — only if `drift` or `sqlite3` moved — the vendored web assets (§ Web setup notes). Gate the result with `flutter analyze` + `flutter test` + `flutter build web --wasm`.

@@ -1,35 +1,143 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:admin/data/db/app_database.dart';
+import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
 import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../generated/schema.dart';
 
-/// Schema tests for the squashed, single-version (v1) Drift schema.
+/// Drift schema guard tests — the CI enforcement behind the post-beta
+/// forward-migration policy (see `docs/migrations.md`).
 ///
-/// The migration history was squashed to a single initial schema pre-launch —
-/// no installed databases exist to upgrade, so the whole schema is built by
-/// `createAll()` in `AppDatabase`'s `onCreate`. There is therefore no upgrade
-/// matrix here; these tests guard the fresh-install path instead. When the
-/// first post-launch migration lands (schemaVersion 2+), re-introduce a
-/// `from → to` matrix test per `docs/squashing-migrations.md`.
+/// The app is shipped: installed databases hold real user data and unsynced
+/// outbox edits, and the `isSchemaIntact()` backstop in `AppDatabase` WIPES any
+/// local DB whose columns don't match the code. So every schema change must
+/// ship a real forward migration (bump `schemaVersion`, add an `onUpgrade`
+/// step, re-dump + re-generate, extend the matrix below) — never a re-squash.
+///
+/// These tests make the wrong path fail the build:
+///   * `createAll()` must match the latest dumped schema (un-dumped change → red);
+///   * `schemaVersion` must equal the count of committed `drift_schema_v*.json`
+///     files (bump-without-dump / dump-without-bump → red);
+///   * shipped dump files are frozen by checksum (editing v1 — a re-squash — red);
+///   * every prior version must migrate cleanly up to the current one (matrix).
 void main() {
   final verifier = SchemaVerifier(GeneratedHelper());
 
-  group('squashed v1 schema', () {
-    test('createAll() matches the generated v1 schema dump', () async {
+  // SHA-256 of every SHIPPED schema dump, keyed by version. A shipped baseline
+  // is FROZEN: never edit its `drift_schemas/drift_schema_vN.json`. To land a
+  // schema change, add the *next* version (bump `schemaVersion`, dump vN+1,
+  // write its `onUpgrade` step) and append its hash here — don't overwrite an
+  // existing entry. Overwriting v1 (a re-squash) wipes every installed user's
+  // local DB via the reset backstop. See `docs/migrations.md`.
+  const frozenSchemaHashes = <int, String>{
+    1: '036c0de0fcd92c943e915800a61d5e20da8f8a345ad318e0ad43fc6624705004',
+  };
+
+  // The live schema version the Dart code declares. (Building one throwaway DB
+  // is the cheapest way to read it without exposing it as a static.)
+  final schemaVersion = AppDatabase(NativeDatabase.memory()).schemaVersion;
+
+  group('schema dump consistency', () {
+    test('createAll() matches the generated current schema dump', () async {
       // A fresh in-memory database runs `onCreate` → `createAll()` from the
       // live Dart table definitions; `migrateAndValidate` compares that against
-      // the dumped v1 schema (`drift_schemas/drift_schema_v1.json`). Fails if a
-      // table/column changed without re-running `drift_dev schema dump` +
-      // `schema generate`. (Indexes aren't compared by the verifier, so the
-      // imperative perf/filter indexes in `onCreate` don't trip it — they're
-      // covered by the dedicated index test below.)
+      // the dumped schema for `schemaVersion`. Fails if a table/column changed
+      // without re-running `drift_dev schema dump` + `schema generate`.
+      // (Indexes aren't compared by the verifier, so the imperative perf/filter
+      // indexes in `onCreate` don't trip it — they're covered by the dedicated
+      // index test below.)
       final db = AppDatabase(NativeDatabase.memory());
       await verifier.migrateAndValidate(db, db.schemaVersion);
       await db.close();
     });
+  });
 
+  group('forward-migration policy guard', () {
+    test('schemaVersion equals the count of committed schema dumps', () {
+      // One `drift_schema_vN.json` per version, contiguous from 1. Catches a
+      // version bump with no new dump (and a stray/missing dump): on the next
+      // schema change BOTH must move together.
+      final dumps = Directory('drift_schemas')
+          .listSync()
+          .whereType<File>()
+          .map((f) => f.uri.pathSegments.last)
+          .where((n) => RegExp(r'^drift_schema_v\d+\.json$').hasMatch(n))
+          .toList();
+      expect(
+        dumps.length,
+        schemaVersion,
+        reason:
+            'Expected $schemaVersion dumped schema(s) '
+            '(drift_schema_v1..$schemaVersion.json) to match '
+            'schemaVersion=$schemaVersion, found ${dumps.length}: $dumps. '
+            'A schema change must bump schemaVersion AND add a new dump — see '
+            'docs/migrations.md.',
+      );
+      for (var v = 1; v <= schemaVersion; v++) {
+        expect(
+          File('drift_schemas/drift_schema_v$v.json').existsSync(),
+          isTrue,
+          reason: 'Missing drift_schemas/drift_schema_v$v.json',
+        );
+      }
+    });
+
+    test('shipped schema dumps are frozen (checksums unchanged)', () {
+      // A shipped dump is an immutable record of what real users' DBs look like
+      // at that version. Editing one means a re-squash — which the reset
+      // backstop turns into silent data loss. If this fails you almost
+      // certainly meant to add a NEW version, not edit an existing one.
+      for (var v = 1; v <= schemaVersion; v++) {
+        final expected = frozenSchemaHashes[v];
+        expect(
+          expected,
+          isNotNull,
+          reason:
+              'No frozen checksum recorded for schema v$v. Append its sha256 to '
+              'frozenSchemaHashes once v$v is shipped (docs/migrations.md).',
+        );
+        // Normalize CRLF → LF so a Windows (autocrlf) checkout can't false-fail:
+        // the schema content is frozen, not the line endings. The pinned hashes
+        // are computed over LF-normalized bytes.
+        final normalized = File(
+          'drift_schemas/drift_schema_v$v.json',
+        ).readAsStringSync().replaceAll('\r\n', '\n');
+        final actual = sha256.convert(utf8.encode(normalized)).toString();
+        expect(
+          actual,
+          expected,
+          reason:
+              'drift_schemas/drift_schema_v$v.json changed. A shipped schema '
+              'dump is FROZEN — do not edit it. To change the schema, add '
+              'v${schemaVersion + 1} (bump schemaVersion, dump it, write its '
+              'onUpgrade step) instead. See docs/migrations.md.',
+        );
+      }
+    });
+
+    test(
+      'every prior schema version migrates cleanly up to the current one',
+      () async {
+        // Upgrade matrix. Dormant while only v1 exists (the loop is empty); once
+        // v2+ lands it drives each historical version through AppDatabase's real
+        // `onUpgrade` and validates the result against the current schema — so a
+        // missing or incorrect migration step fails here. To verify migrated data
+        // (not just shape), seed rows via `verifier.schemaAt(from)` first.
+        for (var from = 1; from < schemaVersion; from++) {
+          final connection = await verifier.startAt(from);
+          final db = AppDatabase(connection);
+          await verifier.migrateAndValidate(db, schemaVersion);
+          await db.close();
+        }
+      },
+    );
+  });
+
+  group('fresh-install schema canaries', () {
     test(
       'a fresh database passes the isSchemaIntact runtime backstop',
       () async {

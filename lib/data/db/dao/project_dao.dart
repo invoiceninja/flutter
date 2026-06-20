@@ -108,7 +108,14 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
     if (search != null && search.isNotEmpty) {
       final needle = '%${search.toLowerCase()}%';
       q.where(
-        (p) => p.name.lower().like(needle) | p.number.lower().like(needle),
+        (p) =>
+            p.name.lower().like(needle) |
+            p.number.lower().like(needle) |
+            clientNameMatchesFilter(
+              clientId: p.clientId,
+              companyId: companyId,
+              needle: needle,
+            ),
       );
     }
 

@@ -1,0 +1,170 @@
+name: Deploy to TestFlight (macOS)
+
+# Manual only — building + uploading a signed Mac App Store .pkg is a deliberate
+# release action. Mirrors playstore.yml / appstore-ios.yml. Uploads to TestFlight
+# (testing channel; NOT submitted for App Store review). `flutter build macos`
+# only emits a .app — there is NO `flutter build` equivalent to `flutter build
+# ipa` for the Mac App Store — so we drive xcodebuild directly: --config-only
+# (writes the IN_SENTRY_DSN dart-define into the generated xcconfig) ->
+# xcodebuild archive (signed) -> -exportArchive method=app-store (emits a signed
+# .pkg) -> altool upload. This is the same --config-only + explicit-xcodebuild
+# seam the unsigned `apple` gate in ci.yaml uses, inverted to real signing.
+on:
+  workflow_dispatch:
+
+# Least privilege: this job only checks out code, builds, and uploads to an
+# external store. It never writes back to the repo.
+permissions:
+  contents: read
+
+jobs:
+  deploy-macos:
+    name: Build and Upload macOS to TestFlight
+    runs-on: macos-26
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned to match ci.yaml / appstore-ios.yml.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Select Xcode 26.4.1
+        run: sudo xcode-select -s /Applications/Xcode_26.4.1.app
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Import BOTH Mac App Store distribution identities from a SINGLE combined
+      # .p12 in ONE step: the APP-signing cert ("Apple Distribution" / "3rd Party
+      # Mac Developer Application") signs the .app, and the INSTALLER-signing cert
+      # ("Mac Installer Distribution" / "3rd Party Mac Developer Installer") signs
+      # the .pkg wrapper (the app cert cannot — a MAS package needs both).
+      # WHY one step: two separate imports into the default `signing_temp`
+      # keychain break — each auto-generates its own random keychain password, so
+      # the 2nd step's `security set-key-partition-list` fails against the 1st
+      # step's keychain (apple-actions/import-codesign-certs#14). The action's
+      # README recommends a single combined .p12 (both identities selected in
+      # Keychain Access → exported together) for exactly this case.
+      - name: Import Mac distribution certificates
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.MAC_DISTRIBUTION_CERTS_P12_BASE64 }}
+          p12-password: ${{ secrets.MAC_DISTRIBUTION_CERTS_PASSWORD }}
+
+      # The Mac App Store provisioning profile for com.invoiceninja.admin
+      # (DISTINCT from the iOS App Store profile). Modern Xcode reads macOS
+      # profiles from ~/Library/MobileDevice/Provisioning Profiles/, keyed by the
+      # embedded UUID — install it under that UUID so xcodebuild resolves
+      # PROVISIONING_PROFILE_SPECIFIER by name at archive time. Its App ID must
+      # have App Sandbox + Sign in with Apple + Keychain Sharing enabled (matching
+      # Release.entitlements), or the archive fails on an entitlement mismatch.
+      - name: Install Mac App Store provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PROFILE_BASE64:-}" ]; then
+            echo "::error::MACOS_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty — cannot sign for the Mac App Store." >&2
+            exit 1
+          fi
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo "$PROFILE_BASE64" | base64 --decode > /tmp/macos_appstore.provisionprofile
+          # `security cms -D` decodes the signed profile plist; key the installed
+          # file by its own UUID (the name Xcode looks it up under).
+          UUID=$(security cms -D -i /tmp/macos_appstore.provisionprofile | plutil -extract UUID raw -)
+          cp /tmp/macos_appstore.provisionprofile "$PROFILE_DIR/$UUID.provisionprofile"
+          rm -f /tmp/macos_appstore.provisionprofile
+
+      # The ASC API key (.p8) for the altool upload. altool searches
+      # ~/.appstoreconnect/private_keys/ for AuthKey_<KEY_ID>.p8.
+      - name: Install App Store Connect API key
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            > "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+
+      # --config-only writes the build settings (incl. the IN_SENTRY_DSN
+      # dart-define, base64'd into macos/Flutter/ephemeral/Flutter-Generated.xcconfig
+      # as DART_DEFINES=) that the xcodebuild Flutter phase reads — so the DSN is
+      # baked into the AOT binary even though the compile happens under xcodebuild
+      # below. Empty/unset secret is a safe no-op (Sentry stays disabled).
+      - name: Configure macOS release build
+        run: flutter build macos --release --config-only --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+
+      # Real distribution signing — the INVERSE of the unsigned CI gate (which
+      # forces CODE_SIGN_IDENTITY="-" / CODE_SIGNING_ALLOWED=NO). The tracked
+      # pbxproj still says Automatic + "Apple Development"; we OVERRIDE on the
+      # command line so the committed project is untouched (same override
+      # mechanism the unsigned gate uses, opposite values). No
+      # -allowProvisioningUpdates flag: its ABSENCE means xcodebuild never phones
+      # home and must use exactly the injected profile (there is no `=NO` form).
+      - name: Archive macOS app (signed for distribution)
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace macos/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/macos-release/Runner.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM=NPC44Y2C98 \
+            PROVISIONING_PROFILE_SPECIFIER="Invoice Ninja macOS App Store"
+
+      # method=app-store on a macOS archive emits a signed Mac App Store .pkg
+      # (installer-signed) via the committed macos/ExportOptions.plist, which
+      # names both certs (signingCertificate + installerSigningCertificate).
+      - name: Export Mac App Store package
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/macos-release/Runner.xcarchive \
+            -exportOptionsPlist macos/ExportOptions.plist \
+            -exportPath build/macos-release/export
+          ls -la build/macos-release/export
+
+      # First-party, version-stable macOS upload path. --type macos for a MAS
+      # .pkg; --apiKey/--apiIssuer authenticate via the .p8 installed above. This
+      # lands the build for TestFlight testers only — it does NOT submit for App
+      # Store review. CFBundleVersion (pubspec +N) must exceed the highest build
+      # already on the record — bump pubspec before dispatch (see docs/setup.md).
+      - name: Upload to App Store Connect (TestFlight)
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          PKG=$(ls build/macos-release/export/*.pkg | head -n1)
+          if [ -z "$PKG" ]; then echo "::error::No .pkg produced by xcodebuild -exportArchive" >&2; exit 1; fi
+          echo "Uploading $PKG"
+          xcrun altool --upload-app \
+            -f "$PKG" \
+            --type macos \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      # Wipe every piece of decoded signing material so it can't survive into a
+      # later step, cache, or uploaded artifact. `if: always()` runs on failure too.
+      - name: Remove signing material
+        if: always()
+        # Pass the Key ID via env (like the install/upload steps) rather than
+        # interpolating the secret into the command line.
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          rm -f "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          rm -rf "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security delete-keychain signing_temp.keychain-db 2>/dev/null || true

@@ -1,0 +1,119 @@
+name: Deploy to Microsoft Store
+
+# Manual only — building + packaging an MSIX and submitting it to the Store is a
+# deliberate release action, not a per-push gate. Mirrors playstore.yml /
+# appstore-ios.yml / appstore-macos.yml / snapcraft.yml. Auto-submits (commits)
+# the submission: a dispatch uploads the package AND commits it, so it enters
+# Store certification automatically and goes live on the (restricted/beta)
+# listing once certified — there is NO manual gate. The Microsoft Store has no
+# testers-only channel (no snap `edge` / Play `internal` / TestFlight); to add a
+# safety gate later, append `--noCommit` to keep the submission a draft (publish
+# by hand in Partner Center), or target a closed-beta package flight with
+# `-f <flightId>`.
+on:
+  workflow_dispatch:
+
+# Least privilege: this job only checks out code, builds, and uploads to an
+# external store. It never writes back to the repo.
+permissions:
+  contents: read
+
+jobs:
+  deploy-msstore:
+    name: Build and Publish MSIX
+    # windows-latest is REQUIRED: `flutter build windows` needs the MSVC
+    # toolchain and the `msstore` CLI is a Windows .NET tool.
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned to match ci.yaml / the other publish workflows.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Build the Windows release FIRST, with IN_SENTRY_DSN baked in at compile
+      # time (String.fromEnvironment, same pattern as every other pipeline).
+      # Empty/unset secret is a safe no-op. This is the ONLY build; the packaging
+      # step is told NOT to rebuild, so this DSN-baked binary is the one that ships.
+      - name: Build Windows release
+        run: flutter build windows --release --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+
+      # Package the EXISTING build into an unsigned Store MSIX.
+      #   --build-windows false : do NOT re-run `flutter build windows` (its
+      #     default true would rebuild WITHOUT the dart-define and overwrite the
+      #     DSN-baked binary). Packages build/windows/x64/runner/Release as-is.
+      #   --store : emit an unsigned package the Store re-signs on ingestion
+      #     (matches `store: true` in pubspec msix_config — no .pfx in CI).
+      # MSIX version auto-derives from pubspec `version:` (5.1.3+6 -> 5.1.3.0) and
+      # must strictly increase per submission — bump pubspec before each dispatch.
+      - name: Package MSIX (unsigned, Store)
+        run: dart run msix:create --build-windows false --store
+
+      # Resolve the produced .msix path (the tool names it from pubspec `name:`).
+      - name: Resolve MSIX path
+        id: msix
+        shell: pwsh
+        run: |
+          $pkg = Get-ChildItem -Path build/windows/x64/runner/Release -Filter *.msix -Recurse | Select-Object -First 1
+          if (-not $pkg) { Write-Error "::error::No .msix produced by msix:create"; exit 1 }
+          "path=$($pkg.FullName)" >> $env:GITHUB_OUTPUT
+          Write-Host "MSIX: $($pkg.FullName)"
+
+      # Install the Microsoft Store Developer CLI (`msstore`) onto the runner.
+      # @v1.3 is current (Sep 2025); Microsoft's documented CI path (the legacy
+      # store-submission action + Dev Center API are deprecated).
+      - name: Set up Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.3
+
+      # Authenticate with the Partner-Center-linked Microsoft Entra app
+      # registration (Manager role). --sellerId is the Partner Center Seller ID,
+      # NOT the 9N… Store ID. Secrets are passed via env: and referenced as
+      # $env:VAR (quoted) — keeps them off the process argv and tolerates any
+      # special character in the Entra client secret.
+      - name: Configure Microsoft Store Developer CLI
+        shell: pwsh
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+        run: >
+          msstore reconfigure
+          --tenantId "$env:MSSTORE_TENANT_ID"
+          --sellerId "$env:MSSTORE_SELLER_ID"
+          --clientId "$env:MSSTORE_CLIENT_ID"
+          --clientSecret "$env:MSSTORE_CLIENT_SECRET"
+
+      # Upload the MSIX and COMMIT the submission (no --noCommit): it goes to
+      # certification automatically and publishes to the live (restricted)
+      # listing once certified.
+      #   -i      : the exact .msix to publish.
+      #   --appId : the Partner Center PRODUCT ID (~12 chars, app Overview page) —
+      #             NOT the 9NG93WNXN797 Store ID. Required (repo never ran
+      #             `msstore init`).
+      - name: Publish MSIX to Microsoft Store
+        shell: pwsh
+        env:
+          MS_STORE_PRODUCT_ID: ${{ secrets.MS_STORE_PRODUCT_ID }}
+        run: msstore publish -i "${{ steps.msix.outputs.path }}" --appId "$env:MS_STORE_PRODUCT_ID"
+
+      # msstore stores the client secret in the Windows Credential Vault (not a
+      # file), so `reconfigure --reset` is the only thing that actually clears it.
+      # Defense-in-depth on an ephemeral runner; never fail the job over cleanup
+      # (tolerate msstore being absent if an earlier step failed).
+      - name: Reset Store CLI credentials
+        if: always()
+        shell: pwsh
+        run: |
+          try { msstore reconfigure --reset } catch { }
+          exit 0

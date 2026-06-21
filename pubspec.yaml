@@ -156,7 +156,7 @@ flutter:
 # pubspec `name:` and the Store rejects the PublisherDisplayName mismatch.
 # `store: true` emits an unsigned package (the Store re-signs on ingestion — no
 # self-signed certificate). `msix_version` is auto-derived from `version:` above
-# as 5.1.2.0; bump `version:` for each new submission. `display_name` is plain
+# as 5.1.3.0; bump `version:` for each new submission. `display_name` is plain
 # "Invoice Ninja" (no "beta"). Logo intentionally omitted for now — see the plan;
 # no finished square PNG exists yet, so the first submission ships the default.
 msix_config:

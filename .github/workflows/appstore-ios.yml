@@ -1,0 +1,140 @@
+name: Deploy to TestFlight (iOS)
+
+# Manual only — building + uploading a signed .ipa is a deliberate release
+# action, not a per-push gate. Mirrors playstore.yml / snapcraft.yml. Uploads to
+# TestFlight (the testing channel), the Apple analogue of the snap's `edge` and
+# Play's `internal`: testers get it automatically, NOTHING is submitted for App
+# Store review. Promote to App Store review by hand in App Store Connect.
+on:
+  workflow_dispatch:
+
+# Least privilege: this job only checks out code, builds, and uploads to an
+# external store. It never writes back to the repo.
+permissions:
+  contents: read
+
+jobs:
+  deploy-ios:
+    name: Build and Upload iOS to TestFlight
+    # Same runner + Xcode select as the CI `apple` job. 10x-billed macOS minutes,
+    # but a release dispatch is deliberate and infrequent.
+    runs-on: macos-26
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned to match ci.yaml / playstore.yml / snapcraft.yml.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      # Same Xcode the CI `apple` job pins — don't let a runner-image default
+      # silently change the toolchain a shipped release is built with.
+      - name: Select Xcode 26.4.1
+        run: sudo xcode-select -s /Applications/Xcode_26.4.1.app
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Import the Apple Distribution cert (+ private key) into a TEMPORARY
+      # keychain (default `signing_temp`, auto-unlocked + on the search list —
+      # avoids the headless "user interaction is not allowed" codesign failure).
+      - name: Import distribution certificate
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+
+      # Install the App Store profile for com.invoiceninja.admin. It MUST embed
+      # the cert above AND the Sign in with Apple capability, or export fails.
+      # Mirrors the Android keystore-from-base64 injection: CI holds zero signing
+      # material until here; the decoded profile is wiped at the end.
+      - name: Install provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.IOS_APPSTORE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PROFILE_BASE64:-}" ]; then
+            echo "::error::IOS_APPSTORE_PROVISIONING_PROFILE_BASE64 is empty — cannot sign for the App Store." >&2
+            exit 1
+          fi
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo "$PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/appstore.mobileprovision"
+
+      # --config-only writes the build settings (incl. the IN_SENTRY_DSN
+      # dart-define, baked into the AOT binary at compile time) WITHOUT building,
+      # so we can drive a MANUAL-signed archive ourselves. `flutter build ipa`
+      # would do archive+export in one shot using the project's AUTOMATIC signing
+      # for the archive — which fails on a headless runner with no Apple-account
+      # session (the manual ExportOptions only governs the export re-sign, not the
+      # archive). Empty/unset DSN secret is a safe no-op (Sentry stays disabled).
+      - name: Configure iOS release build
+        run: flutter build ios --release --config-only --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+
+      # Archive with MANUAL signing overrides on the command line so the tracked
+      # pbxproj (Automatic / "Apple Development") is untouched. No
+      # -allowProvisioningUpdates: its ABSENCE means xcodebuild never phones home
+      # and uses exactly the injected cert + profile.
+      - name: Archive iOS app (signed for distribution)
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM=NPC44Y2C98 \
+            PROVISIONING_PROFILE_SPECIFIER="Invoice Ninja Admin App Store"
+
+      # Export a signed App Store .ipa via the committed secret-free
+      # ios/ExportOptions.plist (method=app-store, signingStyle=manual, the
+      # profile NAME). CFBundleVersion (pubspec +N) must strictly increase per
+      # upload — bump pubspec before each dispatch.
+      - name: Export App Store .ipa
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath build/ios/ipa
+          ls -la build/ios/ipa
+
+      # Resolve the exact .ipa path — Xcode names it after CFBundleDisplayName
+      # ("Admin" here), and the upload action stat's app-path LITERALLY (it does
+      # NOT expand globs), so a "*.ipa" would ENOENT.
+      - name: Resolve .ipa path
+        id: ipa
+        run: |
+          set -euo pipefail
+          IPA=$(ls build/ios/ipa/*.ipa | head -n1)
+          if [ -z "$IPA" ]; then echo "::error::No .ipa produced by -exportArchive" >&2; exit 1; fi
+          echo "path=$IPA" >> "$GITHUB_OUTPUT"
+
+      # Upload to TestFlight (does NOT submit for App Store review — testers get
+      # it on the testing channel). api-private-key is the RAW .p8 text (NOT
+      # base64). ITSAppUsesNonExemptEncryption=false is already in Info.plist, so
+      # the export-compliance TestFlight gate is pre-cleared.
+      - name: Upload to TestFlight
+        uses: apple-actions/upload-testflight-build@v5
+        with:
+          app-type: ios
+          app-path: ${{ steps.ipa.outputs.path }}
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+
+      # Best practice even on an ephemeral runner: wipe the decoded profile so it
+      # can't survive into a cache or an uploaded artifact. The temp keychain dies
+      # with the runner; the .ipa under build/ is gitignored and not uploaded.
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/appstore.mobileprovision"

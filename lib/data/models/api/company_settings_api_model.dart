@@ -257,6 +257,9 @@ abstract class CompanySettingsApi with _$CompanySettingsApi {
     @JsonKey(name: 'auto_archive_quote') bool? autoArchiveQuote,
     @JsonKey(name: 'auto_convert_quote') bool? autoConvertQuote,
     @JsonKey(name: 'auto_email_invoice') bool? autoEmailInvoice,
+    // Server-side tag cascade on create (BaseRepository); the client only
+    // persists the toggle — see Settings → Workflow Settings.
+    @JsonKey(name: 'global_tag_inheritance') bool? globalTagInheritance,
     @JsonKey(name: 'auto_bill_standard_invoices')
     bool? autoBillStandardInvoices,
     @JsonKey(name: 'auto_bill') String? autoBill,
@@ -482,6 +485,7 @@ const Set<String> _settingsBoolKeys = {
   'auto_archive_quote',
   'auto_convert_quote',
   'auto_email_invoice',
+  'global_tag_inheritance',
   'auto_bill_standard_invoices',
   'show_accept_invoice_terms',
   'show_accept_quote_terms',

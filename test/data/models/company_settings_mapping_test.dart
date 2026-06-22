@@ -86,6 +86,16 @@ void main() {
       expect(reparsed.franceReportingEnabled, true);
       expect(reparsed.franceReportingSchedule, 'monthly');
     });
+
+    test('round-trips global_tag_inheritance', () {
+      final parsed = CompanySettingsApi.fromJson({
+        'global_tag_inheritance': true,
+      });
+      expect(parsed.globalTagInheritance, true);
+
+      final reparsed = CompanySettingsApi.fromJson(parsed.toJson());
+      expect(reparsed.globalTagInheritance, true);
+    });
   });
 
   group('CompanySettingsApi.fromJsonLenient', () {
@@ -114,6 +124,7 @@ void main() {
         'inclusive_taxes': '1',
         'auto_archive_invoice': '0',
         'france_reporting_enabled': 1,
+        'global_tag_inheritance': 1,
       });
       expect(parsed.militaryTime, true);
       expect(parsed.enableReminder1, false);
@@ -122,6 +133,7 @@ void main() {
       expect(parsed.inclusiveTaxes, true);
       expect(parsed.autoArchiveInvoice, false);
       expect(parsed.franceReportingEnabled, true);
+      expect(parsed.globalTagInheritance, true);
     });
 
     test('drops unparseable numeric strings instead of crashing', () {

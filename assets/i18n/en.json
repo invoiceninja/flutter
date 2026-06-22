@@ -548,6 +548,8 @@
   "auto_convert_quote_help": "Automatically convert a quote to an invoice when approved.",
   "auto_email_invoice": "Auto Email",
   "auto_email_invoice_help": "Automatically email recurring invoices when created.",
+  "global_tag_inheritance": "Global Tag Inheritance",
+  "global_tag_inheritance_help": "When enabled, a global tag on a parent record (client, vendor or project) is automatically applied to invoices, tasks, expenses and other records created from it. Tags are applied only on create.",
   "auto_expand_product_table_notes": "Automatically expand products table notes",
   "auto_expand_product_table_notes_help": "Automatically expands the notes section within the products table to display more lines.",
   "auto_generate": "Auto Generate",

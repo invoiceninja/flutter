@@ -19,12 +19,20 @@ const kWorkflowSettingsInvoicesSearchKeys = <String>[
   'auto_archive_paid_invoices',
   'auto_archive_cancelled_invoices',
   'lock_invoices',
+  'global_tag_inheritance',
 ];
 
 /// Invoice-side workflow toggles. Four cascade-aware booleans (`settings.*`)
 /// plus the lock-invoices enum dropdown. The fifth row,
 /// `stop_on_unpaid_recurring`, is a top-level `Company` field and only
 /// renders at company scope.
+///
+/// A separate "Tags" section hosts the `global_tag_inheritance` toggle. The
+/// server reads it company-level via `Company::getSetting()` (no client/group
+/// cascade — the field isn't in `ClientSettings`/`GroupSettings`), so like
+/// `stop_on_unpaid_recurring` it renders only at company scope. The server
+/// applies the actual tag cascade on entity create; the client only persists
+/// the flag.
 ///
 /// `lock_invoices` is force-locked to `when_sent` when the Spanish VeriFactu
 /// e-invoice integration is active (`settings.e_invoice_type == 'VERIFACTU'`)
@@ -105,6 +113,21 @@ class WorkflowSettingsInvoicesBody extends StatelessWidget {
               ),
           ],
         ),
+        // Company-scope only: the server reads this via `Company::getSetting()`
+        // (no client/group cascade — the field isn't in ClientSettings /
+        // GroupSettings), so a per-client override would be silently ignored.
+        // Same company-only treatment as `stop_on_unpaid` above.
+        if (isCompanyScope)
+          FormSection(
+            title: context.tr('tags'),
+            children: [
+              OverridableSwitchField(
+                label: context.tr('global_tag_inheritance'),
+                apiKey: 'global_tag_inheritance',
+                subtitle: context.tr('global_tag_inheritance_help'),
+              ),
+            ],
+          ),
       ],
     );
   }

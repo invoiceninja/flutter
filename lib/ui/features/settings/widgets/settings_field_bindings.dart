@@ -366,6 +366,10 @@ final Map<String, SettingsBinding> _bindings = <String, SettingsBinding>{
     read: (s) => s.autoEmailInvoice?.toString(),
     write: (s, v) => s.copyWith(autoEmailInvoice: _parseBool(v)),
   ),
+  'global_tag_inheritance': (
+    read: (s) => s.globalTagInheritance?.toString(),
+    write: (s, v) => s.copyWith(globalTagInheritance: _parseBool(v)),
+  ),
   'auto_archive_invoice': (
     read: (s) => s.autoArchiveInvoice?.toString(),
     write: (s, v) => s.copyWith(autoArchiveInvoice: _parseBool(v)),

@@ -892,6 +892,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Auto Archive Paid Invoices | ✅ | ✅ | ✅ | ✅ | |
 | Auto Archive Cancelled Invoices | ✅ | ✅ | ✅ | ✅ | |
 | Lock Invoices (off / when sent / when paid / end of month) | ✅ | ✅ | ✅ | ✅ | Enforced: client-side cascade computation hard-blocks edit entry (action menu + deep-link guard) + repo/outbox backstop; reason-specific dialog/banner |
+| Global Tag Inheritance | — | — | ✅ |  | Company-level toggle (`settings.global_tag_inheritance`), company scope only — server reads it via `Company::getSetting()`, no client/group cascade. Server applies the tag cascade on entity create (`BaseRepository`); client only persists the flag. App surfaces tags on tasks/projects only today, so the visible effect is limited until tags expand |
 
 #### Workflow Settings — Quotes tab
 

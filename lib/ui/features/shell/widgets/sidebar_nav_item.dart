@@ -119,39 +119,44 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
             ),
           )
         : Padding(
+            // No fixed row height. The 18px icon sets the row's minimum and
+            // the label is free to grow with the text scaler. A hard
+            // `SizedBox(height: 18)` here used to clamp the label's line box
+            // and slice the descenders once the user's text size pushed it
+            // past 18px — the app offers Large/Extra-Large and the OS
+            // accessibility scaler passes through unclamped; at the default
+            // (Normal) size the icon already pins the row to 18px, so this is
+            // a no-op there. Regression: sidebar_nav_item_test.dart.
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            child: SizedBox(
-              height: 18,
-              child: Row(
-                children: [
-                  iconWidget,
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: widget.active
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        color: fg,
-                      ),
+            child: Row(
+              children: [
+                iconWidget,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: widget.active
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: fg,
                     ),
                   ),
-                  if (widget.trailing != null) ...[
-                    const SizedBox(width: 4),
-                    widget.trailing!,
-                  ] else if (_showsTrailingHover && _hovered) ...[
-                    const SizedBox(width: 4),
-                    widget.trailingHover!,
-                  ] else if (widget.count != null && widget.count! > 0) ...[
-                    const SizedBox(width: 6),
-                    _Badge(count: widget.count!, active: widget.active),
-                  ],
+                ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 4),
+                  widget.trailing!,
+                ] else if (_showsTrailingHover && _hovered) ...[
+                  const SizedBox(width: 4),
+                  widget.trailingHover!,
+                ] else if (widget.count != null && widget.count! > 0) ...[
+                  const SizedBox(width: 6),
+                  _Badge(count: widget.count!, active: widget.active),
                 ],
-              ),
+              ],
             ),
           );
     final tile = Material(

@@ -16,6 +16,18 @@ Widget _wrap(Widget child) => MaterialApp(
   home: Scaffold(body: child),
 );
 
+/// Overrides only the text scaler for [child] so a row can be measured at the
+/// app's Large / Extra-Large text sizes (the device text-scale preference and
+/// the OS accessibility scaler both feed `MediaQuery.textScaler`).
+Widget _scaled(double factor, Widget child) => Builder(
+  builder: (context) => MediaQuery(
+    data: MediaQuery.of(
+      context,
+    ).copyWith(textScaler: TextScaler.linear(factor)),
+    child: child,
+  ),
+);
+
 void main() {
   testWidgets('trailingHover is hidden until the mouse enters, shown on hover, '
       'hidden again on exit', (tester) async {
@@ -266,4 +278,53 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('persistent')), findsNothing);
   });
+
+  testWidgets(
+    'label is not vertically clamped at large text scale — descenders stay '
+    'visible (the row sizes to the text, not a fixed height)',
+    (tester) async {
+      const label = 'Payments'; // has p / y descenders
+      // 2.0 is well past the ~1.14 scale where Inter Tight's line box first
+      // exceeds the row; the assertion holds for any font with a clear margin.
+      const scale = 2.0;
+
+      // Natural, unconstrained single-line height of the label at this scale.
+      await tester.pumpWidget(
+        _wrap(
+          _scaled(
+            scale,
+            const Align(
+              alignment: Alignment.topLeft,
+              child: Text(label, style: TextStyle(fontSize: 13)),
+            ),
+          ),
+        ),
+      );
+      final naturalHeight = tester.getSize(find.text(label)).height;
+
+      // The same label inside the real nav row.
+      await tester.pumpWidget(
+        _wrap(
+          _scaled(
+            scale,
+            SidebarNavItem(
+              label: label,
+              icon: Icons.payments_outlined,
+              active: false,
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+      final rowTextHeight = tester.getSize(find.text(label)).height;
+
+      expect(
+        rowTextHeight,
+        greaterThanOrEqualTo(naturalHeight - 0.5),
+        reason:
+            'a fixed-height clamp on the row slices the label at large text '
+            'scale; the row must grow to give the text its full line box',
+      );
+    },
+  );
 }

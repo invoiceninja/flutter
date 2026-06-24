@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'token_api_model.freezed.dart';
 part 'token_api_model.g.dart';
 
@@ -33,8 +35,9 @@ abstract class TokenApi with _$TokenApi {
 /// `GET /tokens` envelope.
 @freezed
 abstract class TokenListApi with _$TokenListApi {
-  const factory TokenListApi({@Default([]) List<TokenApi> data}) =
-      _TokenListApi;
+  const factory TokenListApi({
+    @JsonKey(fromJson: _tokenListData) @Default([]) List<TokenApi> data,
+  }) = _TokenListApi;
 
   factory TokenListApi.fromJson(Map<String, dynamic> json) =>
       _$TokenListApiFromJson(json);
@@ -48,3 +51,6 @@ abstract class TokenItemApi with _$TokenItemApi {
   factory TokenItemApi.fromJson(Map<String, dynamic> json) =>
       _$TokenItemApiFromJson(json);
 }
+
+List<TokenApi> _tokenListData(Object? raw) =>
+    tolerantList(raw, TokenApi.fromJson, label: 'token');

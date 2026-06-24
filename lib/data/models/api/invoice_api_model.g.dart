@@ -177,11 +177,9 @@ Map<String, dynamic> _$InvoiceApiToJson(_InvoiceApi instance) =>
 
 _InvoiceListApi _$InvoiceListApiFromJson(Map<String, dynamic> json) =>
     _InvoiceListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => InvoiceApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <InvoiceApi>[],
+      data: json['data'] == null
+          ? const <InvoiceApi>[]
+          : _invoiceListData(json['data']),
     );
 
 Map<String, dynamic> _$InvoiceListApiToJson(_InvoiceListApi instance) =>

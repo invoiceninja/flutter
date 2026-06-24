@@ -32,11 +32,7 @@ Map<String, dynamic> _$TokenApiToJson(_TokenApi instance) => <String, dynamic>{
 
 _TokenListApi _$TokenListApiFromJson(Map<String, dynamic> json) =>
     _TokenListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => TokenApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _tokenListData(json['data']),
     );
 
 Map<String, dynamic> _$TokenListApiToJson(_TokenListApi instance) =>

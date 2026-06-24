@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'expense_category_api_model.freezed.dart';
 part 'expense_category_api_model.g.dart';
 
@@ -33,7 +35,9 @@ abstract class ExpenseCategoryApi with _$ExpenseCategoryApi {
 @freezed
 abstract class ExpenseCategoryListApi with _$ExpenseCategoryListApi {
   const factory ExpenseCategoryListApi({
-    @Default([]) List<ExpenseCategoryApi> data,
+    @JsonKey(fromJson: _expenseCategoryListData)
+    @Default([])
+    List<ExpenseCategoryApi> data,
   }) = _ExpenseCategoryListApi;
 
   factory ExpenseCategoryListApi.fromJson(Map<String, dynamic> json) =>
@@ -49,3 +53,6 @@ abstract class ExpenseCategoryItemApi with _$ExpenseCategoryItemApi {
   factory ExpenseCategoryItemApi.fromJson(Map<String, dynamic> json) =>
       _$ExpenseCategoryItemApiFromJson(json);
 }
+
+List<ExpenseCategoryApi> _expenseCategoryListData(Object? raw) =>
+    tolerantList(raw, ExpenseCategoryApi.fromJson, label: 'expense_category');

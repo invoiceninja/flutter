@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 
 part 'group_setting_api_model.freezed.dart';
 part 'group_setting_api_model.g.dart';
@@ -38,8 +39,11 @@ abstract class GroupSettingApi with _$GroupSettingApi {
 /// `GET /group_settings` response envelope.
 @freezed
 abstract class GroupSettingListApi with _$GroupSettingListApi {
-  const factory GroupSettingListApi({@Default([]) List<GroupSettingApi> data}) =
-      _GroupSettingListApi;
+  const factory GroupSettingListApi({
+    @JsonKey(fromJson: _groupSettingListData)
+    @Default([])
+    List<GroupSettingApi> data,
+  }) = _GroupSettingListApi;
 
   factory GroupSettingListApi.fromJson(Map<String, dynamic> json) =>
       _$GroupSettingListApiFromJson(json);
@@ -54,3 +58,6 @@ abstract class GroupSettingItemApi with _$GroupSettingItemApi {
   factory GroupSettingItemApi.fromJson(Map<String, dynamic> json) =>
       _$GroupSettingItemApiFromJson(json);
 }
+
+List<GroupSettingApi> _groupSettingListData(Object? raw) =>
+    tolerantList(raw, GroupSettingApi.fromJson, label: 'group_setting');

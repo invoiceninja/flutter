@@ -342,7 +342,7 @@ as List<DocumentApi>?,
 /// @nodoc
 mixin _$GroupSettingListApi {
 
- List<GroupSettingApi> get data;
+@JsonKey(fromJson: _groupSettingListData) List<GroupSettingApi> get data;
 /// Create a copy of GroupSettingListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -375,7 +375,7 @@ abstract mixin class $GroupSettingListApiCopyWith<$Res>  {
   factory $GroupSettingListApiCopyWith(GroupSettingListApi value, $Res Function(GroupSettingListApi) _then) = _$GroupSettingListApiCopyWithImpl;
 @useResult
 $Res call({
- List<GroupSettingApi> data
+@JsonKey(fromJson: _groupSettingListData) List<GroupSettingApi> data
 });
 
 
@@ -480,7 +480,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<GroupSettingApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _groupSettingListData)  List<GroupSettingApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _GroupSettingListApi() when $default != null:
 return $default(_that.data);case _:
@@ -501,7 +501,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<GroupSettingApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _groupSettingListData)  List<GroupSettingApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _GroupSettingListApi():
 return $default(_that.data);case _:
@@ -521,7 +521,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<GroupSettingApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _groupSettingListData)  List<GroupSettingApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _GroupSettingListApi() when $default != null:
 return $default(_that.data);case _:
@@ -536,11 +536,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _GroupSettingListApi implements GroupSettingListApi {
-  const _GroupSettingListApi({final  List<GroupSettingApi> data = const []}): _data = data;
+  const _GroupSettingListApi({@JsonKey(fromJson: _groupSettingListData) final  List<GroupSettingApi> data = const []}): _data = data;
   factory _GroupSettingListApi.fromJson(Map<String, dynamic> json) => _$GroupSettingListApiFromJson(json);
 
  final  List<GroupSettingApi> _data;
-@override@JsonKey() List<GroupSettingApi> get data {
+@override@JsonKey(fromJson: _groupSettingListData) List<GroupSettingApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -580,7 +580,7 @@ abstract mixin class _$GroupSettingListApiCopyWith<$Res> implements $GroupSettin
   factory _$GroupSettingListApiCopyWith(_GroupSettingListApi value, $Res Function(_GroupSettingListApi) _then) = __$GroupSettingListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<GroupSettingApi> data
+@JsonKey(fromJson: _groupSettingListData) List<GroupSettingApi> data
 });
 
 

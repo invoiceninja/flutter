@@ -672,7 +672,7 @@ as String,
 /// @nodoc
 mixin _$TaskListApi {
 
- List<TaskApi> get data;
+@JsonKey(fromJson: _taskListData) List<TaskApi> get data;
 /// Create a copy of TaskListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -705,7 +705,7 @@ abstract mixin class $TaskListApiCopyWith<$Res>  {
   factory $TaskListApiCopyWith(TaskListApi value, $Res Function(TaskListApi) _then) = _$TaskListApiCopyWithImpl;
 @useResult
 $Res call({
- List<TaskApi> data
+@JsonKey(fromJson: _taskListData) List<TaskApi> data
 });
 
 
@@ -810,7 +810,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<TaskApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _taskListData)  List<TaskApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TaskListApi() when $default != null:
 return $default(_that.data);case _:
@@ -831,7 +831,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<TaskApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _taskListData)  List<TaskApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _TaskListApi():
 return $default(_that.data);case _:
@@ -851,7 +851,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<TaskApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _taskListData)  List<TaskApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _TaskListApi() when $default != null:
 return $default(_that.data);case _:
@@ -866,11 +866,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _TaskListApi implements TaskListApi {
-  const _TaskListApi({final  List<TaskApi> data = const []}): _data = data;
+  const _TaskListApi({@JsonKey(fromJson: _taskListData) final  List<TaskApi> data = const []}): _data = data;
   factory _TaskListApi.fromJson(Map<String, dynamic> json) => _$TaskListApiFromJson(json);
 
  final  List<TaskApi> _data;
-@override@JsonKey() List<TaskApi> get data {
+@override@JsonKey(fromJson: _taskListData) List<TaskApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -910,7 +910,7 @@ abstract mixin class _$TaskListApiCopyWith<$Res> implements $TaskListApiCopyWith
   factory _$TaskListApiCopyWith(_TaskListApi value, $Res Function(_TaskListApi) _then) = __$TaskListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<TaskApi> data
+@JsonKey(fromJson: _taskListData) List<TaskApi> data
 });
 
 

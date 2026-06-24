@@ -129,11 +129,9 @@ Map<String, dynamic> _$PurchaseOrderApiToJson(_PurchaseOrderApi instance) =>
 _PurchaseOrderListApi _$PurchaseOrderListApiFromJson(
   Map<String, dynamic> json,
 ) => _PurchaseOrderListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => PurchaseOrderApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <PurchaseOrderApi>[],
+  data: json['data'] == null
+      ? const <PurchaseOrderApi>[]
+      : _purchaseOrderListData(json['data']),
 );
 
 Map<String, dynamic> _$PurchaseOrderListApiToJson(

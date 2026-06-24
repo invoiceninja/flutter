@@ -376,7 +376,7 @@ as List<DocumentApi>?,
 /// @nodoc
 mixin _$ProductListApi {
 
- List<ProductApi> get data;
+@JsonKey(fromJson: _productListData) List<ProductApi> get data;
 /// Create a copy of ProductListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -409,7 +409,7 @@ abstract mixin class $ProductListApiCopyWith<$Res>  {
   factory $ProductListApiCopyWith(ProductListApi value, $Res Function(ProductListApi) _then) = _$ProductListApiCopyWithImpl;
 @useResult
 $Res call({
- List<ProductApi> data
+@JsonKey(fromJson: _productListData) List<ProductApi> data
 });
 
 
@@ -514,7 +514,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ProductApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _productListData)  List<ProductApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ProductListApi() when $default != null:
 return $default(_that.data);case _:
@@ -535,7 +535,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ProductApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _productListData)  List<ProductApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _ProductListApi():
 return $default(_that.data);case _:
@@ -555,7 +555,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ProductApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _productListData)  List<ProductApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _ProductListApi() when $default != null:
 return $default(_that.data);case _:
@@ -570,11 +570,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ProductListApi implements ProductListApi {
-  const _ProductListApi({final  List<ProductApi> data = const []}): _data = data;
+  const _ProductListApi({@JsonKey(fromJson: _productListData) final  List<ProductApi> data = const []}): _data = data;
   factory _ProductListApi.fromJson(Map<String, dynamic> json) => _$ProductListApiFromJson(json);
 
  final  List<ProductApi> _data;
-@override@JsonKey() List<ProductApi> get data {
+@override@JsonKey(fromJson: _productListData) List<ProductApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -614,7 +614,7 @@ abstract mixin class _$ProductListApiCopyWith<$Res> implements $ProductListApiCo
   factory _$ProductListApiCopyWith(_ProductListApi value, $Res Function(_ProductListApi) _then) = __$ProductListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<ProductApi> data
+@JsonKey(fromJson: _productListData) List<ProductApi> data
 });
 
 

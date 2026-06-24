@@ -111,11 +111,7 @@ Map<String, dynamic> _$ActivityApiToJson(_ActivityApi instance) =>
 
 _ActivityListApi _$ActivityListApiFromJson(Map<String, dynamic> json) =>
     _ActivityListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => ActivityApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _activityListData(json['data']),
     );
 
 Map<String, dynamic> _$ActivityListApiToJson(_ActivityListApi instance) =>

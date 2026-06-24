@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'schedule_api_model.freezed.dart';
 part 'schedule_api_model.g.dart';
 
@@ -43,8 +45,9 @@ abstract class ScheduleApi with _$ScheduleApi {
 /// `GET /task_schedulers` response envelope.
 @freezed
 abstract class ScheduleListApi with _$ScheduleListApi {
-  const factory ScheduleListApi({@Default([]) List<ScheduleApi> data}) =
-      _ScheduleListApi;
+  const factory ScheduleListApi({
+    @JsonKey(fromJson: _scheduleListData) @Default([]) List<ScheduleApi> data,
+  }) = _ScheduleListApi;
 
   factory ScheduleListApi.fromJson(Map<String, dynamic> json) =>
       _$ScheduleListApiFromJson(json);
@@ -58,3 +61,6 @@ abstract class ScheduleItemApi with _$ScheduleItemApi {
   factory ScheduleItemApi.fromJson(Map<String, dynamic> json) =>
       _$ScheduleItemApiFromJson(json);
 }
+
+List<ScheduleApi> _scheduleListData(Object? raw) =>
+    tolerantList(raw, ScheduleApi.fromJson, label: 'schedule');

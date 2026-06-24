@@ -46,11 +46,9 @@ Map<String, dynamic> _$GroupSettingApiToJson(_GroupSettingApi instance) =>
 
 _GroupSettingListApi _$GroupSettingListApiFromJson(Map<String, dynamic> json) =>
     _GroupSettingListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => GroupSettingApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null
+          ? const []
+          : _groupSettingListData(json['data']),
     );
 
 Map<String, dynamic> _$GroupSettingListApiToJson(

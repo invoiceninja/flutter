@@ -432,7 +432,7 @@ as int,
 /// @nodoc
 mixin _$PurchaseOrderListApi {
 
- List<PurchaseOrderApi> get data;
+@JsonKey(fromJson: _purchaseOrderListData) List<PurchaseOrderApi> get data;
 /// Create a copy of PurchaseOrderListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -465,7 +465,7 @@ abstract mixin class $PurchaseOrderListApiCopyWith<$Res>  {
   factory $PurchaseOrderListApiCopyWith(PurchaseOrderListApi value, $Res Function(PurchaseOrderListApi) _then) = _$PurchaseOrderListApiCopyWithImpl;
 @useResult
 $Res call({
- List<PurchaseOrderApi> data
+@JsonKey(fromJson: _purchaseOrderListData) List<PurchaseOrderApi> data
 });
 
 
@@ -570,7 +570,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<PurchaseOrderApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _purchaseOrderListData)  List<PurchaseOrderApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PurchaseOrderListApi() when $default != null:
 return $default(_that.data);case _:
@@ -591,7 +591,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<PurchaseOrderApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _purchaseOrderListData)  List<PurchaseOrderApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _PurchaseOrderListApi():
 return $default(_that.data);case _:
@@ -611,7 +611,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<PurchaseOrderApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _purchaseOrderListData)  List<PurchaseOrderApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _PurchaseOrderListApi() when $default != null:
 return $default(_that.data);case _:
@@ -626,11 +626,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _PurchaseOrderListApi implements PurchaseOrderListApi {
-  const _PurchaseOrderListApi({final  List<PurchaseOrderApi> data = const <PurchaseOrderApi>[]}): _data = data;
+  const _PurchaseOrderListApi({@JsonKey(fromJson: _purchaseOrderListData) final  List<PurchaseOrderApi> data = const <PurchaseOrderApi>[]}): _data = data;
   factory _PurchaseOrderListApi.fromJson(Map<String, dynamic> json) => _$PurchaseOrderListApiFromJson(json);
 
  final  List<PurchaseOrderApi> _data;
-@override@JsonKey() List<PurchaseOrderApi> get data {
+@override@JsonKey(fromJson: _purchaseOrderListData) List<PurchaseOrderApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -670,7 +670,7 @@ abstract mixin class _$PurchaseOrderListApiCopyWith<$Res> implements $PurchaseOr
   factory _$PurchaseOrderListApiCopyWith(_PurchaseOrderListApi value, $Res Function(_PurchaseOrderListApi) _then) = __$PurchaseOrderListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<PurchaseOrderApi> data
+@JsonKey(fromJson: _purchaseOrderListData) List<PurchaseOrderApi> data
 });
 
 

@@ -37,11 +37,7 @@ Map<String, dynamic> _$WebhookApiToJson(_WebhookApi instance) =>
 
 _WebhookListApi _$WebhookListApiFromJson(Map<String, dynamic> json) =>
     _WebhookListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => WebhookApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _webhookListData(json['data']),
     );
 
 Map<String, dynamic> _$WebhookListApiToJson(_WebhookListApi instance) =>

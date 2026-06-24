@@ -118,11 +118,9 @@ Map<String, dynamic> _$WebhookConfigurationApiToJson(
 
 _SubscriptionListApi _$SubscriptionListApiFromJson(Map<String, dynamic> json) =>
     _SubscriptionListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => SubscriptionApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null
+          ? const []
+          : _subscriptionListData(json['data']),
     );
 
 Map<String, dynamic> _$SubscriptionListApiToJson(

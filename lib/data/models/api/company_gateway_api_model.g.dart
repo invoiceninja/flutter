@@ -107,11 +107,7 @@ Map<String, dynamic> _$CompanyGatewayApiToJson(_CompanyGatewayApi instance) =>
 _CompanyGatewayListApi _$CompanyGatewayListApiFromJson(
   Map<String, dynamic> json,
 ) => _CompanyGatewayListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => CompanyGatewayApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+  data: json['data'] == null ? const [] : _companyGatewayListData(json['data']),
 );
 
 Map<String, dynamic> _$CompanyGatewayListApiToJson(

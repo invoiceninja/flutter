@@ -1235,7 +1235,7 @@ as String,amount: null == amount ? _self.amount : amount ,balance: null == balan
 /// @nodoc
 mixin _$PaymentListApi {
 
- List<PaymentApi> get data;
+@JsonKey(fromJson: _paymentListData) List<PaymentApi> get data;
 /// Create a copy of PaymentListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1268,7 +1268,7 @@ abstract mixin class $PaymentListApiCopyWith<$Res>  {
   factory $PaymentListApiCopyWith(PaymentListApi value, $Res Function(PaymentListApi) _then) = _$PaymentListApiCopyWithImpl;
 @useResult
 $Res call({
- List<PaymentApi> data
+@JsonKey(fromJson: _paymentListData) List<PaymentApi> data
 });
 
 
@@ -1373,7 +1373,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<PaymentApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _paymentListData)  List<PaymentApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PaymentListApi() when $default != null:
 return $default(_that.data);case _:
@@ -1394,7 +1394,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<PaymentApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _paymentListData)  List<PaymentApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _PaymentListApi():
 return $default(_that.data);case _:
@@ -1414,7 +1414,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<PaymentApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _paymentListData)  List<PaymentApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _PaymentListApi() when $default != null:
 return $default(_that.data);case _:
@@ -1429,11 +1429,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _PaymentListApi implements PaymentListApi {
-  const _PaymentListApi({final  List<PaymentApi> data = const []}): _data = data;
+  const _PaymentListApi({@JsonKey(fromJson: _paymentListData) final  List<PaymentApi> data = const []}): _data = data;
   factory _PaymentListApi.fromJson(Map<String, dynamic> json) => _$PaymentListApiFromJson(json);
 
  final  List<PaymentApi> _data;
-@override@JsonKey() List<PaymentApi> get data {
+@override@JsonKey(fromJson: _paymentListData) List<PaymentApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -1473,7 +1473,7 @@ abstract mixin class _$PaymentListApiCopyWith<$Res> implements $PaymentListApiCo
   factory _$PaymentListApiCopyWith(_PaymentListApi value, $Res Function(_PaymentListApi) _then) = __$PaymentListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<PaymentApi> data
+@JsonKey(fromJson: _paymentListData) List<PaymentApi> data
 });
 
 

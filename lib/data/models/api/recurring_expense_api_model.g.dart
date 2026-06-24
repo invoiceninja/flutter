@@ -134,11 +134,9 @@ Map<String, dynamic> _$RecurringDateApiToJson(_RecurringDateApi instance) =>
 _RecurringExpenseListApi _$RecurringExpenseListApiFromJson(
   Map<String, dynamic> json,
 ) => _RecurringExpenseListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => RecurringExpenseApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+  data: json['data'] == null
+      ? const []
+      : _recurringExpenseListData(json['data']),
 );
 
 Map<String, dynamic> _$RecurringExpenseListApiToJson(

@@ -30,11 +30,9 @@ Map<String, dynamic> _$PaymentTermApiToJson(_PaymentTermApi instance) =>
 
 _PaymentTermListApi _$PaymentTermListApiFromJson(Map<String, dynamic> json) =>
     _PaymentTermListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => PaymentTermApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null
+          ? const []
+          : _paymentTermListData(json['data']),
     );
 
 Map<String, dynamic> _$PaymentTermListApiToJson(_PaymentTermListApi instance) =>

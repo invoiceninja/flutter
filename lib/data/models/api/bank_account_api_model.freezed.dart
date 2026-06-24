@@ -321,7 +321,7 @@ as int,
 /// @nodoc
 mixin _$BankAccountListApi {
 
- List<BankAccountApi> get data;
+@JsonKey(fromJson: _bankAccountListData) List<BankAccountApi> get data;
 /// Create a copy of BankAccountListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -354,7 +354,7 @@ abstract mixin class $BankAccountListApiCopyWith<$Res>  {
   factory $BankAccountListApiCopyWith(BankAccountListApi value, $Res Function(BankAccountListApi) _then) = _$BankAccountListApiCopyWithImpl;
 @useResult
 $Res call({
- List<BankAccountApi> data
+@JsonKey(fromJson: _bankAccountListData) List<BankAccountApi> data
 });
 
 
@@ -459,7 +459,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<BankAccountApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _bankAccountListData)  List<BankAccountApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BankAccountListApi() when $default != null:
 return $default(_that.data);case _:
@@ -480,7 +480,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<BankAccountApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _bankAccountListData)  List<BankAccountApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _BankAccountListApi():
 return $default(_that.data);case _:
@@ -500,7 +500,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<BankAccountApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _bankAccountListData)  List<BankAccountApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _BankAccountListApi() when $default != null:
 return $default(_that.data);case _:
@@ -515,11 +515,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _BankAccountListApi implements BankAccountListApi {
-  const _BankAccountListApi({final  List<BankAccountApi> data = const []}): _data = data;
+  const _BankAccountListApi({@JsonKey(fromJson: _bankAccountListData) final  List<BankAccountApi> data = const []}): _data = data;
   factory _BankAccountListApi.fromJson(Map<String, dynamic> json) => _$BankAccountListApiFromJson(json);
 
  final  List<BankAccountApi> _data;
-@override@JsonKey() List<BankAccountApi> get data {
+@override@JsonKey(fromJson: _bankAccountListData) List<BankAccountApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -559,7 +559,7 @@ abstract mixin class _$BankAccountListApiCopyWith<$Res> implements $BankAccountL
   factory _$BankAccountListApiCopyWith(_BankAccountListApi value, $Res Function(_BankAccountListApi) _then) = __$BankAccountListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<BankAccountApi> data
+@JsonKey(fromJson: _bankAccountListData) List<BankAccountApi> data
 });
 
 

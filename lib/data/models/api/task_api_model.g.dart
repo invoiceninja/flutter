@@ -73,11 +73,7 @@ Map<String, dynamic> _$TaskMetaApiToJson(_TaskMetaApi instance) =>
     <String, dynamic>{'calendar_event_id': instance.calendarEventId};
 
 _TaskListApi _$TaskListApiFromJson(Map<String, dynamic> json) => _TaskListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => TaskApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+  data: json['data'] == null ? const [] : _taskListData(json['data']),
 );
 
 Map<String, dynamic> _$TaskListApiToJson(_TaskListApi instance) =>

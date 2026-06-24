@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'design_api_model.freezed.dart';
 part 'design_api_model.g.dart';
 
@@ -145,8 +147,11 @@ abstract class DesignApi with _$DesignApi {
 /// `GET /designs` response envelope.
 @freezed
 abstract class DesignListApi with _$DesignListApi {
-  const factory DesignListApi({@Default(<DesignApi>[]) List<DesignApi> data}) =
-      _DesignListApi;
+  const factory DesignListApi({
+    @JsonKey(fromJson: _designListData)
+    @Default(<DesignApi>[])
+    List<DesignApi> data,
+  }) = _DesignListApi;
 
   factory DesignListApi.fromJson(Map<String, dynamic> json) =>
       _$DesignListApiFromJson(json);
@@ -160,3 +165,6 @@ abstract class DesignItemApi with _$DesignItemApi {
   factory DesignItemApi.fromJson(Map<String, dynamic> json) =>
       _$DesignItemApiFromJson(json);
 }
+
+List<DesignApi> _designListData(Object? raw) =>
+    tolerantList(raw, DesignApi.fromJson, label: 'design');

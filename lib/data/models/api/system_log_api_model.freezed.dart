@@ -305,7 +305,7 @@ as int,
 /// @nodoc
 mixin _$SystemLogListApi {
 
- List<SystemLogApi> get data;
+@JsonKey(fromJson: _systemLogListData) List<SystemLogApi> get data;
 /// Create a copy of SystemLogListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -338,7 +338,7 @@ abstract mixin class $SystemLogListApiCopyWith<$Res>  {
   factory $SystemLogListApiCopyWith(SystemLogListApi value, $Res Function(SystemLogListApi) _then) = _$SystemLogListApiCopyWithImpl;
 @useResult
 $Res call({
- List<SystemLogApi> data
+@JsonKey(fromJson: _systemLogListData) List<SystemLogApi> data
 });
 
 
@@ -443,7 +443,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<SystemLogApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _systemLogListData)  List<SystemLogApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SystemLogListApi() when $default != null:
 return $default(_that.data);case _:
@@ -464,7 +464,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<SystemLogApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _systemLogListData)  List<SystemLogApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _SystemLogListApi():
 return $default(_that.data);case _:
@@ -484,7 +484,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<SystemLogApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _systemLogListData)  List<SystemLogApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _SystemLogListApi() when $default != null:
 return $default(_that.data);case _:
@@ -499,11 +499,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _SystemLogListApi implements SystemLogListApi {
-  const _SystemLogListApi({final  List<SystemLogApi> data = const []}): _data = data;
+  const _SystemLogListApi({@JsonKey(fromJson: _systemLogListData) final  List<SystemLogApi> data = const []}): _data = data;
   factory _SystemLogListApi.fromJson(Map<String, dynamic> json) => _$SystemLogListApiFromJson(json);
 
  final  List<SystemLogApi> _data;
-@override@JsonKey() List<SystemLogApi> get data {
+@override@JsonKey(fromJson: _systemLogListData) List<SystemLogApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -543,7 +543,7 @@ abstract mixin class _$SystemLogListApiCopyWith<$Res> implements $SystemLogListA
   factory _$SystemLogListApiCopyWith(_SystemLogListApi value, $Res Function(_SystemLogListApi) _then) = __$SystemLogListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<SystemLogApi> data
+@JsonKey(fromJson: _systemLogListData) List<SystemLogApi> data
 });
 
 

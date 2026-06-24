@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'transaction_rule_api_model.freezed.dart';
 part 'transaction_rule_api_model.g.dart';
 
@@ -56,7 +58,9 @@ abstract class TransactionRuleApi with _$TransactionRuleApi {
 @freezed
 abstract class TransactionRuleListApi with _$TransactionRuleListApi {
   const factory TransactionRuleListApi({
-    @Default([]) List<TransactionRuleApi> data,
+    @JsonKey(fromJson: _transactionRuleListData)
+    @Default([])
+    List<TransactionRuleApi> data,
   }) = _TransactionRuleListApi;
 
   factory TransactionRuleListApi.fromJson(Map<String, dynamic> json) =>
@@ -72,3 +76,6 @@ abstract class TransactionRuleItemApi with _$TransactionRuleItemApi {
   factory TransactionRuleItemApi.fromJson(Map<String, dynamic> json) =>
       _$TransactionRuleItemApiFromJson(json);
 }
+
+List<TransactionRuleApi> _transactionRuleListData(Object? raw) =>
+    tolerantList(raw, TransactionRuleApi.fromJson, label: 'transaction_rule');

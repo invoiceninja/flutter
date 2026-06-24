@@ -32,11 +32,7 @@ Map<String, dynamic> _$TaskStatusApiToJson(_TaskStatusApi instance) =>
 
 _TaskStatusListApi _$TaskStatusListApiFromJson(Map<String, dynamic> json) =>
     _TaskStatusListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => TaskStatusApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _taskStatusListData(json['data']),
     );
 
 Map<String, dynamic> _$TaskStatusListApiToJson(_TaskStatusListApi instance) =>

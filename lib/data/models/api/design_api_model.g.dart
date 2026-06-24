@@ -164,11 +164,9 @@ Map<String, dynamic> _$DesignApiToJson(_DesignApi instance) =>
 
 _DesignListApi _$DesignListApiFromJson(Map<String, dynamic> json) =>
     _DesignListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => DesignApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <DesignApi>[],
+      data: json['data'] == null
+          ? const <DesignApi>[]
+          : _designListData(json['data']),
     );
 
 Map<String, dynamic> _$DesignListApiToJson(_DesignListApi instance) =>

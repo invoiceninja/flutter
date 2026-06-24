@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'system_log_api_model.freezed.dart';
 part 'system_log_api_model.g.dart';
 
@@ -30,9 +32,13 @@ abstract class SystemLogApi with _$SystemLogApi {
 /// pagination block is ignored (we fetch a single fixed page).
 @freezed
 abstract class SystemLogListApi with _$SystemLogListApi {
-  const factory SystemLogListApi({@Default([]) List<SystemLogApi> data}) =
-      _SystemLogListApi;
+  const factory SystemLogListApi({
+    @JsonKey(fromJson: _systemLogListData) @Default([]) List<SystemLogApi> data,
+  }) = _SystemLogListApi;
 
   factory SystemLogListApi.fromJson(Map<String, dynamic> json) =>
       _$SystemLogListApiFromJson(json);
 }
+
+List<SystemLogApi> _systemLogListData(Object? raw) =>
+    tolerantList(raw, SystemLogApi.fromJson, label: 'system_log');

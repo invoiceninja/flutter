@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'tag_api_model.freezed.dart';
 part 'tag_api_model.g.dart';
 
@@ -85,7 +87,9 @@ class EmbeddedTagsConverter implements JsonConverter<List<TagRefApi>, Object?> {
 /// `GET /tags` response envelope.
 @freezed
 abstract class TagListApi with _$TagListApi {
-  const factory TagListApi({@Default([]) List<TagApi> data}) = _TagListApi;
+  const factory TagListApi({
+    @JsonKey(fromJson: _tagListData) @Default([]) List<TagApi> data,
+  }) = _TagListApi;
 
   factory TagListApi.fromJson(Map<String, dynamic> json) =>
       _$TagListApiFromJson(json);
@@ -99,3 +103,6 @@ abstract class TagItemApi with _$TagItemApi {
   factory TagItemApi.fromJson(Map<String, dynamic> json) =>
       _$TagItemApiFromJson(json);
 }
+
+List<TagApi> _tagListData(Object? raw) =>
+    tolerantList(raw, TagApi.fromJson, label: 'tag');

@@ -29,11 +29,7 @@ Map<String, dynamic> _$TaxRateApiToJson(_TaxRateApi instance) =>
 
 _TaxRateListApi _$TaxRateListApiFromJson(Map<String, dynamic> json) =>
     _TaxRateListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => TaxRateApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _taxRateListData(json['data']),
     );
 
 Map<String, dynamic> _$TaxRateListApiToJson(_TaxRateListApi instance) =>

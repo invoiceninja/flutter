@@ -13,11 +13,7 @@ Map<String, dynamic> _$UserItemApiToJson(_UserItemApi instance) =>
     <String, dynamic>{'data': instance.data};
 
 _UserListApi _$UserListApiFromJson(Map<String, dynamic> json) => _UserListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => UserApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <UserApi>[],
+  data: json['data'] == null ? const <UserApi>[] : _userListData(json['data']),
 );
 
 Map<String, dynamic> _$UserListApiToJson(_UserListApi instance) =>

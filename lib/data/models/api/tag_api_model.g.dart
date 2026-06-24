@@ -42,11 +42,7 @@ Map<String, dynamic> _$TagRefApiToJson(_TagRefApi instance) =>
     };
 
 _TagListApi _$TagListApiFromJson(Map<String, dynamic> json) => _TagListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => TagApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+  data: json['data'] == null ? const [] : _tagListData(json['data']),
 );
 
 Map<String, dynamic> _$TagListApiToJson(_TagListApi instance) =>

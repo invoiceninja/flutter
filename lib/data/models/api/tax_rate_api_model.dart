@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'tax_rate_api_model.freezed.dart';
 part 'tax_rate_api_model.g.dart';
 
@@ -24,8 +26,9 @@ abstract class TaxRateApi with _$TaxRateApi {
 
 @freezed
 abstract class TaxRateListApi with _$TaxRateListApi {
-  const factory TaxRateListApi({@Default([]) List<TaxRateApi> data}) =
-      _TaxRateListApi;
+  const factory TaxRateListApi({
+    @JsonKey(fromJson: _taxRateListData) @Default([]) List<TaxRateApi> data,
+  }) = _TaxRateListApi;
 
   factory TaxRateListApi.fromJson(Map<String, dynamic> json) =>
       _$TaxRateListApiFromJson(json);
@@ -38,3 +41,6 @@ abstract class TaxRateItemApi with _$TaxRateItemApi {
   factory TaxRateItemApi.fromJson(Map<String, dynamic> json) =>
       _$TaxRateItemApiFromJson(json);
 }
+
+List<TaxRateApi> _taxRateListData(Object? raw) =>
+    tolerantList(raw, TaxRateApi.fromJson, label: 'tax_rate');

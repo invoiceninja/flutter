@@ -464,7 +464,7 @@ as int,
 /// @nodoc
 mixin _$RecurringInvoiceListApi {
 
- List<RecurringInvoiceApi> get data;
+@JsonKey(fromJson: _recurringInvoiceListData) List<RecurringInvoiceApi> get data;
 /// Create a copy of RecurringInvoiceListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -497,7 +497,7 @@ abstract mixin class $RecurringInvoiceListApiCopyWith<$Res>  {
   factory $RecurringInvoiceListApiCopyWith(RecurringInvoiceListApi value, $Res Function(RecurringInvoiceListApi) _then) = _$RecurringInvoiceListApiCopyWithImpl;
 @useResult
 $Res call({
- List<RecurringInvoiceApi> data
+@JsonKey(fromJson: _recurringInvoiceListData) List<RecurringInvoiceApi> data
 });
 
 
@@ -602,7 +602,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<RecurringInvoiceApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _recurringInvoiceListData)  List<RecurringInvoiceApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _RecurringInvoiceListApi() when $default != null:
 return $default(_that.data);case _:
@@ -623,7 +623,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<RecurringInvoiceApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _recurringInvoiceListData)  List<RecurringInvoiceApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _RecurringInvoiceListApi():
 return $default(_that.data);case _:
@@ -643,7 +643,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<RecurringInvoiceApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _recurringInvoiceListData)  List<RecurringInvoiceApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _RecurringInvoiceListApi() when $default != null:
 return $default(_that.data);case _:
@@ -658,11 +658,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _RecurringInvoiceListApi implements RecurringInvoiceListApi {
-  const _RecurringInvoiceListApi({final  List<RecurringInvoiceApi> data = const <RecurringInvoiceApi>[]}): _data = data;
+  const _RecurringInvoiceListApi({@JsonKey(fromJson: _recurringInvoiceListData) final  List<RecurringInvoiceApi> data = const <RecurringInvoiceApi>[]}): _data = data;
   factory _RecurringInvoiceListApi.fromJson(Map<String, dynamic> json) => _$RecurringInvoiceListApiFromJson(json);
 
  final  List<RecurringInvoiceApi> _data;
-@override@JsonKey() List<RecurringInvoiceApi> get data {
+@override@JsonKey(fromJson: _recurringInvoiceListData) List<RecurringInvoiceApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -702,7 +702,7 @@ abstract mixin class _$RecurringInvoiceListApiCopyWith<$Res> implements $Recurri
   factory _$RecurringInvoiceListApiCopyWith(_RecurringInvoiceListApi value, $Res Function(_RecurringInvoiceListApi) _then) = __$RecurringInvoiceListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<RecurringInvoiceApi> data
+@JsonKey(fromJson: _recurringInvoiceListData) List<RecurringInvoiceApi> data
 });
 
 

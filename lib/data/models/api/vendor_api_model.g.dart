@@ -135,11 +135,9 @@ Map<String, dynamic> _$VendorContactApiToJson(_VendorContactApi instance) =>
 
 _VendorListApi _$VendorListApiFromJson(Map<String, dynamic> json) =>
     _VendorListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => VendorApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <VendorApi>[],
+      data: json['data'] == null
+          ? const <VendorApi>[]
+          : _vendorListData(json['data']),
     );
 
 Map<String, dynamic> _$VendorListApiToJson(_VendorListApi instance) =>

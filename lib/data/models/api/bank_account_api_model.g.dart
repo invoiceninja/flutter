@@ -48,11 +48,9 @@ Map<String, dynamic> _$BankAccountApiToJson(_BankAccountApi instance) =>
 
 _BankAccountListApi _$BankAccountListApiFromJson(Map<String, dynamic> json) =>
     _BankAccountListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => BankAccountApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null
+          ? const []
+          : _bankAccountListData(json['data']),
     );
 
 Map<String, dynamic> _$BankAccountListApiToJson(_BankAccountListApi instance) =>

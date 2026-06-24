@@ -296,7 +296,7 @@ as bool,
 /// @nodoc
 mixin _$TaxRateListApi {
 
- List<TaxRateApi> get data;
+@JsonKey(fromJson: _taxRateListData) List<TaxRateApi> get data;
 /// Create a copy of TaxRateListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -329,7 +329,7 @@ abstract mixin class $TaxRateListApiCopyWith<$Res>  {
   factory $TaxRateListApiCopyWith(TaxRateListApi value, $Res Function(TaxRateListApi) _then) = _$TaxRateListApiCopyWithImpl;
 @useResult
 $Res call({
- List<TaxRateApi> data
+@JsonKey(fromJson: _taxRateListData) List<TaxRateApi> data
 });
 
 
@@ -434,7 +434,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<TaxRateApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _taxRateListData)  List<TaxRateApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TaxRateListApi() when $default != null:
 return $default(_that.data);case _:
@@ -455,7 +455,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<TaxRateApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _taxRateListData)  List<TaxRateApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _TaxRateListApi():
 return $default(_that.data);case _:
@@ -475,7 +475,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<TaxRateApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _taxRateListData)  List<TaxRateApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _TaxRateListApi() when $default != null:
 return $default(_that.data);case _:
@@ -490,11 +490,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _TaxRateListApi implements TaxRateListApi {
-  const _TaxRateListApi({final  List<TaxRateApi> data = const []}): _data = data;
+  const _TaxRateListApi({@JsonKey(fromJson: _taxRateListData) final  List<TaxRateApi> data = const []}): _data = data;
   factory _TaxRateListApi.fromJson(Map<String, dynamic> json) => _$TaxRateListApiFromJson(json);
 
  final  List<TaxRateApi> _data;
-@override@JsonKey() List<TaxRateApi> get data {
+@override@JsonKey(fromJson: _taxRateListData) List<TaxRateApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -534,7 +534,7 @@ abstract mixin class _$TaxRateListApiCopyWith<$Res> implements $TaxRateListApiCo
   factory _$TaxRateListApiCopyWith(_TaxRateListApi value, $Res Function(_TaxRateListApi) _then) = __$TaxRateListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<TaxRateApi> data
+@JsonKey(fromJson: _taxRateListData) List<TaxRateApi> data
 });
 
 

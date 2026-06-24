@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'project_api_model.freezed.dart';
@@ -54,8 +55,9 @@ abstract class ProjectApi with _$ProjectApi {
 /// `GET /projects` response envelope.
 @freezed
 abstract class ProjectListApi with _$ProjectListApi {
-  const factory ProjectListApi({@Default([]) List<ProjectApi> data}) =
-      _ProjectListApi;
+  const factory ProjectListApi({
+    @JsonKey(fromJson: _projectListData) @Default([]) List<ProjectApi> data,
+  }) = _ProjectListApi;
 
   factory ProjectListApi.fromJson(Map<String, dynamic> json) =>
       _$ProjectListApiFromJson(json);
@@ -69,3 +71,6 @@ abstract class ProjectItemApi with _$ProjectItemApi {
   factory ProjectItemApi.fromJson(Map<String, dynamic> json) =>
       _$ProjectItemApiFromJson(json);
 }
+
+List<ProjectApi> _projectListData(Object? raw) =>
+    tolerantList(raw, ProjectApi.fromJson, label: 'project');

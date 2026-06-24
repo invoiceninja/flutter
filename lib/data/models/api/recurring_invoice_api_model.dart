@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 
 part 'recurring_invoice_api_model.freezed.dart';
@@ -92,7 +93,9 @@ abstract class RecurringInvoiceApi with _$RecurringInvoiceApi {
 @freezed
 abstract class RecurringInvoiceListApi with _$RecurringInvoiceListApi {
   const factory RecurringInvoiceListApi({
-    @Default(<RecurringInvoiceApi>[]) List<RecurringInvoiceApi> data,
+    @JsonKey(fromJson: _recurringInvoiceListData)
+    @Default(<RecurringInvoiceApi>[])
+    List<RecurringInvoiceApi> data,
   }) = _RecurringInvoiceListApi;
 
   factory RecurringInvoiceListApi.fromJson(Map<String, dynamic> json) =>
@@ -107,3 +110,6 @@ abstract class RecurringInvoiceItemApi with _$RecurringInvoiceItemApi {
   factory RecurringInvoiceItemApi.fromJson(Map<String, dynamic> json) =>
       _$RecurringInvoiceItemApiFromJson(json);
 }
+
+List<RecurringInvoiceApi> _recurringInvoiceListData(Object? raw) =>
+    tolerantList(raw, RecurringInvoiceApi.fromJson, label: 'recurring_invoice');

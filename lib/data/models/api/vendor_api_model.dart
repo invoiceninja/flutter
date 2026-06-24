@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 
 part 'vendor_api_model.freezed.dart';
 part 'vendor_api_model.g.dart';
@@ -97,8 +98,11 @@ abstract class VendorContactApi with _$VendorContactApi {
 /// Envelope for `/api/v1/vendors` list responses.
 @freezed
 abstract class VendorListApi with _$VendorListApi {
-  const factory VendorListApi({@Default(<VendorApi>[]) List<VendorApi> data}) =
-      _VendorListApi;
+  const factory VendorListApi({
+    @JsonKey(fromJson: _vendorListData)
+    @Default(<VendorApi>[])
+    List<VendorApi> data,
+  }) = _VendorListApi;
 
   factory VendorListApi.fromJson(Map<String, dynamic> json) =>
       _$VendorListApiFromJson(json);
@@ -112,3 +116,6 @@ abstract class VendorItemApi with _$VendorItemApi {
   factory VendorItemApi.fromJson(Map<String, dynamic> json) =>
       _$VendorItemApiFromJson(json);
 }
+
+List<VendorApi> _vendorListData(Object? raw) =>
+    tolerantList(raw, VendorApi.fromJson, label: 'vendor');

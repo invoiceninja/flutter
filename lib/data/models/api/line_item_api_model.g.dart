@@ -7,26 +7,46 @@ part of 'line_item_api_model.dart';
 // **************************************************************************
 
 _LineItemApi _$LineItemApiFromJson(Map<String, dynamic> json) => _LineItemApi(
-  productKey: json['product_key'] as String? ?? '',
-  notes: json['notes'] as String? ?? '',
+  productKey: json['product_key'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['product_key']),
+  notes: json['notes'] == null ? '' : jsonScalarToStringOrEmpty(json['notes']),
   cost: json['cost'] as Object? ?? '0',
   productCost: json['product_cost'] as Object? ?? '0',
   quantity: json['quantity'] as Object? ?? '1',
-  taxName1: json['tax_name1'] as String? ?? '',
-  taxName2: json['tax_name2'] as String? ?? '',
-  taxName3: json['tax_name3'] as String? ?? '',
+  taxName1: json['tax_name1'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['tax_name1']),
+  taxName2: json['tax_name2'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['tax_name2']),
+  taxName3: json['tax_name3'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['tax_name3']),
   taxRate1: json['tax_rate1'] as Object? ?? '0',
   taxRate2: json['tax_rate2'] as Object? ?? '0',
   taxRate3: json['tax_rate3'] as Object? ?? '0',
-  typeId: json['type_id'] as String? ?? '1',
-  customValue1: json['custom_value1'] as String? ?? '',
-  customValue2: json['custom_value2'] as String? ?? '',
-  customValue3: json['custom_value3'] as String? ?? '',
-  customValue4: json['custom_value4'] as String? ?? '',
+  typeId: json['type_id'] == null
+      ? '1'
+      : jsonScalarToStringOrEmpty(json['type_id']),
+  customValue1: json['custom_value1'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['custom_value1']),
+  customValue2: json['custom_value2'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['custom_value2']),
+  customValue3: json['custom_value3'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['custom_value3']),
+  customValue4: json['custom_value4'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['custom_value4']),
   discount: json['discount'] as Object? ?? '0',
-  taskId: json['task_id'] as String?,
-  expenseId: json['expense_id'] as String?,
-  taxCategoryId: json['tax_id'] as String? ?? '',
+  taskId: jsonScalarToString(json['task_id']),
+  expenseId: jsonScalarToString(json['expense_id']),
+  taxCategoryId: json['tax_id'] == null
+      ? ''
+      : jsonScalarToStringOrEmpty(json['tax_id']),
   createdAt: (json['created_at'] as num?)?.toInt(),
 );
 

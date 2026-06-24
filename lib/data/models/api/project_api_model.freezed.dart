@@ -368,7 +368,7 @@ as List<TagRefApi>,
 /// @nodoc
 mixin _$ProjectListApi {
 
- List<ProjectApi> get data;
+@JsonKey(fromJson: _projectListData) List<ProjectApi> get data;
 /// Create a copy of ProjectListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -401,7 +401,7 @@ abstract mixin class $ProjectListApiCopyWith<$Res>  {
   factory $ProjectListApiCopyWith(ProjectListApi value, $Res Function(ProjectListApi) _then) = _$ProjectListApiCopyWithImpl;
 @useResult
 $Res call({
- List<ProjectApi> data
+@JsonKey(fromJson: _projectListData) List<ProjectApi> data
 });
 
 
@@ -506,7 +506,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ProjectApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _projectListData)  List<ProjectApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ProjectListApi() when $default != null:
 return $default(_that.data);case _:
@@ -527,7 +527,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ProjectApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _projectListData)  List<ProjectApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _ProjectListApi():
 return $default(_that.data);case _:
@@ -547,7 +547,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ProjectApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _projectListData)  List<ProjectApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _ProjectListApi() when $default != null:
 return $default(_that.data);case _:
@@ -562,11 +562,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ProjectListApi implements ProjectListApi {
-  const _ProjectListApi({final  List<ProjectApi> data = const []}): _data = data;
+  const _ProjectListApi({@JsonKey(fromJson: _projectListData) final  List<ProjectApi> data = const []}): _data = data;
   factory _ProjectListApi.fromJson(Map<String, dynamic> json) => _$ProjectListApiFromJson(json);
 
  final  List<ProjectApi> _data;
-@override@JsonKey() List<ProjectApi> get data {
+@override@JsonKey(fromJson: _projectListData) List<ProjectApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -606,7 +606,7 @@ abstract mixin class _$ProjectListApiCopyWith<$Res> implements $ProjectListApiCo
   factory _$ProjectListApiCopyWith(_ProjectListApi value, $Res Function(_ProjectListApi) _then) = __$ProjectListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<ProjectApi> data
+@JsonKey(fromJson: _projectListData) List<ProjectApi> data
 });
 
 

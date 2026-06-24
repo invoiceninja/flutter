@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'task_status_api_model.freezed.dart';
 part 'task_status_api_model.g.dart';
 
@@ -24,8 +26,11 @@ abstract class TaskStatusApi with _$TaskStatusApi {
 /// `GET /task_statuses` response envelope.
 @freezed
 abstract class TaskStatusListApi with _$TaskStatusListApi {
-  const factory TaskStatusListApi({@Default([]) List<TaskStatusApi> data}) =
-      _TaskStatusListApi;
+  const factory TaskStatusListApi({
+    @JsonKey(fromJson: _taskStatusListData)
+    @Default([])
+    List<TaskStatusApi> data,
+  }) = _TaskStatusListApi;
 
   factory TaskStatusListApi.fromJson(Map<String, dynamic> json) =>
       _$TaskStatusListApiFromJson(json);
@@ -40,3 +45,6 @@ abstract class TaskStatusItemApi with _$TaskStatusItemApi {
   factory TaskStatusItemApi.fromJson(Map<String, dynamic> json) =>
       _$TaskStatusItemApiFromJson(json);
 }
+
+List<TaskStatusApi> _taskStatusListData(Object? raw) =>
+    tolerantList(raw, TaskStatusApi.fromJson, label: 'task_status');

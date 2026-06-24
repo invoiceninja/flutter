@@ -323,7 +323,7 @@ as String,
 /// @nodoc
 mixin _$ScheduleListApi {
 
- List<ScheduleApi> get data;
+@JsonKey(fromJson: _scheduleListData) List<ScheduleApi> get data;
 /// Create a copy of ScheduleListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -356,7 +356,7 @@ abstract mixin class $ScheduleListApiCopyWith<$Res>  {
   factory $ScheduleListApiCopyWith(ScheduleListApi value, $Res Function(ScheduleListApi) _then) = _$ScheduleListApiCopyWithImpl;
 @useResult
 $Res call({
- List<ScheduleApi> data
+@JsonKey(fromJson: _scheduleListData) List<ScheduleApi> data
 });
 
 
@@ -461,7 +461,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ScheduleApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _scheduleListData)  List<ScheduleApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ScheduleListApi() when $default != null:
 return $default(_that.data);case _:
@@ -482,7 +482,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ScheduleApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _scheduleListData)  List<ScheduleApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _ScheduleListApi():
 return $default(_that.data);case _:
@@ -502,7 +502,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ScheduleApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _scheduleListData)  List<ScheduleApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _ScheduleListApi() when $default != null:
 return $default(_that.data);case _:
@@ -517,11 +517,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ScheduleListApi implements ScheduleListApi {
-  const _ScheduleListApi({final  List<ScheduleApi> data = const []}): _data = data;
+  const _ScheduleListApi({@JsonKey(fromJson: _scheduleListData) final  List<ScheduleApi> data = const []}): _data = data;
   factory _ScheduleListApi.fromJson(Map<String, dynamic> json) => _$ScheduleListApiFromJson(json);
 
  final  List<ScheduleApi> _data;
-@override@JsonKey() List<ScheduleApi> get data {
+@override@JsonKey(fromJson: _scheduleListData) List<ScheduleApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -561,7 +561,7 @@ abstract mixin class _$ScheduleListApiCopyWith<$Res> implements $ScheduleListApi
   factory _$ScheduleListApiCopyWith(_ScheduleListApi value, $Res Function(_ScheduleListApi) _then) = __$ScheduleListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<ScheduleApi> data
+@JsonKey(fromJson: _scheduleListData) List<ScheduleApi> data
 });
 
 

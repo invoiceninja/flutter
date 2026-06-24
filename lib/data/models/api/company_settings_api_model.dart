@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'company_settings_api_model.freezed.dart';
 part 'company_settings_api_model.g.dart';
 
@@ -233,7 +235,15 @@ abstract class CompanySettingsApi with _$CompanySettingsApi {
     @JsonKey(name: 'late_fee_percent1') double? lateFeePercent1,
     @JsonKey(name: 'late_fee_percent2') double? lateFeePercent2,
     @JsonKey(name: 'late_fee_percent3') double? lateFeePercent3,
-    @JsonKey(name: 'endless_reminder_frequency_id')
+    // The server casts this to `integer` in CompanySettings::$casts and emits
+    // the whole `settings` blob raw, so it arrives as a number (e.g. `0`/`1`)
+    // even though the field is a wire-string elsewhere. Coerce so the strict
+    // `fromJson` path (company.dart) doesn't throw on the int. Consumers
+    // compare against '0', so `0` → "0" preserves their semantics.
+    @JsonKey(
+      name: 'endless_reminder_frequency_id',
+      fromJson: jsonScalarToString,
+    )
     String? endlessReminderFrequencyId,
     @JsonKey(name: 'late_fee_endless_amount') double? lateFeeEndlessAmount,
     @JsonKey(name: 'late_fee_endless_percent') double? lateFeeEndlessPercent,

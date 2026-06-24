@@ -65,11 +65,7 @@ Map<String, dynamic> _$ProjectApiToJson(_ProjectApi instance) =>
 
 _ProjectListApi _$ProjectListApiFromJson(Map<String, dynamic> json) =>
     _ProjectListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => ProjectApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _projectListData(json['data']),
     );
 
 Map<String, dynamic> _$ProjectListApiToJson(_ProjectListApi instance) =>

@@ -77,11 +77,7 @@ Map<String, dynamic> _$ProductApiToJson(_ProductApi instance) =>
 
 _ProductListApi _$ProductListApiFromJson(Map<String, dynamic> json) =>
     _ProductListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => ProductApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _productListData(json['data']),
     );
 
 Map<String, dynamic> _$ProductListApiToJson(_ProductListApi instance) =>

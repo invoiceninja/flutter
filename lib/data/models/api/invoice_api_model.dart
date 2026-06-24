@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 import 'package:admin/data/models/api/schedule_item_api_model.dart';
 
@@ -136,7 +137,9 @@ abstract class InvoiceApi with _$InvoiceApi {
 @freezed
 abstract class InvoiceListApi with _$InvoiceListApi {
   const factory InvoiceListApi({
-    @Default(<InvoiceApi>[]) List<InvoiceApi> data,
+    @JsonKey(fromJson: _invoiceListData)
+    @Default(<InvoiceApi>[])
+    List<InvoiceApi> data,
   }) = _InvoiceListApi;
 
   factory InvoiceListApi.fromJson(Map<String, dynamic> json) =>
@@ -151,3 +154,6 @@ abstract class InvoiceItemApi with _$InvoiceItemApi {
   factory InvoiceItemApi.fromJson(Map<String, dynamic> json) =>
       _$InvoiceItemApiFromJson(json);
 }
+
+List<InvoiceApi> _invoiceListData(Object? raw) =>
+    tolerantList(raw, InvoiceApi.fromJson, label: 'invoice');

@@ -580,7 +580,7 @@ as int,
 /// @nodoc
 mixin _$InvoiceListApi {
 
- List<InvoiceApi> get data;
+@JsonKey(fromJson: _invoiceListData) List<InvoiceApi> get data;
 /// Create a copy of InvoiceListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -613,7 +613,7 @@ abstract mixin class $InvoiceListApiCopyWith<$Res>  {
   factory $InvoiceListApiCopyWith(InvoiceListApi value, $Res Function(InvoiceListApi) _then) = _$InvoiceListApiCopyWithImpl;
 @useResult
 $Res call({
- List<InvoiceApi> data
+@JsonKey(fromJson: _invoiceListData) List<InvoiceApi> data
 });
 
 
@@ -718,7 +718,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<InvoiceApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _invoiceListData)  List<InvoiceApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _InvoiceListApi() when $default != null:
 return $default(_that.data);case _:
@@ -739,7 +739,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<InvoiceApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _invoiceListData)  List<InvoiceApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _InvoiceListApi():
 return $default(_that.data);case _:
@@ -759,7 +759,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<InvoiceApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _invoiceListData)  List<InvoiceApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _InvoiceListApi() when $default != null:
 return $default(_that.data);case _:
@@ -774,11 +774,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _InvoiceListApi implements InvoiceListApi {
-  const _InvoiceListApi({final  List<InvoiceApi> data = const <InvoiceApi>[]}): _data = data;
+  const _InvoiceListApi({@JsonKey(fromJson: _invoiceListData) final  List<InvoiceApi> data = const <InvoiceApi>[]}): _data = data;
   factory _InvoiceListApi.fromJson(Map<String, dynamic> json) => _$InvoiceListApiFromJson(json);
 
  final  List<InvoiceApi> _data;
-@override@JsonKey() List<InvoiceApi> get data {
+@override@JsonKey(fromJson: _invoiceListData) List<InvoiceApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -818,7 +818,7 @@ abstract mixin class _$InvoiceListApiCopyWith<$Res> implements $InvoiceListApiCo
   factory _$InvoiceListApiCopyWith(_InvoiceListApi value, $Res Function(_InvoiceListApi) _then) = __$InvoiceListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<InvoiceApi> data
+@JsonKey(fromJson: _invoiceListData) List<InvoiceApi> data
 });
 
 

@@ -150,11 +150,9 @@ Map<String, dynamic> _$RecurringInvoiceApiToJson(
 _RecurringInvoiceListApi _$RecurringInvoiceListApiFromJson(
   Map<String, dynamic> json,
 ) => _RecurringInvoiceListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => RecurringInvoiceApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <RecurringInvoiceApi>[],
+  data: json['data'] == null
+      ? const <RecurringInvoiceApi>[]
+      : _recurringInvoiceListData(json['data']),
 );
 
 Map<String, dynamic> _$RecurringInvoiceListApiToJson(

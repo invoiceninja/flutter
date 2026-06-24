@@ -205,4 +205,26 @@ void main() {
       expect(Company.fromApi(api).eInvoice, isNull);
     });
   });
+
+  group('Company settings parse resilience', () {
+    test('company-load tolerates mixed-type settings via lenient parse', () {
+      // The server ships some settings as number-or-string / 0|1 bools, and
+      // casts endless_reminder_frequency_id to int. Company.fromApi must use
+      // the lenient parser (not strict fromJson, which threw on these wire
+      // types) so a real company with legacy/mixed-type settings still loads.
+      final api = CompanyApi.fromJson(<String, dynamic>{
+        'id': 'co',
+        'settings': <String, dynamic>{
+          'endless_reminder_frequency_id': 1, // int → field is a wire-string
+          'counter_padding': '4', // numeric shipped as a string
+          'military_time': 1, // bool shipped as an int
+        },
+      });
+
+      final company = Company.fromApi(api);
+      expect(company.settings.endlessReminderFrequencyId, '1');
+      expect(company.settings.counterPadding, 4);
+      expect(company.settings.militaryTime, isTrue);
+    });
+  });
 }

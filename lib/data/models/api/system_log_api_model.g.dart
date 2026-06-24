@@ -36,11 +36,7 @@ Map<String, dynamic> _$SystemLogApiToJson(_SystemLogApi instance) =>
 
 _SystemLogListApi _$SystemLogListApiFromJson(Map<String, dynamic> json) =>
     _SystemLogListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => SystemLogApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _systemLogListData(json['data']),
     );
 
 Map<String, dynamic> _$SystemLogListApiToJson(_SystemLogListApi instance) =>

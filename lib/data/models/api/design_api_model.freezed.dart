@@ -1542,7 +1542,7 @@ $DesignTemplateApiCopyWith<$Res> get design {
 /// @nodoc
 mixin _$DesignListApi {
 
- List<DesignApi> get data;
+@JsonKey(fromJson: _designListData) List<DesignApi> get data;
 /// Create a copy of DesignListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1575,7 +1575,7 @@ abstract mixin class $DesignListApiCopyWith<$Res>  {
   factory $DesignListApiCopyWith(DesignListApi value, $Res Function(DesignListApi) _then) = _$DesignListApiCopyWithImpl;
 @useResult
 $Res call({
- List<DesignApi> data
+@JsonKey(fromJson: _designListData) List<DesignApi> data
 });
 
 
@@ -1680,7 +1680,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<DesignApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _designListData)  List<DesignApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DesignListApi() when $default != null:
 return $default(_that.data);case _:
@@ -1701,7 +1701,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<DesignApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _designListData)  List<DesignApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _DesignListApi():
 return $default(_that.data);case _:
@@ -1721,7 +1721,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<DesignApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _designListData)  List<DesignApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _DesignListApi() when $default != null:
 return $default(_that.data);case _:
@@ -1736,11 +1736,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _DesignListApi implements DesignListApi {
-  const _DesignListApi({final  List<DesignApi> data = const <DesignApi>[]}): _data = data;
+  const _DesignListApi({@JsonKey(fromJson: _designListData) final  List<DesignApi> data = const <DesignApi>[]}): _data = data;
   factory _DesignListApi.fromJson(Map<String, dynamic> json) => _$DesignListApiFromJson(json);
 
  final  List<DesignApi> _data;
-@override@JsonKey() List<DesignApi> get data {
+@override@JsonKey(fromJson: _designListData) List<DesignApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -1780,7 +1780,7 @@ abstract mixin class _$DesignListApiCopyWith<$Res> implements $DesignListApiCopy
   factory _$DesignListApiCopyWith(_DesignListApi value, $Res Function(_DesignListApi) _then) = __$DesignListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<DesignApi> data
+@JsonKey(fromJson: _designListData) List<DesignApi> data
 });
 
 

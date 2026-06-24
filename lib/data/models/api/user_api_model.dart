@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'user_api_model.freezed.dart';
 part 'user_api_model.g.dart';
 
@@ -18,8 +20,9 @@ abstract class UserItemApi with _$UserItemApi {
 /// Envelope for `GET /api/v1/users` list responses.
 @freezed
 abstract class UserListApi with _$UserListApi {
-  const factory UserListApi({@Default(<UserApi>[]) List<UserApi> data}) =
-      _UserListApi;
+  const factory UserListApi({
+    @JsonKey(fromJson: _userListData) @Default(<UserApi>[]) List<UserApi> data,
+  }) = _UserListApi;
 
   factory UserListApi.fromJson(Map<String, dynamic> json) =>
       _$UserListApiFromJson(json);
@@ -121,3 +124,6 @@ bool _boolFromJson(Object? value) {
   }
   return false;
 }
+
+List<UserApi> _userListData(Object? raw) =>
+    tolerantList(raw, UserApi.fromJson, label: 'user');

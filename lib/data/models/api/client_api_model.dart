@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:admin/data/models/api/contact_api_model.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/gateway_token_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/location_api_model.dart';
 
 part 'client_api_model.freezed.dart';
@@ -113,8 +114,11 @@ abstract class ClientApi with _$ClientApi {
 /// Envelope for `/api/v1/clients` list responses.
 @freezed
 abstract class ClientListApi with _$ClientListApi {
-  const factory ClientListApi({@Default(<ClientApi>[]) List<ClientApi> data}) =
-      _ClientListApi;
+  const factory ClientListApi({
+    @JsonKey(fromJson: _clientListData)
+    @Default(<ClientApi>[])
+    List<ClientApi> data,
+  }) = _ClientListApi;
 
   factory ClientListApi.fromJson(Map<String, dynamic> json) =>
       _$ClientListApiFromJson(json);
@@ -128,3 +132,6 @@ abstract class ClientItemApi with _$ClientItemApi {
   factory ClientItemApi.fromJson(Map<String, dynamic> json) =>
       _$ClientItemApiFromJson(json);
 }
+
+List<ClientApi> _clientListData(Object? raw) =>
+    tolerantList(raw, ClientApi.fromJson, label: 'client');

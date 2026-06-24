@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'bank_account_api_model.freezed.dart';
 part 'bank_account_api_model.g.dart';
 
@@ -38,8 +40,11 @@ abstract class BankAccountApi with _$BankAccountApi {
 /// `GET /bank_integrations` envelope.
 @freezed
 abstract class BankAccountListApi with _$BankAccountListApi {
-  const factory BankAccountListApi({@Default([]) List<BankAccountApi> data}) =
-      _BankAccountListApi;
+  const factory BankAccountListApi({
+    @JsonKey(fromJson: _bankAccountListData)
+    @Default([])
+    List<BankAccountApi> data,
+  }) = _BankAccountListApi;
 
   factory BankAccountListApi.fromJson(Map<String, dynamic> json) =>
       _$BankAccountListApiFromJson(json);
@@ -54,3 +59,6 @@ abstract class BankAccountItemApi with _$BankAccountItemApi {
   factory BankAccountItemApi.fromJson(Map<String, dynamic> json) =>
       _$BankAccountItemApiFromJson(json);
 }
+
+List<BankAccountApi> _bankAccountListData(Object? raw) =>
+    tolerantList(raw, BankAccountApi.fromJson, label: 'bank_account');

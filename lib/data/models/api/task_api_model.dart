@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'task_api_model.freezed.dart';
@@ -91,7 +92,9 @@ class TaskMetaConverter implements JsonConverter<TaskMetaApi?, Object?> {
 /// `GET /tasks` response envelope.
 @freezed
 abstract class TaskListApi with _$TaskListApi {
-  const factory TaskListApi({@Default([]) List<TaskApi> data}) = _TaskListApi;
+  const factory TaskListApi({
+    @JsonKey(fromJson: _taskListData) @Default([]) List<TaskApi> data,
+  }) = _TaskListApi;
 
   factory TaskListApi.fromJson(Map<String, dynamic> json) =>
       _$TaskListApiFromJson(json);
@@ -105,3 +108,6 @@ abstract class TaskItemApi with _$TaskItemApi {
   factory TaskItemApi.fromJson(Map<String, dynamic> json) =>
       _$TaskItemApiFromJson(json);
 }
+
+List<TaskApi> _taskListData(Object? raw) =>
+    tolerantList(raw, TaskApi.fromJson, label: 'task');

@@ -420,7 +420,7 @@ as List<DocumentApi>?,
 /// @nodoc
 mixin _$ExpenseListApi {
 
- List<ExpenseApi> get data;
+@JsonKey(fromJson: _expenseListData) List<ExpenseApi> get data;
 /// Create a copy of ExpenseListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -453,7 +453,7 @@ abstract mixin class $ExpenseListApiCopyWith<$Res>  {
   factory $ExpenseListApiCopyWith(ExpenseListApi value, $Res Function(ExpenseListApi) _then) = _$ExpenseListApiCopyWithImpl;
 @useResult
 $Res call({
- List<ExpenseApi> data
+@JsonKey(fromJson: _expenseListData) List<ExpenseApi> data
 });
 
 
@@ -558,7 +558,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ExpenseApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _expenseListData)  List<ExpenseApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ExpenseListApi() when $default != null:
 return $default(_that.data);case _:
@@ -579,7 +579,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ExpenseApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _expenseListData)  List<ExpenseApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _ExpenseListApi():
 return $default(_that.data);case _:
@@ -599,7 +599,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ExpenseApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _expenseListData)  List<ExpenseApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _ExpenseListApi() when $default != null:
 return $default(_that.data);case _:
@@ -614,11 +614,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ExpenseListApi implements ExpenseListApi {
-  const _ExpenseListApi({final  List<ExpenseApi> data = const []}): _data = data;
+  const _ExpenseListApi({@JsonKey(fromJson: _expenseListData) final  List<ExpenseApi> data = const []}): _data = data;
   factory _ExpenseListApi.fromJson(Map<String, dynamic> json) => _$ExpenseListApiFromJson(json);
 
  final  List<ExpenseApi> _data;
-@override@JsonKey() List<ExpenseApi> get data {
+@override@JsonKey(fromJson: _expenseListData) List<ExpenseApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -658,7 +658,7 @@ abstract mixin class _$ExpenseListApiCopyWith<$Res> implements $ExpenseListApiCo
   factory _$ExpenseListApiCopyWith(_ExpenseListApi value, $Res Function(_ExpenseListApi) _then) = __$ExpenseListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<ExpenseApi> data
+@JsonKey(fromJson: _expenseListData) List<ExpenseApi> data
 });
 
 

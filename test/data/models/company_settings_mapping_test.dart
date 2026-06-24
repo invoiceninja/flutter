@@ -96,6 +96,26 @@ void main() {
       final reparsed = CompanySettingsApi.fromJson(parsed.toJson());
       expect(reparsed.globalTagInheritance, true);
     });
+
+    test('coerces endless_reminder_frequency_id shipped as an int', () {
+      // The server casts this to `integer` in CompanySettings::$casts and
+      // emits the `settings` blob raw, so it arrives as a number even though
+      // the field is a wire-string. The strict fromJson path (company.dart)
+      // must not throw, and `0` must map to "0" so the reminder UI (which
+      // compares against '0') keeps treating it as "no endless reminder".
+      expect(
+        CompanySettingsApi.fromJson({
+          'endless_reminder_frequency_id': 0,
+        }).endlessReminderFrequencyId,
+        '0',
+      );
+      expect(
+        CompanySettingsApi.fromJson({
+          'endless_reminder_frequency_id': 1,
+        }).endlessReminderFrequencyId,
+        '1',
+      );
+    });
   });
 
   group('CompanySettingsApi.fromJsonLenient', () {

@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'subscription_api_model.freezed.dart';
 part 'subscription_api_model.g.dart';
 
@@ -109,8 +111,11 @@ abstract class WebhookConfigurationApi with _$WebhookConfigurationApi {
 /// `GET /subscriptions` response envelope.
 @freezed
 abstract class SubscriptionListApi with _$SubscriptionListApi {
-  const factory SubscriptionListApi({@Default([]) List<SubscriptionApi> data}) =
-      _SubscriptionListApi;
+  const factory SubscriptionListApi({
+    @JsonKey(fromJson: _subscriptionListData)
+    @Default([])
+    List<SubscriptionApi> data,
+  }) = _SubscriptionListApi;
 
   factory SubscriptionListApi.fromJson(Map<String, dynamic> json) =>
       _$SubscriptionListApiFromJson(json);
@@ -140,3 +145,6 @@ abstract class SubscriptionStepApi with _$SubscriptionStepApi {
   factory SubscriptionStepApi.fromJson(Map<String, dynamic> json) =>
       _$SubscriptionStepApiFromJson(json);
 }
+
+List<SubscriptionApi> _subscriptionListData(Object? raw) =>
+    tolerantList(raw, SubscriptionApi.fromJson, label: 'subscription');

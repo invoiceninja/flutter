@@ -658,7 +658,7 @@ as bool,
 /// @nodoc
 mixin _$CompanyGatewayListApi {
 
- List<CompanyGatewayApi> get data;
+@JsonKey(fromJson: _companyGatewayListData) List<CompanyGatewayApi> get data;
 /// Create a copy of CompanyGatewayListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -691,7 +691,7 @@ abstract mixin class $CompanyGatewayListApiCopyWith<$Res>  {
   factory $CompanyGatewayListApiCopyWith(CompanyGatewayListApi value, $Res Function(CompanyGatewayListApi) _then) = _$CompanyGatewayListApiCopyWithImpl;
 @useResult
 $Res call({
- List<CompanyGatewayApi> data
+@JsonKey(fromJson: _companyGatewayListData) List<CompanyGatewayApi> data
 });
 
 
@@ -796,7 +796,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<CompanyGatewayApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _companyGatewayListData)  List<CompanyGatewayApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CompanyGatewayListApi() when $default != null:
 return $default(_that.data);case _:
@@ -817,7 +817,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<CompanyGatewayApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _companyGatewayListData)  List<CompanyGatewayApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _CompanyGatewayListApi():
 return $default(_that.data);case _:
@@ -837,7 +837,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<CompanyGatewayApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _companyGatewayListData)  List<CompanyGatewayApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _CompanyGatewayListApi() when $default != null:
 return $default(_that.data);case _:
@@ -852,11 +852,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _CompanyGatewayListApi implements CompanyGatewayListApi {
-  const _CompanyGatewayListApi({final  List<CompanyGatewayApi> data = const []}): _data = data;
+  const _CompanyGatewayListApi({@JsonKey(fromJson: _companyGatewayListData) final  List<CompanyGatewayApi> data = const []}): _data = data;
   factory _CompanyGatewayListApi.fromJson(Map<String, dynamic> json) => _$CompanyGatewayListApiFromJson(json);
 
  final  List<CompanyGatewayApi> _data;
-@override@JsonKey() List<CompanyGatewayApi> get data {
+@override@JsonKey(fromJson: _companyGatewayListData) List<CompanyGatewayApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -896,7 +896,7 @@ abstract mixin class _$CompanyGatewayListApiCopyWith<$Res> implements $CompanyGa
   factory _$CompanyGatewayListApiCopyWith(_CompanyGatewayListApi value, $Res Function(_CompanyGatewayListApi) _then) = __$CompanyGatewayListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<CompanyGatewayApi> data
+@JsonKey(fromJson: _companyGatewayListData) List<CompanyGatewayApi> data
 });
 
 

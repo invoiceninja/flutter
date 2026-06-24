@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 
 part 'quote_api_model.freezed.dart';
@@ -89,8 +90,11 @@ abstract class QuoteApi with _$QuoteApi {
 
 @freezed
 abstract class QuoteListApi with _$QuoteListApi {
-  const factory QuoteListApi({@Default(<QuoteApi>[]) List<QuoteApi> data}) =
-      _QuoteListApi;
+  const factory QuoteListApi({
+    @JsonKey(fromJson: _quoteListData)
+    @Default(<QuoteApi>[])
+    List<QuoteApi> data,
+  }) = _QuoteListApi;
 
   factory QuoteListApi.fromJson(Map<String, dynamic> json) =>
       _$QuoteListApiFromJson(json);
@@ -103,3 +107,6 @@ abstract class QuoteItemApi with _$QuoteItemApi {
   factory QuoteItemApi.fromJson(Map<String, dynamic> json) =>
       _$QuoteItemApiFromJson(json);
 }
+
+List<QuoteApi> _quoteListData(Object? raw) =>
+    tolerantList(raw, QuoteApi.fromJson, label: 'quote');

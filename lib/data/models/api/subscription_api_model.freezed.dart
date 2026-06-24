@@ -683,7 +683,7 @@ as String,
 /// @nodoc
 mixin _$SubscriptionListApi {
 
- List<SubscriptionApi> get data;
+@JsonKey(fromJson: _subscriptionListData) List<SubscriptionApi> get data;
 /// Create a copy of SubscriptionListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -716,7 +716,7 @@ abstract mixin class $SubscriptionListApiCopyWith<$Res>  {
   factory $SubscriptionListApiCopyWith(SubscriptionListApi value, $Res Function(SubscriptionListApi) _then) = _$SubscriptionListApiCopyWithImpl;
 @useResult
 $Res call({
- List<SubscriptionApi> data
+@JsonKey(fromJson: _subscriptionListData) List<SubscriptionApi> data
 });
 
 
@@ -821,7 +821,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<SubscriptionApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _subscriptionListData)  List<SubscriptionApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SubscriptionListApi() when $default != null:
 return $default(_that.data);case _:
@@ -842,7 +842,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<SubscriptionApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _subscriptionListData)  List<SubscriptionApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _SubscriptionListApi():
 return $default(_that.data);case _:
@@ -862,7 +862,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<SubscriptionApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _subscriptionListData)  List<SubscriptionApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _SubscriptionListApi() when $default != null:
 return $default(_that.data);case _:
@@ -877,11 +877,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _SubscriptionListApi implements SubscriptionListApi {
-  const _SubscriptionListApi({final  List<SubscriptionApi> data = const []}): _data = data;
+  const _SubscriptionListApi({@JsonKey(fromJson: _subscriptionListData) final  List<SubscriptionApi> data = const []}): _data = data;
   factory _SubscriptionListApi.fromJson(Map<String, dynamic> json) => _$SubscriptionListApiFromJson(json);
 
  final  List<SubscriptionApi> _data;
-@override@JsonKey() List<SubscriptionApi> get data {
+@override@JsonKey(fromJson: _subscriptionListData) List<SubscriptionApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -921,7 +921,7 @@ abstract mixin class _$SubscriptionListApiCopyWith<$Res> implements $Subscriptio
   factory _$SubscriptionListApiCopyWith(_SubscriptionListApi value, $Res Function(_SubscriptionListApi) _then) = __$SubscriptionListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<SubscriptionApi> data
+@JsonKey(fromJson: _subscriptionListData) List<SubscriptionApi> data
 });
 
 

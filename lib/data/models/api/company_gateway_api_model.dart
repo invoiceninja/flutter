@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'company_gateway_api_model.freezed.dart';
 part 'company_gateway_api_model.g.dart';
 
@@ -124,7 +126,9 @@ abstract class CompanyGatewayApi with _$CompanyGatewayApi {
 @freezed
 abstract class CompanyGatewayListApi with _$CompanyGatewayListApi {
   const factory CompanyGatewayListApi({
-    @Default([]) List<CompanyGatewayApi> data,
+    @JsonKey(fromJson: _companyGatewayListData)
+    @Default([])
+    List<CompanyGatewayApi> data,
   }) = _CompanyGatewayListApi;
 
   factory CompanyGatewayListApi.fromJson(Map<String, dynamic> json) =>
@@ -140,3 +144,6 @@ abstract class CompanyGatewayItemApi with _$CompanyGatewayItemApi {
   factory CompanyGatewayItemApi.fromJson(Map<String, dynamic> json) =>
       _$CompanyGatewayItemApiFromJson(json);
 }
+
+List<CompanyGatewayApi> _companyGatewayListData(Object? raw) =>
+    tolerantList(raw, CompanyGatewayApi.fromJson, label: 'company_gateway');

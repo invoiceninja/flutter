@@ -726,7 +726,7 @@ as bool,
 /// @nodoc
 mixin _$VendorListApi {
 
- List<VendorApi> get data;
+@JsonKey(fromJson: _vendorListData) List<VendorApi> get data;
 /// Create a copy of VendorListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -759,7 +759,7 @@ abstract mixin class $VendorListApiCopyWith<$Res>  {
   factory $VendorListApiCopyWith(VendorListApi value, $Res Function(VendorListApi) _then) = _$VendorListApiCopyWithImpl;
 @useResult
 $Res call({
- List<VendorApi> data
+@JsonKey(fromJson: _vendorListData) List<VendorApi> data
 });
 
 
@@ -864,7 +864,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<VendorApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _vendorListData)  List<VendorApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _VendorListApi() when $default != null:
 return $default(_that.data);case _:
@@ -885,7 +885,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<VendorApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _vendorListData)  List<VendorApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _VendorListApi():
 return $default(_that.data);case _:
@@ -905,7 +905,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<VendorApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _vendorListData)  List<VendorApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _VendorListApi() when $default != null:
 return $default(_that.data);case _:
@@ -920,11 +920,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _VendorListApi implements VendorListApi {
-  const _VendorListApi({final  List<VendorApi> data = const <VendorApi>[]}): _data = data;
+  const _VendorListApi({@JsonKey(fromJson: _vendorListData) final  List<VendorApi> data = const <VendorApi>[]}): _data = data;
   factory _VendorListApi.fromJson(Map<String, dynamic> json) => _$VendorListApiFromJson(json);
 
  final  List<VendorApi> _data;
-@override@JsonKey() List<VendorApi> get data {
+@override@JsonKey(fromJson: _vendorListData) List<VendorApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -964,7 +964,7 @@ abstract mixin class _$VendorListApiCopyWith<$Res> implements $VendorListApiCopy
   factory _$VendorListApiCopyWith(_VendorListApi value, $Res Function(_VendorListApi) _then) = __$VendorListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<VendorApi> data
+@JsonKey(fromJson: _vendorListData) List<VendorApi> data
 });
 
 

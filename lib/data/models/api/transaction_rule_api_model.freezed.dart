@@ -608,7 +608,7 @@ as int,
 /// @nodoc
 mixin _$TransactionRuleListApi {
 
- List<TransactionRuleApi> get data;
+@JsonKey(fromJson: _transactionRuleListData) List<TransactionRuleApi> get data;
 /// Create a copy of TransactionRuleListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -641,7 +641,7 @@ abstract mixin class $TransactionRuleListApiCopyWith<$Res>  {
   factory $TransactionRuleListApiCopyWith(TransactionRuleListApi value, $Res Function(TransactionRuleListApi) _then) = _$TransactionRuleListApiCopyWithImpl;
 @useResult
 $Res call({
- List<TransactionRuleApi> data
+@JsonKey(fromJson: _transactionRuleListData) List<TransactionRuleApi> data
 });
 
 
@@ -746,7 +746,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<TransactionRuleApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _transactionRuleListData)  List<TransactionRuleApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TransactionRuleListApi() when $default != null:
 return $default(_that.data);case _:
@@ -767,7 +767,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<TransactionRuleApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _transactionRuleListData)  List<TransactionRuleApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _TransactionRuleListApi():
 return $default(_that.data);case _:
@@ -787,7 +787,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<TransactionRuleApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _transactionRuleListData)  List<TransactionRuleApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _TransactionRuleListApi() when $default != null:
 return $default(_that.data);case _:
@@ -802,11 +802,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _TransactionRuleListApi implements TransactionRuleListApi {
-  const _TransactionRuleListApi({final  List<TransactionRuleApi> data = const []}): _data = data;
+  const _TransactionRuleListApi({@JsonKey(fromJson: _transactionRuleListData) final  List<TransactionRuleApi> data = const []}): _data = data;
   factory _TransactionRuleListApi.fromJson(Map<String, dynamic> json) => _$TransactionRuleListApiFromJson(json);
 
  final  List<TransactionRuleApi> _data;
-@override@JsonKey() List<TransactionRuleApi> get data {
+@override@JsonKey(fromJson: _transactionRuleListData) List<TransactionRuleApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -846,7 +846,7 @@ abstract mixin class _$TransactionRuleListApiCopyWith<$Res> implements $Transact
   factory _$TransactionRuleListApiCopyWith(_TransactionRuleListApi value, $Res Function(_TransactionRuleListApi) _then) = __$TransactionRuleListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<TransactionRuleApi> data
+@JsonKey(fromJson: _transactionRuleListData) List<TransactionRuleApi> data
 });
 
 

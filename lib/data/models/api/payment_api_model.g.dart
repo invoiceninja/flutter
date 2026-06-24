@@ -158,11 +158,7 @@ Map<String, dynamic> _$PaymentCreditRefApiToJson(
 
 _PaymentListApi _$PaymentListApiFromJson(Map<String, dynamic> json) =>
     _PaymentListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => PaymentApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _paymentListData(json['data']),
     );
 
 Map<String, dynamic> _$PaymentListApiToJson(_PaymentListApi instance) =>

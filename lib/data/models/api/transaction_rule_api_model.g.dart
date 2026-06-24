@@ -63,11 +63,9 @@ Map<String, dynamic> _$TransactionRuleApiToJson(_TransactionRuleApi instance) =>
 _TransactionRuleListApi _$TransactionRuleListApiFromJson(
   Map<String, dynamic> json,
 ) => _TransactionRuleListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => TransactionRuleApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+  data: json['data'] == null
+      ? const []
+      : _transactionRuleListData(json['data']),
 );
 
 Map<String, dynamic> _$TransactionRuleListApiToJson(

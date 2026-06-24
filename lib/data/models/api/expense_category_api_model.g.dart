@@ -35,11 +35,9 @@ Map<String, dynamic> _$ExpenseCategoryApiToJson(_ExpenseCategoryApi instance) =>
 _ExpenseCategoryListApi _$ExpenseCategoryListApiFromJson(
   Map<String, dynamic> json,
 ) => _ExpenseCategoryListApi(
-  data:
-      (json['data'] as List<dynamic>?)
-          ?.map((e) => ExpenseCategoryApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const [],
+  data: json['data'] == null
+      ? const []
+      : _expenseCategoryListData(json['data']),
 );
 
 Map<String, dynamic> _$ExpenseCategoryListApiToJson(

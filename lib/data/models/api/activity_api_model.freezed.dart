@@ -997,7 +997,7 @@ $ActivityLabelApiCopyWith<$Res>? get adjustment {
 /// @nodoc
 mixin _$ActivityListApi {
 
- List<ActivityApi> get data;
+@JsonKey(fromJson: _activityListData) List<ActivityApi> get data;
 /// Create a copy of ActivityListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1030,7 +1030,7 @@ abstract mixin class $ActivityListApiCopyWith<$Res>  {
   factory $ActivityListApiCopyWith(ActivityListApi value, $Res Function(ActivityListApi) _then) = _$ActivityListApiCopyWithImpl;
 @useResult
 $Res call({
- List<ActivityApi> data
+@JsonKey(fromJson: _activityListData) List<ActivityApi> data
 });
 
 
@@ -1135,7 +1135,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<ActivityApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _activityListData)  List<ActivityApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ActivityListApi() when $default != null:
 return $default(_that.data);case _:
@@ -1156,7 +1156,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<ActivityApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _activityListData)  List<ActivityApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _ActivityListApi():
 return $default(_that.data);case _:
@@ -1176,7 +1176,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<ActivityApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _activityListData)  List<ActivityApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _ActivityListApi() when $default != null:
 return $default(_that.data);case _:
@@ -1191,11 +1191,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _ActivityListApi implements ActivityListApi {
-  const _ActivityListApi({final  List<ActivityApi> data = const []}): _data = data;
+  const _ActivityListApi({@JsonKey(fromJson: _activityListData) final  List<ActivityApi> data = const []}): _data = data;
   factory _ActivityListApi.fromJson(Map<String, dynamic> json) => _$ActivityListApiFromJson(json);
 
  final  List<ActivityApi> _data;
-@override@JsonKey() List<ActivityApi> get data {
+@override@JsonKey(fromJson: _activityListData) List<ActivityApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -1235,7 +1235,7 @@ abstract mixin class _$ActivityListApiCopyWith<$Res> implements $ActivityListApi
   factory _$ActivityListApiCopyWith(_ActivityListApi value, $Res Function(_ActivityListApi) _then) = __$ActivityListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<ActivityApi> data
+@JsonKey(fromJson: _activityListData) List<ActivityApi> data
 });
 
 

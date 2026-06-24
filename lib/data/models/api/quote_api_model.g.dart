@@ -136,11 +136,9 @@ Map<String, dynamic> _$QuoteApiToJson(_QuoteApi instance) => <String, dynamic>{
 
 _QuoteListApi _$QuoteListApiFromJson(Map<String, dynamic> json) =>
     _QuoteListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => QuoteApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <QuoteApi>[],
+      data: json['data'] == null
+          ? const <QuoteApi>[]
+          : _quoteListData(json['data']),
     );
 
 Map<String, dynamic> _$QuoteListApiToJson(_QuoteListApi instance) =>

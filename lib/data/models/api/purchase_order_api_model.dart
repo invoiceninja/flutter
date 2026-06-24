@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 
 part 'purchase_order_api_model.freezed.dart';
@@ -77,7 +78,9 @@ abstract class PurchaseOrderApi with _$PurchaseOrderApi {
 @freezed
 abstract class PurchaseOrderListApi with _$PurchaseOrderListApi {
   const factory PurchaseOrderListApi({
-    @Default(<PurchaseOrderApi>[]) List<PurchaseOrderApi> data,
+    @JsonKey(fromJson: _purchaseOrderListData)
+    @Default(<PurchaseOrderApi>[])
+    List<PurchaseOrderApi> data,
   }) = _PurchaseOrderListApi;
 
   factory PurchaseOrderListApi.fromJson(Map<String, dynamic> json) =>
@@ -92,3 +95,6 @@ abstract class PurchaseOrderItemApi with _$PurchaseOrderItemApi {
   factory PurchaseOrderItemApi.fromJson(Map<String, dynamic> json) =>
       _$PurchaseOrderItemApiFromJson(json);
 }
+
+List<PurchaseOrderApi> _purchaseOrderListData(Object? raw) =>
+    tolerantList(raw, PurchaseOrderApi.fromJson, label: 'purchase_order');

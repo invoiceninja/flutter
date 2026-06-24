@@ -44,11 +44,7 @@ Map<String, dynamic> _$ScheduleApiToJson(_ScheduleApi instance) =>
 
 _ScheduleListApi _$ScheduleListApiFromJson(Map<String, dynamic> json) =>
     _ScheduleListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => ScheduleApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _scheduleListData(json['data']),
     );
 
 Map<String, dynamic> _$ScheduleListApiToJson(_ScheduleListApi instance) =>

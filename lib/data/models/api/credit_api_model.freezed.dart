@@ -434,7 +434,7 @@ as int,
 /// @nodoc
 mixin _$CreditListApi {
 
- List<CreditApi> get data;
+@JsonKey(fromJson: _creditListData) List<CreditApi> get data;
 /// Create a copy of CreditListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -467,7 +467,7 @@ abstract mixin class $CreditListApiCopyWith<$Res>  {
   factory $CreditListApiCopyWith(CreditListApi value, $Res Function(CreditListApi) _then) = _$CreditListApiCopyWithImpl;
 @useResult
 $Res call({
- List<CreditApi> data
+@JsonKey(fromJson: _creditListData) List<CreditApi> data
 });
 
 
@@ -572,7 +572,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<CreditApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _creditListData)  List<CreditApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CreditListApi() when $default != null:
 return $default(_that.data);case _:
@@ -593,7 +593,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<CreditApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _creditListData)  List<CreditApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _CreditListApi():
 return $default(_that.data);case _:
@@ -613,7 +613,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<CreditApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _creditListData)  List<CreditApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _CreditListApi() when $default != null:
 return $default(_that.data);case _:
@@ -628,11 +628,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _CreditListApi implements CreditListApi {
-  const _CreditListApi({final  List<CreditApi> data = const <CreditApi>[]}): _data = data;
+  const _CreditListApi({@JsonKey(fromJson: _creditListData) final  List<CreditApi> data = const <CreditApi>[]}): _data = data;
   factory _CreditListApi.fromJson(Map<String, dynamic> json) => _$CreditListApiFromJson(json);
 
  final  List<CreditApi> _data;
-@override@JsonKey() List<CreditApi> get data {
+@override@JsonKey(fromJson: _creditListData) List<CreditApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -672,7 +672,7 @@ abstract mixin class _$CreditListApiCopyWith<$Res> implements $CreditListApiCopy
   factory _$CreditListApiCopyWith(_CreditListApi value, $Res Function(_CreditListApi) _then) = __$CreditListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<CreditApi> data
+@JsonKey(fromJson: _creditListData) List<CreditApi> data
 });
 
 

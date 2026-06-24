@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'activity_api_model.freezed.dart';
 part 'activity_api_model.g.dart';
 
@@ -65,9 +67,13 @@ abstract class ActivityApi with _$ActivityApi {
 /// `POST /api/v1/activities/entity` response envelope.
 @freezed
 abstract class ActivityListApi with _$ActivityListApi {
-  const factory ActivityListApi({@Default([]) List<ActivityApi> data}) =
-      _ActivityListApi;
+  const factory ActivityListApi({
+    @JsonKey(fromJson: _activityListData) @Default([]) List<ActivityApi> data,
+  }) = _ActivityListApi;
 
   factory ActivityListApi.fromJson(Map<String, dynamic> json) =>
       _$ActivityListApiFromJson(json);
 }
+
+List<ActivityApi> _activityListData(Object? raw) =>
+    tolerantList(raw, ActivityApi.fromJson, label: 'activity');

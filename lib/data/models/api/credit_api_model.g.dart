@@ -131,11 +131,9 @@ Map<String, dynamic> _$CreditApiToJson(_CreditApi instance) =>
 
 _CreditListApi _$CreditListApiFromJson(Map<String, dynamic> json) =>
     _CreditListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => CreditApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <CreditApi>[],
+      data: json['data'] == null
+          ? const <CreditApi>[]
+          : _creditListData(json['data']),
     );
 
 Map<String, dynamic> _$CreditListApiToJson(_CreditListApi instance) =>

@@ -135,11 +135,9 @@ Map<String, dynamic> _$ClientApiToJson(_ClientApi instance) =>
 
 _ClientListApi _$ClientListApiFromJson(Map<String, dynamic> json) =>
     _ClientListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => ClientApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <ClientApi>[],
+      data: json['data'] == null
+          ? const <ClientApi>[]
+          : _clientListData(json['data']),
     );
 
 Map<String, dynamic> _$ClientListApiToJson(_ClientListApi instance) =>

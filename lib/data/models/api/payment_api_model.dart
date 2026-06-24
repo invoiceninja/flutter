@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 
 part 'payment_api_model.freezed.dart';
 part 'payment_api_model.g.dart';
@@ -125,8 +126,9 @@ abstract class PaymentCreditRefApi with _$PaymentCreditRefApi {
 /// `GET /payments` response envelope.
 @freezed
 abstract class PaymentListApi with _$PaymentListApi {
-  const factory PaymentListApi({@Default([]) List<PaymentApi> data}) =
-      _PaymentListApi;
+  const factory PaymentListApi({
+    @JsonKey(fromJson: _paymentListData) @Default([]) List<PaymentApi> data,
+  }) = _PaymentListApi;
 
   factory PaymentListApi.fromJson(Map<String, dynamic> json) =>
       _$PaymentListApiFromJson(json);
@@ -140,3 +142,6 @@ abstract class PaymentItemApi with _$PaymentItemApi {
   factory PaymentItemApi.fromJson(Map<String, dynamic> json) =>
       _$PaymentItemApiFromJson(json);
 }
+
+List<PaymentApi> _paymentListData(Object? raw) =>
+    tolerantList(raw, PaymentApi.fromJson, label: 'payment');

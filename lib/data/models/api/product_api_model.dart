@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 
 part 'product_api_model.freezed.dart';
 part 'product_api_model.g.dart';
@@ -57,8 +58,9 @@ abstract class ProductApi with _$ProductApi {
 /// `GET /products` response envelope.
 @freezed
 abstract class ProductListApi with _$ProductListApi {
-  const factory ProductListApi({@Default([]) List<ProductApi> data}) =
-      _ProductListApi;
+  const factory ProductListApi({
+    @JsonKey(fromJson: _productListData) @Default([]) List<ProductApi> data,
+  }) = _ProductListApi;
 
   factory ProductListApi.fromJson(Map<String, dynamic> json) =>
       _$ProductListApiFromJson(json);
@@ -72,3 +74,6 @@ abstract class ProductItemApi with _$ProductItemApi {
   factory ProductItemApi.fromJson(Map<String, dynamic> json) =>
       _$ProductItemApiFromJson(json);
 }
+
+List<ProductApi> _productListData(Object? raw) =>
+    tolerantList(raw, ProductApi.fromJson, label: 'product');

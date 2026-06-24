@@ -449,7 +449,7 @@ as int,
 /// @nodoc
 mixin _$QuoteListApi {
 
- List<QuoteApi> get data;
+@JsonKey(fromJson: _quoteListData) List<QuoteApi> get data;
 /// Create a copy of QuoteListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -482,7 +482,7 @@ abstract mixin class $QuoteListApiCopyWith<$Res>  {
   factory $QuoteListApiCopyWith(QuoteListApi value, $Res Function(QuoteListApi) _then) = _$QuoteListApiCopyWithImpl;
 @useResult
 $Res call({
- List<QuoteApi> data
+@JsonKey(fromJson: _quoteListData) List<QuoteApi> data
 });
 
 
@@ -587,7 +587,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<QuoteApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _quoteListData)  List<QuoteApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _QuoteListApi() when $default != null:
 return $default(_that.data);case _:
@@ -608,7 +608,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<QuoteApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _quoteListData)  List<QuoteApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _QuoteListApi():
 return $default(_that.data);case _:
@@ -628,7 +628,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<QuoteApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _quoteListData)  List<QuoteApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _QuoteListApi() when $default != null:
 return $default(_that.data);case _:
@@ -643,11 +643,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _QuoteListApi implements QuoteListApi {
-  const _QuoteListApi({final  List<QuoteApi> data = const <QuoteApi>[]}): _data = data;
+  const _QuoteListApi({@JsonKey(fromJson: _quoteListData) final  List<QuoteApi> data = const <QuoteApi>[]}): _data = data;
   factory _QuoteListApi.fromJson(Map<String, dynamic> json) => _$QuoteListApiFromJson(json);
 
  final  List<QuoteApi> _data;
-@override@JsonKey() List<QuoteApi> get data {
+@override@JsonKey(fromJson: _quoteListData) List<QuoteApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -687,7 +687,7 @@ abstract mixin class _$QuoteListApiCopyWith<$Res> implements $QuoteListApiCopyWi
   factory _$QuoteListApiCopyWith(_QuoteListApi value, $Res Function(_QuoteListApi) _then) = __$QuoteListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<QuoteApi> data
+@JsonKey(fromJson: _quoteListData) List<QuoteApi> data
 });
 
 

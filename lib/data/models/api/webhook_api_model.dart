@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
+
 part 'webhook_api_model.freezed.dart';
 part 'webhook_api_model.g.dart';
 
@@ -44,8 +46,9 @@ abstract class WebhookApi with _$WebhookApi {
 /// `GET /webhooks` envelope.
 @freezed
 abstract class WebhookListApi with _$WebhookListApi {
-  const factory WebhookListApi({@Default([]) List<WebhookApi> data}) =
-      _WebhookListApi;
+  const factory WebhookListApi({
+    @JsonKey(fromJson: _webhookListData) @Default([]) List<WebhookApi> data,
+  }) = _WebhookListApi;
 
   factory WebhookListApi.fromJson(Map<String, dynamic> json) =>
       _$WebhookListApiFromJson(json);
@@ -59,3 +62,6 @@ abstract class WebhookItemApi with _$WebhookItemApi {
   factory WebhookItemApi.fromJson(Map<String, dynamic> json) =>
       _$WebhookItemApiFromJson(json);
 }
+
+List<WebhookApi> _webhookListData(Object? raw) =>
+    tolerantList(raw, WebhookApi.fromJson, label: 'webhook');

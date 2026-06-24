@@ -111,11 +111,7 @@ Map<String, dynamic> _$ExpenseApiToJson(_ExpenseApi instance) =>
 
 _ExpenseListApi _$ExpenseListApiFromJson(Map<String, dynamic> json) =>
     _ExpenseListApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => ExpenseApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      data: json['data'] == null ? const [] : _expenseListData(json['data']),
     );
 
 Map<String, dynamic> _$ExpenseListApiToJson(_ExpenseListApi instance) =>

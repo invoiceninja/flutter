@@ -190,7 +190,11 @@ abstract class Company with _$Company {
     clientRegistrationFields: api.clientRegistrationFields,
     customFields: api.customFields,
     rawSettings: api.settings,
-    settings: CompanySettingsApi.fromJson(api.settings),
+    // Lenient: the server ships several settings as number-or-string / 0|1
+    // bools, so the raw blob can mix types. fromJsonLenient coerces the known
+    // numeric/bool keys (and tolerates an int in endless_reminder_frequency_id)
+    // before the strict parse — same path the group/client settings VMs use.
+    settings: CompanySettingsApi.fromJsonLenient(api.settings),
     enableApplyingPayments: api.enableApplyingPayments,
     convertPaymentCurrency: api.convertPaymentCurrency,
     enabledTaxRates: api.enabledTaxRates,

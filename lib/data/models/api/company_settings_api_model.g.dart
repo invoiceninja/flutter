@@ -188,7 +188,9 @@ _CompanySettingsApi _$CompanySettingsApiFromJson(
   lateFeePercent1: (json['late_fee_percent1'] as num?)?.toDouble(),
   lateFeePercent2: (json['late_fee_percent2'] as num?)?.toDouble(),
   lateFeePercent3: (json['late_fee_percent3'] as num?)?.toDouble(),
-  endlessReminderFrequencyId: json['endless_reminder_frequency_id'] as String?,
+  endlessReminderFrequencyId: jsonScalarToString(
+    json['endless_reminder_frequency_id'],
+  ),
   lateFeeEndlessAmount: (json['late_fee_endless_amount'] as num?)?.toDouble(),
   lateFeeEndlessPercent: (json['late_fee_endless_percent'] as num?)?.toDouble(),
   enableQuoteReminder1: json['enable_quote_reminder1'] as bool?,

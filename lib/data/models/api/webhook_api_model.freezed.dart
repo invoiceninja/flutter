@@ -311,7 +311,7 @@ as int,
 /// @nodoc
 mixin _$WebhookListApi {
 
- List<WebhookApi> get data;
+@JsonKey(fromJson: _webhookListData) List<WebhookApi> get data;
 /// Create a copy of WebhookListApi
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -344,7 +344,7 @@ abstract mixin class $WebhookListApiCopyWith<$Res>  {
   factory $WebhookListApiCopyWith(WebhookListApi value, $Res Function(WebhookListApi) _then) = _$WebhookListApiCopyWithImpl;
 @useResult
 $Res call({
- List<WebhookApi> data
+@JsonKey(fromJson: _webhookListData) List<WebhookApi> data
 });
 
 
@@ -449,7 +449,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<WebhookApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _webhookListData)  List<WebhookApi> data)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _WebhookListApi() when $default != null:
 return $default(_that.data);case _:
@@ -470,7 +470,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<WebhookApi> data)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: _webhookListData)  List<WebhookApi> data)  $default,) {final _that = this;
 switch (_that) {
 case _WebhookListApi():
 return $default(_that.data);case _:
@@ -490,7 +490,7 @@ return $default(_that.data);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<WebhookApi> data)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: _webhookListData)  List<WebhookApi> data)?  $default,) {final _that = this;
 switch (_that) {
 case _WebhookListApi() when $default != null:
 return $default(_that.data);case _:
@@ -505,11 +505,11 @@ return $default(_that.data);case _:
 @JsonSerializable()
 
 class _WebhookListApi implements WebhookListApi {
-  const _WebhookListApi({final  List<WebhookApi> data = const []}): _data = data;
+  const _WebhookListApi({@JsonKey(fromJson: _webhookListData) final  List<WebhookApi> data = const []}): _data = data;
   factory _WebhookListApi.fromJson(Map<String, dynamic> json) => _$WebhookListApiFromJson(json);
 
  final  List<WebhookApi> _data;
-@override@JsonKey() List<WebhookApi> get data {
+@override@JsonKey(fromJson: _webhookListData) List<WebhookApi> get data {
   if (_data is EqualUnmodifiableListView) return _data;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_data);
@@ -549,7 +549,7 @@ abstract mixin class _$WebhookListApiCopyWith<$Res> implements $WebhookListApiCo
   factory _$WebhookListApiCopyWith(_WebhookListApi value, $Res Function(_WebhookListApi) _then) = __$WebhookListApiCopyWithImpl;
 @override @useResult
 $Res call({
- List<WebhookApi> data
+@JsonKey(fromJson: _webhookListData) List<WebhookApi> data
 });
 
 

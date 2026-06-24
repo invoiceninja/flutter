@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 
 part 'credit_api_model.freezed.dart';
@@ -79,8 +80,11 @@ abstract class CreditApi with _$CreditApi {
 
 @freezed
 abstract class CreditListApi with _$CreditListApi {
-  const factory CreditListApi({@Default(<CreditApi>[]) List<CreditApi> data}) =
-      _CreditListApi;
+  const factory CreditListApi({
+    @JsonKey(fromJson: _creditListData)
+    @Default(<CreditApi>[])
+    List<CreditApi> data,
+  }) = _CreditListApi;
 
   factory CreditListApi.fromJson(Map<String, dynamic> json) =>
       _$CreditListApiFromJson(json);
@@ -93,3 +97,6 @@ abstract class CreditItemApi with _$CreditItemApi {
   factory CreditItemApi.fromJson(Map<String, dynamic> json) =>
       _$CreditItemApiFromJson(json);
 }
+
+List<CreditApi> _creditListData(Object? raw) =>
+    tolerantList(raw, CreditApi.fromJson, label: 'credit');

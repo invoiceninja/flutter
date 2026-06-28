@@ -164,4 +164,53 @@ void main() {
       },
     );
   });
+
+  // kDebugMode is always true under `flutter test`, so the live VM can only
+  // exercise the debug branch. Drive the pure policy function directly with the
+  // dev escape-hatch off to assert the *release* behavior.
+  group('resolveSelfHostedBaseUrl — release policy (http local-only)', () {
+    ({String? url, String? errorKey}) check(String input) =>
+        resolveSelfHostedBaseUrl(input, allowInsecureHttpAnywhere: false);
+
+    test('allows http to local network addresses', () {
+      expect(check('http://192.168.1.50:8080').url, 'http://192.168.1.50:8080');
+      expect(check('http://10.0.0.5').url, 'http://10.0.0.5');
+      expect(check('http://localhost:8000').url, 'http://localhost:8000');
+      expect(check('http://nas.local:8000').url, 'http://nas.local:8000');
+    });
+
+    test('rejects http to a public host with a dedicated message', () {
+      final r = check('http://example.com');
+      expect(r.url, isNull);
+      expect(r.errorKey, 'insecure_url_use_https');
+    });
+
+    test('https is always allowed; a bare host gets https://', () {
+      expect(
+        check('https://demo.invoiceninja.com').url,
+        'https://demo.invoiceninja.com',
+      );
+      expect(
+        check('demo.invoiceninja.com').url,
+        'https://demo.invoiceninja.com',
+      );
+    });
+
+    test('malformed input still reports invalid_url', () {
+      expect(check('').errorKey, 'invalid_url');
+      expect(check('https://').errorKey, 'invalid_url');
+      expect(check('https://user:pw@host.example').errorKey, 'invalid_url');
+    });
+  });
+
+  group('resolveSelfHostedBaseUrl — debug policy (http anywhere)', () {
+    test('allows http to any host for local dev parity', () {
+      final r = resolveSelfHostedBaseUrl(
+        'http://example.com',
+        allowInsecureHttpAnywhere: true,
+      );
+      expect(r.url, 'http://example.com');
+      expect(r.errorKey, isNull);
+    });
+  });
 }

@@ -229,7 +229,7 @@ class _LoginForm extends StatelessWidget {
           if (!vm.isHosted) ...[
             AuthField(
               label: context.tr('server_url'),
-              hint: 'https://invoicing.example.com',
+              hint: 'https://invoice.example.com  ·  http://192.168.0.10:8080',
               keyboardType: TextInputType.url,
               autofillHints: const [AutofillHints.url],
               onChanged: vm.setUrlOverride,

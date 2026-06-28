@@ -5,6 +5,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/utils/local_network_host.dart';
 
 /// Which credential flow the user picked. The paths share most state
 /// (hosted toggle, base URL) but call different repository methods on submit.
@@ -122,33 +123,20 @@ class LoginViewModel extends ChangeNotifier {
   /// Returns the resolved base URL on success, or sets an inline error and
   /// returns null. Hosted builds skip the check (URL is a compile-time const).
   ///
-  /// Why: without this, `urlOverride` accepts any string and the app will
-  /// happily send the user's password to e.g. `http://attacker.local`.
+  /// Debug builds allow http to any host (local dev against an unencrypted
+  /// server); release restricts http to local network addresses. The policy
+  /// itself lives in the pure [resolveSelfHostedBaseUrl] so it stays testable.
   String? _checkedBaseUrl() {
     if (isHosted) return Env.hostedApiUrl;
-    var raw = urlOverride;
-    // Let users type a bare host like `demo.invoiceninja.com`: prepend
-    // https:// when no http/https scheme is present. A schemeless string
-    // parses with an empty host and would otherwise be rejected below.
-    // Inputs that already carry a scheme are left untouched (http stays
-    // debug-only via the check further down).
-    if (raw.isNotEmpty) {
-      final lower = raw.toLowerCase();
-      if (!lower.startsWith('http://') && !lower.startsWith('https://')) {
-        raw = 'https://$raw';
-      }
-    }
-    final uri = raw.isEmpty ? null : Uri.tryParse(raw);
-    if (uri == null || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
-      _setError(key: 'invalid_url');
+    final result = resolveSelfHostedBaseUrl(
+      urlOverride,
+      allowInsecureHttpAnywhere: kDebugMode,
+    );
+    if (result.url == null) {
+      _setError(key: result.errorKey);
       return null;
     }
-    final scheme = uri.scheme.toLowerCase();
-    // Allow http only in debug builds so local dev against an unencrypted
-    // server still works; release requires https.
-    if (scheme == 'https' || (scheme == 'http' && kDebugMode)) return raw;
-    _setError(key: 'invalid_url');
-    return null;
+    return result.url;
   }
 
   /// Email + password (+ optional OTP). Hot path.
@@ -347,4 +335,50 @@ class LoginViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+}
+
+/// Normalizes and validates a user-entered self-hosted base URL.
+///
+/// Returns a record: `url` is the resolved base URL on success (scheme
+/// preserved / normalized), or `null` with an `errorKey` localization key on
+/// failure. Extracted from [LoginViewModel] as a pure function so the release
+/// policy is unit-testable — `kDebugMode` is always true under `flutter test`,
+/// so [allowInsecureHttpAnywhere] stands in for it.
+///
+/// Policy:
+///  * a bare host (no scheme) is assumed `https://`;
+///  * `https://` is always allowed;
+///  * `http://` is allowed when [allowInsecureHttpAnywhere] (debug builds) or
+///    when the host is a local network address ([isLocalNetworkHost]);
+///  * everything else is rejected. Without this, `urlOverride` would accept any
+///    string and the app could POST the user's password in cleartext to an
+///    arbitrary public host.
+({String? url, String? errorKey}) resolveSelfHostedBaseUrl(
+  String input, {
+  required bool allowInsecureHttpAnywhere,
+}) {
+  var raw = input.trim();
+  // Let users type a bare host like `demo.invoiceninja.com`: prepend https://
+  // when no scheme is present. A schemeless string parses with an empty host
+  // and would otherwise be rejected below. Explicit schemes are left as typed.
+  if (raw.isNotEmpty) {
+    final lower = raw.toLowerCase();
+    if (!lower.startsWith('http://') && !lower.startsWith('https://')) {
+      raw = 'https://$raw';
+    }
+  }
+  final uri = raw.isEmpty ? null : Uri.tryParse(raw);
+  if (uri == null || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+    return (url: null, errorKey: 'invalid_url');
+  }
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme == 'https') return (url: raw, errorKey: null);
+  if (scheme == 'http' &&
+      (allowInsecureHttpAnywhere || isLocalNetworkHost(uri.host))) {
+    return (url: raw, errorKey: null);
+  }
+  // Reaching here means a well-formed http:// URL to a non-local host in a
+  // release build: the prepend above forces every schemeless or non-http input
+  // to https:// (which returns earlier), so the scheme is necessarily http.
+  return (url: null, errorKey: 'insecure_url_use_https');
 }

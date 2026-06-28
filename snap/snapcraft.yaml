@@ -45,6 +45,13 @@ apps:
       # `snap connect invoiceninja:password-manager-service` or the app can't open
       # its encrypted database. See docs/setup.md.
       - password-manager-service
+      # NetworkManager (system D-Bus) access for connectivity_plus's online/
+      # offline detection. OPTIONAL, NOT auto-connected, and NOT load-bearing:
+      # ConnectivityWatcher degrades to "assume online" when it's absent, so
+      # saves and syncing work without it (see connectivity_watcher.dart).
+      # Connecting it (`snap connect invoiceninja:network-manager`) only enables
+      # the offline banner + auto-drain-on-reconnect. See docs/setup.md.
+      - network-manager
 
 parts:
   invoiceninja:

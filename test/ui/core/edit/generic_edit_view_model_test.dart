@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -267,6 +268,37 @@ void main() {
         reason: 'success clears the recovery tmp id',
       );
       expect(sync.lastRowId, 1, reason: 'awaitRow was called with the row id');
+    });
+
+    test('blocked connectivity probe (Snap/AppArmor) → assume-online, save '
+        'still succeeds (no "Could not save")', () async {
+      final vm = _FakeEditVM(
+        initialDraft: 'tmp_AAA',
+        sync: sync,
+        // The live watcher's probe throws — exactly what `connectivity_plus`
+        // does on Linux when AppArmor blocks the NetworkManager D-Bus call
+        // under Snap strict confinement. It must degrade to assume-online so
+        // the save doesn't surface "Could not save" (the reported bug).
+        connectivity: ConnectivityWatcher.liveWith(
+          check: () async => throw Exception('AppArmor blocked NetworkManager'),
+          changes: () => const Stream<List<ConnectivityResult>>.empty(),
+        ),
+        companyId: 'co',
+      );
+      sync.handler = (_) =>
+          const SyncRowResult(outcome: SyncRowOutcome.success);
+
+      final result = await vm.save();
+
+      expect(result, 'tmp_AAA');
+      expect(vm.submitError, isNull);
+      expect(vm.isSaving, isFalse);
+      expect(
+        sync.lastRowId,
+        1,
+        reason:
+            'assume-online routed into the awaitRow online branch, not skipped',
+      );
     });
 
     test(

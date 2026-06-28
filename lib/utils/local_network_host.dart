@@ -60,19 +60,15 @@ bool isLocalNetworkHost(String host) {
     octets.add(n);
   }
   final a = octets[0], b = octets[1];
-  return a ==
-          127 // 127.0.0.0/8 loopback
-          ||
-      a ==
-          10 // 10.0.0.0/8
-          ||
-      (a == 192 && b == 168) // 192.168.0.0/16
-      ||
-      (a == 172 && b >= 16 && b <= 31) // 172.16.0.0/12
-      ||
-      (a == 169 && b == 254) // 169.254.0.0/16 link-local
-      ||
-      (a == 100 && b >= 64 && b <= 127); // 100.64.0.0/10 CGNAT (Tailscale)
+  // Private/loopback/link-local ranges, in order: 127.0.0.0/8 loopback,
+  // 10.0.0.0/8, 192.168.0.0/16, 172.16.0.0/12, 169.254.0.0/16 link-local,
+  // 100.64.0.0/10 CGNAT (Tailscale).
+  return a == 127 ||
+      a == 10 ||
+      (a == 192 && b == 168) ||
+      (a == 172 && b >= 16 && b <= 31) ||
+      (a == 169 && b == 254) ||
+      (a == 100 && b >= 64 && b <= 127);
 }
 
 /// A single canonical decimal IPv4 octet: `0`, or 1–3 digits with no leading

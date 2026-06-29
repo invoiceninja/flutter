@@ -108,6 +108,7 @@ the honest default.
 | Dashboard date range filter | ✅ | ✅ | ✅ | ✅ | |
 | Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |
+| Reorder + show/hide dashboard list panels (device-local) | — | — | ✅ | ✅ | |
 | Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ❌ | ✅ | — |
 | Panel → filtered list deep-links (View All / KPI cards carry matching filters) | — | — | ✅ | ✅ | |
 | Freshness label (last data update) | ❌ | ✅ | ✅ | ✅ | |

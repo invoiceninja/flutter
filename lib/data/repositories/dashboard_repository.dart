@@ -51,6 +51,19 @@ class DashboardKind {
     ...listKinds,
   ];
 
+  /// The six bottom-grid list panels a user can reorder / show / hide, in the
+  /// default render order (mirrors `_bottomGrid` in `dashboard_screen.dart` —
+  /// note `upcomingQuotes` precedes `expiredQuotes`). Excludes `activities`
+  /// (it rides the chart row, not the orderable grid).
+  static const List<String> panelKinds = [
+    pastDue,
+    upcomingInvoices,
+    recentPayments,
+    upcomingQuotes,
+    expiredQuotes,
+    upcomingRecurring,
+  ];
+
   /// Per-configured-card cache/section kind. The card's stable
   /// `field|period|calc|format` key is collision-safe here: no static kind
   /// contains `|` or the `calc:` prefix.

@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
+import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -367,7 +368,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         IconButton(
-          tooltip: context.tr('cards'),
+          tooltip: context.tr('customize'),
           icon: const Icon(Icons.dashboard_customize_outlined),
           onPressed: () => openManageDashboardCards(context, vm: _vm),
         ),
@@ -549,9 +550,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final paymentsOn = me?.moduleEnabled(EntityType.payment) ?? false;
     final quotesOn = me?.moduleEnabled(EntityType.quote) ?? false;
     final recurringOn = me?.moduleEnabled(EntityType.recurringInvoice) ?? false;
-    final cards = <Widget>[
+
+    // One builder per panel whose module is enabled; rendered in the user's
+    // saved order (`_vm.panelPrefs`), skipping hidden panels. Each card is
+    // `KeyedSubtree`-keyed by kind so reorder/hide moves the element (and its
+    // section subscription) as a unit instead of re-pointing it by position.
+    final builders = <String, Widget Function()>{
       if (invoicesOn)
-        sectionListenable(
+        DashboardKind.pastDue: () => sectionListenable(
           _vm.listenableFor(DashboardKind.pastDue),
           () => NeedsYourAttentionCard(
             section: _vm.pastDue,
@@ -563,7 +569,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       if (invoicesOn)
-        sectionListenable(
+        DashboardKind.upcomingInvoices: () => sectionListenable(
           _vm.listenableFor(DashboardKind.upcomingInvoices),
           () => UpcomingInvoicesCard(
             section: _vm.upcomingInvoices,
@@ -576,7 +582,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       if (paymentsOn)
-        sectionListenable(
+        DashboardKind.recentPayments: () => sectionListenable(
           _vm.listenableFor(DashboardKind.recentPayments),
           () => RecentPaymentsCard(
             section: _vm.recentPayments,
@@ -588,7 +594,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       if (quotesOn)
-        sectionListenable(
+        DashboardKind.upcomingQuotes: () => sectionListenable(
           _vm.listenableFor(DashboardKind.upcomingQuotes),
           () => UpcomingQuotesCard(
             section: _vm.upcomingQuotes,
@@ -600,7 +606,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       if (quotesOn)
-        sectionListenable(
+        DashboardKind.expiredQuotes: () => sectionListenable(
           _vm.listenableFor(DashboardKind.expiredQuotes),
           () => ExpiredQuotesCard(
             section: _vm.expiredQuotes,
@@ -612,7 +618,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       if (recurringOn)
-        sectionListenable(
+        DashboardKind.upcomingRecurring: () => sectionListenable(
           _vm.listenableFor(DashboardKind.upcomingRecurring),
           () => UpcomingRecurringInvoicesCard(
             section: _vm.upcomingRecurring,
@@ -623,12 +629,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRetry: () => _vm.retry(DashboardKind.upcomingRecurring),
           ),
         ),
+    };
+
+    final cards = <Widget>[
+      for (final p in _vm.panelPrefs)
+        if (p.visible && builders.containsKey(p.kind))
+          KeyedSubtree(key: ValueKey(p.kind), child: builders[p.kind]!()),
     ];
 
-    // Every list card filtered out — the chart / activity / KPI rows above
-    // still anchor the screen, so collapse the grid rather than render an
-    // empty box.
-    if (cards.isEmpty) return const SizedBox.shrink();
+    if (cards.isEmpty) {
+      // No backing module enabled → nothing to surface; collapse silently (the
+      // chart / activity / KPI rows above still anchor the screen).
+      if (builders.isEmpty) return const SizedBox.shrink();
+      // Module-enabled panels exist but the user hid them all → offer an inline
+      // way back rather than a blank void (mirrors the cards' empty-state link).
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: LinkText(
+          label: context.tr('show_panels'),
+          onTap: () => openManageDashboardCards(
+            context,
+            vm: _vm,
+            initialTab: ManagePane.panels,
+          ),
+          style: const TextStyle(fontSize: 12.5),
+        ),
+      );
+    }
 
     final columns = width >= 1200 ? 2 : 1;
     return _MultiColumnGrid(

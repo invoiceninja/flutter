@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
@@ -396,6 +397,227 @@ void main() {
           contains(a.key),
           reason: 'refetch runs once the drop completes (fresh row survives)',
         );
+      },
+    );
+  });
+
+  group('list panels', () {
+    DashboardViewModel newVm({Duration? persistDebounce}) => DashboardViewModel(
+      repo: repo,
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      statics: StaticsRepository(db: db, service: StaticsService(_dummyClient)),
+      persistDebounce: persistDebounce ?? const Duration(milliseconds: 500),
+    );
+
+    test('defaults to the six panels, in order, all visible', () {
+      expect(vm.panelPrefs.map((p) => p.kind), DashboardKind.panelKinds);
+      expect(vm.panelPrefs.every((p) => p.visible), isTrue);
+      expect(vm.panelsAreDefault, isTrue);
+    });
+
+    test('reorderPanels moves a panel, fires notify, clears default', () {
+      var globalHits = 0;
+      vm.addListener(() => globalHits++);
+      vm.reorderPanels(0, 2); // pastDue → index 2
+      expect(vm.panelPrefs.first.kind, DashboardKind.upcomingInvoices);
+      expect(vm.panelPrefs[2].kind, DashboardKind.pastDue);
+      expect(vm.panelsAreDefault, isFalse);
+      expect(globalHits, greaterThanOrEqualTo(1));
+    });
+
+    test('togglePanelVisibility flips one panel, preserves order', () {
+      vm.togglePanelVisibility(DashboardKind.expiredQuotes);
+      expect(
+        vm.panelPrefs
+            .firstWhere((p) => p.kind == DashboardKind.expiredQuotes)
+            .visible,
+        isFalse,
+      );
+      expect(vm.panelPrefs.map((p) => p.kind), DashboardKind.panelKinds);
+      expect(vm.panelsAreDefault, isFalse);
+      // Toggling back restores the canonical default.
+      vm.togglePanelVisibility(DashboardKind.expiredQuotes);
+      expect(vm.panelsAreDefault, isTrue);
+    });
+
+    test('resetPanels restores default order + visibility', () {
+      vm.reorderPanels(0, 3);
+      vm.togglePanelVisibility(DashboardKind.recentPayments);
+      expect(vm.panelsAreDefault, isFalse);
+      vm.resetPanels();
+      expect(vm.panelPrefs.map((p) => p.kind), DashboardKind.panelKinds);
+      expect(vm.panelPrefs.every((p) => p.visible), isTrue);
+      expect(vm.panelsAreDefault, isTrue);
+    });
+
+    test(
+      'reorderTrailingPanels reorders the five, preserves past-due slot',
+      () {
+        // Default: past-due at index 0. Move the first of the five (upcoming
+        // invoices) to the end of the five.
+        vm.reorderTrailingPanels(0, 4);
+        expect(vm.panelPrefs.map((p) => p.kind), const [
+          'past_due', // pinned, unchanged
+          'recent_payments',
+          'upcoming_quotes',
+          'expired_quotes',
+          'upcoming_recurring',
+          'upcoming_invoices',
+        ]);
+
+        // Now move past-due off slot 0, then reorder the five again and confirm
+        // past-due keeps its (non-zero) slot.
+        vm.resetPanels();
+        vm.reorderPanels(0, 2); // past-due → index 2
+        expect(vm.panelPrefs[2].kind, DashboardKind.pastDue);
+        vm.reorderTrailingPanels(0, 1); // swap the first two of the five
+        expect(
+          vm.panelPrefs[2].kind,
+          DashboardKind.pastDue,
+          reason: 'past-due slot preserved',
+        );
+        expect(
+          vm.panelPrefs
+              .where((p) => p.kind != DashboardKind.pastDue)
+              .map((p) => p.kind),
+          const [
+            'recent_payments',
+            'upcoming_invoices',
+            'upcoming_quotes',
+            'expired_quotes',
+            'upcoming_recurring',
+          ],
+        );
+      },
+    );
+
+    test('persists and rehydrates panel order + visibility', () async {
+      final writer = newVm(persistDebounce: const Duration(milliseconds: 5));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      writer.reorderPanels(0, 5); // pastDue → last
+      writer.togglePanelVisibility(DashboardKind.upcomingQuotes); // hide
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      final expectedOrder = writer.panelPrefs.map((p) => p.kind).toList();
+      writer.dispose();
+
+      final reader = newVm();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(reader.panelPrefs.map((p) => p.kind), expectedOrder);
+      expect(
+        reader.panelPrefs
+            .firstWhere((p) => p.kind == DashboardKind.upcomingQuotes)
+            .visible,
+        isFalse,
+      );
+      expect(reader.panelsAreDefault, isFalse);
+      reader.dispose();
+    });
+
+    test(
+      'an unrelated persist (chart grouping) does not clobber panels',
+      () async {
+        // w1: save a custom arrangement.
+        final w1 = newVm(persistDebounce: const Duration(milliseconds: 5));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        w1.togglePanelVisibility(DashboardKind.expiredQuotes);
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+        w1.dispose();
+
+        // w2: hydrates the custom panels, then fires an unrelated persist.
+        final w2 = newVm(persistDebounce: const Duration(milliseconds: 5));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(
+          w2.panelPrefs
+              .firstWhere((p) => p.kind == DashboardKind.expiredQuotes)
+              .visible,
+          isFalse,
+          reason: 'custom panels must hydrate before the unrelated write',
+        );
+        w2.setChartGrouping(ChartGrouping.week);
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+        w2.dispose();
+
+        // reader: both the panels AND the grouping survive.
+        final reader = newVm();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(
+          reader.panelPrefs
+              .firstWhere((p) => p.kind == DashboardKind.expiredQuotes)
+              .visible,
+          isFalse,
+        );
+        expect(reader.chartGrouping, ChartGrouping.week);
+        reader.dispose();
+      },
+    );
+
+    test('absent panels key (pre-upgrade install) → defaults all six '
+        'visible', () async {
+      // A dashboard envelope persisted before panels existed.
+      await db.navStateDao.saveFilters(
+        filtersJson: jsonEncode({
+          'co': {
+            'dashboard': {
+              'dashboardCards': ['active_invoices|current|sum|money'],
+            },
+          },
+        }),
+        now: 1,
+      );
+      final reader = newVm();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(reader.panelPrefs.map((p) => p.kind), DashboardKind.panelKinds);
+      expect(reader.panelPrefs.every((p) => p.visible), isTrue);
+      reader.dispose();
+    });
+
+    test(
+      'hydrate drops unknown + duplicate kinds and appends missing',
+      () async {
+        await db.navStateDao.saveFilters(
+          filtersJson: jsonEncode({
+            'co': {
+              'dashboard': {
+                'panels': [
+                  'recent_payments|0', // hidden
+                  'past_due|1',
+                  'past_due|1', // duplicate → ignored
+                  'not_a_panel|1', // unknown → dropped
+                ],
+              },
+            },
+          }),
+          now: 1,
+        );
+        final reader = newVm();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        // Saved (deduped, known) first, then missing kinds appended in
+        // panelKinds order.
+        expect(reader.panelPrefs.map((p) => p.kind), const [
+          'recent_payments',
+          'past_due',
+          'upcoming_invoices',
+          'upcoming_quotes',
+          'expired_quotes',
+          'upcoming_recurring',
+        ]);
+        expect(reader.panelPrefs.length, 6);
+        expect(
+          reader.panelPrefs
+              .firstWhere((p) => p.kind == DashboardKind.recentPayments)
+              .visible,
+          isFalse,
+          reason: 'saved visibility preserved',
+        );
+        expect(
+          reader.panelPrefs
+              .firstWhere((p) => p.kind == DashboardKind.upcomingInvoices)
+              .visible,
+          isTrue,
+          reason: 'appended panels default to visible',
+        );
+        reader.dispose();
       },
     );
   });

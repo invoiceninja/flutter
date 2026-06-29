@@ -98,6 +98,19 @@ class MobileDashboardBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // Module gating, mirroring desktop (`_bottomGrid`) — mobile previously
+    // rendered these list cards unconditionally.
+    final me = context.read<Services>().auth.session.value?.currentCompany;
+    bool moduleOn(EntityType t) => me?.moduleEnabled(t) ?? false;
+    final invoicesOn = moduleOn(EntityType.invoice);
+    final trailingEnabled = <String>{
+      if (invoicesOn) DashboardKind.upcomingInvoices,
+      if (moduleOn(EntityType.payment)) DashboardKind.recentPayments,
+      if (moduleOn(EntityType.quote)) DashboardKind.upcomingQuotes,
+      if (moduleOn(EntityType.quote)) DashboardKind.expiredQuotes,
+      if (moduleOn(EntityType.recurringInvoice))
+        DashboardKind.upcomingRecurring,
+    };
     return ListView(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       children: [
@@ -127,11 +140,16 @@ class MobileDashboardBody extends StatelessWidget {
         SizedBox(height: InSpacing.lg(context)),
         _quickActions(context, tokens),
         SizedBox(height: InSpacing.lg(context)),
-        sectionListenable(
-          vm.listenableFor(DashboardKind.pastDue),
-          () => _needsAttentionCard(context, tokens),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
+        // Past-due is pinned to the hero zone on mobile (its order slot is
+        // ignored); shown only when visible + invoices enabled. Card + spacer
+        // gate together so hiding it leaves no orphan gap before the chart.
+        if (invoicesOn && _panelVisible(DashboardKind.pastDue)) ...[
+          sectionListenable(
+            vm.listenableFor(DashboardKind.pastDue),
+            () => _needsAttentionCard(context, tokens),
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+        ],
         sectionListenable(
           vm.chartCardListenable,
           () => ChartCard(vm: vm, formatter: formatter),
@@ -147,31 +165,10 @@ class MobileDashboardBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: InSpacing.lg(context)),
-        sectionListenable(
-          vm.listenableFor(DashboardKind.upcomingInvoices),
-          () => _upcomingInvoicesCard(context, tokens),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        sectionListenable(
-          vm.listenableFor(DashboardKind.recentPayments),
-          () => _recentPaymentsCard(context, tokens),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        sectionListenable(
-          vm.listenableFor(DashboardKind.upcomingQuotes),
-          () => _upcomingQuotesCard(context, tokens),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        sectionListenable(
-          vm.listenableFor(DashboardKind.expiredQuotes),
-          () => _expiredQuotesCard(context, tokens),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        sectionListenable(
-          vm.listenableFor(DashboardKind.upcomingRecurring),
-          () => _upcomingRecurringCard(context, tokens),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
+        // Trailing list panels in the user's saved order (past-due excluded —
+        // it's pinned above). Each visible, module-enabled panel emits its card
+        // + a trailing spacer, so hiding one never orphans a gap.
+        ..._trailingPanels(context, tokens, trailingEnabled),
         Align(
           alignment: Alignment.centerRight,
           child: FreshnessLabel(
@@ -184,6 +181,43 @@ class MobileDashboardBody extends StatelessWidget {
       ],
     );
   }
+
+  /// The trailing list panels (everything except the pinned past-due card) in
+  /// the user's saved order. Each visible, module-enabled panel emits its card
+  /// (keyed by kind for stable element identity across reorders) followed by a
+  /// spacer, so hiding one never leaves a doubled gap.
+  List<Widget> _trailingPanels(
+    BuildContext context,
+    InTheme tokens,
+    Set<String> enabled,
+  ) {
+    final builders = <String, Widget Function()>{
+      DashboardKind.upcomingInvoices: () =>
+          _upcomingInvoicesCard(context, tokens),
+      DashboardKind.recentPayments: () => _recentPaymentsCard(context, tokens),
+      DashboardKind.upcomingQuotes: () => _upcomingQuotesCard(context, tokens),
+      DashboardKind.expiredQuotes: () => _expiredQuotesCard(context, tokens),
+      DashboardKind.upcomingRecurring: () =>
+          _upcomingRecurringCard(context, tokens),
+    };
+    final out = <Widget>[];
+    for (final p in vm.panelPrefs) {
+      final build = builders[p.kind];
+      if (build == null) continue; // past-due / unknown → not a trailing panel
+      if (!p.visible || !enabled.contains(p.kind)) continue;
+      out.add(
+        KeyedSubtree(
+          key: ValueKey(p.kind),
+          child: sectionListenable(vm.listenableFor(p.kind), build),
+        ),
+      );
+      out.add(SizedBox(height: InSpacing.lg(context)));
+    }
+    return out;
+  }
+
+  bool _panelVisible(String kind) =>
+      vm.panelPrefs.any((p) => p.kind == kind && p.visible);
 
   // ---------------------------------------------------------------------------
   // Eyebrow

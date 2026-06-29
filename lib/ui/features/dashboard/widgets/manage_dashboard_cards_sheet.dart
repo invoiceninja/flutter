@@ -1,9 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_panel_pref.dart';
+import 'package:admin/data/repositories/dashboard_repository.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
@@ -11,9 +16,12 @@ import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dar
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_card.dart';
 
-/// Top-bar / app-bar entry point that opens the manage-cards surface. Styled
-/// identically to `DashboardSettingsButton` so the dashboard chrome reads as
-/// one family.
+/// Which tab the manage-dashboard surface opens on.
+enum ManagePane { cards, panels }
+
+/// Top-bar / app-bar entry point that opens the manage-dashboard surface
+/// (metric cards + list panels). Styled identically to `DashboardSettingsButton`
+/// so the dashboard chrome reads as one family.
 class DashboardCardsButton extends StatelessWidget {
   const DashboardCardsButton({super.key, required this.vm});
 
@@ -33,7 +41,10 @@ class DashboardCardsButton extends StatelessWidget {
         ),
       ),
       icon: const Icon(Icons.dashboard_customize_outlined, size: 14),
-      label: Text(context.tr('cards'), style: const TextStyle(fontSize: 13)),
+      label: Text(
+        context.tr('customize'),
+        style: const TextStyle(fontSize: 13),
+      ),
       onPressed: () => openManageDashboardCards(context, vm: vm),
     );
   }
@@ -46,6 +57,7 @@ class DashboardCardsButton extends StatelessWidget {
 Future<void> openManageDashboardCards(
   BuildContext context, {
   required DashboardViewModel vm,
+  ManagePane initialTab = ManagePane.cards,
 }) {
   final wide = MediaQuery.sizeOf(context).width >= 600;
   if (wide) {
@@ -55,7 +67,7 @@ Future<void> openManageDashboardCards(
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
-          child: _ManageBody(vm: vm, twoColumn: true),
+          child: _ManageBody(vm: vm, twoColumn: true, initialTab: initialTab),
         ),
       ),
     );
@@ -65,15 +77,20 @@ Future<void> openManageDashboardCards(
     isScrollControlled: true,
     builder: (_) => FractionallySizedBox(
       heightFactor: 0.92,
-      child: _ManageBody(vm: vm, twoColumn: false),
+      child: _ManageBody(vm: vm, twoColumn: false, initialTab: initialTab),
     ),
   );
 }
 
 class _ManageBody extends StatefulWidget {
-  const _ManageBody({required this.vm, required this.twoColumn});
+  const _ManageBody({
+    required this.vm,
+    required this.twoColumn,
+    required this.initialTab,
+  });
   final DashboardViewModel vm;
   final bool twoColumn;
+  final ManagePane initialTab;
 
   @override
   State<_ManageBody> createState() => _ManageBodyState();
@@ -86,6 +103,7 @@ class _FieldOpt {
 }
 
 class _ManageBodyState extends State<_ManageBody> {
+  late ManagePane _pane = widget.initialTab;
   String? _field;
   CardPeriod _period = CardPeriod.current;
   CardCalc _calc = CardCalc.sum;
@@ -161,11 +179,6 @@ class _ManageBodyState extends State<_ManageBody> {
 
   @override
   Widget build(BuildContext context) {
-    final fieldOpts = [
-      for (final f in kDashboardCardFields)
-        _FieldOpt(f, context.tr(fieldLabelKey(f))),
-    ]..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
-
     return SafeArea(
       top: false,
       child: Padding(
@@ -176,47 +189,93 @@ class _ManageBodyState extends State<_ManageBody> {
           children: [
             _header(context),
             SizedBox(height: InSpacing.md(context)),
-            if (widget.twoColumn)
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: _composePane(context, fieldOpts),
-                      ),
-                    ),
-                    SizedBox(width: InSpacing.lg(context)),
-                    Expanded(child: _currentPane(context)),
-                  ],
-                ),
-              )
-            else ...[
-              Flexible(
-                child: SingleChildScrollView(
-                  child: _composePane(context, fieldOpts),
-                ),
-              ),
-              SizedBox(height: InSpacing.lg(context)),
-              Flexible(child: _currentPane(context)),
-            ],
+            if (_pane == ManagePane.cards)
+              ..._cardsBody(context)
+            else
+              ..._panelsBody(context),
           ],
         ),
       ),
     );
   }
 
+  // ── Cards tab (compose | current) ─────────────────────────────────────
+  List<Widget> _cardsBody(BuildContext context) {
+    final fieldOpts = [
+      for (final f in kDashboardCardFields)
+        _FieldOpt(f, context.tr(fieldLabelKey(f))),
+    ]..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+
+    if (widget.twoColumn) {
+      return [
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: _composePane(context, fieldOpts),
+                ),
+              ),
+              SizedBox(width: InSpacing.lg(context)),
+              Expanded(child: _currentPane(context)),
+            ],
+          ),
+        ),
+      ];
+    }
+    return [
+      Flexible(
+        child: SingleChildScrollView(child: _composePane(context, fieldOpts)),
+      ),
+      SizedBox(height: InSpacing.lg(context)),
+      Flexible(child: _currentPane(context)),
+    ];
+  }
+
+  // ── Panels tab (reorder + show/hide the six fixed list panels) ────────
+  // One bounded-height pane (Expanded works under the bounded Dialog/sheet in
+  // both layouts) + a reset-to-defaults footer.
+  List<Widget> _panelsBody(BuildContext context) => [
+    Expanded(child: _PanelsPane(vm: vm)),
+    SizedBox(height: InSpacing.sm),
+    ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) => Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: vm.panelsAreDefault ? null : vm.resetPanels,
+          icon: const Icon(Icons.restart_alt, size: 16),
+          label: Text(context.tr('reset_to_defaults')),
+        ),
+      ),
+    ),
+  ];
+
   Widget _header(BuildContext context) {
-    final tokens = context.inTheme;
     return Row(
       children: [
         Expanded(
-          child: Text(
-            context.tr('cards'),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: tokens.ink,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: SegmentedButton<ManagePane>(
+              showSelectedIcon: false,
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              segments: [
+                ButtonSegment(
+                  value: ManagePane.cards,
+                  label: Text(context.tr('cards')),
+                ),
+                ButtonSegment(
+                  value: ManagePane.panels,
+                  label: Text(context.tr('panels')),
+                ),
+              ],
+              selected: {_pane},
+              onSelectionChanged: (s) => setState(() => _pane = s.first),
             ),
           ),
         ),
@@ -592,6 +651,216 @@ class _CardRow extends StatelessWidget {
             iconSize: 18,
             tooltip: context.tr('remove'),
             onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Panels-tab body: a single reorderable list of the six fixed dashboard list
+/// panels with a per-row show/hide [Switch]. Mirrors `_currentPane` (a
+/// `_PaneCard(fill: true)` wrapping a `ReorderableListView`) so both tabs read
+/// as one family. All six are shown so the reorder index stays 1:1 with
+/// `vm.panelPrefs`; module-disabled panels are kept (their saved state survives)
+/// but flagged so toggling them isn't a silent dead control.
+class _PanelsPane extends StatefulWidget {
+  const _PanelsPane({required this.vm});
+  final DashboardViewModel vm;
+
+  @override
+  State<_PanelsPane> createState() => _PanelsPaneState();
+}
+
+class _PanelsPaneState extends State<_PanelsPane> {
+  // Its own controller — never share the cards pane's `_listScroll`.
+  final ScrollController _scroll = ScrollController();
+
+  DashboardViewModel get vm => widget.vm;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Services lives above MaterialApp (main.dart) so a root-navigator dialog
+    // can read it; only the dashboard's own VM provider sits below the
+    // navigator, which is why `vm` is passed in explicitly.
+    final company = context.read<Services>().auth.session.value?.currentCompany;
+    bool moduleOn(EntityType t) => company?.moduleEnabled(t) ?? false;
+    final enabledKinds = <String>{
+      if (moduleOn(EntityType.invoice)) DashboardKind.pastDue,
+      if (moduleOn(EntityType.invoice)) DashboardKind.upcomingInvoices,
+      if (moduleOn(EntityType.payment)) DashboardKind.recentPayments,
+      if (moduleOn(EntityType.quote)) DashboardKind.upcomingQuotes,
+      if (moduleOn(EntityType.quote)) DashboardKind.expiredQuotes,
+      if (moduleOn(EntityType.recurringInvoice))
+        DashboardKind.upcomingRecurring,
+    };
+    // A phone only ever sees the mobile layout, where past-due is pinned to the
+    // hero zone and its order slot is ignored — so present it as non-draggable.
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+
+    return _PaneCard(
+      title: context.tr('panels'),
+      fill: true,
+      child: ListenableBuilder(
+        listenable: vm,
+        builder: (context, _) {
+          final prefs = vm.panelPrefs;
+
+          _PanelRow rowFor(
+            DashboardPanelPref p,
+            int index, {
+            required bool pinned,
+          }) => _PanelRow(
+            key: ValueKey(p.kind),
+            index: index,
+            title: context.tr(panelTitleKey(p.kind)),
+            visible: p.visible,
+            moduleEnabled: enabledKinds.contains(p.kind),
+            pinned: pinned,
+            onToggle: () => vm.togglePanelVisibility(p.kind),
+          );
+
+          final listPadding = EdgeInsets.symmetric(
+            horizontal: InSpacing.lg(context),
+            vertical: InSpacing.md(context),
+          );
+
+          // Wide: a single list, 1:1 with panelPrefs.
+          if (!narrow) {
+            return ReorderableListView.builder(
+              scrollController: _scroll,
+              padding: listPadding,
+              buildDefaultDragHandles: false,
+              itemCount: prefs.length,
+              onReorderItem: vm.reorderPanels,
+              itemBuilder: (context, i) => rowFor(prefs[i], i, pinned: false),
+            );
+          }
+
+          // Narrow: past-due is pinned at the top (it always renders in the
+          // mobile hero zone; its order slot is ignored), and the remaining
+          // five reorder beneath it — mirroring the mobile dashboard exactly.
+          final pastDue = prefs.firstWhere(
+            (p) => p.kind == DashboardKind.pastDue,
+          );
+          final rest = prefs
+              .where((p) => p.kind != DashboardKind.pastDue)
+              .toList();
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(
+                  left: InSpacing.lg(context),
+                  right: InSpacing.lg(context),
+                  top: InSpacing.md(context),
+                ),
+                child: rowFor(pastDue, 0, pinned: true),
+              ),
+              Expanded(
+                child: ReorderableListView.builder(
+                  scrollController: _scroll,
+                  padding: listPadding,
+                  buildDefaultDragHandles: false,
+                  itemCount: rest.length,
+                  onReorderItem: vm.reorderTrailingPanels,
+                  itemBuilder: (context, i) =>
+                      rowFor(rest[i], i, pinned: false),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PanelRow extends StatelessWidget {
+  const _PanelRow({
+    super.key,
+    required this.index,
+    required this.title,
+    required this.visible,
+    required this.moduleEnabled,
+    required this.pinned,
+    required this.onToggle,
+  });
+
+  final int index;
+  final String title;
+  final bool visible;
+  final bool moduleEnabled;
+  final bool pinned;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    // Two distinct muted states (never conflated):
+    //  • module-disabled → inert (ink3) + a "module disabled" reason hint.
+    //  • user-hidden      → the off Switch carries it; only a light title
+    //                       de-emphasis (ink2) so it never reads as disabled.
+    final Color titleColor = !moduleEnabled
+        ? tokens.ink3
+        : (visible ? tokens.ink : tokens.ink2);
+
+    final Widget handle = pinned
+        ? Tooltip(
+            message: context.tr('shown_first'),
+            child: Icon(Icons.push_pin_outlined, color: tokens.ink3, size: 18),
+          )
+        : ReorderableDragStartListener(
+            index: index,
+            child: Tooltip(
+              message: context.tr('drag_to_reorder'),
+              child: Icon(Icons.drag_indicator, color: tokens.ink3, size: 20),
+            ),
+          );
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        vertical: InSpacing.xs,
+        horizontal: InSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          handle,
+          SizedBox(width: InSpacing.md(context)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: titleColor),
+                ),
+                if (!moduleEnabled)
+                  Text(
+                    context.tr('module_disabled'),
+                    style: TextStyle(fontSize: 11, color: tokens.ink3),
+                  ),
+              ],
+            ),
+          ),
+          Tooltip(
+            message: context.tr(visible ? 'hide' : 'show'),
+            // Inert when the backing module is off — the panel can't render
+            // regardless, so Material greys the switch to match the dimmed row.
+            // The saved `visible` flag is untouched and returns when re-enabled.
+            child: Switch.adaptive(
+              value: visible,
+              onChanged: moduleEnabled ? (_) => onToggle() : null,
+            ),
           ),
         ],
       ),

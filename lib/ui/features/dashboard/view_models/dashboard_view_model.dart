@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/dashboard/dashboard_calculated_field.da
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_chart_series.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_panel_pref.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
@@ -88,6 +89,16 @@ class DashboardViewModel extends ChangeNotifier {
   /// persisted locally in the `dashboard` nav_state envelope. Order is the
   /// render order.
   List<DashboardCardConfig> dashboardCards = [];
+
+  /// User ordering + visibility for the six fixed list panels. Defaults to the
+  /// canonical order, all visible; `_hydrate` overlays the saved arrangement.
+  /// Persisted in the same `dashboard` nav_state envelope as [dashboardCards].
+  List<DashboardPanelPref> panelPrefs = _defaultPanelPrefs();
+
+  static List<DashboardPanelPref> _defaultPanelPrefs() => [
+    for (final k in DashboardKind.panelKinds)
+      DashboardPanelPref(kind: k, visible: true),
+  ];
 
   /// Per-card async state keyed by [DashboardCardConfig.key]. Each card
   /// listens to `listenableFor(DashboardKind.calc(key))`.
@@ -258,6 +269,61 @@ class DashboardViewModel extends ChangeNotifier {
     notifyListeners();
     _schedulePersist();
   }
+
+  // ─── List-panel ordering / visibility ─────────────────────────────────
+  // Pure layout state (no streams). The dashboard body rebuilds on the global
+  // notify; the manage dialog reorders/toggles via these.
+
+  void reorderPanels(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= panelPrefs.length) return;
+    final next = [...panelPrefs];
+    final moved = next.removeAt(oldIndex);
+    next.insert(newIndex.clamp(0, next.length), moved);
+    panelPrefs = next;
+    notifyListeners();
+    _schedulePersist();
+  }
+
+  /// Reorder only the non-past-due panels, preserving past-due's slot. Used by
+  /// the narrow manage layout, where past-due is pinned to the top (it always
+  /// renders in the mobile hero zone) and the remaining five reorder beneath it.
+  /// [oldIndex]/[newIndex] index the past-due-excluded subsequence.
+  void reorderTrailingPanels(int oldIndex, int newIndex) {
+    final rest = panelPrefs
+        .where((p) => p.kind != DashboardKind.pastDue)
+        .toList();
+    if (oldIndex < 0 || oldIndex >= rest.length) return;
+    final moved = rest.removeAt(oldIndex);
+    rest.insert(newIndex.clamp(0, rest.length), moved);
+    var ri = 0;
+    panelPrefs = [
+      for (final p in panelPrefs)
+        p.kind == DashboardKind.pastDue ? p : rest[ri++],
+    ];
+    notifyListeners();
+    _schedulePersist();
+  }
+
+  void togglePanelVisibility(String kind) {
+    final idx = panelPrefs.indexWhere((p) => p.kind == kind);
+    if (idx < 0) return;
+    final next = [...panelPrefs];
+    next[idx] = next[idx].copyWith(visible: !next[idx].visible);
+    panelPrefs = next;
+    notifyListeners();
+    _schedulePersist();
+  }
+
+  void resetPanels() {
+    if (panelsAreDefault) return;
+    panelPrefs = _defaultPanelPrefs();
+    notifyListeners();
+    _schedulePersist();
+  }
+
+  /// True when [panelPrefs] equals the canonical default — order-sensitive
+  /// (relies on `DashboardPanelPref ==`). Gates the manage dialog's reset.
+  bool get panelsAreDefault => listEquals(panelPrefs, _defaultPanelPrefs());
 
   /// Per-card retry (compact in-card error affordance).
   Future<void> retryCard(String key) async {
@@ -574,6 +640,32 @@ class DashboardViewModel extends ChangeNotifier {
         }
         dashboardCards = loaded;
       }
+
+      // When `panels` is absent (every pre-upgrade install), panelPrefs keeps
+      // its all-visible default — no else branch.
+      final panels = dash['panels'];
+      if (panels is List) {
+        final seen = <String>{};
+        final loaded = <DashboardPanelPref>[];
+        for (final p in panels) {
+          final pref = DashboardPanelPref.tryParse(p);
+          // Keep only known panel kinds; dedupe by kind.
+          if (pref != null &&
+              DashboardKind.panelKinds.contains(pref.kind) &&
+              seen.add(pref.kind)) {
+            loaded.add(pref);
+          }
+        }
+        // Append any panel missing from the saved list (e.g. a panel added in a
+        // later release) visible-by-default, so the set is always complete and
+        // in a stable order.
+        for (final k in DashboardKind.panelKinds) {
+          if (seen.add(k)) {
+            loaded.add(DashboardPanelPref(kind: k, visible: true));
+          }
+        }
+        panelPrefs = loaded;
+      }
     } catch (e, st) {
       _log.warning('Failed to hydrate dashboard nav_state', e, st);
     } finally {
@@ -607,6 +699,7 @@ class DashboardViewModel extends ChangeNotifier {
         'chartSeries': visibleChartSeries.map((s) => s.name).toList(),
         'chartGrouping': chartGrouping.name,
         'dashboardCards': dashboardCards.map((c) => c.toJson()).toList(),
+        'panels': panelPrefs.map((p) => p.toJson()).toList(),
       };
       doc[companyId] = companyMap;
       await navStateDao.saveFilters(

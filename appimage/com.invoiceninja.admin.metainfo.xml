@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metainfo for the Invoice Ninja Linux AppImage.
+  - metadata_license licenses THIS file and must be permissive (CC0-1.0).
+  - project_license is the app's license: AAL (Attribution Assurance License,
+    per LICENSE.txt). If the team treats the app as closed-source, switch this
+    to LicenseRef-proprietary.
+  - The <release> version/date below are placeholders; tools/build_appimage.sh
+    rewrites them (in the staged AppDir copy only) from pubspec at build time.
+-->
+<component type="desktop-application">
+  <id>com.invoiceninja.admin</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AAL</project_license>
+  <name>Invoice Ninja</name>
+  <summary>Create invoices, accept payments, track expenses &amp; time tasks</summary>
+  <description>
+    <p>
+      Invoice Ninja is a suite of invoicing and payment tools for freelancers and
+      small businesses. Send branded invoices, accept online payments, track
+      expenses and vendors, and time billable tasks across projects — with
+      multi-company support and offline editing that syncs when you reconnect.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.invoiceninja.admin.desktop</launchable>
+  <developer_name>Invoice Ninja</developer_name>
+  <url type="homepage">https://invoiceninja.com</url>
+  <url type="bugtracker">https://github.com/invoiceninja/flutter/issues</url>
+  <categories>
+    <category>Office</category>
+    <category>Finance</category>
+  </categories>
+  <releases>
+    <release version="5.1.4" date="2026-06-29"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

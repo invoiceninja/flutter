@@ -1,0 +1,14 @@
+# SHA-256 checksums for the AppImage packaging tools, used by tools/build_appimage.sh.
+#
+# linuxdeploy and linuxdeploy-plugin-appimage publish only a rolling `continuous`
+# tag (and type2-runtime likewise), so these hashes change whenever upstream
+# rebuilds. Pin them per release window: run the appimage.yml workflow (or
+# build_appimage.sh locally) once, copy the "tool checksums" lines it prints
+# below, and commit. The build verifies against any non-comment lines here and
+# skips verification while this file has none.
+#
+# Format (one per tool, two spaces):
+#   <sha256>  linuxdeploy-x86_64.AppImage
+#   <sha256>  linuxdeploy-plugin-appimage-x86_64.AppImage
+#   <sha256>  linuxdeploy-plugin-gtk.sh
+#   <sha256>  runtime-x86_64

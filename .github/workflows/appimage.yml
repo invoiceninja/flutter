@@ -1,0 +1,139 @@
+name: Deploy to GitHub Releases
+
+# Manual only — building + publishing the Linux AppImage is a deliberate release
+# action, not a per-push gate. Unlike the snap (and every other publish pipeline,
+# which push to an external store's testing channel), an AppImage has no store:
+# it's distributed as a file attached to a GitHub Release. Ships a per-version
+# `prerelease` (mirroring the snap's edge / grade: devel + the README "Beta"
+# posture); set the `publish` input to false for a build-only dry run.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Create/update the GitHub Release (uncheck for a build-only dry run)
+        type: boolean
+        default: true
+
+# contents: write is the LONE exception among the publish workflows (every other
+# one is contents: read) — it's required for action-gh-release to create the
+# v<version> tag + Release. No external secret is needed (the built-in
+# GITHUB_TOKEN suffices); the repo's Actions token policy must allow write
+# (Settings -> Actions -> General -> Workflow permissions).
+permissions:
+  contents: write
+
+# Only tag/release-writing workflow in the repo — serialize dispatches so two
+# can't race on the same v<version> tag.
+concurrency:
+  group: appimage-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-appimage:
+    name: Build and Publish AppImage
+    # REQUIRED: build on 22.04 (glibc 2.35) for broad distro compatibility — an
+    # AppImage requires host glibc >= build glibc, so a 24.04 build (glibc 2.39)
+    # would refuse to start on older hosts. Same constraint/reason as
+    # snapcraft.yml's core22 pin. Do not bump to ubuntu-latest.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned to match ci.yaml / snapcraft.yml (no .flutter-version file).
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      # Full union, spelled out so nothing is silently dropped:
+      #  - snapcraft.yml's set MINUS execstack (strict-confinement-only; AppImage
+      #    is unconfined) — libcurl4-openssl-dev stays (load-bearing for the
+      #    sentry-native link inside `flutter build linux`, not AppImage-specific).
+      #  - AppImage extras: dpkg-dev (dpkg-architecture, a hard gtk-plugin dep);
+      #    librsvg2-* (SVG gdk-pixbuf loader); libglib2.0-bin/libgdk-pixbuf2.0-bin/
+      #    libgtk-3-bin (glib-compile-schemas + the query tools, else the bundle
+      #    silently degrades); gobject-introspection + libgirepository1.0-dev;
+      #    gsettings-desktop-schemas; desktop-file-utils + appstream (validators);
+      #    patchelf; dbus (silences a gtk-plugin color-scheme probe warning).
+      # FUSE/libfuse2 is NOT needed — APPIMAGE_EXTRACT_AND_RUN=1 is set in the script.
+      - name: Install Linux build + AppImage deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libsecret-1-dev libcurl4-openssl-dev \
+            dpkg-dev librsvg2-dev librsvg2-common \
+            libglib2.0-bin libgdk-pixbuf2.0-bin libgtk-3-bin \
+            gobject-introspection libgirepository1.0-dev \
+            gsettings-desktop-schemas desktop-file-utils appstream patchelf dbus
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Single source for the asset filename AND the git tag: 5.1.4+7 -> 5.1.4.
+      - name: Resolve version
+        id: ver
+        run: |
+          raw="$(grep -m1 '^version:' pubspec.yaml)"
+          v="${raw#*version:}"; v="${v//[\"\' ]/}"; v="${v%%+*}"; v="${v%$'\r'}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "AppImage version: $v"
+
+      # Diagnostic only (non-fatal) — surfaces metainfo warnings in the log so we
+      # can later drop LDAI_NO_APPSTREAM=1. Validates the committed source, not the
+      # version-stamped AppDir copy (packaging skips validation anyway).
+      - name: Validate desktop + AppStream metadata (non-fatal)
+        run: |
+          desktop-file-validate appimage/com.invoiceninja.admin.desktop || true
+          appstreamcli validate appimage/com.invoiceninja.admin.metainfo.xml || true
+
+      # IN_SENTRY_DSN is baked into the binary here (compile-time
+      # String.fromEnvironment, inside `flutter build linux`); empty/unset is a
+      # safe no-op (Env.sentryDsn defaults to '' -> Sentry disabled). The script
+      # owns `flutter build linux` + packaging; pub get + codegen ran above.
+      - name: Build AppImage
+        env:
+          IN_SENTRY_DSN: ${{ secrets.IN_SENTRY_DSN }}
+          APPIMAGE_VERSION: ${{ steps.ver.outputs.version }}
+        run: tools/build_appimage.sh
+
+      # Cheap validity check — no GUI/GL needed (full launch isn't headless-friendly).
+      - name: Smoke-check the AppImage
+        run: |
+          cd build/appimage
+          APPIMAGE_EXTRACT_AND_RUN=1 ./InvoiceNinja-${{ steps.ver.outputs.version }}-x86_64.AppImage --appimage-extract >/dev/null
+          test -f squashfs-root/usr/bin/admin
+          test -f squashfs-root/usr/bin/lib/libapp.so
+          test -f squashfs-root/usr/bin/data/icudtl.dat
+          if ldd squashfs-root/usr/bin/admin | grep -i 'not found'; then
+            echo "ERROR: unresolved shared libraries in the bundled executable" >&2
+            exit 1
+          fi
+
+      # Always upload (even on dry runs) so the artifact is downloadable from the run.
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InvoiceNinja-AppImage
+          path: build/appimage/InvoiceNinja-*-x86_64.AppImage
+          if-no-files-found: error
+
+      # Gated on the boolean input (never bare github.event.inputs.publish — the
+      # string "false" is truthy). Re-dispatch on an existing tag updates the
+      # release in place and replaces the asset. target_commitish binds the tag to
+      # the built commit on first creation.
+      - name: Publish GitHub Release (prerelease)
+        if: ${{ inputs.publish }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Invoice Ninja ${{ steps.ver.outputs.version }}
+          files: build/appimage/InvoiceNinja-*-x86_64.AppImage
+          prerelease: true
+          generate_release_notes: true

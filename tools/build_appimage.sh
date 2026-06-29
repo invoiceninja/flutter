@@ -147,6 +147,23 @@ install -Dm644 "$repo_root/appimage/com.invoiceninja.admin.metainfo.xml" \
 sed -i -E "s|<release[^/]*/>|<release version=\"$version\" date=\"$(date +%F)\"/>|" \
   "$appdir/usr/share/metainfo/com.invoiceninja.admin.metainfo.xml"
 
+# crashpad_handler (sentry_flutter) is installed mode 0644 by Flutter's
+# linux/CMakeLists.txt; without +x, posix_spawn of the handler fails with EACCES
+# at runtime and the app crashes on startup when Sentry is enabled. The
+# install(PROGRAMS) fix in linux/CMakeLists.txt handles the source bundle; this is
+# belt-and-suspenders so the AppImage is correct even if that ever regresses.
+find "$appdir" -name crashpad_handler -exec chmod 0755 {} +
+
+# Keep GIO from dlopen-ing the HOST's gvfs/gio modules (built against a newer glib
+# than the bundled 2.72) — that prints "undefined symbol: g_task_set_static_name"
+# on newer hosts. Point GIO at a bundled (empty) module dir via an AppRun hook;
+# linuxdeploy's AppRun sources apprun-hooks/* with $APPDIR set at launch.
+mkdir -p "$appdir/usr/lib/gio/modules" "$appdir/apprun-hooks"
+cat > "$appdir/apprun-hooks/99-gio-modules.sh" <<'HOOK'
+export GIO_MODULE_DIR="$APPDIR/usr/lib/gio/modules"
+export GIO_USE_VFS=local
+HOOK
+
 # --- fetch the packaging tools + the AppImage runtime ---
 # linuxdeploy + the appimage output plugin ship only a rolling `continuous` tag;
 # the gtk plugin is a raw script (pin GTK_PLUGIN_REF to a commit for repro);

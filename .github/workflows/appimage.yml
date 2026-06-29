@@ -110,6 +110,7 @@ jobs:
           test -f squashfs-root/usr/bin/admin
           test -f squashfs-root/usr/bin/lib/libapp.so
           test -f squashfs-root/usr/bin/data/icudtl.dat
+          test -x squashfs-root/usr/bin/lib/crashpad_handler  # must be +x or Sentry crashes the app at startup (posix_spawn EACCES)
           if ldd squashfs-root/usr/bin/admin | grep -i 'not found'; then
             echo "ERROR: unresolved shared libraries in the bundled executable" >&2
             exit 1

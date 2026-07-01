@@ -4,6 +4,8 @@
   "account_settings_syncing_notice": "Loading your latest settings — these options unlock once they sync from the server. Check your connection if they stay disabled.",
   "not_synced_yet": "This record hasn't synced to the server yet — changes upload when you're online.",
   "sync_now": "Sync now",
+  "low_stock": "Low stock",
+  "stock_value": "Stock value",
   "updated_clients": "Successfully updated :count clients",
   "nothing_to_download": "Nothing to download",
   "nothing_to_print": "Nothing to print",

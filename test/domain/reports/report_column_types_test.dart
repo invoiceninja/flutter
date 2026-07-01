@@ -4,6 +4,24 @@ import 'package:admin/domain/reports/report_column_types.dart';
 
 void main() {
   group('inferColumnType', () {
+    test('inventory count columns are numeric (sortable + totalled)', () {
+      // `in_stock_quantity` / `max_quantity` previously fell through to string,
+      // which broke the Product report's on-hand-stock total and the synthetic
+      // stock_value (which reads the in_stock_quantity ReportNumberCell).
+      for (final id in const [
+        'in_stock_quantity',
+        'product.in_stock_quantity',
+        'max_quantity',
+      ]) {
+        expect(
+          inferColumnType(id),
+          ReportColumnType.number,
+          reason: '$id should be number',
+        );
+        expect(isAggregatable(inferColumnType(id)), isTrue);
+      }
+    });
+
     test('custom surcharge columns are money (regression for totals)', () {
       // `*.custom_surcharge1..4` must sum in totals + right-align + numeric
       // filter. Previously fell through to string. Parity with admin-portal.

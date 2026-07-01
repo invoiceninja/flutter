@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/models/domain/product.dart';
@@ -8,6 +9,7 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/product_tax_categories.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 
 typedef ProductColumn = ColumnDefinition<Product>;
 
@@ -132,7 +134,7 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     labelKey: 'in_stock_quantity',
     width: 120,
     align: ColumnAlign.end,
-    cellBuilder: (p, _) => _decCell(p.inStockQuantity),
+    cellBuilder: (p, context) => _stockCell(p, context),
     valueBuilder: (p) => _decValue(p.inStockQuantity),
   ),
   ProductColumn(
@@ -150,6 +152,17 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     align: ColumnAlign.end,
     cellBuilder: (p, _) => _decCell(p.maxQuantity),
     valueBuilder: (p) => _decValue(p.maxQuantity),
+  ),
+  // Computed inventory value: on-hand stock × price. Opt-in (not a default
+  // column); formats through the company Formatter like price/cost.
+  ProductColumn(
+    id: ProductFieldIds.stockValue,
+    labelKey: 'stock_value',
+    width: 130,
+    align: ColumnAlign.end,
+    cellBuilder: (p, context) =>
+        cellMoney(p.inStockQuantity * p.price, context),
+    valueBuilder: (p) => cellMoneyValue(p.inStockQuantity * p.price),
   ),
   ProductColumn(
     id: ProductFieldIds.custom1,
@@ -210,3 +223,64 @@ String? _decValue(Decimal v) => v == Decimal.zero ? null : v.toString();
 /// Tax-rate cell — like [_decCell] but suffixes a percent sign.
 Widget _rateCell(Decimal v) =>
     v == Decimal.zero ? cellEmpty() : cellText('$v%');
+
+/// On-hand-stock cell. When the company tracks inventory the number is always
+/// rendered — a red `0` flags out-of-stock, never collapsed to an em-dash
+/// (mirrors `productStockText`'s deliberate `[0]`) — and tinted by
+/// [StockStatus]: red + error icon when out, amber + warning icon when low,
+/// default ink otherwise. The icon pairs with the colour so the state survives
+/// for colour-blind users. Falls back to the plain zero-collapsing [_decCell]
+/// when inventory isn't tracked or no [InventoryScope] is in the tree.
+Widget _stockCell(Product p, BuildContext context) {
+  final scope = InventoryScope.maybeOf(context);
+  if (scope == null || !scope.trackInventory) {
+    return _decCell(p.inStockQuantity);
+  }
+  final tokens = context.inTheme;
+  final (Color color, IconData? icon) = switch (scope.statusFor(p)) {
+    StockStatus.out => (tokens.overdue, Icons.error_outline),
+    StockStatus.low => (tokens.warning, Icons.warning_amber_rounded),
+    StockStatus.ok => (tokens.ink, null),
+  };
+  return _StockCell(
+    text: p.inStockQuantity.toString(),
+    color: color,
+    icon: icon,
+  );
+}
+
+/// Numeric stock cell with an optional leading status icon. Tabular figures so
+/// digits line up across rows; the icon makes low/out distinguishable without
+/// relying on colour alone.
+class _StockCell extends StatelessWidget {
+  const _StockCell({required this.text, required this.color, this.icon});
+
+  final String text;
+  final Color color;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 13,
+        height: 1.2,
+        fontWeight: FontWeight.w500,
+        color: color,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
+    if (icon == null) return label;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Flexible(child: label),
+      ],
+    );
+  }
+}

@@ -10,6 +10,7 @@ import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/products/view_models/product_list_view_model.dart';
+import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 import 'package:admin/ui/features/products/widgets/product_actions.dart';
 import 'package:admin/ui/features/products/widgets/product_list_tile.dart';
 import 'package:admin/ui/features/products/widgets/product_token_search_field.dart';
@@ -36,6 +37,10 @@ class ProductListScreen extends StatelessWidget {
       buildVm: (services, companyId) => ProductListViewModel(
         repo: services.products,
         companyId: companyId,
+        // The VM watches the company for inventory settings (track-inventory +
+        // threshold) so the low-stock filter/highlight stay live; a company
+        // switch rebuilds the VM with the new company's stream.
+        companyStream: services.company.watchCompany(companyId),
         navStateDao: services.db.navStateDao,
         userSettings: services.userSettings,
         savedViews: services.savedViews,
@@ -57,7 +62,7 @@ class ProductListScreen extends StatelessWidget {
           ProductTokenSearchField(vm: vm, wide: wide),
       tileBuilder: (context, vm, product, index, options) {
         final isUrlSelected = options.selectedId == product.id;
-        return ProductListTile(
+        final tile = ProductListTile(
           product: product,
           columns: options.wide ? vm.columns : const [],
           wide: options.wide,
@@ -85,6 +90,14 @@ class ProductListScreen extends StatelessWidget {
                   product,
                   action,
                 ),
+        );
+        // Expose the company's inventory settings to the row's cells (the
+        // on-hand-stock column reads them to colour low/out) and the narrow
+        // tile's stock badge.
+        return InventoryScope(
+          trackInventory: vm.trackInventory,
+          threshold: vm.inventoryThreshold,
+          child: tile,
         );
       },
       bulkActions: const [

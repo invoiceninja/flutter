@@ -116,6 +116,11 @@ class ReportsViewModel extends ChangeNotifier {
   /// itself awaits [_hydration].
   bool _userTouched = false;
 
+  /// Localized header for the synthetic `stock_value` column on the Product
+  /// report. Set by the screen from `context.tr('stock_value')` (the VM has no
+  /// BuildContext); defaults to English. See [_augmentPreview].
+  String stockValueLabel = 'Stock value';
+
   // ─── Payload (server-side) ───
   String _reportIdentifier;
   String get reportIdentifier => _reportIdentifier;
@@ -728,7 +733,7 @@ class ReportsViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final preview = await repo.runPreview(
+      final rawPreview = await repo.runPreview(
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
         payload: _payload,
@@ -743,6 +748,9 @@ class ReportsViewModel extends ChangeNotifier {
         isCancelled: _cancellationFor(epoch),
       );
       if (_disposed || epoch != _runEpoch) return;
+      // Inject the synthetic Product-report `stock_value` column before it
+      // seeds the default visible set / column picker below.
+      final preview = _augmentPreview(rawPreview);
       _lastRunPayload = _payload;
       _run = ReportRunState.ready(preview);
       _activePollingHash = null;
@@ -859,7 +867,7 @@ class ReportsViewModel extends ChangeNotifier {
         endpoint: definition.endpoint,
         payload: _payload,
         format: format,
-        reportKeys: _visibleColumnIds.toList(),
+        reportKeys: serverReportKeys(),
         groupBy: _group,
         isCancelled: () => _disposed || _exportEpoch != epoch,
       );
@@ -932,7 +940,7 @@ class ReportsViewModel extends ChangeNotifier {
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
         payload: _payload,
-        reportKeys: _visibleColumnIds.toList(),
+        reportKeys: serverReportKeys(),
         groupBy: _group,
       );
     } finally {
@@ -941,6 +949,85 @@ class ReportsViewModel extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  // ─── Product-report inventory valuation (synthetic, preview-only) ───
+
+  static const String _kStockValueId = 'stock_value';
+
+  /// Visible report keys safe to send to the server (export / email / schedule):
+  /// the visible selection minus any synthetic, client-computed column
+  /// (`stock_value`) the server doesn't know. Pass [ordered] to honor the
+  /// user's column order — the schedule flow needs it; export/email don't.
+  List<String> serverReportKeys({bool ordered = false}) {
+    final base = ordered && _columnOrder.isNotEmpty
+        ? _columnOrder.where(_visibleColumnIds.contains)
+        : _visibleColumnIds;
+    return base.where((k) => k != _kStockValueId).toList();
+  }
+
+  /// Inject the synthetic `stock_value` (on-hand stock × price) money column
+  /// into the Product report so the totals card shows the total inventory value
+  /// with zero column setup. Other reports pass through unchanged. The column is
+  /// preview-only — [_serverReportKeys] strips it from export/email, so it never
+  /// reaches the server (and so isn't in CSV/PDF output).
+  ReportPreview _augmentPreview(ReportPreview preview) {
+    if (_reportIdentifier != 'product') return preview;
+    if (preview.columns.any((c) => c.identifier == _kStockValueId)) {
+      return preview; // defensive: already injected
+    }
+    final priceIdx = preview.columns.indexWhere(
+      (c) => _columnTail(c.identifier) == 'price',
+    );
+    final stockIdx = preview.columns.indexWhere(
+      (c) => _columnTail(c.identifier) == 'in_stock_quantity',
+    );
+    if (priceIdx < 0 || stockIdx < 0) return preview;
+    final columns = [
+      ...preview.columns,
+      ReportColumn(
+        identifier: _kStockValueId,
+        displayLabel: stockValueLabel,
+        type: ReportColumnType.money,
+      ),
+    ];
+    final rows = [
+      for (final row in preview.rows)
+        ReportRow(
+          cells: [...row.cells, _stockValueCell(row, priceIdx, stockIdx)],
+        ),
+    ];
+    return ReportPreview(columns: columns, rows: rows);
+  }
+
+  ReportCell _stockValueCell(ReportRow row, int priceIdx, int stockIdx) {
+    final price = _numericAt(row, priceIdx);
+    final stock = _numericAt(row, stockIdx);
+    if (price == null || stock == null) {
+      return const ReportNumberCell(isMoney: true);
+    }
+    // Carry the price cell's currency so the totals card buckets the value
+    // under the right currency (empty → company currency, like price/cost).
+    final priceCell = row.cells[priceIdx];
+    final currencyId = priceCell is ReportNumberCell
+        ? priceCell.currencyId
+        : null;
+    return ReportNumberCell(
+      value: stock * price,
+      isMoney: true,
+      currencyId: currencyId,
+    );
+  }
+
+  Decimal? _numericAt(ReportRow row, int idx) {
+    if (idx < 0 || idx >= row.cells.length) return null;
+    final cell = row.cells[idx];
+    return cell is ReportNumberCell ? cell.value : null;
+  }
+
+  static String _columnTail(String identifier) {
+    final id = identifier.toLowerCase();
+    return id.contains('.') ? id.split('.').last : id;
   }
 
   @override

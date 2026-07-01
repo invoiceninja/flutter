@@ -510,6 +510,8 @@ the honest default.
 | Product — tax category | ✅ | ✅ | ✅ | ✅ | |
 | Product — stock / inventory tracking | ✅ | 🟡 | ✅ | ✅ | |
 | Product — stock shown when selecting products (invoice line items) | ✅ | ✅ | ✅ | | |
+| Product — low-stock / out-of-stock list filter + row highlight | — | — | ✅ | | |
+| Product — stock value (qty × price) column + detail row | — | — | ✅ | | |
 | Product — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Product — activities | ✅ | ✅ | ✅ | ✅ | |
 | Product — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
@@ -554,6 +556,7 @@ the honest default.
 | Report — payment | ✅ | ✅ | ✅ | ✅ | |
 | Report — product | ✅ | ✅ | ✅ | ✅ | |
 | Report — product sales | ✅ | ✅ | ✅ | ✅ | |
+| Report — product inventory valuation total (stock value) | — | — | ✅ | | |
 | Report — task | ✅ | ✅ | ✅ | ✅ | |
 | Report — tag filter (task + project reports → `tag_ids`) | ✅ | — | ✅ | | |
 | Report — vendor | ✅ | ✅ | ✅ | ✅ | |

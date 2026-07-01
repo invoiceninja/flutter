@@ -69,6 +69,8 @@ class InTheme extends ThemeExtension<InTheme> {
     required this.sentSoft,
     required this.partial,
     required this.partialSoft,
+    required this.warning,
+    required this.warningSoft,
     required this.shadow1,
     required this.shadow2,
   });
@@ -113,6 +115,11 @@ class InTheme extends ThemeExtension<InTheme> {
   final Color sentSoft;
   final Color partial;
   final Color partialSoft;
+
+  // Caution / low-stock semantic (amber). Distinct from the destructive
+  // [overdue] red and the `sent` ochre so "low" reads as caution, not error.
+  final Color warning;
+  final Color warningSoft;
 
   // Elevation. Stored on the tokens because dark mode wants softer shadows.
   final List<BoxShadow> shadow1;
@@ -162,6 +169,8 @@ class InTheme extends ThemeExtension<InTheme> {
     sentSoft: Color(0xFFF6EBD3),
     partial: Color(0xFF2A6FDB),
     partialSoft: Color(0xFFE2ECFB),
+    warning: Color(0xFFB45309),
+    warningSoft: Color(0xFFF6EBD3),
     shadow1: _lightShadow1,
     shadow2: _lightShadow2,
   );
@@ -195,6 +204,8 @@ class InTheme extends ThemeExtension<InTheme> {
     sentSoft: Color(0xFFF6EBD3),
     partial: Color(0xFF2A6FDB),
     partialSoft: Color(0xFFE2ECFB),
+    warning: Color(0xFFB45309),
+    warningSoft: Color(0xFFF6EBD3),
     shadow1: _lightShadow1,
     shadow2: _lightShadow2,
   );
@@ -228,6 +239,8 @@ class InTheme extends ThemeExtension<InTheme> {
     sentSoft: Color(0xFFF6EBD3),
     partial: Color(0xFF2A6FDB),
     partialSoft: Color(0xFFE2ECFB),
+    warning: Color(0xFFB45309),
+    warningSoft: Color(0xFFF6EBD3),
     shadow1: _lightShadow1,
     shadow2: _lightShadow2,
   );
@@ -264,6 +277,8 @@ class InTheme extends ThemeExtension<InTheme> {
     sentSoft: Color(0xFF3A2D18),
     partial: Color(0xFF5994E8),
     partialSoft: Color(0xFF1B2A47),
+    warning: Color(0xFFE0A33E),
+    warningSoft: Color(0xFF332918),
     shadow1: _darkShadow1,
     shadow2: _darkShadow2,
   );
@@ -297,6 +312,8 @@ class InTheme extends ThemeExtension<InTheme> {
     sentSoft: Color(0xFF332918),
     partial: Color(0xFF5994E8),
     partialSoft: Color(0xFF1B2A47),
+    warning: Color(0xFFE0A33E),
+    warningSoft: Color(0xFF332918),
     shadow1: _darkShadow1,
     shadow2: _darkShadow2,
   );
@@ -330,6 +347,8 @@ class InTheme extends ThemeExtension<InTheme> {
     sentSoft: Color(0xFF2A2014),
     partial: Color(0xFF5994E8),
     partialSoft: Color(0xFF152038),
+    warning: Color(0xFFE0A33E),
+    warningSoft: Color(0xFF332918),
     shadow1: _darkShadow1,
     shadow2: _darkShadow2,
   );
@@ -410,6 +429,8 @@ class InTheme extends ThemeExtension<InTheme> {
     Color? sentSoft,
     Color? partial,
     Color? partialSoft,
+    Color? warning,
+    Color? warningSoft,
     List<BoxShadow>? shadow1,
     List<BoxShadow>? shadow2,
   }) {
@@ -441,6 +462,8 @@ class InTheme extends ThemeExtension<InTheme> {
       sentSoft: sentSoft ?? this.sentSoft,
       partial: partial ?? this.partial,
       partialSoft: partialSoft ?? this.partialSoft,
+      warning: warning ?? this.warning,
+      warningSoft: warningSoft ?? this.warningSoft,
       shadow1: shadow1 ?? this.shadow1,
       shadow2: shadow2 ?? this.shadow2,
     );
@@ -480,6 +503,8 @@ class InTheme extends ThemeExtension<InTheme> {
       sentSoft: Color.lerp(sentSoft, other.sentSoft, t)!,
       partial: Color.lerp(partial, other.partial, t)!,
       partialSoft: Color.lerp(partialSoft, other.partialSoft, t)!,
+      warning: Color.lerp(warning, other.warning, t)!,
+      warningSoft: Color.lerp(warningSoft, other.warningSoft, t)!,
       // Shadows don't lerp cleanly when their list lengths match; we just
       // snap at the halfway point — the visual difference between light and
       // dark shadow alpha is subtle enough that this isn't noticeable.

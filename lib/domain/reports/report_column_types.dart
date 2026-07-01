@@ -88,6 +88,12 @@ ReportColumnType inferColumnType(String identifier) {
   const numericTails = {
     'quantity',
     'qty',
+    // Inventory counts — whitelisted explicitly (not a blanket `_quantity`
+    // tail) so other reports' columns are untouched. Makes on-hand stock
+    // right-align, sort numerically, total its units, and — crucially — emit a
+    // `ReportNumberCell` the product report's computed `stock_value` reads.
+    'in_stock_quantity',
+    'max_quantity',
     'rate',
     'rate1',
     'rate2',

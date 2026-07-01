@@ -1,5 +1,6 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -194,6 +195,12 @@ class _InventoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stockValue = product.inStockQuantity * product.price;
+    // Plain 2-decimal, no currency symbol — matches the KPI strip's price/cost
+    // (product money isn't client-scoped, so the detail stays symbol-less).
+    final numberFmt = NumberFormat.decimalPattern()
+      ..minimumFractionDigits = 2
+      ..maximumFractionDigits = 2;
     return DashboardCardShell(
       title: context.tr('inventory'),
       child: DetailRowStack(
@@ -203,6 +210,14 @@ class _InventoryCard extends StatelessWidget {
             value: product.inStockQuantity.toString(),
             monospace: true,
           ),
+          // On-hand value (stock × price) — the per-product month-end figure.
+          // Hidden when zero, per the detail-screen blank-row convention.
+          if (stockValue != Decimal.zero)
+            DetailInfoRow(
+              label: context.tr('stock_value'),
+              value: numberFmt.format(stockValue.toDouble()),
+              monospace: true,
+            ),
           DetailInfoRow(
             label: context.tr('stock_notifications'),
             value: context.tr(product.stockNotification ? 'yes' : 'no'),

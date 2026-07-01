@@ -1293,19 +1293,14 @@ class _ScheduleButton extends StatelessWidget {
       icon: const Icon(Icons.schedule_outlined, size: 18),
       label: Text(context.tr('schedule')),
       onPressed: () {
-        // `visibleColumnIds` is an unordered Set; the scheduled report's
-        // column order must match the user's chosen order. `columnOrder`
-        // is the canonical ordered selection (filter to currently-visible);
-        // empty → fall back to the visible set, mirroring what the rest of
-        // the reports screen does (and `reports_view_model.dart:513`).
         final seed = ReportScheduleSeed(
           reportIdentifier: vm.reportIdentifier,
           payload: vm.payload,
-          reportKeys:
-              (vm.columnOrder.isNotEmpty
-                      ? vm.columnOrder.where(vm.visibleColumnIds.contains)
-                      : vm.visibleColumnIds)
-                  .toList(),
+          // Ordered visible keys (column order, filtered to visible; empty →
+          // the visible set) minus any synthetic client-only column
+          // (`stock_value`) the server doesn't know — same stripping export and
+          // email use.
+          reportKeys: vm.serverReportKeys(ordered: true),
           groupBy: vm.group,
         );
         // Cross-branch (Reports → Settings) drops route `extra:`; stage the

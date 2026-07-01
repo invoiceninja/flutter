@@ -10,6 +10,7 @@ import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
+import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 import 'package:admin/ui/features/products/widgets/product_actions.dart';
 
 /// One row in the products list.
@@ -160,6 +161,10 @@ class _ProductListTileState extends State<ProductListTile> {
               ..minimumFractionDigits = 2
               ..maximumFractionDigits = 2)
             .format(w.product.price.toDouble());
+    // Narrow tiles render no column cells, so surface low/out stock inline:
+    // qty + status icon in the matching colour (icon so it isn't colour-only).
+    final stockStatus =
+        InventoryScope.maybeOf(context)?.statusFor(w.product) ?? StockStatus.ok;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -167,6 +172,28 @@ class _ProductListTileState extends State<ProductListTile> {
         const SizedBox(width: 12),
         Expanded(child: _identity(context, tokens)),
         const SizedBox(width: 12),
+        if (stockStatus != StockStatus.ok) ...[
+          Icon(
+            stockStatus == StockStatus.out
+                ? Icons.error_outline
+                : Icons.warning_amber_rounded,
+            size: 16,
+            color: stockStatus == StockStatus.out
+                ? tokens.overdue
+                : tokens.warning,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            w.product.inStockQuantity.toString(),
+            style: moneyTextStyle(
+              fontSize: 13,
+              color: stockStatus == StockStatus.out
+                  ? tokens.overdue
+                  : tokens.warning,
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
         Text(priceText, style: moneyTextStyle(color: tokens.ink)),
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),

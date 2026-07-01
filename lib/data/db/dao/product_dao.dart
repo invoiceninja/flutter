@@ -35,6 +35,9 @@ class ProductFieldIds {
   static const String stockNotificationThreshold =
       'stock_notification_threshold';
   static const String maxQuantity = 'max_quantity';
+  // Computed (not persisted): in_stock_quantity × price. Opt-in column only;
+  // never a sort/DAO field.
+  static const String stockValue = 'stock_value';
   static const String taxCategory = 'tax_category';
   static const String createdAt = 'created_at';
   static const String archivedAt = 'archived_at';

@@ -79,6 +79,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final globalNav = Breakpoints.isGlobalNavVisible(context);
+    // The VM has no BuildContext; feed it the localized header for the
+    // synthetic Product-report `stock_value` column here (re-applied on locale
+    // change since build re-runs). Used only on the next Run.
+    _vm.stockValueLabel = context.tr('stock_value');
     return ChangeNotifierProvider<ReportsViewModel>.value(
       value: _vm,
       child: Scaffold(

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
 import 'package:logging/logging.dart';
 
@@ -20,6 +21,35 @@ import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
 final _log = Logger('ProductRepository');
+
+/// Local low-stock filter applied over the decoded product page. The server
+/// exposes no stock filter dimension, so this is a post-decode predicate on the
+/// rows already loaded into Drift (mirrors the billing local-extra-filter
+/// pattern). Completeness is therefore bounded by the loaded pages — the
+/// Product report is the authoritative full-dataset low-stock / valuation view.
+enum StockFilter { none, low, out }
+
+/// Predicate backing [StockFilter] over a decoded [Product]. `out` = nothing on
+/// hand (≤ 0). `low` = at/below the effective threshold — the product's own
+/// threshold, or the company fallback when the product's is 0 — and so includes
+/// out-of-stock. Mirrors the backend `AdjustProductInventory` two-tier check.
+bool stockFilterMatches(
+  Product p,
+  StockFilter filter, {
+  required int companyThreshold,
+}) {
+  switch (filter) {
+    case StockFilter.none:
+      return true;
+    case StockFilter.out:
+      return p.inStockQuantity <= Decimal.zero;
+    case StockFilter.low:
+      final threshold = p.stockNotificationThreshold > Decimal.zero
+          ? p.stockNotificationThreshold
+          : Decimal.fromInt(companyThreshold);
+      return p.inStockQuantity <= threshold;
+  }
+}
 
 /// Source of truth for Product data. The UI watches Drift via [watchPage]
 /// and [watch]; the network only writes. Every mutation goes through the

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:decimal/decimal.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -165,6 +166,133 @@ void main() {
       ),
     ],
   );
+
+  // A product-shaped preview with numeric price + in_stock_quantity columns,
+  // so the VM can compute the synthetic stock_value column.
+  ReportPreview productPreview() => ReportPreview(
+    columns: const [
+      ReportColumn(
+        identifier: 'product_key',
+        displayLabel: 'Product',
+        type: ReportColumnType.string,
+      ),
+      ReportColumn(
+        identifier: 'price',
+        displayLabel: 'Price',
+        type: ReportColumnType.money,
+      ),
+      ReportColumn(
+        identifier: 'in_stock_quantity',
+        displayLabel: 'Stock',
+        type: ReportColumnType.number,
+      ),
+    ],
+    rows: [
+      ReportRow(
+        cells: [
+          const ReportStringCell(value: 'A'),
+          ReportNumberCell(
+            value: Decimal.fromInt(10),
+            isMoney: true,
+            currencyId: '1',
+          ),
+          ReportNumberCell(value: Decimal.fromInt(3)),
+        ],
+      ),
+      ReportRow(
+        cells: [
+          const ReportStringCell(value: 'B'),
+          ReportNumberCell(
+            value: Decimal.fromInt(5),
+            isMoney: true,
+            currencyId: '1',
+          ),
+          ReportNumberCell(value: Decimal.fromInt(4)),
+        ],
+      ),
+    ],
+  );
+
+  group('product report stock_value injection', () {
+    test(
+      'appends a computed stock_value money column with per-row values',
+      () async {
+        final repo = _FakeRepo();
+        repo.queue(_Trigger()..release(), productPreview());
+        final vm = ReportsViewModel(
+          repo: repo,
+          statics: statics,
+          initialReport: 'product',
+        );
+        await vm.runReport();
+
+        final preview = vm.run.preview!;
+        final col = preview.columns.last;
+        expect(col.identifier, 'stock_value');
+        expect(col.type, ReportColumnType.money);
+        expect(col.displayLabel, 'Stock value');
+
+        final r0 = preview.rows[0].cells.last as ReportNumberCell;
+        final r1 = preview.rows[1].cells.last as ReportNumberCell;
+        expect(r0.value, Decimal.fromInt(30)); // 10 × 3
+        expect(r0.isMoney, isTrue);
+        expect(r0.currencyId, '1'); // carries the price cell's currency
+        expect(r1.value, Decimal.fromInt(20)); // 5 × 4
+      },
+    );
+
+    test('does not inject for non-product reports', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), productPreview());
+      // Default report identifier (clients), not product.
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      expect(
+        vm.run.preview!.columns.any((c) => c.identifier == 'stock_value'),
+        isFalse,
+      );
+    });
+
+    test('strips the synthetic stock_value key from export', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), productPreview());
+      final vm = ReportsViewModel(
+        repo: repo,
+        statics: statics,
+        initialReport: 'product',
+      );
+      await vm.runReport();
+      expect(vm.visibleColumnIds.contains('stock_value'), isTrue);
+
+      await vm.runExport(ReportExportFormat.csv);
+      expect(repo.exportReportKeys.single, isNot(contains('stock_value')));
+      expect(repo.exportReportKeys.single, contains('price'));
+    });
+
+    test(
+      'serverReportKeys strips the synthetic key (ordered + unordered)',
+      () async {
+        // Covers the schedule flow too — the Schedule button delegates to
+        // vm.serverReportKeys(ordered: true).
+        final repo = _FakeRepo();
+        repo.queue(_Trigger()..release(), productPreview());
+        final vm = ReportsViewModel(
+          repo: repo,
+          statics: statics,
+          initialReport: 'product',
+        );
+        await vm.runReport();
+        expect(vm.visibleColumnIds.contains('stock_value'), isTrue);
+        expect(vm.serverReportKeys(), isNot(contains('stock_value')));
+        expect(vm.serverReportKeys(), contains('price'));
+        expect(
+          vm.serverReportKeys(ordered: true),
+          isNot(contains('stock_value')),
+        );
+        expect(vm.serverReportKeys(ordered: true), contains('price'));
+      },
+    );
+  });
 
   test(
     'isParamDirty flips on payload change and clears after a successful run',

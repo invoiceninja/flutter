@@ -35,24 +35,32 @@ class ActivityFormatter {
 
   ActivityRender format(DashboardActivity a) {
     final l = Localization.of(context);
-    final key = 'activity_${a.activityTypeId}';
-    final raw = l?.lookup(key) ?? '';
+    var key = 'activity_${a.activityTypeId}';
+    // Online payments (type 10) are contact-initiated when a contact is
+    // present — pick the online/manual template, mirroring the server and the
+    // detail-screen `buildActivitySpans`.
+    if (a.activityTypeId == 10) {
+      key = a.labels.containsKey('contact')
+          ? 'activity_10_online'
+          : 'activity_10_manual';
+    }
+    var raw = l?.lookup(key) ?? '';
     final hasTemplate = raw.isNotEmpty && raw != key;
 
     String resolved;
     if (hasTemplate) {
-      resolved = raw
-          .replaceAll(':user', _labelFor(a.userId, 'user'))
-          .replaceAll(':contact', _labelFor(a.contactId, 'contact'))
-          .replaceAll(':client', _labelFor(a.clientId, 'client'))
-          .replaceAll(':invoice', _labelFor(a.invoiceId, 'invoice'))
-          .replaceAll(':quote', _labelFor(a.quoteId, 'quote'))
-          .replaceAll(':payment', _labelFor(a.paymentId, 'payment'))
-          .replaceAll(':expense', _labelFor(a.expenseId, 'expense'))
-          .replaceAll(
-            ':recurring_invoice',
-            _labelFor(a.recurringInvoiceId, 'recurring invoice'),
-          );
+      // Type 54 with a contact is contact-initiated → swap `:user`→`:contact`.
+      if (a.activityTypeId == 54 && a.labels.containsKey('contact')) {
+        raw = raw.replaceAll(':user', ':contact');
+      }
+      resolved = raw.replaceAllMapped(RegExp(r':([a-z_]+)'), (m) {
+        final token = m.group(1)!;
+        if (token == 'notes') return a.notes;
+        // The server's denormalized label (real client / user name, invoice
+        // number, …); falls back to the localized noun when the server
+        // omitted the object, so a bare `:token` never leaks.
+        return a.labels[token] ?? context.tr(token);
+      });
     } else {
       resolved = context.tr('activity_unknown', {
         'id': a.activityTypeId.toString(),
@@ -69,12 +77,6 @@ class ActivityFormatter {
     );
     return ActivityRender(title: resolved, meta: meta, tone: tone, icon: icon);
   }
-
-  /// Build a placeholder label for missing references. Real labels need
-  /// joined invoice/client lookups which M1 doesn't have — we surface a
-  /// readable placeholder (localized to the active locale) so the activity
-  /// text still parses.
-  String _labelFor(String? id, String fallbackKey) => context.tr(fallbackKey);
 }
 
 /// Approximate mapping from `activity_type_id` → tone. Drawn from

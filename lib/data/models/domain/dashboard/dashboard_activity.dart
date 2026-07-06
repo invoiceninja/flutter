@@ -1,4 +1,8 @@
-/// One row from `GET /api/v1/activities?reactv2`.
+/// One activity row, parsed from either server shape:
+///  * `GET /api/v1/activities?reactv2` (dashboard) — nested `{label, hashed_id}`
+///    objects keyed by token (`user`, `client`, `invoice`, …), no flat ids.
+///  * `GET /api/v1/activities?user_id=` (user-activity feed, via
+///    `ActivityTransformer`) — flat `<token>_id`, no labels.
 ///
 /// The dashboard renders these via `ActivityFormatter`, which interpolates the
 /// `activity_<N>` localization key with `:user`, `:contact`, `:client`,
@@ -18,6 +22,7 @@ class DashboardActivity {
     required this.expenseId,
     required this.recurringInvoiceId,
     required this.notes,
+    this.labels = const <String, String>{},
     required this.raw,
   });
 
@@ -34,6 +39,12 @@ class DashboardActivity {
   final String? recurringInvoiceId;
   final String notes;
 
+  /// Display labels keyed by template token (`user`, `client`, `invoice`, …),
+  /// populated from the `?reactv2` nested `{label, hashed_id}` objects. Empty
+  /// for the flat `ActivityTransformer` shape (user-activity feed), where the
+  /// formatter falls back to the localized noun.
+  final Map<String, String> labels;
+
   /// The full server JSON so a richer renderer can grab fields we don't
   /// destructure explicitly.
   final Map<String, dynamic> raw;
@@ -44,25 +55,45 @@ class DashboardActivity {
       return int.tryParse('$raw') ?? 0;
     }
 
-    String? asId(Object? raw) {
-      if (raw == null) return null;
-      final s = raw.toString();
+    // Resolve a token's id from either shape: prefer the nested
+    // `{label, hashed_id}` object (`?reactv2`), else the flat `<token>_id`
+    // (`ActivityTransformer`). Gives navigation a target from both feeds.
+    String? refId(String token) {
+      final nested = json[token];
+      if (nested is Map) {
+        final hid = (nested['hashed_id'] ?? '').toString();
+        return hid.isEmpty ? null : hid;
+      }
+      final flat = json['${token}_id'];
+      final s = flat?.toString() ?? '';
       return s.isEmpty ? null : s;
     }
+
+    // Capture every nested label object the server sent, keyed by token, so
+    // any `:token` in the activity template resolves to a real name/number.
+    // Absent for the flat `ActivityTransformer` shape (no nested objects).
+    final labels = <String, String>{};
+    json.forEach((key, value) {
+      if (value is Map) {
+        final label = (value['label'] ?? '').toString();
+        if (label.isNotEmpty) labels[key] = label;
+      }
+    });
 
     return DashboardActivity(
       id: (json['id'] ?? '').toString(),
       activityTypeId: parseInt(json['activity_type_id']),
       createdAt: parseInt(json['created_at']),
-      userId: asId(json['user_id']),
-      clientId: asId(json['client_id']),
-      contactId: asId(json['contact_id']),
-      invoiceId: asId(json['invoice_id']),
-      quoteId: asId(json['quote_id']),
-      paymentId: asId(json['payment_id']),
-      expenseId: asId(json['expense_id']),
-      recurringInvoiceId: asId(json['recurring_invoice_id']),
+      userId: refId('user'),
+      clientId: refId('client'),
+      contactId: refId('contact'),
+      invoiceId: refId('invoice'),
+      quoteId: refId('quote'),
+      paymentId: refId('payment'),
+      expenseId: refId('expense'),
+      recurringInvoiceId: refId('recurring_invoice'),
       notes: (json['notes'] ?? '').toString(),
+      labels: labels,
       raw: json,
     );
   }

@@ -16,6 +16,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Server-side `Idempotency-Key` dedupe — not implemented (**R**, retry-safety / duplicate creates).
 - Company write — partial login envelope + full-replace PUT force a client fetch-gate (**O**).
 - E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` (**O**, blocks SG government onboarding).
+- Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
 
 **Provenance**
 - **2026-05-15** — empirical curl probe vs `demo.invoiceninja.com`.
@@ -827,3 +828,170 @@ case. Tracked as low-severity client polish.
 **Acceptance** — a Singapore company completing PEPPOL onboarding with the
 **Government** entity type returns `200` (legal entity created) instead of a
 `422` on `classification`.
+
+## Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param — **O (feature request, [flutter#4](https://github.com/invoiceninja/flutter/issues/4))**
+
+**Provenance** — 2026-07-03, feature request flutter#4 ("Dashboard with net
+values"): *"a setting to see the dashboard with net values only (without
+taxes)."* Source-read of `app/Services/Chart/*` + `app/Http/Controllers/ChartController.php`
++ `app/Http/Requests/Chart/*` against `~/Code/invoiceninja` (`v5-develop`).
+
+The dashboard KPIs (Outstanding / Overdue / Paid-this-month) and hero chart
+are **server-aggregated** — the Flutter client posts to
+`/api/v1/charts/totals_v2` and `/charts/chart_summary_v2`
+(`lib/data/services/dashboard_api.dart`) and never holds the full invoice
+set, so it **cannot** compute net locally (the old admin-portal only could
+because it loaded every entity via `per_page=999999`, which this rebuild
+forbids). `ChartQueries` hardcodes **gross** everywhere —
+`SUM(invoices.amount)` (invoiced), `SUM(invoices.balance)` (outstanding),
+`payments.amount - payments.refunded` (revenue), and the expense `CASE` adds
+tax back on. There is no `net`/`include_taxes` param and no `net_amount`
+field. So net is a **server** feature; the client change afterward is tiny
+(one query param — see § acceptance).
+
+**Required change** — add a `net` flag (default `false` = gross → fully
+backward-compatible; unknown query params are already silently ignored, so a
+newer client that sends `net=true` to an un-upgraded server degrades safely
+to gross). `net=true` returns ex-tax values in the **same response fields** —
+no shape change. (Alt name `include_taxes`, default `true`, would mirror the
+existing `include_drafts`; `net` is recommended for clarity.)
+
+**1 — Request validation.** In both `app/Http/Requests/Chart/ShowChartRequest.php`
+(`rules()` L35-43, `prepareForValidation()` L45-71) and
+`ShowCalculatedFieldRequest.php` (L35-46 / L48-77), mirror `include_drafts`:
+
+```php
+// rules()
+'net' => 'bail|sometimes|boolean',
+// prepareForValidation()
+$input['net'] = filter_var($input['net'] ?? false, FILTER_VALIDATE_BOOLEAN);
+```
+
+**2 — Thread controller → service.** `app/Http/Controllers/ChartController.php`
+— pass `$request->input('net', false)` as a new 5th `ChartService` arg in
+`totalsV2()` (L63), `chart_summaryV2()` (L75), `calculatedFields()` (L174).
+**Fold in a pre-existing bug:** `chart_summaryV2()` builds `ChartService`
+**without** the `include_drafts` arg (L75), so the hero chart silently ignores
+the drafts toggle the client already sends (`dashboard_api.dart:45`) — thread
+**both** here:
+
+```php
+$cs = new ChartService($user->company(), $user, $admin_equivalent_permissions,
+        $request->input('include_drafts', false), $request->input('net', false));
+```
+
+`app/Services/Chart/ChartService.php` — add the ctor arg (L28):
+
+```php
+public function __construct(public Company $company, private User $user,
+    private bool $is_admin, private bool $include_drafts = false, private bool $net = false) {}
+```
+
+**3 — `ChartQueries` SQL.** Build each amount expression in PHP conditioned on
+`$this->net` and interpolate into the existing SQL (every query's structure,
+params, exchange-rate wrapper, and `GROUP BY` stay byte-identical — only the
+summed expression changes). `invoices.total_taxes` is a real column
+(`decimal(13,3)`, confirmed).
+
+- **Invoiced** — `getInvoicesQuery` (L444), `getAggregateInvoicesQuery` (L416),
+  `getInvoiceChartQuery` (L563), `getAggregateInvoiceChartQuery` (L536). Exact:
+  ```php
+  $amount = $this->net ? '(invoices.amount - invoices.total_taxes)' : 'invoices.amount';
+  // ... SUM({$amount}) ...  (aggregate variants keep the / COALESCE(NULLIF(exchange_rate,0),1) wrapper)
+  ```
+- **Outstanding** — `getOutstandingQuery` (L321), `getAggregateOutstandingQuery`
+  (L347), `getOutstandingChartQuery` (L500), `getAggregateOutstandingChartQuery`
+  (L468). Balance is a partial of gross → prorate by the invoice's net ratio
+  (partial-payment safe, div-by-zero guarded):
+  ```php
+  $balance = $this->net
+      ? 'COALESCE(invoices.balance * (invoices.amount - invoices.total_taxes) / NULLIF(invoices.amount, 0), invoices.balance)'
+      : 'invoices.balance';
+  ```
+- **Expenses** — `getExpenseQuery` (L25), `getAggregateExpenseQuery` (L58),
+  `getExpenseChartQuery` (L162), `getAggregateExpenseChartQuery` (L106). The
+  gross `CASE` adds tax to exclusive-tax rows; net is its symmetric inverse
+  (matches admin-portal `expense.netAmount = uses_inclusive ? amount - tax : amount`):
+  ```php
+  $tax = '((COALESCE(expenses.tax_amount1,0) + COALESCE(expenses.tax_amount2,0) + COALESCE(expenses.tax_amount3,0)) '
+       . '+ ((expenses.amount * COALESCE(expenses.tax_rate1,0)/100) + (expenses.amount * COALESCE(expenses.tax_rate2,0)/100) + (expenses.amount * COALESCE(expenses.tax_rate3,0)/100)))';
+  $expense = $this->net
+      ? "CASE WHEN expenses.uses_inclusive_taxes = 0 THEN expenses.amount ELSE expenses.amount - {$tax} END"
+      : "CASE WHEN expenses.uses_inclusive_taxes = 0 THEN expenses.amount + {$tax} ELSE expenses.amount END"; // gross == today
+  // aggregate/chart variants keep their outer * exchange_rate wrapper; swap only the inner CASE
+  ```
+- **Revenue / Payments — "net everything", the hard part** — `getRevenueQuery`
+  (L394), `getAggregateRevenueQuery` (L373), `getPaymentQuery` (L210),
+  `getAggregatePaymentQuery` (L235), `getPaymentChartQuery` (L287),
+  `getAggregatePaymentChartQuery` (L261). Payments carry **no** tax split, so
+  net requires allocating each payment across the invoices it paid via the
+  `paymentables` pivot (per-allocation `amount`/`refunded`; `paymentable_type`
+  stored as the morph alias `'invoices'` — verified against
+  `PaymentService`/`RefundPayment` which query `where('paymentable_type','invoices')`;
+  `Payment::invoices()` morphs to `Invoice`). Weight each allocation by the
+  invoice's net ratio and pass the **unapplied** remainder through untaxed.
+  E.g. `getRevenueQuery`:
+  ```sql
+  -- gross today: sum(payments.amount - payments.refunded) as paid_to_date
+  SELECT
+      SUM( COALESCE(alloc.net_applied, 0)
+           + ((payments.amount - payments.refunded) - COALESCE(alloc.gross_applied, 0)) ) as paid_to_date,
+      payments.currency_id AS currency_id
+  FROM payments
+  JOIN clients ON payments.client_id = clients.id
+  LEFT JOIN (
+      SELECT pt.payment_id,
+             SUM(pt.amount - pt.refunded) AS gross_applied,
+             SUM((pt.amount - pt.refunded) * (i.amount - i.total_taxes) / NULLIF(i.amount, 0)) AS net_applied
+      FROM paymentables pt
+      JOIN invoices i ON i.id = pt.paymentable_id AND pt.paymentable_type = 'invoices'
+      WHERE pt.deleted_at IS NULL
+      GROUP BY pt.payment_id
+  ) alloc ON alloc.payment_id = payments.id
+  WHERE payments.company_id = :company_id AND payments.is_deleted = 0 AND clients.is_deleted = 0
+    AND payments.status_id IN (1,4,5,6) AND (payments.date BETWEEN :start_date AND :end_date)
+  GROUP BY payments.currency_id
+  ```
+  The other five payment queries take the same `alloc` subquery (chart variants
+  keep `GROUP BY payments.date`; aggregate variants keep the `* exchange_rate`
+  wrapper). **Edge cases the maintainer must decide:** (a) **credits**
+  (`paymentable_type='credits'`, which also have `total_taxes`) — apply the
+  same ratio, or leave as-is; (b) **unapplied** payment balance — no invoice, so
+  treated as already tax-free (the `- gross_applied` remainder term); (c)
+  **refunds** — handled via `pt.refunded` / `payments.refunded`.
+  **Simpler fallback** if the allocation join is deemed too heavy: apply a
+  company/window net ratio `SUM(invoices.amount - invoices.total_taxes) / NULLIF(SUM(invoices.amount),0)`
+  to the existing gross payment sums — cheaper, less exact.
+
+**Phasing (recommend splitting the PR).** *Phase 1* — `totals_v2` +
+`chart_summary_v2` (the built-in KPIs + hero chart, highest value). *Phase 2* —
+`calculated_fields`: `ChartService::getCalculatedField()` (L343) dispatches into
+the `ChartCalculations` trait, where each money-format calc
+(`active_invoices`, `outstanding_invoices`, `completed_payments`,
+`invoiced_expenses`, …) needs the same net treatment — larger surface, can land
+second.
+
+**Acceptance** — against a server **with** the PR, two `POST /api/v1/charts/totals_v2`
+over one date range differing only by `net`:
+
+```bash
+curl -sX POST "$BASE/api/v1/charts/totals_v2?net=false" -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"start_date":"2026-01-01","end_date":"2026-12-31","date_range":"custom"}' | jq '.data["999"].invoices, .data["999"].revenue'
+curl -sX POST "$BASE/api/v1/charts/totals_v2?net=true"  -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"start_date":"2026-01-01","end_date":"2026-12-31","date_range":"custom"}' | jq '.data["999"].invoices, .data["999"].revenue'
+```
+
+`net=true` must return `invoices.invoiced_amount` reduced by exactly the summed
+`invoices.total_taxes` for the window, `outstanding.amount` and
+`revenue.paid_to_date` reduced proportionally, and (for a company with any
+taxed line) net < gross on every money field. `net=false` must be byte-identical
+to today's response (regression guard). (The demo/production server won't
+reflect this until the change is **deployed** — a client sending `net` sees no
+change until then.)
+
+**Client follow-up (already scoped, not blocking this PR)** — once `net` ships,
+the Flutter change clones the `includeDrafts` plumbing: a `showNet` bool on
+`DashboardFilter` (folded into `filterHash` so the cache re-keys), sent as
+`net=<bool>` on the three chart calls, plus a Gross/Net control in the
+dashboard settings popover. No Drift schema/migration (the cache is keyed by
+`filterHash`; `nav_state` is schemaless JSON).

@@ -9,7 +9,6 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
-import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -18,6 +17,7 @@ import 'package:admin/ui/core/detail/entity_link_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/utils/formatting.dart';
@@ -69,7 +69,7 @@ class ProjectDetailCardsGrid extends StatelessWidget {
   Widget _wide(BuildContext context) {
     final p = project;
     final leftCards = <Widget>[
-      _DetailsCard(project: p, companyId: companyId, formatter: formatter),
+      _DetailsCard(project: p, formatter: formatter),
       if (_tasksEnabled(context))
         _TasksCard(project: p, companyId: companyId, formatter: formatter),
     ];
@@ -102,7 +102,7 @@ class ProjectDetailCardsGrid extends StatelessWidget {
   Widget _stacked(BuildContext context) {
     final p = project;
     final cards = <Widget>[
-      _DetailsCard(project: p, companyId: companyId, formatter: formatter),
+      _DetailsCard(project: p, formatter: formatter),
       if (p.clientId.isNotEmpty) _clientLink(context, p),
       if (_tasksEnabled(context))
         _TasksCard(project: p, companyId: companyId, formatter: formatter),
@@ -194,13 +194,8 @@ class _Row extends StatelessWidget {
 }
 
 class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({
-    required this.project,
-    required this.companyId,
-    required this.formatter,
-  });
+  const _DetailsCard({required this.project, required this.formatter});
   final Project project;
-  final String companyId;
   final Formatter? formatter;
 
   @override
@@ -224,10 +219,7 @@ class _DetailsCard extends StatelessWidget {
           if (p.assignedUserId.isNotEmpty)
             _Row(
               label: context.tr('assigned_user'),
-              value: _AssignedUserName(
-                companyId: companyId,
-                userId: p.assignedUserId,
-              ),
+              value: UserNameLabel(userId: p.assignedUserId),
             ),
           _Row(
             label: context.tr('task_rate'),
@@ -256,31 +248,6 @@ class _DetailsCard extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-/// Resolves an assigned-user id to its display name via a single-user watch,
-/// falling back to the raw id until the user row streams in.
-class _AssignedUserName extends StatelessWidget {
-  const _AssignedUserName({required this.companyId, required this.userId});
-  final String companyId;
-  final String userId;
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: context.read<Services>().user.watch(
-        companyId: companyId,
-        id: userId,
-      ),
-      builder: (context, snap) {
-        final u = snap.data;
-        final name = (u != null && u.displayName.isNotEmpty)
-            ? u.displayName
-            : userId;
-        return Text(name);
-      },
     );
   }
 }

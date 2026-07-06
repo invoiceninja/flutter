@@ -15,6 +15,7 @@ import 'package:admin/data/models/api/tax_config_api_model.dart';
 import 'package:admin/data/models/api/tax_rate_api_model.dart';
 import 'package:admin/data/models/api/token_api_model.dart';
 import 'package:admin/data/models/api/transaction_rule_api_model.dart';
+import 'package:admin/data/models/api/user_api_model.dart';
 import 'package:admin/data/models/api/webhook_api_model.dart';
 
 part 'login_response_api_model.freezed.dart';
@@ -193,6 +194,11 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     // round-trip on first paint. The pattern matches CLAUDE.md § Data
     // loading — bundled vs per-entity. Add new bundles here as more
     // settings screens come online (tax_rates, designs, …).
+    // Full company roster (owner + members), embedded on `first_load` under
+    // `company.users`. Persisted (upsert-only) by `UserRepository.applyBundle`
+    // so assigned-user ids resolve to display names everywhere — without a
+    // `GET /users/{id}` round-trip (that endpoint is 412 password-gated).
+    @JsonKey(name: 'users') @Default(<UserApi>[]) List<UserApi> users,
     @JsonKey(name: 'task_statuses')
     @Default(<TaskStatusApi>[])
     List<TaskStatusApi> taskStatuses,

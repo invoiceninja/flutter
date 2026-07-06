@@ -116,6 +116,30 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
     required UserApi api,
   }) => _upsertFromApi(companyId: companyId, api: api, isDirty: false);
 
+  /// Seed the local `users` table from the `/login` or `/refresh` envelope's
+  /// bundled `data[N].company.users` roster — every user in the company — so
+  /// assigned-user ids resolve to display names everywhere without a per-id
+  /// `GET /users/{id}` (that endpoint is 412 password-gated).
+  ///
+  /// Plain upsert-preserving-dirty: a row with a pending local profile edit
+  /// (`is_dirty = true`) keeps its outbox-bound payload. Deliberately does NOT
+  /// advance the keyset cursor — the User Management list owns its own
+  /// paginated `GET /users` sync (server-side owner/auth filtering), and the
+  /// embedded roster may be partial for large teams, so it must not
+  /// short-circuit that fetch.
+  Future<void> applyBundle({
+    required String companyId,
+    required List<UserApi> bundle,
+  }) async {
+    final byId = <String, UsersCompanion>{};
+    for (final a in bundle) {
+      if (a.id.isEmpty) continue;
+      byId[a.id] = _apiToCompanion(a, companyId, isDirty: false);
+    }
+    if (byId.isEmpty) return;
+    await db.userDao.upsertAllPreservingDirty(companyId: companyId, byId: byId);
+  }
+
   // ── Auth-user-specific PUT (collapse pending rows per (company, user)) ──
 
   /// Enqueue an outbox row that PUTs the auth user's own profile.

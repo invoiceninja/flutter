@@ -5,6 +5,7 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/user_name_label.dart';
 
 typedef ProjectColumn = ColumnDefinition<Project>;
 
@@ -51,7 +52,11 @@ final List<ProjectColumn> kAllProjectColumns = <ProjectColumn>[
     id: ProjectFieldIds.assignedUserId,
     labelKey: 'assigned_user',
     width: 160,
-    cellBuilder: (p, _) => cellText(p.assignedUserId),
+    // Resolve the assigned-user id to a display name from the local roster
+    // (seeded via UserRepository.applyBundle); raw id fallback while empty.
+    cellBuilder: (p, _) => p.assignedUserId.isEmpty
+        ? cellEmpty()
+        : UserNameLabel(userId: p.assignedUserId),
     valueBuilder: (p) => cellNonZeroString(p.assignedUserId),
   ),
   ProjectColumn(

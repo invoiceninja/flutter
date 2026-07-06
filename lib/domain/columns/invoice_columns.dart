@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
@@ -149,8 +150,9 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
     id: InvoiceFieldIds.assignedUserId,
     labelKey: 'assigned_user',
     width: 160,
-    cellBuilder: (i, _) =>
-        i.assignedUserId.isEmpty ? cellEmpty() : cellText(i.assignedUserId),
+    cellBuilder: (i, _) => i.assignedUserId.isEmpty
+        ? cellEmpty()
+        : UserNameLabel(userId: i.assignedUserId),
     valueBuilder: (i) => cellNonZeroString(i.assignedUserId),
   ),
   // Display-only — `public_notes` lives only in the payload JSON; adding it

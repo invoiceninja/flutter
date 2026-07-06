@@ -383,6 +383,69 @@ void main() {
       expect(settings['accent_color'], '');
       expect(settings['keep_me'], 'x');
     });
+
+    group('applyBundle (company.users roster seed)', () {
+      UserApi member(String id, String first, String last) => UserApi(
+        id: id,
+        firstName: first,
+        lastName: last,
+        email: '$id@example.com',
+        updatedAt: 1700000000,
+      );
+
+      test('upserts the roster so ids resolve to display names', () async {
+        final repo = makeRepo();
+        await repo.applyBundle(
+          companyId: 'co_1',
+          bundle: [
+            member('u_a', 'Tyler', 'Kris'),
+            member('u_b', 'Vivienne', 'Gerlach'),
+          ],
+        );
+        expect(
+          (await repo.get(companyId: 'co_1', userId: 'u_a'))!.displayName,
+          'Tyler Kris',
+        );
+        expect(
+          (await repo.watchByRealId(companyId: 'co_1', id: 'u_b').first)!
+              .displayName,
+          'Vivienne Gerlach',
+        );
+      });
+
+      test('preserves a pending dirty local edit (never clobbers it)', () async {
+        final repo = makeRepo();
+        await repo.applyApiResponse(
+          companyId: 'co_1',
+          api: member('u_a', 'Old', 'Name'),
+        );
+        final loaded = (await repo.get(companyId: 'co_1', userId: 'u_a'))!;
+        // Admin "edit teammate" marks the row dirty + parks a PUT in the outbox.
+        await repo.save(
+          companyId: 'co_1',
+          user: loaded.copyWith(firstName: 'LocalEdit'),
+        );
+        // A subsequent login/refresh roster must not revert the queued edit.
+        await repo.applyBundle(
+          companyId: 'co_1',
+          bundle: [member('u_a', 'ServerName', 'Name')],
+        );
+        final after = (await repo.get(companyId: 'co_1', userId: 'u_a'))!;
+        expect(after.firstName, 'LocalEdit');
+        expect(after.isDirty, isTrue);
+      });
+
+      test('skips empty ids and no-ops on an empty bundle', () async {
+        final repo = makeRepo();
+        await repo.applyBundle(
+          companyId: 'co_1',
+          bundle: [member('', 'Ghost', 'User')],
+        );
+        await repo.applyBundle(companyId: 'co_1', bundle: const []);
+        final all = await repo.watchAllForPicker(companyId: 'co_1').first;
+        expect(all, isEmpty);
+      });
+    });
   });
 }
 

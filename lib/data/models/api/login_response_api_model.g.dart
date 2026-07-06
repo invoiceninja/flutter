@@ -137,6 +137,11 @@ _CompanyEnvelopeApi _$CompanyEnvelopeApiFromJson(
   enabledModules: (json['enabled_modules'] as num?)?.toInt() ?? 0,
   settings:
       json['settings'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+  users:
+      (json['users'] as List<dynamic>?)
+          ?.map((e) => UserApi.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <UserApi>[],
   taskStatuses:
       (json['task_statuses'] as List<dynamic>?)
           ?.map((e) => TaskStatusApi.fromJson(e as Map<String, dynamic>))
@@ -269,6 +274,7 @@ Map<String, dynamic> _$CompanyEnvelopeApiToJson(
   'legal_entity_id': instance.legalEntityId,
   'enabled_modules': instance.enabledModules,
   'settings': instance.settings,
+  'users': instance.users,
   'task_statuses': instance.taskStatuses,
   'company_gateways': instance.companyGateways,
   'payment_terms': instance.paymentTerms,

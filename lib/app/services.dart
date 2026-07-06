@@ -1123,6 +1123,13 @@ class Services implements SidebarBadgeContext {
           // Re-lock the Account-Management gate so a toggle can't PUT those
           // defaults before the next canonical GET /companies backfills them.
           if (fullSync) companyRepo.markCanonicalStale(companyId);
+          // Seed the full company roster so assigned-user ids resolve to names
+          // in list tables / detail / pickers. Upsert-only, cursor-neutral —
+          // the User Management list keeps its own paginated GET /users sync.
+          await userRepo.applyBundle(
+            companyId: companyId,
+            bundle: company.users,
+          );
           for (final apply in entities.bundleAppliers) {
             await apply(
               companyId: companyId,

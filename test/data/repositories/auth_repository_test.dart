@@ -3,11 +3,14 @@ import 'dart:convert';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
+import 'package:admin/data/models/api/user_api_model.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
+import 'package:admin/data/services/users_api.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +57,11 @@ class _FakeAuthService implements AuthService {
     required String email,
   }) async {}
 
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _FakeUsersApi implements UsersApi {
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
@@ -127,6 +135,61 @@ void main() {
   });
 
   group('login', () {
+    test('persists the company roster (data[N].company.users) so assigned '
+        'users resolve to names', () async {
+      // The roster is seeded via the onPersistBundles fan-out (services.dart),
+      // not inside _persistAndActivate itself — wire it the same way here.
+      final userRepo = UserRepository(db: db, api: _FakeUsersApi());
+      repo.onPersistBundles =
+          ({required companyId, required company, required fullSync}) async {
+            await userRepo.applyBundle(
+              companyId: companyId,
+              bundle: company.users,
+            );
+          };
+      authService.queueLogin(
+        _envelope(
+          companyOverrideById: {
+            'co_a': CompanyEnvelopeApi(
+              id: 'co_a',
+              name: 'Acme',
+              users: const [
+                UserApi(
+                  id: 'u_owner',
+                  firstName: 'Tyler',
+                  lastName: 'Kris',
+                  email: 'owner@example.com',
+                  updatedAt: 1700000000,
+                ),
+                UserApi(
+                  id: 'u_member',
+                  firstName: 'Vivienne',
+                  lastName: 'Gerlach',
+                  email: 'member@example.com',
+                  updatedAt: 1700000000,
+                ),
+              ],
+            ),
+          },
+        ),
+      );
+
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+
+      // A teammate who is NOT the logged-in user now resolves to a name —
+      // exactly what the Projects/Invoices/Quotes tables need.
+      final member = await userRepo.get(companyId: 'co_a', userId: 'u_member');
+      expect(member, isNotNull);
+      expect(member!.displayName, 'Vivienne Gerlach');
+      final owner = await userRepo.get(companyId: 'co_a', userId: 'u_owner');
+      expect(owner!.displayName, 'Tyler Kris');
+    });
+
     test('persists tokens + companies and primes credentials', () async {
       authService.queueLogin(
         _envelope(

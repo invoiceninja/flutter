@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
@@ -133,8 +134,9 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
     id: InvoiceFieldIds.designId,
     labelKey: 'design',
     width: 130,
-    cellBuilder: (i, _) =>
-        i.designId.isEmpty ? cellEmpty() : cellText(i.designId),
+    cellBuilder: (i, _) => i.designId.isEmpty
+        ? cellEmpty()
+        : DesignNameLabel(designId: i.designId),
     valueBuilder: (i) => cellNonZeroString(i.designId),
   ),
   InvoiceColumn(

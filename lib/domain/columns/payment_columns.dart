@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/company_gateway_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/payments/widgets/payment_status_pill.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
@@ -67,7 +68,7 @@ final List<PaymentColumn> kAllPaymentColumns = <PaymentColumn>[
     id: PaymentFieldIds.typeId,
     labelKey: 'type',
     width: 140,
-    cellBuilder: (p, _) => p.typeId.isEmpty ? cellEmpty() : cellText(p.typeId),
+    cellBuilder: (p, ctx) => cellPaymentType(ctx, p.typeId),
     valueBuilder: (p) => cellNonZeroString(p.typeId),
   ),
   PaymentColumn(
@@ -110,16 +111,16 @@ final List<PaymentColumn> kAllPaymentColumns = <PaymentColumn>[
     id: PaymentFieldIds.gatewayId,
     labelKey: 'gateway',
     width: 160,
-    cellBuilder: (p, _) =>
-        p.companyGatewayId.isEmpty ? cellEmpty() : cellText(p.companyGatewayId),
+    cellBuilder: (p, _) => p.companyGatewayId.isEmpty
+        ? cellEmpty()
+        : CompanyGatewayNameLabel(gatewayId: p.companyGatewayId),
     valueBuilder: (p) => cellNonZeroString(p.companyGatewayId),
   ),
   PaymentColumn(
     id: PaymentFieldIds.currencyId,
     labelKey: 'currency',
     width: 100,
-    cellBuilder: (p, _) =>
-        p.currencyId.isEmpty ? cellEmpty() : cellText(p.currencyId),
+    cellBuilder: (p, ctx) => cellCurrency(ctx, p.currencyId),
     valueBuilder: (p) => cellNonZeroString(p.currencyId),
   ),
   PaymentColumn(

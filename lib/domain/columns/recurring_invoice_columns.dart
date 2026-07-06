@@ -6,6 +6,7 @@ import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_status_pill.dart';
 
@@ -112,8 +113,9 @@ final List<RecurringInvoiceColumn> kAllRecurringInvoiceColumns =
         id: RecurringInvoiceFieldIds.designId,
         labelKey: 'design',
         width: 130,
-        cellBuilder: (r, _) =>
-            r.designId.isEmpty ? cellEmpty() : cellText(r.designId),
+        cellBuilder: (r, _) => r.designId.isEmpty
+            ? cellEmpty()
+            : DesignNameLabel(designId: r.designId),
         valueBuilder: (r) => cellNonZeroString(r.designId),
       ),
       RecurringInvoiceColumn(

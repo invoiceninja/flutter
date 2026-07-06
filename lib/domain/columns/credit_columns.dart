@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/credits/widgets/credit_status_pill.dart';
 
@@ -107,8 +108,9 @@ final List<CreditColumn> kAllCreditColumns = <CreditColumn>[
     id: CreditFieldIds.designId,
     labelKey: 'design',
     width: 130,
-    cellBuilder: (c, _) =>
-        c.designId.isEmpty ? cellEmpty() : cellText(c.designId),
+    cellBuilder: (c, _) => c.designId.isEmpty
+        ? cellEmpty()
+        : DesignNameLabel(designId: c.designId),
     valueBuilder: (c) => cellNonZeroString(c.designId),
   ),
   CreditColumn(

@@ -1,8 +1,10 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
@@ -41,6 +43,23 @@ Widget cellEmpty() => const CellText(value: '—', muted: true);
 Widget cellText(String value, {bool bold = false}) {
   if (value.isEmpty) return cellEmpty();
   return CellText(value: value, bold: bold);
+}
+
+/// Currency cell — resolves [currencyId] to its ISO code (e.g. "USD") from the
+/// static catalog; falls back to the raw id when the catalog lacks it (or hasn't
+/// loaded yet). Static data, so a synchronous read is fine — no watch needed.
+Widget cellCurrency(BuildContext context, String currencyId) {
+  if (currencyId.isEmpty) return cellEmpty();
+  final code = context.read<Services>().statics.currencies[currencyId]?.code;
+  return cellText(code == null || code.isEmpty ? currencyId : code);
+}
+
+/// Payment-type cell — resolves [typeId] to its name (e.g. "Credit Card") from
+/// the static catalog; falls back to the raw id.
+Widget cellPaymentType(BuildContext context, String typeId) {
+  if (typeId.isEmpty) return cellEmpty();
+  final name = context.read<Services>().statics.paymentTypes[typeId]?.name;
+  return cellText(name == null || name.isEmpty ? typeId : name);
 }
 
 /// Linked text cell. Renders the value with the same typographic weight as

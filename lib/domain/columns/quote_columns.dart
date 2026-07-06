@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
@@ -91,8 +92,9 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
     id: QuoteFieldIds.designId,
     labelKey: 'design',
     width: 130,
-    cellBuilder: (q, _) =>
-        q.designId.isEmpty ? cellEmpty() : cellText(q.designId),
+    cellBuilder: (q, _) => q.designId.isEmpty
+        ? cellEmpty()
+        : DesignNameLabel(designId: q.designId),
     valueBuilder: (q) => cellNonZeroString(q.designId),
   ),
   QuoteColumn(

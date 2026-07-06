@@ -143,8 +143,7 @@ final List<BankTransactionColumn> kAllBankTransactionColumns =
         id: BankTransactionColumnIds.currencyId,
         labelKey: 'currency',
         width: 100,
-        cellBuilder: (t, _) =>
-            t.currencyId.isEmpty ? cellEmpty() : cellText(t.currencyId),
+        cellBuilder: (t, ctx) => cellCurrency(ctx, t.currencyId),
         valueBuilder: (t) => cellNonZeroString(t.currencyId),
       ),
       BankTransactionColumn(

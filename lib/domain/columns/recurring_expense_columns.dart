@@ -159,8 +159,7 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
         id: RecurringExpenseFieldIds.currencyId,
         labelKey: 'currency',
         width: 100,
-        cellBuilder: (e, _) =>
-            e.currencyId.isEmpty ? cellEmpty() : cellText(e.currencyId),
+        cellBuilder: (e, ctx) => cellCurrency(ctx, e.currencyId),
         valueBuilder: (e) => cellNonZeroString(e.currencyId),
       ),
       // Display-only columns. `public_notes` / `private_notes` live only in the

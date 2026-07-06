@@ -3,6 +3,7 @@ import 'package:admin/data/db/dao/purchase_order_dao.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_status_pill.dart';
@@ -97,8 +98,9 @@ final List<PurchaseOrderColumn> kAllPurchaseOrderColumns =
         id: PurchaseOrderFieldIds.designId,
         labelKey: 'design',
         width: 130,
-        cellBuilder: (p, _) =>
-            p.designId.isEmpty ? cellEmpty() : cellText(p.designId),
+        cellBuilder: (p, _) => p.designId.isEmpty
+            ? cellEmpty()
+            : DesignNameLabel(designId: p.designId),
         valueBuilder: (p) => cellNonZeroString(p.designId),
       ),
       PurchaseOrderColumn(

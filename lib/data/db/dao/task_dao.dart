@@ -52,6 +52,8 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     bool sortAscending = false,
     String? clientId,
     String? projectId,
+    Set<String> statusIds = const {},
+    Set<String> projectIds = const {},
     Set<String> customValues1 = const {},
     Set<String> customValues2 = const {},
     Set<String> customValues3 = const {},
@@ -75,6 +77,20 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     // in-memory only — not forwarded as a server filter.
     if (projectId != null && projectId.isNotEmpty) {
       q.where((t) => t.projectId.equals(projectId));
+    }
+    // `task_status` membership mirror. The server pairs this filter with
+    // `whereNull(invoice_id)` (uninvoiced tasks only — TaskFilters::
+    // task_status), so mirror that too or the local window diverges from the
+    // server's filtered pages.
+    if (statusIds.isNotEmpty) {
+      q.where(
+        (t) => t.taskStatusId.isIn(statusIds.toList()) & t.invoiceId.equals(''),
+      );
+    }
+    // `project_tasks` membership mirror (the standalone list's `project:`
+    // chips) — distinct from the single embedded [projectId] lock above.
+    if (projectIds.isNotEmpty) {
+      q.where((t) => t.projectId.isIn(projectIds.toList()));
     }
     // Custom-field filters mirror server `custom_value1..4` (exact-set local
     // predicate is source of truth — same idiom as ClientDao/InvoiceDao).

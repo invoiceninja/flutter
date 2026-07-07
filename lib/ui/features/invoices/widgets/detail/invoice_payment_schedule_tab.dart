@@ -47,7 +47,7 @@ class InvoicePaymentScheduleTab extends StatelessWidget {
       return EmptyState(
         icon: Icons.event_repeat_outlined,
         title: context.tr('no_payment_schedule'),
-        subtitle: isTmp ? context.tr('sync_first') : null,
+        subtitle: isTmp ? context.tr('sync_first_generic') : null,
         action: isTmp
             ? null
             : FilledButton.icon(

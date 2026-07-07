@@ -21,6 +21,12 @@ class DashboardActivity {
     required this.paymentId,
     required this.expenseId,
     required this.recurringInvoiceId,
+    this.taskId,
+    this.creditId,
+    this.vendorId,
+    this.purchaseOrderId,
+    this.recurringExpenseId,
+    this.subscriptionId,
     required this.notes,
     this.labels = const <String, String>{},
     required this.raw,
@@ -37,6 +43,12 @@ class DashboardActivity {
   final String? paymentId;
   final String? expenseId;
   final String? recurringInvoiceId;
+  final String? taskId;
+  final String? creditId;
+  final String? vendorId;
+  final String? purchaseOrderId;
+  final String? recurringExpenseId;
+  final String? subscriptionId;
   final String notes;
 
   /// Display labels keyed by template token (`user`, `client`, `invoice`, …),
@@ -92,6 +104,15 @@ class DashboardActivity {
       paymentId: refId('payment'),
       expenseId: refId('expense'),
       recurringInvoiceId: refId('recurring_invoice'),
+      // Both feeds carry these too (ActivityTransformer flat ids; reactv2
+      // nested objects via Activity::matchVar) — without them task / credit /
+      // vendor / purchase-order activity rows were dead taps.
+      taskId: refId('task'),
+      creditId: refId('credit'),
+      vendorId: refId('vendor'),
+      purchaseOrderId: refId('purchase_order'),
+      recurringExpenseId: refId('recurring_expense'),
+      subscriptionId: refId('subscription'),
       notes: (json['notes'] ?? '').toString(),
       labels: labels,
       raw: json,

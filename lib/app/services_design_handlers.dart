@@ -1,5 +1,6 @@
 import 'package:logging/logging.dart';
 
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/companies_api.dart';
 import 'package:admin/domain/sync/base_entity_sync_dispatcher.dart';
 import 'package:admin/domain/sync/mutation.dart';
@@ -19,12 +20,17 @@ Map<MutationKind, CustomMutationHandler<TInner>>
 setDefaultDesignHandlers<TInner>(CompaniesApi companiesApi) {
   return {
     MutationKind.setDefaultDesign: ({required row, required payload}) async {
-      // Best-effort, matching the company-scope path in CompanySyncDispatcher:
-      // a set/default failure must NOT fail this outbox row. The retro-apply is
-      // a separate row from the settings save (which already succeeded), and
-      // the server 400s on a design id it doesn't yet know — letting that throw
-      // would mark the row dead and surface a misleading "sync failed", whereas
-      // the company path swallows it. Catch + log so all scopes behave alike.
+      // Permanent 4xx failures are best-effort: the retro-apply is a separate
+      // row from the settings save (which already succeeded), and the server
+      // 400s on a design id it doesn't yet know — letting that mark the row
+      // dead would surface a misleading "sync failed". Transient failures
+      // (offline NetworkException, 5xx, 429) MUST rethrow so the row backs
+      // off and retries — swallowing them silently dropped an offline
+      // "Update all records" retro-apply forever. (The company-scope path in
+      // CompanySyncDispatcher still swallows everything: there the call
+      // piggybacks on the settings row itself, right after its PUT succeeded
+      // on the same connection, so a rethrow would misreport the settings
+      // save.)
       try {
         await companiesApi.setDefaultDesign(
           designId: payload['design_id'] as String,
@@ -35,6 +41,7 @@ setDefaultDesignHandlers<TInner>(CompaniesApi companiesApi) {
           idempotencyKey: row.idempotencyKey,
         );
       } catch (e) {
+        if (isTransientError(e)) rethrow;
         _log.warning(
           'set/default failed (design=${payload['design_id']} '
           'entity=${payload['entity']} level=${payload['settings_level']}) — '

@@ -1,6 +1,5 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -14,6 +13,8 @@ import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/ui/features/products/widgets/detail/product_detail_kpi_strip.dart'
+    show formatProductAmount;
 import 'package:admin/utils/formatting.dart';
 
 /// Detail-card grid for a single [Product]. Replaces the legacy
@@ -92,7 +93,7 @@ class ProductDetailCardsGrid extends StatelessWidget {
     required int enabledTaxSlots,
   }) {
     final rightCards = <Widget>[
-      if (hasInventory) _InventoryCard(product: product),
+      if (hasInventory) _InventoryCard(product: product, formatter: formatter),
       if (hasTaxes) _TaxesCard(product: product, enabledSlots: enabledTaxSlots),
       if (_hasAnyCustomValue) _customFieldsCard(),
     ];
@@ -116,7 +117,7 @@ class ProductDetailCardsGrid extends StatelessWidget {
   }) {
     final cards = <Widget>[
       _DetailsCard(product: product),
-      if (hasInventory) _InventoryCard(product: product),
+      if (hasInventory) _InventoryCard(product: product, formatter: formatter),
       if (hasTaxes) _TaxesCard(product: product, enabledSlots: enabledTaxSlots),
       if (_hasAnyCustomValue) _customFieldsCard(),
     ];
@@ -190,17 +191,14 @@ class _DetailsCard extends StatelessWidget {
 }
 
 class _InventoryCard extends StatelessWidget {
-  const _InventoryCard({required this.product});
+  const _InventoryCard({required this.product, this.formatter});
   final Product product;
+  final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
     final stockValue = product.inStockQuantity * product.price;
-    // Plain 2-decimal, no currency symbol — matches the KPI strip's price/cost
-    // (product money isn't client-scoped, so the detail stays symbol-less).
-    final numberFmt = NumberFormat.decimalPattern()
-      ..minimumFractionDigits = 2
-      ..maximumFractionDigits = 2;
+    String fmt(Decimal value) => formatProductAmount(formatter, value);
     return DashboardCardShell(
       title: context.tr('inventory'),
       child: DetailRowStack(
@@ -215,7 +213,7 @@ class _InventoryCard extends StatelessWidget {
           if (stockValue != Decimal.zero)
             DetailInfoRow(
               label: context.tr('stock_value'),
-              value: numberFmt.format(stockValue.toDouble()),
+              value: fmt(stockValue),
               monospace: true,
             ),
           DetailInfoRow(

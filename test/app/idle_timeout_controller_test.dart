@@ -36,28 +36,24 @@ void main() {
   tearDown(() => controller.dispose());
 
   group('shouldPreserveOnTimeout', () {
-    test('preserves when the active company has pending outbox rows', () async {
-      sync.pending = 3;
-      expect(await controller.shouldPreserveOnTimeout('co1'), isTrue);
+    test('preserves when any company has active outbox rows — the set comes '
+        'from the OUTBOX, so even a company missing from the session '
+        'envelope protects its rows', () async {
+      sync.activeCompanies = ['co2'];
+      expect(await controller.shouldPreserveOnTimeout(), isTrue);
     });
 
     test(
       'does NOT preserve (clean full logout) when nothing is pending',
       () async {
-        sync.pending = 0;
-        expect(await controller.shouldPreserveOnTimeout('co1'), isFalse);
+        sync.activeCompanies = const [];
+        expect(await controller.shouldPreserveOnTimeout(), isFalse);
       },
     );
 
-    test('errs toward preserving when the pending-count read throws', () async {
+    test('errs toward preserving when the outbox read throws', () async {
       sync.throwOnCount = true;
-      expect(await controller.shouldPreserveOnTimeout('co1'), isTrue);
-    });
-
-    test('does NOT preserve when there is no active company', () async {
-      sync.pending = 5; // would preserve if a company were active
-      expect(await controller.shouldPreserveOnTimeout(null), isFalse);
-      expect(await controller.shouldPreserveOnTimeout(''), isFalse);
+      expect(await controller.shouldPreserveOnTimeout(), isTrue);
     });
   });
 }
@@ -79,12 +75,19 @@ class _FakeCompany implements CompanyRepository {
 
 class _FakeSync implements SyncRepository {
   int pending = 0;
+  List<String> activeCompanies = const [];
   bool throwOnCount = false;
 
   @override
   Future<int> pendingCountFor(String companyId) async {
     if (throwOnCount) throw StateError('pending count unavailable');
     return pending;
+  }
+
+  @override
+  Future<List<String>> companiesWithActiveRows() async {
+    if (throwOnCount) throw StateError('outbox unavailable');
+    return activeCompanies;
   }
 
   @override

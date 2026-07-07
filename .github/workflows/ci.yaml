@@ -232,6 +232,34 @@ jobs:
           flutter config --enable-linux-desktop
           flutter build linux --release
 
+  # Windows desktop compile gate — mirrors build-linux: validates the C++
+  # runner + desktop plugins compile and the sqlite3mc windows-x64 native
+  # asset is fetched + bundled. MSVC ships preinstalled on windows-latest.
+  # 2x-billed minutes — still far under the 10x mac job. Without this job the
+  # only thing that ever compiles Windows is the manual Microsoft Store
+  # release dispatch, so breakage would first surface mid-release.
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned — keep in lockstep with the analyze job.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Windows (compile gate, --release)
+        run: flutter build windows --release
+
   # The only macOS runner (10x billed) — the iOS + macOS release-build gate.
   # The macOS-desktop integration suite is NOT run here: a headless hosted
   # runner has no Metal device (MTLCreateSystemDefaultDevice() is nil), so the

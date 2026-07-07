@@ -1,8 +1,9 @@
 name: invoiceninja
-# Display-only (the store orders releases by revision, not this string); bump per
-# release. Future improvement: adopt-info from pubspec.yaml via a craftctl
-# override-build, so this tracks the app version automatically.
-version: '5.1.1'
+# Display-only (the store orders releases by revision, not this string). Kept
+# in sync with pubspec MAJOR.MINOR.PATCH by tools/bump_client_version.sh —
+# don't hand-edit. (adopt-info can't help here: the part is a `dump` of the
+# built bundle, so pubspec.yaml isn't in the part source.)
+version: '5.1.5'
 summary: Create invoices, accept payments, track expenses & time tasks
 description: |
   Create. Send. Get Paid.

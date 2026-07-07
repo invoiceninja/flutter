@@ -19,7 +19,12 @@ import 'package:admin/ui/core/widgets/notify.dart';
 /// contexts a banner can't reach (list-row popups, cross-entity actions).
 bool requireSynced(BuildContext context, String id) {
   if (!isUnsynced(id)) return true;
-  Notify.error(context, context.tr('sync_first'));
+  // NOT the Transifex `sync_first` key — its string is bank-transaction /
+  // delete-specific ("Save and sync this transaction before deleting it."),
+  // wrong for every other entity/action this guard covers. A new app-pending
+  // key is required: en.json wins over _app_pending in the lookup order, so
+  // an _app_pending override of the existing key would be silently ignored.
+  Notify.error(context, context.tr('sync_first_generic'));
   return false;
 }
 

@@ -359,21 +359,8 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
       },
       // POST /clients/bulk action:bulk_update — mass-update one whitelisted
       // column across the selection (fired per-id; the repo already applied
-      // the optimistic local patch). `bulkActionOne` returns the item
-      // envelope, so unwrap `.data` for the dispatcher to upsert (clearing the
-      // optimistic `is_dirty`).
-      MutationKind.bulkUpdate: ({required row, required payload}) async {
-        final item = await clientsApi.bulkActionOne(
-          id: payload['id'] as String,
-          action: 'bulk_update',
-          idempotencyKey: row.idempotencyKey,
-          extra: {
-            'column': payload['column'] as String,
-            'new_value': payload['new_value'] as String,
-          },
-        );
-        return item?.data;
-      },
+      // the optimistic local patch).
+      MutationKind.bulkUpdate: clientBulkUpdateHandler(clientsApi, clientRepo),
       // POST /designs/set/default settings_level=client — the client-scope
       // "Update all records" design retro-apply (shared factory; group uses
       // the same handler).
@@ -1958,3 +1945,38 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     firstPagePrefetchers: firstPagePrefetchers,
   );
 }
+
+/// `POST /clients/bulk action:bulk_update` handler — extracted as a factory so
+/// the null-echo reconciliation below is unit-testable (the inline-closure
+/// form had no seam; precedent: [setDefaultDesignHandlers]).
+///
+/// `bulkActionOne` returns the item envelope, so unwrap `.data` for the
+/// dispatcher to upsert (clearing the optimistic `is_dirty` the repo wrote).
+/// A NULL echo means the server's re-query omitted the row (deleted /
+/// filtered server-side while the mutation was queued) — there is nothing to
+/// upsert, so mirror the archive/restore null-echo reconciliation (L8,
+/// base_entity_sync_dispatcher.dart) and clear the dirty flag directly:
+/// leaving it set would exempt the row from every future refresh, freezing
+/// the optimistic value on screen forever.
+CustomMutationHandler<ClientApi> clientBulkUpdateHandler(
+  ClientsApi clientsApi,
+  ClientRepository clientRepo,
+) => ({required row, required payload}) async {
+  final item = await clientsApi.bulkActionOne(
+    id: payload['id'] as String,
+    action: 'bulk_update',
+    idempotencyKey: row.idempotencyKey,
+    extra: {
+      'column': payload['column'] as String,
+      'new_value': payload['new_value'] as String,
+    },
+  );
+  if (item == null) {
+    await clientRepo.clearLocalDirty(
+      companyId: row.companyId,
+      id: row.entityId,
+    );
+    return null;
+  }
+  return item.data;
+};

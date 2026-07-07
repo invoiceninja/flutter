@@ -6,7 +6,9 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/project_dao.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/project_api_model.dart';
 import 'package:admin/data/models/domain/project.dart';
@@ -33,6 +35,7 @@ final _log = Logger('ProjectRepository');
 /// referencing the now-archived/deleted project and the Project card on
 /// Task detail still renders (with the archived/deleted state indicator).
 class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
+    with TagNameResolver
     implements DocumentBearingRepository {
   ProjectRepository({
     required super.db,
@@ -58,6 +61,14 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
 
   /// Watch the first [loadedPages] pages worth of rows. [loadedPages] is
   /// 1-based — 1 means "show page 1," 2 means "show pages 1+2," etc.
+  ///
+  /// [extraFilters] mirrors the server-bound filter dimensions locally
+  /// (the UI renders from this watch, so a server-only filter would look
+  /// like it did nothing): the standalone list's `client_id` chips become a
+  /// SQL membership predicate; `tag_ids` is a post-decode predicate (tag
+  /// ids live only in the payload JSON). Tag-filter completeness is bounded
+  /// by the loaded pages; the list VM strips `tag_ids` from the server
+  /// fetch and auto-chains page loads to converge.
   Stream<List<Project>> watchPage({
     required String companyId,
     int loadedPages = 1,
@@ -66,12 +77,14 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     String sortField = ProjectFieldIds.name,
     bool sortAscending = true,
     String? clientId,
+    Map<String, Set<String>> extraFilters = const {},
     Map<int, Set<String>> customFilters = const {},
   }) {
     assert(
       loadedPages >= 1,
       'loadedPages is 1-based; pass 1 for the first page',
     );
+    final tagIds = parseCsvFilter(extraFilters, 'tag_ids');
     return db.projectDao
         .watchPage(
           companyId: companyId,
@@ -82,12 +95,19 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
           sortField: sortField,
           sortAscending: sortAscending,
           clientId: clientId,
+          clientIds: parseClientIdFilter(extraFilters),
           customValues1: customFilters[1] ?? const {},
           customValues2: customFilters[2] ?? const {},
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
         )
-        .map((rows) => rows.map(_fromRow).toList(growable: false));
+        .map((rows) {
+          final items = rows.map(_fromRow);
+          if (tagIds.isEmpty) return items.toList(growable: false);
+          return items
+              .where((p) => matchesTagIdFilter(p.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   Stream<int> watchCount({required String companyId}) =>
@@ -219,10 +239,17 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
   }) async {
     final tmpId = existingTempId ?? mintTempId();
     final stored = draft.copyWith(id: tmpId);
-    final companion = _domainToCompanion(stored, companyId, isDirty: true);
+    // Resolved OUTSIDE the transaction — see TagNameResolver.
+    final tagNames = await resolveTagNames(companyId, stored.tagIds);
 
     var rowId = 0;
     await db.transaction(() async {
+      final companion = _domainToCompanion(
+        stored,
+        companyId,
+        isDirty: true,
+        tagNames: tagNames,
+      );
       await db.projectDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,
@@ -243,9 +270,16 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     required String companyId,
     required Project project,
   }) async {
-    final companion = _domainToCompanion(project, companyId, isDirty: true);
+    // Resolved OUTSIDE the transaction — see TagNameResolver.
+    final tagNames = await resolveTagNames(companyId, project.tagIds);
     var rowId = 0;
     await db.transaction(() async {
+      final companion = _domainToCompanion(
+        project,
+        companyId,
+        isDirty: true,
+        tagNames: tagNames,
+      );
       await db.projectDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,
@@ -455,21 +489,20 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
           ? const Value.absent()
           : Value(jsonEncode(a.documents!.map((d) => d.toJson()).toList())),
       // Network response carries tag names — denormalize for local sort.
-      tagNames: Value(
-        a.tags
-            .map((t) => t.name)
-            .where((n) => n.isNotEmpty)
-            .join(',')
-            .toLowerCase(),
-      ),
+      tagNames: Value(joinTagNames(a.tags.map((t) => t.name))),
       payload: jsonEncode(a.toJson()),
     );
   }
 
+  /// [tagNames] — pre-resolved denormalized sort key (see [_resolveTagNames]).
+  /// Absent keeps the row's previous value on conflict-update; save/create
+  /// pass it so a local tag edit doesn't leave the sort-by-tags column stale
+  /// until the server echo (offline rows are dirty, so refreshes skip them).
   ProjectsCompanion _domainToCompanion(
     Project p,
     String companyId, {
     required bool isDirty,
+    String? tagNames,
   }) {
     return ProjectsCompanion.insert(
       id: p.id,
@@ -497,6 +530,7 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
       documents: Value(
         jsonEncode(p.documents.map((d) => d.toApi().toJson()).toList()),
       ),
+      tagNames: tagNames == null ? const Value.absent() : Value(tagNames),
       payload: jsonEncode(p.toApiJson(preserveTempId: true)),
     );
   }

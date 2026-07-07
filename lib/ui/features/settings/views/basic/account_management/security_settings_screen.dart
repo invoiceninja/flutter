@@ -101,6 +101,8 @@ class _AccountManagementSecuritySettingsScreenState
       final outbox = await confirmPendingOutboxIfAny(
         context,
         companyId: companyId,
+        // The token rotation + wipe hits every company — check them all.
+        checkAllCompanies: true,
       );
       if (outbox == OutboxConfirmResult.cancelled || !mounted) return;
     }

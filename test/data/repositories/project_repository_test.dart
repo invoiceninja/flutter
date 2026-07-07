@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/project_api_model.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
@@ -197,6 +198,67 @@ void main() {
           .watchForClient(companyId: 'co', clientId: '')
           .first;
       expect(result, isEmpty);
+    });
+
+    group('watchPage extraFilters mirrors (H1)', () {
+      Future<void> seed(
+        ProjectRepository repo,
+        String id, {
+        String clientId = '',
+        List<TagRefApi> tags = const [],
+      }) => repo.applyCreateResponse(
+        companyId: 'co',
+        tempId: id,
+        serverResponse: ProjectApi(
+          id: id,
+          name: id,
+          clientId: clientId,
+          tags: tags,
+          updatedAt: 1700000000,
+        ),
+      );
+
+      test('client_id membership narrows locally', () async {
+        final repo = makeRepo();
+        await seed(repo, 'p1', clientId: 'client_a');
+        await seed(repo, 'p2', clientId: 'client_b');
+        await seed(repo, 'p3', clientId: 'client_c');
+
+        final rows = await repo
+            .watchPage(
+              companyId: 'co',
+              extraFilters: const {
+                'client_id': {'client_a', 'client_c'},
+              },
+            )
+            .first;
+        expect(rows.map((p) => p.id), unorderedEquals(['p1', 'p3']));
+      });
+
+      test('tag_ids narrows post-decode with OR membership', () async {
+        final repo = makeRepo();
+        await seed(
+          repo,
+          'p1',
+          tags: const [TagRefApi(id: 't1', name: 'Design')],
+        );
+        await seed(
+          repo,
+          'p2',
+          tags: const [TagRefApi(id: 't2', name: 'Ops')],
+        );
+        await seed(repo, 'p3');
+
+        final rows = await repo
+            .watchPage(
+              companyId: 'co',
+              extraFilters: const {
+                'tag_ids': {'t1'},
+              },
+            )
+            .first;
+        expect(rows.map((p) => p.id), ['p1']);
+      });
     });
 
     test('uploadDocument enqueues MutationKind.documentUpload (NOT '

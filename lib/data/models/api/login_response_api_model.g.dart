@@ -8,11 +8,9 @@ part of 'login_response_api_model.dart';
 
 _LoginResponseApi _$LoginResponseApiFromJson(Map<String, dynamic> json) =>
     _LoginResponseApi(
-      data:
-          (json['data'] as List<dynamic>?)
-              ?.map((e) => UserCompanyApi.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <UserCompanyApi>[],
+      data: json['data'] == null
+          ? const <UserCompanyApi>[]
+          : _userCompanyListData(json['data']),
       staticData:
           json['static'] as Map<String, dynamic>? ?? const <String, dynamic>{},
     );
@@ -110,24 +108,17 @@ _CompanyEnvelopeApi _$CompanyEnvelopeApiFromJson(
   portalDomain: json['portal_domain'] as String? ?? '',
   portalMode: json['portal_mode'] as String? ?? '',
   clientCanRegister: json['client_can_register'] as bool? ?? false,
-  clientRegistrationFields:
-      (json['client_registration_fields'] as List<dynamic>?)
-          ?.map(
-            (e) =>
-                ClientRegistrationFieldApi.fromJson(e as Map<String, dynamic>),
-          )
-          .toList() ??
-      const <ClientRegistrationFieldApi>[],
+  clientRegistrationFields: json['client_registration_fields'] == null
+      ? const <ClientRegistrationFieldApi>[]
+      : _clientRegistrationFieldListData(json['client_registration_fields']),
   customFields:
       (json['custom_fields'] as Map<String, dynamic>?)?.map(
         (k, e) => MapEntry(k, e as String),
       ) ??
       const <String, String>{},
-  documents:
-      (json['documents'] as List<dynamic>?)
-          ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <DocumentApi>[],
+  documents: json['documents'] == null
+      ? const <DocumentApi>[]
+      : _companyDocumentListData(json['documents']),
   sizeId: json['size_id'] as String? ?? '',
   industryId: json['industry_id'] as String? ?? '',
   firstMonthOfYear: json['first_month_of_year'] as String? ?? '',
@@ -137,76 +128,48 @@ _CompanyEnvelopeApi _$CompanyEnvelopeApiFromJson(
   enabledModules: (json['enabled_modules'] as num?)?.toInt() ?? 0,
   settings:
       json['settings'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-  users:
-      (json['users'] as List<dynamic>?)
-          ?.map((e) => UserApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <UserApi>[],
-  taskStatuses:
-      (json['task_statuses'] as List<dynamic>?)
-          ?.map((e) => TaskStatusApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <TaskStatusApi>[],
-  companyGateways:
-      (json['company_gateways'] as List<dynamic>?)
-          ?.map((e) => CompanyGatewayApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <CompanyGatewayApi>[],
-  paymentTerms:
-      (json['payment_terms'] as List<dynamic>?)
-          ?.map((e) => PaymentTermApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <PaymentTermApi>[],
-  taxRates:
-      (json['tax_rates'] as List<dynamic>?)
-          ?.map((e) => TaxRateApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <TaxRateApi>[],
-  expenseCategories:
-      (json['expense_categories'] as List<dynamic>?)
-          ?.map((e) => ExpenseCategoryApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <ExpenseCategoryApi>[],
-  groups:
-      (json['groups'] as List<dynamic>?)
-          ?.map((e) => GroupSettingApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <GroupSettingApi>[],
-  bankTransactionRules:
-      (json['bank_transaction_rules'] as List<dynamic>?)
-          ?.map((e) => TransactionRuleApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <TransactionRuleApi>[],
-  bankIntegrations:
-      (json['bank_integrations'] as List<dynamic>?)
-          ?.map((e) => BankAccountApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <BankAccountApi>[],
-  webhooks:
-      (json['webhooks'] as List<dynamic>?)
-          ?.map((e) => WebhookApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <WebhookApi>[],
-  tokensHashed:
-      (json['tokens_hashed'] as List<dynamic>?)
-          ?.map((e) => TokenApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <TokenApi>[],
-  taskSchedulers:
-      (json['task_schedulers'] as List<dynamic>?)
-          ?.map((e) => ScheduleApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <ScheduleApi>[],
-  subscriptions:
-      (json['subscriptions'] as List<dynamic>?)
-          ?.map((e) => SubscriptionApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <SubscriptionApi>[],
-  designs:
-      (json['designs'] as List<dynamic>?)
-          ?.map((e) => DesignApi.fromJson(e as Map<String, dynamic>))
-          .toList() ??
-      const <DesignApi>[],
+  users: json['users'] == null
+      ? const <UserApi>[]
+      : _bundledUserListData(json['users']),
+  taskStatuses: json['task_statuses'] == null
+      ? const <TaskStatusApi>[]
+      : _taskStatusListData(json['task_statuses']),
+  companyGateways: json['company_gateways'] == null
+      ? const <CompanyGatewayApi>[]
+      : _companyGatewayListData(json['company_gateways']),
+  paymentTerms: json['payment_terms'] == null
+      ? const <PaymentTermApi>[]
+      : _paymentTermListData(json['payment_terms']),
+  taxRates: json['tax_rates'] == null
+      ? const <TaxRateApi>[]
+      : _taxRateListData(json['tax_rates']),
+  expenseCategories: json['expense_categories'] == null
+      ? const <ExpenseCategoryApi>[]
+      : _expenseCategoryListData(json['expense_categories']),
+  groups: json['groups'] == null
+      ? const <GroupSettingApi>[]
+      : _groupSettingListData(json['groups']),
+  bankTransactionRules: json['bank_transaction_rules'] == null
+      ? const <TransactionRuleApi>[]
+      : _transactionRuleListData(json['bank_transaction_rules']),
+  bankIntegrations: json['bank_integrations'] == null
+      ? const <BankAccountApi>[]
+      : _bankIntegrationListData(json['bank_integrations']),
+  webhooks: json['webhooks'] == null
+      ? const <WebhookApi>[]
+      : _webhookListData(json['webhooks']),
+  tokensHashed: json['tokens_hashed'] == null
+      ? const <TokenApi>[]
+      : _tokenListData(json['tokens_hashed']),
+  taskSchedulers: json['task_schedulers'] == null
+      ? const <ScheduleApi>[]
+      : _taskSchedulerListData(json['task_schedulers']),
+  subscriptions: json['subscriptions'] == null
+      ? const <SubscriptionApi>[]
+      : _subscriptionListData(json['subscriptions']),
+  designs: json['designs'] == null
+      ? const <DesignApi>[]
+      : _designListData(json['designs']),
   enabledTaxRates: (json['enabled_tax_rates'] as num?)?.toInt() ?? 0,
   enabledItemTaxRates: (json['enabled_item_tax_rates'] as num?)?.toInt() ?? 0,
   enabledExpenseTaxRates:

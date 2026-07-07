@@ -48,15 +48,17 @@ class SettingsActions {
       return false;
     }
     if (!context.mounted) return false;
-    // Then quiesce the outbox for the active company so an unsynced offline
-    // edit isn't silently dropped on logout — same guard the company picker
-    // applies. (logout() settles in-flight requests but does NOT drain
-    // still-pending rows before the Drift wipe, so without this they're lost.)
+    // Then quiesce the outbox so an unsynced offline edit isn't silently
+    // dropped on logout — same guard the company picker applies. (logout()
+    // settles in-flight requests but does NOT drain still-pending rows before
+    // the Drift wipe, so without this they're lost.) Full logout wipes EVERY
+    // company's rows, so the guard checks all of them (outbox-derived).
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId != null) {
       final outbox = await confirmPendingOutboxIfAny(
         context,
         companyId: companyId,
+        checkAllCompanies: true,
       );
       if (outbox == OutboxConfirmResult.cancelled || !context.mounted) {
         return false;

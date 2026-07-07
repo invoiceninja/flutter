@@ -128,13 +128,9 @@ class DashboardPresetRange extends DashboardDateRange {
           endOfFiscalYear(today, firstMonthOfYear),
         );
       case DashboardDatePreset.lastYear:
-        // A day inside the previous fiscal year = this fiscal year's start − 1.
-        final thisStart = startOfFiscalYear(
-          today,
-          firstMonthOfYear,
-        ).toDateTime();
-        final prevDt = thisStart.subtract(const Duration(days: 1));
-        final prev = Date(prevDt.year, prevDt.month, prevDt.day);
+        // A day inside the previous fiscal year = this fiscal year's start − 1
+        // (date-space, DST-safe — same idiom as endOfFiscalYear).
+        final prev = startOfFiscalYear(today, firstMonthOfYear).addDays(-1);
         return (
           startOfFiscalYear(prev, firstMonthOfYear),
           endOfFiscalYear(prev, firstMonthOfYear),

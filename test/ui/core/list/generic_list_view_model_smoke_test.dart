@@ -830,6 +830,112 @@ void main() {
       vm.dispose();
     },
   );
+
+  group('local-only filter auto-chain (M4)', () {
+    const short = [FakeInvoice(id: 'inv_9', number: 'INV-009', amount: 1)];
+
+    Future<_LocalFilterFakeVm> makeVm() async {
+      final vm = _LocalFilterFakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      await settle();
+      addTearDown(() {
+        vm.dispose();
+        vm.controller.close();
+      });
+      return vm;
+    }
+
+    test('a short filtered emission chains one loadMore', () async {
+      final vm = await makeVm();
+      final initial = vm.fetchPageCalls;
+
+      vm.controller.add(short);
+      await settle();
+
+      expect(vm.fetchPageCalls, initial + 1);
+    });
+
+    test('chain is budget-bounded per filter epoch', () async {
+      final vm = await makeVm();
+      final initial = vm.fetchPageCalls;
+
+      for (var i = 0; i < 10; i++) {
+        vm.controller.add(short);
+        await settle();
+      }
+
+      // 5-page allowance, no matter how many short emissions arrive.
+      expect(vm.fetchPageCalls, initial + 5);
+    });
+
+    test('no chain when localOnlyFilterActive is false', () async {
+      final vm = await makeVm();
+      vm.localFilter = false;
+      final initial = vm.fetchPageCalls;
+
+      vm.controller.add(short);
+      await settle();
+
+      expect(vm.fetchPageCalls, initial);
+    });
+
+    test('a failed chained fetch does not hot-loop', () async {
+      final vm = await makeVm();
+      vm.fetchThrows = true;
+      final initial = vm.fetchPageCalls;
+
+      vm.controller.add(short);
+      await settle();
+      await settle();
+
+      // One attempt for the one emission — a failure produces no new Drift
+      // emission, so nothing re-triggers without external input.
+      expect(vm.fetchPageCalls, initial + 1);
+    });
+
+    test('consumeTransientError is consume-once and carries the kind + '
+        'stripped message (a failed refresh/load-more must reach the toast, '
+        'not vanish in a same-tick null-out)', () async {
+      final vm = await makeVm();
+      vm.fetchThrows = true;
+
+      await vm.refresh();
+      final refreshError = vm.consumeTransientError();
+      expect(refreshError?.kind, 'refresh');
+      expect(refreshError?.message, isNotEmpty);
+      expect(vm.consumeTransientError(), isNull, reason: 'consume-once');
+
+      await vm.loadMore();
+      final loadMoreError = vm.consumeTransientError();
+      expect(loadMoreError?.kind, 'load_more');
+      expect(vm.consumeTransientError(), isNull);
+    });
+
+    test('budget re-arms after a filter/sort reset', () async {
+      final vm = await makeVm();
+      for (var i = 0; i < 6; i++) {
+        vm.controller.add(short);
+        await settle();
+      }
+      final exhausted = vm.fetchPageCalls;
+
+      // Any epoch bump (_resetAndReload) re-arms the allowance.
+      await vm.setSort(field: 'amount', ascending: true);
+      await settle();
+      final afterReset = vm.fetchPageCalls; // +1 from the reset's own fetch
+
+      vm.controller.add(short);
+      await settle();
+
+      expect(afterReset, exhausted + 1);
+      expect(vm.fetchPageCalls, afterReset + 1);
+    });
+  });
 }
 
 /// Exercises the `transformPage` hook: drops invoices with `amount < 150` so
@@ -847,6 +953,48 @@ class _UnpaidOnlyInvoiceListViewModel extends FakeInvoiceListViewModel {
   @override
   Stream<List<FakeInvoice>> transformPage(Stream<List<FakeInvoice>> raw) =>
       raw.map((items) => items.where((i) => i.amount >= 150).toList());
+}
+
+/// Fake for the local-only-filter auto-chain (M4): a controllable watch
+/// stream plus a fetch that reports more pages, so tests can drive the
+/// emission → loadMore chain step by step.
+class _LocalFilterFakeVm extends FakeInvoiceListViewModel {
+  _LocalFilterFakeVm({
+    required super.companyId,
+    required super.navStateDao,
+    required super.userSettings,
+    super.searchDebounce,
+    super.persistDebounce,
+  });
+
+  bool localFilter = true;
+  bool fetchThrows = false;
+  final StreamController<List<FakeInvoice>> controller =
+      StreamController<List<FakeInvoice>>.broadcast();
+
+  @override
+  bool get localOnlyFilterActive => localFilter;
+
+  @override
+  Stream<List<FakeInvoice>> watchPage() => controller.stream;
+
+  @override
+  Future<bool> fetchPage({
+    required int page,
+    required String? search,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+    required bool ignoreCursor,
+  }) async {
+    fetchPageCalls++;
+    if (fetchThrows) throw Exception('offline');
+    return true; // hasMore — the chain's precondition.
+  }
+
+  @override
+  Future<void> refreshAll() async {
+    if (fetchThrows) throw Exception('offline');
+  }
 }
 
 /// Stand-in for an embedded list (e.g. a client detail tab). A non-empty

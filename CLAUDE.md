@@ -50,7 +50,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Drift is the only thing the UI reads from.** The network writes to Drift; the UI watches Drift. Never read API responses straight into UI state.
 - **Schema changes need a forward Drift migration now (post-beta).** The app is shipped — installed databases hold real user data and unsynced outbox edits. Any schema change (table / column / index) must bump `AppDatabase.schemaVersion`, add an `onUpgrade` step, re-dump (`drift_dev schema dump`) + re-generate (`schema generate`), and extend the matrix test. **Never re-squash to v1 or overwrite a shipped `drift_schemas/drift_schema_v*.json`** — a frozen-checksum CI test (`test/data/db/migration_test.dart`) fails the build if you do. Skipping the migration silently wipes the user's local DB (and pending offline edits) via the `isSchemaIntact()` reset backstop. Full workflow: `docs/migrations.md`.
 - **Auth user data flows in through `/refresh`, not `GET /users/{id}`.** `_persistAndActivate` upserts each `data[N].user` block into the `users` Drift table on every login/refresh. `GET /users/{id}` is 412-gated (password-required). `auth.refresh()` runs a full `_persistAndActivate` — use it for a fresh session snapshot, not for incidental work. Never call `UsersApi.get` from incidental paths.
-- **Every write goes through the outbox.** Repositories never call mutation endpoints directly.
+- **Every write goes through the outbox.** Repositories never call mutation endpoints directly. (Accepted exceptions, each a synchronous UI flow that can't queue: the calendar-connection OAuth handshake/`setCalendars`/`disconnect` in `CalendarConnectionRepository`, and `QuickbooksRepository` — see their class docs.)
 - **Every list query is scoped by `company_id`.** Use `CompanyScopedDao` — direct table access bypassing the DAO fails a lint check.
 - **Idempotency keys are stable across retries** — generated when the outbox row is created, reused on every retry.
 - **Format money / dates / addresses through `Formatter`** (`lib/utils/formatting.dart`). `Formatter.money(amount, clientCurrencyId: ...)` runs the per-client → company currency cascade + Euro override; `Formatter.date(date.toIso())` honors company `date_format_id`. Never render `Date.toIso()`, `DateFormat`, or `MaterialLocalizations.formatMediumDate` directly — `toIso()` is for storage/API/Drift keys only. Build the `Formatter` once per screen via `services.formatterFor(companyId)` and pass it down. Parse user input via `parseDecimal(input, useCommaAsDecimalPlace: ...)`.
@@ -85,14 +85,12 @@ See `docs/architecture.md` for the offline-first write pipeline (Drift→outbox�
 
 ## Design system (v2)
 
-Token-based visual language. Source of truth and Dart port are deliberately split:
+Token-based visual language. (The original `docs/design/v2/*.jsx` mockups were removed in the "Clean up" pass — the Dart port is now the sole source of truth.)
 
-- `docs/design/v2/tokens.jsx` — **the source of truth** for colors, radii, shadows, type, button variants. Read this first when in doubt.
-- `docs/design/v2/{screens,patterns,design-canvas}.jsx` + `index.html` — reference mockups.
-- `lib/app/design_tokens.dart` — Dart port. Read tokens via `context.inTheme.<name>` (e.g. `context.inTheme.surface`). **No new color constants** outside `InTheme`. `InRadii` / `InSpacing` are brightness-independent.
-- `lib/app/theme.dart` — wires `InTheme.light` / `InTheme.dark` into `ThemeData`.
+- `lib/app/design_tokens.dart` — **the source of truth** for colors, radii, shadows, type. Read tokens via `context.inTheme.<name>` (e.g. `context.inTheme.surface`). **No new color constants** outside `InTheme`. `InRadii` / `InSpacing` are brightness-independent.
+- `lib/app/theme.dart` — wires `InTheme.light` / `InTheme.dark` into `ThemeData` (incl. per-component button/shape themes).
 
-When styling a page: read `tokens.jsx`, reuse `InTheme`, prefer `Theme.of(context).colorScheme` + `context.inTheme` over hardcoded `Color(0x…)`.
+When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.of(context).colorScheme` + `context.inTheme` over hardcoded `Color(0x…)`.
 
 **Always rounded rectangles, never pills.** Use `RoundedRectangleBorder(borderRadius: BorderRadius.circular(InRadii.r2))` (or `.r1` / `.r3` per size) — never `StadiumBorder`, never `BorderRadius.circular(999)`. Material 3 defaults `SegmentedButton` / `Chip` / `FloatingActionButton.extended` to pills, so `theme.dart` registers the rounded shape on every relevant component theme; new widgets inherit it. Add new component themes to `theme.dart` rather than overriding inline.
 
@@ -274,7 +272,7 @@ The user can say *"read the diagnostics log"* — the path resolves at runtime p
 
 ## Desktop window state
 
-Each desktop runner persists window size, position, and fullscreen across launches via the host OS's native preference store — one short native function per platform, no Dart/Flutter package. **N/A on web** (the browser owns the window chrome). The shared three-step contract and per-platform implementations (macOS done; Windows/Linux when added) are in `docs/desktop-window-state.md`.
+Each desktop runner persists window size, position, and fullscreen across launches via the host OS's native preference store — one short native function per platform, no Dart/Flutter package. **N/A on web** (the browser owns the window chrome). The shared three-step contract and per-platform implementations (macOS + Windows done; Linux when added) are in `docs/desktop-window-state.md`.
 
 ## Web
 

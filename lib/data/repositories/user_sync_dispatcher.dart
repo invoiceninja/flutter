@@ -43,13 +43,14 @@ class UserSyncDispatcher implements SyncDispatcher {
   final UserRepository repo;
   final AuthRepository auth;
 
-  // No offline create-with-tmp-id flow → a discarded ghost create can
-  // never route here. See SyncDispatcher.deleteLocalRecord.
+  // Reached by (a) a discarded ghost create — UserRepository.create mints
+  // tmp_ ids, so the offline-create flow is real — and (b) the 404-conflict
+  // "deleted on the server" discard, where the orphaned local row must go.
   @override
   Future<void> deleteLocalRecord({
     required String companyId,
     required String id,
-  }) async {}
+  }) => repo.deleteLocalById(companyId: companyId, id: id);
 
   @override
   Future<void> clearLocalDirty({
@@ -231,10 +232,10 @@ class CompositeUserDispatcher implements SyncDispatcher {
   final SyncDispatcher userSettings;
   final SyncDispatcher user;
 
-  // Both sub-dispatchers are user/settings (no tmp-id create flow), so
-  // this is effectively a no-op; delegate anyway to stay correct if a
-  // sub-dispatcher ever gains one. The wire name isn't known here, so
-  // fan out to both — each is a no-op for ids it doesn't own.
+  // The wire name isn't known here, so fan out to both. The user_settings
+  // child is a keyed-by-company no-op for arbitrary user ids; the user child
+  // hard-deletes the local users row (ghost-create discard + 404-conflict
+  // "deleted on the server" cleanup).
   @override
   Future<void> deleteLocalRecord({
     required String companyId,

@@ -50,6 +50,8 @@ class CompanyGatewayListScreen extends StatelessWidget {
       titleKey: 'company_gateways',
       newRoute: '/settings/company_gateways/new',
       newLabelKey: 'new_company_gateway',
+      // Opt-in "Last Updated" column renders via cellDate → FormatterScope.
+      wantsFormatter: true,
       emptyIcon: Icons.account_balance_wallet_outlined,
       emptyTitleKey: 'no_company_gateways_yet',
       buildVm: (services, companyId) => CompanyGatewayListViewModel(

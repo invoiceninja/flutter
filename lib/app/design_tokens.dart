@@ -34,8 +34,10 @@ TextStyle moneyTextStyle({
   letterSpacing: letterSpacing,
 );
 
-/// Invoice Ninja v2 design tokens. The single source of truth for the
-/// visual language; the JSX equivalent lives at `docs/design/v2/tokens.jsx`.
+/// Invoice Ninja v2 design tokens — the single source of truth for the
+/// visual language. (Originally ported from `docs/design/v2/tokens.jsx`;
+/// those JSX mockups were removed in the "Clean up" pass, so this file is
+/// now authoritative on its own.)
 ///
 /// Read tokens through `context.inTheme.<name>` — the [BuildContext]
 /// extension below resolves to the brightness-appropriate variant
@@ -140,7 +142,7 @@ class InTheme extends ThemeExtension<InTheme> {
   // pure white) and the matching ink tones. `lightSand` is the original v2
   // light tokens — kept identical so existing builds look the same.
 
-  /// Light · Sand — warm beige (v2 default). Direct port of `tokens.jsx`.
+  /// Light · Sand — warm beige (v2 default; the original token set).
   static const InTheme lightSand = InTheme(
     brightness: Brightness.light,
     bg: Color(0xFFF6F4EF),

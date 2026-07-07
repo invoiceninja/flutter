@@ -79,6 +79,10 @@ class TaskListScreen extends StatelessWidget {
       titleKey: 'tasks',
       newRoute: '/tasks/new',
       newLabelKey: 'new_task',
+      // Default "Last Updated" column renders via cellDate and the opt-in
+      // "Rate" via cellMoney — both read FormatterScope, which the scaffold
+      // only provides when this is set (else dates ignore date_format_id).
+      wantsFormatter: true,
       embeddedNewOverride: pid != null
           ? ((ctx) => goEntityCreateFullWidth(
               ctx,

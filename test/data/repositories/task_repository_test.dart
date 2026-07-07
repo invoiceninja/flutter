@@ -1,4 +1,5 @@
 import 'package:decimal/decimal.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,6 +17,8 @@ void main() {
   Task task({
     String statusId = 's1',
     String invoiceId = '',
+    String projectId = '',
+    List<String> tagIds = const <String>[],
     List<TimeEntry> timeLog = const <TimeEntry>[],
   }) => Task(
     id: '',
@@ -24,7 +27,8 @@ void main() {
     rate: Decimal.zero,
     invoiceId: invoiceId,
     clientId: '',
-    projectId: '',
+    projectId: projectId,
+    tagIds: tagIds,
     statusId: statusId,
     statusOrder: 0,
     assignedUserId: '',
@@ -75,6 +79,124 @@ void main() {
     expect(after, isNotNull);
     expect(after!.timeLog, hasLength(1));
     expect(after.isRunning, isTrue);
+  });
+
+  group('watchPage extraFilters mirrors (H1)', () {
+    test('task_status narrows locally and hides invoiced rows', () async {
+      final repo = makeRepo();
+      await repo.create(
+        companyId: 'co',
+        draft: task(statusId: 's1'),
+      );
+      await repo.create(
+        companyId: 'co',
+        draft: task(statusId: 's2'),
+      );
+      // Matches the status but is invoiced — the server pairs task_status
+      // with whereNull(invoice_id), so the local mirror must exclude it.
+      await repo.create(
+        companyId: 'co',
+        draft: task(statusId: 's1', invoiceId: 'inv_1'),
+      );
+
+      final rows = await repo
+          .watchPage(
+            companyId: 'co',
+            extraFilters: const {
+              'task_status': {'s1'},
+            },
+          )
+          .first;
+      expect(rows, hasLength(1));
+      expect(rows.single.statusId, 's1');
+      expect(rows.single.isInvoiced, isFalse);
+    });
+
+    test('project_tasks narrows locally', () async {
+      final repo = makeRepo();
+      await repo.create(
+        companyId: 'co',
+        draft: task(projectId: 'p1'),
+      );
+      await repo.create(
+        companyId: 'co',
+        draft: task(projectId: 'p2'),
+      );
+
+      final rows = await repo
+          .watchPage(
+            companyId: 'co',
+            extraFilters: const {
+              'project_tasks': {'p1'},
+            },
+          )
+          .first;
+      expect(rows, hasLength(1));
+      expect(rows.single.projectId, 'p1');
+    });
+
+    test('save/create stamp the denormalized tag_names sort key from the '
+        'local tag cache (offline rows are dirty — the server echo cannot '
+        'refresh it, so sort-by-tags would go stale)', () async {
+      final repo = makeRepo();
+      await db
+          .into(db.tags)
+          .insert(
+            TagsCompanion.insert(
+              id: 't1',
+              companyId: 'co',
+              entityType: const Value('task'),
+              name: const Value('Design'),
+              updatedAt: 0,
+              payload: '{}',
+            ),
+          );
+
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(tagIds: const ['t1']),
+      );
+      var row = await db.taskDao.getByIds(
+        companyId: 'co',
+        ids: [created.entity.id],
+      );
+      expect(row.single.tagNames, 'design');
+
+      await repo.save(
+        companyId: 'co',
+        task: created.entity.copyWith(tagIds: const []),
+      );
+      row = await db.taskDao.getByIds(
+        companyId: 'co',
+        ids: [created.entity.id],
+      );
+      expect(row.single.tagNames, '', reason: 'tag removal clears the key');
+    });
+
+    test('tag_ids narrows post-decode with OR membership', () async {
+      final repo = makeRepo();
+      await repo.create(
+        companyId: 'co',
+        draft: task(tagIds: const ['t1', 't2']),
+      );
+      await repo.create(
+        companyId: 'co',
+        draft: task(tagIds: const ['t3']),
+      );
+      await repo.create(companyId: 'co', draft: task());
+
+      final rows = await repo
+          .watchPage(
+            companyId: 'co',
+            extraFilters: const {
+              'tag_ids': {'t1', 't3'},
+            },
+          )
+          .first;
+      // OR semantics: any selected tag matches (server whereIn parity).
+      expect(rows, hasLength(2));
+      expect(rows.every((t) => t.tagIds.isNotEmpty), isTrue);
+    });
   });
 
   test('startTimer is a no-op on an invoiced task', () async {

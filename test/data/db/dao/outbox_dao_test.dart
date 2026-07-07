@@ -65,6 +65,44 @@ void main() {
     );
   });
 
+  group('companiesWithActiveRows', () {
+    test(
+      'distinct companies with pending or in_flight rows; dead-only '
+      'companies excluded (the full-logout guard reads this — the outbox '
+      'is ground truth even when a company vanished from the session)',
+      () async {
+        await enqueue(companyId: 'co_pending', idempotencyKey: 'k1');
+        await enqueue(
+          companyId: 'co_pending',
+          entityId: 'c2',
+          idempotencyKey: 'k2',
+        );
+        await enqueue(
+          companyId: 'co_inflight',
+          state: 'in_flight',
+          idempotencyKey: 'k3',
+        );
+        await enqueue(
+          companyId: 'co_dead',
+          state: 'dead',
+          idempotencyKey: 'k4',
+        );
+
+        final companies = await db.outboxDao.companiesWithActiveRows();
+        expect(
+          companies,
+          unorderedEquals(['co_pending', 'co_inflight']),
+          reason: 'distinct, non-dead only',
+        );
+      },
+    );
+
+    test('empty when the outbox holds nothing actionable', () async {
+      await enqueue(state: 'dead');
+      expect(await db.outboxDao.companiesWithActiveRows(), isEmpty);
+    });
+  });
+
   group('findDeadForEntity', () {
     test('returns the newest dead row for the (type, id) tuple', () async {
       await enqueue(entityId: 'c1', state: 'dead', idempotencyKey: 'k1');

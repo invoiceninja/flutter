@@ -177,6 +177,40 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   @protected
   Stream<List<T>> transformPage(Stream<List<T>> raw) => raw;
 
+  /// True while a **local-only** filter (one the server can't evaluate, e.g.
+  /// the products `stock:` predicate or the tasks/projects `tag:` filter) is
+  /// active. When set, [_onItems] auto-chains [loadMore] while the filtered
+  /// emission is shorter than a page and the server has more rows — without
+  /// it a short filtered result has no scrollable extent, the scroll-driven
+  /// load-more trigger never fires, and the list shows a false "No records
+  /// found" while matches sit on unfetched pages. Bounded by
+  /// [_kAutoChainMaxPages] per filter/search/sort change so completeness
+  /// stays page-bounded (by design) instead of sweeping the whole table.
+  @protected
+  bool get localOnlyFilterActive => false;
+
+  /// Rows per fetched page — the auto-chain's "shorter than a page" fill
+  /// target. Repos default to 50; override only if an entity pages
+  /// differently.
+  @protected
+  int get pageSize => 50;
+
+  /// [filters] without [key] — for a [localOnlyFilterActive] VM's
+  /// `fetchPage` to strip its local-only key (products `stock`,
+  /// tasks/projects `tag_ids`) from the network fetch. Load-bearing:
+  /// keeping the server filter alongside a post-LIMIT local filter freezes
+  /// the window after ⌈matches/pageSize⌉ pages (`hasMore` goes false while
+  /// the local window still shows unfiltered rows); fully-local keeps
+  /// window ↔ pages aligned so scroll + the auto-chain converge. Returns
+  /// the same instance when [key] is absent.
+  @protected
+  static Map<String, Set<String>> extraFiltersWithout(
+    Map<String, Set<String>> filters,
+    String key,
+  ) => filters.containsKey(key)
+      ? (Map<String, Set<String>>.from(filters)..remove(key))
+      : filters;
+
   // ── Inputs ──────────────────────────────────────────────────────────
 
   final String companyId;
@@ -208,6 +242,13 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// race and clobber `loadedPages` / `hasMore` or leave a stuck spinner. The
   /// repo-level keyset-cursor read-modify-write stays regress-only and safe.
   int _fetchEpoch = 0;
+
+  /// Auto-chain allowance for [localOnlyFilterActive] mode, re-armed on every
+  /// epoch bump (initial load + any filter/search/sort reset). Caps the
+  /// number of pages fetched without a user scroll so an offline failure or
+  /// a huge table can't turn the chain into a hot loop / full-table sweep.
+  static const int _kAutoChainMaxPages = 5;
+  int _autoChainBudget = _kAutoChainMaxPages;
 
   String _search = '';
   String get search => _search;
@@ -325,13 +366,27 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   bool _columnsCustomized = false;
 
   String? _transientNotice;
-  String? get transientError => _transientError;
-  String? _transientError;
 
   String? consumeTransientNotice() {
     final n = _transientNotice;
     _transientNotice = null;
     return n;
+  }
+
+  /// One-shot background-failure record (pull-to-refresh / load-more),
+  /// consumed by the scaffold on the rebuild the [_flashError] notify
+  /// triggers — same idiom as [consumeTransientNotice]. A plain getter that
+  /// nulls itself synchronously could never be observed by a
+  /// `ListenableBuilder` (builders run next frame); the consume shape is
+  /// what makes the failure actually reach the user. `message` is already
+  /// prefix-stripped via [formatNotifyError]; `kind` (`refresh` /
+  /// `load_more`) selects the localized headline + retry callback.
+  ({String kind, String message})? _transientError;
+
+  ({String kind, String message})? consumeTransientError() {
+    final e = _transientError;
+    _transientError = null;
+    return e;
   }
 
   /// True when any filter is non-default. Drives the clear-filters button and
@@ -714,9 +769,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     try {
       await refreshAll();
     } catch (e) {
-      // Store just the raw error — the UI looks up
-      // `refresh_failed_with_error` and substitutes `:error` at render time.
-      _flashError(e.toString());
+      _flashError('refresh', e);
     }
   }
 
@@ -745,7 +798,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       _resubscribe();
     } catch (e) {
       if (_fetchEpoch != epoch) return;
-      _flashError("Couldn't load more: $e");
+      _flashError('load_more', e);
     } finally {
       if (_fetchEpoch == epoch) {
         isLoadingPage = false;
@@ -932,6 +985,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
 
   Future<void> _loadInitialPage() async {
     final epoch = ++_fetchEpoch;
+    _autoChainBudget = _kAutoChainMaxPages;
     isLoadingPage = true;
     notifyListeners();
     try {
@@ -957,6 +1011,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
 
   Future<void> _resetAndReload({required bool ignoreCursor}) async {
     final epoch = ++_fetchEpoch;
+    _autoChainBudget = _kAutoChainMaxPages;
     _selectedIds.clear();
     _selectionMode = false;
     loadedPages = 1;
@@ -1014,6 +1069,20 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   }
 
   void _onItems(List<T> next) {
+    // Local-only filter refill: BEFORE the identity early-return below — a
+    // fetched page whose rows are all filtered out locally produces a
+    // byte-identical emission, and returning early would stall the chain
+    // exactly when it must continue. loadMore()'s own isLoadingPage/hasMore
+    // guards serialize this against the scroll trigger and embedded priming;
+    // a failed fetch produces no Drift emission, so there is no retry loop.
+    if (localOnlyFilterActive &&
+        hasMore &&
+        !isLoadingPage &&
+        next.length < pageSize &&
+        _autoChainBudget > 0) {
+      _autoChainBudget--;
+      unawaited(loadMore());
+    }
     // Drift watches are table-grained: any write to the table re-emits
     // this query even when the result set is byte-identical (a write to
     // another company, a filtered-out row, or an outbox-drain upsert that
@@ -1128,10 +1197,9 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     });
   }
 
-  void _flashError(String message) {
-    _transientError = message;
+  void _flashError(String kind, Object error) {
+    _transientError = (kind: kind, message: formatNotifyError(error));
     notifyListeners();
-    _transientError = null;
   }
 
   List<ColumnDefinition<T>> _resolveColumns(List<String> ids) {

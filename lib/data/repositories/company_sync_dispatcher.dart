@@ -200,6 +200,10 @@ class CompanySyncDispatcher implements SyncDispatcher {
         // design id it doesn't know; letting that throw here would retry the
         // whole row and eventually mark the (already-applied) settings change
         // dead. Catch per-entity so one failure doesn't block the rest.
+        // (Deliberately swallows transient errors too, unlike the dedicated
+        // client/group-scope handler in services_design_handlers.dart — the
+        // retro-apply here shares its outbox row with the settings PUT, so
+        // failing the row would misreport the already-applied save.)
         try {
           await api.setDefaultDesign(
             designId: designId,

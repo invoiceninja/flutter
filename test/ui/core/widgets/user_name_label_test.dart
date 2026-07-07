@@ -93,11 +93,12 @@ void main() {
     expect(find.text('u1'), findsNothing);
   });
 
-  testWidgets('falls back to the raw id for a user not in the roster', (
-    tester,
-  ) async {
+  testWidgets('renders a muted em-dash for a user not in the roster — an '
+      'ex-employee id can never resolve, so the raw hashed id would be '
+      'permanent "random letters"', (tester) async {
     await pump(tester, 'ghost');
-    expect(find.text('ghost'), findsOneWidget);
+    expect(find.text('—'), findsOneWidget);
+    expect(find.text('ghost'), findsNothing);
   });
 
   testWidgets('renders an em-dash for an empty id', (tester) async {

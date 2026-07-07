@@ -6,7 +6,9 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/task_dao.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/task_api_model.dart';
 import 'package:admin/data/models/domain/task.dart';
@@ -30,6 +32,7 @@ final _log = Logger('TaskRepository');
 ///   * `reorder` — enqueues a `MutationKind.reorder` row carrying the
 ///     bulk kanban-sort payload.
 class TaskRepository extends BaseEntityRepository<Task, TaskApi>
+    with TagNameResolver
     implements DocumentBearingRepository {
   TaskRepository({
     required super.db,
@@ -55,6 +58,15 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
 
   /// Paginated list view. The list screen calls this; the kanban board
   /// uses [watchAllForKanban] instead.
+  ///
+  /// [extraFilters] mirrors the server-bound filter dimensions locally
+  /// (the UI renders from this watch, so a server-only filter would look
+  /// like it did nothing — the billing_extra_filters gap): `task_status`
+  /// and `project_tasks` become SQL predicates; `tag_ids` is a post-decode
+  /// predicate (tag ids live only in the payload JSON — the denormalized
+  /// `tag_names` column holds names, for sort). Completeness of the tag
+  /// filter is bounded by the loaded pages; the list VM strips `tag_ids`
+  /// from the server fetch and auto-chains page loads to converge.
   Stream<List<Task>> watchPage({
     required String companyId,
     int loadedPages = 1,
@@ -64,12 +76,14 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     bool sortAscending = false,
     String? clientId,
     String? projectId,
+    Map<String, Set<String>> extraFilters = const {},
     Map<int, Set<String>> customFilters = const {},
   }) {
     assert(
       loadedPages >= 1,
       'loadedPages is 1-based; pass 1 for the first page',
     );
+    final tagIds = parseCsvFilter(extraFilters, 'tag_ids');
     return db.taskDao
         .watchPage(
           companyId: companyId,
@@ -81,12 +95,20 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
           sortAscending: sortAscending,
           clientId: clientId,
           projectId: projectId,
+          statusIds: parseCsvFilter(extraFilters, 'task_status'),
+          projectIds: parseCsvFilter(extraFilters, 'project_tasks'),
           customValues1: customFilters[1] ?? const {},
           customValues2: customFilters[2] ?? const {},
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
         )
-        .map((rows) => rows.map(_fromRow).toList(growable: false));
+        .map((rows) {
+          final items = rows.map(_fromRow);
+          if (tagIds.isEmpty) return items.toList(growable: false);
+          return items
+              .where((t) => matchesTagIdFilter(t.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   /// Stream of tasks grouped by `status_id` for the kanban board. Empty
@@ -225,10 +247,17 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   }) async {
     final tmpId = existingTempId ?? mintTempId();
     final stored = draft.copyWith(id: tmpId);
-    final companion = _domainToCompanion(stored, companyId, isDirty: true);
+    // Resolved OUTSIDE the transaction — see TagNameResolver.
+    final tagNames = await resolveTagNames(companyId, stored.tagIds);
 
     var rowId = 0;
     await db.transaction(() async {
+      final companion = _domainToCompanion(
+        stored,
+        companyId,
+        isDirty: true,
+        tagNames: tagNames,
+      );
       await db.taskDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,
@@ -249,9 +278,16 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     required String companyId,
     required Task task,
   }) async {
-    final companion = _domainToCompanion(task, companyId, isDirty: true);
+    // Resolved OUTSIDE the transaction — see TagNameResolver.
+    final tagNames = await resolveTagNames(companyId, task.tagIds);
     var rowId = 0;
     await db.transaction(() async {
+      final companion = _domainToCompanion(
+        task,
+        companyId,
+        isDirty: true,
+        tagNames: tagNames,
+      );
       await db.taskDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,
@@ -573,21 +609,20 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
           ? const Value.absent()
           : Value(jsonEncode(a.documents!.map((d) => d.toJson()).toList())),
       // Network response carries tag names — denormalize for local sort.
-      tagNames: Value(
-        a.tags
-            .map((t) => t.name)
-            .where((n) => n.isNotEmpty)
-            .join(',')
-            .toLowerCase(),
-      ),
+      tagNames: Value(joinTagNames(a.tags.map((t) => t.name))),
       payload: jsonEncode(a.toJson()),
     );
   }
 
+  /// [tagNames] — pre-resolved denormalized sort key (see [_resolveTagNames]).
+  /// Absent keeps the row's previous value on conflict-update; save/create
+  /// pass it so a local tag edit doesn't leave the sort-by-tags column stale
+  /// until the server echo (offline rows are dirty, so refreshes skip them).
   TasksCompanion _domainToCompanion(
     Task t,
     String companyId, {
     required bool isDirty,
+    String? tagNames,
   }) {
     return TasksCompanion.insert(
       id: t.id,
@@ -615,6 +650,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
       documents: Value(
         jsonEncode(t.documents.map((d) => d.toApi().toJson()).toList()),
       ),
+      tagNames: tagNames == null ? const Value.absent() : Value(tagNames),
       payload: jsonEncode(t.toApiJson(preserveTempId: true)),
     );
   }

@@ -65,8 +65,19 @@ class ProjectListViewModel extends GenericListViewModel<Project> {
     sortField: sortField,
     sortAscending: sortAscending,
     clientId: clientId,
+    extraFilters: extraFilters,
     customFilters: customFilters,
   );
+
+  /// `tag:` is filtered post-decode over the loaded window (the tag ids live
+  /// only in the row payload), so a short filtered result must auto-chain
+  /// page fetches — see the base class.
+  @override
+  bool get localOnlyFilterActive =>
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+
+  @override
+  int get pageSize => repo.pageSize;
 
   @override
   Future<bool> fetchPage({
@@ -76,12 +87,19 @@ class ProjectListViewModel extends GenericListViewModel<Project> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    final filters = clientId == null
-        ? extraFilters
-        : {
-            ...extraFilters,
-            'client_id': {clientId!},
-          };
+    // `tag_ids` is applied locally (post-decode in repo.watchPage) — see
+    // [GenericListViewModel.extraFiltersWithout] for why it must not reach
+    // the server fetch.
+    var filters = GenericListViewModel.extraFiltersWithout(
+      extraFilters,
+      'tag_ids',
+    );
+    if (clientId != null) {
+      filters = {
+        ...filters,
+        'client_id': {clientId!},
+      };
+    }
     return repo.ensurePageLoaded(
       companyId: companyId,
       page: page,

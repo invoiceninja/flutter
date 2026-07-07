@@ -36,6 +36,17 @@ void main() {
       expect(startOfFiscalYear(_d('2026-07-01'), 7).toIso(), '2026-07-01');
     });
 
+    test('endOfFiscalYear is date-space math — a March fiscal-year end must '
+        'not come back a day short (the local-midnight − 24h idiom drifted '
+        'across spring-forward when the transition abuts the FY start)', () {
+      // March FY ends across a leap Feb and a non-leap Feb.
+      expect(endOfFiscalYear(_d('2027-06-15'), 3).toIso(), '2028-02-29');
+      expect(endOfFiscalYear(_d('2025-06-15'), 3).toIso(), '2026-02-28');
+      // April FY end lands exactly on the last of March (the European
+      // spring-forward month).
+      expect(endOfFiscalYear(_d('2026-07-01'), 4).toIso(), '2027-03-31');
+    });
+
     test('startOfNextFiscalYear', () {
       expect(startOfNextFiscalYear(_d('2026-06-03'), 4).toIso(), '2027-04-01');
       expect(startOfNextFiscalYear(_d('2026-06-03'), 1).toIso(), '2027-01-01');

@@ -763,16 +763,23 @@ the `handoff` to the front end, `CalendarConnectionController::callback`
 That target reaches the React SPA only. The Flutter clients need the handoff
 delivered to *them*:
 
-- **Native (macOS/iOS/Android)** — there is no full-page redirect to ride. The
-  app opens the system browser (Google blocks OAuth in embedded webviews) and
-  catches a **custom-scheme deep link**. The client already registers
-  `invoiceninja://calendar_connection/complete` (Info.plist + AndroidManifest)
-  and bridges it into its router (`lib/app/calendar_deep_links.dart`). The
-  server must redirect there for native callers.
-- **Web (Flutter)** — reuses the existing `react_url` redirect: Flutter web does
-  the same full-page redirect as React and lands on its
-  `/#/calendar_connection/complete` route, **provided `react_url` resolves to the
-  Flutter web app's origin**. No platform hint or extra server config needed.
+- **Native (macOS/iOS/Android/Windows)** — there is no full-page redirect to
+  ride. The app opens the system browser (Google blocks OAuth in embedded
+  webviews) and catches a **custom-scheme deep link**. The client registers
+  `invoiceninja://calendar_connection/complete` (Info.plist + AndroidManifest;
+  on Windows via MSIX `protocol_activation` plus the app_links second-instance
+  forward in `windows/runner/main.cpp`) and bridges it into its router
+  (`lib/app/calendar_deep_links.dart`). The server must redirect there for
+  native callers. Windows caveat: only packaged (MSIX/Store) installs register
+  the scheme — `flutter run -d windows` dev builds can't complete the flow.
+- **Web (Flutter) and Linux** — reuse the existing `react_url` redirect:
+  the flow lands on `/#/calendar_connection/complete` in the browser,
+  **provided `react_url` resolves to the Flutter web app's origin**. Linux
+  deliberately rides this path too (the client omits `platform` there): an
+  AppImage can't reliably register an `x-scheme-handler`, and the GTK runner
+  is `G_APPLICATION_NON_UNIQUE`, so the native callback would strand the
+  browser. The desktop app picks the connection up on the next
+  `loadStatus()`.
 
 **The change (implemented; PR-ready against `invoiceninja/invoiceninja:v5-develop`).**
 Native clients declare themselves so the callback can deliver the handoff to the

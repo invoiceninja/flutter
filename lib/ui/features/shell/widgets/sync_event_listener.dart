@@ -240,7 +240,12 @@ class _SyncEventListenerState extends State<SyncEventListener> {
           if (handlers != null) {
             await services.sync.discardPendingForEntity(
               companyId: companyId,
-              entityType: handlers.wireName,
+              // The ROW's wire entity_type, not handlers.wireName — a
+              // registry slot can serve several wire names (user rows carry
+              // 'user' while the slot's primary wireName is 'user_settings'),
+              // and an exact-match on the wrong one silently discarded
+              // nothing.
+              entityType: event.wireEntityType,
               entityId: event.entityId,
             );
             // 404: the record is gone server-side, so its now-orphaned local

@@ -11,6 +11,19 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
+/// Shared money-style rendering for the product detail surfaces (KPI strip +
+/// Inventory card): symbol-less (product money isn't client-scoped), fixed
+/// 2 decimals so a 10.00 price never renders as "10", company separators via
+/// [Formatter.decimal]. The locale-pattern fallback covers only the frames
+/// before the screen's async Formatter resolves. One helper so the sibling
+/// widgets on the same screen can't drift apart.
+String formatProductAmount(Formatter? formatter, Decimal value) =>
+    formatter?.decimal(value.toDouble(), minDecimals: 2, maxDecimals: 2) ??
+    (NumberFormat.decimalPattern()
+          ..minimumFractionDigits = 2
+          ..maximumFractionDigits = 2)
+        .format(value.toDouble());
+
 /// KPI strip at the top of the product Overview tab — surfaces the four
 /// numbers that matter most when scanning a product: price, cost, default
 /// quantity, and (when inventory is tracked) in-stock quantity.
@@ -64,12 +77,7 @@ class _Strip extends StatelessWidget {
     final theme = Theme.of(context);
     final p = product;
 
-    // Product prices in this app are not client-scoped, so we use a plain
-    // 2-decimal pattern (the same format the legacy _DetailsCard uses).
-    final numberFmt = NumberFormat.decimalPattern()
-      ..minimumFractionDigits = 2
-      ..maximumFractionDigits = 2;
-    String fmt(Decimal value) => numberFmt.format(value.toDouble());
+    String fmt(Decimal value) => formatProductAmount(formatter, value);
 
     final inStockText = tracksInventory ? p.inStockQuantity.toString() : '—';
 

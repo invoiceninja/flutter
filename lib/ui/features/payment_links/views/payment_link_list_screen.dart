@@ -46,6 +46,9 @@ class PaymentLinkListScreen extends StatelessWidget {
       titleKey: 'payment_links',
       newRoute: '/settings/payment_links/new',
       newLabelKey: 'new_payment_link',
+      // Default "Price" column renders via cellMoney (company currency) and
+      // the opt-in "Last Updated" via cellDate — both need FormatterScope.
+      wantsFormatter: true,
       emptyIcon: Icons.link_outlined,
       emptyTitleKey: 'payment_links_empty',
       headerBanner: const PlanGateBanner(style: PlanGateStyle.stripe),

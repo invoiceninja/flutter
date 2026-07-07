@@ -62,6 +62,7 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
     String sortField = ProjectFieldIds.name,
     bool sortAscending = true,
     String? clientId,
+    Set<String> clientIds = const {},
     Set<String> customValues1 = const {},
     Set<String> customValues2 = const {},
     Set<String> customValues3 = const {},
@@ -71,10 +72,18 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
 
     if (clientId != null && clientId.isNotEmpty) {
       q.where((p) => p.clientId.equals(clientId));
-    } else {
-      // Workspace list: hide projects whose client was soft-deleted (offline
-      // parity with the server `without_deleted_clients` fetch filter). Skipped
-      // above when scoped to a specific client (e.g. the client-detail tab).
+    }
+    // `client_id` membership mirror (the standalone list's `client:` chips) —
+    // distinct from the single embedded [clientId] lock above. Same idiom as
+    // InvoiceDao.
+    if (clientIds.isNotEmpty) {
+      q.where((p) => p.clientId.isIn(clientIds.toList()));
+    }
+    // Workspace list: hide projects whose client was soft-deleted (offline
+    // parity with the server `without_deleted_clients` fetch filter). Skipped
+    // under an explicit client scope (client-detail tab or `client:` chips) so
+    // a client's own rows stay visible.
+    if ((clientId == null || clientId.isEmpty) && clientIds.isEmpty) {
       q.where(
         (p) =>
             clientNotDeletedFilter(clientId: p.clientId, companyId: companyId),

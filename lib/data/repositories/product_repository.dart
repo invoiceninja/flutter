@@ -57,6 +57,13 @@ bool stockFilterMatches(
 ///
 /// Page size is fixed at [pageSize]. Subsequent pages are fetched only on
 /// demand — list screens call [ensurePageLoaded] near the scroll edge.
+///
+/// Inventory note (deliberate): `in_stock_quantity` is adjusted SERVER-side
+/// on invoice sent/paid (`AdjustProductInventory`) with no client mirror or
+/// targeted refresh after invoice actions — cached stock badges can lag
+/// within a session until the next products delta fetch / refreshAll.
+/// Consistent with the Drift-first architecture; revisit only if the lag is
+/// reported (the fix would be a products refresh keyed off affected drains).
 class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     implements DocumentBearingRepository {
   ProductRepository({

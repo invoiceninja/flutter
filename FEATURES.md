@@ -1510,7 +1510,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Push notifications (FCM / APNs) | — | ✅ | ❌ |  | |
 | Native share sheet | — | ✅ | ✅ | ✅ | |
 | OS deep links / universal links | — | ✅ | ✅ | ✅ | |
-| Native window-state persistence (macOS) | — | ❌ | ✅ | ✅ | |
+| Native window-state persistence (macOS + Windows) | — | ❌ | ✅ | ✅ | |
 | OAuth deep-link handler (callback URL) | — | ✅ | ✅ | ✅ | |
 | Web platform support (`flutter build web`) | ✅ | — | ✅ | | |
 | Web persistence (drift WASM / IndexedDB, unencrypted) | — | — | ✅ | | |

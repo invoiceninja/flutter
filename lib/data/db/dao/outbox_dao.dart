@@ -26,15 +26,58 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// to decide whether a company switch needs a "you have unsaved changes"
   /// confirmation; the streaming variant below feeds badges that refresh
   /// continuously.
+  ///
+  /// Counts `in_flight` alongside `pending`: a row mid-attempt at the moment
+  /// a logout/switch guard reads this is still the user's unsynced work — if
+  /// the attempt fails it re-parks as pending, and a guard that saw 0 would
+  /// already have wiped it. (Badges use [watchPendingCount], unaffected.)
   Future<int> pendingCountForCompany(String companyId) async {
     final count = outbox.id.count();
     final q = selectOnly(outbox)
       ..addColumns([count])
       ..where(
-        outbox.companyId.equals(companyId) & outbox.state.equals('pending'),
+        outbox.companyId.equals(companyId) & outbox.state.isNotValue('dead'),
       );
     final row = await q.getSingle();
     return row.read(count) ?? 0;
+  }
+
+  /// Distinct company ids holding any non-`dead` (pending or in_flight)
+  /// outbox row. The full-logout / idle-timeout guards read this instead of
+  /// `session.companies`: the wipe destroys EVERY company's rows, and the
+  /// outbox is the ground truth for unsynced work — a company that vanished
+  /// from the session envelope (e.g. one tolerantly-skipped malformed row on
+  /// refresh) still counts here.
+  Future<List<String>> companiesWithActiveRows() async {
+    final q = selectOnly(outbox, distinct: true)
+      ..addColumns([outbox.companyId])
+      ..where(outbox.state.isNotValue('dead'));
+    final rows = await q.get();
+    return [
+      for (final row in rows)
+        if (row.read(outbox.companyId) case final String id) id,
+    ];
+  }
+
+  /// True when a `create` outbox row for [entityId] exists in ANY state —
+  /// pending, in_flight, or dead. The tmp-ref defer branch uses this to
+  /// distinguish "parent create still around (recoverable — keep deferring)"
+  /// from "parent create discarded (the reference can never heal — dead-end
+  /// the dependent)". Any-state is load-bearing: a dead-but-retryable create
+  /// must keep its dependents alive.
+  Future<bool> hasCreateRowFor({
+    required String companyId,
+    required String entityId,
+  }) async {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityId.equals(entityId) &
+            o.mutationKind.equals(MutationKind.create.wireName),
+      )
+      ..limit(1);
+    return (await q.get()).isNotEmpty;
   }
 
   /// Delete every `pending` row for [companyId] in one statement. The

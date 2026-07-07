@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/version.dart';
@@ -39,5 +41,23 @@ void main() {
         'v5.11.40-W$build',
       );
     });
+  });
+
+  test('snapcraft.yaml display version matches the pubspec triplet — '
+      'tools/bump_client_version.sh keeps them in lockstep (the manual bump '
+      'drifted 4 releases before it was automated)', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final pubspecVersion = RegExp(
+      r'^version:\s*(\d+\.\d+\.\d+)\+\d+',
+      multiLine: true,
+    ).firstMatch(pubspec)?.group(1);
+    final snapcraft = File('snap/snapcraft.yaml').readAsStringSync();
+    final snapVersion = RegExp(
+      r"^version:\s*'([^']+)'",
+      multiLine: true,
+    ).firstMatch(snapcraft)?.group(1);
+
+    expect(pubspecVersion, isNotNull);
+    expect(snapVersion, pubspecVersion);
   });
 }

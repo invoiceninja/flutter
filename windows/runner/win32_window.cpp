@@ -26,6 +26,15 @@ constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
   L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
 
+/// Registry home for the persisted window placement (size / position /
+/// maximized), per the desktop window-state contract
+/// (docs/desktop-window-state.md). Raw WINDOWPLACEMENT as REG_BINARY — the
+/// Get/Set pair round-trips workspace coordinates consistently under
+/// per-monitor-v2 DPI. Under an MSIX install HKCU writes are virtualized per
+/// package, so dev and Store builds don't fight over the value.
+constexpr const wchar_t kPlacementRegKey[] = L"Software\\InvoiceNinja\\Window";
+constexpr const wchar_t kPlacementRegValue[] = L"Placement";
+
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
 
@@ -155,11 +164,70 @@ bool Win32Window::Create(const std::wstring& title,
 
   UpdateTheme(window);
 
+  // Restore-before-show: the window has no WS_VISIBLE yet and is only shown
+  // at the first Flutter frame (FlutterWindow::OnCreate -> Show), and this
+  // runs before OnCreate reads GetClientArea() — so the Flutter surface is
+  // created at its final size with no startup resize flicker (the macOS
+  // setFrameAutosaveName parity point).
+  RestorePlacement();
+
   return OnCreate();
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  return ShowWindow(window_handle_,
+                    restore_maximized_ ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL);
+}
+
+void Win32Window::SavePlacement() {
+  if (!window_handle_ || !placement_restored_) {
+    return;
+  }
+  WINDOWPLACEMENT placement = {sizeof(WINDOWPLACEMENT)};
+  if (!GetWindowPlacement(window_handle_, &placement)) {
+    return;
+  }
+  RegSetKeyValue(HKEY_CURRENT_USER, kPlacementRegKey, kPlacementRegValue,
+                 REG_BINARY, &placement, sizeof(placement));
+}
+
+bool Win32Window::RestorePlacement() {
+  // Whatever happens below, saves are safe from here on (the creation-time
+  // WM_SIZE has already passed, so nothing clobbers the stored value before
+  // it was read).
+  struct Arm {
+    bool* flag;
+    ~Arm() { *flag = true; }
+  } arm{&placement_restored_};
+
+  WINDOWPLACEMENT placement = {};
+  DWORD size = sizeof(placement);
+  LSTATUS result =
+      RegGetValue(HKEY_CURRENT_USER, kPlacementRegKey, kPlacementRegValue,
+                  RRF_RT_REG_BINARY, nullptr, &placement, &size);
+  if (result != ERROR_SUCCESS || size != sizeof(placement) ||
+      placement.length != sizeof(placement)) {
+    return false;
+  }
+  // Off-screen guard: the saved rect may reference a monitor that no longer
+  // exists (undocked laptop). If it doesn't intersect the nearest monitor's
+  // work area at all, fall back to the template default geometry.
+  HMONITOR monitor =
+      MonitorFromRect(&placement.rcNormalPosition, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO monitor_info = {sizeof(MONITORINFO)};
+  if (!GetMonitorInfo(monitor, &monitor_info)) {
+    return false;
+  }
+  RECT intersection;
+  if (!IntersectRect(&intersection, &placement.rcNormalPosition,
+                     &monitor_info.rcWork)) {
+    return false;
+  }
+  // Never restore minimized (a minimized-at-exit save comes back normal);
+  // carry a maximized exit into Show() instead of flashing the normal rect.
+  restore_maximized_ = placement.showCmd == SW_SHOWMAXIMIZED;
+  placement.showCmd = SW_HIDE;
+  return SetWindowPlacement(window_handle_, &placement);
 }
 
 // static
@@ -189,11 +257,25 @@ Win32Window::MessageHandler(HWND hwnd,
                             LPARAM const lparam) noexcept {
   switch (message) {
     case WM_DESTROY:
+      // Last-chance save while the hwnd is still valid — catches
+      // programmatic moves that never produced a size/move message.
+      SavePlacement();
       window_handle_ = nullptr;
       Destroy();
       if (quit_on_close_) {
         PostQuitMessage(0);
       }
+      return 0;
+
+    case WM_ENTERSIZEMOVE:
+      in_size_move_ = true;
+      return 0;
+
+    case WM_EXITSIZEMOVE:
+      // End of an interactive drag/resize — one save instead of the
+      // per-tick WM_SIZE/WM_MOVE spam during the gesture.
+      in_size_move_ = false;
+      SavePlacement();
       return 0;
 
     case WM_DPICHANGED: {
@@ -212,6 +294,12 @@ Win32Window::MessageHandler(HWND hwnd,
         // Size and position the child window.
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
+      }
+      // Caption-button maximize/restore emits no WM_EXITSIZEMOVE — persist
+      // here, skipping the per-tick spam of an interactive drag.
+      if (!in_size_move_ &&
+          (wparam == SIZE_MAXIMIZED || wparam == SIZE_RESTORED)) {
+        SavePlacement();
       }
       return 0;
     }

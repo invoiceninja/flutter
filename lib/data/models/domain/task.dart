@@ -153,6 +153,13 @@ extension TaskPayload on Task {
       'custom_value4': customValue4,
       // Full-set replace: server `sync()`s the attached tags to exactly this
       // id set (empty clears). Bare ids — the server normalizes them.
+      // Known bounded hazard (accepted): a Drift payload cached by an app
+      // version PRE-dating the tags feature has no `tags` key, parses to [],
+      // and an offline edit from it would clear tags set by other clients.
+      // The window trends to zero — the server always emits `tags`
+      // (TaskTransformer::transform, no include gate) and every fetch
+      // rewrites non-dirty payloads — and a tri-state "absent vs empty"
+      // encoding isn't worth the ripple through TaskApi/domain/copyWith.
       'tags': tagIds,
       // Only sent when converting a calendar event → task. The server dedupes
       // on this id (one task per user per event) and stores just it.

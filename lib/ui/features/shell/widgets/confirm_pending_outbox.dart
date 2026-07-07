@@ -18,12 +18,40 @@ enum OutboxConfirmResult { proceed, cancelled }
 ///   * the user picked "Discard" and the rows were deleted.
 /// Returns [OutboxConfirmResult.cancelled] otherwise — including when the
 /// flush errors out and the user is sent back to the prompt via a SnackBar.
+///
+/// [checkAllCompanies] — FULL-logout callers set this: logout wipes the whole
+/// DB, so pending rows anywhere count. The company set is derived from the
+/// OUTBOX itself (`companiesWithActiveRows`), not `session.companies` — the
+/// outbox is the ground truth for unsynced work, callers can't forget to
+/// assemble a roster, and a company that vanished from the session envelope
+/// still counts. Other companies can only be COUNTED and DISCARDED here,
+/// never flushed — the drain sends requests under the ACTIVE company's token
+/// (per-company tokens; `ApiClient` reads the live credentials), so flushing
+/// another company would misroute its mutations. If "Sync first" leaves other
+/// companies' rows behind, the flow cancels with a pointer to switch there
+/// (or pick Discard). Company-SWITCH callers leave the flag off — switching
+/// preserves the DB, so only the outgoing company matters.
 Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
   BuildContext context, {
   required String companyId,
+  bool checkAllCompanies = false,
 }) async {
   final services = context.read<Services>();
-  var pending = await services.sync.pendingCountFor(companyId);
+  final others = !checkAllCompanies
+      ? const <String>[]
+      : [
+          for (final id in await services.sync.companiesWithActiveRows())
+            if (id.isNotEmpty && id != companyId) id,
+        ];
+  Future<int> pendingEverywhere() async {
+    var total = await services.sync.pendingCountFor(companyId);
+    for (final id in others) {
+      total += await services.sync.pendingCountFor(id);
+    }
+    return total;
+  }
+
+  var pending = await pendingEverywhere();
   if (pending == 0) return OutboxConfirmResult.proceed;
 
   // Online happy path: try to drain silently. If everything goes through
@@ -39,7 +67,7 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
       // Fall through to the dialog — the user should see why the implicit
       // flush failed rather than have us silently swallow it.
     }
-    pending = await services.sync.pendingCountFor(companyId);
+    pending = await pendingEverywhere();
     if (pending == 0) return OutboxConfirmResult.proceed;
   }
 
@@ -82,6 +110,11 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
 
   if (choice == _Choice.discard) {
     await services.sync.discardPendingFor(companyId);
+    // Local-only work (discardOutboxRow + dispatcher fan-outs touch Drift,
+    // never the network), so it is safe for non-active companies too.
+    for (final id in others) {
+      await services.sync.discardPendingFor(id);
+    }
     return OutboxConfirmResult.proceed;
   }
 
@@ -105,18 +138,32 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
       return OutboxConfirmResult.cancelled;
     }
     final next = await services.sync.pendingCountFor(companyId);
-    if (next == 0) return OutboxConfirmResult.proceed;
+    if (next == 0) break; // current company drained
     if (next >= remaining) break; // no progress this pass → stalled
     remaining = next;
   }
-  // Rows still pending after the loop couldn't be sent (offline, parked, or
-  // referencing a record that failed). Proceeding would let the post-logout
-  // Drift wipe destroy them even though the user asked to sync, so cancel:
-  // they can retry, resolve, or come back and pick "Discard". Dead rows
-  // don't count here — they're terminal and surfaced on the Outbox screen.
-  if (remaining > 0) {
+  // Rows still pending after the loop couldn't be sent — the current
+  // company's are stalled (offline, parked, or referencing a failed record),
+  // and other companies' can't be flushed from here at all (wrong token).
+  // Proceeding would let the post-logout Drift wipe destroy them even though
+  // the user asked to sync, so cancel: they can retry, resolve, switch to the
+  // other company and sync, or come back and pick "Discard". Dead rows don't
+  // count here — they're terminal and surfaced on the Outbox screen. When the
+  // ACTIVE company drained fine and only another company holds rows, a bare
+  // "Sync failed" is misleading — point at the actual recourse instead.
+  final currentLeft = await services.sync.pendingCountFor(companyId);
+  var othersLeft = 0;
+  for (final id in others) {
+    othersLeft += await services.sync.pendingCountFor(id);
+  }
+  if (currentLeft + othersLeft > 0) {
     if (context.mounted) {
-      Notify.error(context, context.tr('sync_failed'));
+      Notify.error(
+        context,
+        context.tr(
+          currentLeft == 0 ? 'unsynced_changes_other_company' : 'sync_failed',
+        ),
+      );
     }
     return OutboxConfirmResult.cancelled;
   }

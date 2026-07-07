@@ -142,6 +142,13 @@ class SyncRepository {
   Future<int> pendingCountFor(String companyId) =>
       db.outboxDao.pendingCountForCompany(companyId);
 
+  /// Distinct company ids with any non-`dead` outbox row — the ground truth
+  /// the full-logout / idle-timeout guards check (see
+  /// `OutboxDao.companiesWithActiveRows` for why this beats
+  /// `session.companies`).
+  Future<List<String>> companiesWithActiveRows() =>
+      db.outboxDao.companiesWithActiveRows();
+
   /// Discard one outbox row. If it's a never-synced offline `create`
   /// (`tmp_` id, no `id_remap` entry yet) the orphaned local Drift record
   /// is also hard-deleted — with no outbox row it could never reach the
@@ -344,6 +351,13 @@ class SyncRepository {
   /// never-synced offline `create` also removes its orphaned local record;
   /// non-ghost rows behave exactly as the old blanket delete (dead /
   /// in_flight rows are untouched, matching `deletePendingForCompany`).
+  ///
+  /// Deliberate asymmetry with [pendingCountFor] (which also counts
+  /// `in_flight`): an in-flight row's HTTP attempt is already on the wire and
+  /// can't be unsent, and deleting its row would race the response applier —
+  /// so the guard COUNTS it (never silently proceed past unsynced work) while
+  /// Discard leaves it to settle (success = synced anyway; failure re-parks
+  /// it pending, where the guard's re-check still catches it).
   Future<void> discardPendingFor(String companyId) async {
     final rows = await db.outboxDao.pendingRowsForCompany(companyId);
     for (final row in rows) {
@@ -587,7 +601,11 @@ class SyncRepository {
       // branch below would `scheduleRetry` it straight back to `pending`.
       if (row.state != 'pending') continue;
       var current = row;
-      if (_hasUnresolvedTempRef(current)) {
+      // Materialized once per row (the token scan regexes the full payload
+      // JSON — potentially tens of KB for invoices), refreshed only after a
+      // successful heal rewrote the row.
+      var tmpTokens = _unresolvedTempRefTokens(current);
+      if (tmpTokens.isNotEmpty) {
         // Before deferring, try to heal: a referenced tmp_ entity may have
         // ALREADY synced. rewriteTempIdInPayloads (the create-success healer)
         // only rewrites rows that exist AT create-success time, so a row
@@ -598,9 +616,39 @@ class SyncRepository {
         // are permanent, so resolve each tmp_ token there and rewrite the
         // ones that map; only genuinely-unresolved tokens defer the row.
         final healed = await _healResolvedTempRefs(current);
-        if (healed != null) current = healed;
+        if (healed != null) {
+          current = healed;
+          tmpTokens = _unresolvedTempRefTokens(current);
+        }
       }
-      if (_hasUnresolvedTempRef(current)) {
+      if (tmpTokens.isNotEmpty) {
+        // Dead-end check first: a token the heal above could not resolve (no
+        // permanent id_remap) AND with no create outbox row in ANY state can
+        // never heal — its parent create was discarded (ghost-discard deletes
+        // the rows; id_remap only exists once a create SUCCEEDS). Deferring
+        // such a row forever turns the Outbox screen's Retry into an immortal
+        // zombie that also pins pendingCountFor > 0, wedging "Sync first"
+        // logout. A parent create that merely failed / parked / died still
+        // EXISTS as a row, so every recoverable chain keeps deferring below.
+        var orphaned = false;
+        for (final token in tmpTokens) {
+          final parentExists = await db.outboxDao.hasCreateRowFor(
+            companyId: current.companyId,
+            entityId: token,
+          );
+          if (!parentExists) {
+            orphaned = true;
+            break;
+          }
+        }
+        if (orphaned) {
+          await _markDead(
+            current,
+            'References a discarded unsynced record',
+            null,
+          );
+          continue;
+        }
         // Still references a not-yet-created entity — its parent create didn't
         // produce a real id (it failed earlier in this pass, is parked, or is
         // dead). Dispatching anyway sends the tmp_ id to the server: a
@@ -692,19 +740,21 @@ class SyncRepository {
     r'tmp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
   );
 
-  /// True when [row] still references a not-yet-created entity: a non-create
-  /// mutation aimed at a `tmp_` entityId, or any payload `tmp_` token other
-  /// than a create's own id (`toApiJson(preserveTempId: true)` legitimately
-  /// embeds the row's own tmp_ id in its create payload).
-  bool _hasUnresolvedTempRef(OutboxRow row) {
+  /// The `tmp_` tokens in [row] that still reference a not-yet-created
+  /// entity — its own entityId (for non-creates) plus every payload token
+  /// other than a create's own id (`toApiJson(preserveTempId: true)`
+  /// legitimately embeds the row's own tmp_ id in its create payload).
+  Set<String> _unresolvedTempRefTokens(OutboxRow row) {
     final isCreate =
         MutationKind.tryParse(row.mutationKind) == MutationKind.create;
-    if (!isCreate && row.entityId.startsWith('tmp_')) return true;
+    final tokens = <String>{};
+    if (!isCreate && row.entityId.startsWith('tmp_')) tokens.add(row.entityId);
     for (final m in _tempIdPattern.allMatches(row.payload)) {
-      if (isCreate && m.group(0) == row.entityId) continue;
-      return true;
+      final t = m.group(0)!;
+      if (isCreate && t == row.entityId) continue;
+      tokens.add(t);
     }
-    return false;
+    return tokens;
   }
 
   Future<bool> _attempt(OutboxRow row) async {
@@ -792,6 +842,7 @@ class SyncRepository {
           entityType: handlers.type,
           entityId: row.entityId,
           message: e.message,
+          wireEntityType: row.entityType,
           statusCode: 404,
           outboxRowId: row.id,
         ),
@@ -819,6 +870,7 @@ class SyncRepository {
           entityType: handlers.type,
           entityId: row.entityId,
           message: e.message,
+          wireEntityType: row.entityType,
           statusCode: 409,
           outboxRowId: row.id,
         ),

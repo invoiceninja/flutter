@@ -32,6 +32,7 @@ void main() {
     entityType: EntityType.client,
     entityId: 'c1',
     message: 'msg',
+    wireEntityType: 'client',
     statusCode: status,
     outboxRowId: 1,
   );

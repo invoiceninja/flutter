@@ -7,6 +7,7 @@ import 'package:admin/data/models/api/design_api_model.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/expense_category_api_model.dart';
 import 'package:admin/data/models/api/group_setting_api_model.dart';
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/payment_term_api_model.dart';
 import 'package:admin/data/models/api/schedule_api_model.dart';
 import 'package:admin/data/models/api/subscription_api_model.dart';
@@ -27,10 +28,23 @@ part 'login_response_api_model.g.dart';
 /// `data` is the array of companies this user has access to. `static` is the
 /// global reference-data blob (currencies, countries, etc.) — kept as a raw
 /// map; `StaticsRepository` parses it lazily.
+///
+/// `data` and every bundled sub-list on [CompanyEnvelopeApi] parse through
+/// `tolerantList` (per-row skip + WARNING log), matching the *ListApi
+/// envelopes: this is the PRIMARY ingest path, and a single malformed row
+/// here used to fail the whole login/refresh — locking the user out instead
+/// of degrading one row. An all-rows-malformed `data` still fails loudly:
+/// `_persistAndActivate` throws on an empty company list. Accepted
+/// degradation: a skipped company vanishes from the session (and, on a full
+/// sync, from the local cache) until the server sends it well-formed again —
+/// its unsynced outbox rows still block logout/idle-wipe, because those
+/// guards read `companiesWithActiveRows()` from the outbox, not the session.
 @freezed
 abstract class LoginResponseApi with _$LoginResponseApi {
   const factory LoginResponseApi({
-    @Default(<UserCompanyApi>[]) List<UserCompanyApi> data,
+    @JsonKey(fromJson: _userCompanyListData)
+    @Default(<UserCompanyApi>[])
+    List<UserCompanyApi> data,
     @JsonKey(name: 'static')
     @Default(<String, dynamic>{})
     Map<String, dynamic> staticData,
@@ -160,7 +174,10 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     @JsonKey(name: 'client_can_register')
     @Default(false)
     bool clientCanRegister,
-    @JsonKey(name: 'client_registration_fields')
+    @JsonKey(
+      name: 'client_registration_fields',
+      fromJson: _clientRegistrationFieldListData,
+    )
     @Default(<ClientRegistrationFieldApi>[])
     List<ClientRegistrationFieldApi> clientRegistrationFields,
     @JsonKey(name: 'custom_fields')
@@ -171,7 +188,7 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     // column keeps the Settings → Company Details → Documents tab populated
     // offline and before its own `GET /companies/{id}` lands. Without this the
     // `_persistAndActivate` wipe+upsert nulls the column on every refresh.
-    @JsonKey(name: 'documents')
+    @JsonKey(name: 'documents', fromJson: _companyDocumentListData)
     @Default(<DocumentApi>[])
     List<DocumentApi> documents,
     @JsonKey(name: 'size_id') @Default('') String sizeId,
@@ -198,64 +215,66 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     // `company.users`. Persisted (upsert-only) by `UserRepository.applyBundle`
     // so assigned-user ids resolve to display names everywhere — without a
     // `GET /users/{id}` round-trip (that endpoint is 412 password-gated).
-    @JsonKey(name: 'users') @Default(<UserApi>[]) List<UserApi> users,
-    @JsonKey(name: 'task_statuses')
+    @JsonKey(name: 'users', fromJson: _bundledUserListData)
+    @Default(<UserApi>[])
+    List<UserApi> users,
+    @JsonKey(name: 'task_statuses', fromJson: _taskStatusListData)
     @Default(<TaskStatusApi>[])
     List<TaskStatusApi> taskStatuses,
-    @JsonKey(name: 'company_gateways')
+    @JsonKey(name: 'company_gateways', fromJson: _companyGatewayListData)
     @Default(<CompanyGatewayApi>[])
     List<CompanyGatewayApi> companyGateways,
-    @JsonKey(name: 'payment_terms')
+    @JsonKey(name: 'payment_terms', fromJson: _paymentTermListData)
     @Default(<PaymentTermApi>[])
     List<PaymentTermApi> paymentTerms,
-    @JsonKey(name: 'tax_rates')
+    @JsonKey(name: 'tax_rates', fromJson: _taxRateListData)
     @Default(<TaxRateApi>[])
     List<TaxRateApi> taxRates,
-    @JsonKey(name: 'expense_categories')
+    @JsonKey(name: 'expense_categories', fromJson: _expenseCategoryListData)
     @Default(<ExpenseCategoryApi>[])
     List<ExpenseCategoryApi> expenseCategories,
     // Client / permission groups. Tiny per-company list (typically a handful of
     // rows) the server returns on every `/refresh`. `GroupSettingRepository.applyBundle`
     // upserts into the local `group_settings` Drift table — the Settings →
     // Group Settings list reads from Drift and skips the first paged fetch.
-    @JsonKey(name: 'groups')
+    @JsonKey(name: 'groups', fromJson: _groupSettingListData)
     @Default(<GroupSettingApi>[])
     List<GroupSettingApi> groups,
     // Bank-transaction matching rules. Small settings-style list managed under
     // Banking → Rules; `TransactionRuleRepository.applyBundle` upserts into
     // the local `transaction_rules` table on every login/refresh.
-    @JsonKey(name: 'bank_transaction_rules')
+    @JsonKey(name: 'bank_transaction_rules', fromJson: _transactionRuleListData)
     @Default(<TransactionRuleApi>[])
     List<TransactionRuleApi> bankTransactionRules,
     // Bank account integrations. Typically 1–10 rows per company.
     // `BankAccountRepository.applyBundle` upserts into the local
     // `bank_accounts` table on every login/refresh.
-    @JsonKey(name: 'bank_integrations')
+    @JsonKey(name: 'bank_integrations', fromJson: _bankIntegrationListData)
     @Default(<BankAccountApi>[])
     List<BankAccountApi> bankIntegrations,
     // API webhooks. Small settings-style list; `WebhookRepository.applyBundle`
     // upserts into the local `webhooks` table on every login/refresh.
-    @JsonKey(name: 'webhooks')
+    @JsonKey(name: 'webhooks', fromJson: _webhookListData)
     @Default(<WebhookApi>[])
     List<WebhookApi> webhooks,
     // API tokens. Small settings-style list; `TokenRepository.applyBundle`
     // upserts into the local `tokens` table on every login/refresh. The
     // server returns the `token` field MASKED in this array — the raw
     // bearer secret only appears on the `POST /tokens` create response.
-    @JsonKey(name: 'tokens_hashed')
+    @JsonKey(name: 'tokens_hashed', fromJson: _tokenListData)
     @Default(<TokenApi>[])
     List<TokenApi> tokensHashed,
     // Task schedulers ("Schedules") — bundled settings entity. The server
     // ships every scheduler the user has configured (typically a handful);
     // `ScheduleRepository.applyBundle` upserts into the local `schedules`
     // table on every login/refresh.
-    @JsonKey(name: 'task_schedulers')
+    @JsonKey(name: 'task_schedulers', fromJson: _taskSchedulerListData)
     @Default(<ScheduleApi>[])
     List<ScheduleApi> taskSchedulers,
     // Subscriptions ("Payment Links") — same bundled-and-paginated
     // pattern as expense_categories. `SubscriptionRepository.applyBundle`
     // upserts into the `subscriptions` Drift table on every login/refresh.
-    @JsonKey(name: 'subscriptions')
+    @JsonKey(name: 'subscriptions', fromJson: _subscriptionListData)
     @Default(<SubscriptionApi>[])
     List<SubscriptionApi> subscriptions,
     // Invoice Design template list. The server ships the 11 built-in
@@ -263,7 +282,9 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     // the full `design.{body,header,footer,includes,product,task}` HTML
     // strings. `DesignRepository.applyBundle` upserts into the `designs`
     // table on every login/refresh.
-    @JsonKey(name: 'designs') @Default(<DesignApi>[]) List<DesignApi> designs,
+    @JsonKey(name: 'designs', fromJson: _designListData)
+    @Default(<DesignApi>[])
+    List<DesignApi> designs,
     // Top-level tax fields on the envelope, mirroring `CompanyApi`. Settings
     // → Tax Settings writes these via `host.updateCompany(...)`.
     @JsonKey(name: 'enabled_tax_rates') @Default(0) int enabledTaxRates,
@@ -419,3 +440,47 @@ abstract class AccountEnvelopeApi with _$AccountEnvelopeApi {
   factory AccountEnvelopeApi.fromJson(Map<String, dynamic> json) =>
       _$AccountEnvelopeApiFromJson(json);
 }
+
+// Tolerant per-row parsers for the login/refresh envelope (see the class doc
+// on LoginResponseApi). Freezed can't reference the generic `tolerantList`
+// directly from @JsonKey, so each list gets a concrete top-level wrapper —
+// the same pattern as every *ListApi envelope.
+List<UserCompanyApi> _userCompanyListData(Object? raw) =>
+    tolerantList(raw, UserCompanyApi.fromJson, label: 'user_company');
+List<ClientRegistrationFieldApi> _clientRegistrationFieldListData(
+  Object? raw,
+) => tolerantList(
+  raw,
+  ClientRegistrationFieldApi.fromJson,
+  label: 'client_registration_field',
+);
+List<DocumentApi> _companyDocumentListData(Object? raw) =>
+    tolerantList(raw, DocumentApi.fromJson, label: 'company_document');
+List<UserApi> _bundledUserListData(Object? raw) =>
+    tolerantList(raw, UserApi.fromJson, label: 'bundled_user');
+List<TaskStatusApi> _taskStatusListData(Object? raw) =>
+    tolerantList(raw, TaskStatusApi.fromJson, label: 'task_status');
+List<CompanyGatewayApi> _companyGatewayListData(Object? raw) =>
+    tolerantList(raw, CompanyGatewayApi.fromJson, label: 'company_gateway');
+List<PaymentTermApi> _paymentTermListData(Object? raw) =>
+    tolerantList(raw, PaymentTermApi.fromJson, label: 'payment_term');
+List<TaxRateApi> _taxRateListData(Object? raw) =>
+    tolerantList(raw, TaxRateApi.fromJson, label: 'tax_rate');
+List<ExpenseCategoryApi> _expenseCategoryListData(Object? raw) =>
+    tolerantList(raw, ExpenseCategoryApi.fromJson, label: 'expense_category');
+List<GroupSettingApi> _groupSettingListData(Object? raw) =>
+    tolerantList(raw, GroupSettingApi.fromJson, label: 'group_setting');
+List<TransactionRuleApi> _transactionRuleListData(Object? raw) =>
+    tolerantList(raw, TransactionRuleApi.fromJson, label: 'transaction_rule');
+List<BankAccountApi> _bankIntegrationListData(Object? raw) =>
+    tolerantList(raw, BankAccountApi.fromJson, label: 'bank_integration');
+List<WebhookApi> _webhookListData(Object? raw) =>
+    tolerantList(raw, WebhookApi.fromJson, label: 'webhook');
+List<TokenApi> _tokenListData(Object? raw) =>
+    tolerantList(raw, TokenApi.fromJson, label: 'token');
+List<ScheduleApi> _taskSchedulerListData(Object? raw) =>
+    tolerantList(raw, ScheduleApi.fromJson, label: 'task_scheduler');
+List<SubscriptionApi> _subscriptionListData(Object? raw) =>
+    tolerantList(raw, SubscriptionApi.fromJson, label: 'subscription');
+List<DesignApi> _designListData(Object? raw) =>
+    tolerantList(raw, DesignApi.fromJson, label: 'design');

@@ -34,10 +34,19 @@ class ConflictEvent extends SyncEvent {
     required super.entityType,
     required super.entityId,
     required this.message,
+    required this.wireEntityType,
     this.statusCode,
     this.outboxRowId,
   });
   final String message;
+
+  /// The parked outbox row's wire `entity_type` string — what
+  /// `discardPendingForEntity` must match on. NOT derivable from
+  /// [entityType]: a registry slot can serve several wire names (the user
+  /// module's primary wireName is `user_settings` while full-user rows carry
+  /// `user`), so resolving back through `handlers.wireName` silently missed
+  /// those rows.
+  final String wireEntityType;
 
   /// HTTP status that parked the row — 404 (deleted server-side) or 409
   /// (stale data). Null on legacy/unknown paths (treated as 409 by the sheet).

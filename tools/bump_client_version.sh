@@ -13,7 +13,9 @@ set -euo pipefail
 # Also bumps pubspec.yaml's version: keeps MAJOR.MINOR.PATCH in sync with
 # kClientVersion and increments the build number (+N) by one, so the native
 # build version (CFBundleVersion / versionCode, derived from pubspec) advances
-# on every release.
+# on every release. snap/snapcraft.yaml's display version is rewritten to the
+# same MAJOR.MINOR.PATCH — it was a documented manual step that demonstrably
+# never happened (drifted 4 releases behind).
 #
 # Does NOT touch kMinServerVersion (bumped only when depending on a server change).
 #
@@ -100,6 +102,24 @@ if [[ "$pubspec_updated" != "$new_pubspec" ]]; then
   exit 1
 fi
 
+# --- snap/snapcraft.yaml: keep the store-display version in sync ---
+snapcraft="snap/snapcraft.yaml"
+
+snap_current="$(sed -n "s/^version:[[:space:]]*'\([^']*\)'.*/\1/p" "$snapcraft")"
+if [[ -z "$snap_current" ]]; then
+  echo "!! could not find a top-level version: in $snapcraft" >&2
+  exit 1
+fi
+
+perl -i -pe "s/^version:\s*'[^']*'/version: '${new_version}'/" "$snapcraft"
+
+snap_updated="$(sed -n "s/^version:[[:space:]]*'\([^']*\)'.*/\1/p" "$snapcraft")"
+if [[ "$snap_updated" != "$new_version" ]]; then
+  echo "!! snapcraft update failed — $snapcraft still reads '$snap_updated'" >&2
+  exit 1
+fi
+
 echo "==> kClientVersion: $current -> $new_version"
 echo "==> pubspec version: $pubspec_line -> $new_pubspec"
+echo "==> snapcraft version: $snap_current -> $new_version"
 echo "    next: flutter analyze $file && flutter test test/app/version_test.dart"

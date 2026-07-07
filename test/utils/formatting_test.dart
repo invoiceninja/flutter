@@ -288,6 +288,13 @@ void main() {
       expect(f.decimal(1234.12345), '1,234.12345');
     });
 
+    test('decimal honors fixed min/max precision — money-style symbol-less '
+        'rendering (product detail): 10.00 must not collapse to "10"', () {
+      expect(f.decimal(10, minDecimals: 2, maxDecimals: 2), '10.00');
+      expect(f.decimal(10.5, minDecimals: 2, maxDecimals: 2), '10.50');
+      expect(f.decimal(1234.567, minDecimals: 2, maxDecimals: 2), '1,234.57');
+    });
+
     test('negative-zero suppressed for percent', () {
       // -0.000001 rounds to '0.00000' at maxDecimals=5; the negative sign
       // is then suppressed because the rendered body is all zeros.

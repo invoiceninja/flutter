@@ -115,24 +115,25 @@ class IdleTimeoutController with WidgetsBindingObserver {
   /// (CLAUDE.md: "never silently drops user data"). A clean timeout (nothing
   /// pending, or everything drained) does the normal full logout.
   Future<void> _expire() async {
-    final preserve = await shouldPreserveOnTimeout(
-      auth.session.value?.currentCompanyId,
-    );
+    final preserve = await shouldPreserveOnTimeout();
     await auth.logout(preserveLocalData: preserve);
   }
 
   /// Decide whether an idle timeout should PRESERVE local data (re-lock, keeping
   /// the encrypted DB + outbox) rather than do a destructive full logout: true
-  /// when the active company still has unsynced outbox rows. This is a fast
-  /// local read only — no network drain on the security-lock path, so the lock
-  /// happens promptly; the preserved outbox drains after the next sign-in (which
-  /// also clears the re-lock gate). Errs toward preserving on any error — per
-  /// CLAUDE.md, never silently drop the user's offline edits.
+  /// when ANY company still has unsynced outbox rows — the full logout wipes
+  /// the whole DB, so a non-active company's pending edits count just as much
+  /// as the active one's. The company set comes from the OUTBOX itself
+  /// (`companiesWithActiveRows`), not `session.companies`, so a company that
+  /// vanished from the session envelope still protects its rows. This is a
+  /// fast local read only — no network drain on the security-lock path, so
+  /// the lock happens promptly; the preserved outbox drains after the next
+  /// sign-in (which also clears the re-lock gate). Errs toward preserving on
+  /// any error — per CLAUDE.md, never silently drop the user's offline edits.
   @visibleForTesting
-  Future<bool> shouldPreserveOnTimeout(String? companyId) async {
-    if (companyId == null || companyId.isEmpty) return false;
+  Future<bool> shouldPreserveOnTimeout() async {
     try {
-      return await sync.pendingCountFor(companyId) > 0;
+      return (await sync.companiesWithActiveRows()).isNotEmpty;
     } catch (_) {
       return true;
     }

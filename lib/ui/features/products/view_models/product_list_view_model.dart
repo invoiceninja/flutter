@@ -112,6 +112,16 @@ class ProductListViewModel extends GenericListViewModel<Product> {
             .toList(growable: false);
       });
 
+  /// Stock is filtered post-decode over the loaded window, so a short
+  /// filtered result must auto-chain page fetches (see the base class) —
+  /// otherwise `stock:low` with no match in the first 50 rows renders a
+  /// false "No records found" that can never scroll itself out.
+  @override
+  bool get localOnlyFilterActive => _stockFilter != StockFilter.none;
+
+  @override
+  int get pageSize => repo.pageSize;
+
   /// Parse the local `stock` extra-filter slot into a [StockFilter]. `out`
   /// wins over `low` if both are somehow present (out is the stricter set).
   StockFilter get _stockFilter {
@@ -129,13 +139,14 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `stock` is a LOCAL filter — the server has no such dimension — so strip
-    // it before the network fetch (the API would silently ignore it). The
-    // local watch re-applies it post-decode in [watchPage].
-    final serverFilters = extraFilters.containsKey(StockFilterKey.serverKey)
-        ? (Map<String, Set<String>>.from(extraFilters)
-            ..remove(StockFilterKey.serverKey))
-        : extraFilters;
+    // `stock` is a LOCAL filter — the server has no such dimension. The
+    // local watch re-applies it post-decode in [watchPage]; see
+    // [GenericListViewModel.extraFiltersWithout] for why it must not reach
+    // the server fetch.
+    final serverFilters = GenericListViewModel.extraFiltersWithout(
+      extraFilters,
+      StockFilterKey.serverKey,
+    );
     return repo.ensurePageLoaded(
       companyId: companyId,
       page: page,

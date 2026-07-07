@@ -114,8 +114,20 @@ class CalendarConnectionViewModel extends ChangeNotifier {
     _connecting = true;
     _notify();
     try {
-      // Native apps need the custom-scheme callback; web returns via react_url.
-      final platform = kIsWeb ? null : 'flutter_native';
+      // `flutter_native` makes the server 302 the OAuth callback to
+      // `invoiceninja://calendar_connection/complete` — send it only where
+      // the scheme is actually registered: iOS/macOS/Android (Info.plist /
+      // AndroidManifest) and Windows (MSIX protocol_activation + the
+      // app_links second-instance forward in windows/runner/main.cpp).
+      // Web and LINUX ride the react_url web redirect instead — an AppImage
+      // can't reliably register an x-scheme-handler (only AppImageLauncher
+      // installs the embedded .desktop) and the GTK runner is
+      // G_APPLICATION_NON_UNIQUE (the command-line signal app_links needs
+      // never fires), so a native callback would strand the browser on an
+      // unresolvable URL. The web flow completes in the browser; this app
+      // picks the connection up on the next loadStatus().
+      final linux = !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+      final platform = (kIsWeb || linux) ? null : 'flutter_native';
       final url = await repo.buildAuthorizeUrl(provider, platform: platform);
       await openCalendarAuthorize(url);
     } finally {

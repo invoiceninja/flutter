@@ -46,12 +46,19 @@ class LoginViewModel extends ChangeNotifier {
   /// false so we never show a button that can't complete.
   bool get googleEnabled => GoogleOAuth.isEnabled;
 
-  /// Whether to offer the Apple segment. Hidden on web: the rebuild has no
-  /// in-app OAuth callback handler, and `sign_in_with_apple` on web needs
-  /// server-side `webAuthenticationOptions` we don't ship (locked decision —
-  /// web is email/password only; see plan). Unchanged on every native
-  /// platform (`!kIsWeb` is a const true there).
-  bool get appleEnabled => !kIsWeb;
+  /// Whether to offer the Apple segment — iOS and macOS only, matching
+  /// admin-portal's `supportsAppleOAuth()`. Web: no in-app OAuth callback
+  /// handler (locked decision — web is email/password only; see plan).
+  /// Android: `sign_in_with_apple` requires `webAuthenticationOptions`
+  /// (an Apple Services ID + server return URL we don't ship); without it
+  /// the plugin throws a bare `Exception` that escapes every typed catch in
+  /// [submitApple]. Windows/Linux: the plugin is NotSupported — the button
+  /// always errored after a tap.
+  bool get appleEnabled {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+  }
 
   String urlOverride = '';
   String email = '';
@@ -186,9 +193,10 @@ class LoginViewModel extends ChangeNotifier {
   /// Sign in with Apple. Returns false on cancellation without setting an
   /// error message (the user just dismissed the sheet, nothing to surface).
   Future<bool> submitApple() async {
-    // Defence in depth: the Apple segment is hidden on web ([appleEnabled]),
-    // but never let a stray call reach the platform channel there.
-    if (kIsWeb) return false;
+    // Defence in depth: the Apple segment is hidden where the native flow
+    // doesn't exist ([appleEnabled]) — never let a stray call reach the
+    // platform channel there (Android's would throw an untyped Exception).
+    if (!appleEnabled) return false;
     if (_busy) return false;
     _busy = true;
     _clearError();

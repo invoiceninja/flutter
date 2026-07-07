@@ -2,8 +2,10 @@ import 'package:admin/data/models/domain/credit_status.dart';
 import 'package:admin/domain/payment_status.dart';
 
 /// Pure parsers that turn a list ViewModel's `extraFilters` map (the
-/// server-bound filter dimensions) into the typed inputs each billing-doc
-/// DAO's `watchPage` applies as **local Drift predicates**.
+/// server-bound filter dimensions) into the typed inputs each list DAO's
+/// `watchPage` applies as **local Drift predicates** (billing docs, and the
+/// task/project mirrors added for `task_status` / `project_tasks` /
+/// `client_id` / `tag_ids`).
 ///
 /// Why this exists: the standalone Invoice / Quote / Credit / Payment /
 /// Expense lists render from the local Drift cache (`watchPage`), but only

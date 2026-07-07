@@ -18,18 +18,25 @@ Future<void> _pumpHost(
   Size size = const Size(1200, 800),
   Widget? below,
 }) async {
+  // Mount via MaterialApp.builder — a Stack SIBLING of the app child, exactly
+  // like main.dart. That places the host ABOVE the root Navigator's Overlay,
+  // which is the production reality: anything in the card that needs an
+  // Overlay ancestor (e.g. an IconButton `tooltip:`) breaks here but would
+  // pass if mounted under `home:`.
   await tester.pumpWidget(
     MaterialApp(
       theme: _theme,
-      home: MediaQuery(
+      builder: (context, child) => MediaQuery(
         data: MediaQueryData(size: size),
         child: Stack(
           children: [
+            if (child != null) child,
             if (below != null) Positioned.fill(child: below),
             Positioned.fill(child: ToastHost(controller: c)),
           ],
         ),
       ),
+      home: const SizedBox.shrink(),
     ),
   );
 }
@@ -65,6 +72,31 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Boom'), findsNothing);
       expect(c.toasts, isEmpty);
+    });
+
+    testWidgets('close button survives mouse hover with no Overlay ancestor '
+        '(regression: IconButton tooltip above the root Navigator)', (
+      tester,
+    ) async {
+      final c = ToastController();
+      await _pumpHost(tester, c);
+
+      c.show(variant: NotifyVariant.success, message: 'Saved');
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byIcon(Icons.close)));
+      await tester.pumpAndSettle();
+
+      // Pre-fix this threw "No Overlay widget found" from the close
+      // button's Tooltip (debug: at card build; release: on hover).
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.close), findsOneWidget);
+
+      c.clearAll();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('action button fires its callback and dismisses', (

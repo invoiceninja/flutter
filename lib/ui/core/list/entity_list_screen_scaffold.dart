@@ -233,7 +233,7 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
     this.emptyStateBuilder,
     this.wideColumnHeadersBuilder,
     this.extraAppBarActions,
-    this.wantsFormatter = false,
+    this.wantsFormatter = true,
     this.embedded = false,
     this.headerBanner,
     this.canCreate = true,
@@ -302,11 +302,14 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
   /// Invoice's table vs cards toggle).
   final EntityExtraAppBarActionsBuilder<VM>? extraAppBarActions;
 
-  /// When `true`, the scaffold wires `FormatterHostMixin` and supplies the
-  /// resolved [Formatter] to [tileBuilder] via [EntityListTileOptions].
-  /// Flip this on for entities that render money (clients, invoices,
-  /// payments, …). Off by default so non-financial entities aren't
-  /// charged for the lookup.
+  /// When `true` (the default), the scaffold wires `FormatterHostMixin`,
+  /// provides a `FormatterScope` over the table, and supplies the resolved
+  /// [Formatter] to [tileBuilder] via [EntityListTileOptions]. ON by
+  /// default: `cellDate`/`cellMoney` silently fall back to locale formats
+  /// without it (ignoring `date_format_id` / `use_comma_as_decimal_place`),
+  /// and that opt-in trap had to be re-fixed on four screens — every list
+  /// screen in the app wants it. The lookup is one cached future per
+  /// company; opt out only for a list that truly renders no dates/money.
   final bool wantsFormatter;
 
   /// When `true`, the scaffold returns only its body — no outer
@@ -788,6 +791,35 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             Notify.info(context, notice);
+          });
+        }
+        // Background refresh / load-more failures — without this toast a
+        // pull-to-refresh or page-N+1 fetch that fails offline ends its
+        // spinner with zero feedback.
+        final transientError = _vm.consumeTransientError();
+        if (transientError != null) {
+          final isRefresh = transientError.kind == 'refresh';
+          // The toast lives on the global ToastHost (above the Navigator) and
+          // OUTLIVES this screen — a bare `_vm.refresh` tear-off would invoke
+          // a disposed ChangeNotifier if Retry is tapped after navigating
+          // away. Capture the VM and no-op unless this State is still mounted
+          // AND still bound to that same VM instance.
+          final vm = _vm;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Notify.error(
+              context,
+              context.tr(
+                isRefresh
+                    ? 'refresh_failed_with_error'
+                    : 'load_more_failed_with_error',
+                {'error': transientError.message},
+              ),
+              retryOp: () async {
+                if (!mounted || !identical(_vm, vm)) return;
+                await (isRefresh ? vm.refresh() : vm.loadMore());
+              },
+            );
           });
         }
         // Push the visible row ids + URL-derived selection to the

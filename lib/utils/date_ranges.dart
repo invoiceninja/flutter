@@ -43,11 +43,13 @@ Date startOfNextFiscalYear(Date today, int firstMonthOfYear) {
 
 /// Last calendar day of the fiscal year that [today] falls in (next fiscal-year
 /// start minus one day). With `firstMonthOfYear == 1` this is `Dec 31`.
-Date endOfFiscalYear(Date today, int firstMonthOfYear) {
-  final next = startOfNextFiscalYear(today, firstMonthOfYear).toDateTime();
-  final end = next.subtract(const Duration(days: 1));
-  return Date(end.year, end.month, end.day);
-}
+///
+/// Date-space math (`Date.addDays`, UTC-anchored) — local-midnight − 24h
+/// lands a day short when a spring-forward transition abuts the fiscal-year
+/// start (e.g. April fiscal years in Europe), same DST class `startOfWeek`
+/// below already guards against.
+Date endOfFiscalYear(Date today, int firstMonthOfYear) =>
+    startOfNextFiscalYear(today, firstMonthOfYear).addDays(-1);
 
 /// First day of the week containing [d], where weeks start on [firstDayOfWeek]
 /// (0=Sun..6=Sat). With `firstDayOfWeek == 0` this returns the Sunday of `d`'s

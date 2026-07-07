@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/user_api_model.dart';
+import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/repositories/user_sync_dispatcher.dart';
@@ -113,6 +114,31 @@ void main() {
     expect(api.inviteCalls.single.id, 'u1');
     expect(api.inviteCalls.single.requiresPassword, isTrue);
   });
+
+  test(
+    'deleteLocalRecord removes the local users row — the ghost-create '
+    'discard and the 404 "deleted on the server" cleanup both route here '
+    '(a no-op left a phantom tmp_ user in User Management forever)',
+    () async {
+      final api = _RecordingUsersApi();
+      final repo = UserRepository(db: db, api: api);
+      final dispatcher = UserSyncDispatcher(
+        api: api,
+        repo: repo,
+        auth: _FakeAuth(),
+      );
+      final created = await repo.create(
+        companyId: 'co',
+        draft: const User(firstName: 'Ghost'),
+      );
+      final id = created.entity.id;
+      expect(await repo.get(companyId: 'co', userId: id), isNotNull);
+
+      await dispatcher.deleteLocalRecord(companyId: 'co', id: id);
+
+      expect(await repo.get(companyId: 'co', userId: id), isNull);
+    },
+  );
 }
 
 class _RecordingUsersApi implements UsersApi {

@@ -471,19 +471,28 @@ class _NotifyCard extends StatelessWidget {
                       right: InSpacing.xs,
                       left: InSpacing.xs,
                     ),
-                    child: IconButton(
-                      onPressed: onClose,
-                      iconSize: 16,
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(
-                        minWidth: 32,
-                        minHeight: 32,
-                      ),
-                      color: t.ink3,
-                      tooltip: MaterialLocalizations.of(
+                    // No IconButton `tooltip:` here — ToastHost mounts ABOVE
+                    // the root Navigator (Stack sibling of the router child in
+                    // MaterialApp.builder), so there is no Overlay ancestor and
+                    // Material's Tooltip asserts in debug / throws on hover in
+                    // release. Semantics carries the accessibility label
+                    // instead.
+                    child: Semantics(
+                      label: MaterialLocalizations.of(
                         context,
                       ).closeButtonTooltip,
-                      icon: const Icon(Icons.close),
+                      button: true,
+                      child: IconButton(
+                        onPressed: onClose,
+                        iconSize: 16,
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        color: t.ink3,
+                        icon: const Icon(Icons.close),
+                      ),
                     ),
                   ),
               ],

@@ -8,10 +8,9 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
 
-/// List ViewModel for the Tasks screen. Drives both the standard list view
-/// and the kanban board — the kanban subscribes to the same filter/search
-/// state so flipping the AppBar toggle doesn't lose work-in-progress
-/// filtering.
+/// List ViewModel for the Tasks screen (list view only — the kanban board
+/// has its own `KanbanViewModel` + `TaskFiltersMixin` state and does not
+/// share this VM's filter chips).
 class TaskListViewModel extends GenericListViewModel<Task> {
   TaskListViewModel({
     required this.repo,
@@ -76,8 +75,19 @@ class TaskListViewModel extends GenericListViewModel<Task> {
     sortAscending: sortAscending,
     clientId: clientId,
     projectId: projectId,
+    extraFilters: extraFilters,
     customFilters: customFilters,
   );
+
+  /// `tag:` is filtered post-decode over the loaded window (the tag ids live
+  /// only in the row payload), so a short filtered result must auto-chain
+  /// page fetches — see the base class.
+  @override
+  bool get localOnlyFilterActive =>
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+
+  @override
+  int get pageSize => repo.pageSize;
 
   @override
   Future<bool> fetchPage({
@@ -87,12 +97,19 @@ class TaskListViewModel extends GenericListViewModel<Task> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    final filters = clientId == null
-        ? extraFilters
-        : {
-            ...extraFilters,
-            'client_id': {clientId!},
-          };
+    // `tag_ids` is applied locally (post-decode in repo.watchPage) — see
+    // [GenericListViewModel.extraFiltersWithout] for why it must not reach
+    // the server fetch.
+    var filters = GenericListViewModel.extraFiltersWithout(
+      extraFilters,
+      'tag_ids',
+    );
+    if (clientId != null) {
+      filters = {
+        ...filters,
+        'client_id': {clientId!},
+      };
+    }
     return repo.ensurePageLoaded(
       companyId: companyId,
       page: page,

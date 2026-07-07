@@ -440,21 +440,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Rows that reference no entity (e.g. a system-only activity) silently
   /// do nothing — there's no per-activity detail screen.
   void _navActivity(DashboardActivity a) {
-    final target = _activityTarget(a);
+    final target = activityDeepLinkTarget(a);
     if (target == null) return;
     _safeNavigate(target);
-  }
-
-  static String? _activityTarget(DashboardActivity a) {
-    if (a.invoiceId != null) return '/invoices/${a.invoiceId}';
-    if (a.quoteId != null) return '/quotes/${a.quoteId}';
-    if (a.paymentId != null) return '/payments/${a.paymentId}';
-    if (a.recurringInvoiceId != null) {
-      return '/recurring_invoices/${a.recurringInvoiceId}';
-    }
-    if (a.expenseId != null) return '/expenses/${a.expenseId}';
-    if (a.clientId != null) return '/clients/${a.clientId}';
-    return null;
   }
 
   Widget _buildScroll(BuildContext context, BoxConstraints outer) {
@@ -753,4 +741,32 @@ ListFilterIntent buildInvoiceKpiIntent({
         'date_range': {'date,${start.toIso()},${end.toIso()}'},
     },
   );
+}
+
+/// Most-specific deep-link for an activity row, or null for system-only
+/// activities with no entity reference. Top-level (not a screen method) so the
+/// route mapping is directly testable. Document refs precede the party
+/// (client/vendor) fallbacks — an "invoice created" row should open the
+/// invoice, not the client.
+String? activityDeepLinkTarget(DashboardActivity a) {
+  if (a.invoiceId != null) return '/invoices/${a.invoiceId}';
+  if (a.quoteId != null) return '/quotes/${a.quoteId}';
+  if (a.creditId != null) return '/credits/${a.creditId}';
+  if (a.paymentId != null) return '/payments/${a.paymentId}';
+  if (a.recurringInvoiceId != null) {
+    return '/recurring_invoices/${a.recurringInvoiceId}';
+  }
+  if (a.expenseId != null) return '/expenses/${a.expenseId}';
+  if (a.recurringExpenseId != null) {
+    return '/recurring_expenses/${a.recurringExpenseId}';
+  }
+  if (a.taskId != null) return '/tasks/${a.taskId}';
+  if (a.purchaseOrderId != null) return '/purchase_orders/${a.purchaseOrderId}';
+  // Payment links live under settings but have a real detail screen.
+  if (a.subscriptionId != null) {
+    return '/settings/payment_links/${a.subscriptionId}';
+  }
+  if (a.vendorId != null) return '/vendors/${a.vendorId}';
+  if (a.clientId != null) return '/clients/${a.clientId}';
+  return null;
 }

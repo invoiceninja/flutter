@@ -95,7 +95,24 @@ class Win32Window {
   // Update the window frame's theme to match the system theme.
   static void UpdateTheme(HWND const window);
 
+  // Persist the current WINDOWPLACEMENT (size, position, maximized) to the
+  // registry. No-op until |RestorePlacement| has run — the WM_SIZE fired
+  // inside CreateWindow would otherwise overwrite the saved placement with
+  // the template default before restore ever reads it.
+  void SavePlacement();
+
+  // Apply the persisted placement (if any) while the window is still hidden,
+  // clamped to a visible monitor. Returns false (leaving the template
+  // default geometry) when nothing usable is stored. Never restores
+  // minimized; a maximized exit is re-applied by |Show|.
+  bool RestorePlacement();
+
   bool quit_on_close_ = false;
+
+  // Placement persistence state (see docs/desktop-window-state.md).
+  bool placement_restored_ = false;
+  bool restore_maximized_ = false;
+  bool in_size_move_ = false;
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;

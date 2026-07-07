@@ -832,8 +832,11 @@ class Formatter {
     return '$prefix$body';
   }
 
-  /// Decimal number with thousand separators, no fixed precision (up to 5).
-  String decimal(num value) {
+  /// Decimal number with thousand separators. Defaults to natural precision
+  /// (0–5 fraction digits); pass [minDecimals]/[maxDecimals] for a fixed
+  /// money-style rendering without a currency symbol (e.g. 2/2 on the
+  /// product detail figures, so a 10.00 price doesn't render as "10").
+  String decimal(num value, {int minDecimals = 0, int maxDecimals = 5}) {
     final (thousand, decimal, _) = _separators(
       currency: currencies[settings.currencyId],
       companyCurrency: currencies[settings.currencyId],
@@ -841,8 +844,8 @@ class Formatter {
     );
     final body = _formatGrouped(
       value.abs().toDouble(),
-      minDecimals: 0,
-      maxDecimals: 5,
+      minDecimals: minDecimals,
+      maxDecimals: maxDecimals,
       thousand: thousand,
       decimal: decimal,
     );

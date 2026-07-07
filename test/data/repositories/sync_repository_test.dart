@@ -284,6 +284,14 @@ void main() {
         expect(event.statusCode, 404);
         expect(event.isDeletedServerSide, isTrue);
         expect(event.outboxRowId, id);
+        expect(
+          event.wireEntityType,
+          'client',
+          reason:
+              "the ROW's wire type — the listener's discardPendingForEntity "
+              'exact-matches on it (handlers.wireName diverges for the user '
+              "module, whose rows carry 'user' under a 'user_settings' slot)",
+        );
       },
     );
 
@@ -514,6 +522,28 @@ void main() {
       )..where((o) => o.id.equals(updateId))).getSingle();
       expect(row.state, 'pending');
       expect(row.attempts, 0, reason: 'a skip is not a failed attempt');
+    });
+
+    test('an update referencing a tmp_ id with NO create row anywhere is '
+        'marked dead — its parent create was discarded, so the reference can '
+        'never heal and deferring would zombie it forever', () async {
+      final dispatcher = _ProgrammableDispatcher();
+      final engine = makeEngine(dispatcher);
+      // No create row for tmpA exists in ANY state (ghost-discarded before
+      // this drain) and no id_remap mapping (the create never succeeded).
+      final updateId = await enqueueClient(
+        entityId: tmpA,
+        idempotencyKey: 'k9',
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(dispatcher.dispatches, 0);
+      final row = await (db.select(
+        db.outbox,
+      )..where((o) => o.id.equals(updateId))).getSingle();
+      expect(row.state, 'dead');
+      expect(row.lastError, contains('discarded'));
     });
 
     test(

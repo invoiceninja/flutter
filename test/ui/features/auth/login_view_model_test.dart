@@ -7,6 +7,7 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/ui/features/auth/view_models/login_view_model.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Self-hosted URL validation. Without this, the login VM accepts any string
@@ -211,6 +212,30 @@ void main() {
       );
       expect(r.url, 'http://example.com');
       expect(r.errorKey, isNull);
+    });
+  });
+
+  group('appleEnabled platform gate', () {
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    test('offered only where the native flow exists: iOS + macOS', () {
+      for (final (platform, expected) in [
+        (TargetPlatform.iOS, true),
+        (TargetPlatform.macOS, true),
+        // Android lacks webAuthenticationOptions wiring (plugin throws a
+        // bare Exception); Windows/Linux are NotSupported by the plugin.
+        (TargetPlatform.android, false),
+        (TargetPlatform.windows, false),
+        (TargetPlatform.linux, false),
+      ]) {
+        debugDefaultTargetPlatformOverride = platform;
+        expect(vm.appleEnabled, expected, reason: '$platform');
+      }
+    });
+
+    test('submitApple is a no-op where the segment is hidden', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      expect(await vm.submitApple(), isFalse);
     });
   });
 }

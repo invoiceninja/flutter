@@ -119,7 +119,11 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               FormSection(
                 title: context.tr('activity'),
                 children: [
-                  _UserActivitySection(userId: user.id, companyId: companyId),
+                  _UserActivitySection(
+                    userId: user.id,
+                    companyId: companyId,
+                    userDisplayName: user.displayName,
+                  ),
                 ],
               ),
               FormSection(
@@ -292,10 +296,19 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
 /// `/api/v1/activities?user_id=` list (see `ActivitiesApi.fetchUserActivities`)
 /// and renders each row through the shared dashboard `ActivityFormatter`.
 class _UserActivitySection extends StatefulWidget {
-  const _UserActivitySection({required this.userId, required this.companyId});
+  const _UserActivitySection({
+    required this.userId,
+    required this.companyId,
+    this.userDisplayName = '',
+  });
 
   final String userId;
   final String companyId;
+
+  /// Seed for the formatter's `:user` token — the flat `?user_id=` feed has
+  /// no label objects, but this feed is actor-scoped so the actor IS the
+  /// screen's user.
+  final String userDisplayName;
 
   @override
   State<_UserActivitySection> createState() => _UserActivitySectionState();
@@ -349,7 +362,13 @@ class _UserActivitySectionState extends State<_UserActivitySection> {
           children: [
             for (final a in rows.take(50))
               _ActivityRow(
-                render: formatter.format(a),
+                render: formatter.format(
+                  a,
+                  seedLabels: {
+                    if (widget.userDisplayName.isNotEmpty)
+                      'user': widget.userDisplayName,
+                  },
+                ),
                 timestamp: dateFmt?.date(
                   DateTime.fromMillisecondsSinceEpoch(
                     a.createdAt * 1000,

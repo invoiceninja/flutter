@@ -6,15 +6,19 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/user.dart';
 
 /// Resolves a user's display name from the local Drift cache and renders it as
-/// a `Text`. Falls back to the raw [userId] while the watch is unresolved (e.g.
-/// a user no longer attached to the company) and to an em-dash when [userId] is
-/// empty.
+/// a `Text`. Renders nothing while the watch is resolving (a blank first frame
+/// beats a flash of raw hashed id) and a muted em-dash when [userId] is empty
+/// OR when the id resolves to no cached user — an id absent from the roster
+/// (ex-employee, revoked access) can never resolve, so showing the raw id
+/// would just be permanent "random letters" in the column.
 ///
-/// Unlike [ClientNameLabel] there is no lazy per-id hydrate: the company roster
-/// is seeded up front by `UserRepository.applyBundle` from the `/login` /
-/// `/refresh` envelope (`GET /users/{id}` is 412 password-gated, so a
-/// single-user fetch isn't available). Drift dedupes identical watch queries,
-/// so N rows referencing the same user share one subscription.
+/// This deliberately diverges from [ClientNameLabel], which keeps the raw id
+/// pre-data: the client label lazily hydrates per id, so its id is
+/// transitional. Users have no hydrate path — the company roster is seeded up
+/// front by `UserRepository.applyBundle` from the `/login` / `/refresh`
+/// envelope (`GET /users/{id}` is 412 password-gated, so a single-user fetch
+/// isn't available). Drift dedupes identical watch queries, so N rows
+/// referencing the same user share one subscription.
 class UserNameLabel extends StatelessWidget {
   const UserNameLabel({
     super.key,
@@ -31,32 +35,37 @@ class UserNameLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.inTheme;
     if (userId.isEmpty) {
-      return Text(
-        '—',
-        style:
-            style ?? TextStyle(fontSize: 13, height: 1.2, color: tokens.ink3),
-        maxLines: maxLines,
-        overflow: overflow,
-      );
+      return _muted(context);
     }
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId == null || companyId.isEmpty) {
-      return _text(context, userId);
+      return _muted(context);
     }
     return StreamBuilder<User?>(
       stream: services.user.watch(companyId: companyId, id: userId),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _text(context, '');
+        }
         final user = snapshot.data;
-        final name = user == null || user.displayName.isEmpty
-            ? userId
-            : user.displayName;
-        return _text(context, name);
+        if (user == null || user.displayName.isEmpty) {
+          return _muted(context);
+        }
+        return _text(context, user.displayName);
       },
     );
   }
+
+  Widget _muted(BuildContext context) => Text(
+    '—',
+    style:
+        style ??
+        TextStyle(fontSize: 13, height: 1.2, color: context.inTheme.ink3),
+    maxLines: maxLines,
+    overflow: overflow,
+  );
 
   Widget _text(BuildContext context, String text) => Text(
     text,

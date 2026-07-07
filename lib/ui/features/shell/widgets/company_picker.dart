@@ -216,6 +216,8 @@ class _CompanyPickerState extends State<CompanyPicker> {
     final result = await confirmPendingOutboxIfAny(
       context,
       companyId: session.currentCompanyId,
+      // Full logout wipes every company's rows — check them all.
+      checkAllCompanies: true,
     );
     if (result == OutboxConfirmResult.cancelled || !mounted) return;
     setState(() => _switching = true);

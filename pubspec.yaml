@@ -155,10 +155,17 @@ flutter:
 # package. Without this section the package derives `com.flutter.admin` from the
 # pubspec `name:` and the Store rejects the PublisherDisplayName mismatch.
 # `store: true` emits an unsigned package (the Store re-signs on ingestion — no
-# self-signed certificate). `msix_version` is auto-derived from `version:` above
-# as 5.1.3.0; bump `version:` for each new submission. `display_name` is plain
-# "Invoice Ninja" (no "beta"). Logo intentionally omitted for now — see the plan;
-# no finished square PNG exists yet, so the first submission ships the default.
+# self-signed certificate). `msix_version` is auto-derived from `version:` above;
+# bump `version:` for each new submission.
+# `logo_path` is REQUIRED for branding: without it msix copies its bundled
+# FLUTTER-logo assets into the AppxManifest visual tree (Start tile, taskbar,
+# Search) — app_icon.ico only covers the exe/window icon. The PNG is the baked
+# 1024² raster emitted by `dart run tools/gen_windows_icon.dart` (the macOS
+# source is an alpha matte, unusable raw); `trim_logo: false` keeps the
+# full-bleed tile instead of msix auto-cropping the transparent border.
+# `protocol_activation` registers the invoiceninja:// scheme for the calendar
+# OAuth callback (paired with the app_links second-instance forward in
+# windows/runner/main.cpp).
 msix_config:
   display_name: Invoice Ninja - Beta
   publisher_display_name: Invoice Ninja
@@ -166,3 +173,6 @@ msix_config:
   publisher: CN=2B7AA393-06A0-46F5-AF85-1917142440C3
   store: true
   languages: en-us
+  logo_path: windows/runner/resources/store_logo.png
+  trim_logo: false
+  protocol_activation: invoiceninja

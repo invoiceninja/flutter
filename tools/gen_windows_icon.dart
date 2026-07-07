@@ -23,6 +23,11 @@ import 'package:image/image.dart';
 
 const _source = 'macos/AppIcon.icon/Assets/Image.png';
 const _output = 'windows/runner/resources/app_icon.ico';
+// Full-res baked PNG for `msix_config.logo_path` — msix generates the whole
+// AppxManifest visual-asset tree (Start tile, taskbar, Store logo, splash)
+// from this one file; without it the package ships the msix package's
+// default FLUTTER-logo assets.
+const _pngOutput = 'windows/runner/resources/store_logo.png';
 const _sizes = [16, 24, 32, 48, 64, 128, 256];
 
 void main() {
@@ -53,4 +58,6 @@ void main() {
   ];
   File(_output).writeAsBytesSync(IcoEncoder().encodeImages(frames));
   stdout.writeln('Wrote $_output (${_sizes.length} sizes: $_sizes)');
+  File(_pngOutput).writeAsBytesSync(encodePng(baked));
+  stdout.writeln('Wrote $_pngOutput (${baked.width}x${baked.height})');
 }

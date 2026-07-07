@@ -41,6 +41,8 @@ class ExpenseCategoryListScreen extends StatelessWidget {
       titleKey: 'expense_categories',
       newRoute: '/settings/expense_categories/new',
       newLabelKey: 'new_expense_category',
+      // Opt-in "Last Updated" column renders via cellDate → FormatterScope.
+      wantsFormatter: true,
       emptyIcon: Icons.category_outlined,
       emptyTitleKey: 'no_expense_categories',
       buildVm: (services, companyId) => ExpenseCategoryListViewModel(

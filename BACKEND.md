@@ -1002,3 +1002,84 @@ the Flutter change clones the `includeDrafts` plumbing: a `showNet` bool on
 `net=<bool>` on the three chart calls, plus a Gross/Net control in the
 dashboard settings popover. No Drift schema/migration (the cache is keyed by
 `filterHash`; `nav_state` is schemaless JSON).
+
+## Recurring-invoice `amount` stored as `Σ(cost×quantity)` — drops discounts + all taxes — **R (billing correctness)**
+
+**Provenance** — 2026-07-07, financial-calculation audit (follow-up to
+[#12072](https://github.com/invoiceninja/invoiceninja/issues/12072)). Source-read of
+`~/Code/invoiceninja` (`v5-develop`), verified against actual line numbers.
+
+**Problem.** When a recurring invoice is created or updated, the server computes
+and persists `amount` from **line-item subtotal only**, ignoring line + invoice
+discounts, all line/invoice taxes (inclusive and exclusive), and custom
+surcharges. The stored figure the API/UI reports then **disagrees with the
+invoices the template actually generates**, because the send path recomputes
+correctly.
+
+**Evidence.**
+- `app/Http/Requests/RecurringInvoice/StoreRecurringInvoiceRequest.php:115` —
+  `$input['amount'] = $this->entityTotalAmount($input['line_items']);` (also
+  `UpdateRecurringInvoiceRequest.php:106`), inside `prepareForValidation()`, which
+  first zeroes `$input['amount'] = 0` (L88) then overwrites it.
+- `app/Utils/Traits/CleanLineItems.php:88-97` — `entityTotalAmount()` is literally
+  `foreach ($items as $item) { $total += ($item['cost'] * $item['quantity']); }` —
+  no discount, no tax, no surcharge.
+- Correct engine: `app/Helpers/Invoice/InvoiceSum.php::_calculateTotal` — applies
+  discounts + taxes. It is what the **send** path uses:
+  `app/Jobs/RecurringInvoice/SendRecurring.php:61` →
+  `$this->recurring_invoice->calc()->getRecurringInvoice()`.
+
+**Repro.** Recurring invoice, 1 line (qty 2 × cost $50 = $100 subtotal), 10%
+invoice discount (−$10), 10% invoice tax on the discounted base (+$9). Correct
+total **$99**. Server stores **$100** (subtotal only). When `SendRecurring` fires,
+the generated invoice is **$99** — so the recurring record overstates by $1.
+
+**Client impact.** The new Flutter app already computes the correct total via
+`lib/domain/billing/totals_calculator.dart` and stamps it onto the draft
+(`recurring_invoice_edit_view_model.dart:149-153`, `copyWithStampedTotals`);
+`prepareForValidation()` then discards it. No client change is needed once the
+server is fixed — the client is already correct.
+
+**Required change.** In `prepareForValidation()` compute `amount` through the full
+`InvoiceSum` pipeline (as the send path does), not `entityTotalAmount()`. Add a
+feature test asserting a discounted/taxed recurring invoice stores the same
+`amount` the generated invoice carries.
+
+## Multi-rate **inclusive** tax extraction is mathematically incoherent (expense + invoice line-item + invoice-level) — **R (tax correctness; root of #12072)**
+
+**Provenance** — 2026-07-07, financial-calculation audit. This is the general
+form of [#12072](https://github.com/invoiceninja/invoiceninja/issues/12072) (filed
+against React for expenses); source-read confirms the same shape server-side and
+across every client.
+
+**Problem.** With **two or more inclusive tax rates** on one base (expense, invoice
+line item, or invoice level), each rate is extracted **independently from the same
+gross** and the results are summed: `taxᵢ = amount − amount/(1 + rateᵢ/100)`. The
+resulting net reconciles to **no** valid multi-rate inclusive model — it is neither
+compound (tax-on-tax) nor a shared-base extraction — because each tax is computed
+as though it were the only tax, then all are subtracted together.
+
+**Evidence (all four codebases agree — so the fix must be server-first).**
+- Backend: `app/Models/Expense.php::getNetAmount` / `calcInclusiveLineTax`;
+  `app/Helpers/Invoice/InvoiceItemSumInclusive.php:261,270,278` (per-rate
+  `calcInclusiveLineTax($this->item->tax_rateN, $amount)` against the same
+  `$amount`); `app/Helpers/Invoice/InvoiceSumInclusive.php` (invoice level).
+- Clients mirror it faithfully: React `invoice-item-sum-inclusive.ts` /
+  `useCalculateExpenseAmount.ts`; new Flutter
+  `lib/domain/billing/totals_calculator.dart` + `lib/domain/expense_tax_math.dart`.
+
+**Repro.** Gross $1000, two 10% inclusive rates. Current: tax₁ = tax₂ =
+`1000 − 1000/1.10 = 90.91`, total tax $181.82, **net $818.18**. That is neither
+compound (`1000/1.10² = 826.45`) nor shared-base additive
+(`1000/(1+0.10+0.10) = 833.33`, tax₁ = tax₂ = 83.33). Only the additive result is
+internally consistent (each tax = rate × net, and net + taxes = gross).
+
+**Required change (product decision + migration).** The server must pick one
+coherent model — recommended: **additive shared-base** (`net = gross/(1+Σrateᵢ)`,
+`taxᵢ = rateᵢ × net`) — and apply it uniformly in `InvoiceSumInclusive`,
+`InvoiceItemSumInclusive`, and `Expense::getNetAmount`. All three clients then
+mirror it (the new Flutter app changes `expense_tax_math.dart` +
+`totals_calculator.dart` in lockstep). **Note the data implications:** this changes
+computed tax on existing multi-rate-inclusive documents, so it needs an explicit
+migration/reporting review, not a silent formula swap. Single-rate inclusive
+(the common case) is unaffected — all models agree there.

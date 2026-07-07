@@ -280,17 +280,12 @@ List<AllocationTarget> _invoiceTargets(List<Invoice> invoices) {
 
 List<AllocationTarget> _creditTargets(List<Credit> credits) {
   return credits
-      .where(
-        (c) =>
-            !c.isDeleted &&
-            c.archivedAt == null &&
-            c.balanceOrAmount > Decimal.zero,
-      )
+      .where((c) => c.isApplicableForPayment)
       .map(
         (c) => AllocationTarget(
           id: c.id,
           number: c.number,
-          balance: c.balanceOrAmount,
+          balance: c.balance,
           partial: Decimal.zero,
         ),
       )

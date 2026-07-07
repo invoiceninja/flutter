@@ -142,6 +142,19 @@ extension CreditCalculation on Credit {
   bool get isPartial => statusId == CreditStatus.partial;
   bool get isApplied => statusId == CreditStatus.applied;
 
+  /// Mirrors the backend `CreditFilters::applicable` gate (React's payment
+  /// credit picker sends `?applicable=true`): only SENT/PARTIAL credits with a
+  /// positive balance and an unelapsed due date can be applied to a payment.
+  /// Drafts (whose `balanceOrAmount` reports the full amount despite a 0
+  /// balance), applied, and past-due credits are silent server-side no-ops, so
+  /// they must not appear as selectable allocation targets.
+  bool get isApplicableForPayment =>
+      !isDeleted &&
+      archivedAt == null &&
+      (isSent || isPartial) &&
+      balance > Decimal.zero &&
+      (dueDate == null || dueDate!.compareTo(Date.today()) > 0);
+
   bool get hasViewedInvitation => invitations.any((i) => i.hasBeenViewed);
 
   /// Any invitation whose email bounced or errored — drives the red

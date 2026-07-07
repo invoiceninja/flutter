@@ -206,6 +206,12 @@ extension PaymentStatusExt on Payment {
 
   bool get hasUnappliedFunds => unapplied > Decimal.zero;
 
+  /// `exchange_rate == 0` is the legacy "no conversion" sentinel; treat it as
+  /// identity (1) for display math, mirroring [Expense.effectiveExchangeRate].
+  /// The wire payload still sends the raw `exchange_rate`.
+  Decimal get effectiveExchangeRate =>
+      exchangeRate == Decimal.zero ? Decimal.one : exchangeRate;
+
   /// Whether this payment is allocated to at least one invoice. The refund
   /// screen can only refund against invoice allocations (matching React), so
   /// the Refund action is gated on this to avoid offering an action that

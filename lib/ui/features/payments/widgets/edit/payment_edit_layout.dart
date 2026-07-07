@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
+import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/payment_type.dart';
@@ -510,7 +511,7 @@ class _CurrencyConversionSectionState
   }
 
   String _convertedText() {
-    final converted = vm.draft.amount * vm.draft.exchangeRate;
+    final converted = vm.draft.amount * vm.draft.effectiveExchangeRate;
     final f = widget.formatter;
     return f == null
         ? converted.toString()

@@ -88,6 +88,17 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: remove that `ignore` line after a Dart/analyzer bump; run `flutter analyze`.
 - Recheck trigger: after each SDK bump — drop the ignore and analyze.
 
+## 6. local_auth_windows / cppwinrt plugins: `<experimental/coroutine>` hard-errors on MSVC 14.51
+
+- Issue / waiting on: [flutter/flutter#186452](https://github.com/flutter/flutter/issues/186452) (VS 18.6 / MSVC 14.51 breakage), [microsoft/cppwinrt#1520](https://github.com/microsoft/cppwinrt/issues/1520) (root cause), and a `local_auth_windows` release that migrates off the deprecated experimental coroutine header — all open. • Found: 2026-07-09 • Flutter: 3.44.1
+- Symptom: `flutter build windows` (the CI `build-windows` gate + the `deploy-msstore` job) fails compiling `local_auth_windows_plugin.vcxproj` with `error C2338: static assertion failed: 'error STL1011: The /await compiler option, <experimental/coroutine>, ... are deprecated ...'`. Surfaces on CI (`windows-latest` now ships Visual Studio 18 / MSVC 14.51) and on any dev machine with VS ≥ 18.6.
+- Root cause: `local_auth_windows` 2.0.1 compiles WinRT coroutines (`/await` + `cxx_std_20`, `#include <pplawait.h>` / `<ppltasks.h>`, `co_await` / `winrt::fire_and_forget`, bundled cppwinrt 2.0.220418.1) through the deprecated `<experimental/coroutine>` header; MSVC 14.51 turned that deprecation into a hard `static_assert` unless `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` is defined.
+- Commit ref: _not yet committed — fill in the SHA when committed._
+- Change(s):
+  - `windows/CMakeLists.txt` — **MUST-REVERT**: `add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)` placed immediately before `include(flutter/generated_plugins.cmake)`, so every plugin subdirectory inherits it (directory-scoped, forward-proof against sibling cppwinrt plugins tripping the same assert).
+- Revert: delete that `add_compile_definitions(...)` line and its comment block; rebuild `flutter build windows`.
+- Recheck trigger: when `local_auth_windows` publishes a release whose changelog cites the C++20 `<coroutine>` migration (or MSVC 14.51 / VS 18.6) — bump `local_auth`, drop the line, and rebuild `flutter build windows`.
+
 ---
 
 ## Considered but NOT tracked (permanent adaptations — do not revert)

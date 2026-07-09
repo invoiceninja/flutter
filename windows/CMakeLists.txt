@@ -53,6 +53,16 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 add_subdirectory("runner")
 
 
+# Upstream workaround (see docs/upstream-workarounds.md) — several Windows plugins,
+# notably local_auth_windows 2.0.1, compile WinRT coroutines (/await + <pplawait.h>)
+# through the deprecated <experimental/coroutine> header. MSVC 14.51 (Visual Studio
+# 18.6+) turned that deprecation into a hard static_assert error (STL1011 / C2338)
+# instead of a warning. Define the documented escape hatch for the plugin targets
+# below so the header still compiles until the plugins migrate to the C++20
+# <coroutine> header. Applies to the plugin subdirectories added by the include that
+# follows (directory-scoped definitions are inherited by add_subdirectory children).
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)

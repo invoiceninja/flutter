@@ -164,6 +164,11 @@ extension ExpenseStatus on Expense {
   Decimal get effectiveExchangeRate =>
       exchangeRate == Decimal.zero ? Decimal.one : exchangeRate;
 
+  /// `Σr` — the sum of this expense's inclusive tax rates, feeding the shared
+  /// divisor `1 + Σr/100` (issue #12072). Zero rates add nothing, so an
+  /// inactive tier is naturally excluded.
+  Decimal get _inclusiveTotalRate => taxRate1 + taxRate2 + taxRate3;
+
   /// Per-tier tax amount, computed from the rate (mirrors admin-portal
   /// `expense_model.dart` `calculateTaxAmountN`). In `calculateTaxByAmount`
   /// mode the stored `tax_amount*` is authoritative and returned as-is.
@@ -178,6 +183,7 @@ extension ExpenseStatus on Expense {
           amount: amount,
           rate: taxRate1,
           usesInclusiveTaxes: usesInclusiveTaxes,
+          totalRate: _inclusiveTotalRate,
         );
   Decimal get taxAmount2Computed => calculateTaxByAmount
       ? taxAmount2
@@ -185,6 +191,7 @@ extension ExpenseStatus on Expense {
           amount: amount,
           rate: taxRate2,
           usesInclusiveTaxes: usesInclusiveTaxes,
+          totalRate: _inclusiveTotalRate,
         );
   Decimal get taxAmount3Computed => calculateTaxByAmount
       ? taxAmount3
@@ -192,11 +199,16 @@ extension ExpenseStatus on Expense {
           amount: amount,
           rate: taxRate3,
           usesInclusiveTaxes: usesInclusiveTaxes,
+          totalRate: _inclusiveTotalRate,
         );
 
   Decimal get taxAmountSum =>
       taxAmount1Computed + taxAmount2Computed + taxAmount3Computed;
 
+  /// Net (pre-tax) amount = gross − summed tax. For inclusive multi-rate the
+  /// tiers are the additive shared-base taxes (issue #12072), so net absorbs
+  /// the 1¢ rounding residual and reconciles: 1000 @ 10%+10% → 833.34. Matches
+  /// the backend `InclusiveTax::backout()` (`gross − Σtax`).
   Decimal get netAmount => usesInclusiveTaxes ? amount - taxAmountSum : amount;
 
   Decimal get grossAmount =>

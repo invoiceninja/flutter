@@ -193,7 +193,11 @@ abstract class Invoice with _$Invoice {
 /// `InvoiceEntity` accessors so the list filter chips, detail-header
 /// status pill, and edit-screen "is past due" banner agree.
 extension InvoiceCalculation on Invoice {
-  /// `amount - taxAmount`. Net total before tax is applied.
+  /// `amount - taxAmount`. Net total before tax — grand total minus the summed
+  /// tax breakdown, so `net + tax == total` reconciles. For multi-rate
+  /// inclusive tax the breakdown tiers are the additive shared-base amounts
+  /// (issue #12072) and net = gross − Σtax = 833.34, matching
+  /// `Expense.netAmount` and the backend `InclusiveTax::backout()`.
   Decimal get netAmount => amount - taxAmount;
 
   /// `balance` once the invoice has been sent; falls back to `amount`

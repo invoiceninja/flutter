@@ -173,6 +173,10 @@ extension RecurringExpenseStatus on RecurringExpense {
   Decimal get effectiveExchangeRate =>
       exchangeRate == Decimal.zero ? Decimal.one : exchangeRate;
 
+  /// `Σr` — the sum of this expense's inclusive tax rates, feeding the shared
+  /// divisor `1 + Σr/100` (issue #12072). Parity with [Expense].
+  Decimal get _inclusiveTotalRate => taxRate1 + taxRate2 + taxRate3;
+
   /// Per-tier tax amount, computed from the rate — parity with [Expense]
   /// (`taxAmount1Computed`). In `calculateTaxByAmount` mode the stored
   /// `tax_amount*` is authoritative.
@@ -182,6 +186,7 @@ extension RecurringExpenseStatus on RecurringExpense {
           amount: amount,
           rate: taxRate1,
           usesInclusiveTaxes: usesInclusiveTaxes,
+          totalRate: _inclusiveTotalRate,
         );
   Decimal get taxAmount2Computed => calculateTaxByAmount
       ? taxAmount2
@@ -189,6 +194,7 @@ extension RecurringExpenseStatus on RecurringExpense {
           amount: amount,
           rate: taxRate2,
           usesInclusiveTaxes: usesInclusiveTaxes,
+          totalRate: _inclusiveTotalRate,
         );
   Decimal get taxAmount3Computed => calculateTaxByAmount
       ? taxAmount3
@@ -196,11 +202,14 @@ extension RecurringExpenseStatus on RecurringExpense {
           amount: amount,
           rate: taxRate3,
           usesInclusiveTaxes: usesInclusiveTaxes,
+          totalRate: _inclusiveTotalRate,
         );
 
   Decimal get taxAmountSum =>
       taxAmount1Computed + taxAmount2Computed + taxAmount3Computed;
 
+  /// Net (pre-tax) amount = gross − summed tax (parity with [Expense.netAmount];
+  /// issue #12072). Inclusive multi-rate → 833.34, reconciles.
   Decimal get netAmount => usesInclusiveTaxes ? amount - taxAmountSum : amount;
 
   Decimal get grossAmount =>

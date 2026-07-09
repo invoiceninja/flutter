@@ -224,6 +224,27 @@ void main() {
       expect(result.taxBreakdown['VAT'], d('10.00'));
       expect(result.total, d('110.00'));
     });
+
+    test('inclusive two invoice-level rates share the base → 83.33 each', () {
+      // issue #12072: additive shared base 1000/(1+0.20) = 833.33, each tier
+      // 83.33 — NOT independent extraction (90.91 each / 181.82). Names are
+      // 2+ chars so they pass the invoice-level tax_name gate.
+      final result = computeTotals(
+        input(
+          lineItems: [item(cost: '1000')],
+          taxName1: 'VAT',
+          taxRate1: '10',
+          taxName2: 'GST',
+          taxRate2: '10',
+          usesInclusiveTaxes: true,
+        ),
+        2,
+      );
+      expect(result.taxBreakdown['VAT'], d('83.33'));
+      expect(result.taxBreakdown['GST'], d('83.33'));
+      expect(result.taxAmount, d('166.66'));
+      expect(result.total, d('1000.00'));
+    });
   });
 
   group('per-item taxes', () {
@@ -276,6 +297,32 @@ void main() {
       expect(result.taxBreakdown['B'], d('7.00'));
       expect(result.taxBreakdown['C'], d('3.00'));
     });
+
+    test(
+      'inclusive two item rates share the base → 83.33 each, total 1000',
+      () {
+        // issue #12072: line-item multi-rate inclusive is additive shared-base.
+        final result = computeTotals(
+          input(
+            lineItems: [
+              item(
+                cost: '1000',
+                taxName1: 'A',
+                taxRate1: '10',
+                taxName2: 'B',
+                taxRate2: '10',
+              ),
+            ],
+            usesInclusiveTaxes: true,
+          ),
+          2,
+        );
+        expect(result.taxBreakdown['A'], d('83.33'));
+        expect(result.taxBreakdown['B'], d('83.33'));
+        expect(result.taxAmount, d('166.66'));
+        expect(result.total, d('1000.00'));
+      },
+    );
   });
 
   group('tax rate precision', () {

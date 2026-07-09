@@ -1071,15 +1071,34 @@ as though it were the only tax, then all are subtracted together.
 **Repro.** Gross $1000, two 10% inclusive rates. Current: tax₁ = tax₂ =
 `1000 − 1000/1.10 = 90.91`, total tax $181.82, **net $818.18**. That is neither
 compound (`1000/1.10² = 826.45`) nor shared-base additive
-(`1000/(1+0.10+0.10) = 833.33`, tax₁ = tax₂ = 83.33). Only the additive result is
-internally consistent (each tax = rate × net, and net + taxes = gross).
+(`1000/(1+0.10+0.10) ≈ 833.33`, tax₁ = tax₂ = 83.33). Only the additive result is
+internally consistent. The **Decision** below adopts its reconciling rounded
+form — `net = round(gross − Σtax) = 833.34` (833.34 + 166.66 = 1000) — not the
+raw 833.33 (which would leave a 1¢ gap).
 
-**Required change (product decision + migration).** The server must pick one
-coherent model — recommended: **additive shared-base** (`net = gross/(1+Σrateᵢ)`,
-`taxᵢ = rateᵢ × net`) — and apply it uniformly in `InvoiceSumInclusive`,
-`InvoiceItemSumInclusive`, and `Expense::getNetAmount`. All three clients then
-mirror it (the new Flutter app changes `expense_tax_math.dart` +
-`totals_calculator.dart` in lockstep). **Note the data implications:** this changes
-computed tax on existing multi-rate-inclusive documents, so it needs an explicit
-migration/reporting review, not a silent formula swap. Single-rate inclusive
-(the common case) is unaffected — all models agree there.
+**Decision (2026-07-09): additive shared-base, net = gross − Σtax → 833.34.**
+Matches the backend helper `app/Helpers/Invoice/InclusiveTax.php` (`backout()`):
+- per-rate `taxᵢ = round(gross × rateᵢ/(100+Σr), p)` (≡ `round(rateᵢ/100 × gross/(1+Σr/100), p)`), each rounded independently → **83.33** each;
+- `net = round(gross − Σtax, p)` — the net absorbs the rounding residual → **833.34** (833.34 + 166.66 = 1000, reconciles). Symmetric equal-rate taxes.
+Applied per rate-group: expense; invoice line item; invoice level (name-gated to `strlen(tax_nameN) ≥ 2`).
+
+**Client status — DONE.** Both Flutter apps implement exactly this (verified
+against `InclusiveTax::backout()`), each with a `Σr == rate` single-rate guard
+keeping the common single-rate case byte-identical, and a `Σr ≤ 0 → 0` guard in
+every inclusive primitive mirroring `backout()`'s `combined_rate <= 0` clause:
+- New app: `lib/domain/expense_tax_math.dart` (`expenseTierTaxAmount`) and
+  `lib/domain/billing/totals_calculator.dart` (`_taxAmount` + threaded
+  `itemRateSum` / name-gated `invoiceRateSum`); net via `gross − taxAmountSum`
+  on the expense/recurring-expense getters and `amount − taxAmount` on the
+  invoice. Covered by new multi-rate tests.
+- Old app (`admin-portal`): `expense_model.dart`, `invoice_model.dart`
+  (`InvoiceItemEntity.taxAmount`), `mixins/invoice_mixin.dart`.
+
+**Server + React — TODO (must match to the penny).** The server already ships
+`InclusiveTax::backout()`; wire it uniformly through `InvoiceSumInclusive`,
+`InvoiceItemSumInclusive`, and `Expense::getNetAmount`. Note `getNetAmount`
+already derives `gross − Σtax`, so only the per-rate extraction needs to become
+additive — the net derivation stays as-is (→ 833.34). React must adopt the same.
+**Data implications:** this changes computed tax on existing multi-rate-inclusive
+documents — needs a migration/reporting review, not a silent swap. Single-rate
+inclusive (the common case) is unaffected — all models already agree there.

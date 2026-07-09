@@ -183,6 +183,9 @@ Map<String, Decimal> computeTaxBreakdown(
     final rate1 = _round(item.taxRate1, 3);
     final rate2 = _round(item.taxRate2, 3);
     final rate3 = _round(item.taxRate3, 3);
+    // Σr for this line: the item's own inclusive rates share one divisor
+    // (issue #12072). Zero rates contribute nothing.
+    final itemRateSum = rate1 + rate2 + rate3;
     final lineTotal = getItemTaxable(item, total, input, precision);
     if (rate1 != Decimal.zero) {
       final t = _taxAmount(
@@ -190,6 +193,7 @@ Map<String, Decimal> computeTaxBreakdown(
         rate1,
         input.usesInclusiveTaxes,
         precision,
+        totalRate: itemRateSum,
       );
       map.update(item.taxName1, (v) => v + t, ifAbsent: () => t);
     }
@@ -199,6 +203,7 @@ Map<String, Decimal> computeTaxBreakdown(
         rate2,
         input.usesInclusiveTaxes,
         precision,
+        totalRate: itemRateSum,
       );
       map.update(item.taxName2, (v) => v + t, ifAbsent: () => t);
     }
@@ -208,6 +213,7 @@ Map<String, Decimal> computeTaxBreakdown(
         rate3,
         input.usesInclusiveTaxes,
         precision,
+        totalRate: itemRateSum,
       );
       map.update(item.taxName3, (v) => v + t, ifAbsent: () => t);
     }
@@ -241,12 +247,20 @@ Map<String, Decimal> computeTaxBreakdown(
   // the local total reads too high until a refresh. Line-item tax is NOT
   // name-gated server-side (InvoiceItemSum), so the per-line rates above stay
   // rate-only. (L6)
+  // Σr for invoice-level inclusive tax: only tiers that pass the same
+  // name-length >= 2 gate share the divisor — a tier the server drops must not
+  // inflate the base. Zero rates contribute nothing. (issue #12072)
+  final invoiceRateSum =
+      (input.taxName1.length >= 2 ? input.taxRate1 : Decimal.zero) +
+      (input.taxName2.length >= 2 ? input.taxRate2 : Decimal.zero) +
+      (input.taxName3.length >= 2 ? input.taxRate3 : Decimal.zero);
   if (input.taxRate1 != Decimal.zero && input.taxName1.length >= 2) {
     final t = _taxAmount(
       total,
       input.taxRate1,
       input.usesInclusiveTaxes,
       precision,
+      totalRate: invoiceRateSum,
     );
     map.update(input.taxName1, (v) => v + t, ifAbsent: () => t);
   }
@@ -256,6 +270,7 @@ Map<String, Decimal> computeTaxBreakdown(
       input.taxRate2,
       input.usesInclusiveTaxes,
       precision,
+      totalRate: invoiceRateSum,
     );
     map.update(input.taxName2, (v) => v + t, ifAbsent: () => t);
   }
@@ -265,6 +280,7 @@ Map<String, Decimal> computeTaxBreakdown(
       input.taxRate3,
       input.usesInclusiveTaxes,
       precision,
+      totalRate: invoiceRateSum,
     );
     map.update(input.taxName3, (v) => v + t, ifAbsent: () => t);
   }
@@ -467,13 +483,30 @@ Decimal _taxAmount(
   Decimal amount,
   Decimal rate,
   bool inclusive,
-  int precision,
-) {
+  int precision, {
+  Decimal? totalRate,
+}) {
   if (inclusive) {
-    // `amount - amount / (1 + rate/100)`
-    final divisor = Decimal.one + _div(rate, Decimal.fromInt(100), 10);
-    final taxAmount = amount - _safeDiv(amount, divisor, precision: precision);
-    return _round(taxAmount, precision);
+    // `totalRate` (Σr) is the sum of all inclusive rates sharing this base;
+    // defaults to this tier's own rate for the single-rate case.
+    final sumRate = totalRate ?? rate;
+    // A combined inclusive rate ≤ 0 yields no tax — parity with the backend
+    // `InclusiveTax::backout` `combined_rate <= 0` guard.
+    if (sumRate <= Decimal.zero) return _round(Decimal.zero, precision);
+    if (sumRate == rate) {
+      // Single applicable rate: exact legacy extraction, byte-identical.
+      // `amount - amount / (1 + rate/100)`
+      final divisor = Decimal.one + _div(rate, Decimal.fromInt(100), 10);
+      final taxAmount =
+          amount - _safeDiv(amount, divisor, precision: precision);
+      return _round(taxAmount, precision);
+    }
+    // Two or more inclusive rates (issue #12072): additive shared base — this
+    // tier's share of the shared net `amount/(1 + Σr/100)`, kept at working
+    // scale 10 so the net isn't pre-rounded before the per-rate split.
+    final divisor = Decimal.one + _div(sumRate, Decimal.fromInt(100), 10);
+    final net = _safeDiv(amount, divisor, precision: 10);
+    return _round(_mulRate(net, rate), precision);
   }
   return _round(_mulRate(amount, rate), precision);
 }

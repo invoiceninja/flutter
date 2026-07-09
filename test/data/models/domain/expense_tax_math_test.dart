@@ -84,6 +84,56 @@ void main() {
         Decimal.zero,
       );
     });
+
+    test(
+      'inclusive multi-rate: shares the divisor — 1000 @ 10% with Σr 20 → 83.33',
+      () {
+        expect(
+          expenseTierTaxAmount(
+            amount: _d('1000'),
+            rate: _d('10'),
+            totalRate: _d('20'),
+            usesInclusiveTaxes: true,
+          ),
+          _d('83.33'),
+        );
+      },
+    );
+
+    test('inclusive single-rate guard: Σr == rate is byte-identical', () {
+      // Passing totalRate == rate must take the legacy path (issue #12072).
+      expect(
+        expenseTierTaxAmount(
+          amount: _d('100'),
+          rate: _d('10'),
+          totalRate: _d('10'),
+          usesInclusiveTaxes: true,
+        ),
+        _d('9.09'),
+      );
+    });
+
+    test('inclusive combined rate <= 0 → 0 (parity with backout guard)', () {
+      // Backend InclusiveTax::backout returns 0 when combined_rate <= 0.
+      expect(
+        expenseTierTaxAmount(
+          amount: _d('1000'),
+          rate: _d('10'),
+          totalRate: Decimal.zero,
+          usesInclusiveTaxes: true,
+        ),
+        Decimal.zero,
+      );
+      expect(
+        expenseTierTaxAmount(
+          amount: _d('1000'),
+          rate: _d('10'),
+          totalRate: _d('-5'),
+          usesInclusiveTaxes: true,
+        ),
+        Decimal.zero,
+      );
+    });
   });
 
   group('Expense tax getters (by rate)', () {
@@ -105,6 +155,25 @@ void main() {
       expect(e.taxAmountSum, _d('9.09'));
       expect(e.netAmount, _d('90.91'));
       expect(e.grossAmount, _d('100'));
+    });
+
+    test('inclusive two tiers share the base → net 833.34, 83.33 each', () {
+      // issue #12072: additive shared base, not independent extraction (818.18).
+      // Net = gross − Σtax (matches backend InclusiveTax::backout): the net
+      // absorbs the 1¢ residual so 833.34 + 166.66 = 1000.00 reconciles.
+      final e = _expense(
+        amount: '1000',
+        taxName1: 'A',
+        taxRate1: '10',
+        taxName2: 'B',
+        taxRate2: '10',
+        usesInclusiveTaxes: true,
+      );
+      expect(e.taxAmount1Computed, _d('83.33'));
+      expect(e.taxAmount2Computed, _d('83.33'));
+      expect(e.taxAmountSum, _d('166.66'));
+      expect(e.netAmount, _d('833.34'));
+      expect(e.grossAmount, _d('1000'));
     });
 
     test('multi-tier exclusive sums each tier against the base amount', () {
@@ -137,6 +206,22 @@ void main() {
       expect(e.taxAmount1Computed, _d('7'));
       expect(e.taxAmountSum, _d('7'));
       expect(e.grossAmount, _d('107'));
+    });
+
+    test('inclusive multi-tier by-amount: stored amounts + gross-sum net', () {
+      // By-amount mode has no rate to divide by, so the additive shared-base
+      // fix must NOT touch it — stored amounts and `amount - sum` net stand.
+      final e = _expense(
+        amount: '1000',
+        taxRate1: '0',
+        taxAmount1: '90.91',
+        taxRate2: '0',
+        taxAmount2: '90.91',
+        usesInclusiveTaxes: true,
+        calculateTaxByAmount: true,
+      );
+      expect(e.taxAmountSum, _d('181.82'));
+      expect(e.netAmount, _d('818.18'));
     });
   });
 

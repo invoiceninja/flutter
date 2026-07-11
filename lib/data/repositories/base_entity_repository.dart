@@ -17,6 +17,19 @@ import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/db/dao/sync_state_dao.dart';
 import 'package:admin/data/services/api_exception.dart';
 
+/// Force-refreshes related entities whose server state changed as a *side
+/// effect* of a mutation on a different entity — e.g. adding a payment (or
+/// matching a bank transaction) updates its invoice(s) and client
+/// server-side. Injected into `PaymentRepository` / `BankTransactionRepository`
+/// and wired by DI to `InvoiceRepository.refreshByIds` + `ClientRepository`
+/// so the affected local rows converge without a manual full resync (issue #7).
+typedef RelatedEntitiesRefresher =
+    Future<void> Function(
+      String companyId,
+      Iterable<String> invoiceIds,
+      Iterable<String> clientIds,
+    );
+
 /// Shared outbox + id-remap + cursor mechanics. Concrete repositories
 /// (`ClientRepository`, `ProductRepository`, ...) extend this with their
 /// entity-specific data movement (API → Drift → domain).

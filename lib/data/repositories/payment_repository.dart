@@ -38,6 +38,7 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     super.uuid,
     super.now,
     super.onEnqueued,
+    this.onRelatedEntitiesAffected,
     this.pageSize = 50,
   }) : super(
          entityType: EntityType.payment,
@@ -50,6 +51,13 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
 
   final PaymentsApi api;
   final int pageSize;
+
+  /// Fired after a payment mutation is applied, so the affected invoice(s) and
+  /// client — which the server changed as a side effect (balance / paid_to_date
+  /// / status_id) — are force-refetched into Drift instead of staying stale
+  /// until a manual full resync (issue #7). Wired by DI; null in tests that
+  /// don't exercise the side-effect refresh.
+  final RelatedEntitiesRefresher? onRelatedEntitiesAffected;
 
   @override
   String get entityTypeName => 'payment';
@@ -388,14 +396,18 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     required String companyId,
     required String tempId,
     required PaymentApi serverResponse,
-  }) => applyCreateResponseTemplate(
-    companyId: companyId,
-    tempId: tempId,
-    realId: serverResponse.id,
-    companion: _apiToCompanion(serverResponse, companyId),
-    upsert: db.paymentDao.upsert,
-    deleteById: (id) => db.paymentDao.deleteById(companyId: companyId, id: id),
-  );
+  }) async {
+    await applyCreateResponseTemplate(
+      companyId: companyId,
+      tempId: tempId,
+      realId: serverResponse.id,
+      companion: _apiToCompanion(serverResponse, companyId),
+      upsert: db.paymentDao.upsert,
+      deleteById: (id) =>
+          db.paymentDao.deleteById(companyId: companyId, id: id),
+    );
+    await _refreshRelatedFromResponse(companyId, serverResponse);
+  }
 
   @override
   Future<void> applyUpdateResponse({
@@ -403,6 +415,7 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     required PaymentApi serverResponse,
   }) async {
     await db.paymentDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await _refreshRelatedFromResponse(companyId, serverResponse);
   }
 
   @override
@@ -419,6 +432,64 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
           .toCompanion(true)
           .copyWith(isDeleted: const Value(true), isDirty: const Value(false)),
     );
+    // Deleting/voiding a payment reverses its invoices' balance/status
+    // server-side. No server response here, so source the affected ids from the
+    // soft-deleted row (read above, before the write).
+    await _refreshRelated(
+      companyId,
+      invoiceIds: _invoiceIdsFromStoredPaymentables(existing.paymentables),
+      clientId: existing.clientId,
+    );
+  }
+
+  /// Fire [onRelatedEntitiesAffected] for the invoice(s) + client carried by a
+  /// payment [serverResponse] (`paymentables` are a default include, so create /
+  /// update / apply / refund responses all list them).
+  Future<void> _refreshRelatedFromResponse(
+    String companyId,
+    PaymentApi serverResponse,
+  ) => _refreshRelated(
+    companyId,
+    invoiceIds: (serverResponse.paymentables ?? const [])
+        .map((p) => p.invoiceId)
+        .where((id) => id.isNotEmpty),
+    clientId: serverResponse.clientId,
+  );
+
+  Future<void> _refreshRelated(
+    String companyId, {
+    required Iterable<String> invoiceIds,
+    required String clientId,
+  }) async {
+    final cb = onRelatedEntitiesAffected;
+    if (cb == null) return;
+    final invIds = invoiceIds.toSet();
+    final cliIds = clientId.isEmpty ? const <String>[] : [clientId];
+    if (invIds.isEmpty && cliIds.isEmpty) return;
+    try {
+      await cb(companyId, invIds, cliIds);
+    } catch (e) {
+      _log.warning('onRelatedEntitiesAffected failed: $e');
+    }
+  }
+
+  /// Invoice ids from a payment row's stored `paymentables` JSON column
+  /// (encoded by [_apiToCompanion]); used on delete/void where there is no
+  /// server response to read.
+  Iterable<String> _invoiceIdsFromStoredPaymentables(String? paymentablesJson) {
+    if (paymentablesJson == null || paymentablesJson.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(paymentablesJson);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map((m) => (m['invoice_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
+    } catch (e) {
+      _log.warning('failed to decode stored paymentables: $e');
+      return const [];
+    }
   }
 
   Future<void> applyDocumentDeleted({

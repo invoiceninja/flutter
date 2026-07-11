@@ -26,6 +26,7 @@ class BankTransactionRepository
     super.uuid,
     super.now,
     super.onEnqueued,
+    this.onRelatedEntitiesAffected,
     this.pageSize = 50,
   }) : super(
          entityType: EntityType.transaction,
@@ -34,6 +35,14 @@ class BankTransactionRepository
 
   final BankTransactionsApi api;
   final int pageSize;
+
+  /// Fired after a transaction match/link/convert/unlink is applied, so the
+  /// invoice(s) whose balance/status changed server-side are force-refetched
+  /// into Drift instead of staying stale until a manual full resync (issue #7).
+  /// Bank transactions carry no client id — the DI closure derives the client
+  /// from the refreshed invoices. Wired by DI; null in tests that don't
+  /// exercise the side-effect refresh.
+  final RelatedEntitiesRefresher? onRelatedEntitiesAffected;
 
   @override
   String get entityTypeName => 'bank_transaction';
@@ -342,10 +351,42 @@ class BankTransactionRepository
     required String companyId,
     required BankTransactionApi serverResponse,
   }) async {
+    // Read the pre-update row first, so `unlink` — whose response clears
+    // `invoice_ids` — still refreshes the now-detached invoice.
+    final existing = await db.bankTransactionDao
+        .watchById(companyId: companyId, id: serverResponse.id)
+        .first;
     await db.bankTransactionDao.upsert(
       _apiToCompanion(serverResponse, companyId),
     );
+    await _refreshRelatedInvoices(companyId, {
+      ...BankTransaction.fromApi(serverResponse).linkedInvoiceIds,
+      if (existing != null) ..._splitInvoiceIds(existing.invoiceIds),
+    });
   }
+
+  /// Fire [onRelatedEntitiesAffected] for the invoice(s) touched by a
+  /// match/link/convert/unlink. Bank transactions carry no client id — the DI
+  /// closure derives the client from the refreshed invoices. Runs inside the
+  /// outbox drain, so failures are swallowed (see [onRelatedEntitiesAffected]).
+  Future<void> _refreshRelatedInvoices(
+    String companyId,
+    Iterable<String> invoiceIds,
+  ) async {
+    final cb = onRelatedEntitiesAffected;
+    if (cb == null) return;
+    final invIds = invoiceIds.where((id) => id.isNotEmpty).toSet();
+    if (invIds.isEmpty) return;
+    try {
+      await cb(companyId, invIds, const <String>[]);
+    } catch (e) {
+      _log.warning('onRelatedEntitiesAffected failed: $e');
+    }
+  }
+
+  List<String> _splitInvoiceIds(String csv) => csv.isEmpty
+      ? const <String>[]
+      : csv.split(',').where((e) => e.isNotEmpty).toList(growable: false);
 
   @override
   Future<void> applyDeleteResponse({

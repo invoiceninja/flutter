@@ -124,6 +124,26 @@ class _ClientFixture
   }) => (repo as ClientRepository).delete(companyId: companyId, id: id);
 }
 
+/// Configurable fake for the refreshByIds tests: returns a canned client per
+/// id (or throws) via `get`, and records which ids were fetched.
+class _RefreshClientsApi implements ClientsApi {
+  _RefreshClientsApi({this.responses = const {}, this.errors = const {}});
+  final Map<String, ClientApi> responses;
+  final Map<String, Object> errors;
+  final List<String> fetched = [];
+
+  @override
+  Future<ClientItemApi> get(String id) async {
+    fetched.add(id);
+    final err = errors[id];
+    if (err != null) throw err;
+    return ClientItemApi(data: responses[id]!);
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 void main() {
   runEntityRepositoryContract(_ClientFixture());
 
@@ -1636,6 +1656,56 @@ void main() {
           )
           .first;
       expect(unfiltered, hasLength(2));
+    });
+  });
+
+  group('ClientRepository — refreshByIds (payment/tx side-effect)', () {
+    late AppDatabase db;
+    setUp(() => db = AppDatabase(NativeDatabase.memory()));
+    tearDown(() async => db.close());
+
+    test(
+      'force-refetches an already-cached client and updates the row',
+      () async {
+        final api = _RefreshClientsApi(
+          responses: {
+            'cli1': const ClientApi(
+              id: 'cli1',
+              name: 'New',
+              updatedAt: 1700000100,
+            ),
+          },
+        );
+        final repo = ClientRepository(db: db, api: api);
+        // Seed a clean cached client.
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: const ClientApi(
+            id: 'cli1',
+            name: 'Old',
+            updatedAt: 1700000000,
+          ),
+        );
+
+        await repo.refreshByIds(companyId: 'co', ids: const ['cli1']);
+
+        expect(api.fetched, ['cli1']);
+        final c = await repo.watch(companyId: 'co', id: 'cli1').first;
+        expect(c!.name, 'New');
+      },
+    );
+
+    test('skips tmp_/empty ids and swallows per-id errors', () async {
+      final api = _RefreshClientsApi(errors: {'boom': Exception('network')});
+      final repo = ClientRepository(db: db, api: api);
+
+      await repo.refreshByIds(
+        companyId: 'co',
+        ids: const ['tmp_pending', '', 'boom'],
+      );
+
+      // tmp_/empty are never fetched; the error id is fetched then swallowed.
+      expect(api.fetched, ['boom']);
     });
   });
 }

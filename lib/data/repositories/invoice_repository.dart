@@ -269,6 +269,52 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         ),
       );
 
+  /// Force-refetches [ids] from the server and upserts them into Drift,
+  /// **dirty-preserving** (a concurrently-edited `is_dirty` invoice is left
+  /// untouched). Unlike [ensureLoaded] this does NOT short-circuit on an
+  /// already-cached row — it exists to converge an invoice's
+  /// balance/status/paid_to_date after a *payment* or *bank-transaction*
+  /// mutation changed it server-side (issue #7).
+  ///
+  /// Returns the set of `clientId`s of the invoices actually refreshed, so the
+  /// caller can also refresh those clients' balances (the bank-transaction DTO
+  /// carries no client id, so this is how that path reaches the client).
+  ///
+  /// Callers run this **inside the outbox drain** (a payment's `apply*Response`),
+  /// so every per-id fetch swallows *all* errors: a thrown exception here would
+  /// otherwise be mis-attributed to the already-succeeded payment mutation by
+  /// the drain's typed error handling (a 404 → bogus conflict, 422 → dead, …).
+  /// A missed refresh self-heals on the next full resync.
+  Future<Set<String>> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    final realIds = ids
+        .where((id) => id.isNotEmpty && !id.startsWith('tmp_'))
+        .toSet();
+    if (realIds.isEmpty) return const {};
+    final byId = <String, InvoicesCompanion>{};
+    final clientIds = <String>{};
+    await Future.wait(
+      realIds.map((id) async {
+        try {
+          final invoice = (await api.getWithSchedule(id)).data;
+          byId[invoice.id] = _apiToCompanion(invoice, companyId);
+          if (invoice.clientId.isNotEmpty) clientIds.add(invoice.clientId);
+        } catch (e) {
+          _log.warning('refreshByIds: failed to refetch invoice $id: $e');
+        }
+      }),
+    );
+    if (byId.isNotEmpty) {
+      await db.invoiceDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      );
+    }
+    return clientIds;
+  }
+
   Future<void> refreshAll({
     required String companyId,
     bool full = false,

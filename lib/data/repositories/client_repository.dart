@@ -284,6 +284,41 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
         ),
       );
 
+  /// Force-refetches [ids] from the server and upserts them into Drift,
+  /// **dirty-preserving**. Unlike [ensureLoaded] this does NOT short-circuit on
+  /// an already-cached row — it converges a client's balance/paid_to_date after
+  /// a *payment* (or bank-transaction match) changed it server-side (issue #7).
+  ///
+  /// Runs inside the outbox drain, so each per-id fetch swallows *all* errors:
+  /// a thrown exception would be mis-attributed to the already-succeeded payment
+  /// mutation. A missed refresh self-heals on the next full resync.
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    final realIds = ids
+        .where((id) => id.isNotEmpty && !id.startsWith('tmp_'))
+        .toSet();
+    if (realIds.isEmpty) return;
+    final byId = <String, ClientsCompanion>{};
+    await Future.wait(
+      realIds.map((id) async {
+        try {
+          final client = (await api.get(id)).data;
+          byId[client.id] = _apiToCompanion(client, companyId);
+        } catch (e) {
+          _log.warning('refreshByIds: failed to refetch client $id: $e');
+        }
+      }),
+    );
+    if (byId.isNotEmpty) {
+      await db.clientDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      );
+    }
+  }
+
   /// Pull-to-refresh / foreground-resume entry point. With [full] true, we
   /// ignore the cursor and re-pull page 1 from scratch; otherwise we send
   /// `since=<cursor>` for a delta.

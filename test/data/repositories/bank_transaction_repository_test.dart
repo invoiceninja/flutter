@@ -328,6 +328,86 @@ void main() {
       expect(await idsOf(repo.watchPage(companyId: 'co')), ['a', 'b']);
     });
   });
+
+  group('BankTransactionRepository — onRelatedEntitiesAffected refresh', () {
+    late AppDatabase db;
+    final calls = <({List<String> invoiceIds, List<String> clientIds})>[];
+
+    setUp(() {
+      db = AppDatabase(NativeDatabase.memory());
+      calls.clear();
+    });
+    tearDown(() async => db.close());
+
+    BankTransactionRepository makeRepo() => BankTransactionRepository(
+      db: db,
+      api: _FakeBankTransactionsApi(),
+      onRelatedEntitiesAffected: (companyId, invoiceIds, clientIds) async {
+        calls.add((
+          invoiceIds: invoiceIds.toList()..sort(),
+          clientIds: clientIds.toList(),
+        ));
+      },
+    );
+
+    test(
+      'a matched transaction refreshes its invoices (no client id)',
+      () async {
+        await makeRepo().applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: const BankTransactionApi(
+            id: 'tx1',
+            statusId: kTransactionStatusMatched,
+            baseType: kTransactionTypeCredit,
+            invoiceIds: 'inv_a,inv_b',
+          ),
+        );
+        expect(calls, hasLength(1));
+        expect(calls.single.invoiceIds, ['inv_a', 'inv_b']);
+        expect(calls.single.clientIds, isEmpty);
+      },
+    );
+
+    test('an expense match (no invoice_ids) fires nothing', () async {
+      await makeRepo().applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: const BankTransactionApi(
+          id: 'tx1',
+          statusId: kTransactionStatusConverted,
+          baseType: kTransactionTypeDebit,
+          invoiceIds: '',
+        ),
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('unlink sources invoice ids from the existing row', () async {
+      // Seed a matched tx (no-callback repo) so the seed doesn't record.
+      await BankTransactionRepository(
+        db: db,
+        api: _FakeBankTransactionsApi(),
+      ).applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: const BankTransactionApi(
+          id: 'tx1',
+          statusId: kTransactionStatusMatched,
+          baseType: kTransactionTypeCredit,
+          invoiceIds: 'inv_z',
+        ),
+      );
+      // The unlink response clears invoice_ids; the ids come from the old row.
+      await makeRepo().applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: const BankTransactionApi(
+          id: 'tx1',
+          statusId: kTransactionStatusUnmatched,
+          baseType: kTransactionTypeCredit,
+          invoiceIds: '',
+        ),
+      );
+      expect(calls.single.invoiceIds, ['inv_z']);
+    });
+  });
 }
 
 class _FakeBankTransactionsApi implements BankTransactionsApi {

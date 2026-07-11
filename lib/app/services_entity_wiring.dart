@@ -1202,6 +1202,27 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
+  // Shared side-effect refresh (issue #7): after a payment / bank-transaction
+  // mutation applies, force-refetch the affected invoice(s) — and their client
+  // (the payment's own client ∪ the refreshed invoices' clients) — so the local
+  // rows converge without a manual full resync. Runs inside the outbox drain;
+  // `refreshByIds` swallows per-id errors, so this never fails the mutation.
+  // `invoiceRepo` / `clientRepo` are already constructed above.
+  Future<void> refreshRelatedEntities(
+    String companyId,
+    Iterable<String> invoiceIds,
+    Iterable<String> clientIds,
+  ) async {
+    final invoiceClients = await invoiceRepo.refreshByIds(
+      companyId: companyId,
+      ids: invoiceIds,
+    );
+    final allClients = <String>{...clientIds, ...invoiceClients};
+    if (allClients.isNotEmpty) {
+      await clientRepo.refreshByIds(companyId: companyId, ids: allClients);
+    }
+  }
+
   // ---- BankTransaction -----------------------------------------------------
   // Top-level workspace entity at `/transactions`. Four `match` variants +
   // two bulk actions (`convert_matched`, `unlink`) all route through this
@@ -1211,6 +1232,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     db: ctx.db,
     api: bankTransactionsApi,
     onEnqueued: ctx.kickDrain,
+    onRelatedEntitiesAffected: refreshRelatedEntities,
   );
   wire<BankTransactionItemApi, BankTransactionApi>(
     type: EntityType.transaction,
@@ -1699,6 +1721,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     db: ctx.db,
     api: paymentsApi,
     onEnqueued: ctx.kickDrain,
+    onRelatedEntitiesAffected: refreshRelatedEntities,
   );
   wire<PaymentItemApi, PaymentApi>(
     type: EntityType.payment,

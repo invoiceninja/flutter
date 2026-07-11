@@ -329,6 +329,123 @@ void main() {
       expect(repo.requiresPasswordFor(MutationKind.refundPayment), false);
     });
   });
+
+  group(
+    'PaymentRepository — onRelatedEntitiesAffected side-effect refresh',
+    () {
+      late AppDatabase db;
+      final calls =
+          <
+            ({
+              String companyId,
+              List<String> invoiceIds,
+              List<String> clientIds,
+            })
+          >[];
+
+      setUp(() {
+        db = AppDatabase(NativeDatabase.memory());
+        calls.clear();
+      });
+      tearDown(() async => db.close());
+
+      PaymentRepository makeRepo({bool throwing = false}) => PaymentRepository(
+        db: db,
+        api: _FakePaymentsApi(),
+        onRelatedEntitiesAffected: (companyId, invoiceIds, clientIds) async {
+          calls.add((
+            companyId: companyId,
+            invoiceIds: invoiceIds.toList()..sort(),
+            clientIds: clientIds.toList()..sort(),
+          ));
+          if (throwing) throw StateError('boom');
+        },
+      );
+
+      test('applyUpdateResponse fires with invoice ids + client id', () async {
+        await makeRepo().applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: const PaymentApi(
+            id: 'pay1',
+            clientId: 'cli_1',
+            paymentables: [
+              PaymentableApi(id: 'pt1', invoiceId: 'inv_a'),
+              PaymentableApi(id: 'pt2', invoiceId: 'inv_b'),
+              PaymentableApi(
+                id: 'pt3',
+                creditId: 'cr_1',
+              ), // credit-only → skipped
+            ],
+          ),
+        );
+        expect(calls, hasLength(1));
+        expect(calls.single.companyId, 'co');
+        expect(calls.single.invoiceIds, ['inv_a', 'inv_b']);
+        expect(calls.single.clientIds, ['cli_1']);
+      });
+
+      test('applyCreateResponse fires with invoice ids + client id', () async {
+        await makeRepo().applyCreateResponse(
+          companyId: 'co',
+          tempId: 'tmp_pay',
+          serverResponse: const PaymentApi(
+            id: 'pay1',
+            clientId: 'cli_1',
+            paymentables: [PaymentableApi(id: 'pt1', invoiceId: 'inv_a')],
+          ),
+        );
+        expect(calls.single.invoiceIds, ['inv_a']);
+        expect(calls.single.clientIds, ['cli_1']);
+      });
+
+      test(
+        'on-account payment (no paymentables) still refreshes the client',
+        () async {
+          await makeRepo().applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: const PaymentApi(id: 'pay1', clientId: 'cli_1'),
+          );
+          expect(calls.single.invoiceIds, isEmpty);
+          expect(calls.single.clientIds, ['cli_1']);
+        },
+      );
+
+      test(
+        'applyDeleteResponse sources ids from the soft-deleted payment row',
+        () async {
+          // Seed with a no-callback repo so the seed itself doesn't record.
+          await PaymentRepository(
+            db: db,
+            api: _FakePaymentsApi(),
+          ).applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: const PaymentApi(
+              id: 'pay1',
+              clientId: 'cli_9',
+              paymentables: [PaymentableApi(id: 'pt1', invoiceId: 'inv_z')],
+            ),
+          );
+          await makeRepo().applyDeleteResponse(companyId: 'co', id: 'pay1');
+          expect(calls.single.invoiceIds, ['inv_z']);
+          expect(calls.single.clientIds, ['cli_9']);
+        },
+      );
+
+      test('a throwing callback does not propagate out of apply*', () async {
+        await expectLater(
+          makeRepo(throwing: true).applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: const PaymentApi(
+              id: 'pay1',
+              clientId: 'cli_1',
+              paymentables: [PaymentableApi(id: 'pt1', invoiceId: 'inv_a')],
+            ),
+          ),
+          completes,
+        );
+      });
+    },
+  );
 }
 
 class _FakePaymentsApi implements PaymentsApi {

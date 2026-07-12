@@ -65,6 +65,12 @@ class LoginViewModel extends ChangeNotifier {
   String password = '';
   String oneTimePassword = '';
 
+  /// Optional `X-API-SECRET` for self-hosted servers that set `API_SECRET`.
+  /// Sent only on the self-hosted login / recover requests; never persisted
+  /// (the server enforces it only on the pre-auth routes). Ignored when hosted
+  /// — the field is hidden and the service falls back to `Env.hostedApiSecret`.
+  String secret = '';
+
   bool _busy = false;
   bool get busy => _busy;
 
@@ -126,6 +132,10 @@ class LoginViewModel extends ChangeNotifier {
     oneTimePassword = value.trim();
   }
 
+  void setSecret(String value) {
+    secret = value.trim();
+  }
+
   /// Validate the self-hosted URL before we POST credentials to it.
   /// Returns the resolved base URL on success, or sets an inline error and
   /// returns null. Hosted builds skip the check (URL is a compile-time const).
@@ -166,6 +176,7 @@ class LoginViewModel extends ChangeNotifier {
         email: email,
         password: password,
         oneTimePassword: oneTimePassword.isEmpty ? null : oneTimePassword,
+        secret: secret.isEmpty ? null : secret,
       );
       return true;
     } on ValidationException catch (e) {
@@ -333,6 +344,7 @@ class LoginViewModel extends ChangeNotifier {
         baseUrl: baseUrl,
         isHosted: isHosted,
         email: email,
+        secret: secret.isEmpty ? null : secret,
       );
       return true;
     } on ApiException catch (e) {

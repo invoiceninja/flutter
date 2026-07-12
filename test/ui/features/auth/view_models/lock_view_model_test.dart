@@ -21,6 +21,7 @@ class _UnusedAuthService implements AuthService {
     required String email,
     required String password,
     String? oneTimePassword,
+    String? secret,
   }) async => throw UnimplementedError();
 
   @override
@@ -28,6 +29,7 @@ class _UnusedAuthService implements AuthService {
     required String baseUrl,
     required bool isHosted,
     required String email,
+    String? secret,
   }) async => throw UnimplementedError();
 
   @override

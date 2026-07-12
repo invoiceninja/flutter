@@ -23,6 +23,7 @@ class _FakeAuthService implements AuthService {
     required String email,
     required String password,
     String? oneTimePassword,
+    String? secret,
   }) async {
     // If this is ever hit, the URL validation let something through that
     // shouldn't have made it to the network layer.
@@ -34,6 +35,7 @@ class _FakeAuthService implements AuthService {
     required String baseUrl,
     required bool isHosted,
     required String email,
+    String? secret,
   }) async {
     fail('recover should not be called when URL validation rejects');
   }
@@ -47,6 +49,7 @@ class _FakeAuthService implements AuthService {
 /// DB writes). Used to assert scheme normalization at the service boundary.
 class _CapturingAuthService implements AuthService {
   String? capturedBaseUrl;
+  String? capturedSecret;
 
   @override
   Future<LoginResponseApi> login({
@@ -55,8 +58,10 @@ class _CapturingAuthService implements AuthService {
     required String email,
     required String password,
     String? oneTimePassword,
+    String? secret,
   }) async {
     capturedBaseUrl = baseUrl;
+    capturedSecret = secret;
     throw const NetworkException('captured');
   }
 
@@ -164,6 +169,22 @@ void main() {
         expect(svc.capturedBaseUrl, 'http://localhost:8000');
       },
     );
+
+    test('forwards a typed API secret to the service', () async {
+      final svc = _CapturingAuthService();
+      final vm = vmWith(svc)
+        ..setUrlOverride('https://self.hosted.test')
+        ..setSecret('sek-123');
+      await vm.submit();
+      expect(svc.capturedSecret, 'sek-123');
+    });
+
+    test('sends no secret when the field is left blank', () async {
+      final svc = _CapturingAuthService();
+      final vm = vmWith(svc)..setUrlOverride('https://self.hosted.test');
+      await vm.submit();
+      expect(svc.capturedSecret, isNull);
+    });
   });
 
   // kDebugMode is always true under `flutter test`, so the live VM can only

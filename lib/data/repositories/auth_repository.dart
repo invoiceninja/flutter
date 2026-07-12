@@ -181,6 +181,7 @@ class AuthRepository {
     required String email,
     required String password,
     String? oneTimePassword,
+    String? secret,
   }) async {
     final response = await _auth.login(
       baseUrl: baseUrl,
@@ -188,6 +189,7 @@ class AuthRepository {
       email: email,
       password: password,
       oneTimePassword: oneTimePassword,
+      secret: secret,
     );
     await _persistAndActivate(
       response: response,
@@ -322,8 +324,13 @@ class AuthRepository {
     required String baseUrl,
     required bool isHosted,
     required String email,
-  }) =>
-      _auth.recoverPassword(baseUrl: baseUrl, isHosted: isHosted, email: email);
+    String? secret,
+  }) => _auth.recoverPassword(
+    baseUrl: baseUrl,
+    isHosted: isHosted,
+    email: email,
+    secret: secret,
+  );
 
   /// Switch the active company. Updates [credentials] so the next API call
   /// uses that company's token. Caller is responsible for any pending-outbox

@@ -41,6 +41,7 @@ class _FakeAuthService implements AuthService {
     required String email,
     required String password,
     String? oneTimePassword,
+    String? secret,
   }) async {
     if (_outcomes.isEmpty) {
       throw StateError('no login outcome queued');
@@ -55,6 +56,7 @@ class _FakeAuthService implements AuthService {
     required String baseUrl,
     required bool isHosted,
     required String email,
+    String? secret,
   }) async {}
 
   @override

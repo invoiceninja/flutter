@@ -235,6 +235,17 @@ class _LoginForm extends StatelessWidget {
               onChanged: vm.setUrlOverride,
             ),
             SizedBox(height: InSpacing.md(context)),
+            // Optional X-API-SECRET for self-hosted servers that set API_SECRET.
+            // Obscured + reveal (config secrets are usually pasted). autofillHints
+            // null excludes it from the login AutofillGroup so iOS/macOS won't
+            // offer the saved account password here. No Enter submit — the
+            // password field below stays the submit trigger.
+            AuthPasswordField(
+              label: '${context.tr('api_secret')} (${context.tr('optional')})',
+              autofillHints: null,
+              onChanged: vm.setSecret,
+            ),
+            SizedBox(height: InSpacing.md(context)),
           ],
           if (isEmail) ...[
             AuthField(

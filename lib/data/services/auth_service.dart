@@ -51,10 +51,15 @@ class AuthService {
     required String email,
     required String password,
     String? oneTimePassword,
+    String? secret,
   }) async {
     final response = await _post(
       Uri.parse(baseUrl).resolve('/api/v1/login'),
-      headers: _headers(isHosted: isHosted, contentTypeJson: true),
+      headers: _headers(
+        isHosted: isHosted,
+        contentTypeJson: true,
+        secret: secret,
+      ),
       body: jsonEncode({
         'email': email,
         'password': password,
@@ -164,10 +169,15 @@ class AuthService {
     required String baseUrl,
     required bool isHosted,
     required String email,
+    String? secret,
   }) async {
     final response = await _post(
       Uri.parse(baseUrl).resolve('/api/v1/reset_password'),
-      headers: _headers(isHosted: isHosted, contentTypeJson: true),
+      headers: _headers(
+        isHosted: isHosted,
+        contentTypeJson: true,
+        secret: secret,
+      ),
       body: jsonEncode({'email': email}),
     );
     _raiseIfError(response);
@@ -176,15 +186,23 @@ class AuthService {
   Map<String, String> _headers({
     required bool isHosted,
     bool contentTypeJson = false,
+    String? secret,
   }) {
+    // Hosted builds carry the build-time constant; self-hosted carries the
+    // user-entered secret from the login form ([secret], empty unless the
+    // server has API_SECRET set). The server's `api_secret_check` middleware
+    // enforces X-API-SECRET only on the pre-auth routes (/login, /oauth_login,
+    // /signup, /reset_password) and only for self-hosted servers with
+    // API_SECRET configured — post-login calls authenticate by token instead,
+    // so the secret is never persisted.
+    final effectiveSecret = isHosted ? Env.hostedApiSecret : (secret ?? '');
     return {
       'Accept': 'application/json',
       if (contentTypeJson) 'Content-Type': 'application/json; charset=UTF-8',
       'X-CLIENT-PLATFORM': Env.clientPlatform,
       'X-CLIENT-VERSION': AppVersion.kClientVersion,
       'X-Requested-With': 'com.invoiceninja.admin',
-      if (isHosted && Env.hostedApiSecret.isNotEmpty)
-        'X-API-SECRET': Env.hostedApiSecret,
+      if (effectiveSecret.isNotEmpty) 'X-API-SECRET': effectiveSecret,
     };
   }
 

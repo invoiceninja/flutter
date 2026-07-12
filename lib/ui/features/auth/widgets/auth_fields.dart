@@ -153,6 +153,7 @@ class AuthPasswordField extends StatefulWidget {
     this.errorText,
     this.onChanged,
     this.onSubmitted,
+    this.autofillHints = const [AutofillHints.password],
   });
 
   final String label;
@@ -160,6 +161,15 @@ class AuthPasswordField extends StatefulWidget {
   final String? errorText;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+
+  /// Autofill hints for the obscured field. Defaults to the account-password
+  /// hint (the common case). Pass `null` for an obscured field that isn't the
+  /// account password (e.g. a config secret) so it's excluded from the
+  /// surrounding `AutofillGroup` and the OS password manager won't offer the
+  /// saved login password there. (An empty list would NOT disable autofill —
+  /// Flutter gates on null vs non-null, so a non-null empty list is still an
+  /// enabled autofill participant, identical to the framework default.)
+  final Iterable<String>? autofillHints;
 
   @override
   State<AuthPasswordField> createState() => _AuthPasswordFieldState();
@@ -175,7 +185,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       initialValue: widget.initialValue,
       errorText: widget.errorText,
       obscureText: _obscured,
-      autofillHints: const [AutofillHints.password],
+      autofillHints: widget.autofillHints,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       suffix: IconButton(

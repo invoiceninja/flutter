@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
+import 'package:drift/drift.dart'
+    show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
@@ -284,39 +285,70 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
         ),
       );
 
-  /// Force-refetches [ids] from the server and upserts them into Drift,
-  /// **dirty-preserving**. Unlike [ensureLoaded] this does NOT short-circuit on
-  /// an already-cached row — it converges a client's balance/paid_to_date after
-  /// a *payment* (or bank-transaction match) changed it server-side (issue #7).
-  ///
-  /// Runs inside the outbox drain, so each per-id fetch swallows *all* errors:
-  /// a thrown exception would be mis-attributed to the already-succeeded payment
-  /// mutation. A missed refresh self-heals on the next full resync.
+  /// Force-refetches [ids] dirty-preserving (the non-cache-gated sibling of
+  /// [ensureLoaded]) to converge a client's balance/paid_to_date after a mutation
+  /// on another entity (payment, invoice, merge, …) changed it server-side.
+  /// See [refreshByIdsTemplate] for the load-bearing per-id error swallow.
+  @override
   Future<void> refreshByIds({
     required String companyId,
     required Iterable<String> ids,
   }) async {
-    final realIds = ids
-        .where((id) => id.isNotEmpty && !id.startsWith('tmp_'))
-        .toSet();
-    if (realIds.isEmpty) return;
-    final byId = <String, ClientsCompanion>{};
-    await Future.wait(
-      realIds.map((id) async {
-        try {
-          final client = (await api.get(id)).data;
-          byId[client.id] = _apiToCompanion(client, companyId);
-        } catch (e) {
-          _log.warning('refreshByIds: failed to refetch client $id: $e');
-        }
-      }),
-    );
-    if (byId.isNotEmpty) {
-      await db.clientDao.upsertAllPreservingDirty(
+    await refreshByIdsTemplate<ClientApi, ClientsCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.clientDao.upsertAllPreservingDirty(
         companyId: companyId,
         byId: byId,
-      );
+      ),
+    );
+  }
+
+  /// After a client **merge**, the absorbed client's children were reassigned to
+  /// the survivor server-side, but locally they still carry the old client_id in
+  /// their `payload` JSON (a column-only rewrite wouldn't fix the domain, which
+  /// reads client_id from the payload). Return their local ids grouped by type
+  /// so the merge handler can force-refetch them — the refetch lands the new
+  /// client_id. Read off the dedicated `client_id` COLUMN, still the old id here.
+  Future<Map<EntityType, Set<String>>> childIdsForClient({
+    required String companyId,
+    required String clientId,
+  }) async {
+    final tables = <EntityType, TableInfo<Table, dynamic>>{
+      EntityType.invoice: db.invoices,
+      EntityType.quote: db.quotes,
+      EntityType.credit: db.credits,
+      EntityType.payment: db.payments,
+      EntityType.expense: db.expenses,
+      EntityType.task: db.tasks,
+      EntityType.project: db.projects,
+      EntityType.recurringInvoice: db.recurringInvoices,
+      EntityType.recurringExpense: db.recurringExpenses,
+    };
+    final result = <EntityType, Set<String>>{};
+    for (final entry in tables.entries) {
+      final table = entry.value;
+      final rows = await db
+          .customSelect(
+            'SELECT id FROM ${table.actualTableName} '
+            'WHERE company_id = ?1 AND client_id = ?2',
+            variables: [
+              Variable<String>(companyId),
+              Variable<String>(clientId),
+            ],
+            readsFrom: {table},
+          )
+          .get();
+      final ids = rows
+          .map((r) => r.read<String>('id'))
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      if (ids.isNotEmpty) result[entry.key] = ids;
     }
+    return result;
   }
 
   /// Pull-to-refresh / foreground-resume entry point. With [full] true, we

@@ -28,10 +28,17 @@ class PurchaseOrderRepository
     super.uuid,
     super.now,
     super.onEnqueued,
+    this.onRelatedEntitiesAffected,
     this.pageSize = 50,
   }) : super(entityType: EntityType.purchaseOrder);
 
   final PurchaseOrdersApi api;
+
+  /// Fired after a purchase-order mutation applies. When the PO was **converted
+  /// to an expense**, the server created a new expense (and set the PO's
+  /// `expense_id`); force-refetch that expense so it appears locally (issue #7
+  /// sweep, Tier 2). Wired by DI; null in tests that don't exercise it.
+  final RelatedEntitiesRefresher? onRelatedEntitiesAffected;
   final int pageSize;
 
   @override
@@ -482,6 +489,47 @@ class PurchaseOrderRepository
   }) async {
     await db.purchaseOrderDao.upsert(
       _apiToCompanion(serverResponse, companyId),
+    );
+    await _refreshConvertedExpense(companyId, serverResponse);
+  }
+
+  /// When a PO was converted to an expense, its `expense_id` is set — force-refetch
+  /// that new expense so it appears locally. A PO without an expense link is a
+  /// no-op. Runs inside the drain; errors swallowed.
+  Future<void> _refreshConvertedExpense(
+    String companyId,
+    PurchaseOrderApi serverResponse,
+  ) async {
+    final cb = onRelatedEntitiesAffected;
+    if (cb == null) return;
+    final expenseId = serverResponse.expenseId;
+    if (expenseId.isEmpty) return;
+    try {
+      await cb(companyId, {
+        EntityType.expense: {expenseId},
+      });
+    } catch (e) {
+      _log.warning('purchase-order convert refresh failed: $e');
+    }
+  }
+
+  /// Force-refetch purchase orders by id (e.g. as a `cloneToPurchaseOrder`
+  /// target). See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<PurchaseOrderApi, PurchaseOrdersCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.purchaseOrderDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
     );
   }
 

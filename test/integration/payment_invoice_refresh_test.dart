@@ -112,12 +112,15 @@ void main() {
     final paymentRepo = PaymentRepository(
       db: db,
       api: _FakePaymentsApi(paymentResponse),
-      onRelatedEntitiesAffected: (companyId, invoiceIds, clientIds) async {
+      onRelatedEntitiesAffected: (companyId, byType) async {
         final invoiceClients = await invoiceRepo.refreshByIds(
           companyId: companyId,
-          ids: invoiceIds,
+          ids: byType[EntityType.invoice] ?? const {},
         );
-        final allClients = <String>{...clientIds, ...invoiceClients};
+        final allClients = <String>{
+          ...?byType[EntityType.client],
+          ...invoiceClients,
+        };
         if (allClients.isNotEmpty) {
           await clientRepo.refreshByIds(companyId: companyId, ids: allClients);
         }

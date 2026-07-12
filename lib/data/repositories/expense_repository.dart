@@ -377,6 +377,26 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     await db.expenseDao.upsert(_apiToCompanion(serverResponse, companyId));
   }
 
+  /// Force-refetch expenses by id (e.g. after an invoice billed/un-billed them,
+  /// or a PO/bank-transaction created one). See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<ExpenseApi, ExpensesCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.expenseDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   @override
   Future<void> applyDeleteResponse({
     required String companyId,

@@ -533,6 +533,26 @@ class RecurringInvoiceRepository
     );
   }
 
+  /// Force-refetch recurring invoices by id (e.g. as a `cloneToRecurring`
+  /// target). See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<RecurringInvoiceApi, RecurringInvoicesCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.recurringInvoiceDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   @override
   Future<void> applyDeleteResponse({
     required String companyId,

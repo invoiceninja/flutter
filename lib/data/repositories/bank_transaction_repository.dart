@@ -359,32 +359,48 @@ class BankTransactionRepository
     await db.bankTransactionDao.upsert(
       _apiToCompanion(serverResponse, companyId),
     );
-    await _refreshRelatedInvoices(companyId, {
-      ...BankTransaction.fromApi(serverResponse).linkedInvoiceIds,
-      if (existing != null) ..._splitInvoiceIds(existing.invoiceIds),
+    final domain = BankTransaction.fromApi(serverResponse);
+    // Union the response with the pre-update row so a reversal (`unlink`, whose
+    // response clears the ids) still refreshes the now-detached invoice/expense.
+    await _refreshRelated(companyId, {
+      EntityType.invoice: {
+        ...domain.linkedInvoiceIds,
+        if (existing != null) ..._splitCsv(existing.invoiceIds),
+      },
+      EntityType.expense: {
+        ...domain.linkedExpenseIds,
+        if (existing != null) ..._splitCsv(existing.expenseId),
+      },
+      if (serverResponse.paymentId.isNotEmpty)
+        EntityType.payment: {serverResponse.paymentId},
     });
   }
 
-  /// Fire [onRelatedEntitiesAffected] for the invoice(s) touched by a
-  /// match/link/convert/unlink. Bank transactions carry no client id — the DI
-  /// closure derives the client from the refreshed invoices. Runs inside the
-  /// outbox drain, so failures are swallowed (see [onRelatedEntitiesAffected]).
-  Future<void> _refreshRelatedInvoices(
+  /// Fire [onRelatedEntitiesAffected] for the entities a match/link/convert/unlink
+  /// touched — invoice(s) (CREDIT side), expense(s) (DEBIT side), and the
+  /// created/linked payment. Bank transactions carry no client id — the DI closure
+  /// derives the client from the refreshed invoices. Runs inside the outbox drain,
+  /// so failures are swallowed (see [onRelatedEntitiesAffected]).
+  Future<void> _refreshRelated(
     String companyId,
-    Iterable<String> invoiceIds,
+    Map<EntityType, Set<String>> byType,
   ) async {
     final cb = onRelatedEntitiesAffected;
     if (cb == null) return;
-    final invIds = invoiceIds.where((id) => id.isNotEmpty).toSet();
-    if (invIds.isEmpty) return;
+    final cleaned = <EntityType, Set<String>>{};
+    for (final entry in byType.entries) {
+      final ids = entry.value.where((id) => id.isNotEmpty).toSet();
+      if (ids.isNotEmpty) cleaned[entry.key] = ids;
+    }
+    if (cleaned.isEmpty) return;
     try {
-      await cb(companyId, invIds, const <String>[]);
+      await cb(companyId, cleaned);
     } catch (e) {
       _log.warning('onRelatedEntitiesAffected failed: $e');
     }
   }
 
-  List<String> _splitInvoiceIds(String csv) => csv.isEmpty
+  List<String> _splitCsv(String csv) => csv.isEmpty
       ? const <String>[]
       : csv.split(',').where((e) => e.isNotEmpty).toList(growable: false);
 

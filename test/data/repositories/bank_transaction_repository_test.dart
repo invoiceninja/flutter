@@ -6,6 +6,7 @@ import 'package:admin/data/models/api/bank_transaction_api_model.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/repositories/bank_transaction_repository.dart';
 import 'package:admin/data/services/bank_transactions_api.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
 import '_base_entity_repository_contract.dart';
@@ -342,10 +343,10 @@ void main() {
     BankTransactionRepository makeRepo() => BankTransactionRepository(
       db: db,
       api: _FakeBankTransactionsApi(),
-      onRelatedEntitiesAffected: (companyId, invoiceIds, clientIds) async {
+      onRelatedEntitiesAffected: (companyId, byType) async {
         calls.add((
-          invoiceIds: invoiceIds.toList()..sort(),
-          clientIds: clientIds.toList(),
+          invoiceIds: (byType[EntityType.invoice] ?? const {}).toList()..sort(),
+          clientIds: (byType[EntityType.client] ?? const {}).toList(),
         ));
       },
     );
@@ -407,6 +408,56 @@ void main() {
       );
       expect(calls.single.invoiceIds, ['inv_z']);
     });
+  });
+
+  group('BankTransactionRepository — refreshes payment + expense too', () {
+    late AppDatabase db;
+    final byType = <Map<EntityType, Set<String>>>[];
+    setUp(() {
+      db = AppDatabase(NativeDatabase.memory());
+      byType.clear();
+    });
+    tearDown(() async => db.close());
+
+    BankTransactionRepository makeRepo() => BankTransactionRepository(
+      db: db,
+      api: _FakeBankTransactionsApi(),
+      onRelatedEntitiesAffected: (companyId, m) async {
+        byType.add({for (final e in m.entries) e.key: e.value});
+      },
+    );
+
+    test('a matched deposit with payment_id refreshes the payment', () async {
+      await makeRepo().applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: const BankTransactionApi(
+          id: 'tx1',
+          statusId: kTransactionStatusMatched,
+          baseType: kTransactionTypeCredit,
+          invoiceIds: 'inv_a',
+          paymentId: 'pay_new',
+        ),
+      );
+      expect(byType.single[EntityType.invoice], {'inv_a'});
+      expect(byType.single[EntityType.payment], {'pay_new'});
+    });
+
+    test(
+      'a converted withdrawal with expense_id refreshes the expense',
+      () async {
+        await makeRepo().applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: const BankTransactionApi(
+            id: 'tx2',
+            statusId: kTransactionStatusConverted,
+            baseType: kTransactionTypeDebit,
+            expenseId: 'exp_new',
+          ),
+        );
+        expect(byType.single[EntityType.expense], {'exp_new'});
+        expect(byType.single.containsKey(EntityType.invoice), isFalse);
+      },
+    );
   });
 }
 

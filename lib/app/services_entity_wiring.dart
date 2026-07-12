@@ -285,6 +285,10 @@ class WiredEntities {
 /// `customActions` factories live next to each entity below; sharable trios
 /// (documents) flow through [documentMutationHandlers].
 WiredEntities wireEntities(EntityWiringContext ctx) {
+  // Registry of every wired repo by type, so the cross-entity refresher
+  // (`refreshRelatedEntities`) can reach any sibling repo generically via
+  // `repos[type]?.refreshByIds(...)`.
+  final repos = <EntityType, BaseEntityRepository<dynamic, dynamic>>{};
   // Local closure that mirrors the original `wireEntity<TItem, TInner>(...)`
   // in services.dart — generic functions can't be passed as values, so we
   // re-declare the helper here with access to `ctx.dispatchers`.
@@ -300,6 +304,86 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
       dataOf: (i) => (i as dynamic).data as TInner,
       customActions: customActions,
     );
+    repos[type] = repo;
+  }
+
+  // Shared cross-entity side-effect refresh (issue #7 + the stale-sibling sweep):
+  // after a mutation whose server side-effects touch OTHER entities, force-refetch
+  // them by type so the local rows converge without a manual full resync. Injected
+  // as `onRelatedEntitiesAffected` into every culprit repo. Runs inside the outbox
+  // drain; `refreshByIds` swallows per-id errors, so this never fails the mutation.
+  // Invoices cascade to their clients (a bank-transaction match knows the invoice,
+  // not the client); all other types dispatch through `repos`. Defined here (before
+  // the repos it reaches) closing over the `repos` map, which is fully populated by
+  // the time any mutation fires.
+  Future<void> refreshRelatedEntities(
+    String companyId,
+    Map<EntityType, Set<String>> byType,
+  ) async {
+    final clientIds = <String>{...?byType[EntityType.client]};
+    final invoiceIds = byType[EntityType.invoice];
+    if (invoiceIds != null && invoiceIds.isNotEmpty) {
+      // Cast to reach the Set-returning override (base `refreshByIds` is void).
+      final invoiceRepo = repos[EntityType.invoice] as InvoiceRepository?;
+      if (invoiceRepo != null) {
+        clientIds.addAll(
+          await invoiceRepo.refreshByIds(companyId: companyId, ids: invoiceIds),
+        );
+      }
+    }
+    for (final entry in byType.entries) {
+      if (entry.key == EntityType.invoice || entry.key == EntityType.client) {
+        continue; // invoice handled above; client handled below (cascade).
+      }
+      if (entry.value.isEmpty) continue;
+      await repos[entry.key]?.refreshByIds(
+        companyId: companyId,
+        ids: entry.value,
+      );
+    }
+    if (clientIds.isNotEmpty) {
+      await repos[EntityType.client]?.refreshByIds(
+        companyId: companyId,
+        ids: clientIds,
+      );
+    }
+  }
+
+  // markPaid / autoBill (invoice + credit) record a synthetic Payment the
+  // invoice/credit response doesn't carry (unknown id). Force-refetch the newest
+  // payments page (the new row is today-dated → on page 1) so it lands locally
+  // without a manual resync. `ignoreCursor` bypasses the page-1 short-circuit.
+  // Runs inside the drain; errors swallowed.
+  Future<void> refreshRecentPayments(String companyId) async {
+    try {
+      await (repos[EntityType.payment] as PaymentRepository?)?.ensurePageLoaded(
+        companyId: companyId,
+        page: 1,
+        ignoreCursor: true,
+      );
+    } catch (_) {
+      // Self-heals on the next resync; never fail the mutation.
+    }
+  }
+
+  // cloneTo* creates a NEW entity of the target type (cross-type: cloning an
+  // invoice→quote yields a Quote). The handlers return null (the clone isn't
+  // applied to the source row), so force-refetch the new entity by id — the
+  // clone endpoint returns its envelope, so `.data.id` is the new id. Errors
+  // swallowed; the clone's detail also self-heals via the edit-screen fetch.
+  Future<void> refreshCloneTarget(
+    String companyId,
+    String? newId,
+    EntityType targetType,
+  ) async {
+    if (newId == null || newId.isEmpty) return;
+    try {
+      await refreshRelatedEntities(companyId, {
+        targetType: {newId},
+      });
+    } catch (_) {
+      // Self-heals on the next resync; never fail the mutation.
+    }
   }
 
   // ---- Client --------------------------------------------------------------
@@ -355,6 +439,17 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           companyId: row.companyId,
           id: payload['merge_from_id'] as String,
         );
+        // The absorbed client's children (invoices/quotes/credits/payments/
+        // expenses/tasks/projects/recurring) were reassigned to the survivor
+        // server-side. Force-refetch them so their local client_id converges
+        // instead of pointing at the now-deleted client (issue #7 sweep).
+        final movedChildren = await clientRepo.childIdsForClient(
+          companyId: row.companyId,
+          clientId: payload['merge_from_id'] as String,
+        );
+        if (movedChildren.isNotEmpty) {
+          await refreshRelatedEntities(row.companyId, movedChildren);
+        }
         return survivor;
       },
       // POST /clients/bulk action:bulk_update — mass-update one whitelisted
@@ -536,6 +631,16 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           companyId: row.companyId,
           id: payload['merge_from_id'] as String,
         );
+        // The absorbed vendor's children (expenses/purchase orders/recurring
+        // expenses) were reassigned to the survivor server-side. Force-refetch
+        // them so their local vendor_id converges (issue #7 sweep).
+        final movedChildren = await vendorRepo.childIdsForVendor(
+          companyId: row.companyId,
+          vendorId: payload['merge_from_id'] as String,
+        );
+        if (movedChildren.isNotEmpty) {
+          await refreshRelatedEntities(row.companyId, movedChildren);
+        }
         return survivor;
       },
       ...documentMutationHandlers<VendorApi>(
@@ -847,6 +952,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     db: ctx.db,
     api: invoicesApi,
     onEnqueued: ctx.kickDrain,
+    onRelatedEntitiesAffected: refreshRelatedEntities,
     // SettingsRepository is a stateless Drift wrapper — a local instance is
     // equivalent to the one services.dart builds, and avoids reordering
     // construction just to thread it through EntityWiringContext.
@@ -913,6 +1019,11 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           id: payload['id'] as String,
           idempotencyKey: row.idempotencyKey,
         );
+        // markPaid records a synthetic Payment server-side (not in the invoice
+        // response) + moves the client balance. The returned invoice refreshes
+        // itself + its client/tasks/expenses via applyUpdateResponse; also pull
+        // the new payment into the local list.
+        await refreshRecentPayments(row.companyId);
         return response?.data;
       },
       MutationKind.emailEntity: ({required row, required payload}) async {
@@ -939,47 +1050,72 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        // Server returns the *new* entity envelope, but we don't apply it
-        // back onto the source row — return null so the dispatcher skips
-        // applyUpdateResponse. The new entity will land via a sync refresh
-        // (or the UI navigates to its edit screen which will fetch it).
-        await invoicesApi.cloneTo(
+        // The clone endpoint returns the *new* entity envelope. We don't apply
+        // it onto the source row (return null so the dispatcher skips
+        // applyUpdateResponse), but we force-refetch it by id so it appears in
+        // its list without a manual resync.
+        final clone = await invoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.invoice,
+        );
         return null;
       },
       MutationKind.cloneToQuote: ({required row, required payload}) async {
-        await invoicesApi.cloneTo(
+        final clone = await invoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.quote,
+        );
         return null;
       },
       MutationKind.cloneToCredit: ({required row, required payload}) async {
-        await invoicesApi.cloneTo(
+        final clone = await invoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.credit,
+        );
         return null;
       },
       MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        await invoicesApi.cloneTo(
+        final clone = await invoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
+        );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.recurringInvoice,
         );
         return null;
       },
       MutationKind.cloneToPurchaseOrder:
           ({required row, required payload}) async {
-            await invoicesApi.cloneTo(
+            final clone = await invoicesApi.cloneTo(
               id: payload['id'] as String,
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
+            );
+            await refreshCloneTarget(
+              row.companyId,
+              clone?.data.id,
+              EntityType.purchaseOrder,
             );
             return null;
           },
@@ -988,6 +1124,9 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           id: payload['id'] as String,
           idempotencyKey: row.idempotencyKey,
         );
+        // autoBill creates a Payment (gateway/credit) not in the invoice
+        // response — pull the newest payments into the local list.
+        await refreshRecentPayments(row.companyId);
         return response?.data;
       },
       MutationKind.cancelEntity: ({required row, required payload}) async {
@@ -1035,6 +1174,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     db: ctx.db,
     api: quotesApi,
     onEnqueued: ctx.kickDrain,
+    onRelatedEntitiesAffected: refreshRelatedEntities,
   );
   wire<QuoteItemApi, QuoteApi>(
     type: EntityType.quote,
@@ -1101,43 +1241,68 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        await quotesApi.cloneTo(
+        final clone = await quotesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.invoice,
+        );
         return null;
       },
       MutationKind.cloneToQuote: ({required row, required payload}) async {
-        await quotesApi.cloneTo(
+        final clone = await quotesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.quote,
+        );
         return null;
       },
       MutationKind.cloneToCredit: ({required row, required payload}) async {
-        await quotesApi.cloneTo(
+        final clone = await quotesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.credit,
+        );
         return null;
       },
       MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        await quotesApi.cloneTo(
+        final clone = await quotesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
+        );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.recurringInvoice,
         );
         return null;
       },
       MutationKind.cloneToPurchaseOrder:
           ({required row, required payload}) async {
-            await quotesApi.cloneTo(
+            final clone = await quotesApi.cloneTo(
               id: payload['id'] as String,
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
+            );
+            await refreshCloneTarget(
+              row.companyId,
+              clone?.data.id,
+              EntityType.purchaseOrder,
             );
             return null;
           },
@@ -1201,27 +1366,6 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
       },
     },
   );
-
-  // Shared side-effect refresh (issue #7): after a payment / bank-transaction
-  // mutation applies, force-refetch the affected invoice(s) — and their client
-  // (the payment's own client ∪ the refreshed invoices' clients) — so the local
-  // rows converge without a manual full resync. Runs inside the outbox drain;
-  // `refreshByIds` swallows per-id errors, so this never fails the mutation.
-  // `invoiceRepo` / `clientRepo` are already constructed above.
-  Future<void> refreshRelatedEntities(
-    String companyId,
-    Iterable<String> invoiceIds,
-    Iterable<String> clientIds,
-  ) async {
-    final invoiceClients = await invoiceRepo.refreshByIds(
-      companyId: companyId,
-      ids: invoiceIds,
-    );
-    final allClients = <String>{...clientIds, ...invoiceClients};
-    if (allClients.isNotEmpty) {
-      await clientRepo.refreshByIds(companyId: companyId, ids: allClients);
-    }
-  }
 
   // ---- BankTransaction -----------------------------------------------------
   // Top-level workspace entity at `/transactions`. Four `match` variants +
@@ -1381,6 +1525,8 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           id: payload['id'] as String,
           idempotencyKey: row.idempotencyKey,
         );
+        // Credit markPaid records a synthetic Payment — pull it into the list.
+        await refreshRecentPayments(row.companyId);
         return response?.data;
       },
       MutationKind.emailEntity: ({required row, required payload}) async {
@@ -1407,43 +1553,68 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        await creditsApi.cloneTo(
+        final clone = await creditsApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.invoice,
+        );
         return null;
       },
       MutationKind.cloneToQuote: ({required row, required payload}) async {
-        await creditsApi.cloneTo(
+        final clone = await creditsApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.quote,
+        );
         return null;
       },
       MutationKind.cloneToCredit: ({required row, required payload}) async {
-        await creditsApi.cloneTo(
+        final clone = await creditsApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.credit,
+        );
         return null;
       },
       MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        await creditsApi.cloneTo(
+        final clone = await creditsApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
+        );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.recurringInvoice,
         );
         return null;
       },
       MutationKind.cloneToPurchaseOrder:
           ({required row, required payload}) async {
-            await creditsApi.cloneTo(
+            final clone = await creditsApi.cloneTo(
               id: payload['id'] as String,
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
+            );
+            await refreshCloneTarget(
+              row.companyId,
+              clone?.data.id,
+              EntityType.purchaseOrder,
             );
             return null;
           },
@@ -1486,6 +1657,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     db: ctx.db,
     api: purchaseOrdersApi,
     onEnqueued: ctx.kickDrain,
+    onRelatedEntitiesAffected: refreshRelatedEntities,
   );
   wire<PurchaseOrderItemApi, PurchaseOrderApi>(
     type: EntityType.purchaseOrder,
@@ -1628,43 +1800,68 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        await recurringInvoicesApi.cloneTo(
+        final clone = await recurringInvoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.invoice,
+        );
         return null;
       },
       MutationKind.cloneToQuote: ({required row, required payload}) async {
-        await recurringInvoicesApi.cloneTo(
+        final clone = await recurringInvoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.quote,
+        );
         return null;
       },
       MutationKind.cloneToCredit: ({required row, required payload}) async {
-        await recurringInvoicesApi.cloneTo(
+        final clone = await recurringInvoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.credit,
+        );
         return null;
       },
       MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        await recurringInvoicesApi.cloneTo(
+        final clone = await recurringInvoicesApi.cloneTo(
           id: payload['id'] as String,
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
+        );
+        await refreshCloneTarget(
+          row.companyId,
+          clone?.data.id,
+          EntityType.recurringInvoice,
         );
         return null;
       },
       MutationKind.cloneToPurchaseOrder:
           ({required row, required payload}) async {
-            await recurringInvoicesApi.cloneTo(
+            final clone = await recurringInvoicesApi.cloneTo(
               id: payload['id'] as String,
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
+            );
+            await refreshCloneTarget(
+              row.companyId,
+              clone?.data.id,
+              EntityType.purchaseOrder,
             );
             return null;
           },

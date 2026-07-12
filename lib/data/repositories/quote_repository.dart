@@ -33,10 +33,17 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     super.uuid,
     super.now,
     super.onEnqueued,
+    this.onRelatedEntitiesAffected,
     this.pageSize = 50,
   }) : super(entityType: EntityType.quote);
 
   final QuotesApi api;
+
+  /// Fired after a quote mutation applies. When the quote was **converted**, the
+  /// server created a new invoice (and set the quote's `invoice_id`); force-refetch
+  /// that invoice so it appears locally without a manual resync (issue #7 sweep,
+  /// Tier 2). Wired by DI; null in tests that don't exercise it.
+  final RelatedEntitiesRefresher? onRelatedEntitiesAffected;
   final int pageSize;
 
   @override
@@ -497,6 +504,52 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     required QuoteApi serverResponse,
   }) async {
     await db.quoteDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await _refreshConverted(companyId, serverResponse);
+  }
+
+  /// When a quote was converted, the server sets its `invoice_id`
+  /// (convertToInvoice) or `project_id` (convertToProject) — force-refetch that
+  /// new invoice/project so it appears locally. A normal quote leaves both
+  /// empty, so this is a no-op except right after a convert (or, harmlessly, for
+  /// a quote already associated with a project). Runs inside the drain; errors
+  /// swallowed.
+  Future<void> _refreshConverted(
+    String companyId,
+    QuoteApi serverResponse,
+  ) async {
+    final cb = onRelatedEntitiesAffected;
+    if (cb == null) return;
+    final invoiceId = serverResponse.invoiceId;
+    final projectId = serverResponse.projectId;
+    if (invoiceId.isEmpty && projectId.isEmpty) return;
+    try {
+      await cb(companyId, {
+        if (invoiceId.isNotEmpty) EntityType.invoice: {invoiceId},
+        if (projectId.isNotEmpty) EntityType.project: {projectId},
+      });
+    } catch (e) {
+      _log.warning('quote convert refresh failed: $e');
+    }
+  }
+
+  /// Force-refetch quotes by id (e.g. as a `cloneToQuote` target).
+  /// See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<QuoteApi, QuotesCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.quoteDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
   }
 
   @override

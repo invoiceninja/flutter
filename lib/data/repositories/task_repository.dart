@@ -462,6 +462,24 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     await db.taskDao.upsert(_apiToCompanion(serverResponse, companyId));
   }
 
+  /// Force-refetch tasks by id (e.g. after an invoice billed/un-billed them —
+  /// the server sets/clears their `invoice_id`). See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<TaskApi, TasksCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) =>
+          db.taskDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
+    );
+  }
+
   @override
   Future<void> applyDeleteResponse({
     required String companyId,

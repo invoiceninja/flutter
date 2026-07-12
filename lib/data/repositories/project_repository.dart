@@ -390,6 +390,26 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     await db.projectDao.upsert(_apiToCompanion(serverResponse, companyId));
   }
 
+  /// Force-refetch projects by id (e.g. after a quote was converted to one).
+  /// See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<ProjectApi, ProjectsCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.projectDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   @override
   Future<void> applyDeleteResponse({
     required String companyId,

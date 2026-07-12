@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart' show protected;
+import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:admin/domain/entity_state.dart';
@@ -17,17 +18,20 @@ import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/db/dao/sync_state_dao.dart';
 import 'package:admin/data/services/api_exception.dart';
 
+final _log = Logger('BaseEntityRepository');
+
 /// Force-refreshes related entities whose server state changed as a *side
-/// effect* of a mutation on a different entity — e.g. adding a payment (or
-/// matching a bank transaction) updates its invoice(s) and client
-/// server-side. Injected into `PaymentRepository` / `BankTransactionRepository`
-/// and wired by DI to `InvoiceRepository.refreshByIds` + `ClientRepository`
-/// so the affected local rows converge without a manual full resync (issue #7).
+/// effect* of a mutation on a different entity — e.g. adding a payment updates
+/// its invoice(s) and client; converting a quote creates an invoice; merging a
+/// client moves its children (issue #7 + the stale-sibling sweep). Given the
+/// affected entities grouped by [EntityType], the DI-wired implementation
+/// force-refetches each via `repoFor(type).refreshByIds`, with an explicit
+/// invoice→client cascade (a bank-transaction match knows the invoice, not the
+/// client). Injected as `onRelatedEntitiesAffected` on the culprit repos.
 typedef RelatedEntitiesRefresher =
     Future<void> Function(
       String companyId,
-      Iterable<String> invoiceIds,
-      Iterable<String> clientIds,
+      Map<EntityType, Set<String>> byType,
     );
 
 /// Shared outbox + id-remap + cursor mechanics. Concrete repositories
@@ -717,6 +721,58 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       }
     }();
   }
+
+  /// Force-refetch [ids] from the server and upsert them into Drift,
+  /// **dirty-preserving**, even when already cached — the non-cache-gated
+  /// sibling of [ensureLoadedTemplate]. Converges a sibling entity that a
+  /// mutation on *another* entity changed server-side (issue #7 + the
+  /// stale-sibling sweep). Runs **inside the outbox drain**, so every per-id
+  /// fetch **swallows all errors**: a thrown exception here would be
+  /// mis-attributed to the already-succeeded mutation by the drain's typed
+  /// error handling (404 → bogus conflict, 422 → dead, …). A missed refresh
+  /// self-heals on the next full resync. Returns the successfully-fetched items
+  /// so callers can derive further ids (e.g. an invoice's `clientId`). Skips
+  /// empty/`tmp_` ids.
+  @protected
+  Future<List<TItem>> refreshByIdsTemplate<TItem, TCompanion>({
+    required String companyId,
+    required Iterable<String> ids,
+    required Future<TItem> Function(String id) fetch,
+    required String Function(TItem) idOf,
+    required TCompanion Function(TItem) toCompanion,
+    required Future<void> Function(Map<String, TCompanion> byId) upsert,
+  }) async {
+    final realIds = ids
+        .where((id) => id.isNotEmpty && !id.startsWith('tmp_'))
+        .toSet();
+    if (realIds.isEmpty) return const [];
+    final fetched = <TItem>[];
+    final byId = <String, TCompanion>{};
+    await Future.wait(
+      realIds.map((id) async {
+        try {
+          final item = await fetch(id);
+          fetched.add(item);
+          byId[idOf(item)] = toCompanion(item);
+        } catch (e) {
+          _log.warning(
+            'refreshByIds: failed to refetch $entityTypeName $id: $e',
+          );
+        }
+      }),
+    );
+    if (byId.isNotEmpty) await upsert(byId);
+    return fetched;
+  }
+
+  /// Force-refetch [ids] and upsert them dirty-preserving. Default is a no-op —
+  /// settings/bundled repos aren't fetched by id this way; every list repo
+  /// overrides this via [refreshByIdsTemplate]. Reached generically through the
+  /// DI `repoFor(EntityType)` map by [RelatedEntitiesRefresher].
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {}
 
   /// Shared shape for bundled-entity `applyBundle` implementations. Encodes
   /// the contract every bundled repo (task_statuses, payment_terms,

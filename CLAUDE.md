@@ -29,7 +29,7 @@ Plus two non-negotiables carried from admin-portal:
 | Localization / Transifex import | § Localization |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
-| Building a release app / injecting the Sentry DSN | `tools/build_release.sh` + `docs/setup.md` § Release builds with Sentry |
+| Building a release app / injecting the Sentry DSN | `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
 | Probing the demo API for live response shapes | `docs/probing-the-demo-api.md` |
 | Server-side filter gaps / required API changes | `BACKEND.md` |
 | Running integration tests | `docs/integration-tests.md` |

@@ -11,6 +11,7 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/payment_repository.dart';
 import 'package:admin/data/services/payments_api.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/payment_status.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
@@ -339,6 +340,7 @@ void main() {
             ({
               String companyId,
               List<String> invoiceIds,
+              List<String> creditIds,
               List<String> clientIds,
             })
           >[];
@@ -352,37 +354,41 @@ void main() {
       PaymentRepository makeRepo({bool throwing = false}) => PaymentRepository(
         db: db,
         api: _FakePaymentsApi(),
-        onRelatedEntitiesAffected: (companyId, invoiceIds, clientIds) async {
+        onRelatedEntitiesAffected: (companyId, byType) async {
           calls.add((
             companyId: companyId,
-            invoiceIds: invoiceIds.toList()..sort(),
-            clientIds: clientIds.toList()..sort(),
+            invoiceIds: (byType[EntityType.invoice] ?? const {}).toList()
+              ..sort(),
+            creditIds: (byType[EntityType.credit] ?? const {}).toList()..sort(),
+            clientIds: (byType[EntityType.client] ?? const {}).toList()..sort(),
           ));
           if (throwing) throw StateError('boom');
         },
       );
 
-      test('applyUpdateResponse fires with invoice ids + client id', () async {
-        await makeRepo().applyUpdateResponse(
-          companyId: 'co',
-          serverResponse: const PaymentApi(
-            id: 'pay1',
-            clientId: 'cli_1',
-            paymentables: [
-              PaymentableApi(id: 'pt1', invoiceId: 'inv_a'),
-              PaymentableApi(id: 'pt2', invoiceId: 'inv_b'),
-              PaymentableApi(
-                id: 'pt3',
-                creditId: 'cr_1',
-              ), // credit-only → skipped
-            ],
-          ),
-        );
-        expect(calls, hasLength(1));
-        expect(calls.single.companyId, 'co');
-        expect(calls.single.invoiceIds, ['inv_a', 'inv_b']);
-        expect(calls.single.clientIds, ['cli_1']);
-      });
+      test(
+        'applyUpdateResponse fires with invoice + credit + client ids',
+        () async {
+          await makeRepo().applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: const PaymentApi(
+              id: 'pay1',
+              clientId: 'cli_1',
+              paymentables: [
+                PaymentableApi(id: 'pt1', invoiceId: 'inv_a'),
+                PaymentableApi(id: 'pt2', invoiceId: 'inv_b'),
+                // Credit allocations ride `paymentables` too (credit_id set).
+                PaymentableApi(id: 'pt3', creditId: 'cr_1'),
+              ],
+            ),
+          );
+          expect(calls, hasLength(1));
+          expect(calls.single.companyId, 'co');
+          expect(calls.single.invoiceIds, ['inv_a', 'inv_b']);
+          expect(calls.single.creditIds, ['cr_1']);
+          expect(calls.single.clientIds, ['cli_1']);
+        },
+      );
 
       test('applyCreateResponse fires with invoice ids + client id', () async {
         await makeRepo().applyCreateResponse(

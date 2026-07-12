@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
+import 'package:drift/drift.dart'
+    show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
@@ -44,12 +45,19 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     super.uuid,
     super.now,
     super.onEnqueued,
+    this.onRelatedEntitiesAffected,
     this.pageSize = 50,
   }) : _settings = settings,
        super(entityType: EntityType.invoice);
 
   final InvoicesApi api;
   final int pageSize;
+
+  /// Fired after an invoice mutation applies, so entities the server changed as
+  /// a side effect — the tasks/expenses it billed/un-billed (issue #7 sweep,
+  /// Tier 1) — are force-refetched into Drift instead of lingering "unbilled"
+  /// (a double-bill hazard). Wired by DI; null in tests that don't exercise it.
+  final RelatedEntitiesRefresher? onRelatedEntitiesAffected;
 
   /// Resolves the `lock_invoices` settings cascade for the [save] backstop.
   /// [SettingsRepository] is a stateless wrapper over Drift, so a local
@@ -269,50 +277,34 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         ),
       );
 
-  /// Force-refetches [ids] from the server and upserts them into Drift,
-  /// **dirty-preserving** (a concurrently-edited `is_dirty` invoice is left
-  /// untouched). Unlike [ensureLoaded] this does NOT short-circuit on an
-  /// already-cached row — it exists to converge an invoice's
-  /// balance/status/paid_to_date after a *payment* or *bank-transaction*
-  /// mutation changed it server-side (issue #7).
-  ///
-  /// Returns the set of `clientId`s of the invoices actually refreshed, so the
-  /// caller can also refresh those clients' balances (the bank-transaction DTO
-  /// carries no client id, so this is how that path reaches the client).
-  ///
-  /// Callers run this **inside the outbox drain** (a payment's `apply*Response`),
-  /// so every per-id fetch swallows *all* errors: a thrown exception here would
-  /// otherwise be mis-attributed to the already-succeeded payment mutation by
-  /// the drain's typed error handling (a 404 → bogus conflict, 422 → dead, …).
-  /// A missed refresh self-heals on the next full resync.
+  /// Force-refetches [ids] and upserts them dirty-preserving (the non-cache-gated
+  /// sibling of [ensureLoaded]) to converge an invoice's balance/status/paid_to_date
+  /// after a *payment* / *bank-transaction* / *quote-convert* / *merge* mutation
+  /// changed it server-side (issue #7 + the stale-sibling sweep). **Returns the
+  /// `clientId`s of the refreshed invoices** so the caller can also refresh those
+  /// clients (the bank-transaction DTO carries no client id — this is how that path
+  /// reaches the client). Runs inside the drain; see [refreshByIdsTemplate] for the
+  /// load-bearing per-id error swallow.
+  @override
   Future<Set<String>> refreshByIds({
     required String companyId,
     required Iterable<String> ids,
   }) async {
-    final realIds = ids
-        .where((id) => id.isNotEmpty && !id.startsWith('tmp_'))
-        .toSet();
-    if (realIds.isEmpty) return const {};
-    final byId = <String, InvoicesCompanion>{};
-    final clientIds = <String>{};
-    await Future.wait(
-      realIds.map((id) async {
-        try {
-          final invoice = (await api.getWithSchedule(id)).data;
-          byId[invoice.id] = _apiToCompanion(invoice, companyId);
-          if (invoice.clientId.isNotEmpty) clientIds.add(invoice.clientId);
-        } catch (e) {
-          _log.warning('refreshByIds: failed to refetch invoice $id: $e');
-        }
-      }),
-    );
-    if (byId.isNotEmpty) {
-      await db.invoiceDao.upsertAllPreservingDirty(
+    final invoices = await refreshByIdsTemplate<InvoiceApi, InvoicesCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.getWithSchedule(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.invoiceDao.upsertAllPreservingDirty(
         companyId: companyId,
         byId: byId,
-      );
-    }
-    return clientIds;
+      ),
+    );
+    return {
+      for (final inv in invoices)
+        if (inv.clientId.isNotEmpty) inv.clientId,
+    };
   }
 
   Future<void> refreshAll({
@@ -691,14 +683,18 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     required String companyId,
     required String tempId,
     required InvoiceApi serverResponse,
-  }) => applyCreateResponseTemplate(
-    companyId: companyId,
-    tempId: tempId,
-    realId: serverResponse.id,
-    companion: _apiToCompanion(serverResponse, companyId),
-    upsert: db.invoiceDao.upsert,
-    deleteById: (id) => db.invoiceDao.deleteById(companyId: companyId, id: id),
-  );
+  }) async {
+    await applyCreateResponseTemplate(
+      companyId: companyId,
+      tempId: tempId,
+      realId: serverResponse.id,
+      companion: _apiToCompanion(serverResponse, companyId),
+      upsert: db.invoiceDao.upsert,
+      deleteById: (id) =>
+          db.invoiceDao.deleteById(companyId: companyId, id: id),
+    );
+    await _refreshInvoiceSideEffects(companyId, serverResponse);
+  }
 
   @override
   Future<void> applyUpdateResponse({
@@ -706,6 +702,85 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     required InvoiceApi serverResponse,
   }) async {
     await db.invoiceDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await _refreshInvoiceSideEffects(companyId, serverResponse);
+  }
+
+  /// Force-refetch the entities the server changed as a side effect of an
+  /// invoice save (issue #7 sweep, Tier 1 + Tier 3):
+  ///  * its **client** — a sent invoice's balance/paid_to_date rolls up into the
+  ///    client aggregate;
+  ///  * the **tasks/expenses** it billed — the server set their `invoice_id`, so
+  ///    without a refetch they linger locally as "unbilled" (a double-bill
+  ///    hazard). Ids come from the applied invoice's line items.
+  /// Runs inside the drain; the callback swallows errors (see
+  /// [onRelatedEntitiesAffected]).
+  ///
+  /// NOTE: covers newly-billed rows (the double-bill risk). Tasks the save
+  /// *un-linked* (server cleared their `invoice_id`) aren't in the new line
+  /// items and stay stale until the next resync — a smaller follow-up.
+  Future<void> _refreshInvoiceSideEffects(
+    String companyId,
+    InvoiceApi serverResponse,
+  ) async {
+    final cb = onRelatedEntitiesAffected;
+    if (cb == null) return;
+    final taskIds = <String>{};
+    final expenseIds = <String>{};
+    for (final li in serverResponse.lineItems) {
+      final taskId = li.taskId;
+      if (taskId != null && taskId.isNotEmpty) taskIds.add(taskId);
+      final expenseId = li.expenseId;
+      if (expenseId != null && expenseId.isNotEmpty) expenseIds.add(expenseId);
+    }
+    // Also refresh tasks/expenses the save *un-linked*: rows whose local
+    // `invoice_id` still points at this invoice but which are no longer in the
+    // line items (the server cleared their `invoice_id`). Union so both the
+    // newly-billed and newly-un-billed rows converge.
+    final local = await _locallyBilledIds(companyId, serverResponse.id);
+    taskIds.addAll(local.taskIds);
+    expenseIds.addAll(local.expenseIds);
+    final clientId = serverResponse.clientId;
+    try {
+      await cb(companyId, {
+        if (clientId.isNotEmpty) EntityType.client: {clientId},
+        if (taskIds.isNotEmpty) EntityType.task: taskIds,
+        if (expenseIds.isNotEmpty) EntityType.expense: expenseIds,
+      });
+    } catch (e) {
+      _log.warning('invoice side-effect refresh failed: $e');
+    }
+  }
+
+  /// Local task/expense ids whose `invoice_id` COLUMN == [invoiceId] — the rows
+  /// this invoice billed on a previous save. Read off the column (correct even
+  /// though the domain reads it from the payload). Empty on create (no
+  /// pre-existing links to a brand-new invoice).
+  Future<({Set<String> taskIds, Set<String> expenseIds})> _locallyBilledIds(
+    String companyId,
+    String invoiceId,
+  ) async {
+    Future<Set<String>> idsIn(TableInfo<Table, dynamic> table) async {
+      final rows = await db
+          .customSelect(
+            'SELECT id FROM ${table.actualTableName} '
+            'WHERE company_id = ?1 AND invoice_id = ?2',
+            variables: [
+              Variable<String>(companyId),
+              Variable<String>(invoiceId),
+            ],
+            readsFrom: {table},
+          )
+          .get();
+      return rows
+          .map((r) => r.read<String>('id'))
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    }
+
+    return (
+      taskIds: await idsIn(db.tasks),
+      expenseIds: await idsIn(db.expenses),
+    );
   }
 
   @override

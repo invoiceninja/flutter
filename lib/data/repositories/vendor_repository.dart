@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
+import 'package:drift/drift.dart'
+    show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
@@ -160,6 +161,44 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
           byId: byId,
         ),
       );
+
+  /// After a vendor **merge**, the absorbed vendor's children (expenses,
+  /// purchase orders, recurring expenses) were reassigned to the survivor
+  /// server-side, but locally still carry the old vendor_id in their `payload`.
+  /// Return their local ids grouped by type so the merge handler can
+  /// force-refetch them (the refetch lands the new vendor_id). Read off the
+  /// dedicated `vendor_id` COLUMN, still the old id here.
+  Future<Map<EntityType, Set<String>>> childIdsForVendor({
+    required String companyId,
+    required String vendorId,
+  }) async {
+    final tables = <EntityType, TableInfo<Table, dynamic>>{
+      EntityType.expense: db.expenses,
+      EntityType.purchaseOrder: db.purchaseOrders,
+      EntityType.recurringExpense: db.recurringExpenses,
+    };
+    final result = <EntityType, Set<String>>{};
+    for (final entry in tables.entries) {
+      final table = entry.value;
+      final rows = await db
+          .customSelect(
+            'SELECT id FROM ${table.actualTableName} '
+            'WHERE company_id = ?1 AND vendor_id = ?2',
+            variables: [
+              Variable<String>(companyId),
+              Variable<String>(vendorId),
+            ],
+            readsFrom: {table},
+          )
+          .get();
+      final ids = rows
+          .map((r) => r.read<String>('id'))
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      if (ids.isNotEmpty) result[entry.key] = ids;
+    }
+    return result;
+  }
 
   /// Pull-to-refresh / foreground-resume entry point. Mirrors
   /// `ClientRepository.refreshAll`: pull every state into the local cache

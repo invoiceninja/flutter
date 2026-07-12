@@ -488,6 +488,26 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     await db.creditDao.upsert(_apiToCompanion(serverResponse, companyId));
   }
 
+  /// Force-refetch credits by id (e.g. after a payment consumed/reversed them).
+  /// See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<CreditApi, CreditsCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.creditDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   @override
   Future<void> applyDeleteResponse({
     required String companyId,

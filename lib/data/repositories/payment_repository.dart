@@ -418,6 +418,26 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     await _refreshRelatedFromResponse(companyId, serverResponse);
   }
 
+  /// Force-refetch payments by id (e.g. the payment a bank-transaction match
+  /// created/linked). See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate<PaymentApi, PaymentsCompanion>(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.paymentDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   @override
   Future<void> applyDeleteResponse({
     required String companyId,
@@ -432,63 +452,85 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
           .toCompanion(true)
           .copyWith(isDeleted: const Value(true), isDirty: const Value(false)),
     );
-    // Deleting/voiding a payment reverses its invoices' balance/status
+    // Deleting/voiding a payment reverses its invoices'/credits' balance/status
     // server-side. No server response here, so source the affected ids from the
     // soft-deleted row (read above, before the write).
+    final stored = _allocatedIdsFromStored(existing.paymentables);
     await _refreshRelated(
       companyId,
-      invoiceIds: _invoiceIdsFromStoredPaymentables(existing.paymentables),
+      invoiceIds: stored.invoiceIds,
+      creditIds: stored.creditIds,
       clientId: existing.clientId,
     );
   }
 
-  /// Fire [onRelatedEntitiesAffected] for the invoice(s) + client carried by a
-  /// payment [serverResponse] (`paymentables` are a default include, so create /
-  /// update / apply / refund responses all list them).
+  /// Fire [onRelatedEntitiesAffected] for the invoice(s), credit(s), and client
+  /// carried by a payment [serverResponse]. `paymentables` are a default include
+  /// (create / update / apply / refund responses all list them) and hold BOTH
+  /// invoice and credit allocations (each row has `invoice_id` xor `credit_id`).
   Future<void> _refreshRelatedFromResponse(
     String companyId,
     PaymentApi serverResponse,
-  ) => _refreshRelated(
-    companyId,
-    invoiceIds: (serverResponse.paymentables ?? const [])
-        .map((p) => p.invoiceId)
-        .where((id) => id.isNotEmpty),
-    clientId: serverResponse.clientId,
-  );
+  ) {
+    final paymentables = serverResponse.paymentables ?? const [];
+    return _refreshRelated(
+      companyId,
+      invoiceIds: paymentables.map((p) => p.invoiceId),
+      creditIds: paymentables.map((p) => p.creditId),
+      clientId: serverResponse.clientId,
+    );
+  }
 
   Future<void> _refreshRelated(
     String companyId, {
     required Iterable<String> invoiceIds,
+    Iterable<String> creditIds = const [],
     required String clientId,
   }) async {
     final cb = onRelatedEntitiesAffected;
     if (cb == null) return;
-    final invIds = invoiceIds.toSet();
-    final cliIds = clientId.isEmpty ? const <String>[] : [clientId];
-    if (invIds.isEmpty && cliIds.isEmpty) return;
+    final invIds = invoiceIds.where((id) => id.isNotEmpty).toSet();
+    final credIds = creditIds.where((id) => id.isNotEmpty).toSet();
+    final cliId = clientId.trim();
+    if (invIds.isEmpty && credIds.isEmpty && cliId.isEmpty) return;
     try {
-      await cb(companyId, invIds, cliIds);
+      await cb(companyId, {
+        if (invIds.isNotEmpty) EntityType.invoice: invIds,
+        if (credIds.isNotEmpty) EntityType.credit: credIds,
+        if (cliId.isNotEmpty) EntityType.client: {cliId},
+      });
     } catch (e) {
       _log.warning('onRelatedEntitiesAffected failed: $e');
     }
   }
 
-  /// Invoice ids from a payment row's stored `paymentables` JSON column
-  /// (encoded by [_apiToCompanion]); used on delete/void where there is no
-  /// server response to read.
-  Iterable<String> _invoiceIdsFromStoredPaymentables(String? paymentablesJson) {
-    if (paymentablesJson == null || paymentablesJson.isEmpty) return const [];
+  /// Invoice + credit ids from a payment row's stored `paymentables` JSON column
+  /// (encoded by [_apiToCompanion]); used on delete/void where there is no server
+  /// response to read.
+  ({Set<String> invoiceIds, Set<String> creditIds}) _allocatedIdsFromStored(
+    String? paymentablesJson,
+  ) {
+    const empty = (invoiceIds: <String>{}, creditIds: <String>{});
+    if (paymentablesJson == null || paymentablesJson.isEmpty) return empty;
     try {
       final decoded = jsonDecode(paymentablesJson);
-      if (decoded is! List) return const [];
-      return decoded
-          .whereType<Map<String, dynamic>>()
-          .map((m) => (m['invoice_id'] ?? '').toString())
-          .where((id) => id.isNotEmpty)
-          .toList();
+      if (decoded is! List) return empty;
+      final rows = decoded.whereType<Map<String, dynamic>>();
+      return (
+        invoiceIds: {
+          for (final m in rows)
+            if ((m['invoice_id'] ?? '').toString().isNotEmpty)
+              m['invoice_id'].toString(),
+        },
+        creditIds: {
+          for (final m in rows)
+            if ((m['credit_id'] ?? '').toString().isNotEmpty)
+              m['credit_id'].toString(),
+        },
+      );
     } catch (e) {
       _log.warning('failed to decode stored paymentables: $e');
-      return const [];
+      return empty;
     }
   }
 

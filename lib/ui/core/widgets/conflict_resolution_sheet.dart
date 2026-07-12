@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/sync/sync_event.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Resolution chosen by the user when [showConflictResolutionSheet] returns.
 ///
@@ -83,14 +84,10 @@ Future<ConflictResolution> showConflictResolutionSheet(
                       Navigator.of(ctx).pop(ConflictResolution.none),
                   child: Text(ctx.tr('keep_for_later')),
                 ),
-                FilledButton(
-                  autofocus: true,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 44),
-                  ),
+                PrimaryDialogAction(
+                  label: ctx.tr('discard_my_changes'),
                   onPressed: () =>
                       Navigator.of(ctx).pop(ConflictResolution.discardMine),
-                  child: Text(ctx.tr('discard_my_changes')),
                 ),
               ]
             : [
@@ -107,14 +104,10 @@ Future<ConflictResolution> showConflictResolutionSheet(
                       Navigator.of(ctx).pop(ConflictResolution.discardMine),
                   child: Text(ctx.tr('discard_my_changes')),
                 ),
-                FilledButton(
-                  autofocus: true,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 44),
-                  ),
+                PrimaryDialogAction(
+                  label: ctx.tr('use_my_changes'),
                   onPressed: () =>
                       Navigator.of(ctx).pop(ConflictResolution.useMine),
-                  child: Text(ctx.tr('use_my_changes')),
                 ),
               ],
       );

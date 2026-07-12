@@ -6,6 +6,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/tasks/view_models/calendar_connection_view_model.dart';
 
 /// Toolbar control for connecting / disconnecting a calendar. Renders nothing
@@ -146,10 +147,9 @@ class CalendarConnectMenu extends StatelessWidget {
             child: Text(dialogContext.tr('cancel')),
           ),
           SizedBox(width: InSpacing.md(dialogContext)),
-          FilledButton(
+          PrimaryDialogAction(
+            label: dialogContext.tr('continue'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-            child: Text(dialogContext.tr('continue')),
           ),
         ],
       ),

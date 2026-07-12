@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/color_hex.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Default accent palette. Hex values are stored as `#RRGGBB` on
 /// `company_user.settings.accent_color` — same wire format admin-portal and
@@ -367,10 +368,10 @@ class _HexPickerDialogState extends State<_HexPickerDialog> {
           child: Text(context.tr('cancel')),
         ),
         SizedBox(width: InSpacing.md(context)),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+        PrimaryDialogAction(
+          label: context.tr('save'),
+          autofocus: false,
           onPressed: () => Navigator.of(context).pop(formatHexColor(_color)),
-          child: Text(context.tr('save')),
         ),
       ],
     );

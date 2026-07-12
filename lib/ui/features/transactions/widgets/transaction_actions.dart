@@ -12,6 +12,7 @@ import 'package:admin/ui/core/list/master_detail_layout.dart'
     show MasterDetailNavScope;
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Row + detail-screen actions for a bank transaction. Edit + the standard
 /// archive/restore/delete trio plus two transaction-specific actions:
@@ -198,10 +199,9 @@ class TransactionActions {
             child: Text(ctx.tr('cancel')),
           ),
           const SizedBox(width: 8),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: ctx.tr('convert'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(ctx.tr('convert')),
           ),
         ],
       ),

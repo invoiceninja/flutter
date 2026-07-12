@@ -11,6 +11,7 @@ import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
@@ -370,10 +371,13 @@ class _ManageBodyState extends State<_ManageBody> {
                   : const SizedBox(width: double.infinity),
             ),
             SizedBox(height: InSpacing.lg(context)),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: (_field == null || _isDuplicate) ? null : _onAdd,
-              child: Text(context.tr('add')),
+            PrimaryDialogAction(
+              label: context.tr('add'),
+              enabled: _field != null && !_isDuplicate,
+              onPressed: _onAdd,
+              // Disabled until a card is chosen (autofocus can't land) — no hint.
+              autofocus: false,
+              showEnterHint: false,
             ),
           ],
         ),

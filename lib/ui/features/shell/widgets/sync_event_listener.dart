@@ -12,6 +12,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
 import 'package:admin/ui/core/widgets/conflict_resolution_sheet.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/tokens/widgets/token_created_dialog.dart';
 
 final _log = Logger('SyncEventListener');
@@ -177,11 +178,9 @@ class _SyncEventListenerState extends State<SyncEventListener> {
               onPressed: () => Navigator.of(ctx).pop(false),
               child: Text(ctx.tr('dismiss')),
             ),
-            FilledButton(
-              autofocus: true,
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+            PrimaryDialogAction(
+              label: ctx.tr('view'),
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(ctx.tr('view')),
             ),
           ],
         ),

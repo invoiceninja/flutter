@@ -12,6 +12,7 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 
@@ -117,11 +118,9 @@ class _RestoreTabBodyState extends State<RestoreTabBody> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton(
-            autofocus: true,
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: ctx.tr('continue'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(ctx.tr('continue')),
           ),
         ],
       ),

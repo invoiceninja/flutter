@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 
 /// Shared user-flow helpers for settings screens. Keeps the confirmation
@@ -30,11 +31,10 @@ class SettingsActions {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton.tonal(
-            autofocus: true,
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            variant: DialogActionVariant.tonal,
+            label: ctx.tr('sign_out'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(ctx.tr('sign_out')),
           ),
         ],
       ),

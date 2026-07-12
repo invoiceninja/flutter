@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Archive / Restore / Delete `PopupMenuButton` for the AppBar of a settings
 /// edit screen (payment terms, task statuses, group settings, tax rates, …).
@@ -79,13 +80,9 @@ class SettingsEntityOverflowMenu extends StatelessWidget {
                     onPressed: () => Navigator.of(ctx).pop(false),
                     child: Text(ctx.tr('cancel')),
                   ),
-                  FilledButton(
-                    autofocus: true,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                    ),
+                  PrimaryDialogAction(
+                    label: ctx.tr('delete'),
                     onPressed: () => Navigator.of(ctx).pop(true),
-                    child: Text(ctx.tr('delete')),
                   ),
                 ],
               ),

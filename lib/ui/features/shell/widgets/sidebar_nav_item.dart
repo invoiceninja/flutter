@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 
 /// One row in the sidebar nav list. Three visual states:
 ///
@@ -27,6 +28,7 @@ class SidebarNavItem extends StatefulWidget {
     this.compact = false,
     this.trailingHover,
     this.trailing,
+    this.leaderKey,
     super.key,
   });
 
@@ -54,6 +56,11 @@ class SidebarNavItem extends StatefulWidget {
   /// never sets both [trailing] and [count] — saved-view rows set [trailing]
   /// only, badge rows set [count] only.
   final Widget? trailing;
+
+  /// The second key of this row's `G`-then-letter leader jump (e.g. `'C'`
+  /// for Clients). When non-null and the row is enabled, hovering shows a
+  /// "label · G then X" shortcut tooltip. Null for rows with no leader jump.
+  final String? leaderKey;
 
   @override
   State<SidebarNavItem> createState() => _SidebarNavItemState();
@@ -183,6 +190,18 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
     if (widget.disabled) {
       return Tooltip(
         message: context.tr('coming_soon'),
+        waitDuration: const Duration(milliseconds: 600),
+        child: result,
+      );
+    }
+    if (widget.leaderKey != null) {
+      // Advertise the `G`-then-letter leader jump. Covers compact mode too
+      // (which otherwise shows only the bare label tooltip) since the label
+      // rides along in the shortcut tooltip.
+      return ShortcutTooltip(
+        label: widget.label,
+        keys: ['G', widget.leaderKey!],
+        sequence: true,
         waitDuration: const Duration(milliseconds: 600),
         child: result,
       );

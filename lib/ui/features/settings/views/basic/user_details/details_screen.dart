@@ -7,6 +7,7 @@ import 'package:admin/data/models/value/language.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/view_models/user_details_view_model.dart';
@@ -204,14 +205,10 @@ class _SignOutSectionState extends State<_SignOutSection> {
               onPressed: () => Navigator.of(dialogCtx).pop(false),
               child: Text(dialogCtx.tr('cancel')),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(64, 44),
-                backgroundColor: Theme.of(dialogCtx).colorScheme.error,
-                foregroundColor: Theme.of(dialogCtx).colorScheme.onError,
-              ),
+            PrimaryDialogAction(
+              variant: DialogActionVariant.destructive,
+              label: dialogCtx.tr('sign_out'),
               onPressed: () => Navigator.of(dialogCtx).pop(true),
-              child: Text(dialogCtx.tr('sign_out')),
             ),
           ],
         );

@@ -30,6 +30,7 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 import 'package:admin/ui/features/reports/widgets/reports_chart_card.dart';
@@ -691,14 +692,15 @@ Future<void> _openColumnPicker(
                     child: Text(context.tr('cancel')),
                   ),
                   SizedBox(width: InSpacing.md(context)),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                    ),
+                  PrimaryDialogAction(
+                    label: context.tr('save'),
                     onPressed: () => Navigator.of(
                       context,
                     ).pop((selected: local, order: localOrder)),
-                    child: Text(context.tr('save')),
+                    // Has a search field the user types in — don't steal its
+                    // focus or show a hint that goes stale once they type.
+                    autofocus: false,
+                    showEnterHint: false,
                   ),
                 ],
               ),
@@ -1134,12 +1136,13 @@ class _MultiEntityField extends StatelessWidget {
                       child: Text(context.tr('cancel')),
                     ),
                     SizedBox(width: InSpacing.md(context)),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(64, 44),
-                      ),
+                    PrimaryDialogAction(
+                      label: context.tr('save'),
                       onPressed: () => Navigator.of(context).pop(local),
-                      child: Text(context.tr('save')),
+                      // Has a search field the user types in — don't steal its
+                      // focus or show a hint that goes stale once they type.
+                      autofocus: false,
+                      showEnterHint: false,
                     ),
                   ],
                 ),

@@ -5,6 +5,7 @@ import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/in_time_field.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Full editor for a single `TimeEntry`. Modal — opens as a bottom sheet on
@@ -372,12 +373,13 @@ class _TimeEntryEditorSheetState extends State<TimeEntryEditorSheet> {
                   child: Text(context.tr('cancel')),
                 ),
                 SizedBox(width: InSpacing.md(context)),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 44),
-                  ),
+                PrimaryDialogAction(
+                  label: context.tr('done'),
                   onPressed: _commit,
-                  child: Text(context.tr('done')),
+                  // Multi-field editor — don't grab focus from the fields or
+                  // promise Enter-to-submit.
+                  autofocus: false,
+                  showEnterHint: false,
                 ),
               ],
             ),

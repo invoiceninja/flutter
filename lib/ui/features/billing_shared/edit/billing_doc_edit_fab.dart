@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
+import 'package:admin/ui/core/widgets/shortcut_hint_scope.dart';
 
 /// Items-section "Add items" FAB shared across the five billing-doc edit
 /// layouts (Invoice / Quote / Credit / RecurringInvoice / PurchaseOrder).
@@ -54,23 +57,31 @@ class BillingDocEditPickerShortcuts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Shortcuts(
-      shortcuts: <ShortcutActivator, Intent>{
-        const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
-            const _PickItemsIntent(),
-        const SingleActivator(LogicalKeyboardKey.keyN, control: true):
-            const _PickItemsIntent(),
-      },
-      child: Actions(
-        actions: <Type, Action<Intent>>{
-          _PickItemsIntent: CallbackAction<_PickItemsIntent>(
-            onInvoke: (_) {
-              onPickItems();
-              return null;
-            },
-          ),
+    return ShortcutHintScope(
+      hints: [
+        ShortcutHint(
+          keys: [platformModifierLabel(), 'N'],
+          labelKey: 'add_items',
+        ),
+      ],
+      child: Shortcuts(
+        shortcuts: <ShortcutActivator, Intent>{
+          const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
+              const _PickItemsIntent(),
+          const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+              const _PickItemsIntent(),
         },
-        child: child,
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            _PickItemsIntent: CallbackAction<_PickItemsIntent>(
+              onInvoke: (_) {
+                onPickItems();
+                return null;
+              },
+            ),
+          },
+          child: child,
+        ),
       ),
     );
   }

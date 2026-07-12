@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 
 /// Modal picker for the Run Template action. Lets the user pick a design
@@ -71,12 +72,14 @@ class _RunTemplateDialogState extends State<_RunTemplateDialog> {
               child: Text(context.tr('cancel')),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: _selected == null
-                  ? null
-                  : () => Navigator.of(context).pop(_selected!.id),
-              child: Text(context.tr('run')),
+            PrimaryDialogAction(
+              label: context.tr('run'),
+              onPressed: () => Navigator.of(context).pop(_selected!.id),
+              enabled: _selected != null,
+              // Disabled until a template is picked + dropdown eats Enter —
+              // so no Enter hint.
+              autofocus: false,
+              showEnterHint: false,
             ),
           ],
         ),

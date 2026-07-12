@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +13,8 @@ import 'package:admin/data/models/domain/recent_record.dart';
 import 'package:admin/data/models/domain/search_result.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
+import 'package:admin/ui/core/widgets/key_cap.dart';
 
 /// Maps a `POST /api/v1/search` response group key to an [EntityType] so
 /// the hit routes through the entity registry (module-enabled + permission
@@ -52,14 +52,7 @@ EntityType? entityTypeForSearchGroup(String group) {
   }
 }
 
-/// Show `⌘` on macOS/iOS, `Ctrl` elsewhere. Local copy — the
-/// `keyboard_shortcuts_dialog.dart` version is `@visibleForTesting`.
-String _mod() {
-  final p = defaultTargetPlatform;
-  return (p == TargetPlatform.macOS || p == TargetPlatform.iOS) ? '⌘' : 'Ctrl';
-}
-
-/// Cmd/Ctrl+K global command palette. Server-backed search
+/// Cmd/Ctrl+/ global command palette. Server-backed search
 /// (`SearchApi`) across all entities + settings; arrow/enter/escape
 /// keyboard nav; selection routes via the entity registry (or the
 /// server path for settings).
@@ -264,24 +257,9 @@ class _CommandPaletteState extends State<_CommandPalette> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: tokens.surfaceAlt,
-                        border: Border.all(color: tokens.border),
-                        borderRadius: BorderRadius.circular(InRadii.r1),
-                      ),
-                      child: Text(
-                        '${_mod()}/',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 12,
-                          color: tokens.ink3,
-                        ),
-                      ),
+                    KeyCap(
+                      label: '${platformModifierLabel()}/',
+                      color: tokens.ink3,
                     ),
                   ],
                 ),

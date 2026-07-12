@@ -27,6 +27,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/multi_entity_picker.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/settings/view_models/schedule_edit_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -396,10 +397,9 @@ class _TemplateDisplayField extends StatelessWidget {
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(dialogContext.tr('keep_editing')),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: dialogContext.tr('discard'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(dialogContext.tr('discard')),
           ),
         ],
       ),

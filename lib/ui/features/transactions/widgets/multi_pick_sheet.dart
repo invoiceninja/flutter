@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Modal sheet with a search field + scrollable checkbox list. Returns
@@ -281,14 +282,14 @@ class _MultiPickSheetState<T> extends State<_MultiPickSheet<T>> {
                   child: Text(context.tr('cancel')),
                 ),
                 const SizedBox(width: 12),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 44),
-                  ),
-                  onPressed: canApply
-                      ? () => Navigator.of(context).pop(_selected.toList())
-                      : null,
-                  child: Text(context.tr('apply')),
+                PrimaryDialogAction(
+                  label: context.tr('apply'),
+                  enabled: canApply,
+                  onPressed: () =>
+                      Navigator.of(context).pop(_selected.toList()),
+                  // Search + multi-select — no Enter hint.
+                  autofocus: false,
+                  showEnterHint: false,
                 ),
               ],
             ),

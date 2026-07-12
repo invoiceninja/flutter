@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Result of the confirm-before-switch / confirm-before-logout flow.
 enum OutboxConfirmResult { proceed, cancelled }
@@ -94,11 +95,9 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
           onPressed: () => Navigator.of(ctx).pop(_Choice.discard),
           child: Text(ctx.tr('discard')),
         ),
-        FilledButton(
-          autofocus: true,
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+        PrimaryDialogAction(
+          label: ctx.tr('sync_first_action'),
           onPressed: () => Navigator.of(ctx).pop(_Choice.sync),
-          child: Text(ctx.tr('sync_first_action')),
         ),
       ],
     ),

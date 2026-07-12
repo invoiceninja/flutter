@@ -10,6 +10,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/gateways/gateway_order_writer.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
@@ -172,10 +173,9 @@ class _GatewayReorderScreenState extends State<GatewayReorderScreen> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: ctx.tr('reset'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(ctx.tr('reset')),
           ),
         ],
       ),

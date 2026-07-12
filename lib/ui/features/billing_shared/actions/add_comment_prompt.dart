@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Shows the "Add comment" modal and returns the trimmed text the user
 /// entered, or null if they cancelled / left the field empty.
@@ -40,10 +41,11 @@ Future<String?> showAddCommentPrompt(BuildContext context) async {
                 child: Text(ctx.tr('cancel')),
               ),
               const SizedBox(width: 8),
-              FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+              PrimaryDialogAction(
+                label: ctx.tr('save'),
                 onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-                child: Text(ctx.tr('save')),
+                autofocus: false,
+                showEnterHint: false,
               ),
             ],
           ),

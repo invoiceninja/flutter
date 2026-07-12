@@ -8,6 +8,7 @@ import 'package:admin/data/models/api/calendar_connection_api_model.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/tasks/view_models/calendar_connection_view_model.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart'
     show emptyTask;
@@ -170,16 +171,13 @@ class _ConvertEventSheetState extends State<_ConvertEventSheet> {
                 child: Text(context.tr('edit')),
               ),
               SizedBox(width: InSpacing.md(context)),
-              FilledButton(
-                onPressed: _busy ? null : _convert,
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-                child: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(context.tr('save')),
+              PrimaryDialogAction(
+                label: context.tr('save'),
+                onPressed: _convert,
+                busy: _busy,
+                // Has a name text field — don't steal focus or promise Enter.
+                autofocus: false,
+                showEnterHint: false,
               ),
             ],
           ),

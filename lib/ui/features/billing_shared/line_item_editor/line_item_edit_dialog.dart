@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -130,6 +131,8 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
     taxName3: _taxName3.text,
     taxRate3: _parseOrZero(_taxRate3),
   );
+
+  void _save() => Navigator.of(context).pop(_build());
 
   @override
   Widget build(BuildContext context) {
@@ -261,10 +264,13 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
               child: Text(context.tr('cancel')),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: () => Navigator.of(context).pop(_build()),
-              child: Text(context.tr('save')),
+            PrimaryDialogAction(
+              label: context.tr('save'),
+              onPressed: _save,
+              // Multi-field editor: Enter advances fields, it doesn't submit —
+              // so no Enter hint.
+              autofocus: false,
+              showEnterHint: false,
             ),
           ],
         ),

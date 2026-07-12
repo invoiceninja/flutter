@@ -11,6 +11,7 @@ import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/static/built_in_designs_catalog.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/design_edit_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/templates.dart';
 import 'package:admin/ui/features/settings/views/settings_shell.dart'
@@ -240,10 +241,11 @@ Future<void> _promptImportJson(BuildContext context) async {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: ctx.tr('import'),
+            autofocus: false,
+            showEnterHint: false,
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: Text(ctx.tr('import')),
           ),
         ],
       ),

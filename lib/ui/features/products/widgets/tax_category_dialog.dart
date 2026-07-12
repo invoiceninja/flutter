@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/domain/product_tax_categories.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Pick a product tax category. Short fixed enum → a simple radio list
 /// (no search). Returns the chosen id, or null on cancel. [current] is the
@@ -46,10 +47,9 @@ Future<String?> showTaxCategoryDialog(
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text(ctx.tr('cancel')),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+            PrimaryDialogAction(
+              label: ctx.tr('save'),
               onPressed: () => Navigator.of(ctx).pop(selected),
-              child: Text(ctx.tr('save')),
             ),
           ],
         ),

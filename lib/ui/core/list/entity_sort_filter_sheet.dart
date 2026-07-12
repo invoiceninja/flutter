@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// One short-list option in [EntitySortFilterSheet].
 @immutable
@@ -94,23 +95,12 @@ class _EntitySortFilterSheetState extends State<EntitySortFilterSheet> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  FilledButton(
-                    // Size to content. The FilledButton theme defaults
-                    // `minimumSize` to `Size.fromHeight(44)` (= infinite min
-                    // width, for column-stacked forms); without this override a
-                    // bare button demands infinite width, and inside this modal
-                    // sheet (whose content width goes unbounded while the route
-                    // animates in) that throws "BoxConstraints forces an
-                    // infinite width" → a layout/hit-test/mouse_tracker assert
-                    // storm on macOS. See CLAUDE.md § Design system.
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                    ),
+                  PrimaryDialogAction(
+                    label: context.tr('done'),
                     onPressed: () {
                       widget.onApply(field: _field, ascending: _ascending);
                       Navigator.of(context).pop();
                     },
-                    child: Text(context.tr('done')),
                   ),
                 ],
               ),

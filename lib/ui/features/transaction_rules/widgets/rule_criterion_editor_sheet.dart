@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/data/models/domain/transaction_rule.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 
 /// Modal sheet for editing one [RuleCriterion]. Returns the modified
@@ -174,22 +175,23 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
                 child: Text(context.tr('cancel')),
               ),
               const SizedBox(width: 12),
-              FilledButton(
-                onPressed: canSave
-                    ? () => Navigator.of(context).pop(
-                        RuleCriterion(
-                          searchKey: _searchKey,
-                          operator: _operator,
-                          value: widget.isCredit
-                              ? _creditValueKey
-                              : hideValue
-                              ? ''
-                              : _value.text.trim(),
-                        ),
-                      )
-                    : null,
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-                child: Text(context.tr('save')),
+              PrimaryDialogAction(
+                label: context.tr('save'),
+                enabled: canSave,
+                onPressed: () => Navigator.of(context).pop(
+                  RuleCriterion(
+                    searchKey: _searchKey,
+                    operator: _operator,
+                    value: widget.isCredit
+                        ? _creditValueKey
+                        : hideValue
+                        ? ''
+                        : _value.text.trim(),
+                  ),
+                ),
+                // Value field + dropdowns own focus — no Enter hint.
+                autofocus: false,
+                showEnterHint: false,
               ),
             ],
           ),

@@ -6,6 +6,7 @@ import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Debug Panel toolbar control: a menu of App Store / Play Store screenshot
 /// sizes (plus custom + restore) that resizes the native window so a window
@@ -244,10 +245,11 @@ class _ScreenshotCustomSizeDialogState
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.tr('cancel')),
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          onPressed: _valid ? _submit : null,
-          child: Text(context.tr('apply')),
+        PrimaryDialogAction(
+          label: context.tr('apply'),
+          enabled: _valid,
+          autofocus: false,
+          onPressed: _submit,
         ),
       ],
     );

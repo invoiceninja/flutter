@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Bottom-sheet body for picking + reordering the columns shown on an
 /// entity-list screen. Generic on the entity type — every entity reuses
@@ -150,19 +151,12 @@ class _EntityColumnPickerSheetState<T>
                     child: Text(context.tr('cancel')),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
-                    // Override the app theme's `Size.fromHeight(44)` — which is
-                    // `Size(double.infinity, 44)` and makes the button want full
-                    // row width. In a Row that hands non-flex children unbounded
-                    // `maxWidth`, that infinite-width preference asserts.
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                    ),
+                  PrimaryDialogAction(
+                    label: context.tr('done'),
                     onPressed: () {
                       widget.onApply(List<String>.unmodifiable(_selected));
                       Navigator.of(context).pop();
                     },
-                    child: Text(context.tr('done')),
                   ),
                 ],
               ),

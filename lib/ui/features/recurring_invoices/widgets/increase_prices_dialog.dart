@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Prompt for the Increase Prices bulk action: asks for a percentage and
@@ -100,10 +101,11 @@ class _IncreasePricesDialogState extends State<_IncreasePricesDialog> {
               child: Text(context.tr('cancel')),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: _valid ? _submit : null,
-              child: Text(context.tr('done')),
+            PrimaryDialogAction(
+              label: context.tr('done'),
+              onPressed: _submit,
+              enabled: _valid,
+              autofocus: false,
             ),
           ],
         ),

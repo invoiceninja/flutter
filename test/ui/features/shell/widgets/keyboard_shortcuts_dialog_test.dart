@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
 
 import '../../../../_localization_helper.dart';
@@ -66,13 +67,14 @@ void main() {
       expect(find.text('Global'), findsOneWidget);
       expect(find.text('Records'), findsOneWidget);
       expect(find.text('Navigation'), findsOneWidget);
-      // "Search" renders twice on purpose: the Search section title plus the
-      // Global section's Cmd+/ ("Search") shortcut description.
-      expect(find.text('Search'), findsNWidgets(2));
+      // "Search" now renders once (the Search section title); the Global
+      // Cmd+/ row reads "Search everything" after the relabel.
+      expect(find.text('Search'), findsOneWidget);
+      expect(find.text('Search everything'), findsOneWidget);
       expect(find.text('Forms'), findsOneWidget);
       expect(find.text('Create new record'), findsOneWidget);
       expect(find.text('Edit the current record'), findsOneWidget);
-      expect(find.text('Toggle the sidebar'), findsOneWidget);
+      expect(find.text('Toggle Sidebar'), findsOneWidget);
       expect(find.text('Jump to section'), findsOneWidget);
       expect(find.text('Go Back'), findsOneWidget);
       expect(find.text('Go Forward'), findsOneWidget);
@@ -106,9 +108,10 @@ void main() {
       expect(find.text('Global'), findsOneWidget);
       expect(find.text('Records'), findsOneWidget);
       expect(find.text('Navigation'), findsOneWidget);
-      // "Search" renders twice on purpose: the Search section title plus the
-      // Global section's Cmd+/ ("Search") shortcut description.
-      expect(find.text('Search'), findsNWidgets(2));
+      // "Search" now renders once (the Search section title); the Global
+      // Cmd+/ row reads "Search everything" after the relabel.
+      expect(find.text('Search'), findsOneWidget);
+      expect(find.text('Search everything'), findsOneWidget);
       expect(find.text('Forms'), findsOneWidget);
     });
   });

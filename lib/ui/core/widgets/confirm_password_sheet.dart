@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Modal that captures the user's password for destructive server endpoints
 /// (`delete`, `purge`, …). Writes to [PasswordCache] on Confirm; the sync
@@ -96,13 +97,12 @@ class _ConfirmPasswordDialogState extends State<_ConfirmPasswordDialog> {
           onPressed: widget.onCancel,
           child: Text(context.tr('cancel')),
         ),
-        FilledButton(
-          // Override the theme's full-width minimumSize so the primary
-          // action sits beside Cancel — see lib/app/theme.dart and the
-          // canonical example in company_picker.dart.
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          onPressed: _canSubmit ? _submit : null,
-          child: Text(context.tr('confirm')),
+        PrimaryDialogAction(
+          label: context.tr('confirm'),
+          enabled: _canSubmit,
+          // The password field owns focus + fires Enter via onSubmitted.
+          autofocus: false,
+          onPressed: _submit,
         ),
       ],
     );

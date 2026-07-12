@@ -13,6 +13,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -142,10 +143,14 @@ class _ClientBulkUpdateDialogState extends State<_ClientBulkUpdateDialog> {
               child: Text(context.tr('cancel')),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: _canSubmit ? _submit : null,
-              child: Text(context.tr('done')),
+            PrimaryDialogAction(
+              label: context.tr('done'),
+              enabled: _canSubmit,
+              // Column selector is a dropdown and most value inputs don't submit
+              // on Enter — so no Enter hint (avoids an untruthful ⏎).
+              autofocus: false,
+              showEnterHint: false,
+              onPressed: _submit,
             ),
           ],
         ),

@@ -33,6 +33,7 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
+import 'package:admin/ui/core/widgets/shortcut_hint_overlay.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 
@@ -669,6 +670,16 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                         ),
                         Positioned.fill(
                           child: ToastHost(controller: widget.services.toasts),
+                        ),
+                        // Slack-style hint bar: holding ⌘/Ctrl reveals the
+                        // modifier shortcuts available in the current context.
+                        // A sibling of ToastHost so it too paints above every
+                        // route and modal; non-interactive so taps fall
+                        // through.
+                        Positioned.fill(
+                          child: ShortcutHintOverlay(
+                            controller: widget.services.shortcutHints,
+                          ),
                         ),
                       ],
                     ),

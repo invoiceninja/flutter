@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Opens the Contact Us dialog from the sidebar footer.
 ///
@@ -150,16 +151,15 @@ class _ContactUsDialogState extends State<_ContactUsDialog> {
             onPressed: _isSending ? null : () => Navigator.of(context).pop(),
             child: Text(context.tr('cancel')),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-            onPressed: _canSend ? _send : null,
-            child: _isSending
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(context.tr('send')),
+          PrimaryDialogAction(
+            label: context.tr('send'),
+            enabled: _canSend,
+            busy: _isSending,
+            // Multi-line message field: Enter inserts a newline, so it owns
+            // focus and there's no Enter-to-submit path — no hint.
+            autofocus: false,
+            showEnterHint: false,
+            onPressed: _send,
           ),
         ],
       ),

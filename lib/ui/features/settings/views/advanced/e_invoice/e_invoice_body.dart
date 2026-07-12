@@ -6,6 +6,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/views/advanced/e_invoice/certificate_card.dart';
@@ -223,7 +224,6 @@ class EInvoiceBody extends StatelessWidget {
 /// `false` (or `null`) to cancel. Side-by-side actions per the design
 /// system; destructive button uses `tokens.overdue`.
 Future<bool?> _confirmSwitchAwayFromPeppol(BuildContext context) {
-  final tokens = context.inTheme;
   return showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -235,14 +235,10 @@ Future<bool?> _confirmSwitchAwayFromPeppol(BuildContext context) {
           onPressed: () => Navigator.of(ctx).pop(false),
           child: Text(context.tr('cancel')),
         ),
-        FilledButton(
-          autofocus: true,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(64, 44),
-            backgroundColor: tokens.overdue,
-          ),
+        PrimaryDialogAction(
+          variant: DialogActionVariant.destructive,
+          label: context.tr('switch_anyway'),
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(context.tr('switch_anyway')),
         ),
       ],
     ),

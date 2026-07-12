@@ -9,6 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -263,11 +264,11 @@ class _AddRow extends StatelessWidget {
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text(dialogContext.tr('cancel')),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+            PrimaryDialogAction(
+              label: dialogContext.tr('add'),
+              autofocus: false,
               onPressed: () =>
                   Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text(dialogContext.tr('add')),
             ),
           ],
         ),
@@ -331,12 +332,12 @@ class _AddCountryDialogState extends State<_AddCountryDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.tr('cancel')),
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          onPressed: _selected == null
-              ? null
-              : () => Navigator.of(context).pop(_selected),
-          child: Text(context.tr('add')),
+        PrimaryDialogAction(
+          label: context.tr('add'),
+          enabled: _selected != null,
+          autofocus: false,
+          showEnterHint: false,
+          onPressed: () => Navigator.of(context).pop(_selected),
         ),
       ],
     );

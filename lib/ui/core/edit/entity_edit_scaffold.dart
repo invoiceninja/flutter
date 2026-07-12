@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -12,8 +13,10 @@ import 'package:admin/ui/core/dialogs/discard_changes_dialog.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/shortcut_hint_scope.dart';
 
 /// Shared chrome for an entity edit / create screen.
 ///
@@ -323,36 +326,44 @@ class EntityEditScaffold<T> extends StatelessWidget {
               (action) => _onAction(context, action),
               saveButton,
             );
-            final body = Shortcuts(
-              shortcuts: const <ShortcutActivator, Intent>{
-                SingleActivator(LogicalKeyboardKey.keyS, meta: true):
-                    _SaveFormIntent(),
-                SingleActivator(LogicalKeyboardKey.keyS, control: true):
-                    _SaveFormIntent(),
-              },
-              child: Actions(
-                actions: <Type, Action<Intent>>{
-                  _SaveFormIntent: CallbackAction<_SaveFormIntent>(
-                    onInvoke: (_) {
-                      // Mirror the Save button — same gate, same handler.
-                      // Pressing ⌘S while the form is invalid or already
-                      // saving is a silent no-op.
-                      if (canSave) _onSave(context);
-                      return null;
-                    },
-                  ),
+            final body = ShortcutHintScope(
+              hints: [
+                ShortcutHint(
+                  keys: [platformModifierLabel(), 'S'],
+                  labelKey: 'save',
+                ),
+              ],
+              child: Shortcuts(
+                shortcuts: const <ShortcutActivator, Intent>{
+                  SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+                      _SaveFormIntent(),
+                  SingleActivator(LogicalKeyboardKey.keyS, control: true):
+                      _SaveFormIntent(),
                 },
-                child: FormSaveScope(
-                  enabled: canSave,
-                  onSubmit: () => _onSave(context),
-                  child: topBanner == null
-                      ? bodyBuilder(context)
-                      : Column(
-                          children: [
-                            topBanner!,
-                            Expanded(child: bodyBuilder(context)),
-                          ],
-                        ),
+                child: Actions(
+                  actions: <Type, Action<Intent>>{
+                    _SaveFormIntent: CallbackAction<_SaveFormIntent>(
+                      onInvoke: (_) {
+                        // Mirror the Save button — same gate, same handler.
+                        // Pressing ⌘S while the form is invalid or already
+                        // saving is a silent no-op.
+                        if (canSave) _onSave(context);
+                        return null;
+                      },
+                    ),
+                  },
+                  child: FormSaveScope(
+                    enabled: canSave,
+                    onSubmit: () => _onSave(context),
+                    child: topBanner == null
+                        ? bodyBuilder(context)
+                        : Column(
+                            children: [
+                              topBanner!,
+                              Expanded(child: bodyBuilder(context)),
+                            ],
+                          ),
+                  ),
                 ),
               ),
             );

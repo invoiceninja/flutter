@@ -1455,6 +1455,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Multi-language UI (40+ locales) | ✅ | ✅ | ✅ | ✅ | |
 | Company switcher | ✅ | ✅ | ✅ | ✅ | |
 | Keyboard shortcuts | ✅ | ✅ | ✅ | ✅ | |
+| Keyboard-shortcut discoverability — hold ⌘/Ctrl hint bar · Enter hint on dialog primaries · hover shortcut tooltips | — | — | ✅ | | |
 | Browser-style back/forward history (Cmd/Alt+←/→) | — | — | ✅ | ✅ | |
 | Recently-viewed entities (command palette "Recent" group, persisted, company-scoped) | ❌ | ✅ | ✅ | ✅ | |
 | Real-time WebSocket / Pusher notifications | ✅ | ✅ | ❌ |  | |

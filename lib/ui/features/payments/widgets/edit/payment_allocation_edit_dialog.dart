@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/payments/widgets/edit/payment_allocations_section.dart';
 import 'package:admin/utils/formatting.dart'
@@ -113,6 +114,24 @@ class _PaymentAllocationEditDialogState
     super.dispose();
   }
 
+  void _save() {
+    if (_selected == null || !_amountPositive) return;
+    final amount =
+        parseDecimal(
+          _amountController.text,
+          useCommaAsDecimalPlace: _useComma,
+        ) ??
+        Decimal.zero;
+    final result = Paymentable(
+      invoiceId: widget.kind == AllocationKind.invoice ? _selected!.id : '',
+      creditId: widget.kind == AllocationKind.credit ? _selected!.id : '',
+      amount: amount,
+      refunded: widget.initial?.refunded ?? Decimal.zero,
+      id: widget.initial?.id ?? '',
+    );
+    Navigator.of(context).pop(result);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -171,6 +190,8 @@ class _PaymentAllocationEditDialogState
                 decimal: true,
               ),
               autofocus: widget.initial != null,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _save(),
             ),
           ],
         ),
@@ -186,31 +207,11 @@ class _PaymentAllocationEditDialogState
               child: Text(context.tr('cancel')),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: (_selected == null || !_amountPositive)
-                  ? null
-                  : () {
-                      final amount =
-                          parseDecimal(
-                            _amountController.text,
-                            useCommaAsDecimalPlace: _useComma,
-                          ) ??
-                          Decimal.zero;
-                      final result = Paymentable(
-                        invoiceId: widget.kind == AllocationKind.invoice
-                            ? _selected!.id
-                            : '',
-                        creditId: widget.kind == AllocationKind.credit
-                            ? _selected!.id
-                            : '',
-                        amount: amount,
-                        refunded: widget.initial?.refunded ?? Decimal.zero,
-                        id: widget.initial?.id ?? '',
-                      );
-                      Navigator.of(context).pop(result);
-                    },
-              child: Text(context.tr('save')),
+            PrimaryDialogAction(
+              label: context.tr('save'),
+              onPressed: _save,
+              enabled: _selected != null && _amountPositive,
+              autofocus: false,
             ),
           ],
         ),

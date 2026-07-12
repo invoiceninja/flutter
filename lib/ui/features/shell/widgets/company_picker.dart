@@ -12,6 +12,7 @@ import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/upgrade/upgrade_launcher.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 
@@ -116,14 +117,9 @@ class _CompanyPickerState extends State<CompanyPicker> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton(
-            autofocus: true,
-            // Override the theme's full-width `minimumSize` (see
-            // lib/app/theme.dart) so the button fits beside Cancel in the
-            // OverflowBar instead of forcing a vertical stack.
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: ctx.tr('add_company'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(ctx.tr('add_company')),
           ),
         ],
       ),

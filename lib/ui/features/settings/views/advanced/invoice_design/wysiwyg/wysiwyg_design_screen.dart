@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -650,10 +651,9 @@ class _TopBar extends StatelessWidget {
               onPressed: () => Navigator.of(ctx).pop(false),
               child: Text(ctx.tr('cancel')),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+            PrimaryDialogAction(
+              label: ctx.tr('replace'),
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(ctx.tr('replace')),
             ),
           ],
         ),
@@ -694,10 +694,11 @@ class _TopBar extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: ctx.tr('import'),
+            autofocus: false,
+            showEnterHint: false,
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: Text(ctx.tr('import')),
           ),
         ],
       ),

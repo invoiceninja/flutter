@@ -12,6 +12,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/notify_async.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Invoice detail → Payment Schedule tab. Mirrors React: the schedule is a
@@ -129,10 +130,9 @@ class InvoicePaymentScheduleTab extends StatelessWidget {
                 child: Text(ctx.tr('cancel')),
               ),
               const SizedBox(width: 8),
-              FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+              PrimaryDialogAction(
+                label: ctx.tr('remove'),
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: Text(ctx.tr('remove')),
               ),
             ],
           ),
@@ -448,15 +448,15 @@ class _CreatePaymentScheduleDialogState
               child: Text(context.tr('cancel')),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: (_busy || !_valid) ? null : _submit,
-              child: _busy
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(context.tr('create_payment_schedule')),
+            PrimaryDialogAction(
+              label: context.tr('create_payment_schedule'),
+              onPressed: _submit,
+              enabled: _valid,
+              busy: _busy,
+              // Disabled until a date is chosen + no field routes Enter to
+              // submit — so no Enter hint.
+              autofocus: false,
+              showEnterHint: false,
             ),
           ],
         ),

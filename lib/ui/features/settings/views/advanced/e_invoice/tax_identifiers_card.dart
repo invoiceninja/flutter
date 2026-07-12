@@ -11,6 +11,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/views/advanced/e_invoice/e_invoice_constants.dart';
@@ -167,7 +168,6 @@ class _IdentifierRow extends StatelessWidget {
     final companyId = host.draft?.id;
     if (companyId == null) return;
 
-    final tokens = context.inTheme;
     final removed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -179,14 +179,10 @@ class _IdentifierRow extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(context.tr('cancel')),
           ),
-          FilledButton(
-            autofocus: true,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(64, 44),
-              backgroundColor: tokens.overdue,
-            ),
+          PrimaryDialogAction(
+            variant: DialogActionVariant.destructive,
+            label: context.tr('remove'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(context.tr('remove')),
           ),
         ],
       ),
@@ -282,10 +278,11 @@ class _AddIdentifierDialogState extends State<_AddIdentifierDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.tr('cancel')),
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          onPressed: canSave ? () => _submit(context) : null,
-          child: Text(context.tr('save')),
+        PrimaryDialogAction(
+          label: context.tr('save'),
+          enabled: canSave,
+          autofocus: false,
+          onPressed: () => _submit(context),
         ),
       ],
     );

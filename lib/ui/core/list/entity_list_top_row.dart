@@ -6,6 +6,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_column_picker_sheet.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/saved_views_button.dart';
+import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 
 /// Wide-mode page header: primary "new" action, token search field, columns
 /// picker — all in one row. Rendered inside the AppBar's `flexibleSpace` slot
@@ -52,22 +53,32 @@ class EntityListTopRow<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // Primary action leads the row. The `minimumSize` override fixes a
+    // Flutter flex-first-pass sizing bug — without a finite minimum,
+    // `_RenderInputPadding` collapses to invalid constraints when an
+    // `Expanded` sibling sits next to it.
+    final newButton = FilledButton.icon(
+      onPressed: canCreate ? () => context.go(newRoute) : null,
+      icon: const Icon(Icons.add, size: 18),
+      label: Text(context.tr(newLabelKey)),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Primary action leads the row. The `minimumSize` override fixes a
-        // Flutter flex-first-pass sizing bug — without a finite minimum,
-        // `_RenderInputPadding` collapses to invalid constraints when an
-        // `Expanded` sibling sits next to it.
-        FilledButton.icon(
-          onPressed: canCreate ? () => context.go(newRoute) : null,
-          icon: const Icon(Icons.add, size: 18),
-          label: Text(context.tr(newLabelKey)),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 40),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-          ),
-        ),
+        // Only advertise the `N` shortcut when creating is enabled (the
+        // shortcut itself is canCreate-gated).
+        if (canCreate)
+          ShortcutTooltip(
+            label: context.tr(newLabelKey),
+            keys: const ['N'],
+            child: newButton,
+          )
+        else
+          newButton,
         const SizedBox(width: 16),
         // The token field carries every filter dimension. It fills the row
         // between the New button and the Columns button; `Expanded` still

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Two-step purge confirmation. Returns true when the user taps Continue;
 /// the caller then enqueues the purge mutation (which goes through the
@@ -33,11 +34,9 @@ Future<bool> showPurgeClientDialog(
           onPressed: () => Navigator.of(ctx).pop(false),
           child: Text(ctx.tr('cancel')),
         ),
-        FilledButton(
-          autofocus: true,
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+        PrimaryDialogAction(
+          label: ctx.tr('continue'),
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(ctx.tr('continue')),
         ),
       ],
     ),

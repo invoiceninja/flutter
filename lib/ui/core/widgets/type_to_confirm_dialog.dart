@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Result of [showTypeToConfirmDialog]: whether the user confirmed, and the
 /// optional reason text they entered (empty when no reason field was shown,
@@ -141,17 +142,13 @@ class _TypeToConfirmDialogState extends State<_TypeToConfirmDialog> {
       ),
       actions: [
         TextButton(onPressed: _cancel, child: Text(context.tr('cancel'))),
-        FilledButton(
-          // Override the theme's full-width minimumSize so the destructive
-          // primary action sits beside Cancel — see `lib/app/theme.dart` and
-          // the canonical example in company_picker.dart.
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(64, 44),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            foregroundColor: Theme.of(context).colorScheme.onError,
-          ),
-          onPressed: _canSubmit ? _submit : null,
-          child: Text(context.tr('continue')),
+        PrimaryDialogAction(
+          variant: DialogActionVariant.destructive,
+          label: context.tr('continue'),
+          enabled: _canSubmit,
+          // The type-to-confirm field owns focus + fires Enter via onSubmitted.
+          autofocus: false,
+          onPressed: _submit,
         ),
       ],
     );

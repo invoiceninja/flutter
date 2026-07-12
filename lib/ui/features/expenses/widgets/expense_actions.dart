@@ -16,6 +16,7 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 
@@ -305,10 +306,11 @@ Future<void> _promptAddComment(
                 child: Text(ctx.tr('cancel')),
               ),
               const SizedBox(width: 8),
-              FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+              PrimaryDialogAction(
+                label: ctx.tr('save'),
                 onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-                child: Text(ctx.tr('save')),
+                autofocus: false,
+                showEnterHint: false,
               ),
             ],
           ),

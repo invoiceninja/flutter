@@ -7,6 +7,7 @@ import 'package:admin/app/mdi_icons.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/api/tax_config_api_model.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -307,11 +308,9 @@ class _CalculateTaxesToggle extends StatelessWidget {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(context.tr('cancel')),
           ),
-          FilledButton(
-            autofocus: true,
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: context.tr('continue'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(context.tr('continue')),
           ),
         ],
       ),

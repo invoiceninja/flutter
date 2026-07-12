@@ -459,6 +459,7 @@ class _InSidebarState extends State<InSidebar> {
       compact: compact,
       onTap: onTap,
       trailingHover: hoverAdd,
+      leaderKey: branch == null ? null : _entityLeaderKey(handlers.type),
     );
     final badge = handlers.badgeStream;
     if (badge == null) return tile;
@@ -473,6 +474,7 @@ class _InSidebarState extends State<InSidebar> {
         count: snap.data,
         onTap: onTap,
         trailingHover: hoverAdd,
+        leaderKey: branch == null ? null : _entityLeaderKey(handlers.type),
       ),
     );
   }
@@ -501,6 +503,7 @@ class _InSidebarState extends State<InSidebar> {
       trailing: trailing,
       trailingHover: trailingHover,
       onTap: branch == null ? null : () => widget.onSelectBranch(branch),
+      leaderKey: branch == null ? null : _fixedLeaderKey(kind),
     );
     if (badgeStream == null) return tile();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
@@ -539,6 +542,36 @@ class _CachedStream<T> {
   void close() {
     unawaited(_sub.cancel());
     unawaited(_controller.close());
+  }
+}
+
+/// The `G`-leader second key for the sidebar entity rows that have one
+/// (mirrors `_leaderTarget` in scaffold_with_nav.dart). Null → no leader
+/// jump, so the row shows no shortcut hint.
+String? _entityLeaderKey(EntityType type) {
+  switch (type) {
+    case EntityType.client:
+      return 'C';
+    case EntityType.invoice:
+      return 'I';
+    case EntityType.product:
+      return 'P';
+    case EntityType.task:
+      return 'T';
+    default:
+      return null;
+  }
+}
+
+/// The `G`-leader second key for the fixed sidebar rows that have one.
+String? _fixedLeaderKey(FixedBranchKind kind) {
+  switch (kind) {
+    case FixedBranchKind.dashboard:
+      return 'D';
+    case FixedBranchKind.settings:
+      return 'S';
+    default:
+      return null;
   }
 }
 

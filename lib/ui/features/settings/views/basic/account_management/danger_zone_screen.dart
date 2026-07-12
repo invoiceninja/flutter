@@ -13,6 +13,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 
@@ -744,25 +745,13 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
                     onPressed: _busy ? null : () => Navigator.of(context).pop(),
                     child: Text(context.tr('cancel')),
                   ),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                      backgroundColor: tokens.overdue,
-                      foregroundColor: tokens.onOverdue,
-                    ),
-                    onPressed: _canSubmit ? _submit : null,
-                    child: _busy
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(
-                                tokens.onOverdue,
-                              ),
-                            ),
-                          )
-                        : Text(context.tr('continue')),
+                  PrimaryDialogAction(
+                    variant: DialogActionVariant.destructive,
+                    label: context.tr('continue'),
+                    enabled: _canSubmit,
+                    busy: _busy,
+                    autofocus: false,
+                    onPressed: _submit,
                   ),
                 ],
               ),

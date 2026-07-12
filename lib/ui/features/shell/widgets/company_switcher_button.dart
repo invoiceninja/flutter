@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
+import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
 import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
 
@@ -58,7 +61,7 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
       size: 28,
       logoUrl: current?.logoUrl,
     );
-    return Material(
+    final Widget button = Material(
       key: _anchorKey,
       color: tokens.surfaceAlt,
       borderRadius: BorderRadius.circular(InRadii.r2),
@@ -102,6 +105,15 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
                 ),
         ),
       ),
+    );
+
+    // Only advertise ⌘K when the button is interactive (more than one
+    // workspace) — matching when the picker actually opens.
+    if (!multi) return button;
+    return ShortcutTooltip(
+      label: context.tr('switch_company'),
+      keys: [platformModifierLabel(), 'K'],
+      child: button,
     );
   }
 }

@@ -8,6 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/views/basic/user_details/view_models/two_factor_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -233,14 +234,10 @@ class _DisableSection extends StatelessWidget {
             style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton(
+          PrimaryDialogAction(
+            variant: DialogActionVariant.destructive,
+            label: ctx.tr('disable'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
-              minimumSize: const Size(64, 44),
-            ),
-            child: Text(ctx.tr('disable')),
           ),
         ],
       ),
@@ -288,10 +285,10 @@ class _DisableSection extends StatelessWidget {
               style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
               child: Text(ctx.tr('cancel')),
             ),
-            FilledButton(
+            PrimaryDialogAction(
+              label: ctx.tr('confirm'),
+              autofocus: false,
               onPressed: () => Navigator.of(ctx).pop(controller.text),
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              child: Text(ctx.tr('confirm')),
             ),
           ],
         ),

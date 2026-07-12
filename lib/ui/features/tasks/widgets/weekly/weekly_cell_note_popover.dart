@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/tasks/view_models/task_weekly_view_model.dart';
 
 /// Edit a weekly cell's description + billable flag. Routes through
@@ -52,8 +53,10 @@ Future<void> showWeeklyCellNote(
               ),
             ),
             actions: [
-              FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+              PrimaryDialogAction(
+                label: dialogContext.tr('done'),
+                autofocus: false,
+                showEnterHint: false,
                 onPressed: () {
                   vm.editCell(
                     taskId,
@@ -63,7 +66,6 @@ Future<void> showWeeklyCellNote(
                   );
                   Navigator.of(dialogContext).pop();
                 },
-                child: Text(dialogContext.tr('done')),
               ),
             ],
           );

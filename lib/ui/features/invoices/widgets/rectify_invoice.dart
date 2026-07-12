@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/views/advanced/e_invoice/e_invoice_constants.dart';
 
 /// Invoice "rectify" (Verifactu *factura rectificativa*). Mirrors React's
@@ -129,14 +130,13 @@ Future<String?> showRectifyReasonDialog(BuildContext context) {
                     child: Text(ctx.tr('cancel')),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                    ),
-                    onPressed: canConfirm
-                        ? () => Navigator.of(ctx).pop(controller.text.trim())
-                        : null,
-                    child: Text(ctx.tr('rectify')),
+                  PrimaryDialogAction(
+                    label: ctx.tr('rectify'),
+                    onPressed: () =>
+                        Navigator.of(ctx).pop(controller.text.trim()),
+                    enabled: canConfirm,
+                    autofocus: false,
+                    showEnterHint: false,
                   ),
                 ],
               ),

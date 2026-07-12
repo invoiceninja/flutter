@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services_entity_wiring.dart';
+import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
@@ -584,6 +585,11 @@ class Services implements SidebarBadgeContext {
   /// regardless of where it fired (e.g. from a sheet that then pops). Cleared
   /// on logout. No DI deps, so it's field-initialized like [searchFocus].
   final ToastController toasts = ToastController();
+
+  /// Registry + visibility for the hold-modifier shortcut hint bar, rendered
+  /// by the global `ShortcutHintOverlay` in `main.dart`. Context-free +
+  /// always-alive like [toasts]; `reset()` on logout.
+  final ShortcutHintController shortcutHints = ShortcutHintController();
 
   /// Debug Panel screenshot tools: window sizing to App Store / Play Store
   /// pixel dimensions + hiding the native window buttons. Lives on `Services`
@@ -1195,6 +1201,7 @@ class Services implements SidebarBadgeContext {
       settingsLevel.reset();
       refreshScheduler.stop();
       services.toasts.clearAll();
+      services.shortcutHints.reset();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
     final priorOnActiveCompanyChanged = auth.onActiveCompanyChanged;

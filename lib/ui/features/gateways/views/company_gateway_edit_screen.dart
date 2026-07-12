@@ -11,6 +11,7 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/gateways/view_models/company_gateway_edit_view_model.dart';
 import 'package:admin/ui/features/gateways/widgets/company_gateway_actions.dart';
 import 'package:admin/ui/features/gateways/widgets/edit/gateway_config_form.dart';
@@ -110,10 +111,9 @@ class _CompanyGatewayEditScreenState extends State<CompanyGatewayEditScreen> {
                 onPressed: () => Navigator.of(ctx).pop(false),
                 child: Text(ctx.tr('no')),
               ),
-              FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+              PrimaryDialogAction(
+                label: ctx.tr('yes'),
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: Text(ctx.tr('yes')),
               ),
             ],
           ),

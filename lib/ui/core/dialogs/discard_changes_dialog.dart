@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Shows the standard "Discard changes?" prompt.
 ///
@@ -18,11 +19,10 @@ Future<bool> showDiscardChangesDialog(BuildContext context) async {
           onPressed: () => Navigator.of(ctx).pop(false),
           child: Text(ctx.tr('keep_editing')),
         ),
-        FilledButton.tonal(
-          autofocus: true,
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+        PrimaryDialogAction(
+          variant: DialogActionVariant.tonal,
+          label: ctx.tr('discard'),
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(ctx.tr('discard')),
         ),
       ],
     ),

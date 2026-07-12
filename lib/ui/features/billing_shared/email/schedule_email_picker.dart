@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/in_time_field.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Modal that lets the user pick a future date + time at which to send an
@@ -98,12 +99,10 @@ class _ScheduleEmailDialogState extends State<_ScheduleEmailDialog> {
               child: Text(context.tr('cancel')),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: _isInFuture
-                  ? () => Navigator.of(context).pop(_composed)
-                  : null,
-              child: Text(context.tr('schedule')),
+            PrimaryDialogAction(
+              label: context.tr('schedule'),
+              onPressed: () => Navigator.of(context).pop(_composed),
+              enabled: _isInFuture,
             ),
           ],
         ),

@@ -9,11 +9,13 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/nav_history_controller.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/offline_banner.dart';
@@ -73,6 +75,13 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   /// [BranchCompanyGate]).
   final BranchCompanyGate _branchGate = BranchCompanyGate();
 
+  /// Token + captured controller for the always-available global
+  /// shortcut-hint scope (registered in [initState], removed in [dispose]).
+  /// Registered imperatively rather than via a build-tree `ShortcutHintScope`
+  /// so we don't wrap the entire shell subtree.
+  final Object _globalHintToken = Object();
+  late final ShortcutHintController _shortcutHints;
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +93,28 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
       companyId:
           context.read<Services>().auth.session.value?.currentCompanyId ?? '',
     );
+    _shortcutHints = context.read<Services>().shortcutHints;
+    _shortcutHints.register(_globalHintToken, _globalShortcutHints());
+  }
+
+  /// The global modifier shortcuts always available in the authenticated
+  /// shell. Mirrors the `Shortcuts` map in [build] + the help dialog.
+  List<ShortcutHint> _globalShortcutHints() {
+    final mod = platformModifierLabel();
+    final hints = <ShortcutHint>[
+      ShortcutHint(keys: [mod, 'K'], labelKey: 'switch_company'),
+      ShortcutHint(keys: [mod, '/'], labelKey: 'search_everything'),
+      ShortcutHint(keys: [mod, 'B'], labelKey: 'toggle_sidebar'),
+      ShortcutHint(keys: [mod, ','], labelKey: 'settings'),
+    ];
+    // History back/forward is ⌘+Arrow on Apple but Alt+Arrow on
+    // Windows/Linux — a *different* modifier — so only surface it in a
+    // ⌘/Ctrl bar when it matches the platform modifier (macOS/iOS).
+    if (platformHistoryModifierLabel() == mod) {
+      hints.add(ShortcutHint(keys: [mod, '←'], labelKey: 'go_back'));
+      hints.add(ShortcutHint(keys: [mod, '→'], labelKey: 'go_forward'));
+    }
+    return hints;
   }
 
   late final int? _dashboardIndex = _indexOfFixed(FixedBranchKind.dashboard);
@@ -110,6 +141,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   @override
   void dispose() {
     _leaderTimer?.cancel();
+    _shortcutHints.unregister(_globalHintToken);
     super.dispose();
   }
 

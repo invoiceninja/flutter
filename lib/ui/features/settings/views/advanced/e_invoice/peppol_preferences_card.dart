@@ -8,6 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/api/tax_config_api_model.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/views/advanced/e_invoice/peppol_buy_credits_links.dart';
@@ -238,7 +239,6 @@ class _PeppolPreferencesCardState extends State<PeppolPreferencesCard> {
   }
 
   Future<void> _confirmDisconnect(BuildContext context) async {
-    final tokens = context.inTheme;
     final host = context.read<SettingsDraftHost>();
     final services = context.read<Services>();
     final company = host.draft;
@@ -255,14 +255,10 @@ class _PeppolPreferencesCardState extends State<PeppolPreferencesCard> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(context.tr('cancel')),
           ),
-          FilledButton(
-            autofocus: true,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(64, 44),
-              backgroundColor: tokens.overdue,
-            ),
+          PrimaryDialogAction(
+            variant: DialogActionVariant.destructive,
+            label: context.tr('disconnect'),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(context.tr('disconnect')),
           ),
         ],
       ),

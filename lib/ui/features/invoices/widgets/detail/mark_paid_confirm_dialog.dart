@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Confirmation dialog for the "Mark paid" action. Issues a simple
 /// `PUT /api/v1/invoices/{id}?paid=true` (handled by the dispatcher's
@@ -31,11 +32,9 @@ Future<bool> showMarkPaidConfirmDialog(BuildContext context) async {
                 child: Text(ctx.tr('cancel')),
               ),
               const SizedBox(width: 8),
-              FilledButton(
-                autofocus: true,
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+              PrimaryDialogAction(
+                label: ctx.tr('mark_paid'),
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: Text(ctx.tr('mark_paid')),
               ),
             ],
           ),

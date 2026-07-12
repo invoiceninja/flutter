@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Open the Add Comment dialog. Returns the trimmed comment text on save,
 /// or null when the user cancels. The caller is responsible for the actual
@@ -75,10 +76,14 @@ class _AddCommentDialogState extends State<_AddCommentDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.tr('cancel')),
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          onPressed: _canSave ? _onSave : null,
-          child: Text(context.tr('save')),
+        PrimaryDialogAction(
+          label: context.tr('save'),
+          enabled: _canSave,
+          // Multi-line comment field: Enter inserts a newline, so it owns focus
+          // and there's no Enter-to-submit path — no hint.
+          autofocus: false,
+          showEnterHint: false,
+          onPressed: _onSave,
         ),
       ],
     );

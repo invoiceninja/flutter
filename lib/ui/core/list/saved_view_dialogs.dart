@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/saved_view.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/saved_view_icons.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Prompt the user to rename [view] and write the change through
 /// `services.savedViews.rename`. Reused by the bookmark sheet's per-row
@@ -37,10 +38,11 @@ Future<void> showRenameSavedViewDialog(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(ctx.tr('cancel')),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: ctx.tr('save'),
+            // The name field owns focus + fires Enter via its onSubmitted.
+            autofocus: false,
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: Text(ctx.tr('save')),
           ),
         ],
       );
@@ -86,11 +88,10 @@ Future<void> showDeleteSavedViewDialog(
           onPressed: () => Navigator.of(ctx).pop(false),
           child: Text(ctx.tr('cancel')),
         ),
-        FilledButton.tonal(
-          autofocus: true,
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+        PrimaryDialogAction(
+          variant: DialogActionVariant.tonal,
+          label: ctx.tr('delete'),
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(ctx.tr('delete')),
         ),
       ],
     ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 
 /// Pick the **survivor** client to merge [source] into. Returns the chosen
@@ -71,12 +72,14 @@ Future<Client?> showMergeClientDialog(
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text(ctx.tr('cancel')),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: selected == null
-                  ? null
-                  : () => Navigator.of(ctx).pop(selected),
-              child: Text(ctx.tr('merge')),
+            PrimaryDialogAction(
+              label: ctx.tr('merge'),
+              enabled: selected != null,
+              // Dropdown picker: Enter selects an option, it doesn't submit —
+              // so no Enter hint.
+              autofocus: false,
+              showEnterHint: false,
+              onPressed: () => Navigator.of(ctx).pop(selected),
             ),
           ],
         ),

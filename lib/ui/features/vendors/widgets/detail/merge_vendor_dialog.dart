@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 
 /// Pick the **survivor** vendor to merge [source] into. Returns the chosen
@@ -63,12 +64,14 @@ Future<Vendor?> showMergeVendorDialog(
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text(ctx.tr('cancel')),
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: selected == null
-                  ? null
-                  : () => Navigator.of(ctx).pop(selected),
-              child: Text(ctx.tr('merge')),
+            PrimaryDialogAction(
+              label: ctx.tr('merge'),
+              onPressed: () => Navigator.of(ctx).pop(selected),
+              enabled: selected != null,
+              // Disabled until a vendor is picked (autofocus can't land on a
+              // disabled button) + dropdown eats Enter — so no Enter hint.
+              autofocus: false,
+              showEnterHint: false,
             ),
           ],
         ),

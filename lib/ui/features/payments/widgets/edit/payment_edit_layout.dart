@@ -18,6 +18,7 @@ import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -332,12 +333,9 @@ class _ClientPicker extends StatelessWidget {
                   child: Text(ctx.tr('cancel')),
                 ),
                 const SizedBox(width: 8),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 44),
-                  ),
+                PrimaryDialogAction(
+                  label: ctx.tr('continue_label'),
                   onPressed: () => Navigator.of(ctx).pop(true),
-                  child: Text(ctx.tr('continue_label')),
                 ),
               ],
             ),

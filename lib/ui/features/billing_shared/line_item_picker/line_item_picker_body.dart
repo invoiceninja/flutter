@@ -18,6 +18,7 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_result.dart';
@@ -971,10 +972,12 @@ class _Footer extends StatelessWidget {
             child: Text(context.tr('cancel')),
           ),
           SizedBox(width: InSpacing.md(context)),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+          PrimaryDialogAction(
+            label: context.tr('add'),
             onPressed: onAdd,
-            child: Text(context.tr('add')),
+            // Search + multi-select tabs — no Enter hint.
+            autofocus: false,
+            showEnterHint: false,
           ),
         ],
       ),

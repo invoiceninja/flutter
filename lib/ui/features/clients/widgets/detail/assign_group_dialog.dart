@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 
 /// Outcome of [showAssignGroupDialog].
@@ -152,10 +153,14 @@ class _AssignGroupDialogState extends State<_AssignGroupDialog> {
           ).pop(const AssignGroupResult(changed: false, groupId: null)),
           child: Text(context.tr('cancel')),
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-          onPressed: _canAssign ? _onAssign : null,
-          child: Text(context.tr('assign')),
+        PrimaryDialogAction(
+          label: context.tr('assign'),
+          enabled: _canAssign,
+          // Dropdown picker: Enter selects an option, it doesn't submit —
+          // so no Enter hint.
+          autofocus: false,
+          showEnterHint: false,
+          onPressed: _onAssign,
         ),
       ],
     );

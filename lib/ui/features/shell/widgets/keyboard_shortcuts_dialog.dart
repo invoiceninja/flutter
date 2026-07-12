@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/platform_modifier.dart';
+import 'package:admin/ui/core/widgets/key_cap.dart';
 
 /// Opens the Keyboard Shortcuts helper dialog. Lists every non-obvious
 /// shortcut wired into the shell, master-detail pane, token search, and
@@ -12,23 +13,6 @@ Future<void> showKeyboardShortcutsDialog(BuildContext context) {
     context: context,
     builder: (_) => const _KeyboardShortcutsDialog(),
   );
-}
-
-/// Show `⌘` on macOS/iOS, `Ctrl` everywhere else. Module-private so the
-/// widget test can construct the label without reaching into private state.
-@visibleForTesting
-String platformModifierLabel([TargetPlatform? override]) {
-  final p = override ?? defaultTargetPlatform;
-  return (p == TargetPlatform.macOS || p == TargetPlatform.iOS) ? '⌘' : 'Ctrl';
-}
-
-/// Modifier for browser-style history (back/forward). Follows the per-OS
-/// browser convention: macOS uses ⌘+Arrow, Windows/Linux use Alt+Arrow —
-/// which is *not* the same as [platformModifierLabel]'s Ctrl elsewhere.
-@visibleForTesting
-String platformHistoryModifierLabel([TargetPlatform? override]) {
-  final p = override ?? defaultTargetPlatform;
-  return (p == TargetPlatform.macOS || p == TargetPlatform.iOS) ? '⌘' : 'Alt+';
 }
 
 class _KeyboardShortcutsDialog extends StatelessWidget {
@@ -46,7 +30,7 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
         title: context.tr('shortcuts_global'),
         rows: [
           _Row(keys: ['${mod}K'], description: context.tr('switch_company')),
-          _Row(keys: ['$mod/'], description: context.tr('search')),
+          _Row(keys: ['$mod/'], description: context.tr('search_everything')),
           _Row(keys: ['${mod}B'], description: context.tr('toggle_sidebar')),
           _Row(keys: ['$mod,'], description: context.tr('settings')),
           _Row(keys: ['?'], description: context.tr('keyboard_shortcuts')),
@@ -128,7 +112,32 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
     );
 
     return AlertDialog(
-      title: Text(context.tr('keyboard_shortcuts')),
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(context.tr('keyboard_shortcuts')),
+          const SizedBox(height: 4),
+          // Seeds discovery of the hold-modifier hint bar — nothing else
+          // tells users it exists.
+          Row(
+            children: [
+              Icon(Icons.keyboard_outlined, size: 14, color: tokens.ink3),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  context.tr('hold_modifier_to_preview', {'modifier': mod}),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: tokens.ink3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       content: SizedBox(width: wide ? 880 : 480, child: body),
       // `spaceBetween` pins the hint at the leading edge and the Close
       // button at the trailing edge so they share the actions row.
@@ -291,7 +300,7 @@ class _RowView extends StatelessWidget {
                 context.tr('or'),
                 style: TextStyle(fontSize: 11, color: tokens.ink3),
               ),
-            _KeyBadge(label: r.keys[i]),
+            KeyCap(label: r.keys[i]),
           ],
         ],
       ),
@@ -300,7 +309,7 @@ class _RowView extends StatelessWidget {
         runSpacing: 4,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          _KeyBadge(label: r.leader),
+          KeyCap(label: r.leader),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Text(
@@ -308,7 +317,17 @@ class _RowView extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: tokens.ink3),
             ),
           ),
-          for (final t in r.targets) _KeyBadge(label: t),
+          for (var i = 0; i < r.targets.length; i++) ...[
+            if (i > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  context.tr('or'),
+                  style: TextStyle(fontSize: 11, color: tokens.ink3),
+                ),
+              ),
+            KeyCap(label: r.targets[i]),
+          ],
         ],
       ),
     };
@@ -343,37 +362,6 @@ class _RowView extends StatelessWidget {
                 ),
               ],
             ),
-    );
-  }
-}
-
-class _KeyBadge extends StatelessWidget {
-  const _KeyBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Semantics(
-      label: 'Key: $label',
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: tokens.surfaceAlt,
-          border: Border.all(color: tokens.border),
-          borderRadius: BorderRadius.circular(InRadii.r1),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontFeatures: const [FontFeature.tabularFigures()],
-            fontSize: 12,
-            color: tokens.ink,
-          ),
-        ),
-      ),
     );
   }
 }

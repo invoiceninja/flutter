@@ -6,6 +6,7 @@
   "sync_first_generic": "This record hasn't synced to the server yet — sync before continuing.",
   "unsynced_changes_other_company": "Another company still has unsynced changes — switch to it to sync, or choose Discard.",
   "sync_now": "Sync now",
+  "stop_all": "Stop all",
   "low_stock": "Low stock",
   "stock_value": "Stock value",
   "updated_clients": "Successfully updated :count clients",

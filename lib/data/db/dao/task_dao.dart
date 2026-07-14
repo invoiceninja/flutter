@@ -211,6 +211,34 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     return q.watchSingleOrNull();
   }
 
+  /// Live count of running (non-deleted) timers for the company. Backs the
+  /// global pill's "N running" affordance so concurrent timers stay visible
+  /// even though [watchRunning] surfaces only the most-recent one.
+  Stream<int> watchRunningCount({required String companyId}) {
+    final count = tasks.id.count();
+    final q = selectOnly(tasks)
+      ..addColumns([count])
+      ..where(
+        tasks.companyId.equals(companyId) &
+            tasks.isRunning.equals(true) &
+            tasks.isDeleted.equals(false),
+      );
+    return q.map((row) => row.read(count) ?? 0).watchSingle();
+  }
+
+  /// Ids of every running (non-deleted) timer for the company — backs the
+  /// pill's "Stop all".
+  Future<List<String>> runningTaskIds({required String companyId}) {
+    final q = selectOnly(tasks)
+      ..addColumns([tasks.id])
+      ..where(
+        tasks.companyId.equals(companyId) &
+            tasks.isRunning.equals(true) &
+            tasks.isDeleted.equals(false),
+      );
+    return q.map((row) => row.read(tasks.id)!).get();
+  }
+
   /// Active, non-deleted tasks belonging to one project. Used by the
   /// Project detail's Tasks card. Excludes archived rows — they belong on
   /// the parent Task list, not in a project's overview.

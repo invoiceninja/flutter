@@ -32,6 +32,7 @@ class KanbanColumn extends StatelessWidget {
     super.key,
     required this.status,
     required this.tasks,
+    required this.companyId,
     required this.onAcceptTask,
     this.onAcceptStatus,
     this.canEdit = true,
@@ -39,6 +40,11 @@ class KanbanColumn extends StatelessWidget {
 
   final TaskStatus status;
   final List<Task> tasks;
+
+  /// Active company id — threaded by value into each card's inline timer
+  /// toggle (drag-feedback cards render in the Overlay, outside the
+  /// KanbanViewModel Provider, so it can't be read from context there).
+  final String companyId;
 
   /// Called when the user drops [task] onto this column. [beforeTaskId] is
   /// the id of the card the dragged task should appear *above*, or null
@@ -153,7 +159,7 @@ class KanbanColumn extends StatelessWidget {
                   itemCount: tasks.length,
                   itemBuilder: (context, i) {
                     final t = tasks[i];
-                    final cardBody = KanbanCard(task: t);
+                    final cardBody = KanbanCard(task: t, companyId: companyId);
                     if (!canEdit) {
                       // Read-only — render the card without drag wiring.
                       return Padding(
@@ -182,7 +188,12 @@ class KanbanColumn extends StatelessWidget {
                                 data: t,
                                 feedback: SizedBox(
                                   width: kKanbanCardWidth,
-                                  child: KanbanCard(task: t),
+                                  // Drag ghost: no interactive timer button.
+                                  child: KanbanCard(
+                                    task: t,
+                                    companyId: companyId,
+                                    showTimerButton: false,
+                                  ),
                                 ),
                                 tokens: tokens,
                                 tooltipKey: 'drag_to_reorder',

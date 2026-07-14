@@ -81,6 +81,82 @@ void main() {
     expect(after.isRunning, isTrue);
   });
 
+  test(
+    'startTimer carries description but NOT billable from the last entry',
+    () async {
+      final repo = makeRepo();
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(
+          timeLog: [
+            // Real (non-zero) timestamps: unix second 0 is the "no time"
+            // sentinel and would round-trip to a null start and be dropped.
+            // Last entry is NON-billable to prove billable is not inherited.
+            TimeEntry(
+              start: DateTime.utc(2026, 1, 1, 9),
+              stop: DateTime.utc(2026, 1, 1, 10),
+              description: 'Design work',
+              billable: false,
+            ),
+          ],
+        ),
+      );
+      final id = created.entity.id;
+
+      await repo.startTimer(companyId: 'co', taskId: id);
+
+      final after = await repo.watchByRealId(companyId: 'co', id: id).first;
+      expect(after!.timeLog, hasLength(2));
+      final running = after.timeLog.last;
+      expect(running.isRunning, isTrue);
+      expect(running.description, 'Design work', reason: 'description carries');
+      expect(running.billable, isTrue, reason: 'a new timer starts billable');
+    },
+  );
+
+  test('watchRunningCount + stopAllRunning cover concurrent timers', () async {
+    final repo = makeRepo();
+    final a = await repo.create(companyId: 'co', draft: task());
+    final b = await repo.create(companyId: 'co', draft: task());
+    await repo.startTimer(companyId: 'co', taskId: a.entity.id);
+    await repo.startTimer(companyId: 'co', taskId: b.entity.id);
+
+    expect(await repo.watchRunningCount(companyId: 'co').first, 2);
+
+    await repo.stopAllRunning(companyId: 'co');
+    expect(await repo.watchRunningCount(companyId: 'co').first, 0);
+  });
+
+  test('startTimer is a no-op on a soft-deleted task', () async {
+    final repo = makeRepo();
+    final created = await repo.create(
+      companyId: 'co',
+      draft: task(
+        timeLog: [
+          TimeEntry(
+            start: DateTime.utc(2026, 1, 1, 9),
+            stop: DateTime.utc(2026, 1, 1, 10),
+          ),
+        ],
+      ),
+    );
+    final id = created.entity.id;
+    // Soft-delete through the real flow: `markDeletedDirty` flips the
+    // is_deleted column, and `_fromRow` overlays it so the domain isDeleted
+    // (which startTimer guards on) reflects it immediately.
+    await repo.delete(companyId: 'co', id: id);
+
+    await repo.startTimer(companyId: 'co', taskId: id);
+
+    // The guard blocked appending a running entry: still the single stopped
+    // one, and not running. (`watchByRealId` maps through `_fromRow` and does
+    // not filter deleted rows, so it still surfaces the soft-deleted task.)
+    final after = await repo.watchByRealId(companyId: 'co', id: id).first;
+    expect(after, isNotNull);
+    expect(after!.isRunning, isFalse);
+    expect(after.timeLog, hasLength(1));
+  });
+
   group('watchPage extraFilters mirrors (H1)', () {
     test('task_status narrows locally and hides invoiced rows', () async {
       final repo = makeRepo();

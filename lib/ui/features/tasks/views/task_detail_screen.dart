@@ -80,7 +80,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          TaskDetailKpiStrip(task: t, formatter: formatter),
+                          TaskDetailKpiStrip(
+                            task: t,
+                            companyId: _companyId,
+                            formatter: formatter,
+                          ),
                           SizedBox(height: InSpacing.md(context)),
                           TaskDetailCardsGrid(
                             task: t,

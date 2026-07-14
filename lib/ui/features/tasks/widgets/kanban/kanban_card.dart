@@ -5,16 +5,30 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
+import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// One card in a kanban column. Compact summary of a Task; tapping
 /// navigates to the detail screen. Drag is wrapped by the column's
 /// `LongPressDraggable<Task>`.
 class KanbanCard extends StatelessWidget {
-  const KanbanCard({super.key, required this.task});
+  const KanbanCard({
+    super.key,
+    required this.task,
+    required this.companyId,
+    this.showTimerButton = true,
+  });
 
   final Task task;
+
+  /// Active company id for the inline timer toggle (threaded by value —
+  /// see [KanbanColumn.companyId]).
+  final String companyId;
+
+  /// False on the drag-feedback ghost so an inert button doesn't ride along.
+  final bool showTimerButton;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +107,15 @@ class KanbanCard extends StatelessWidget {
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
+                if (showTimerButton && TaskActions.canToggleTimer(task)) ...[
+                  const Spacer(),
+                  InlineTimerToggleButton(
+                    task: task,
+                    companyId: companyId,
+                    iconSize: 16,
+                    minTapTarget: 36,
+                  ),
+                ],
               ],
             ),
           ],

@@ -6,40 +6,25 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/tasks/view_models/task_daily_view_model.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
+import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 
 /// Static dispatch for the daily-view actions (start/stop a timer, log time,
 /// duplicate yesterday). Mirrors `TaskActions` so the screen + header stay thin.
 class TaskDailyActions {
   TaskDailyActions._();
 
-  /// Start or stop [task]'s timer through the outbox. No-op (with a toast) on
-  /// an unsynced `tmp_` task, matching `TaskActions`.
+  /// Start or stop [task]'s timer through the outbox. Delegates to the
+  /// shared [TaskActions.toggleTimer] so the daily row, list rows, kanban
+  /// card, and detail KPI all run one code path.
   static Future<void> toggleTimer(
     BuildContext context,
     Services services,
     String companyId,
     Task task,
-  ) async {
-    if (!requireSynced(context, task.id)) return;
-    final wasRunning = task.isRunning;
-    if (wasRunning) {
-      await services.tasks.stopRunningTimer(
-        companyId: companyId,
-        taskId: task.id,
-      );
-    } else {
-      await services.tasks.startTimer(companyId: companyId, taskId: task.id);
-    }
-    if (!context.mounted) return;
-    Notify.success(
-      context,
-      context.tr(wasRunning ? 'stopped_task' : 'started_task'),
-    );
-  }
+  ) => TaskActions.toggleTimer(context, services, companyId, task);
 
   /// Open the task editor seeded with a 30-minute entry on [day] — the daily
   /// view's lightweight "log time" (v2 has no quick-log modal). Anchored to the

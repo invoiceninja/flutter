@@ -10,6 +10,7 @@ import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/utils/formatting.dart';
@@ -21,6 +22,7 @@ class TaskListTile extends StatefulWidget {
   const TaskListTile({
     super.key,
     required this.task,
+    required this.companyId,
     required this.columns,
     required this.onTap,
     this.wide = true,
@@ -35,6 +37,10 @@ class TaskListTile extends StatefulWidget {
   });
 
   final Task task;
+
+  /// Active company id — threaded to the inline timer toggle so a 1-tap
+  /// start/stop enqueues against the right company.
+  final String companyId;
   final List<ColumnDefinition<Task>> columns;
   final VoidCallback onTap;
   final bool wide;
@@ -110,18 +116,18 @@ class _TaskListTileState extends State<TaskListTile> {
           ),
           const SizedBox(width: kColCellGap),
         ],
-        // Reserved trailing pill slot: shows the running badge when active.
+        // Reserved trailing slot: an icon-only 1-tap start/stop toggle. The
+        // live duration now ticks in the duration column, so nothing here
+        // can overflow the fixed 96px. Hidden in multi-select;
+        // `InlineTimerToggleButton` self-gates on eligibility.
         SizedBox(
           width: kColWPillSlot,
-          child: w.task.isRunning && w.task.timeLog.isNotEmpty
-              ? Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: RunningDurationLabel(
-                    start: w.task.timeLog.last.start!,
-                    precision: const Duration(seconds: 1),
-                  ),
-                )
-              : const SizedBox.shrink(),
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: w.selecting
+                ? const SizedBox.shrink()
+                : InlineTimerToggleButton(task: w.task, companyId: w.companyId),
+          ),
         ),
       ],
     );
@@ -165,6 +171,10 @@ class _TaskListTileState extends State<TaskListTile> {
           RunningDurationLabel(
             start: t.timeLog.last.start!,
             precision: const Duration(seconds: 1),
+            style: TextStyle(
+              color: tokens.accent,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           )
         else
           Text(
@@ -174,8 +184,12 @@ class _TaskListTileState extends State<TaskListTile> {
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
+        if (!w.selecting && TaskActions.canToggleTimer(t)) ...[
+          const SizedBox(width: InSpacing.sm),
+          InlineTimerToggleButton(task: t, companyId: w.companyId),
+        ],
         if (w.onAction != null && !w.selecting) ...[
-          const SizedBox(width: 4),
+          const SizedBox(width: InSpacing.sm),
           EntityActionsPopupButton<TaskAction>(
             icon: Icons.more_horiz,
             items: TaskActions.itemsFor(context, w.task, w.onAction!),

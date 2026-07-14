@@ -330,9 +330,14 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   }
 
   /// Surgical "start the timer" — appends a running entry through the outbox.
-  /// Used by the bulk-action toolbar. No-op on an invoiced task (server-
-  /// immutable) or one that's already running. Atomically stops any prior
-  /// running entry first so we never have two running at once.
+  /// Used by the bulk-action toolbar and every inline 1-tap toggle. No-op on
+  /// an invoiced task (server-immutable) or one that's already running.
+  /// Atomically stops any prior running entry first so we never have two
+  /// running at once. Carries the last entry's description onto the new entry
+  /// (convenience), but NOT its billable flag — a new timer keeps the default
+  /// `billable: true` so a "Start" can't silently create a non-billable entry
+  /// from a prior non-billable one. A brand-new task with no history starts
+  /// blank.
   Future<void> startTimer({
     required String companyId,
     required String taskId,
@@ -342,16 +347,41 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
         .first;
     if (row == null) return;
     final task = _fromRow(row);
-    if (task.isInvoiced || task.isRunning) return;
+    // Refuse invoiced (server-immutable), already-running, and soft-deleted
+    // tasks — no path should re-arm a timer on a deleted row.
+    if (task.isInvoiced || task.isRunning || task.isDeleted) return;
     final entries = <TimeEntry>[...task.timeLog];
     if (entries.isNotEmpty && entries.last.isRunning) {
       entries[entries.length - 1] = entries.last.copyWith(stop: DateTime.now());
     }
-    entries.add(TimeEntry(start: DateTime.now(), stop: null));
+    final last = entries.isNotEmpty ? entries.last : null;
+    entries.add(
+      TimeEntry(
+        start: DateTime.now(),
+        stop: null,
+        // Carry only the description; billable keeps its default (true) so a
+        // "Start" never silently inherits a prior non-billable flag.
+        description: last?.description ?? '',
+      ),
+    );
     await save(
       companyId: companyId,
       task: task.copyWith(timeLog: entries),
     );
+  }
+
+  /// Live count of running timers for the company (backs the global pill's
+  /// concurrent-timer badge — `watchRunning` only surfaces one).
+  Stream<int> watchRunningCount({required String companyId}) =>
+      db.taskDao.watchRunningCount(companyId: companyId);
+
+  /// Stop every running timer for the company (the pill's "Stop all").
+  /// Sequential so each stop lands as its own outbox row.
+  Future<void> stopAllRunning({required String companyId}) async {
+    final ids = await db.taskDao.runningTaskIds(companyId: companyId);
+    for (final id in ids) {
+      await stopRunningTimer(companyId: companyId, taskId: id);
+    }
   }
 
   /// Apply a kanban reorder optimistically + queue the server batch.
@@ -676,10 +706,16 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   Task _fromRow(TaskRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = TaskApi.fromJson(json);
-    // is_dirty is local-only; documents live in their own column. Overlay
-    // both onto the API-derived domain so the UI sees current state.
+    // is_dirty / is_deleted are local-authoritative columns; documents live
+    // in their own column. Overlay all onto the API-derived domain so the UI
+    // sees current state. `is_deleted` matters because an optimistic delete
+    // (`markDeletedDirty`) flips only the column, not the payload JSON — so
+    // without this overlay `task.isDeleted` would stay false until a server
+    // refresh, silently defeating every `isDeleted` gate (timer toggles,
+    // restore/delete menu items).
     return Task.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
       documents: decodeDocumentsColumn(row.documents),
     );
   }

@@ -238,6 +238,7 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
     this.headerBanner,
     this.canCreate = true,
     this.embeddedNewOverride,
+    this.selectionShortcuts,
   });
 
   /// Localization key for the narrow-mode AppBar title (e.g. `clients`).
@@ -257,6 +258,14 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
   /// `(ctx) => ctx.go('/invoices/new', extra: emptyInvoice().copyWith(...))`.
   /// When null the button falls back to `context.go(newRoute)`.
   final void Function(BuildContext context)? embeddedNewOverride;
+
+  /// Optional extra single-key shortcuts that act on the URL-selected row.
+  /// Each activator's callback receives the resolved selected item (or null
+  /// when no row is selected). Guarded like `keyN` — suppressed while a text
+  /// input is focused so the key still types. Tasks binds `S` here to
+  /// start/stop the selected task's timer.
+  final Map<ShortcutActivator, void Function(BuildContext, T?)>?
+  selectionShortcuts;
 
   /// Constructs the VM. Called from `initState` with the resolved
   /// `Services` and the session's `currentCompanyId`; re-called on company
@@ -691,11 +700,29 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   @override
   Widget build(BuildContext context) {
     _maybeApplyListIntent(context);
+    final selectionShortcuts = widget.selectionShortcuts;
+    assert(
+      selectionShortcuts == null ||
+          !selectionShortcuts.keys.any(
+            (a) =>
+                a == const SingleActivator(LogicalKeyboardKey.keyN) ||
+                a == const SingleActivator(LogicalKeyboardKey.arrowDown) ||
+                a == const SingleActivator(LogicalKeyboardKey.arrowUp),
+          ),
+      'selectionShortcuts must not reuse the built-in keyN / arrow '
+      'activators — a duplicate map key would silently override them.',
+    );
     return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.keyN): _NewRecordIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowDown): _NextRowIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowUp): _PrevRowIntent(),
+      shortcuts: <ShortcutActivator, Intent>{
+        const SingleActivator(LogicalKeyboardKey.keyN):
+            const _NewRecordIntent(),
+        const SingleActivator(LogicalKeyboardKey.arrowDown):
+            const _NextRowIntent(),
+        const SingleActivator(LogicalKeyboardKey.arrowUp):
+            const _PrevRowIntent(),
+        if (selectionShortcuts != null)
+          for (final activator in selectionShortcuts.keys)
+            activator: _CustomSelectionIntent(activator),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -717,6 +744,29 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
           _PrevRowIntent: CallbackAction<_PrevRowIntent>(
             onInvoke: (_) => _stepSelection(context, forward: false),
           ),
+          // Entity-supplied single-key shortcuts on the selected row (e.g.
+          // Tasks' `S` → toggle timer). Guarded like `n` so the key still
+          // types in the search box.
+          if (selectionShortcuts != null)
+            _CustomSelectionIntent:
+                GuardedShortcutAction<_CustomSelectionIntent>(
+                  onInvoke: (intent) {
+                    final cb = selectionShortcuts[intent.tag];
+                    if (cb == null) return null;
+                    final id = selectedIdFromRoute(context);
+                    T? item;
+                    if (id != null) {
+                      for (final e in _vm.items) {
+                        if (_vm.idOf(e) == id) {
+                          item = e;
+                          break;
+                        }
+                      }
+                    }
+                    cb(context, item);
+                    return null;
+                  },
+                ),
         },
         child: _buildBody(context),
       ),
@@ -1267,4 +1317,13 @@ class _NextRowIntent extends Intent {
 
 class _PrevRowIntent extends Intent {
   const _PrevRowIntent();
+}
+
+/// Carries the matched activator so one action can serve every entry in
+/// [EntityListScreenScaffold.selectionShortcuts]. `Actions` dispatches by
+/// intent *type*, so all custom selection shortcuts share this type and the
+/// action reads [tag] to find the right callback.
+class _CustomSelectionIntent extends Intent {
+  const _CustomSelectionIntent(this.tag);
+  final ShortcutActivator tag;
 }

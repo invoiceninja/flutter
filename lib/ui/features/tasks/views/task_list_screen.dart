@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
@@ -79,6 +80,17 @@ class TaskListScreen extends StatelessWidget {
       titleKey: 'tasks',
       newRoute: '/tasks/new',
       newLabelKey: 'new_task',
+      // Press S to start/stop the timer on the selected/highlighted task —
+      // the "fewer clicks" power path. Guarded so S still types in search.
+      selectionShortcuts: {
+        const SingleActivator(LogicalKeyboardKey.keyS): (ctx, task) {
+          if (task == null) return;
+          final services = ctx.read<Services>();
+          final companyId = services.auth.session.value?.currentCompanyId;
+          if (companyId == null) return;
+          TaskActions.toggleTimer(ctx, services, companyId, task);
+        },
+      },
       // Default "Last Updated" column renders via cellDate and the opt-in
       // "Rate" via cellMoney — both read FormatterScope, which the scaffold
       // only provides when this is set (else dates ignore date_format_id).
@@ -129,6 +141,7 @@ class TaskListScreen extends StatelessWidget {
         final isUrlSelected = options.selectedId == task.id;
         return TaskListTile(
           task: task,
+          companyId: vm.companyId,
           columns: options.wide ? vm.columns : const [],
           wide: options.wide,
           editable: options.editable,

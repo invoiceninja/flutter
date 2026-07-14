@@ -1,3 +1,6 @@
+import 'package:flutter/widgets.dart';
+
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/task_dao.dart';
 import 'package:admin/data/models/domain/task.dart';
@@ -6,6 +9,7 @@ import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -78,8 +82,24 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
     labelKey: 'duration',
     width: 120,
     align: ColumnAlign.end,
-    cellBuilder: (t, _) =>
-        cellText(formatDuration(t.loggedDuration(), compactDays: true)),
+    // Ticks live + accent while a timer runs — this is the row's primary
+    // running signal now that the trailing slot is an icon-only toggle. The
+    // `base` (sum of already-stopped entries) makes it tick the full
+    // cumulative TOTAL, a smooth continuation of the static total rather
+    // than a reset to 0. `loggedDuration(runningStart)` yields exactly that
+    // sum: the running entry's `durationUpTo(runningStart)` collapses to 0.
+    cellBuilder: (t, ctx) => (t.isRunning && t.timeLog.isNotEmpty)
+        ? RunningDurationLabel(
+            start: t.timeLog.last.start!,
+            base: t.loggedDuration(t.timeLog.last.start!),
+            precision: const Duration(seconds: 1),
+            showDot: false,
+            style: TextStyle(
+              color: ctx.inTheme.accent,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          )
+        : cellText(formatDuration(t.loggedDuration(), compactDays: true)),
     valueBuilder: (t) => formatDuration(t.loggedDuration(), compactDays: true),
   ),
   TaskColumn(

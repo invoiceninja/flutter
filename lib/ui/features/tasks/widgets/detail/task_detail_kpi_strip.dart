@@ -4,7 +4,9 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
+import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -15,12 +17,31 @@ import 'package:admin/utils/formatting.dart';
 /// Layout switches at 1100 px: horizontal row with vertical dividers vs
 /// 2×2 grid on narrow widths.
 class TaskDetailKpiStrip extends StatelessWidget {
-  const TaskDetailKpiStrip({super.key, required this.task, this.formatter});
+  const TaskDetailKpiStrip({
+    super.key,
+    required this.task,
+    required this.companyId,
+    this.formatter,
+  });
 
   final Task task;
+
+  /// Active company id — threaded to the inline timer toggle rendered
+  /// beside the Duration value on narrow panes.
+  final String companyId;
   final Formatter? formatter;
 
   static const double _wideBreakpoint = 1100;
+
+  /// Below this body width the detail actions row buries Start/Stop in its
+  /// ⋮ overflow, so the KPI shows its own 1-tap toggle. Set ~80px under the
+  /// actions row's 600px `isWide` flip because this body is more inset than
+  /// the AppBar title slot the actions row measures. The two gates read
+  /// different widths (body-inner here vs title-slot there), so this cleanly
+  /// separates genuine phones but is NOT an exact guarantee near ~600px
+  /// panes — worst case there is a brief redundancy (both affordances show)
+  /// or a 2-tap ⋮ fallback, never a broken state.
+  static const double _kDetailToggleMaxWidth = 520;
 
   @override
   Widget build(BuildContext context) {
@@ -48,32 +69,31 @@ class TaskDetailKpiStrip extends StatelessWidget {
     final entryCount = t.timeLog.length;
     final entryCountText = entryCount == 0 ? '—' : '$entryCount';
 
-    final cells = <Widget>[
-      _KpiCell(
-        label: context.tr('duration'),
-        value: hasRunning
-            ? RunningDurationLabel(
-                // hasRunning guarantees runningEntry and its start are non-null.
-                start: runningEntry!.start!,
-                precision: const Duration(seconds: 1),
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: tokens.ink,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              )
-            : Text(
-                durationText,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: t.loggedDuration() == Duration.zero
-                      ? tokens.ink3
-                      : tokens.ink,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-        tokens: tokens,
-      ),
+    // Duration value — accent while a timer runs so the running state reads
+    // instantly; the cell still ticks live via RunningDurationLabel.
+    final Widget durationValue = hasRunning
+        ? RunningDurationLabel(
+            // hasRunning guarantees runningEntry and its start are non-null.
+            start: runningEntry!.start!,
+            precision: const Duration(seconds: 1),
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: tokens.accent,
+              fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          )
+        : Text(
+            durationText,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: t.loggedDuration() == Duration.zero
+                  ? tokens.ink3
+                  : tokens.ink,
+              fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          );
+
+    final restCells = <Widget>[
       _KpiCell(
         label: context.tr('rate'),
         value: Text(
@@ -128,6 +148,27 @@ class TaskDetailKpiStrip extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // Show the 1-tap toggle only when this pane is narrow enough that
+          // the detail actions row buries Start/Stop in its ⋮ overflow (see
+          // _kDetailToggleMaxWidth) — so exactly one affordance ever shows.
+          final showToggle =
+              constraints.maxWidth < _kDetailToggleMaxWidth &&
+              TaskActions.canToggleTimer(t);
+          final durationCell = _KpiCell(
+            label: context.tr('duration'),
+            value: showToggle
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(child: durationValue),
+                      const SizedBox(width: InSpacing.sm),
+                      InlineTimerToggleButton(task: t, companyId: companyId),
+                    ],
+                  )
+                : durationValue,
+            tokens: tokens,
+          );
+          final cells = <Widget>[durationCell, ...restCells];
           if (constraints.maxWidth >= _wideBreakpoint) {
             return _HorizontalStrip(cells: cells, tokens: tokens);
           }

@@ -40,17 +40,35 @@ class RunningTimerPill extends StatelessWidget {
         if (task == null || !task.isRunning || task.timeLog.isEmpty) {
           return const SizedBox.shrink();
         }
-        return _Pill(task: task, services: services);
+        return StreamBuilder<int>(
+          stream: services.tasks.watchRunningCount(
+            companyId: session.currentCompanyId,
+          ),
+          builder: (context, countSnap) => _Pill(
+            task: task,
+            services: services,
+            runningCount: countSnap.data ?? 1,
+          ),
+        );
       },
     );
   }
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.task, required this.services});
+  const _Pill({
+    required this.task,
+    required this.services,
+    required this.runningCount,
+  });
 
   final Task task;
   final Services services;
+
+  /// Total running timers for the company. When > 1 the pill surfaces a
+  /// "Stop all (N)" affordance — `watchRunning` only shows the newest one,
+  /// so without this concurrent timers would accrue invisibly.
+  final int runningCount;
 
   Future<void> _stop(BuildContext context) async {
     final session = services.auth.session.value;
@@ -61,6 +79,12 @@ class _Pill extends StatelessWidget {
       companyId: session.currentCompanyId,
       taskId: task.id,
     );
+  }
+
+  Future<void> _stopAll(BuildContext context) async {
+    final session = services.auth.session.value;
+    if (session == null) return;
+    await services.tasks.stopAllRunning(companyId: session.currentCompanyId);
   }
 
   @override
@@ -114,6 +138,28 @@ class _Pill extends StatelessWidget {
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 padding: EdgeInsets.zero,
               ),
+              // Concurrent timers stay visible + clearable: this pill only
+              // renders the newest running task, so surface a count + a
+              // one-tap "stop them all".
+              if (runningCount > 1) ...[
+                const SizedBox(width: 2),
+                TextButton(
+                  onPressed: () => _stopAll(context),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: tokens.ink2,
+                  ),
+                  child: Text(
+                    '${context.tr('stop_all')} ($runningCount)',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

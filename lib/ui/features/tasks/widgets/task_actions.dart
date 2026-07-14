@@ -73,6 +73,48 @@ class TaskActions {
     }
   }
 
+  /// Whether an inline one-tap timer toggle should render for [task]:
+  /// not invoiced (server-immutable), not soft-deleted, and already synced
+  /// (a `tmp_` row has no server id the time-log PUT can target). Callers
+  /// that lay out around the button read this; the shared
+  /// `InlineTimerToggleButton` self-gates on it too.
+  static bool canToggleTimer(Task task) =>
+      !task.isInvoiced && !task.isDeleted && !task.id.startsWith('tmp_');
+
+  /// One-tap start/stop of [task]'s timer through the outbox (repo
+  /// primitives), guarded against unsynced `tmp_` rows, with a success
+  /// toast. The single code path shared by every inline surface — the
+  /// daily row, the list rows, the kanban card, and the detail KPI strip.
+  /// "Not running" always starts (the repo seeds description/billable from
+  /// the last entry); the explicit ⋮ Start/Stop/Resume menu is separate.
+  static Future<void> toggleTimer(
+    BuildContext context,
+    Services services,
+    String companyId,
+    Task task,
+  ) async {
+    // No affordance exists for invoiced/deleted tasks (every visual button
+    // self-gates via canToggleTimer). Guard here too so the keyboard path
+    // can't mutate one or fire a lying toast. A `tmp_` task still falls
+    // through to requireSynced below, keeping its "not synced yet" toast.
+    if (task.isInvoiced || task.isDeleted) return;
+    if (!requireSynced(context, task.id)) return;
+    final wasRunning = task.isRunning;
+    if (wasRunning) {
+      await services.tasks.stopRunningTimer(
+        companyId: companyId,
+        taskId: task.id,
+      );
+    } else {
+      await services.tasks.startTimer(companyId: companyId, taskId: task.id);
+    }
+    if (!context.mounted) return;
+    Notify.success(
+      context,
+      context.tr(wasRunning ? 'stopped_task' : 'started_task'),
+    );
+  }
+
   static List<EntityActionItem<TaskAction>> itemsFor(
     BuildContext context,
     Task task,

@@ -64,7 +64,10 @@ extension LocationCopy on Location {
     'city': city,
     'state': state,
     'postal_code': postalCode,
-    'country_id': countryId,
+    // Omit an empty country_id: the server's StoreLocationRequest rule is
+    // `integer|exists:countries,id` with no nullable/sometimes, and Laravel's
+    // ConvertEmptyStringsToNull turns '' → null, which 422s. Absent = skipped.
+    if (countryId.isNotEmpty) 'country_id': countryId,
     'custom_value1': customValue1,
     'custom_value2': customValue2,
     'custom_value3': customValue3,

@@ -9,6 +9,7 @@ import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
+import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_actions.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_status_pill.dart';
@@ -172,7 +173,12 @@ class _TransactionListTileState extends State<TransactionListTile> {
     final headline = tx.participantName.isNotEmpty
         ? tx.participantName
         : (tx.description.isNotEmpty ? tx.description : '—');
-    final dateText = tx.date?.toIso() ?? '';
+    // Format through the active company's date format (a FormatterScope wraps
+    // the list); fall back to ISO only when no scope is present.
+    final formatter = FormatterScope.maybeOf(context);
+    final dateText = tx.date == null
+        ? ''
+        : (formatter?.date(tx.date!.toIso()) ?? tx.date!.toIso());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,

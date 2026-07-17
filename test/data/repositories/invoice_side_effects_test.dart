@@ -67,6 +67,32 @@ void main() {
     },
   );
 
+  test('DELETING an invoice refreshes its client + billed tasks (become '
+      'billable again) — not just the flag flip (#5)', () async {
+    final repo = makeRepo();
+    // Seed the invoice locally, and a task billed to it.
+    await repo.applyCreateResponse(
+      companyId: 'co',
+      tempId: 'inv1',
+      serverResponse: const InvoiceApi(id: 'inv1', clientId: 'c1'),
+    );
+    await TaskRepository(db: db, api: _FakeTasksApi()).applyUpdateResponse(
+      companyId: 'co',
+      serverResponse: const TaskApi(id: 't1', invoiceId: 'inv1'),
+    );
+    calls.clear(); // drop the seed's own refreshes
+
+    await repo.applyDeleteResponse(companyId: 'co', id: 'inv1');
+
+    expect(calls, hasLength(1));
+    expect(calls.single[EntityType.client], {'c1'});
+    expect(
+      calls.single[EntityType.task],
+      {'t1'},
+      reason: 'the delete un-bills the task server-side',
+    );
+  });
+
   test('a plain invoice still refreshes its client (AR balance)', () async {
     await makeRepo().applyUpdateResponse(
       companyId: 'co',

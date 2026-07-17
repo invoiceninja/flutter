@@ -966,6 +966,8 @@ class _PaymentScheduleSectionState extends State<_PaymentScheduleSection> {
                   row: rows[i],
                   isAmountMode: isAmountMode,
                   isPast: rows[i].date.compareTo(today) < 0,
+                  // Existing schedules: rows are immutable server-side on update.
+                  readOnly: !vm.isCreate,
                   onChanged: (updated) {
                     final next = List<ScheduleParamsRow>.from(rows);
                     next[i] = updated;
@@ -988,32 +990,35 @@ class _PaymentScheduleSectionState extends State<_PaymentScheduleSection> {
           ),
         ],
         const SizedBox(height: 8),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-          icon: const Icon(Icons.add),
-          label: Text(context.tr('add_row')),
-          onPressed: () {
-            final nextId = (rows.isEmpty ? 0 : rows.last.id) + 1;
-            // Default new-row date: row 0 today, otherwise one day after
-            // the last row's date so the strict-ordering rule is satisfied
-            // out of the box.
-            // Date.addDays is UTC date-space — a local-midnight + Duration on a
-            // fall-back DST day stays on the same calendar day, seeding a
-            // duplicate date that the strict-ordering save-gate then rejects
-            // (L3).
-            final base = rows.isEmpty ? today : rows.last.date.addDays(1);
-            final next = List<ScheduleParamsRow>.from(rows)
-              ..add(
-                ScheduleParamsRow(
-                  id: nextId,
-                  date: base,
-                  amount: Decimal.zero,
-                  isAmount: isAmountMode,
-                ),
-              );
-            vm.setPaymentScheduleRows(next);
-          },
-        ),
+        // Add-row only on CREATE — the server ignores schedule row changes on
+        // update (see readOnly above), so an Add here would silently do nothing.
+        if (vm.isCreate)
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+            icon: const Icon(Icons.add),
+            label: Text(context.tr('add_row')),
+            onPressed: () {
+              final nextId = (rows.isEmpty ? 0 : rows.last.id) + 1;
+              // Default new-row date: row 0 today, otherwise one day after
+              // the last row's date so the strict-ordering rule is satisfied
+              // out of the box.
+              // Date.addDays is UTC date-space — a local-midnight + Duration on a
+              // fall-back DST day stays on the same calendar day, seeding a
+              // duplicate date that the strict-ordering save-gate then rejects
+              // (L3).
+              final base = rows.isEmpty ? today : rows.last.date.addDays(1);
+              final next = List<ScheduleParamsRow>.from(rows)
+                ..add(
+                  ScheduleParamsRow(
+                    id: nextId,
+                    date: base,
+                    amount: Decimal.zero,
+                    isAmount: isAmountMode,
+                  ),
+                );
+              vm.setPaymentScheduleRows(next);
+            },
+          ),
       ],
     );
   }
@@ -1027,6 +1032,7 @@ class _PaymentScheduleRowTile extends StatefulWidget {
     required this.isPast,
     required this.onChanged,
     required this.onRemove,
+    this.readOnly = false,
     super.key,
   });
 
@@ -1034,6 +1040,11 @@ class _PaymentScheduleRowTile extends StatefulWidget {
   final ScheduleParamsRow row;
   final bool isAmountMode;
   final bool isPast;
+
+  /// When true (editing an EXISTING schedule) the row is uneditable — the
+  /// server's UpdateSchedulerRequest discards any `parameters.schedule` change
+  /// for a payment_schedule template, so editing would silently do nothing.
+  final bool readOnly;
   final ValueChanged<ScheduleParamsRow> onChanged;
   final VoidCallback onRemove;
 
@@ -1080,7 +1091,9 @@ class _PaymentScheduleRowTileState extends State<_PaymentScheduleRowTile> {
   @override
   Widget build(BuildContext context) {
     final row = widget.row;
-    final isPast = widget.isPast;
+    // Fold readOnly into the same lock isPast already uses (disabled inputs +
+    // no remove + dimmed) so editing an existing schedule's rows is inert.
+    final isPast = widget.isPast || widget.readOnly;
     return Opacity(
       opacity: isPast ? 0.6 : 1.0,
       child: Padding(

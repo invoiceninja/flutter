@@ -1102,3 +1102,39 @@ additive — the net derivation stays as-is (→ 833.34). React must adopt the s
 **Data implications:** this changes computed tax on existing multi-rate-inclusive
 documents — needs a migration/reporting review, not a silent swap. Single-rate
 inclusive (the common case) is unaffected — all models already agree there.
+
+## Broken bulk actions surfaced by the 2026-07-15 deep review
+
+These client actions send server-valid-looking requests that the API rejects or
+mishandles. Client-side mitigations were applied where noted; the server fixes
+below are still needed.
+
+### Cross-type clone (`clone_to_quote` / `clone_to_invoice`) 500s (review #17)
+`InvoiceController::performAction` / `QuoteController` handle `clone_to_quote` /
+`clone_to_invoice` inside the **bulk** action by mutating `$this->entity_transformer`
+to the target type and returning `itemResponse($clonedEntity)`. In the bulk
+response wrapper this 500s (transformer/response-type mismatch), so the client's
+"Clone to quote" / "Clone to invoice" produce a success toast then a dead outbox
+row — nothing is created. **Client left as-is** (the request is valid; this is a
+server bug) — needs a server fix (or a dedicated non-bulk clone-to endpoint).
+Verify on the demo server, then either fix the transformer handling or expose a
+single-entity clone endpoint the client can target.
+
+### `payment_schedule` scheduler update ignores row edits (review #13)
+`UpdateSchedulerRequest` for `template == 'payment_schedule'` overwrites
+`parameters.schedule` with the existing stored value (only name + auto_bill are
+editable on update). So editing an existing schedule's installment rows is
+silently discarded. **Client mitigation:** the edit screen makes existing rows
+read-only. If per-row edits should be supported, the server must accept an updated
+`parameters.schedule` on update.
+
+### Recurring-invoice `template` bulk action unsupported (review #19)
+`BulkRecurringInvoiceRequest` action whitelist has no `template`, and the
+controller has no template branch, so the client's "Run template" 422'd into a
+dead outbox row. **Client mitigation:** the action was removed from the recurring-
+invoice menu. (The `/api/v1/templates` route is a design-preview engine, a
+different feature.) If "run template" should exist for recurring invoices, add a
+server action/endpoint.
+
+### Bank-rule `is_empty` operator: save 422s (review U2)
+`ProcessBankRules::matchStringOperator` supports `'is_empty' => empty($bt_value)` (matches on the transaction's empty field, ignoring the rule value), but the store/update request validates `rules.*.value` as required, and `ConvertEmptyStringsToNull` turns the empty value → null, so saving a rule that uses `is_empty` 422s and parks in the outbox. The engine supports the operator; the request validation should allow an empty/absent `value` when the operator is `is_empty`. No client change made (a placeholder value would be a hack).

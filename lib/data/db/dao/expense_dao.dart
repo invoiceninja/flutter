@@ -154,6 +154,10 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
         (e) =>
             e.number.lower().like(needle) |
             e.transactionReferenceLikePayload(needle) |
+            e.customValue1.lower().like(needle) |
+            e.customValue2.lower().like(needle) |
+            e.customValue3.lower().like(needle) |
+            e.customValue4.lower().like(needle) |
             clientNameMatchesFilter(
               clientId: e.clientId,
               companyId: companyId,
@@ -161,6 +165,11 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
             ) |
             vendorNameMatchesFilter(
               vendorId: e.vendorId,
+              companyId: companyId,
+              needle: needle,
+            ) |
+            categoryNameMatchesFilter(
+              categoryId: e.categoryId,
               companyId: companyId,
               needle: needle,
             ),

@@ -20,6 +20,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('ProjectRepository');
 
@@ -270,6 +271,14 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     required String companyId,
     required Project project,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(project.id);
+    if (resolvedId != project.id) project = project.copyWith(id: resolvedId);
+
     // Resolved OUTSIDE the transaction — see TagNameResolver.
     final tagNames = await resolveTagNames(companyId, project.tagIds);
     var rowId = 0;
@@ -562,6 +571,8 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     // both onto the API-derived domain so the UI sees current state.
     return Project.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
     );
   }

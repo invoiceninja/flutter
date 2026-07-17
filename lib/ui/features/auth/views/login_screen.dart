@@ -230,6 +230,7 @@ class _LoginForm extends StatelessWidget {
             AuthField(
               label: context.tr('server_url'),
               hint: 'https://invoice.example.com  ·  http://192.168.0.10:8080',
+              initialValue: vm.urlOverride,
               keyboardType: TextInputType.url,
               autofillHints: const [AutofillHints.url],
               onChanged: vm.setUrlOverride,
@@ -242,6 +243,7 @@ class _LoginForm extends StatelessWidget {
             // password field below stays the submit trigger.
             AuthPasswordField(
               label: '${context.tr('api_secret')} (${context.tr('optional')})',
+              initialValue: vm.secret,
               autofillHints: null,
               onChanged: vm.setSecret,
             ),

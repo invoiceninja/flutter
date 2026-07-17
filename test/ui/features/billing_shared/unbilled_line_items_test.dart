@@ -8,6 +8,7 @@ import 'package:admin/data/models/api/task_api_model.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/expense.dart';
+import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
@@ -62,6 +63,22 @@ Company _company({double? defaultTaskRate}) => Company(
   settings: CompanySettingsApi(defaultTaskRate: defaultTaskRate),
 );
 
+GroupSetting _group({num? defaultTaskRate}) => GroupSetting(
+  id: 'g1',
+  name: 'G',
+  customValue1: '',
+  customValue2: '',
+  customValue3: '',
+  customValue4: '',
+  updatedAt: DateTime(2026),
+  createdAt: DateTime(2026),
+  archivedAt: null,
+  isDeleted: false,
+  settings: defaultTaskRate == null
+      ? null
+      : {'default_task_rate': defaultTaskRate},
+);
+
 // A stopped, billable, 1-hour entry.
 const _stopped1h = '[[1700000000,1700003600,"",true]]';
 // A still-running entry (no stop) — billable.
@@ -84,6 +101,16 @@ void main() {
       expect(li.typeId, LineItemType.task);
       expect(li.taskId, 't1');
       expect(li.expenseId, isNull);
+    });
+
+    test('a rate-0 task uses the GROUP default_task_rate over the company '
+        'rate (the group tier of the cascade — #7/#38)', () {
+      final li = taskToLineItem(
+        _task(rate: '0', timeLog: _stopped1h),
+        group: _group(defaultTaskRate: 75),
+        company: _company(defaultTaskRate: 50),
+      );
+      expect(li.cost, Decimal.parse('75'));
     });
 
     test('no logged time falls back to quantity 1 (editable default)', () {

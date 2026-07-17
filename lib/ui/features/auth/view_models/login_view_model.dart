@@ -176,7 +176,7 @@ class LoginViewModel extends ChangeNotifier {
         email: email,
         password: password,
         oneTimePassword: oneTimePassword.isEmpty ? null : oneTimePassword,
-        secret: secret.isEmpty ? null : secret,
+        secret: (isHosted || secret.isEmpty) ? null : secret,
       );
       return true;
     } on ValidationException catch (e) {
@@ -344,7 +344,7 @@ class LoginViewModel extends ChangeNotifier {
         baseUrl: baseUrl,
         isHosted: isHosted,
         email: email,
-        secret: secret.isEmpty ? null : secret,
+        secret: (isHosted || secret.isEmpty) ? null : secret,
       );
       return true;
     } on ApiException catch (e) {

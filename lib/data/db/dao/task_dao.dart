@@ -119,12 +119,25 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
 
     if (search != null && search.isNotEmpty) {
       final needle = '%${search.toLowerCase()}%';
+      // Mirror the server's `TaskFilters::filter` field set so API matches
+      // aren't filtered back out by the local watch (number, description,
+      // custom_value1-4, client name, project name). `time_log` and client
+      // contacts stay server-only.
       q.where(
         (t) =>
             t.taskNumber.lower().like(needle) |
             t.description.lower().like(needle) |
+            t.customValue1.lower().like(needle) |
+            t.customValue2.lower().like(needle) |
+            t.customValue3.lower().like(needle) |
+            t.customValue4.lower().like(needle) |
             clientNameMatchesFilter(
               clientId: t.clientId,
+              companyId: companyId,
+              needle: needle,
+            ) |
+            projectNameMatchesFilter(
+              projectId: t.projectId,
               companyId: companyId,
               needle: needle,
             ),

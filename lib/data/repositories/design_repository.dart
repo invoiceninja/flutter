@@ -14,6 +14,7 @@ import 'package:admin/data/services/designs_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('DesignRepository');
 
@@ -178,6 +179,14 @@ class DesignRepository extends BaseEntityRepository<Design, DesignApi> {
     required String companyId,
     required Design design,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(design.id);
+    if (resolvedId != design.id) design = design.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(design, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -311,7 +320,11 @@ class DesignRepository extends BaseEntityRepository<Design, DesignApi> {
   Design _fromRow(DesignRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = DesignApi.fromJson(json);
-    return Design.fromApi(api).copyWith(isDirty: row.isDirty);
+    return Design.fromApi(api).copyWith(
+      isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
+    );
   }
 }
 

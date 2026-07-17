@@ -19,6 +19,7 @@ import 'package:admin/data/services/vendors_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('VendorRepository');
 
@@ -270,6 +271,14 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     required String companyId,
     required Vendor vendor,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(vendor.id);
+    if (resolvedId != vendor.id) vendor = vendor.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(vendor, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -553,6 +562,8 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     // `toApiJson` deliberately omits it) — decode separately and overlay.
     return Vendor.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
     );
   }

@@ -5,6 +5,7 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/task_dao.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
@@ -74,7 +75,9 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
     labelKey: 'rate',
     width: 120,
     align: ColumnAlign.end,
-    cellBuilder: (t, context) => cellMoney(t.rate, context),
+    // Task rate is a per-client rate — format in the client's currency.
+    cellBuilder: (t, context) =>
+        cellPartyMoney(t.rate, context, clientId: t.clientId),
     valueBuilder: (t) => cellMoneyValue(t.rate),
   ),
   TaskColumn(

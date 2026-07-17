@@ -329,6 +329,14 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
     required String companyId,
     required User user,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(user.id);
+    if (resolvedId != user.id) user = user.copyWith(id: resolvedId);
+
     final stored = user.copyWith(isDirty: true);
     final companion = _domainToCompanion(stored, companyId, isDirty: true);
     var rowId = 0;

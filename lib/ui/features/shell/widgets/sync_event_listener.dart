@@ -41,6 +41,13 @@ class _SyncEventListenerState extends State<SyncEventListener> {
   bool _dialogOpen = false;
   bool _secretDialogShowing = false;
 
+  /// Conflict / password events that arrived while a modal was already open.
+  /// Parked rows (409/404 → +1yr, password → parked) are NOT re-emitted by the
+  /// sync engine, so if we merely dropped an overlapping event the second of
+  /// two conflicts in one drain pass would never be prompted. Instead we defer
+  /// it here and replay it when the current modal closes.
+  final List<SyncEvent> _deferredEvents = [];
+
   @override
   void initState() {
     super.initState();
@@ -105,10 +112,14 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       return;
     }
 
-    // Suppress overlapping dialogs — the sync engine will re-emit on the
-    // next attempt if the user dismisses without resolving. Without this
-    // a flurry of failed rows would stack N dialogs.
-    if (_dialogOpen) return;
+    // Suppress overlapping dialogs — but conflict/password rows are parked and
+    // never re-emitted, so DEFER the event (don't drop it) and replay it when
+    // the current modal closes. Otherwise a flurry of failed rows would stack N
+    // dialogs; without deferral the extra conflicts would be lost forever.
+    if (_dialogOpen) {
+      _deferEvent(event);
+      return;
+    }
 
     switch (event) {
       case PasswordRequiredEvent():
@@ -119,6 +130,28 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       case DeadEvent():
         break; // handled above
     }
+  }
+
+  void _deferEvent(SyncEvent event) {
+    // Only conflict/password events reach here. Collapse duplicates a re-drain
+    // might re-emit (by entityType+entityId), and all password prompts to one
+    // (retryPasswordRows drains every parked password row together).
+    String keyOf(SyncEvent e) => e is PasswordRequiredEvent
+        ? 'password'
+        : '${e.entityType}/${e.entityId}';
+    final key = keyOf(event);
+    if (!_deferredEvents.any((e) => keyOf(e) == key)) {
+      _deferredEvents.add(event);
+    }
+  }
+
+  /// Replay the next deferred conflict/password event once no modal is open.
+  /// Called from each handler's `finally`; chains through the queue because the
+  /// replayed event opens its own modal whose `finally` calls this again.
+  void _replayDeferredEvents() {
+    if (_dialogOpen || !mounted || _deferredEvents.isEmpty) return;
+    final next = _deferredEvents.removeAt(0);
+    unawaited(_onEvent(next));
   }
 
   /// Non-blocking toast for a permanently-rejected (422) or dead outbox
@@ -189,6 +222,7 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       if (view == true) context.go('/sync/outbox');
     } finally {
       _dialogOpen = false;
+      _replayDeferredEvents();
     }
   }
 
@@ -210,6 +244,7 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       }
     } finally {
       _dialogOpen = false;
+      _replayDeferredEvents();
     }
   }
 
@@ -217,7 +252,11 @@ class _SyncEventListenerState extends State<SyncEventListener> {
     _dialogOpen = true;
     try {
       final services = context.read<Services>();
-      final companyId = services.auth.session.value?.currentCompanyId;
+      // The parked ROW's company — NOT the session's current company. The sheet
+      // can resolve after a company switch (and deferred conflicts replay
+      // later), so discarding under the active company would match no rows and
+      // leave the parked row immortal.
+      final companyId = event.companyId;
       final choice = await showConflictResolutionSheet(context, event: event);
       if (!mounted) return;
       switch (choice) {
@@ -229,7 +268,6 @@ class _SyncEventListenerState extends State<SyncEventListener> {
             context.go('${handlers.routePath}/${event.entityId}');
           }
         case ConflictResolution.discardMine:
-          if (companyId == null) return;
           // Scoped to the conflicted record: the parked row plus any queued
           // follow-up mutations for the same entity. The user asked to
           // discard *this record's* changes — dropping the company-wide
@@ -275,6 +313,7 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       _log.warning('Conflict resolution failed', e, st);
     } finally {
       _dialogOpen = false;
+      _replayDeferredEvents();
     }
   }
 

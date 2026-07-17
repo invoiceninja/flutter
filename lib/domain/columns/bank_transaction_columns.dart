@@ -1,10 +1,13 @@
 import 'package:decimal/decimal.dart';
+import 'package:flutter/material.dart';
 
 import 'package:admin/data/db/dao/bank_transaction_dao.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
+import 'package:admin/ui/core/widgets/expense_name_label.dart';
+import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_status_pill.dart';
 
 typedef BankTransactionColumn = ColumnDefinition<BankTransaction>;
@@ -40,6 +43,24 @@ const List<String> kDefaultBankTransactionColumns = <String>[
   BankTransactionColumnIds.invoices,
   BankTransactionColumnIds.expenses,
 ];
+
+/// Render a list of linked entity ids as resolved #number label(s): the first
+/// via [label], plus a compact "+N" when a transaction matched several.
+Widget _linkedNumbers(List<String> ids, Widget Function(String id) label) {
+  if (ids.isEmpty) return cellEmpty();
+  if (ids.length == 1) return label(ids.first);
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Flexible(child: label(ids.first)),
+      Text(
+        ' +${ids.length - 1}',
+        maxLines: 1,
+        style: const TextStyle(fontSize: 13),
+      ),
+    ],
+  );
+}
 
 final List<BankTransactionColumn> kAllBankTransactionColumns =
     <BankTransactionColumn>[
@@ -123,20 +144,23 @@ final List<BankTransactionColumn> kAllBankTransactionColumns =
         id: BankTransactionColumnIds.invoices,
         labelKey: 'invoices',
         width: 160,
-        cellBuilder: (t, _) {
-          final ids = t.linkedInvoiceIds;
-          return ids.isEmpty ? cellEmpty() : cellText(ids.join(', '));
-        },
+        // Resolve the hashed invoice ids to their #numbers (never render raw
+        // ids); a transaction usually matches one invoice, so show the first
+        // resolved number and a "+N" count for the rare multi-match.
+        cellBuilder: (t, _) => _linkedNumbers(
+          t.linkedInvoiceIds,
+          (id) => InvoiceNameLabel(invoiceId: id, link: true),
+        ),
         valueBuilder: (t) => cellNonZeroString(t.invoiceIds),
       ),
       BankTransactionColumn(
         id: BankTransactionColumnIds.expenses,
         labelKey: 'expense',
         width: 160,
-        cellBuilder: (t, _) {
-          final ids = t.linkedExpenseIds;
-          return ids.isEmpty ? cellEmpty() : cellText(ids.join(', '));
-        },
+        cellBuilder: (t, _) => _linkedNumbers(
+          t.linkedExpenseIds,
+          (id) => ExpenseNameLabel(expenseId: id, link: true),
+        ),
         valueBuilder: (t) => cellNonZeroString(t.expenseId),
       ),
       BankTransactionColumn(

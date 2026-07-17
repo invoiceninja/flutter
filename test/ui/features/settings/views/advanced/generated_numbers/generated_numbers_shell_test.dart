@@ -450,9 +450,11 @@ void main() {
     expect(previewBox().data, '0001');
 
     // Tapping a chip flows through the host and recomputes the preview.
+    // The `{$year}` pattern has no counter token, so the backend (and now the
+    // preview — confirmed on the demo server) appends the padded counter.
     await tester.tap(find.widgetWithText(ActionChip, '{\$year}'));
     await tester.pumpAndSettle();
-    expect(previewBox().data, DateTime.now().year.toString());
+    expect(previewBox().data, '${DateTime.now().year}0001');
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

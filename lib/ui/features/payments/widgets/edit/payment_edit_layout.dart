@@ -16,7 +16,6 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
-import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
@@ -67,26 +66,25 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
 
   @override
   Widget build(BuildContext context) {
-    // FormSaveScope must wrap the whole body for Enter-to-save — unlike the
-    // expense layout (whose scope lives higher up), the payment layout owns
-    // it here. Keep it above the LayoutBuilder so both columns are inside.
-    return FormSaveScope(
-      onSubmit: () => vm.save(),
-      enabled: !vm.isSaving,
-      child: ListenableBuilder(
-        listenable: vm,
-        builder: (context, _) => LayoutBuilder(
-          builder: (context, constraints) {
-            final twoCol =
-                constraints.maxWidth >= Breakpoints.entityFormMultiColumn;
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(InSpacing.lg(context)),
-              child: twoCol
-                  ? _wide(context)
-                  : CenteredFormColumn(child: _narrow(context)),
-            );
-          },
-        ),
+    // NO inner FormSaveScope here: this layout is the bodyBuilder of
+    // EntityEditScreenScaffold, which already wraps the body in a
+    // FormSaveScope wired to its own _onSave (navigation + success toast +
+    // busy guard). An inner scope shadowed that (FormSaveScope.maybeOf returns
+    // the NEAREST), so Enter called a bare vm.save() with no nav/toast and a
+    // follow-up Save click created a DUPLICATE payment. Let the scaffold own it.
+    return ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final twoCol =
+              constraints.maxWidth >= Breakpoints.entityFormMultiColumn;
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(InSpacing.lg(context)),
+            child: twoCol
+                ? _wide(context)
+                : CenteredFormColumn(child: _narrow(context)),
+          );
+        },
       ),
     );
   }

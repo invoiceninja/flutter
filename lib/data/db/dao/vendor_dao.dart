@@ -58,7 +58,12 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
         (v) =>
             v.name.like(pattern) |
             v.number.like(pattern) |
-            v.displayName.like(pattern),
+            v.displayName.like(pattern) |
+            v.idNumber.like(pattern) |
+            v.customValue1.like(pattern) |
+            v.customValue2.like(pattern) |
+            v.customValue3.like(pattern) |
+            v.customValue4.like(pattern),
       );
     }
 

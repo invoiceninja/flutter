@@ -283,6 +283,12 @@ class EntityRegistry {
       if (h.routePath.isEmpty) continue;
       yield h.routePath;
     }
+    // Users are a settings-hosted screen, NOT a registered entity module, so
+    // they're not in `_byType` — but `/settings/users/:id[/edit]` binds the
+    // active company at mount just like the entity screens above, so a stale
+    // one surviving a company switch would read from (and save to) the previous
+    // company's user under company B's token. Strip it too.
+    yield '/settings/users';
   }
 
   /// Overwrite the registry contents. Used by DI to break the construction

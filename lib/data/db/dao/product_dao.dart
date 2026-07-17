@@ -104,7 +104,13 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
     if (search != null && search.isNotEmpty) {
       final needle = '%${search.toLowerCase()}%';
       q.where(
-        (p) => p.productKey.lower().like(needle) | p.notes.lower().like(needle),
+        (p) =>
+            p.productKey.lower().like(needle) |
+            p.notes.lower().like(needle) |
+            p.customValue1.lower().like(needle) |
+            p.customValue2.lower().like(needle) |
+            p.customValue3.lower().like(needle) |
+            p.customValue4.lower().like(needle),
       );
     }
 

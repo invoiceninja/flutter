@@ -1035,7 +1035,27 @@ void main() {
       expect(removed, isFalse);
       expect(repo.localDeletes, isEmpty, reason: 'no TOCTOU ghost delete');
       expect(await rawRow(id), isNull);
+      expect(
+        repo.dirtyCleared,
+        isEmpty,
+        reason: 'an in_flight create keeps its flag — its request may land',
+      );
     });
+
+    test(
+      'discardOutboxRow on an in_flight UPDATE reconciles is_dirty so a '
+      'later failed attempt does not orphan the abandoned edit (#28)',
+      () async {
+        final repo = _TestRepo(db: db);
+        final engine = engineWith(repo);
+        final id = await enqueueClient(entityId: 'c1'); // update, real id
+        await db.outboxDao.markInFlight(id);
+
+        await engine.discardOutboxRow(id);
+
+        expect(repo.dirtyCleared, [('co', 'c1')]);
+      },
+    );
 
     test('discardOutboxRow on a failed update of a real entity keeps the '
         'local record — discarding must not nuke a server-known row', () async {
@@ -1194,6 +1214,71 @@ void main() {
       );
       await engine.discardOutboxRow(second.single.id);
       expect(repo.dirtyCleared, [('co', 'c1')]);
+    });
+
+    Future<int> enqueueReorder(Object payload) => db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: kReorderEntityId,
+        mutationKind: MutationKind.reorder.wireName,
+        payload: jsonEncode(payload),
+        idempotencyKey: 'reorder',
+        nextAttemptAt: 0,
+        createdAt: 0,
+      ),
+    );
+
+    test('discarding a dead reorder clears is_dirty on every reordered id — '
+        'the synthetic `_sort` entityId cannot (#8)', () async {
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      final id = await enqueueReorder({
+        'status_ids': ['s1'],
+        'task_ids': {
+          's1': ['c1', 'c2'],
+        },
+      });
+      await db.outboxDao.markDead(id: id, error: 'boom', statusCode: 422);
+
+      await engine.discardOutboxRow(id);
+
+      expect(repo.dirtyCleared, containsAll([('co', 'c1'), ('co', 'c2')]));
+    });
+
+    test('discarding a dead task-STATUS reorder (payload {status, all_ids}) '
+        'clears is_dirty on every reordered status (#8 regression)', () async {
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      final id = await enqueueReorder({
+        'status': <String, dynamic>{},
+        'all_ids': ['c1', 'c2'],
+      });
+      await db.outboxDao.markDead(id: id, error: 'boom', statusCode: 422);
+
+      await engine.discardOutboxRow(id);
+
+      expect(repo.dirtyCleared, containsAll([('co', 'c1'), ('co', 'c2')]));
+    });
+
+    test('a reordered id with its OWN pending edit is NOT cleared on reorder '
+        'discard — the separate edit stays protected (#8)', () async {
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      // c1 carries an independent pending update.
+      await enqueueClient(entityId: 'c1', idempotencyKey: 'edit-c1');
+      final id = await enqueueReorder({
+        'task_ids': {
+          's1': ['c1', 'c2'],
+        },
+      });
+      await db.outboxDao.markDead(id: id, error: 'boom', statusCode: 422);
+
+      await engine.discardOutboxRow(id);
+
+      expect(repo.dirtyCleared, [
+        ('co', 'c2'),
+      ], reason: 'c1 is still protected by its own queued edit');
     });
   });
 

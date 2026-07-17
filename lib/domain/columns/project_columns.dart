@@ -2,6 +2,7 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/project_dao.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
@@ -98,7 +99,10 @@ final List<ProjectColumn> kAllProjectColumns = <ProjectColumn>[
     labelKey: 'task_rate',
     width: 120,
     align: ColumnAlign.end,
-    cellBuilder: (p, context) => cellMoney(p.taskRate, context),
+    // Task rate is a per-client rate — format in the client's currency, not
+    // the company's (matches invoices/quotes and legacy).
+    cellBuilder: (p, context) =>
+        cellPartyMoney(p.taskRate, context, clientId: p.clientId),
     valueBuilder: (p) => cellMoneyValue(p.taskRate),
   ),
   ProjectColumn(

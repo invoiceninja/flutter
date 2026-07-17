@@ -18,6 +18,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('CreditRepository');
 
@@ -28,10 +29,17 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     super.uuid,
     super.now,
     super.onEnqueued,
+    this.onRelatedEntitiesAffected,
     this.pageSize = 50,
   }) : super(entityType: EntityType.credit);
 
   final CreditsApi api;
+
+  /// Fired after a credit mutation applies. Deleting an applied credit reverses
+  /// the client's credit-balance/paid_to_date and can refund its payments
+  /// server-side; force-refetch those siblings so they don't show stale until
+  /// their own list is reopened (issue #7 sweep). Wired by DI; null in tests.
+  final RelatedEntitiesRefresher? onRelatedEntitiesAffected;
   final int pageSize;
 
   @override
@@ -238,6 +246,14 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     required Credit credit,
     Map<String, String>? extraQuery,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(credit.id);
+    if (resolvedId != credit.id) credit = credit.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(credit, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -284,32 +300,12 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     return payload;
   }
 
-  @override
-  Future<void> delete({required String companyId, required String id}) =>
-      enqueueMutation(
-        companyId: companyId,
-        entityId: id,
-        kind: MutationKind.delete,
-        payload: {'id': id},
-      );
-
-  @override
-  Future<void> archive({required String companyId, required String id}) =>
-      enqueueMutation(
-        companyId: companyId,
-        entityId: id,
-        kind: MutationKind.archive,
-        payload: {'id': id},
-      );
-
-  @override
-  Future<void> restore({required String companyId, required String id}) =>
-      enqueueMutation(
-        companyId: companyId,
-        entityId: id,
-        kind: MutationKind.restore,
-        payload: {'id': id},
-      );
+  // delete / archive / restore intentionally inherit BaseEntityRepository's
+  // implementations, which optimistically flip the local row (is_deleted /
+  // archived_at + is_dirty) inside the enqueue transaction so the row leaves
+  // the active list immediately offline. (Earlier bespoke overrides here were
+  // enqueue-only — no optimistic flip — so an offline delete/archive showed a
+  // success toast while the row stayed put; removed.)
 
   // ── Custom actions ─────────────────────────────────────────────────
 
@@ -517,11 +513,32 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
         .watchById(companyId: companyId, id: id)
         .first;
     if (existing == null) return;
+    // Read the side-effect ids BEFORE the write: deleting an applied credit
+    // reverses the client's credit-balance/paid_to_date and can flip its
+    // reversal payments to refunded server-side. Converge those locally.
+    final paymentRows = await db.paymentDao
+        .watchForCredit(companyId: companyId, creditId: id)
+        .first;
+    final paymentIds = paymentRows
+        .map((p) => p.id)
+        .where((pid) => pid.isNotEmpty)
+        .toSet();
     await db.creditDao.upsert(
       existing
           .toCompanion(true)
           .copyWith(isDeleted: const Value(true), isDirty: const Value(false)),
     );
+    final cb = onRelatedEntitiesAffected;
+    if (cb == null) return;
+    final clientId = existing.clientId;
+    try {
+      await cb(companyId, {
+        if (clientId.isNotEmpty) EntityType.client: {clientId},
+        if (paymentIds.isNotEmpty) EntityType.payment: paymentIds,
+      });
+    } catch (e) {
+      _log.warning('credit delete side-effect refresh failed: $e');
+    }
   }
 
   Future<void> applyDocumentDeleted({
@@ -650,6 +667,8 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     final api = CreditApi.fromJson(json);
     return Credit.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
     );
   }

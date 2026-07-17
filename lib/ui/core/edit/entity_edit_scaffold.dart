@@ -150,6 +150,18 @@ class EntityEditScaffold<T> extends StatelessWidget {
   /// (plain Save navigates via [onSaved]; an AFTER-SAVE action dispatches
   /// instead).
   Future<T?> _runSave(BuildContext context) async {
+    // Commit any typed-but-unblurred field before reading the draft. InDateField
+    // / InTimeField / MarkdownTextField only commit on blur or Enter, but ⌘S and
+    // the Save button don't blur the active field — so without this a value the
+    // user typed and didn't Enter/tab away from is silently dropped. Unfocus
+    // fires each field's focus-loss commit; the FocusManager applies focus
+    // changes on a microtask, so yield once before reading the draft.
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus != null && focus.context != null) {
+      focus.unfocus();
+      await Future<void>.delayed(Duration.zero);
+      if (!context.mounted) return null;
+    }
     final result = await vm.save();
     if (!context.mounted) return null;
     if (result == null) {

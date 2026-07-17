@@ -103,17 +103,21 @@ ReportCell _parseTyped({
   switch (type) {
     case ReportColumnType.money:
       return ReportNumberCell(
-        value: value == null ? null : parseMoney(value),
+        // The export formats numeric cells with the currency's separators
+        // ("3,238.00"); parseMoney would zero them. See parseFormattedMoney.
+        value: value == null ? null : parseFormattedMoney(value),
         isMoney: true,
         currencyId: currencyId,
-        exchangeRate: exchangeRate == null ? null : parseMoney(exchangeRate),
+        exchangeRate: exchangeRate == null
+            ? null
+            : parseFormattedMoney(exchangeRate),
         entityWire: entityWire,
         entityId: entityId,
         displayValue: displayValue,
       );
     case ReportColumnType.number:
       return ReportNumberCell(
-        value: value == null ? null : parseMoney(value),
+        value: value == null ? null : parseFormattedMoney(value),
         entityWire: entityWire,
         entityId: entityId,
         displayValue: displayValue,

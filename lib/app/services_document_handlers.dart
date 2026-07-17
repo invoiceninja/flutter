@@ -46,11 +46,22 @@ documentMutationHandlers<TInner>({
     MutationKind.documentUpload: ({required row, required payload}) async {
       final entityId = payload['entity_id'] as String;
       final source = UploadSource.fromPayload(payload);
-      // Source moved/deleted between enqueue and dispatch — drop the row
-      // rather than 5xx-looping. Matches CompanySyncDispatcher's behavior.
-      // Bytes sources are self-contained, so this only trips for a native
-      // local_path whose file vanished.
-      if (!await source.exists()) return null;
+      // Source moved/deleted between enqueue and dispatch. Dead-letter LOUDLY
+      // instead of returning null: a null return is treated as terminal
+      // SUCCESS by the dispatcher, so the queued attachment would silently
+      // vanish while the user's earlier "uploaded document" toast made them
+      // believe it was saved. A 4xx ServerException marks the row dead with
+      // this message + a DeadEvent so the failure surfaces (outbox + toast) and
+      // the user can re-attach. Native local_path sources can go unreadable
+      // across an app restart (macOS sandbox powerbox grant lost; iOS tmp copy
+      // wiped); bytes sources are self-contained and never trip this.
+      if (!await source.exists()) {
+        throw const ServerException(
+          400,
+          'The attached file is no longer available on this device — reopen '
+          'the record and attach it again.',
+        );
+      }
       return upload(
         entityId: entityId,
         source: source,

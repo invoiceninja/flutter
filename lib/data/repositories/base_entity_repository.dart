@@ -669,6 +669,17 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       );
     }
 
+    // A page-1 fetch that applied the keyset cursor returned only the
+    // `updated_at >= W` DELTA (rows changed since the last sync), not a true
+    // first page — so a partial result means "the delta window is exhausted",
+    // NOT "end of list". Latching hasMore=false here permanently capped
+    // warm-session lists at one page: rows 51+ sit in the local cache but the
+    // Drift watch window (`LIMIT pageSize * loadedPages`) never widens because
+    // loadMore() is hard-gated on hasMore. Defer the has-more decision to the
+    // next page, which drops the cursor (see the `page > 1` guard above) and
+    // reads true offset rows. A cold page 1 (no cursor) still concludes
+    // normally from the row count.
+    if (cursor != null) return true;
     return apiRows.length >= pageSize;
   }
 

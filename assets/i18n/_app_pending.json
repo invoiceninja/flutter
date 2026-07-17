@@ -1,5 +1,6 @@
 {
   "_comment": "App-local strings not yet in Transifex. Each entry here is a key the UI uses today that does not exist in the upstream Transifex project for Invoice Ninja. When a key is submitted to Transifex and arrives in the next import, delete it from this file. Lookup order in lib/l10n/localization.dart is: active locale -> Transifex en.json -> this file -> raw key, so Transifex wins as soon as it carries the key.",
+  "entity_state_filter": "State",
   "insecure_url_use_https": "Enter an https:// address. Plain http:// is only allowed for a local network server (e.g. 192.168.x.x, localhost, or .local).",
   "account_settings_syncing_notice": "Loading your latest settings — these options unlock once they sync from the server. Check your connection if they stay disabled.",
   "not_synced_yet": "This record hasn't synced to the server yet — changes upload when you're online.",

@@ -19,58 +19,66 @@ import 'package:admin/domain/sync/mutation.dart';
 /// behavior from the call sites.
 void main() {
   group('documentMutationHandlers', () {
-    test(
-      'documentUpload short-circuits when the local file is missing',
-      () async {
-        final fakeDocsApi = _RecordingDocumentsApi();
-        final uploadCalls = <Map<String, dynamic>>[];
-        final handlers = documentMutationHandlers<String>(
-          documentsApi: fakeDocsApi,
-          upload:
-              ({
-                required entityId,
-                required source,
-                required idempotencyKey,
-              }) async {
-                uploadCalls.add({
-                  'entityId': entityId,
-                  'fileName': source.fileName,
-                  'idempotencyKey': idempotencyKey,
-                });
-                return 'inner-dto';
-              },
-          applyChanged:
-              ({
-                required companyId,
-                required entityId,
-                required document,
-              }) async {},
-          applyDeleted:
-              ({
-                required companyId,
-                required entityId,
-                required documentId,
-              }) async {},
-        );
+    test('documentUpload dead-letters (throws a 4xx) when the local file is '
+        'missing — a null return would drain as silent success and lose the '
+        'queued attachment', () async {
+      final fakeDocsApi = _RecordingDocumentsApi();
+      final uploadCalls = <Map<String, dynamic>>[];
+      final handlers = documentMutationHandlers<String>(
+        documentsApi: fakeDocsApi,
+        upload:
+            ({
+              required entityId,
+              required source,
+              required idempotencyKey,
+            }) async {
+              uploadCalls.add({
+                'entityId': entityId,
+                'fileName': source.fileName,
+                'idempotencyKey': idempotencyKey,
+              });
+              return 'inner-dto';
+            },
+        applyChanged:
+            ({
+              required companyId,
+              required entityId,
+              required document,
+            }) async {},
+        applyDeleted:
+            ({
+              required companyId,
+              required entityId,
+              required documentId,
+            }) async {},
+      );
 
-        final handler = handlers[MutationKind.documentUpload]!;
-        final row = _row(mutationKind: 'document_upload');
-        final result = await handler(
+      final handler = handlers[MutationKind.documentUpload]!;
+      final row = _row(mutationKind: 'document_upload');
+
+      await expectLater(
+        () => handler(
           row: row,
           payload: {
             'entity_id': 'e1',
             'local_path': '/tmp/definitely-not-a-real-file-xyz',
           },
-        );
-
-        expect(result, isNull);
-        expect(
-          uploadCalls,
-          isEmpty,
-          reason: 'Upload closure must not fire when the file is missing',
-        );
-      },
-    );
+        ),
+        throwsA(
+          isA<ServerException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            allOf(greaterThanOrEqualTo(400), lessThan(500)),
+          ),
+        ),
+        reason: 'a 4xx marks the outbox row dead so the failure is visible',
+      );
+      expect(
+        uploadCalls,
+        isEmpty,
+        reason: 'Upload closure must not fire when the file is missing',
+      );
+    });
 
     test('documentUpload forwards entityId + localPath + idempotencyKey '
         'and returns the inner dto', () async {

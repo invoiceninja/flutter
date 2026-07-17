@@ -173,6 +173,10 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
             p.number.lower().like(needle) |
             p.transactionReference.lower().like(needle) |
             p.privateNotesLikePayload(needle) |
+            p.customValue1.lower().like(needle) |
+            p.customValue2.lower().like(needle) |
+            p.customValue3.lower().like(needle) |
+            p.customValue4.lower().like(needle) |
             clientNameMatchesFilter(
               clientId: p.clientId,
               companyId: companyId,
@@ -298,6 +302,34 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
     ]);
     return q.watch().distinctRows();
   }
+
+  /// Payments that allocate to [creditId] (a credit-reversal paymentable) —
+  /// used to converge refund-adjusted payments when a credit is deleted.
+  Stream<List<PaymentRow>> watchForCredit({
+    required String companyId,
+    required String creditId,
+    Set<EntityState> states = const {EntityState.active},
+  }) {
+    final q = select(payments)
+      ..where(
+        (p) =>
+            p.companyId.equals(companyId) &
+            p.paymentablesContainsCredit(creditId),
+      );
+    if (states.isNotEmpty) {
+      q.where(
+        (p) => entityStateFilter(
+          states: states,
+          archivedAt: p.archivedAt,
+          isDeleted: p.isDeleted,
+        ),
+      );
+    }
+    q.orderBy([
+      (p) => OrderingTerm(expression: p.date, mode: OrderingMode.desc),
+    ]);
+    return q.watch().distinctRows();
+  }
 }
 
 /// Free-text search + paymentables-contains helpers. SQLite's JSON1
@@ -313,6 +345,14 @@ extension on Payments {
     return CustomExpression<bool>(
       "EXISTS (SELECT 1 FROM json_each(COALESCE(paymentables, '[]')) "
       "WHERE json_extract(value, '\$.invoice_id') = '$escaped')",
+    );
+  }
+
+  Expression<bool> paymentablesContainsCredit(String creditId) {
+    final escaped = creditId.replaceAll("'", "''");
+    return CustomExpression<bool>(
+      "EXISTS (SELECT 1 FROM json_each(COALESCE(paymentables, '[]')) "
+      "WHERE json_extract(value, '\$.credit_id') = '$escaped')",
     );
   }
 }

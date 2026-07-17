@@ -52,6 +52,9 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
     _vm = QuoteDetailViewModel.bound(
       _services.quotes.watch(companyId: _companyId, id: widget.id),
     );
+    // Hydrate on a cache miss (dashboard tap) so the detail resolves
+    // instead of showing "not found".
+    _services.quotes.ensureLoaded(companyId: _companyId, id: widget.id);
     loadFormatter(_services, _companyId);
   }
 

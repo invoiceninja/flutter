@@ -54,6 +54,12 @@ class _RecurringInvoiceDetailScreenState
     _vm = RecurringInvoiceDetailViewModel.bound(
       _services.recurringInvoices.watch(companyId: _companyId, id: widget.id),
     );
+    // Hydrate on a cache miss (dashboard tap) so the detail resolves
+    // instead of showing "not found".
+    _services.recurringInvoices.ensureLoaded(
+      companyId: _companyId,
+      id: widget.id,
+    );
     loadFormatter(_services, _companyId);
   }
 

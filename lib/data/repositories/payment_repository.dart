@@ -19,6 +19,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('PaymentRepository');
 
@@ -249,6 +250,14 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     required Payment payment,
     required bool sendEmail,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(payment.id);
+    if (resolvedId != payment.id) payment = payment.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(payment, companyId, isDirty: true);
     // Never re-send allocations on an update. The server's
     // PaymentRepository::applyPayment re-applies every `invoices`/`credits`
@@ -420,6 +429,22 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
 
   /// Force-refetch payments by id (e.g. the payment a bank-transaction match
   /// created/linked). See [refreshByIdsTemplate].
+  /// Lazily hydrate a single payment into Drift on a cache miss — backs detail
+  /// screens reached from the dashboard (whose rows live only in the dashboard
+  /// cache, not the entity table). Deduped / negative-cached in the template.
+  Future<void> ensureLoaded({required String companyId, required String id}) =>
+      ensureLoadedTemplate(
+        companyId: companyId,
+        id: id,
+        fetch: (id) async => (await api.get(id)).data,
+        idOf: (a) => a.id,
+        toCompanion: (a) => _apiToCompanion(a, companyId),
+        upsert: (byId) => db.paymentDao.upsertAllPreservingDirty(
+          companyId: companyId,
+          byId: byId,
+        ),
+      );
+
   @override
   Future<void> refreshByIds({
     required String companyId,
@@ -733,6 +758,8 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     final api = PaymentApi.fromJson(json);
     return Payment.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
     );
   }

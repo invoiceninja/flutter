@@ -120,6 +120,10 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
         (p) =>
             p.name.lower().like(needle) |
             p.number.lower().like(needle) |
+            p.customValue1.lower().like(needle) |
+            p.customValue2.lower().like(needle) |
+            p.customValue3.lower().like(needle) |
+            p.customValue4.lower().like(needle) |
             clientNameMatchesFilter(
               clientId: p.clientId,
               companyId: companyId,

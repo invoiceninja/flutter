@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/language.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
@@ -245,6 +246,17 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
 
   Future<void> _onSignOut() async {
     final services = context.read<Services>();
+    // Full logout wipes every company's local DB — quiesce pending offline
+    // rows first, same guard as every other sign-out entry point.
+    final companyId = services.auth.session.value?.currentCompanyId;
+    if (companyId != null) {
+      final outbox = await confirmPendingOutboxIfAny(
+        context,
+        companyId: companyId,
+        checkAllCompanies: true,
+      );
+      if (outbox == OutboxConfirmResult.cancelled || !mounted) return;
+    }
     await services.auth.logout();
   }
 

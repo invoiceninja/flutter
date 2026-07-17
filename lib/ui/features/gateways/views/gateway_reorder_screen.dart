@@ -155,7 +155,10 @@ class _GatewayReorderScreenState extends State<GatewayReorderScreen> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _pendingOrder = null;
+          // Only clear the pending order if a NEWER drag didn't replace it
+          // while the save was in flight — else that later reorder is silently
+          // dropped and never saved.
+          if (identical(_pendingOrder, pending)) _pendingOrder = null;
         });
       }
     }
@@ -210,7 +213,8 @@ class _GatewayReorderScreenState extends State<GatewayReorderScreen> {
           IconButton(
             tooltip: context.tr('gateway_order_what_is_this'),
             icon: const Icon(Icons.help_outline),
-            onPressed: () {},
+            // Reveal the explanatory hint banner (was a dead no-op onPressed).
+            onPressed: () => setState(() => _hintDismissed = false),
           ),
           if (_resolution.isOverriding)
             TextButton(

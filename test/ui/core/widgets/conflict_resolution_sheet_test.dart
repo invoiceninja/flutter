@@ -31,6 +31,7 @@ void main() {
   ConflictEvent event(int status) => ConflictEvent(
     entityType: EntityType.client,
     entityId: 'c1',
+    companyId: 'co',
     message: 'msg',
     wireEntityType: 'client',
     statusCode: status,

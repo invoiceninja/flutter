@@ -14,6 +14,7 @@ import 'package:admin/data/services/payment_terms_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('PaymentTermRepository');
 
@@ -207,6 +208,14 @@ class PaymentTermRepository
     required String companyId,
     required PaymentTerm term,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(term.id);
+    if (resolvedId != term.id) term = term.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(term, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -312,7 +321,11 @@ class PaymentTermRepository
   PaymentTerm _fromRow(PaymentTermRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = PaymentTermApi.fromJson(json);
-    return PaymentTerm.fromApi(api).copyWith(isDirty: row.isDirty);
+    return PaymentTerm.fromApi(api).copyWith(
+      isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
+    );
   }
 }
 

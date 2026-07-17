@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_custom_fields.dart';
+import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/data/repositories/project_repository.dart';
 import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/repositories/task_status_repository.dart';
@@ -45,10 +46,22 @@ List<FilterKey> buildTaskFilterKeys({
 /// filtering by any task status additionally hides invoiced tasks. That's
 /// server-side and not adjustable from the client.
 class StatusFilterKey extends MembershipFilterKey {
-  StatusFilterKey({required this.statuses, required this.companyId});
+  StatusFilterKey({required this.statuses, required this.companyId}) {
+    // Populate an `id → name` cache so chips render the status name instead
+    // of the raw hashid (mirrors [ProjectFilterKey]). Reuses the same stream
+    // that backs the suggestion dropdown — task statuses are few, so watching
+    // the full list is cheap.
+    _namesSub = statuses.watchAll(companyId: companyId).listen((rows) {
+      _names
+        ..clear()
+        ..addEntries(rows.map((s) => MapEntry(s.id, s.name)));
+    });
+  }
 
   final TaskStatusRepository statuses;
   final String companyId;
+  final Map<String, String> _names = <String, String>{};
+  StreamSubscription<List<TaskStatus>>? _namesSub;
 
   @override
   String get id => 'status';
@@ -63,6 +76,15 @@ class StatusFilterKey extends MembershipFilterKey {
 
   @override
   String displayLabel(BuildContext context) => context.tr('status');
+
+  /// Resolve a status id to its name for the chip label; falls back to the
+  /// raw id until the names stream has produced its first event.
+  @override
+  String displayValueFor(String rawValue) {
+    final cached = _names[rawValue];
+    if (cached != null && cached.isNotEmpty) return cached;
+    return rawValue;
+  }
 
   @override
   Stream<List<FilterValueSuggestion>> watchValueSuggestions(
@@ -83,6 +105,14 @@ class StatusFilterKey extends MembershipFilterKey {
           ),
       ];
     });
+  }
+
+  /// Release the names-cache subscription when the filter key is replaced
+  /// (company switch) or its hosting field unmounts.
+  @override
+  void dispose() {
+    _namesSub?.cancel();
+    _namesSub = null;
   }
 }
 

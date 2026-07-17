@@ -130,7 +130,6 @@ class QuoteActions {
     // Cancel is server-allowed for Sent quotes (rarely used in practice
     // but available — mirrors the Invoice rule). Converted quotes can't
     // be cancelled since their downstream invoice has its own lifecycle.
-    final canCancel = canEdit && quote.isSent && !quote.isConverted;
 
     return [
       if (canEdit)
@@ -205,13 +204,10 @@ class QuoteActions {
           enabled: canEdit && !quote.isConverted && quote.projectId.isEmpty,
           onTap: () => onTap(QuoteAction.convertToProject),
         ),
-      EntityActionItem(
-        kind: QuoteAction.cancel,
-        icon: Icons.cancel_outlined,
-        label: context.tr('cancel_quote'),
-        enabled: canCancel,
-        onTap: () => onTap(QuoteAction.cancel),
-      ),
+      // 'Cancel' is an invoice-only action — the server's quote bulk whitelist
+      // has no 'cancel', so offering it here only produced a success toast then
+      // a dead 422'd outbox row. Removed (the QuoteAction.cancel enum/handler
+      // stay as unreachable no-ops).
       if (canCreate)
         cloneGroupActionItem(
           context: context,

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/transaction_rule.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// Modal sheet for editing one [RuleCriterion]. Returns the modified
 /// criterion on save, or null on cancel.
@@ -178,17 +181,46 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
               PrimaryDialogAction(
                 label: context.tr('save'),
                 enabled: canSave,
-                onPressed: () => Navigator.of(context).pop(
-                  RuleCriterion(
-                    searchKey: _searchKey,
-                    operator: _operator,
-                    value: widget.isCredit
-                        ? _creditValueKey
-                        : hideValue
-                        ? ''
-                        : _value.text.trim(),
-                  ),
-                ),
+                onPressed: () {
+                  final String value;
+                  if (widget.isCredit) {
+                    value = _creditValueKey;
+                  } else if (hideValue) {
+                    value = '';
+                  } else if (isNumericSearchKey(_searchKey)) {
+                    // Parse in the user's decimal-comma locale, then serialize
+                    // canonically (dot-decimal) so the server's numeric compare
+                    // matches — a comma-locale user's "19,50" must not become
+                    // threshold 19. `raw` is non-empty here (canSave gate), so
+                    // parseDecimal always yields a Decimal (unparseable → 0);
+                    // the `?? raw` below is an unreachable safety net.
+                    final services = context.read<Services>();
+                    final companyId =
+                        services.auth.session.value?.currentCompanyId ?? '';
+                    final useComma =
+                        services
+                            .formatterIfReady(companyId)
+                            ?.settings
+                            .useCommaAsDecimalPlace ??
+                        false;
+                    final raw = _value.text.trim();
+                    value =
+                        parseDecimal(
+                          raw,
+                          useCommaAsDecimalPlace: useComma,
+                        )?.toString() ??
+                        raw;
+                  } else {
+                    value = _value.text.trim();
+                  }
+                  Navigator.of(context).pop(
+                    RuleCriterion(
+                      searchKey: _searchKey,
+                      operator: _operator,
+                      value: value,
+                    ),
+                  );
+                },
                 // Value field + dropdowns own focus — no Enter hint.
                 autofocus: false,
                 showEnterHint: false,

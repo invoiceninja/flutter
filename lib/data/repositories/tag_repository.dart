@@ -133,6 +133,14 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
     required String companyId,
     required Tag tag,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(tag.id);
+    if (resolvedId != tag.id) tag = tag.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(tag, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {

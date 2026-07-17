@@ -369,10 +369,19 @@ class TaskActions {
         : await services.clients
               .watchByRealId(companyId: companyId, id: task.clientId)
               .first;
+    // The rate cascade is task → project → client → GROUP → company; the
+    // client's group tier was being skipped, billing group-configured clients
+    // at the wrong (company) rate.
+    final group = (client == null || client.groupSettingsId.isEmpty)
+        ? null
+        : await services.groupSettings
+              .watchByRealId(companyId: companyId, id: client.groupSettingsId)
+              .first;
     return resolveTaskRate(
       task: task,
       project: project,
       client: client,
+      group: group,
       company: company,
     );
   }

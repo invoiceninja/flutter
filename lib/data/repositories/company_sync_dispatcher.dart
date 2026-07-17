@@ -14,6 +14,11 @@ import 'package:admin/domain/sync/sync_dispatcher.dart';
 
 final _log = Logger('CompanySyncDispatcher');
 
+/// Shown when an offline-queued upload's local file is gone at drain time.
+const _kUploadSourceGoneMessage =
+    'The attached file is no longer available on this device — reopen the '
+    'record and attach it again.';
+
 /// Wires the company outbox rows to [CompaniesApi]. Settings + uploads go
 /// through `update` (the `_action` field inside the payload steers between
 /// the regular settings PUT and the two multipart upload paths); the
@@ -117,10 +122,13 @@ class CompanySyncDispatcher implements SyncDispatcher {
     if (action == 'upload_logo') {
       final source = UploadSource.fromPayload(payload);
       if (!await source.exists()) {
+        // Dead-letter LOUDLY rather than draining as silent success — the file
+        // vanished (native local_path unreadable after restart), so returning
+        // would lose the upload while the user believes it saved.
         _log.warning(
-          'Logo upload skipped: source ${source.fileName} no longer exists.',
+          'Logo upload failed: source ${source.fileName} no longer exists.',
         );
-        return;
+        throw const ServerException(400, _kUploadSourceGoneMessage);
       }
       final response = await api.uploadLogo(
         companyId: row.entityId,
@@ -137,10 +145,10 @@ class CompanySyncDispatcher implements SyncDispatcher {
       final source = UploadSource.fromPayload(payload);
       if (!await source.exists()) {
         _log.warning(
-          'Document upload skipped: source ${source.fileName} '
+          'Document upload failed: source ${source.fileName} '
           'no longer exists.',
         );
-        return;
+        throw const ServerException(400, _kUploadSourceGoneMessage);
       }
       final response = await api.uploadDocument(
         companyId: row.entityId,
@@ -233,10 +241,10 @@ class CompanySyncDispatcher implements SyncDispatcher {
         final source = UploadSource.fromPayload(payload);
         if (!await source.exists()) {
           _log.warning(
-            'Cert upload skipped: source ${source.fileName} '
+            'Cert upload failed: source ${source.fileName} '
             'no longer exists.',
           );
-          return true;
+          throw const ServerException(400, _kUploadSourceGoneMessage);
         }
         final response = await api.uploadEInvoiceCertificate(
           companyId: row.entityId,

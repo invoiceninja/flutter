@@ -15,6 +15,7 @@ import 'package:admin/data/services/schedules_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('ScheduleRepository');
 
@@ -202,6 +203,14 @@ class ScheduleRepository extends BaseEntityRepository<Schedule, ScheduleApi> {
     required String companyId,
     required Schedule schedule,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(schedule.id);
+    if (resolvedId != schedule.id) schedule = schedule.copyWith(id: resolvedId);
+
     // Clamp next_run to today — the server rejects past dates on every
     // template (`next_run after_or_equal:today`). Covers payment_schedule
     // (hidden field) and editing a schedule whose next_run already lapsed.
@@ -329,7 +338,11 @@ class ScheduleRepository extends BaseEntityRepository<Schedule, ScheduleApi> {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     // Local-only flags overlay the DTO defaults — see CLAUDE.md § Sync.
     final api = ScheduleApi.fromJson(_normalizePayload(json));
-    return Schedule.fromApi(api).copyWith(isDirty: row.isDirty);
+    return Schedule.fromApi(api).copyWith(
+      isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
+    );
   }
 
   /// The Drift `payload` column round-trips both server responses (the

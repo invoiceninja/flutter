@@ -24,6 +24,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('InvoiceRepository');
 
@@ -374,6 +375,14 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     required Invoice invoice,
     Map<String, String>? extraQuery,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(invoice.id);
+    if (resolvedId != invoice.id) invoice = invoice.copyWith(id: resolvedId);
+
     // Backstop for the `lock_invoices` setting. The UI hard-blocks at the
     // edit-entry point (invoice_actions.dart) before reaching here; this
     // guarantees no locked-invoice field edit can enter the outbox via any
@@ -792,11 +801,38 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         .watchById(companyId: companyId, id: id)
         .first;
     if (existing == null) return;
+    // Read the side-effect ids BEFORE the write — deleting an invoice reverses
+    // them server-side (MarkInvoiceDeleted): the client's balance/paid_to_date
+    // drops, its billed tasks/expenses become billable again (their invoice_id
+    // is cleared), and a paid invoice's payments are refunded/deleted. Mirror
+    // the save-side sweep so those siblings converge locally instead of showing
+    // stale data until each list is reopened.
+    final billed = await _locallyBilledIds(companyId, id);
+    final paymentRows = await db.paymentDao
+        .watchForInvoice(companyId: companyId, invoiceId: id)
+        .first;
+    final paymentIds = paymentRows
+        .map((p) => p.id)
+        .where((pid) => pid.isNotEmpty)
+        .toSet();
     await db.invoiceDao.upsert(
       existing
           .toCompanion(true)
           .copyWith(isDeleted: const Value(true), isDirty: const Value(false)),
     );
+    final cb = onRelatedEntitiesAffected;
+    if (cb == null) return;
+    final clientId = existing.clientId;
+    try {
+      await cb(companyId, {
+        if (clientId.isNotEmpty) EntityType.client: {clientId},
+        if (billed.taskIds.isNotEmpty) EntityType.task: billed.taskIds,
+        if (billed.expenseIds.isNotEmpty) EntityType.expense: billed.expenseIds,
+        if (paymentIds.isNotEmpty) EntityType.payment: paymentIds,
+      });
+    } catch (e) {
+      _log.warning('invoice delete side-effect refresh failed: $e');
+    }
   }
 
   /// Drop a document from the invoice's local `documents` JSON column.
@@ -951,6 +987,8 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     // both onto the API-derived domain so the UI sees current state.
     return Invoice.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
       // Same story as documents: `toApiJson` omits the read-only
       // `schedule[]` projection, so overlay it from its dedicated column.

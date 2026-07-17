@@ -143,20 +143,6 @@ demo server and captures each marketing screen. This is a **local, on-demand** t
 bash tools/capture_screenshots.sh   # writes PNGs into samples/screenshots/
 ```
 
-## Platforms
-
-- **Now:** iOS, macOS, web.
-- **Later:** Android, Windows, Linux.
-
-Web runs on drift WASM over IndexedDB (unencrypted: the browser origin sandbox is the
-trust boundary); native iOS/macOS behavior is byte-identical. See
-[`CLAUDE.md` § Web](CLAUDE.md#web) and [`docs/setup.md`](docs/setup.md).
-
-## Feature parity
-
-See [**FEATURES.md**](FEATURES.md) for the live tracker comparing every user-facing
-feature across the React web client, Flutter v1 (`admin-portal`), and this rebuild.
-
 ## Credits
 
 <https://github.com/invoiceninja/invoiceninja/tree/v5-develop#credits>

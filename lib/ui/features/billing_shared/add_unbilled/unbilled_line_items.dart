@@ -82,6 +82,7 @@ List<LineItem> projectInvoiceLineItems({
   DateTime? now,
   Project? project,
   Client? client,
+  GroupSetting? group,
   Company? company,
 }) {
   return <LineItem>[
@@ -98,6 +99,9 @@ List<LineItem> projectInvoiceLineItems({
           now: now,
           project: project,
           client: client,
+          // Client's group tier of the rate cascade (was omitted, so
+          // group-configured clients billed at the company rate).
+          group: group,
           company: company,
         ),
   ];

@@ -14,6 +14,7 @@ import 'package:admin/data/services/bank_transactions_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('BankTransactionRepository');
 
@@ -186,6 +187,16 @@ class BankTransactionRepository
     required String companyId,
     required BankTransaction transaction,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(transaction.id);
+    if (resolvedId != transaction.id) {
+      transaction = transaction.copyWith(id: resolvedId);
+    }
+
     final companion = _domainToCompanion(transaction, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -371,8 +382,15 @@ class BankTransactionRepository
         ...domain.linkedExpenseIds,
         if (existing != null) ..._splitCsv(existing.expenseId),
       },
-      if (serverResponse.paymentId.isNotEmpty)
-        EntityType.payment: {serverResponse.paymentId},
+      // Union the pre-update payment too: `unlink` clears the response's
+      // payment_id, so without the existing row the now-detached payment keeps
+      // its stale transaction_id and is filtered out of the Link Payment picker
+      // — the exact re-link flow unlink exists for would silently break.
+      EntityType.payment: {
+        if (serverResponse.paymentId.isNotEmpty) serverResponse.paymentId,
+        if (existing != null && existing.paymentId.isNotEmpty)
+          existing.paymentId,
+      },
     });
   }
 
@@ -495,6 +513,10 @@ class BankTransactionRepository
   BankTransaction _fromRow(BankTransactionRow row) {
     final apiJson = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = BankTransactionApi.fromJson(apiJson);
-    return BankTransaction.fromApi(api).copyWith(isDirty: row.isDirty);
+    return BankTransaction.fromApi(api).copyWith(
+      isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
+    );
   }
 }

@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
+import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
@@ -127,6 +128,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
   // inherits the project / client / company `default_task_rate` instead of $0.
   Company? _company;
   Client? _client;
+  GroupSetting? _group;
   Map<String, Project> _projectsById = const {};
 
   @override
@@ -173,6 +175,15 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
         : await services.clients
               .watchByRealId(companyId: widget.companyId, id: widget.clientId)
               .first;
+    // Client's group tier of the rate cascade (was skipped).
+    final group = (client == null || client.groupSettingsId.isEmpty)
+        ? null
+        : await services.groupSettings
+              .watchByRealId(
+                companyId: widget.companyId,
+                id: client.groupSettingsId,
+              )
+              .first;
     // Full Project objects (not just names) so a rate-0 task picks up its
     // project's `task_rate` in the cascade.
     final projects = await services.projects
@@ -182,6 +193,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
     setState(() {
       _company = company;
       _client = client;
+      _group = group;
       _projectsById = {for (final p in projects) p.id: p};
     });
   }
@@ -474,6 +486,7 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
             t,
             project: _projectsById[t.projectId],
             client: _client,
+            group: _group,
             company: _company,
           ),
         );

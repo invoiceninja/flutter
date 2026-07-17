@@ -46,7 +46,7 @@ class DashboardInvoiceRow {
       balance: parseMoney(json['balance']),
       amount: parseMoney(json['amount']),
       statusId: status,
-      currencyId: (json['client']?['currency_id'] ?? '').toString(),
+      currencyId: _clientCurrencyId(client),
     );
   }
 
@@ -136,7 +136,7 @@ class DashboardQuoteRow {
       validUntil: Date.tryParse(json['valid_until']?.toString()),
       amount: parseMoney(json['amount']),
       statusId: status,
-      currencyId: (client['currency_id'] ?? '').toString(),
+      currencyId: _clientCurrencyId(client),
     );
   }
 
@@ -183,7 +183,7 @@ class DashboardRecurringInvoiceRow {
       nextSendDate: Date.tryParse(json['next_send_date']?.toString()),
       amount: parseMoney(json['amount']),
       statusId: status,
-      currencyId: (client['currency_id'] ?? '').toString(),
+      currencyId: _clientCurrencyId(client),
       frequencyId: freq,
     );
   }
@@ -199,6 +199,17 @@ Map<String, dynamic> _client(Object? raw) {
   if (raw is Map<String, dynamic>) return raw;
   if (raw is Map) return raw.map((k, v) => MapEntry(k.toString(), v));
   return const {};
+}
+
+/// A client's currency id lives in `client.settings.currency_id` (the cascade
+/// override), NOT top-level — ClientTransformer never emits a top-level
+/// `currency_id`. Reading top-level always yielded '' so every cross-currency
+/// client's dashboard amounts rendered in the company currency. Empty when the
+/// client has no override (correct — the render then falls back to company).
+String _clientCurrencyId(Map<String, dynamic> client) {
+  final settings = client['settings'];
+  final fromSettings = settings is Map ? settings['currency_id'] : null;
+  return (fromSettings ?? client['currency_id'] ?? '').toString();
 }
 
 List<T> _list<T>(Object? raw, T Function(Map<String, dynamic>) build) {

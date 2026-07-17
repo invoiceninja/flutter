@@ -24,31 +24,43 @@ class RunningTimerPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final services = context.watch<Services>();
-    final session = services.auth.session.value;
-    if (session == null) return const SizedBox.shrink();
-    // Permission gate — non-admin users without `view_task` shouldn't see
-    // the pill (they can't open the task it points to anyway).
-    final company = session.currentCompany;
-    if (company == null || !company.can('view_task')) {
-      return const SizedBox.shrink();
-    }
-    return StreamBuilder<Task?>(
-      stream: services.tasks.watchRunning(companyId: session.currentCompanyId),
-      builder: (context, snapshot) {
-        final task = snapshot.data;
-        if (task == null || !task.isRunning || task.timeLog.isEmpty) {
+    final services = context.read<Services>();
+    // Listen to the session so the pill REBUILDS + re-subscribes when the
+    // active company changes. `Provider<Services>.value` never notifies and
+    // this widget is mounted as a `const` instance, so without this the pill
+    // kept the FIRST company's `watchRunning` stream for the whole app session
+    // (showing another company's timer, a dead stop button, and hiding the
+    // current company's running timer).
+    return ValueListenableBuilder(
+      valueListenable: services.auth.session,
+      builder: (context, session, _) {
+        if (session == null) return const SizedBox.shrink();
+        // Permission gate — non-admin users without `view_task` shouldn't see
+        // the pill (they can't open the task it points to anyway).
+        final company = session.currentCompany;
+        if (company == null || !company.can('view_task')) {
           return const SizedBox.shrink();
         }
-        return StreamBuilder<int>(
-          stream: services.tasks.watchRunningCount(
+        return StreamBuilder<Task?>(
+          stream: services.tasks.watchRunning(
             companyId: session.currentCompanyId,
           ),
-          builder: (context, countSnap) => _Pill(
-            task: task,
-            services: services,
-            runningCount: countSnap.data ?? 1,
-          ),
+          builder: (context, snapshot) {
+            final task = snapshot.data;
+            if (task == null || !task.isRunning || task.timeLog.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return StreamBuilder<int>(
+              stream: services.tasks.watchRunningCount(
+                companyId: session.currentCompanyId,
+              ),
+              builder: (context, countSnap) => _Pill(
+                task: task,
+                services: services,
+                runningCount: countSnap.data ?? 1,
+              ),
+            );
+          },
         );
       },
     );

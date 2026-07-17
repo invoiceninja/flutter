@@ -1507,6 +1507,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     db: ctx.db,
     api: creditsApi,
     onEnqueued: ctx.kickDrain,
+    onRelatedEntitiesAffected: refreshRelatedEntities,
   );
   wire<CreditItemApi, CreditApi>(
     type: EntityType.credit,

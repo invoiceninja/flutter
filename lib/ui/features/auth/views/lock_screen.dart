@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/auth/view_models/lock_view_model.dart';
+import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 
 /// Cold-launch biometric gate. Shown by the router when
 /// `AuthRepository.requiresBiometricUnlock` is true. Auto-prompts on mount
@@ -44,6 +45,22 @@ class _LockScreenState extends State<LockScreen> {
   }
 
   Future<void> _onSignOut() async {
+    // Signing out here runs a FULL logout, which wipes the whole local DB —
+    // including every company's still-pending outbox rows. Quiesce them first
+    // with the same prompt every other sign-out entry point uses, or the lock
+    // screen silently destroys the offline edits the idle-timeout preserve
+    // path deliberately kept alive. Credentials are live on /lock (restore()
+    // set them before the gate), so the prompt's "sync now" path works here.
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId;
+    if (companyId != null) {
+      final outbox = await confirmPendingOutboxIfAny(
+        context,
+        companyId: companyId,
+        checkAllCompanies: true,
+      );
+      if (outbox == OutboxConfirmResult.cancelled || !mounted) return;
+    }
     await _vm.signOut();
   }
 

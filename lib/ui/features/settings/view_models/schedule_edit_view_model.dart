@@ -262,15 +262,18 @@ class ScheduleEditViewModel extends GenericEditViewModel<Schedule> {
         }
         // Every row must allocate a positive amount/percent.
         if (rows.any((r) => r.amount <= Decimal.zero)) return false;
-        // Percent mode: the split can't exceed 100% (React caps this; the
-        // amount-mode total-vs-invoice check is surfaced as a hint in the
-        // UI since the server tolerates it).
+        // Percent mode: the server (StoreSchedulerRequest::validatePayment
+        // ScheduleTotal) rejects any split that isn't EXACTLY 100% — not just
+        // > 100 — so gate Save on it, or the user gets a success toast then a
+        // dead 422'd outbox row. (The amount-mode `sum == invoice.amount` check
+        // is enforced in the UI via _PaymentRemainingHint, which has the loaded
+        // invoice; the VM's sync validate can't see the invoice amount.)
         if (!rows.first.isAmount) {
           final total = rows.fold<Decimal>(
             Decimal.zero,
             (sum, r) => sum + r.amount,
           );
-          if (total > Decimal.fromInt(100)) return false;
+          if (total != Decimal.fromInt(100)) return false;
         }
         return true;
       default:

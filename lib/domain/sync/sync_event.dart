@@ -33,11 +33,20 @@ class ConflictEvent extends SyncEvent {
   const ConflictEvent({
     required super.entityType,
     required super.entityId,
+    required this.companyId,
     required this.message,
     required this.wireEntityType,
     this.statusCode,
     this.outboxRowId,
   });
+
+  /// The parked row's company. The resolver MUST discard against this, not the
+  /// session's current company: the sheet can be resolved after a company
+  /// switch (especially now that overlapping conflicts are deferred + replayed),
+  /// and discarding under the wrong company silently matches no rows — leaving
+  /// the parked row immortal while the user believes it resolved.
+  final String companyId;
+
   final String message;
 
   /// The parked outbox row's wire `entity_type` string — what

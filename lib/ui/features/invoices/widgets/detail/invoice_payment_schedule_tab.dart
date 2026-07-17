@@ -216,15 +216,19 @@ class _CreatePaymentScheduleDialogState
     super.dispose();
   }
 
+  Decimal _rowAmount(_CustomRow r) =>
+      parseDecimal(r.amount.text, useCommaAsDecimalPlace: _useComma) ??
+      Decimal.zero;
+
   bool get _customValid =>
       _rows.isNotEmpty &&
-      _rows.every(
-        (r) =>
-            r.date != null &&
-            (parseDecimal(r.amount.text, useCommaAsDecimalPlace: _useComma) ??
-                    Decimal.zero) >
-                Decimal.zero,
-      );
+      _rows.every((r) => r.date != null && _rowAmount(r) > Decimal.zero) &&
+      // The server (StoreSchedulerRequest::validatePaymentScheduleTotal) rejects
+      // an is_amount schedule whose installments don't sum to the invoice
+      // amount — gate submit on it (React does the same) so the user fixes it
+      // here instead of getting a success toast then a dead outbox row.
+      _rows.fold<Decimal>(Decimal.zero, (acc, r) => acc + _rowAmount(r)) ==
+          widget.invoice.amount;
 
   bool get _valid => _mode == 'count'
       ? (int.tryParse(_count.text.trim()) ?? 0) >= 1 && _firstPayment != null
@@ -257,7 +261,18 @@ class _CreatePaymentScheduleDialogState
         successMsg: context.tr('created_schedule'),
       );
     } else {
-      final today = Date.today();
+      // The server validates a custom schedule's `next_run` as
+      // `after_or_equal:today` in the SERVER timezone (UTC by default). Device-
+      // local "today" is UTC-yesterday during Americas afternoons/evenings, so
+      // it 422s after the success toast. Send the LATER of local-today and
+      // UTC-today so it's valid regardless of the device offset.
+      final nowLocal = DateTime.now();
+      final nowUtc = nowLocal.toUtc();
+      final localToday = Date(nowLocal.year, nowLocal.month, nowLocal.day);
+      final utcToday = Date(nowUtc.year, nowUtc.month, nowUtc.day);
+      final today = utcToday.toDateTime().isAfter(localToday.toDateTime())
+          ? utcToday
+          : localToday;
       final body = <String, dynamic>{
         'template': kScheduleTemplatePaymentSchedule,
         'next_run': today.toIso(),

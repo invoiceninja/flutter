@@ -101,6 +101,10 @@ class PurchaseOrderDao
             e.number.lower().like(needle) |
             e.poNumber.lower().like(needle) |
             e.notesLikePayload(needle) |
+            e.customValue1.lower().like(needle) |
+            e.customValue2.lower().like(needle) |
+            e.customValue3.lower().like(needle) |
+            e.customValue4.lower().like(needle) |
             vendorNameMatchesFilter(
               vendorId: e.vendorId,
               companyId: companyId,

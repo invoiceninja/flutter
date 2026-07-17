@@ -46,8 +46,9 @@ void main() {
       expect(preview('   '), '0005');
     });
 
-    test('pattern without a counter token leaves the counter out', () {
-      expect(preview(r'INV-{$year}'), 'INV-2026');
+    test('a counter-less pattern gets {\$counter} appended (server parity — '
+        'confirmed on demo: `{\$year}` → `20260028`)', () {
+      expect(preview(r'INV-{$year}'), 'INV-20260005');
     });
 
     test('padding 0 → counter unpadded', () {
@@ -69,7 +70,7 @@ void main() {
     });
 
     test('user_id is rendered as 00', () {
-      expect(preview(r'{$user_id}'), '00');
+      expect(preview(r'{$user_id}'), '000005');
     });
 
     test('literals around tokens are preserved', () {
@@ -77,42 +78,42 @@ void main() {
     });
 
     test('{\$date:Y-m-d} formats the current date', () {
-      expect(preview(r'{$date:Y-m-d}'), '2026-06-03');
+      expect(preview(r'{$date:Y-m-d}'), '2026-06-030005');
     });
 
     test('{\$date:d/m/Y} respects the order', () {
-      expect(preview(r'{$date:d/m/Y}'), '03/06/2026');
+      expect(preview(r'{$date:d/m/Y}'), '03/06/20260005');
     });
 
     test('{\$date:F j, Y} renders month name', () {
-      expect(preview(r'{$date:F j, Y}'), 'June 3, 2026');
+      expect(preview(r'{$date:F j, Y}'), 'June 3, 20260005');
     });
 
     test('empty date format falls back to ISO', () {
-      expect(preview(r'{$date:}'), '2026-06-03');
+      expect(preview(r'{$date:}'), '2026-06-030005');
     });
 
     test('unknown date format letters are printed literally', () {
-      expect(preview(r'{$date:zzz}'), 'zzz');
+      expect(preview(r'{$date:zzz}'), 'zzz0005');
     });
 
     test('{\$date:jS} renders the ordinal day suffix', () {
       // Fixed clock is the 3rd → "3rd".
-      expect(preview(r'{$date:jS}'), '3rd');
+      expect(preview(r'{$date:jS}'), '3rd0005');
     });
 
     test('client tokens are literal when the client group is hidden', () {
-      expect(preview(r'{$client_number}'), r'{$client_number}');
+      expect(preview(r'{$client_number}'), r'{$client_number}0005');
     });
 
     test('client tokens get sample values when the group is shown', () {
-      expect(preview(r'{$client_number}', showClient: true), '0001');
-      expect(preview(r'{$client_id_number}', showClient: true), 'ID-0001');
+      expect(preview(r'{$client_number}', showClient: true), '00010005');
+      expect(preview(r'{$client_id_number}', showClient: true), 'ID-00010005');
     });
 
     test('vendor tokens are gated on showVendor', () {
-      expect(preview(r'{$vendor_number}'), r'{$vendor_number}');
-      expect(preview(r'{$vendor_number}', showVendor: true), '0001');
+      expect(preview(r'{$vendor_number}'), r'{$vendor_number}0005');
+      expect(preview(r'{$vendor_number}', showVendor: true), '00010005');
     });
 
     test('{\$vendor_id_number} renders alone for the Vendors tab', () {
@@ -121,11 +122,11 @@ void main() {
       // vendor tokens, so those stay literal.
       expect(
         preview(r'{$vendor_id_number}', showVendorIdNumber: true),
-        'ID-0001',
+        'ID-00010005',
       );
       expect(
         preview(r'{$vendor_number}', showVendorIdNumber: true),
-        r'{$vendor_number}',
+        r'{$vendor_number}0005',
       );
     });
 
@@ -136,15 +137,18 @@ void main() {
           showClient: true,
           company: companyWithLabels,
         ),
-        'Region',
+        'Region0005',
       );
-      expect(preview(r'{$user_custom1}', company: companyWithLabels), 'Badge');
+      expect(
+        preview(r'{$user_custom1}', company: companyWithLabels),
+        'Badge0005',
+      );
     });
 
     test('custom-field token left literal when the slot has no label', () {
       expect(
         preview(r'{$client_custom1}', showClient: true, company: company),
-        r'{$client_custom1}',
+        r'{$client_custom1}0005',
       );
     });
   });

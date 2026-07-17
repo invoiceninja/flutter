@@ -302,24 +302,24 @@ Decimal getItemTaxable(
   final itemDiscount = _round(item.discount, 5);
   var lineTotal = qty * cost;
 
-  if (input.discount != Decimal.zero) {
-    if (input.isAmountDiscount) {
-      // Spread the amount discount with the SUBTOTAL (`invoiceTotal`, passed in
-      // as computeSubtotal) as the denominator — matching _calculateTotal (the
-      // grand total) and the server's calcTaxesWithAmountDiscount. The old
-      // `subtotal + discount` denom made the per-name breakdown rows fail to
-      // sum to the tax baked into the grand total by a few cents (L7).
-      if (invoiceTotal != Decimal.zero) {
-        // Use a wide working scale (10) for the intermediate ratio.
-        // Passing the currency `precision` (typically 2) here would
-        // truncate `lineTotal / invoiceTotal` and silently skew the per-item
-        // tax breakdown — admin-portal's `double` math has no equivalent
-        // precision loss, so the port must match that.
-        lineTotal =
-            lineTotal -
-            _safeDiv(lineTotal, invoiceTotal, precision: 10) * input.discount;
-      }
-    } else {
+  if (input.isAmountDiscount) {
+    // Item discount FIRST, then prorate the invoice amount-discount across the
+    // post-item-discount line total over the post-item-discount subtotal
+    // (`invoiceTotal` == computeSubtotal) — matching the server's setDiscount →
+    // calcTaxesWithAmountDiscount order and _calculateTotal above. Prorating on
+    // the pre-item-discount line total over-shrinks the tax base.
+    if (itemDiscount != Decimal.zero) lineTotal = lineTotal - itemDiscount;
+    if (input.discount != Decimal.zero && invoiceTotal != Decimal.zero) {
+      // Wide working scale (10) for the ratio — passing the currency precision
+      // (typically 2) would truncate `lineTotal / invoiceTotal` and skew the
+      // per-item tax breakdown (admin-portal's `double` math has no such loss).
+      lineTotal =
+          lineTotal -
+          _safeDiv(lineTotal, invoiceTotal, precision: 10) * input.discount;
+    }
+  } else {
+    // Percent discounts commute — order is irrelevant.
+    if (input.discount != Decimal.zero) {
       final factor = (Decimal.fromInt(100) - input.discount);
       lineTotal = _safeDiv(
         lineTotal * factor,
@@ -327,12 +327,7 @@ Decimal getItemTaxable(
         precision: 10,
       );
     }
-  }
-
-  if (itemDiscount != Decimal.zero) {
-    if (input.isAmountDiscount) {
-      lineTotal = lineTotal - itemDiscount;
-    } else {
+    if (itemDiscount != Decimal.zero) {
       lineTotal = lineTotal - _mulRate(lineTotal, itemDiscount);
     }
   }
@@ -394,26 +389,30 @@ Decimal _calculateTotal(BillingTotalsInput input, int precision) {
     final rate3 = _round(item.taxRate3, 3);
     var lineTotal = qty * cost;
 
-    if (input.discount != Decimal.zero) {
-      if (input.isAmountDiscount) {
-        if (total != Decimal.zero) {
-          // Wide working scale for the ratio — see getItemTaxable rationale.
-          lineTotal =
-              lineTotal -
-              _round(
-                _safeDiv(lineTotal, total, precision: 10) * input.discount,
-                precision,
-              );
-        }
-      } else {
+    if (input.isAmountDiscount) {
+      // The server applies the ITEM discount first (setDiscount), THEN prorates
+      // the invoice amount-discount across the ALREADY-reduced line totals
+      // (calcTaxesWithAmountDiscount: amount = line_total − discount×line_total/
+      // sub_total, where line_total and sub_total are both post-item-discount).
+      // Applying the proration on the pre-item-discount line total over-shrinks
+      // the tax base whenever a line also carries its own discount.
+      if (itemDiscount != Decimal.zero) lineTotal = lineTotal - itemDiscount;
+      if (input.discount != Decimal.zero && total != Decimal.zero) {
+        // Wide working scale for the ratio — see getItemTaxable rationale.
+        lineTotal =
+            lineTotal -
+            _round(
+              _safeDiv(lineTotal, total, precision: 10) * input.discount,
+              precision,
+            );
+      }
+    } else {
+      // Percent discounts commute, so order is irrelevant.
+      if (input.discount != Decimal.zero) {
         lineTotal =
             lineTotal - _round(_mulRate(lineTotal, input.discount), precision);
       }
-    }
-    if (itemDiscount != Decimal.zero) {
-      if (input.isAmountDiscount) {
-        lineTotal = lineTotal - itemDiscount;
-      } else {
+      if (itemDiscount != Decimal.zero) {
         lineTotal =
             lineTotal - _round(_mulRate(lineTotal, itemDiscount), precision);
       }

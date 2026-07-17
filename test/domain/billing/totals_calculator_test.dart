@@ -364,6 +364,28 @@ void main() {
       expect(result.total, d('90.00'));
     });
 
+    test('amount discount + item discount: proration uses the '
+        'POST-item-discount line total (server parity, #30)', () {
+      // Item A: 100, item discount 50, GST 10%; Item B: 100, no tax.
+      // Invoice amount discount 30. Server (setDiscount → calcTaxes with
+      // amount discount): A line_total=50, amount = 50 − 30×50/150 = 40 →
+      // GST 4.00; total = 150 − 30 + 4 = 124. The old client prorated on the
+      // pre-item-discount line total (100), yielding GST 3.00 / total 123.
+      final result = computeTotals(
+        input(
+          lineItems: [
+            item(cost: '100', discount: '50', taxName1: 'GST', taxRate1: '10'),
+            item(cost: '100'),
+          ],
+          discount: '30',
+          isAmountDiscount: true,
+        ),
+        2,
+      );
+      expect(result.taxBreakdown['GST'], d('4.00'));
+      expect(result.total, d('124.00'));
+    });
+
     test('amount discount distributes across line items consistently in '
         'breakdown and total', () {
       // Two items totalling 100. Invoice-level $20 amount discount.

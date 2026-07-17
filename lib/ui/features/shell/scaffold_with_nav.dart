@@ -355,16 +355,17 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
               return null;
             },
           ),
-          _GoBackIntent: CallbackAction<_GoBackIntent>(
+          _GoBackIntent: _TextFieldAwareAction<_GoBackIntent>(
             onInvoke: (_) {
               // Cmd/Alt+Arrow are caret/word motions inside a text field —
-              // no-op here lets the field's own action handle them.
+              // the action doesn't consume the key there (see
+              // _TextFieldAwareAction), so the field handles the motion.
               if (isTextInputFocused()) return null;
               context.read<NavHistoryController>().back();
               return null;
             },
           ),
-          _GoForwardIntent: CallbackAction<_GoForwardIntent>(
+          _GoForwardIntent: _TextFieldAwareAction<_GoForwardIntent>(
             onInvoke: (_) {
               if (isTextInputFocused()) return null;
               context.read<NavHistoryController>().forward();
@@ -546,6 +547,19 @@ class _ToggleSidebarIntent extends Intent {
 
 class _OpenSettingsIntent extends Intent {
   const _OpenSettingsIntent();
+}
+
+/// A [CallbackAction] that does NOT consume the key when a text field is
+/// focused. The history-nav shortcuts bind Cmd/Alt+Arrow — caret/word motions
+/// inside a text field — so returning null from `onInvoke` isn't enough: the
+/// shortcut still *consumes* the key, swallowing the motion. Overriding
+/// `consumesKey` lets the event fall through to the field. (`onInvoke` still
+/// fires but its own `isTextInputFocused()` guard no-ops it.)
+class _TextFieldAwareAction<T extends Intent> extends CallbackAction<T> {
+  _TextFieldAwareAction({required super.onInvoke});
+
+  @override
+  bool consumesKey(T intent) => !isTextInputFocused();
 }
 
 class _GoBackIntent extends Intent {

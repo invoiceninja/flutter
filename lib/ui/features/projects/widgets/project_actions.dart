@@ -283,6 +283,14 @@ class ProjectActions {
             : await services.clients
                   .watchByRealId(companyId: companyId, id: project.clientId)
                   .first;
+        final group = (client == null || client.groupSettingsId.isEmpty)
+            ? null
+            : await services.groupSettings
+                  .watchByRealId(
+                    companyId: companyId,
+                    id: client.groupSettingsId,
+                  )
+                  .first;
         final lineItems = projectInvoiceLineItems(
           tasks: tasks,
           expenses: expenses,
@@ -293,6 +301,7 @@ class ProjectActions {
           invoiceInclusive: false,
           project: project,
           client: client,
+          group: group,
           company: company,
         );
         if (!context.mounted) return;
@@ -363,6 +372,11 @@ class ProjectActions {
         : await services.clients
               .watchByRealId(companyId: companyId, id: clientId)
               .first;
+    final group = (client == null || client.groupSettingsId.isEmpty)
+        ? null
+        : await services.groupSettings
+              .watchByRealId(companyId: companyId, id: client.groupSettingsId)
+              .first;
     final lineItems = [
       for (final p in usable)
         ...projectInvoiceLineItems(
@@ -376,6 +390,7 @@ class ProjectActions {
           invoiceInclusive: false,
           project: p,
           client: client,
+          group: group,
           company: company,
         ),
     ];

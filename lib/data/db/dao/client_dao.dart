@@ -78,7 +78,12 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
         (c) =>
             c.name.like(pattern) |
             c.number.like(pattern) |
-            c.email.like(pattern),
+            c.email.like(pattern) |
+            c.idNumber.like(pattern) |
+            c.customValue1.like(pattern) |
+            c.customValue2.like(pattern) |
+            c.customValue3.like(pattern) |
+            c.customValue4.like(pattern),
       );
     }
 

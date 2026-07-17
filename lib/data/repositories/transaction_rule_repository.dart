@@ -14,6 +14,7 @@ import 'package:admin/data/services/transaction_rules_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('TransactionRuleRepository');
 
@@ -214,6 +215,14 @@ class TransactionRuleRepository
     required String companyId,
     required TransactionRule rule,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(rule.id);
+    if (resolvedId != rule.id) rule = rule.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(rule, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -333,6 +342,10 @@ class TransactionRuleRepository
   TransactionRule _fromRow(TransactionRuleRow row) {
     final apiJson = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = TransactionRuleApi.fromJson(apiJson);
-    return TransactionRule.fromApi(api).copyWith(isDirty: row.isDirty);
+    return TransactionRule.fromApi(api).copyWith(
+      isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
+    );
   }
 }

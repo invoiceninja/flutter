@@ -212,6 +212,48 @@ void main() {
     });
   });
 
+  group('BankTransactionRepository — unlink side-effect refresh (#6)', () {
+    late AppDatabase db;
+    final calls = <Map<EntityType, Set<String>>>[];
+
+    setUp(() {
+      db = AppDatabase(NativeDatabase.memory());
+      calls.clear();
+    });
+    tearDown(() async => db.close());
+
+    test('unlink (response clears payment_id) still refreshes the detached '
+        'payment via the pre-update row, so it can be re-linked', () async {
+      final repo = BankTransactionRepository(
+        db: db,
+        api: _FakeBankTransactionsApi(),
+        onRelatedEntitiesAffected: (companyId, byType) async =>
+            calls.add({for (final e in byType.entries) e.key: e.value}),
+      );
+      // Seed a transaction already linked to payment pay_x.
+      await repo.applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: const BankTransactionApi(id: 'tx1', paymentId: 'pay_x'),
+      );
+      calls.clear(); // drop the seed's own refresh
+
+      // Unlink: the server response clears payment_id.
+      await repo.applyUpdateResponse(
+        companyId: 'co',
+        serverResponse: const BankTransactionApi(id: 'tx1', paymentId: ''),
+      );
+
+      expect(calls, hasLength(1));
+      expect(
+        calls.single[EntityType.payment],
+        contains('pay_x'),
+        reason:
+            'the detached payment must be refetched to clear its stale '
+            'transaction_id (else it vanishes from the Link Payment picker)',
+      );
+    });
+  });
+
   group('BankTransactionRepository — local filter mirror (watchPage)', () {
     late AppDatabase db;
     late BankTransactionRepository repo;

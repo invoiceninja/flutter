@@ -164,6 +164,17 @@ class SyncRepository {
     if (row == null) return false;
     if (row.state == 'in_flight') {
       await db.outboxDao.deleteRow(id);
+      // Reconcile the optimistic is_dirty flag on an in_flight UPDATE/reorder:
+      // if the attempt then fails, its scheduleRetry/markDead no-op on the
+      // now-deleted row, so without this the abandoned edit would render as
+      // authoritative forever. A success leg would clear the flag anyway, so
+      // clearing it now is safe. Creates are left untouched — we do NOT
+      // ghost-delete an in_flight create (its request may still be landing and
+      // would re-create the record, TOCTOU), and a create has no server row to
+      // refresh from, so its flag is moot.
+      if (MutationKind.tryParse(row.mutationKind) != MutationKind.create) {
+        await _reconcileDiscardedDirty(row);
+      }
       return false;
     }
     final isGhostCreate =
@@ -176,24 +187,7 @@ class SyncRepository {
             null;
     if (!isGhostCreate) {
       await db.outboxDao.deleteRow(id);
-      // Reconcile the local record: the entity exists server-side, but its
-      // Drift row still carries the now-abandoned optimistic edit with
-      // is_dirty=true, which every refresh skips (upsertAllPreservingDirty)
-      // — so without this the discarded edit lingers on screen forever.
-      // Clear the dirty flag (the next refresh then overwrites with server
-      // truth) ONLY when no other queued row for this exact record remains,
-      // so we don't un-protect a still-pending edit.
-      final stillActive = await db.outboxDao.hasActiveRowsForEntity(
-        companyId: row.companyId,
-        entityType: row.entityType,
-        entityId: row.entityId,
-      );
-      if (!stillActive) {
-        await registry
-            .byWireName(row.entityType)
-            ?.dispatcher
-            .clearLocalDirty(companyId: row.companyId, id: row.entityId);
-      }
+      await _reconcileDiscardedDirty(row);
       return false;
     }
     // Never synced: drop the ghost local row, then every outbox row for
@@ -841,6 +835,7 @@ class SyncRepository {
         ConflictEvent(
           entityType: handlers.type,
           entityId: row.entityId,
+          companyId: row.companyId,
           message: e.message,
           wireEntityType: row.entityType,
           statusCode: 404,
@@ -869,6 +864,7 @@ class SyncRepository {
         ConflictEvent(
           entityType: handlers.type,
           entityId: row.entityId,
+          companyId: row.companyId,
           message: e.message,
           wireEntityType: row.entityType,
           statusCode: 409,
@@ -1004,8 +1000,88 @@ class SyncRepository {
     );
   }
 
+  /// After a discarded row is removed from the outbox, release the optimistic
+  /// `is_dirty` flag its mutation set so a later refresh can restore server
+  /// truth — otherwise the abandoned edit renders as authoritative forever
+  /// (`upsertAllPreservingDirty` skips dirty rows). Reorder rows clear the
+  /// payload's ids (their entityId is the synthetic `_sort`); every other row
+  /// clears its own entityId. Guarded per-id: an id that still has ANOTHER
+  /// pending row keeps its flag so that separate edit stays protected.
+  Future<void> _reconcileDiscardedDirty(OutboxRow row) async {
+    if (MutationKind.tryParse(row.mutationKind) == MutationKind.reorder) {
+      await _clearReorderDirty(row);
+      return;
+    }
+    final stillActive = await db.outboxDao.hasActiveRowsForEntity(
+      companyId: row.companyId,
+      entityType: row.entityType,
+      entityId: row.entityId,
+    );
+    if (!stillActive) {
+      await registry
+          .byWireName(row.entityType)
+          ?.dispatcher
+          .clearLocalDirty(companyId: row.companyId, id: row.entityId);
+    }
+  }
+
+  /// Clear the optimistic `is_dirty` flag on every row a reorder touched, once
+  /// that reorder terminates without success (dead or discarded).
+  ///
+  /// A reorder marks EVERY reordered row `is_dirty=true` but enqueues a single
+  /// synthetic `_sort` outbox row, so the normal entityId-keyed clear can't
+  /// reach them (its entityId is `_sort`, which matches no entity row). The
+  /// success handler clears them (`clearDirtyForReorder`); this covers the
+  /// failure paths. Without it those rows stay `is_dirty=true` forever and
+  /// `upsertAllPreservingDirty` silently drops every inbound server refresh for
+  /// them. Only clears an id that has no OTHER pending row, so a genuine
+  /// separate edit stays protected.
+  Future<void> _clearReorderDirty(OutboxRow row) async {
+    if (MutationKind.tryParse(row.mutationKind) != MutationKind.reorder) return;
+    final dispatcher = registry.byWireName(row.entityType)?.dispatcher;
+    if (dispatcher == null) return;
+    Map<String, dynamic> payload;
+    try {
+      payload = jsonDecode(row.payload) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    // Task reorder carries `{status_ids, task_ids: {statusId: [taskId…]}}`;
+    // task-status reorder carries `{status, all_ids: [statusId…]}`. Collect the
+    // reordered ids from whichever shape is present.
+    final ids = <String>{};
+    final taskIds = payload['task_ids'];
+    if (taskIds is Map) {
+      for (final list in taskIds.values) {
+        if (list is List) ids.addAll(list.cast<String>());
+      }
+    }
+    if (payload['status_ids'] is List) {
+      ids.addAll((payload['status_ids'] as List).cast<String>());
+    }
+    if (payload['all_ids'] is List) {
+      ids.addAll((payload['all_ids'] as List).cast<String>());
+    }
+    for (final affectedId in ids) {
+      final stillActive = await db.outboxDao.hasActiveRowsForEntity(
+        companyId: row.companyId,
+        entityType: row.entityType,
+        entityId: affectedId,
+      );
+      if (!stillActive) {
+        await dispatcher.clearLocalDirty(
+          companyId: row.companyId,
+          id: affectedId,
+        );
+      }
+    }
+  }
+
   Future<void> _markDead(OutboxRow row, String error, int? code) async {
     await db.outboxDao.markDead(id: row.id, error: error, statusCode: code);
+    // A permanently-failed reorder must release its optimistic dirty flags so
+    // future refreshes can restore the server's ordering (see below).
+    await _clearReorderDirty(row);
     final handlers = registry.byWireName(row.entityType);
     if (handlers != null) {
       _events.add(

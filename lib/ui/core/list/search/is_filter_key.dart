@@ -23,6 +23,13 @@ const int _kQuickValueLimitPerKey = 3;
 /// duplicated the "Status" picker row and shadowed that real key when the
 /// user typed `status:`. Keeping `state`/`is` here leaves `status:`
 /// unambiguous for the per-entity key.
+///
+/// The **label** uses the app-owned key `entity_state_filter` (not the
+/// Transifex `entity_state`): in de / es / it / ja both `entity_state` and
+/// `status` translate to the same word, so the default lifecycle chip read
+/// identically to the per-entity Status chip. `entity_state_filter` lives in
+/// `_app_pending.json` and stays distinct until native translations land in
+/// Transifex.
 class IsFilterKey extends FilterKey {
   const IsFilterKey();
 
@@ -33,7 +40,8 @@ class IsFilterKey extends FilterKey {
   Iterable<String> get aliases => const ['state'];
 
   @override
-  String displayLabel(BuildContext context) => context.tr('entity_state');
+  String displayLabel(BuildContext context) =>
+      context.tr('entity_state_filter');
 
   @override
   FilterValueType get valueType => FilterValueType.enumeration;

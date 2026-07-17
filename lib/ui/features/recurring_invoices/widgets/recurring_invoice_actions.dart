@@ -230,13 +230,11 @@ class RecurringInvoiceActions {
           ],
         ),
       if (canEdit) ...[
-        EntityActionItem(
-          kind: RecurringInvoiceAction.runTemplate,
-          icon: Icons.auto_awesome_outlined,
-          label: context.tr('run_template'),
-          enabled: true,
-          onTap: () => onTap(RecurringInvoiceAction.runTemplate),
-        ),
+        // 'Run template' removed: the recurring-invoice bulk endpoint's action
+        // whitelist has no 'template' (BulkRecurringInvoiceRequest), so it only
+        // toasted success then 422'd into a dead outbox row. See BACKEND.md.
+        // (The RecurringInvoiceAction.runTemplate enum/handler stay as
+        // unreachable no-ops.)
         EntityActionItem(
           kind: RecurringInvoiceAction.addComment,
           icon: Icons.chat_bubble_outline,

@@ -1068,6 +1068,25 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _subscribe();
   }
 
+  /// Local-only filter refill: when a `stock:` / `tag:` chip filters the page
+  /// down to fewer than [pageSize] visible rows AND the server has more, pull
+  /// the next page so the list doesn't dead-end on a false "No records found".
+  /// Driven off each Drift emission via [_onItems] (see the note there on why
+  /// it must run before the identity early-return) — that includes the
+  /// initial/reset load's post-upsert emission, which is what chains the FIRST
+  /// page. `loadMore`'s own `hasMore`/`isLoadingPage` guards and the
+  /// [_autoChainBudget] ceiling keep it from looping.
+  void _maybeAutoChain(int visibleCount) {
+    if (localOnlyFilterActive &&
+        hasMore &&
+        !isLoadingPage &&
+        visibleCount < pageSize &&
+        _autoChainBudget > 0) {
+      _autoChainBudget--;
+      unawaited(loadMore());
+    }
+  }
+
   void _onItems(List<T> next) {
     // Local-only filter refill: BEFORE the identity early-return below — a
     // fetched page whose rows are all filtered out locally produces a
@@ -1075,14 +1094,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     // exactly when it must continue. loadMore()'s own isLoadingPage/hasMore
     // guards serialize this against the scroll trigger and embedded priming;
     // a failed fetch produces no Drift emission, so there is no retry loop.
-    if (localOnlyFilterActive &&
-        hasMore &&
-        !isLoadingPage &&
-        next.length < pageSize &&
-        _autoChainBudget > 0) {
-      _autoChainBudget--;
-      unawaited(loadMore());
-    }
+    _maybeAutoChain(next.length);
     // Drift watches are table-grained: any write to the table re-emits
     // this query even when the result set is byte-identical (a write to
     // another company, a filtered-out row, or an outbox-drain upsert that

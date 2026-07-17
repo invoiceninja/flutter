@@ -40,7 +40,16 @@ Future<Invoice?> showAddToInvoiceDialog(
               builder: (context, snapshot) {
                 final invoices =
                     (snapshot.data ?? const <Invoice>[])
-                        .where((i) => !i.isDeleted && i.archivedAt == null)
+                        // Only invoices that can still take a new line: exclude
+                        // paid / cancelled (adding a line silently reopens a
+                        // settled balance). Matches legacy admin-portal.
+                        .where(
+                          (i) =>
+                              !i.isDeleted &&
+                              i.archivedAt == null &&
+                              !i.isPaid &&
+                              !i.isCancelled,
+                        )
                         .toList()
                       ..sort((a, b) => b.number.compareTo(a.number));
                 return SearchableDropdownField<Invoice>(

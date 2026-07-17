@@ -841,6 +841,110 @@ void main() {
     );
   });
 
+  group('stale tmp-id save after create drained (#1 ghost duplicate)', () {
+    test('saving a draft still keyed to a remapped tmp id updates the REAL row '
+        'instead of resurrecting the deleted tmp row as a ghost', () async {
+      final (:repo, :api) = makeRepo();
+      // 1) Offline create → tmp id assigned, create queued.
+      final created = await repo.create(
+        companyId: 'co',
+        draft: Client.fromApi(apiClient('', name: 'Acme')),
+      );
+      final tmpId = created.entity.id;
+      expect(tmpId, startsWith('tmp_'));
+
+      // 2) The create drains: server echoes the real id. applyCreateResponse
+      // records the id_remap and deletes the tmp row.
+      await repo.applyCreateResponse(
+        companyId: 'co',
+        tempId: tmpId,
+        serverResponse: apiClient('c_real', name: 'Acme'),
+      );
+
+      // 3) The edit form is still open holding the STALE tmp-keyed draft;
+      // the user edits a field and saves.
+      final stale = created.entity.copyWith(
+        name: 'Acme Edited',
+        displayName: 'Acme Edited',
+      );
+      expect(stale.id, tmpId, reason: 'the open form still holds the tmp id');
+      await repo.save(companyId: 'co', client: stale);
+
+      // No ghost: nothing is stored under the raw tmp id anymore.
+      final ghost = await db.clientDao
+          .watchById(companyId: 'co', id: tmpId)
+          .first;
+      expect(ghost, isNull, reason: 'the tmp row must not be resurrected');
+
+      // The edit landed on the real row.
+      final real = await repo.watch(companyId: 'co', id: 'c_real').first;
+      expect(real, isNotNull);
+      expect(real!.name, 'Acme Edited');
+
+      // And the queued update targets the real id, not the tmp id.
+      final pending = await db.outboxDao.nextReady(
+        companyId: 'co',
+        now: 1 << 60,
+      );
+      final updateRow = pending.firstWhere(
+        (p) => p.mutationKind == MutationKind.update.wireName,
+      );
+      expect(updateRow.entityId, 'c_real');
+    });
+  });
+
+  group('optimistic delete/archive overlay (#15/#47)', () {
+    // Seed a synced (clean) row, then run the offline lifecycle action and
+    // read the domain back through watch → _fromRow. The optimistic flip lives
+    // only in the Drift COLUMN (payload JSON is untouched), so this fails
+    // unless _fromRow overlays is_deleted / archived_at from the row.
+    Future<Client?> seedThenReadAfter(
+      ClientRepository repo,
+      Future<void> Function() action,
+    ) async {
+      await repo.applyCreateResponse(
+        companyId: 'co',
+        tempId: 'c1',
+        serverResponse: apiClient('c1', name: 'Acme'),
+      );
+      await action();
+      return repo.watch(companyId: 'co', id: 'c1').first;
+    }
+
+    test('offline delete → domain.isDeleted is true', () async {
+      final (:repo, :api) = makeRepo();
+      final after = await seedThenReadAfter(
+        repo,
+        () => repo.delete(companyId: 'co', id: 'c1'),
+      );
+      expect(after, isNotNull, reason: 'soft-delete keeps the local row');
+      expect(after!.isDeleted, isTrue);
+    });
+
+    test('offline archive → domain.archivedAt is set', () async {
+      final (:repo, :api) = makeRepo();
+      final after = await seedThenReadAfter(
+        repo,
+        () => repo.archive(companyId: 'co', id: 'c1'),
+      );
+      expect(after!.archivedAt, isNotNull);
+    });
+
+    test('restore after delete → both flags cleared in the domain', () async {
+      final (:repo, :api) = makeRepo();
+      await repo.applyCreateResponse(
+        companyId: 'co',
+        tempId: 'c1',
+        serverResponse: apiClient('c1', name: 'Acme'),
+      );
+      await repo.delete(companyId: 'co', id: 'c1');
+      await repo.restore(companyId: 'co', id: 'c1');
+      final after = await repo.watch(companyId: 'co', id: 'c1').first;
+      expect(after!.isDeleted, isFalse);
+      expect(after.archivedAt, isNull);
+    });
+  });
+
   group('pagination', () {
     test(
       'ensurePageLoaded upserts a page and advances cursor; hasMore reflects '
@@ -889,6 +993,40 @@ void main() {
         expect(api.calls.last.sinceId, isNotNull);
       },
     );
+
+    test('a warm page-1 fetch that applied the delta cursor and got a PARTIAL '
+        'page still reports hasMore=true — a thin `updated_at >=` delta is not '
+        'end-of-list; the local cache holds rows 51+ reachable only via the '
+        'cursorless page 2 (#10)', () async {
+      // Seed the shared cursor as an earlier full sweep would have.
+      await db.syncStateDao.writeCursor(
+        companyId: 'co',
+        entityType: 'client',
+        updatedAt: 1700000000,
+        id: 'c49',
+        now: 1700000000,
+      );
+      // A later warm open: only a handful of rows changed since the cursor,
+      // so the `updated_at >=` delta returns a partial page even though the
+      // account (and the local cache) hold far more than one page.
+      final thinDelta = [for (var i = 0; i < 3; i++) apiClient('d$i')];
+      final (:repo, :api) = makeRepo(pages: {1: thinDelta});
+
+      final hasMore = await repo.ensurePageLoaded(companyId: 'co', page: 1);
+
+      expect(
+        api.calls.single.since,
+        isNotNull,
+        reason: 'page 1 applied the seeded delta cursor',
+      );
+      expect(
+        hasMore,
+        isTrue,
+        reason:
+            'a partial delta page must not latch hasMore=false — that '
+            'permanently capped warm-session lists at ~50 rows',
+      );
+    });
 
     test(
       'a client-scoped fetch neither reads nor advances the shared cursor '

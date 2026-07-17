@@ -18,6 +18,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('RecurringExpenseRepository');
 
@@ -254,6 +255,16 @@ class RecurringExpenseRepository
     required String companyId,
     required RecurringExpense recurringExpense,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(recurringExpense.id);
+    if (resolvedId != recurringExpense.id) {
+      recurringExpense = recurringExpense.copyWith(id: resolvedId);
+    }
+
     final companion = _domainToCompanion(
       recurringExpense,
       companyId,
@@ -595,6 +606,8 @@ class RecurringExpenseRepository
     final api = RecurringExpenseApi.fromJson(json);
     return RecurringExpense.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
     );
   }

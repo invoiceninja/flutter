@@ -6,6 +6,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
+import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
@@ -62,9 +63,24 @@ class TaskDetailKpiStrip extends StatelessWidget {
     final hasRunning = runningEntry?.start != null;
     final durationText = formatDuration(t.loggedDuration(), compactDays: true);
 
-    final rateText = t.rate.toDouble() == 0
-        ? '—'
-        : (formatter?.money(t.rate) ?? t.rate.toStringAsFixed(2));
+    final rateStyle = theme.textTheme.titleLarge
+        ?.copyWith(
+          color: t.rate.toDouble() == 0 ? tokens.ink3 : tokens.ink,
+          fontWeight: FontWeight.w600,
+        )
+        .merge(moneyTextStyle());
+    // The task rate is a per-client rate — resolve the client's currency so it
+    // isn't rendered in the company currency (matches the list Rate column).
+    final Widget rateValue = t.rate.toDouble() == 0
+        ? Text('—', style: rateStyle)
+        : PartyCurrencyBuilder(
+            clientId: t.clientId,
+            builder: (context, currencyId) => Text(
+              formatter?.money(t.rate, clientCurrencyId: currencyId) ??
+                  t.rate.toStringAsFixed(2),
+              style: rateStyle,
+            ),
+          );
 
     final entryCount = t.timeLog.length;
     final entryCountText = entryCount == 0 ? '—' : '$entryCount';
@@ -94,19 +110,7 @@ class TaskDetailKpiStrip extends StatelessWidget {
           );
 
     final restCells = <Widget>[
-      _KpiCell(
-        label: context.tr('rate'),
-        value: Text(
-          rateText,
-          style: theme.textTheme.titleLarge
-              ?.copyWith(
-                color: rateText == '—' ? tokens.ink3 : tokens.ink,
-                fontWeight: FontWeight.w600,
-              )
-              .merge(moneyTextStyle()),
-        ),
-        tokens: tokens,
-      ),
+      _KpiCell(label: context.tr('rate'), value: rateValue, tokens: tokens),
       _KpiCell(
         label: context.tr('entries'),
         value: Text(

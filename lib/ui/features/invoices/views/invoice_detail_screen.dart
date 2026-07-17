@@ -69,6 +69,10 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
     _vm = InvoiceDetailViewModel.bound(
       _services.invoices.watch(companyId: _companyId, id: widget.id),
     );
+    // Hydrate on a cache miss — a dashboard tap opens the detail with the row
+    // only in the dashboard cache, not the invoices table, so without this the
+    // watch yields null forever and the screen shows "not found".
+    _services.invoices.ensureLoaded(companyId: _companyId, id: widget.id);
     loadFormatter(_services, _companyId);
   }
 

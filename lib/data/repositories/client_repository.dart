@@ -22,6 +22,7 @@ import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('ClientRepository');
 
@@ -439,6 +440,14 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     required Client client,
     List<Map<String, dynamic>> designDefaultUpdates = const [],
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(client.id);
+    if (resolvedId != client.id) client = client.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(client, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -938,6 +947,8 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     // `toApiJson` deliberately omits it) — decode separately and overlay.
     return Client.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
       // Same story as documents: `toApiJson` omits locations from the
       // payload JSON, so overlay them from their dedicated column.

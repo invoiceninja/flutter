@@ -42,6 +42,16 @@ String buildNumberPreview({
 
   var result = pattern;
 
+  // The backend appends `{$counter}` to any pattern >1 char that doesn't
+  // already reference a counter token (GeneratesCounter.php), so a counter-less
+  // pattern still gets its incrementing number. CONFIRMED on the demo server
+  // (2026-07-16): the pattern `{$year}` generated `20260028` (year + counter).
+  // Mirror it before substitution, else the preview shows a number the server
+  // would never actually generate.
+  if (pattern.length > 1 && !pattern.toLowerCase().contains('counter')) {
+    result = '$result{\$counter}';
+  }
+
   // Date tokens first, so a `{$date:...}` format string can't be clobbered by
   // the fixed-token pass. The capture group is the PHP `date()` format.
   result = result.replaceAllMapped(RegExp(r'\{\$date:(.*?)\}'), (m) {

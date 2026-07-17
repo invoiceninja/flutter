@@ -19,6 +19,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('QuoteRepository');
 
@@ -263,6 +264,14 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     required Quote quote,
     Map<String, String>? extraQuery,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(quote.id);
+    if (resolvedId != quote.id) quote = quote.copyWith(id: resolvedId);
+
     final companion = _domainToCompanion(quote, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -534,6 +543,22 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
 
   /// Force-refetch quotes by id (e.g. as a `cloneToQuote` target).
   /// See [refreshByIdsTemplate].
+  /// Lazily hydrate a single quote into Drift on a cache miss — backs detail
+  /// screens reached from the dashboard (whose rows live only in the dashboard
+  /// cache, not the entity table). Deduped / negative-cached in the template.
+  Future<void> ensureLoaded({required String companyId, required String id}) =>
+      ensureLoadedTemplate(
+        companyId: companyId,
+        id: id,
+        fetch: (id) async => (await api.get(id)).data,
+        idOf: (a) => a.id,
+        toCompanion: (a) => _apiToCompanion(a, companyId),
+        upsert: (byId) => db.quoteDao.upsertAllPreservingDirty(
+          companyId: companyId,
+          byId: byId,
+        ),
+      );
+
   @override
   Future<void> refreshByIds({
     required String companyId,
@@ -694,6 +719,8 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     final api = QuoteApi.fromJson(json);
     return Quote.fromApi(api).copyWith(
       isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
       documents: decodeDocumentsColumn(row.documents),
     );
   }

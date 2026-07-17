@@ -15,6 +15,7 @@ import 'package:admin/data/services/subscriptions_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/data/models/value/parsing.dart';
 
 final _log = Logger('PaymentLinkRepository');
 
@@ -192,6 +193,16 @@ class PaymentLinkRepository
     required String companyId,
     required PaymentLink paymentLink,
   }) async {
+    // If this entity's offline create already drained while the edit
+    // form was open, id_remap now points the tmp id at the real row (the
+    // tmp row was deleted). Saving under the stale tmp id would resurrect
+    // it as a ghost duplicate — and deleting that ghost would delete the
+    // real entity via the remap. Rebind to the real id first.
+    final resolvedId = await resolveId(paymentLink.id);
+    if (resolvedId != paymentLink.id) {
+      paymentLink = paymentLink.copyWith(id: resolvedId);
+    }
+
     final companion = _domainToCompanion(paymentLink, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
@@ -331,7 +342,11 @@ class PaymentLinkRepository
   PaymentLink _fromRow(PaymentLinkRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
     final api = SubscriptionApi.fromJson(json);
-    return PaymentLink.fromApi(api).copyWith(isDirty: row.isDirty);
+    return PaymentLink.fromApi(api).copyWith(
+      isDirty: row.isDirty,
+      isDeleted: row.isDeleted,
+      archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
+    );
   }
 }
 

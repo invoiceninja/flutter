@@ -132,6 +132,47 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
     return vendorId.isInQuery(matchingVendorIds);
   }
 
+  /// Project-name counterpart of [clientNameMatchesFilter]. Mirrors the
+  /// server `orWhereHas('project', name LIKE)` in `TaskFilters::filter` for
+  /// project-bearing DAOs — without this the local task search hides the
+  /// project-name matches the API returns. The `projects` subquery keeps the
+  /// watch reactive to project renames.
+  Expression<bool> projectNameMatchesFilter({
+    required GeneratedColumn<String> projectId,
+    required String companyId,
+    required String needle,
+  }) {
+    final projects = attachedDatabase.projects;
+    final matchingProjectIds = selectOnly(projects)
+      ..addColumns([projects.id])
+      ..where(
+        projects.companyId.equals(companyId) &
+            projects.name.lower().like(needle),
+      );
+    return projectId.isInQuery(matchingProjectIds);
+  }
+
+  /// Expense-category-name counterpart of [clientNameMatchesFilter]. Mirrors
+  /// the server `orWhereHas('category', name LIKE)` in `ExpenseFilters` /
+  /// `RecurringExpenseFilters` for category-bearing DAOs (expense,
+  /// recurring_expense) — without this the local search hides the
+  /// category-name matches the API returns. The `expenseCategories` subquery
+  /// keeps the watch reactive to category renames.
+  Expression<bool> categoryNameMatchesFilter({
+    required GeneratedColumn<String> categoryId,
+    required String companyId,
+    required String needle,
+  }) {
+    final categories = attachedDatabase.expenseCategories;
+    final matchingCategoryIds = selectOnly(categories)
+      ..addColumns([categories.id])
+      ..where(
+        categories.companyId.equals(companyId) &
+            categories.name.lower().like(needle),
+      );
+    return categoryId.isInQuery(matchingCategoryIds);
+  }
+
   /// Insert-or-update one row. The repository uses this on every applyXxx
   /// response handler.
   Future<void> upsert(Insertable<RowT> row) =>

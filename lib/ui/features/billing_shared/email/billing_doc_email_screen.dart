@@ -366,7 +366,10 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
       if (mounted) setState(() => _inFlight = false);
       return;
     }
-    final sendAt = picked.toUtc().toIso8601String();
+    // Keep the LOCAL date: the server truncates sendAt to a date-only next_run
+    // (scheduleEmailRecord), so `.toUtc()` shifted an evening pick to the next
+    // (or previous) calendar day vs what the picker + confirmation toast show.
+    final sendAt = picked.toIso8601String();
     try {
       await widget.onSchedule!(
         template: _template,

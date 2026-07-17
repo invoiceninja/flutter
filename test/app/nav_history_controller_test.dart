@@ -234,4 +234,28 @@ void main() {
       expect(c.stack, ['/x', '/a', '/b', '/x']);
     },
   );
+
+  test('back() and forward() notify listeners (visible button state)', () {
+    final c = build();
+    addTearDown(c.dispose);
+
+    router.go('/a');
+    router.go('/b');
+
+    // The cursor moves *before* the router change lands, so _onChange takes
+    // its "cursor already matches" early-return — which skips notifying.
+    // back()/forward() must notify themselves or the sidebar arrow buttons
+    // (watching canGoBack/canGoForward) render stale enabled state.
+    var notified = 0;
+    c.addListener(() => notified++);
+
+    c.back();
+    expect(notified, greaterThan(0), reason: 'back() must notify');
+    expect(c.canGoBack, isFalse);
+
+    final afterBack = notified;
+    c.forward();
+    expect(notified, greaterThan(afterBack), reason: 'forward() must notify');
+    expect(c.canGoForward, isFalse);
+  });
 }

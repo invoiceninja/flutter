@@ -8,8 +8,10 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 /// The app navigates almost entirely via `context.go()`, which *replaces* the
 /// current location rather than pushing it — so go_router keeps no usable
 /// back/forward stack. This controller records every distinct location the
-/// router lands on and lets the user walk backward/forward through it
-/// (wired to `Cmd/Alt + Left/Right` in `ScaffoldWithNav`).
+/// router lands on and lets the user walk backward/forward through it.
+/// Surfaced three ways: `Cmd/Alt + Left/Right` shortcuts and the mouse
+/// back/forward thumb buttons (both in `ScaffoldWithNav`), plus the visible
+/// sidebar arrow pair (`NavHistoryButtons` in `InSidebar`).
 ///
 /// Decoupled from [GoRouter] for testability — same seam as
 /// [NavStatePersister] (`lib/app/nav_state_persister.dart`): takes a
@@ -151,11 +153,18 @@ class NavHistoryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // back()/forward() notify unconditionally: the resulting router change
+  // usually resolves to the "cursor already matches" early-return in
+  // [_onChange] (the cursor moves *before* navigating), which deliberately
+  // skips notifying — so without these, canGoBack/canGoForward consumers
+  // (the sidebar arrow buttons) would render stale enabled state.
+
   void back() {
     if (!canGoBack) return;
     _navigating = true;
     _index--;
     _navigate(_stack[_index]);
+    notifyListeners();
   }
 
   void forward() {
@@ -163,6 +172,7 @@ class NavHistoryController extends ChangeNotifier {
     _navigating = true;
     _index++;
     _navigate(_stack[_index]);
+    notifyListeners();
   }
 
   @override

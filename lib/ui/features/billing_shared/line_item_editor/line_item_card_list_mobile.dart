@@ -24,6 +24,7 @@ class LineItemCardListMobile extends StatelessWidget {
     required this.onChanged,
     required this.newItemFactory,
     required this.config,
+    this.currencyId,
     this.onPickItems,
   });
 
@@ -42,6 +43,10 @@ class LineItemCardListMobile extends StatelessWidget {
   final LineItem Function() newItemFactory;
 
   final LineItemColumnConfig config;
+
+  /// Resolved display currency for line-item money (vendor currency for POs,
+  /// client currency for client-billed docs). Null → company default.
+  final String? currencyId;
 
   /// Opens the bulk products/tasks/expenses picker. When non-null, the
   /// empty-state "Add item" button on a zero-row draft routes through the
@@ -123,6 +128,7 @@ class LineItemCardListMobile extends StatelessWidget {
           item: item,
           index: index,
           companyId: companyId,
+          currencyId: currencyId,
           onTap: () => _openEditor(context, index),
           onRemove: () => _remove(index),
         );
@@ -137,6 +143,7 @@ class _ItemCard extends StatelessWidget {
     required this.item,
     required this.index,
     required this.companyId,
+    required this.currencyId,
     required this.onTap,
     required this.onRemove,
   });
@@ -144,6 +151,7 @@ class _ItemCard extends StatelessWidget {
   final LineItem item;
   final int index;
   final String companyId;
+  final String? currencyId;
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
@@ -155,7 +163,8 @@ class _ItemCard extends StatelessWidget {
     // string before the formatter resolves on first paint.
     final formatter = context.read<Services>().formatterIfReady(companyId);
     String fmt(Decimal d) =>
-        formatter?.money(d, zeroIsNull: false) ?? d.toString();
+        formatter?.money(d, zeroIsNull: false, currencyId: currencyId) ??
+        d.toString();
     final gross = item.gross;
     final identity = item.productKey.isEmpty
         ? (item.notes.isEmpty

@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_card_list_mobile.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_table_desktop.dart';
@@ -32,6 +33,7 @@ class LineItemEditor extends StatelessWidget {
     required this.onChanged,
     required this.newItemFactory,
     this.clientId,
+    this.vendorId,
     this.config = LineItemColumnConfig.minimal,
     this.controller,
     this.disabledReasonKey,
@@ -48,7 +50,16 @@ class LineItemEditor extends StatelessWidget {
   /// and the client's currency differs from the company's, a filled product's
   /// price is converted to the client currency (React parity). Empty/null
   /// (e.g. purchase orders, which bill a vendor) → no conversion.
+  ///
+  /// Also the display-currency source for client-billed docs — line-item money
+  /// renders in this client's currency (see [vendorId] for the PO counterpart).
   final String? clientId;
+
+  /// The billing doc's vendor (purchase orders). Display-currency source for
+  /// vendor-billed docs: line-item money renders in this vendor's currency.
+  /// Client-billed docs leave it null and use [clientId] instead. Resolved via
+  /// [PartyCurrencyBuilder], which ranks vendor over client.
+  final String? vendorId;
 
   final List<LineItem> items;
   final ValueChanged<List<LineItem>> onChanged;
@@ -145,7 +156,17 @@ class LineItemEditor extends StatelessWidget {
                 );
               }
             }
-            return _buildLayout(effectiveConfig, rate);
+            // Resolve the display currency from the doc's party — vendor for a
+            // PO, client for client-billed docs — so line-item money renders in
+            // the document currency instead of the company default (mirrors the
+            // detail screen + totals block). The builder is always in the tree
+            // (constant shape) so the desktop table's row controllers survive.
+            return PartyCurrencyBuilder(
+              clientId: clientId,
+              vendorId: vendorId,
+              builder: (context, currencyId) =>
+                  _buildLayout(effectiveConfig, rate, currencyId),
+            );
           },
         );
       },
@@ -155,6 +176,7 @@ class LineItemEditor extends StatelessWidget {
   Widget _buildLayout(
     LineItemColumnConfig effectiveConfig,
     Decimal? productConversionRate,
+    String? currencyId,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -167,6 +189,7 @@ class LineItemEditor extends StatelessWidget {
             onChanged: onChanged,
             newItemFactory: newItemFactory,
             config: effectiveConfig,
+            currencyId: currencyId,
             productConversionRate: productConversionRate,
             controller: controller,
             rowErrors: rowErrors,
@@ -179,6 +202,7 @@ class LineItemEditor extends StatelessWidget {
           onChanged: onChanged,
           newItemFactory: newItemFactory,
           config: effectiveConfig,
+          currencyId: currencyId,
           onPickItems: onPickItems,
         );
       },

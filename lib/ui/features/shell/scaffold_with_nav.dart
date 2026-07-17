@@ -24,6 +24,7 @@ import 'package:admin/ui/features/shell/branch_company_gate.dart';
 import 'package:admin/ui/features/shell/widgets/in_sidebar.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
+import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/window_caption_strip.dart';
 import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
 import 'package:admin/ui/features/shell/widgets/sync_event_listener.dart';
@@ -410,133 +411,139 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
               Provider<BranchCompanyGate>.value(value: _branchGate),
             ],
             child: SyncEventListener(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  if (Breakpoints.isWide(constraints)) {
-                    final services = context.read<Services>();
-                    // Built once; passed through the ValueListenableBuilder's
-                    // `child` so a collapse toggle re-runs only the Positioned
-                    // wrapper (snapping the inset) and never rebuilds the page
-                    // body / RunningTimerPill subtree.
-                    final content = RepaintBoundary(
-                      child: Column(
-                        children: [
-                          const OfflineBanner(),
-                          Expanded(
-                            child: Stack(
-                              children: [
-                                widget.navigationShell,
-                                // Pinned bottom-right above the active route's
-                                // body. Hidden when no task is running — see
-                                // `RunningTimerPill`.
-                                const Positioned(
-                                  right: 16,
-                                  bottom: 16,
-                                  child: RunningTimerPill(),
-                                ),
-                              ],
-                            ),
-                          ),
-                          _DebugPanelBand(),
-                        ],
-                      ),
-                    );
-                    return Scaffold(
-                      body: Stack(
-                        children: [
-                          // Surface backstop behind the rail: during an
-                          // expand the content inset has already snapped to
-                          // 232 while the sidebar is still mid-grow, so this
-                          // strip reads as sidebar chrome rather than blank
-                          // page for the ≤150 ms tween.
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: kInSidebarWidth,
-                            child: ColoredBox(color: context.inTheme.surface),
-                          ),
-                          // Content layer — its left inset SNAPS to the
-                          // target rail width (one relayout per toggle, never
-                          // per animation frame). The sidebar animates on top
-                          // of it.
-                          ValueListenableBuilder<bool>(
-                            valueListenable: services.sidebar,
-                            child: content,
-                            builder: (context, collapsed, child) {
-                              final targetWidth = collapsed
-                                  ? kInSidebarCollapsedWidth
-                                  : kInSidebarWidth;
-                              return Positioned.fill(
-                                left: targetWidth,
-                                child: child!,
-                              );
-                            },
-                          ),
-                          // Sidebar layer — overlays the content; its own
-                          // RepaintBoundary + AnimatedContainer run the
-                          // 150 ms width tween in isolation.
-                          //
-                          // Intentionally no `width`/`right` on this
-                          // Positioned: the child self-sizes to the
-                          // *current* (animating) rail width via its
-                          // non-null `AnimatedContainer.width`. A fixed
-                          // width here would force-expand the rail (collapse
-                          // can't shrink) and make the full 232 band hit-test
-                          // as sidebar, swallowing content taps when
-                          // collapsed. `InSidebar` here must keep a non-null
-                          // `width` (defaults to `kInSidebarWidth`).
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: InSidebar(
-                              currentBranch:
-                                  widget.navigationShell.currentIndex,
-                              onSelectBranch: _goBranch,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  // Narrow: passthrough — each top-level screen renders its
-                  // own Scaffold with `drawer: AppDrawer()` + a hamburger.
-                  // No outer Scaffold avoids `Scaffold.of(context)` ambiguity.
-                  // The banner stacks above the per-screen Scaffold here;
-                  // `OfflineBanner` handles its own top inset when shown so
-                  // it doesn't disappear behind the status bar / notch.
-                  final services = context.read<Services>();
-                  return Column(
-                    children: [
-                      // Desktop hidden-title-bar caption strip — macOS today. No
-                      // sidebar in the narrow layout, so this top strip keeps the
-                      // window controls from overlapping each screen's AppBar.
-                      WindowCaptionStrip(controller: services.screenshotWindow),
-                      const OfflineBanner(),
-                      Expanded(
-                        child: Stack(
+              // Mouse back/forward thumb buttons walk the same history as
+              // Cmd/Alt+←/→ — exactly what a browser does with them.
+              child: NavHistoryMouseListener(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (Breakpoints.isWide(constraints)) {
+                      final services = context.read<Services>();
+                      // Built once; passed through the ValueListenableBuilder's
+                      // `child` so a collapse toggle re-runs only the Positioned
+                      // wrapper (snapping the inset) and never rebuilds the page
+                      // body / RunningTimerPill subtree.
+                      final content = RepaintBoundary(
+                        child: Column(
                           children: [
-                            widget.navigationShell,
-                            // Narrow: pin above the bottom NavigationBar each
-                            // screen owns + clear of the per-screen FAB
-                            // (Material default bottom 16, FAB extends to ~72;
-                            // bottom: 112 guarantees a 40px gap on shorter
-                            // phones where the nav bar pushes the FAB up).
-                            // The pill hides itself when no task is running,
-                            // so it never obstructs empty space.
-                            const Positioned(
-                              right: 12,
-                              bottom: 112,
-                              child: RunningTimerPill(),
+                            const OfflineBanner(),
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  widget.navigationShell,
+                                  // Pinned bottom-right above the active route's
+                                  // body. Hidden when no task is running — see
+                                  // `RunningTimerPill`.
+                                  const Positioned(
+                                    right: 16,
+                                    bottom: 16,
+                                    child: RunningTimerPill(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _DebugPanelBand(),
+                          ],
+                        ),
+                      );
+                      return Scaffold(
+                        body: Stack(
+                          children: [
+                            // Surface backstop behind the rail: during an
+                            // expand the content inset has already snapped to
+                            // 232 while the sidebar is still mid-grow, so this
+                            // strip reads as sidebar chrome rather than blank
+                            // page for the ≤150 ms tween.
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              width: kInSidebarWidth,
+                              child: ColoredBox(color: context.inTheme.surface),
+                            ),
+                            // Content layer — its left inset SNAPS to the
+                            // target rail width (one relayout per toggle, never
+                            // per animation frame). The sidebar animates on top
+                            // of it.
+                            ValueListenableBuilder<bool>(
+                              valueListenable: services.sidebar,
+                              child: content,
+                              builder: (context, collapsed, child) {
+                                final targetWidth = collapsed
+                                    ? kInSidebarCollapsedWidth
+                                    : kInSidebarWidth;
+                                return Positioned.fill(
+                                  left: targetWidth,
+                                  child: child!,
+                                );
+                              },
+                            ),
+                            // Sidebar layer — overlays the content; its own
+                            // RepaintBoundary + AnimatedContainer run the
+                            // 150 ms width tween in isolation.
+                            //
+                            // Intentionally no `width`/`right` on this
+                            // Positioned: the child self-sizes to the
+                            // *current* (animating) rail width via its
+                            // non-null `AnimatedContainer.width`. A fixed
+                            // width here would force-expand the rail (collapse
+                            // can't shrink) and make the full 232 band hit-test
+                            // as sidebar, swallowing content taps when
+                            // collapsed. `InSidebar` here must keep a non-null
+                            // `width` (defaults to `kInSidebarWidth`).
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              child: InSidebar(
+                                currentBranch:
+                                    widget.navigationShell.currentIndex,
+                                onSelectBranch: _goBranch,
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      _DebugPanelBand(),
-                    ],
-                  );
-                },
+                      );
+                    }
+                    // Narrow: passthrough — each top-level screen renders its
+                    // own Scaffold with `drawer: AppDrawer()` + a hamburger.
+                    // No outer Scaffold avoids `Scaffold.of(context)` ambiguity.
+                    // The banner stacks above the per-screen Scaffold here;
+                    // `OfflineBanner` handles its own top inset when shown so
+                    // it doesn't disappear behind the status bar / notch.
+                    final services = context.read<Services>();
+                    return Column(
+                      children: [
+                        // Desktop hidden-title-bar caption strip — macOS today. No
+                        // sidebar in the narrow layout, so this top strip keeps the
+                        // window controls from overlapping each screen's AppBar.
+                        WindowCaptionStrip(
+                          controller: services.screenshotWindow,
+                        ),
+                        const OfflineBanner(),
+                        Expanded(
+                          child: Stack(
+                            children: [
+                              widget.navigationShell,
+                              // Narrow: pin above the bottom NavigationBar each
+                              // screen owns + clear of the per-screen FAB
+                              // (Material default bottom 16, FAB extends to ~72;
+                              // bottom: 112 guarantees a 40px gap on shorter
+                              // phones where the nav bar pushes the FAB up).
+                              // The pill hides itself when no task is running,
+                              // so it never obstructs empty space.
+                              const Positioned(
+                                right: 12,
+                                bottom: 112,
+                                child: RunningTimerPill(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _DebugPanelBand(),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),

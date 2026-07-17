@@ -68,6 +68,7 @@ class LineItemTableDesktop extends StatefulWidget {
     required this.onChanged,
     required this.newItemFactory,
     required this.config,
+    this.currencyId,
     this.productConversionRate,
     this.controller,
     this.rowErrors,
@@ -79,6 +80,11 @@ class LineItemTableDesktop extends StatefulWidget {
   final ValueChanged<List<LineItem>> onChanged;
   final LineItem Function() newItemFactory;
   final LineItemColumnConfig config;
+
+  /// Resolved display currency for line-item money (vendor currency for POs,
+  /// client currency for client-billed docs). Null → company default. Threaded
+  /// from [LineItemEditor] via `PartyCurrencyBuilder`.
+  final String? currencyId;
 
   /// Company→client cross-currency rate applied to a filled product's unit
   /// price when `convert_products` is on and the client currency differs
@@ -317,7 +323,12 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     final gross = item == null ? Decimal.zero : item.cost * item.quantity;
     final total = gross == Decimal.zero
         ? '—'
-        : (_formatter?.money(gross, zeroIsNull: true) ?? gross.toString());
+        : (_formatter?.money(
+                gross,
+                zeroIsNull: true,
+                currencyId: widget.currencyId,
+              ) ??
+              gross.toString());
 
     Widget cell(
       String text, {
@@ -469,6 +480,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                         showStockQuantity: widget.showStockQuantity,
                         useComma: _useComma,
                         formatter: _formatter,
+                        currencyId: widget.currencyId,
                         row: row,
                         currentItem: current,
                         errors: errors,
@@ -802,6 +814,7 @@ class _Row extends StatefulWidget {
     required this.showStockQuantity,
     required this.useComma,
     required this.formatter,
+    required this.currencyId,
     required this.row,
     required this.currentItem,
     required this.errors,
@@ -823,6 +836,7 @@ class _Row extends StatefulWidget {
   final bool showStockQuantity;
   final bool useComma;
   final Formatter? formatter;
+  final String? currencyId;
   final _RowState row;
   final LineItem currentItem;
   final Map<String, String>? errors;
@@ -850,6 +864,7 @@ class _RowStateW extends State<_Row> {
   String get companyId => widget.companyId;
   bool get useComma => widget.useComma;
   Formatter? get formatter => widget.formatter;
+  String? get currencyId => widget.currencyId;
   _RowState get row => widget.row;
   LineItem get currentItem => widget.currentItem;
   Map<String, String>? get errors => widget.errors;
@@ -886,7 +901,12 @@ class _RowStateW extends State<_Row> {
       // before the formatter resolves.
       final display = gross == Decimal.zero
           ? '—'
-          : (formatter?.money(gross, zeroIsNull: true) ?? gross.toString());
+          : (formatter?.money(
+                  gross,
+                  zeroIsNull: true,
+                  currencyId: currencyId,
+                ) ??
+                gross.toString());
       return Expanded(
         child: Align(
           alignment: Alignment.centerRight,

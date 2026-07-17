@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
-import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 
 /// Resolves a billing-doc party's (client *or* vendor) `currency_id` from the
@@ -37,6 +35,15 @@ class PartyCurrencyBuilder extends StatefulWidget {
 }
 
 class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
+  /// Hoisted so the currency stream is NOT rebuilt on every parent rebuild.
+  /// In the line-item editor this widget rebuilds ~every 250 ms while the user
+  /// types; a fresh `watch()` per build would snap the [StreamBuilder] back to
+  /// a null snapshot for a frame and flicker the currency symbol (the "stable
+  /// stream" rule). Rebuilt only when the resolved `(company, party)` source id
+  /// changes.
+  Stream<String?>? _currencyId;
+  String? _sourceKey;
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +59,7 @@ class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
     }
   }
 
+  /// Lazily hydrate an off-page party (paginated lists prefetch only page 1).
   void _ensure() {
     final vendorId = widget.vendorId ?? '';
     final clientId = widget.clientId ?? '';
@@ -66,29 +74,53 @@ class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  /// (Re)build the hoisted currency stream only when the resolved source id
+  /// changes — idempotent so it can run from `build` and stay stable across the
+  /// frequent rebuilds of an edit screen.
+  void _ensureStream(Services services) {
     final vendorId = widget.vendorId ?? '';
     final clientId = widget.clientId ?? '';
-    if (vendorId.isEmpty && clientId.isEmpty) {
+    final companyId = services.auth.session.value?.currentCompanyId ?? '';
+    String? key;
+    if (companyId.isNotEmpty && vendorId.isNotEmpty) {
+      key = 'v:$companyId:$vendorId';
+    } else if (companyId.isNotEmpty && clientId.isNotEmpty) {
+      key = 'c:$companyId:$clientId';
+    }
+    if (key == _sourceKey) return;
+    _sourceKey = key;
+    if (key == null) {
+      _currencyId = null;
+    } else if (vendorId.isNotEmpty) {
+      _currencyId = services.vendors
+          .watch(companyId: companyId, id: vendorId)
+          .map((v) => v?.currencyId);
+    } else {
+      _currencyId = services.clients
+          .watch(companyId: companyId, id: clientId)
+          .map((c) => c?.currencyId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Guard the no-party case before touching the provider: a billing row with
+    // no client/vendor yet has no `Services` in its tree. Reset the hoisted
+    // state so a party arriving later rebuilds a fresh stream (rather than
+    // reusing a stream whose subscription was torn down).
+    if ((widget.vendorId ?? '').isEmpty && (widget.clientId ?? '').isEmpty) {
+      _sourceKey = null;
+      _currencyId = null;
       return widget.builder(context, null);
     }
-    final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId;
-    if (companyId == null || companyId.isEmpty) {
+    _ensureStream(context.read<Services>());
+    final stream = _currencyId;
+    if (stream == null) {
       return widget.builder(context, null);
     }
-    if (vendorId.isNotEmpty) {
-      return StreamBuilder<Vendor?>(
-        stream: services.vendors.watch(companyId: companyId, id: vendorId),
-        builder: (context, snap) =>
-            widget.builder(context, snap.data?.currencyId),
-      );
-    }
-    return StreamBuilder<Client?>(
-      stream: services.clients.watch(companyId: companyId, id: clientId),
-      builder: (context, snap) =>
-          widget.builder(context, snap.data?.currencyId),
+    return StreamBuilder<String?>(
+      stream: stream,
+      builder: (context, snap) => widget.builder(context, snap.data),
     );
   }
 }

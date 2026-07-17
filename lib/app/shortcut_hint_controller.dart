@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 /// One modifier-shortcut hint shown in the hold-modifier hint bar.
 ///
@@ -41,6 +42,8 @@ class ShortcutHint {
 class ShortcutHintController extends ChangeNotifier {
   final Map<Object, List<ShortcutHint>> _scopes = {};
   bool _visible = false;
+  bool _disposed = false;
+  bool _notifyScheduled = false;
 
   bool get visible => _visible;
 
@@ -48,11 +51,11 @@ class ShortcutHintController extends ChangeNotifier {
   /// order is preserved so the bar reads global-first, context-next.
   void register(Object token, List<ShortcutHint> hints) {
     _scopes[token] = hints;
-    notifyListeners();
+    _notify();
   }
 
   void unregister(Object token) {
-    if (_scopes.remove(token) != null) notifyListeners();
+    if (_scopes.remove(token) != null) _notify();
   }
 
   /// Union of every registered scope's hints, in registration order,
@@ -74,13 +77,13 @@ class ShortcutHintController extends ChangeNotifier {
   void reveal() {
     if (_visible || activeHints.isEmpty) return;
     _visible = true;
-    notifyListeners();
+    _notify();
   }
 
   void hide() {
     if (!_visible) return;
     _visible = false;
-    notifyListeners();
+    _notify();
   }
 
   /// Defensive reset on logout (mirrors `ToastController.clearAll`): clears
@@ -89,6 +92,39 @@ class ShortcutHintController extends ChangeNotifier {
     final had = _visible || _scopes.isNotEmpty;
     _visible = false;
     _scopes.clear();
-    if (had) notifyListeners();
+    if (had) _notify();
+  }
+
+  /// Notify listeners — but never *during* a frame's build/layout/paint phase.
+  ///
+  /// `ShortcutHintScope` registers/unregisters from `didChangeDependencies`,
+  /// which on an entity edit screen runs inside the scaffold's `LayoutBuilder`
+  /// layout callback. Notifying synchronously there would mark the sibling
+  /// `ShortcutHintOverlay` (`ListenableBuilder`, mounted near the app root)
+  /// dirty mid-build → "setState() called during build". When called mid-frame
+  /// (`persistentCallbacks`), defer the notification to the end of the frame
+  /// (coalesced via [_notifyScheduled]); otherwise notify synchronously as
+  /// before. State mutations above are always synchronous — only the listener
+  /// rebuild is deferred, and only by one frame (imperceptible: the bar only
+  /// appears after a ~400 ms modifier hold).
+  void _notify() {
+    if (_disposed) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_notifyScheduled) return;
+      _notifyScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _notifyScheduled = false;
+        if (!_disposed) notifyListeners();
+      });
+    } else {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

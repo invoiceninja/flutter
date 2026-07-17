@@ -104,7 +104,14 @@ class _BillingEditTotalsState extends State<BillingEditTotals> {
 
   @override
   Widget build(BuildContext context) {
-    final formatter = FormatterScope.maybeOf(context);
+    // Edit screens don't provide a FormatterScope (only list/detail do), so
+    // fall back to the company formatter — otherwise TotalsWidget renders the
+    // totals with no currency symbol at all. The resolved party currencyId is
+    // still passed explicitly below, so totals show the vendor/client currency.
+    final services = context.read<Services>();
+    final formatter =
+        FormatterScope.maybeOf(context) ??
+        services.formatterIfReady(services.auth.currentCompanyId ?? '');
     return StreamBuilder<String?>(
       stream: _currencyId,
       builder: (context, snap) {

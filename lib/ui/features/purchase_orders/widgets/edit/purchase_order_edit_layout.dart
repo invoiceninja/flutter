@@ -490,6 +490,7 @@ class _ItemsSectionDesktopState extends State<_ItemsSectionDesktop> {
     final vm = widget.vm;
     return LineItemEditor(
       companyId: vm.companyId,
+      vendorId: vm.draft.vendorId,
       items: vm.draft.lineItems,
       onChanged: vm.replaceLineItems,
       newItemFactory: emptyLineItem,
@@ -1027,6 +1028,7 @@ class _ItemsTab extends StatelessWidget {
             padding: EdgeInsets.all(InSpacing.lg(context)),
             child: LineItemEditor(
               companyId: vm.companyId,
+              vendorId: vm.draft.vendorId,
               items: vm.draft.lineItems,
               onChanged: vm.replaceLineItems,
               newItemFactory: emptyLineItem,

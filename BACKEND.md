@@ -17,6 +17,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Company write — partial login envelope + full-replace PUT force a client fetch-gate (**O**).
 - E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` (**O**, blocks SG government onboarding).
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
+- Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
 
 **Provenance**
 - **2026-05-15** — empirical curl probe vs `demo.invoiceninja.com`.
@@ -1102,6 +1103,54 @@ additive — the net derivation stays as-is (→ 833.34). React must adopt the s
 **Data implications:** this changes computed tax on existing multi-rate-inclusive
 documents — needs a migration/reporting review, not a silent swap. Single-rate
 inclusive (the common case) is unaffected — all models already agree there.
+
+## Purchase-order PDF renders line items in the attached client's currency instead of the vendor's — **R (PDF correctness)**
+
+**Provenance** — 2026-07-17, user report (PO/2026/0006) + source-read of
+`~/Code/invoiceninja` (`v5-develop`), verified against actual line numbers.
+
+**Problem.** A purchase order is a **vendor** document — every money value on its
+PDF should be the vendor's currency. But when a PO also carries a `client_id`
+(legitimately used for the drop-ship "ship to" block), the PDF renders **line-item
+cells in the client's currency** while **totals stay in the vendor's currency**. A
+USD-vendor PO with an EUR client attached prints EUR unit costs / line totals under
+a USD subtotal/total — mixed currency on one document. The overview/detail and the
+app's edit screen are correct (the edit-screen client-side fix shipped alongside
+this note); this is purely the server-rendered PDF.
+
+**Evidence.**
+- `app/Services/Pdf/PdfConfiguration.php:172-179` — `setCurrencyForPdf()`:
+  `$this->currency = $this->client ? $this->client->currency() : $this->vendor->currency();`
+  — the client wins whenever present, and the PO's own `currency_id` (fillable at
+  `app/Models/PurchaseOrder.php:212`, transformed at
+  `app/Transformers/PurchaseOrderTransformer.php:152`) is ignored. The PO branch of
+  `setEntityType()` (`:264`) sets `$this->client = $this->entity->client ?? null`.
+- Line-item cells format via `$this->service->config->formatMoney(...)` in
+  `app/Services/Pdf/PdfBuilder.php` (unit_cost `:1065`, cost `:1069`, line_total
+  `:1071`, gross_line_total `:1085`, tax_amount `:1091`, discount `:1098`) → the
+  client currency above.
+- Totals come from `VendorHtmlEngine` (`app/Utils/VendorHtmlEngine.php`), which
+  formats every total with `Number::formatMoney($value, $this->vendor)` (subtotal
+  `:179`, total `:223`, balance_due `:205/210`) → always the vendor currency.
+  `PdfService` selects `VendorHtmlEngine` for a `PurchaseOrderInvitation`
+  (`:98-104`, `:207-214`). Hence the split.
+
+**Repro.** Create a PO for a USD vendor; attach a client whose currency is EUR
+(via API/import or a drop-ship link — the field is `fillable`). Generate the PDF
+(`POST /api/v1/live_preview/purchase_order`, or the emailed/downloaded PDF): line
+items print `€`, subtotal/total print `$`.
+
+**Client impact.** None — the Flutter app forwards correct data. It never sets a PO
+`client_id` itself (the PO editor hardcodes it empty) and never sends a
+`currency_id`; it only round-trips a `client_id` already present on the server
+record (which the server also needs for the ship-to block, so the client can't just
+drop it). Only the server can make the line items match the vendor-currency totals.
+
+**Required change.** In `PdfConfiguration::setCurrencyForPdf()`, special-case a
+purchase order to use the **vendor's** currency (or the PO's own `currency_id`) for
+`$this->currency`, so line-item cells and the `VendorHtmlEngine` totals agree. Add a
+feature test: a PO with a differing-currency client attached renders unit costs and
+line totals in the vendor currency, matching the subtotal/total.
 
 ## Broken bulk actions surfaced by the 2026-07-15 deep review
 

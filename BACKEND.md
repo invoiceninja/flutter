@@ -1113,12 +1113,16 @@ below are still needed.
 `InvoiceController::performAction` / `QuoteController` handle `clone_to_quote` /
 `clone_to_invoice` inside the **bulk** action by mutating `$this->entity_transformer`
 to the target type and returning `itemResponse($clonedEntity)`. In the bulk
-response wrapper this 500s (transformer/response-type mismatch), so the client's
-"Clone to quote" / "Clone to invoice" produce a success toast then a dead outbox
-row — nothing is created. **Client left as-is** (the request is valid; this is a
-server bug) — needs a server fix (or a dedicated non-bulk clone-to endpoint).
-Verify on the demo server, then either fix the transformer handling or expose a
-single-entity clone endpoint the client can target.
+response wrapper this 500s (transformer/response-type mismatch), so the old
+client "Clone to quote" / "Clone to invoice" produced a success toast then a dead
+outbox row — nothing was created. **Client FIXED (no longer server-blocked):** the
+two cross-type clones now build the target draft **locally** (`cloneToQuote` /
+`cloneToInvoice` in `billing_cross_clone.dart`) and open it in the target's create
+form — exactly like the already-working invoice→credit/recurring/PO clones — so
+they never hit the broken server bulk path. The server bug is still worth fixing
+(any API consumer using `clone_to_quote`/`clone_to_invoice` 500s), but it no
+longer blocks the client. (The dormant `cloneTo` server-clone repo/API/outbox
+handlers are now unused by the UI — safe to prune in a follow-up.)
 
 ### `payment_schedule` scheduler update ignores row edits (review #13)
 `UpdateSchedulerRequest` for `template == 'payment_schedule'` overwrites
@@ -1137,4 +1141,7 @@ different feature.) If "run template" should exist for recurring invoices, add a
 server action/endpoint.
 
 ### Bank-rule `is_empty` operator: save 422s (review U2)
-`ProcessBankRules::matchStringOperator` supports `'is_empty' => empty($bt_value)` (matches on the transaction's empty field, ignoring the rule value), but the store/update request validates `rules.*.value` as required, and `ConvertEmptyStringsToNull` turns the empty value → null, so saving a rule that uses `is_empty` 422s and parks in the outbox. The engine supports the operator; the request validation should allow an empty/absent `value` when the operator is `is_empty`. No client change made (a placeholder value would be a hack).
+`ProcessBankRules::matchStringOperator` supports `'is_empty' => empty($bt_value)` (matches on the transaction's empty field, ignoring the rule value), but the store/update request validates `rules.*.value` as required, and `ConvertEmptyStringsToNull` turns the empty value → null, so saving a rule that uses `is_empty` 422s and parks in the outbox. The engine supports the operator; the request validation should allow an empty/absent `value` when the operator is `is_empty` (e.g. `required_unless:rules.*.operator,is_empty`). **Client mitigation:** the `is_empty` operator is no longer offered for DEBIT (bank-transaction-field) rule criteria, since it always 422'd. CREDIT criteria keep it (their `value` carries a non-empty `$invoice.*`/`$payment.*`/`$client.*` placeholder the server accepts). Re-add the DEBIT option once the request validation is relaxed.
+
+### Dashboard `totals_v2` exposes no overdue count/amount (review U7)
+`ChartQueries::getOutstandingQuery` / `getAggregateOutstandingQuery` return only an `outstanding` bucket — `SUM(balance)` + `COUNT(*)` over `status_id IN (2,3)` (sent + partial) with the invoice **issue** `date` in the dashboard window. There is **no** overdue dimension (`due_date < today`), so `/api/v1/charts/totals_v2` gives the dashboard no genuine overdue count/amount to bind to. **Client mitigation:** the KPI tile that reused `outstanding_count` under an "Overdue" label (whose number and drill-through disagreed) is relabeled **"Unpaid"** (a count of unpaid invoices) and drills through to the same windowed-unpaid list as the sibling "Outstanding" amount tile. If a true Overdue KPI is wanted, `totals_v2` should add an overdue `{amount, count}` bucket (`due_date < today AND status_id IN (2,3)`), after which the client can restore an "Overdue" tile bound to it.

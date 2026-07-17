@@ -746,21 +746,21 @@ class InvoiceActions {
               services.invoices.restore(companyId: companyId, id: invoice.id),
         );
 
+      // Cross-type clone is client-side: the local builder produces the same
+      // draft, so the target is built here and opened in its create form
+      // (navigation IS the feedback — no toast, and no tmp_ gate since it never
+      // hits the server). invoice→quote joins this group because the server's
+      // bulk clone_to_quote 500s (unsaved factory + a mutated transformer —
+      // review #17 / BACKEND.md); the local path just works, exactly like
+      // credit/recurring/PO. Same-type "clone" above does the equivalent for
+      // invoices.
       case InvoiceAction.cloneToQuote:
-        if (tmpGate()) return;
-        await services.invoices.cloneTo(
-          companyId: companyId,
-          id: invoice.id,
-          targetType: 'quote',
+        goEntityCreateFullWidth(
+          context,
+          '/quotes',
+          extra: cloneToQuote(billingCloneFromInvoice(invoice)),
         );
-        if (!context.mounted) return;
-        Notify.success(context, context.tr('cloned_to_quote'));
 
-      // Cross-type clone is client-side: the server's bulk performAction only
-      // clones invoice→invoice/quote, so credit/recurring/PO are built here and
-      // opened in the target's create form (navigation IS the feedback — no
-      // toast, and no tmp_ gate since it never hits the server). Same-type
-      // "clone" above does the equivalent for invoices.
       case InvoiceAction.cloneToCredit:
         goEntityCreateFullWidth(
           context,

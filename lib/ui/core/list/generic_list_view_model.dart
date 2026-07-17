@@ -1005,6 +1005,14 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       if (_fetchEpoch == epoch) {
         isLoadingPage = false;
         notifyListeners();
+        // #25: the page-1 watch emission arrives *mid-load* (while
+        // `isLoadingPage` was still true), so `_maybeAutoChain` bailed and a
+        // short local-only-filtered page (`stock:`/`tag:`) would dead-end on a
+        // false "No records found". Re-run the watch now that the load has
+        // settled so the replayed emission drives the auto-chain — mirrors the
+        // post-fetch `_resubscribe()` `loadMore` already does. Gated on
+        // `localOnlyFilterActive` so ordinary lists are untouched.
+        if (localOnlyFilterActive) _resubscribe();
       }
     }
   }
@@ -1043,11 +1051,24 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       if (_fetchEpoch == epoch) {
         isLoadingPage = false;
         notifyListeners();
+        // #25: same as _loadInitialPage — the pre-fetch `_resubscribe()` above
+        // (:1021) subscribes while `isLoadingPage` is still true, so that
+        // emission bails the auto-chain. Re-run the watch post-settle so a
+        // short local-only-filtered page chains instead of dead-ending.
+        if (localOnlyFilterActive) _resubscribe();
       }
     }
   }
 
   void _subscribe() {
+    // Never (re)subscribe after dispose. `dispose()` doesn't bump `_fetchEpoch`
+    // or clear the filter, so a post-settle `_resubscribe()` in a finally whose
+    // fetch resolved after the VM was torn down (a mid-fetch navigate-away on a
+    // `stock:`/`tag:`-filtered list) would otherwise open a fresh, never-
+    // cancelled Drift subscription and drive post-dispose `loadMore()` fetches.
+    // Guarding here covers every resubscribe path (initial-load + reset finally,
+    // and the pre-existing loadMore re-subscribe).
+    if (_disposed) return;
     // A throw inside the watch pipeline (e.g. `_fromRow` failing to map a
     // newly-shaped row) must NOT be swallowed: without an onError the
     // subscription would silently stop delivering, leaving an empty list

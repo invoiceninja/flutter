@@ -141,6 +141,9 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   @override
   void dispose() {
     _leaderTimer?.cancel();
+    // Clear the global latch if the shell unmounts mid-sequence (e.g. logout
+    // during the leader window) so it can't strand single-key shortcuts off.
+    leaderModeArmed = false;
     _shortcutHints.unregister(_globalHintToken);
     super.dispose();
   }
@@ -201,12 +204,20 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
 
   void _enterLeaderMode() {
     _leaderTimer?.cancel();
-    _leaderTimer = Timer(_kLeaderTimeout, () => _leaderTimer = null);
+    // Arm the global latch so descendant single-key shortcuts (list `N`, pane
+    // `F`/`J`/`K`, Tasks `S`) stand down and the second key reaches this
+    // handler instead of being consumed leaf-first (U3).
+    leaderModeArmed = true;
+    _leaderTimer = Timer(_kLeaderTimeout, () {
+      _leaderTimer = null;
+      leaderModeArmed = false;
+    });
   }
 
   void _exitLeaderMode() {
     _leaderTimer?.cancel();
     _leaderTimer = null;
+    leaderModeArmed = false;
   }
 
   int? _leaderTarget(LogicalKeyboardKey key) {
@@ -226,18 +237,28 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   KeyEventResult _handleLeaderKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-    // Typing inside a text field always wins — the field types `g` etc.
-    if (isTextInputFocused()) return KeyEventResult.ignored;
+    final armed = _leaderTimer?.isActive ?? false;
 
-    // Modifier keys (Ctrl / Alt / Meta) suppress leader handling so
-    // shortcuts like `⌘S` can pass through. Shift is allowed — capital
-    // `G` is still semantically the letter `G`.
-    final hk = HardwareKeyboard.instance;
-    if (hk.isControlPressed || hk.isAltPressed || hk.isMetaPressed) {
+    // Typing inside a text field always wins — the field types `g` etc. If the
+    // leader was armed, the user has started typing instead of completing the
+    // sequence, so cancel it now (don't leave `leaderModeArmed` set until the
+    // timeout, which would keep single-key shortcuts stood down after they blur).
+    if (isTextInputFocused()) {
+      if (armed) _exitLeaderMode();
       return KeyEventResult.ignored;
     }
 
-    if (_leaderTimer?.isActive ?? false) {
+    // Modifier keys (Ctrl / Alt / Meta) suppress leader handling so
+    // shortcuts like `⌘S` can pass through. Shift is allowed — capital
+    // `G` is still semantically the letter `G`. A modifier combo mid-sequence
+    // likewise abandons the leader, so cancel it rather than letting it linger.
+    final hk = HardwareKeyboard.instance;
+    if (hk.isControlPressed || hk.isAltPressed || hk.isMetaPressed) {
+      if (armed) _exitLeaderMode();
+      return KeyEventResult.ignored;
+    }
+
+    if (armed) {
       final index = _leaderTarget(event.logicalKey);
       _exitLeaderMode();
       if (index != null) {

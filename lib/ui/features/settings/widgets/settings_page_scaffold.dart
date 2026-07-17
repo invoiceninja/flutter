@@ -212,6 +212,21 @@ Future<void> runSettingsSave(
   BuildContext context,
   SettingsDraftHost viewModel,
 ) async {
+  // Commit any typed-but-unblurred field before reading the draft. A settings
+  // markdown field (OverridableMarkdownField → MarkdownTextField) emits on a
+  // ~300ms debounce and flushes synchronously on blur, but clicking Save /
+  // pressing Enter doesn't blur the editor — so without this a value typed in
+  // the last debounce window is silently dropped from the saved payload while
+  // the toast says "Saved" (finding U5, same mechanism as the entity-edit ⌘S
+  // flush in `entity_edit_scaffold._runSave`). Unfocus fires the field's
+  // focus-loss commit; the FocusManager applies focus changes on a microtask,
+  // so yield once before reading the draft.
+  final focus = FocusManager.instance.primaryFocus;
+  if (focus != null && focus.context != null) {
+    focus.unfocus();
+    await Future<void>.delayed(Duration.zero);
+    if (!context.mounted) return;
+  }
   final successText = context.tr('saved_settings');
   final errorFallback = context.tr('error_refresh_page');
   final result = await viewModel.save();

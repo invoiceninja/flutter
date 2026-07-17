@@ -162,6 +162,51 @@ void main() {
             'text input is focused so the key falls through to the field.',
       );
     });
+
+    testWidgets('is disabled while the shell leader sequence is armed — key '
+        'falls through to the leader handler (U3)', (tester) async {
+      var fired = 0;
+      // Global flag — never let it leak into other tests.
+      addTearDown(() => leaderModeArmed = false);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Shortcuts(
+              shortcuts: const <ShortcutActivator, Intent>{
+                SingleActivator(LogicalKeyboardKey.keyF): _ProbeIntent(),
+              },
+              child: Actions(
+                actions: <Type, Action<Intent>>{
+                  _ProbeIntent: GuardedShortcutAction<_ProbeIntent>(
+                    onInvoke: (_) {
+                      fired++;
+                      return null;
+                    },
+                  ),
+                },
+                child: const Focus(autofocus: true, child: SizedBox()),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // `G` was pressed; the shell is waiting for the second key.
+      leaderModeArmed = true;
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.pump();
+
+      expect(
+        fired,
+        0,
+        reason:
+            'an armed leader sequence must stand the single-key shortcut down '
+            'so the second key reaches the shell leader handler (Tasks `S` '
+            'must not hijack `G then S`).',
+      );
+    });
   });
 }
 

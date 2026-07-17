@@ -1,9 +1,11 @@
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/schedule.dart';
 import 'package:admin/data/models/domain/schedule_constants.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/schedule_repository.dart';
 import 'package:admin/data/services/schedules_api.dart';
 import 'package:admin/ui/features/settings/view_models/schedule_edit_view_model.dart';
+import 'package:decimal/decimal.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -113,6 +115,63 @@ void main() {
       vm.setReportName('invoice');
       expect(vm.draft.reportTemplateId, 'design-1');
       expect(vm.draft.reportClientId, 'client-1');
+      vm.dispose();
+    });
+  });
+
+  group('canSave — payment_schedule amount-mode sum (finding #44)', () {
+    ScheduleEditViewModel newPaymentScheduleVm() {
+      final vm = ScheduleEditViewModel(repo: repo, companyId: 'co');
+      vm.setTemplate(kScheduleTemplatePaymentSchedule);
+      vm.setPaymentScheduleInvoiceId('inv-1');
+      return vm;
+    }
+
+    // Amount-mode rows (isAmount=true) with strictly-ascending dates + positive
+    // amounts, so only the sum-vs-invoice-total gate is under test.
+    List<ScheduleParamsRow> amountRows(List<String> amounts) => [
+      for (var i = 0; i < amounts.length; i++)
+        ScheduleParamsRow(
+          id: i,
+          date: Date(2026, 6, i + 1),
+          amount: Decimal.parse(amounts[i]),
+          isAmount: true,
+        ),
+    ];
+
+    test('amount rows that do NOT sum to the invoice total are not saveable '
+        '(server 422s on sum != invoice.amount)', () {
+      final vm = newPaymentScheduleVm();
+      vm.setPaymentScheduleInvoiceAmount(Decimal.fromInt(100));
+      vm.setPaymentScheduleRows(amountRows(['40', '40'])); // 80 != 100
+      expect(vm.canSave, isFalse);
+      vm.dispose();
+    });
+
+    test('amount rows that sum to the invoice total are saveable', () {
+      final vm = newPaymentScheduleVm();
+      vm.setPaymentScheduleInvoiceAmount(Decimal.fromInt(100));
+      vm.setPaymentScheduleRows(amountRows(['40', '60'])); // 100 == 100
+      expect(vm.canSave, isTrue);
+      vm.dispose();
+    });
+
+    test(
+      'sum equality is scale-insensitive (matches server BcMath::equal)',
+      () {
+        final vm = newPaymentScheduleVm();
+        vm.setPaymentScheduleInvoiceAmount(Decimal.parse('100.00'));
+        vm.setPaymentScheduleRows(amountRows(['99.5', '0.50'])); // 100.00
+        expect(vm.canSave, isTrue);
+        vm.dispose();
+      },
+    );
+
+    test('when the invoice amount is unknown, Save is not over-blocked', () {
+      final vm = newPaymentScheduleVm();
+      // No setPaymentScheduleInvoiceAmount → amount unknown (edit / unloaded).
+      vm.setPaymentScheduleRows(amountRows(['40', '40'])); // 80, uncheckable
+      expect(vm.canSave, isTrue);
       vm.dispose();
     });
   });

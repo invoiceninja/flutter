@@ -34,8 +34,9 @@ void main() {
     final fromRowRe = RegExp(r'\w+ _fromRow\(');
 
     for (final entity in dir.listSync()) {
-      if (entity is! File || !entity.path.endsWith('_repository.dart'))
+      if (entity is! File || !entity.path.endsWith('_repository.dart')) {
         continue;
+      }
       final name = entity.uri.pathSegments.last.replaceFirst(
         '_repository.dart',
         '',

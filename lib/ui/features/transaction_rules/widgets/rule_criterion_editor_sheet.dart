@@ -8,6 +8,45 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/utils/formatting.dart';
 
+const _stringOperators = <String>[
+  kRuleOperatorIs,
+  kRuleOperatorContains,
+  kRuleOperatorStartsWith,
+  kRuleOperatorIsEmpty,
+];
+
+// DEBIT string criteria omit `is_empty`: the DEBIT path saves `value: ''`, which
+// the server 422-rejects (`rules.*.value` is required + ConvertEmptyStringsToNull
+// nulls it) even though its matcher supports the operator — so the save parks in
+// the outbox forever. CREDIT keeps `is_empty`: its `value` carries a non-empty
+// `$invoice.*`/`$payment.*`/`$client.*` placeholder the server accepts. (Review
+// U2 — BACKEND.md tracks the server-side relaxation.)
+const _debitStringOperators = <String>[
+  kRuleOperatorIs,
+  kRuleOperatorContains,
+  kRuleOperatorStartsWith,
+];
+
+// No `is_empty` here: the server's matchNumberOperator (ProcessBankRules) only
+// handles =,<,<=,>,>= and returns false for anything else, so a numeric
+// `is_empty` criterion silently never matches. Mirrors React's numberOperators.
+const _numberOperators = <String>[
+  kRuleOperatorEquals,
+  kRuleOperatorLessThan,
+  kRuleOperatorLessThanOrEqual,
+  kRuleOperatorGreaterThan,
+  kRuleOperatorGreaterThanOrEqual,
+];
+
+/// The operators offered for a rule criterion on [key]. Numeric keys get the
+/// comparison set; string keys get the text set — minus `is_empty` for DEBIT
+/// criteria, which the server rejects (see [_debitStringOperators]).
+@visibleForTesting
+List<String> ruleOperatorsFor(String key, {required bool isCredit}) {
+  if (isNumericSearchKey(key)) return _numberOperators;
+  return isCredit ? _stringOperators : _debitStringOperators;
+}
+
 /// Modal sheet for editing one [RuleCriterion]. Returns the modified
 /// criterion on save, or null on cancel.
 Future<RuleCriterion?> showRuleCriterionSheet({
@@ -50,24 +89,6 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
     kRuleSearchKeyParticipantName,
   ];
 
-  static const _stringOperators = <String>[
-    kRuleOperatorIs,
-    kRuleOperatorContains,
-    kRuleOperatorStartsWith,
-    kRuleOperatorIsEmpty,
-  ];
-
-  // No `is_empty` here: the server's matchNumberOperator (ProcessBankRules)
-  // only handles =,<,<=,>,>= and returns false for anything else, so a numeric
-  // `is_empty` criterion silently never matches. Mirrors React's numberOperators.
-  static const _numberOperators = <String>[
-    kRuleOperatorEquals,
-    kRuleOperatorLessThan,
-    kRuleOperatorLessThanOrEqual,
-    kRuleOperatorGreaterThan,
-    kRuleOperatorGreaterThanOrEqual,
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -102,7 +123,7 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
   }
 
   List<String> _operatorsFor(String key) =>
-      isNumericSearchKey(key) ? _numberOperators : _stringOperators;
+      ruleOperatorsFor(key, isCredit: widget.isCredit);
 
   /// The key whose type (string vs numeric) drives the operator set. For
   /// CREDIT that's the matched placeholder (the server picks its comparator

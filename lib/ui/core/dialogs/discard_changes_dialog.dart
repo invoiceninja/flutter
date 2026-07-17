@@ -16,12 +16,20 @@ Future<bool> showDiscardChangesDialog(BuildContext context) async {
       content: Text(ctx.tr('discard_changes_warning')),
       actions: [
         TextButton(
+          // Autofocus the SAFE action so a held/repeated Enter — this dialog is
+          // reachable via an Enter-driven navigation (command palette → route
+          // onExit guard) — keeps editing instead of discarding (U4).
+          autofocus: true,
           onPressed: () => Navigator.of(ctx).pop(false),
           child: Text(ctx.tr('keep_editing')),
         ),
         PrimaryDialogAction(
           variant: DialogActionVariant.tonal,
           label: ctx.tr('discard'),
+          // Destructive: never autofocus it here, and don't advertise Enter —
+          // a repeated Enter must not fall on it. Discard needs an explicit tap.
+          autofocus: false,
+          showEnterHint: false,
           onPressed: () => Navigator.of(ctx).pop(true),
         ),
       ],

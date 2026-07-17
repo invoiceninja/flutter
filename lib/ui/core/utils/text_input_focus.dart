@@ -44,22 +44,36 @@ class TextInputFocusScope extends StatelessWidget {
   Widget build(BuildContext context) => child;
 }
 
+/// Global latch for the shell's `G`-then-`<key>` leader sequence
+/// (`scaffold_with_nav`). Armed while the shell waits for the second key.
+///
+/// Single-key shortcuts ([GuardedShortcutAction]) stand down while it's true so
+/// the second key reaches the shell's ancestor leader handler instead of being
+/// swallowed by a descendant list/pane shortcut — finding U3: on the Tasks list
+/// the single-key `S` (toggle timer) consumed the `S` of `G then S` (→ Settings)
+/// because key events dispatch leaf-first, so the leader jump silently failed.
+///
+/// A plain flag, not a notifier: it's polled synchronously at key-press time
+/// (in [Action.isEnabled], which has no `BuildContext`), never listened to.
+/// Mirrors the existing global [isTextInputFocused] guard.
+bool leaderModeArmed = false;
+
 /// A [CallbackAction] that is *disabled* — not merely a no-op — while a
-/// text input has focus. Use for any single-key shortcut whose key
-/// should pass through to a focused field instead of being swallowed.
+/// text input has focus, or while the shell's leader sequence is armed. Use
+/// for any single-key shortcut whose key should pass through (to a focused
+/// field, or up to the leader handler) instead of being swallowed.
 ///
 /// Why disabling matters: `ShortcutManager.handleKeypress` returns
-/// `KeyEventResult.ignored` (letting the key fall through to the field)
-/// only when the matched action's `isEnabled` is false.
-/// `Action.consumesKey` defaults to `true`, so a guard that only
-/// no-ops in `onInvoke` still reports the key as handled and swallows
-/// it. `consumesKey` is overridden too as belt-and-braces.
+/// `KeyEventResult.ignored` (letting the key fall through) only when the
+/// matched action's `isEnabled` is false. `Action.consumesKey` defaults to
+/// `true`, so a guard that only no-ops in `onInvoke` still reports the key as
+/// handled and swallows it. `consumesKey` is overridden too as belt-and-braces.
 class GuardedShortcutAction<T extends Intent> extends CallbackAction<T> {
   GuardedShortcutAction({required super.onInvoke});
 
   @override
-  bool isEnabled(T intent) => !isTextInputFocused();
+  bool isEnabled(T intent) => !isTextInputFocused() && !leaderModeArmed;
 
   @override
-  bool consumesKey(T intent) => !isTextInputFocused();
+  bool consumesKey(T intent) => !isTextInputFocused() && !leaderModeArmed;
 }

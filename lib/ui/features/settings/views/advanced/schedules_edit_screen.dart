@@ -913,6 +913,9 @@ class _PaymentScheduleSectionState extends State<_PaymentScheduleSection> {
             idOf: (i) => i.id,
             displayString: (i) => i.number.isEmpty ? i.id : i.number,
             onChanged: vm.setPaymentScheduleInvoiceId,
+            // Capture the invoice total so canSave can enforce the server's
+            // amount-mode rule (installments must sum to invoice.amount).
+            onItemChanged: (i) => vm.setPaymentScheduleInvoiceAmount(i?.amount),
             errorText: vm.fieldErrorFor('invoice_id'),
           )
         else
@@ -1203,6 +1206,7 @@ class _RepoSinglePicker<T extends Object> extends StatefulWidget {
     required this.idOf,
     required this.displayString,
     required this.onChanged,
+    this.onItemChanged,
     this.errorText,
   });
 
@@ -1212,6 +1216,11 @@ class _RepoSinglePicker<T extends Object> extends StatefulWidget {
   final String Function(T) idOf;
   final String Function(T) displayString;
   final ValueChanged<String> onChanged;
+
+  /// Optional: fires with the full selected item (or null when cleared)
+  /// alongside [onChanged]. Used by the payment-schedule invoice picker to
+  /// capture `invoice.amount` for the save-gate; other pickers only need the id.
+  final ValueChanged<T?>? onItemChanged;
   final String? errorText;
 
   @override
@@ -1242,8 +1251,10 @@ class _RepoSinglePickerState<T extends Object>
           initialValue: selected,
           displayString: widget.displayString,
           idOf: widget.idOf,
-          onChanged: (it) =>
-              widget.onChanged(it == null ? '' : widget.idOf(it)),
+          onChanged: (it) {
+            widget.onChanged(it == null ? '' : widget.idOf(it));
+            widget.onItemChanged?.call(it);
+          },
           errorText: widget.errorText,
         );
       },
@@ -1516,7 +1527,10 @@ class _ReportStatusField extends StatelessWidget {
 
 /// Non-blocking "remaining" hint for the payment schedule. Percent mode:
 /// 100 − Σ%. Amount mode: invoice total − Σ amount (when the invoice is
-/// loaded). The server doesn't enforce the sum, so this is guidance only.
+/// loaded). The server DOES enforce the exact sum
+/// (StoreSchedulerRequest::validatePaymentScheduleTotal) and `canSave` gates on
+/// it (percent always; amount when the invoice total is known); this hint just
+/// shows the running remainder so the user can reach it.
 class _PaymentRemainingHint extends StatefulWidget {
   const _PaymentRemainingHint({
     required this.invoiceId,

@@ -29,6 +29,21 @@ class ScheduleEditViewModel extends GenericEditViewModel<Schedule> {
   final ScheduleRepository repo;
   final String companyId;
 
+  /// The picked invoice's total, captured from the create-mode invoice picker
+  /// so [canSave] can enforce the server's amount-mode rule (installment
+  /// amounts must sum to the invoice total). Null when unknown (edit mode locks
+  /// the invoice behind a read-only field, or the invoice isn't loaded yet) →
+  /// the amount-sum gate is skipped so Save isn't over-blocked.
+  Decimal? _paymentScheduleInvoiceAmount;
+
+  Decimal? get paymentScheduleInvoiceAmount => _paymentScheduleInvoiceAmount;
+
+  void setPaymentScheduleInvoiceAmount(Decimal? v) {
+    if (_paymentScheduleInvoiceAmount == v) return;
+    _paymentScheduleInvoiceAmount = v;
+    notifyListeners();
+  }
+
   @override
   bool draftIsNonEmpty() {
     final d = draft;
@@ -262,18 +277,23 @@ class ScheduleEditViewModel extends GenericEditViewModel<Schedule> {
         }
         // Every row must allocate a positive amount/percent.
         if (rows.any((r) => r.amount <= Decimal.zero)) return false;
-        // Percent mode: the server (StoreSchedulerRequest::validatePayment
-        // ScheduleTotal) rejects any split that isn't EXACTLY 100% — not just
-        // > 100 — so gate Save on it, or the user gets a success toast then a
-        // dead 422'd outbox row. (The amount-mode `sum == invoice.amount` check
-        // is enforced in the UI via _PaymentRemainingHint, which has the loaded
-        // invoice; the VM's sync validate can't see the invoice amount.)
+        // The server (StoreSchedulerRequest::validatePaymentScheduleTotal)
+        // rejects a split that doesn't total exactly — percent mode must sum to
+        // 100, amount mode must sum to the invoice total — else the user gets a
+        // success toast then a dead 422'd outbox row. Gate Save on both.
+        final total = rows.fold<Decimal>(
+          Decimal.zero,
+          (sum, r) => sum + r.amount,
+        );
         if (!rows.first.isAmount) {
-          final total = rows.fold<Decimal>(
-            Decimal.zero,
-            (sum, r) => sum + r.amount,
-          );
           if (total != Decimal.fromInt(100)) return false;
+        } else if (_paymentScheduleInvoiceAmount != null) {
+          // Amount mode: gate only when we know the invoice total (captured
+          // from the create-mode invoice picker). On edit the invoice is locked
+          // behind a read-only field, so the amount is unknown → leave Save
+          // enabled rather than over-block. Decimal `==` is scale-insensitive,
+          // matching the server's BcMath::equal (100.0 == 100.00).
+          if (total != _paymentScheduleInvoiceAmount) return false;
         }
         return true;
       default:

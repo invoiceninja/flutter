@@ -95,8 +95,13 @@ class OverridableSearchableDropdownField<T extends Object>
       label: label,
       // Seed the override with the currently displayed value (the cascaded
       // company default) so the picker stays on the same option when the
-      // user toggles the checkbox on.
-      cascadedValueOnEnable: () => value,
+      // user toggles the checkbox on. When nothing is inherited (`value ==
+      // null` — company at the server default) fall back to the first option:
+      // a null seed collapses back to "not overridden", leaving the checkbox a
+      // dead control at client/group scope (finding #12, same as the plain
+      // OverridableDropdownField).
+      cascadedValueOnEnable: () =>
+          value ?? (items.isEmpty ? null : idOf(items.first)),
       child: field,
     );
   }

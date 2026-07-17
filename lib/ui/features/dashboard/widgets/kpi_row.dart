@@ -21,14 +21,12 @@ class KpiRow extends StatelessWidget {
     required this.vm,
     required this.formatter,
     this.onOutstandingTap,
-    this.onOverdueTap,
     this.onPaidThisMonthTap,
   });
 
   final DashboardViewModel vm;
   final Formatter formatter;
   final VoidCallback? onOutstandingTap;
-  final VoidCallback? onOverdueTap;
   final VoidCallback? onPaidThisMonthTap;
 
   @override
@@ -58,7 +56,7 @@ class KpiRow extends StatelessWidget {
           shrinkWrap: true,
           children: [
             _outstandingCard(context, current, previous, convertedHint),
-            _overdueCard(context, current, previous),
+            _unpaidCard(context, current, previous),
             _paidThisMonthCard(context, current, previous, convertedHint),
           ],
         );
@@ -114,23 +112,32 @@ class KpiRow extends StatelessWidget {
     );
   }
 
-  KpiCard _overdueCard(
+  // Count of unpaid (sent + partial) invoices in the period. The server totals
+  // endpoint exposes only `outstanding_count` — there is NO overdue count — so
+  // this tile is labeled "Unpaid" (not "Overdue"), sits next to the sibling
+  // "Outstanding" *amount* tile, and drills through to the same windowed-unpaid
+  // list. Relabeled from a mislabeled "Overdue" whose number (outstanding
+  // count) and drill-through (genuinely overdue) disagreed (U7).
+  KpiCard _unpaidCard(
     BuildContext context,
     DashboardCurrencyTotals? current,
     DashboardCurrencyTotals? previous,
   ) {
     final count = current?.outstandingCount ?? 0;
     final value = '$count';
+    final label = context.tr('unpaid');
     return KpiCard(
-      label: context.tr('overdue'),
+      label: label,
       value: value,
       deltaPercent: null,
       goodDirection: GoodDirection.down,
-      tone: KpiTone.overdue,
-      semanticsLabel: context.tr('overdue_count_invoices_semantic', {
-        'count': count.toString(),
-      }),
-      onTap: onOverdueTap,
+      semanticsLabel: _kpiSemantics(
+        context,
+        label: label,
+        value: value,
+        delta: null,
+      ),
+      onTap: onOutstandingTap,
     );
   }
 

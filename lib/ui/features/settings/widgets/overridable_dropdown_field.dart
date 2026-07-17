@@ -59,8 +59,26 @@ class OverridableDropdownField<T> extends StatelessWidget {
       // Seed the override with the currently displayed value (the cascaded
       // company default) so the dropdown stays on the same option when the
       // user toggles the checkbox on.
-      cascadedValueOnEnable: () => value?.toString(),
+      cascadedValueOnEnable: () => seedOnEnable<T>(value, items),
       child: field,
     );
+  }
+
+  /// The value to seed a newly-enabled override with. Prefers the cascaded
+  /// [value]; when nothing is inherited (`value == null` — e.g. the company
+  /// sits at the server default) it falls back to the first real option.
+  ///
+  /// Without the fallback a null seed collapses straight back to "not
+  /// overridden" — the settings bindings omit null keys and `isOverridden`
+  /// requires a non-null value — so the override checkbox becomes a dead
+  /// control that can never be enabled at client/group scope (finding #12).
+  @visibleForTesting
+  static String? seedOnEnable<T>(T? value, List<DropdownMenuItem<T>> items) {
+    if (value != null) return value.toString();
+    for (final item in items) {
+      final v = item.value;
+      if (v != null) return v.toString();
+    }
+    return null;
   }
 }

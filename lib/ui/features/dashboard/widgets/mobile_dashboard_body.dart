@@ -48,7 +48,6 @@ class MobileDashboardBody extends StatelessWidget {
     required this.onLogExpense,
     required this.onReports,
     required this.onOutstandingTap,
-    required this.onOverdueTap,
     required this.onPaidTap,
     required this.onActivityTap,
     this.onAllActivities,
@@ -80,7 +79,6 @@ class MobileDashboardBody extends StatelessWidget {
   final VoidCallback onLogExpense;
   final VoidCallback onReports;
   final VoidCallback onOutstandingTap;
-  final VoidCallback onOverdueTap;
   final VoidCallback onPaidTap;
   final void Function(DashboardActivity) onActivityTap;
 
@@ -255,7 +253,7 @@ class MobileDashboardBody extends StatelessWidget {
       previous?.outstandingAmount,
     );
 
-    final overdueCount = current?.outstandingCount ?? 0;
+    final unpaidCount = current?.outstandingCount ?? 0;
 
     final paidText = formatter.money(
       current?.revenuePaidToDate ?? Decimal.zero,
@@ -336,15 +334,17 @@ class MobileDashboardBody extends StatelessWidget {
                   Expanded(
                     child: _subKpi(
                       context: context,
-                      label: context.tr('overdue'),
-                      // Count only — matches the desktop "Overdue" KPI. The
-                      // totals endpoint exposes no separate overdue amount, so
-                      // showing the outstanding $ here just duplicated the hero.
-                      value: '$overdueCount',
+                      label: context.tr('unpaid'),
+                      // Count of unpaid invoices in the period. The totals
+                      // endpoint exposes only `outstanding_count` (no overdue
+                      // count), so this is labeled "Unpaid" and drills to the
+                      // same windowed-unpaid list as the Outstanding hero — the
+                      // mislabeled "Overdue" number/drill-through disagreed (U7).
+                      value: '$unpaidCount',
                       bg: tokens.surfaceAlt,
                       labelColor: tokens.ink3,
                       valueColor: tokens.ink,
-                      onTap: onOverdueTap,
+                      onTap: onOutstandingTap,
                     ),
                   ),
                   SizedBox(width: InSpacing.sm),

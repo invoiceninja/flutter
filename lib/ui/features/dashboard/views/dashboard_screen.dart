@@ -206,15 +206,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     },
   );
 
-  /// KPI Outstanding / Overdue → invoices, carrying the dashboard's date
-  /// window as a true closed `date_range` (base `QueryFilters::date_range`,
-  /// 2-part `start,end` → `whereBetween('date', …)`). Outstanding ≈
-  /// `client_status=unpaid` (sent + partial); Overdue uses the dedicated
-  /// `overdue` param. "All time" omits the window (open-ended by design).
-  ListFilterIntent _invoiceKpiIntent({required bool overdue}) {
+  /// KPI Outstanding / Unpaid → invoices, carrying the dashboard's date window
+  /// as a true closed `date_range` (base `QueryFilters::date_range`, 2-part
+  /// `start,end` → `whereBetween('date', …)`). Both the Outstanding *amount*
+  /// and the Unpaid *count* tiles describe `client_status=unpaid` (sent +
+  /// partial), so they share this windowed intent. "All time" omits the window
+  /// (open-ended by design).
+  ListFilterIntent _invoiceKpiIntent() {
     final (start, end) = _vm.filter.resolveDates();
     return buildInvoiceKpiIntent(
-      overdue: overdue,
+      overdue: false,
       isAllTimeRange: _isAllTimeRange,
       start: start,
       end: end,
@@ -396,10 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onAddClient: () => _safeNavigate('/clients/new'),
       onLogExpense: () => _safeNavigate('/expenses/new'),
       onReports: () => _safeNavigate('/reports'),
-      onOutstandingTap: () =>
-          _goWithIntent('/invoices', _invoiceKpiIntent(overdue: false)),
-      onOverdueTap: () =>
-          _goWithIntent('/invoices', _invoiceKpiIntent(overdue: true)),
+      onOutstandingTap: () => _goWithIntent('/invoices', _invoiceKpiIntent()),
       onPaidTap: () => _goWithIntent('/payments', _paidPaymentsIntent),
       onActivityTap: _navActivity,
       // No activities list screen exists — hide the "View all" link
@@ -462,9 +460,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           vm: _vm,
           formatter: formatter,
           onOutstandingTap: () =>
-              _goWithIntent('/invoices', _invoiceKpiIntent(overdue: false)),
-          onOverdueTap: () =>
-              _goWithIntent('/invoices', _invoiceKpiIntent(overdue: true)),
+              _goWithIntent('/invoices', _invoiceKpiIntent()),
           onPaidThisMonthTap: () =>
               _goWithIntent('/payments', _paidPaymentsIntent),
         ),

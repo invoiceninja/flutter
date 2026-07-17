@@ -21,10 +21,12 @@ import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoi
 /// Cross-type clone between the five billing documents (Invoice / Quote /
 /// Credit / PurchaseOrder / RecurringInvoice), built entirely client-side.
 ///
-/// The server's bulk `performAction` only clones a few targets (Quote →
-/// invoice/quote, Credit → credit, PO/Recurring → none), so unsupported
-/// cross-type clones used to 400 into a dead outbox row while falsely toasting
-/// success. Instead these clones are produced on the client (React +
+/// The server's bulk `performAction` cross-type clone is unusable: the two
+/// paths it wires (invoice→quote, quote→invoice) 500 (an unsaved factory + a
+/// runtime-swapped transformer — review #17 / BACKEND.md), and it clones
+/// nothing for Credit / PO / Recurring — so a server-routed cross-type clone
+/// either 500s or 400s into a dead outbox row while falsely toasting success.
+/// Instead ALL cross-type clones are produced on the client (React +
 /// admin-portal do the same): an **extract → apply** pair. The extractor pulls
 /// the carry-over *content* off the source into a [BillingCloneData]; the
 /// applier starts from the target's `empty*()` draft — which already supplies

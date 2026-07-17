@@ -935,6 +935,42 @@ void main() {
       expect(afterReset, exhausted + 1);
       expect(vm.fetchPageCalls, afterReset + 1);
     });
+
+    // #25 regression: the chain must fire from the INITIAL load, not only from
+    // later emissions. A real Drift watch re-runs its query on every write AND
+    // re-emits on re-subscribe; the page-1 upsert emits *mid-load* (while
+    // `isLoadingPage` is still true), so `_maybeAutoChain` bails and — without a
+    // post-fetch `_resubscribe()` — nothing re-fires it, dead-ending a short
+    // `stock:`/`tag:` page on a false "No records found". The broadcast fake in
+    // the tests above emits only AFTER settle (post-load), so it can't surface
+    // this; this fake's `Stream.value(short)` re-emits on the finally's
+    // re-subscribe, exactly like Drift.
+    test('a short first page auto-chains from the INITIAL load (not just later '
+        'emissions)', () async {
+      final vm = _InitialLoadLocalFilterFakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      addTearDown(vm.dispose);
+      await settle();
+
+      // fetchPageCalls == 1 means only the initial load ran and the chain never
+      // fired (the bug). The post-fetch re-subscribe re-emits the short page
+      // with isLoadingPage cleared, so the chain runs (bounded by the budget).
+      expect(
+        vm.fetchPageCalls,
+        greaterThan(1),
+        reason: 'initial short page must chain loadMore, not dead-end',
+      );
+      expect(
+        vm.fetchPageCalls,
+        lessThanOrEqualTo(6),
+        reason: 'chain stays budget-bounded (1 initial + 5 pages)',
+      );
+    });
   });
 }
 
@@ -995,6 +1031,46 @@ class _LocalFilterFakeVm extends FakeInvoiceListViewModel {
   Future<void> refreshAll() async {
     if (fetchThrows) throw Exception('offline');
   }
+}
+
+/// #25 fake: `watchPage()` returns a fresh `Stream.value(short)` on EVERY call,
+/// so it re-emits the short page on each (re-)subscribe — the behavior of a real
+/// Drift watch that the broadcast [_LocalFilterFakeVm] can't reproduce. Used to
+/// prove the auto-chain fires from the initial load via the post-fetch
+/// `_resubscribe()`, not only from later manual emissions.
+class _InitialLoadLocalFilterFakeVm extends FakeInvoiceListViewModel {
+  _InitialLoadLocalFilterFakeVm({
+    required super.companyId,
+    required super.navStateDao,
+    required super.userSettings,
+    super.searchDebounce,
+    super.persistDebounce,
+  });
+
+  static const _short = [
+    FakeInvoice(id: 'inv_9', number: 'INV-009', amount: 1),
+  ];
+
+  @override
+  bool get localOnlyFilterActive => true;
+
+  @override
+  Stream<List<FakeInvoice>> watchPage() => Stream.value(_short);
+
+  @override
+  Future<bool> fetchPage({
+    required int page,
+    required String? search,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+    required bool ignoreCursor,
+  }) async {
+    fetchPageCalls++;
+    return true; // hasMore — the chain's precondition.
+  }
+
+  @override
+  Future<void> refreshAll() async {}
 }
 
 /// Stand-in for an embedded list (e.g. a client detail tab). A non-empty

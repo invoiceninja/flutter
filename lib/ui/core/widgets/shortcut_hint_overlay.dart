@@ -183,33 +183,42 @@ class _HintBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 720),
-      margin: EdgeInsets.symmetric(horizontal: InSpacing.lg(context)),
-      padding: EdgeInsets.symmetric(
-        horizontal: InSpacing.lg(context),
-        vertical: InSpacing.md(context),
-      ),
-      decoration: BoxDecoration(
-        color: tokens.surface,
-        border: Border.all(color: tokens.border),
-        borderRadius: BorderRadius.circular(InRadii.r3),
-        boxShadow: tokens.shadow2,
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: InSpacing.lg(context),
-        runSpacing: InSpacing.sm,
-        children: [
-          for (final hint in hints) _HintChip(hint: hint),
-          // Trailing pointer to the full list — the modifier-only bar isn't
-          // exhaustive (single-key shortcuts + the G-leader live in the ?
-          // dialog). `?` is itself a global shortcut that opens it.
-          const _HintChip(
-            hint: ShortcutHint(keys: ['?'], labelKey: 'all_shortcuts'),
-          ),
-        ],
+    // The overlay mounts at the app root (sibling of `ToastHost`), so this bar
+    // has no `Scaffold`/`Material` ancestor. Bare `Text` (and the `KeyCap`
+    // glyphs) would then inherit `WidgetsApp`'s fallback text style and paint
+    // the yellow "missing Material" double underline. A transparent `Material`
+    // supplies the ancestor without drawing anything — the `Container` below
+    // keeps its own surface, border, and shadow.
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 720),
+        margin: EdgeInsets.symmetric(horizontal: InSpacing.lg(context)),
+        padding: EdgeInsets.symmetric(
+          horizontal: InSpacing.lg(context),
+          vertical: InSpacing.md(context),
+        ),
+        decoration: BoxDecoration(
+          color: tokens.surface,
+          border: Border.all(color: tokens.border),
+          borderRadius: BorderRadius.circular(InRadii.r3),
+          boxShadow: tokens.shadow2,
+        ),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: InSpacing.lg(context),
+          runSpacing: InSpacing.sm,
+          children: [
+            for (final hint in hints) _HintChip(hint: hint),
+            // Trailing pointer to the full list — the modifier-only bar isn't
+            // exhaustive (single-key shortcuts + the G-leader live in the ?
+            // dialog). `?` is itself a global shortcut that opens it.
+            const _HintChip(
+              hint: ShortcutHint(keys: ['?'], labelKey: 'all_shortcuts'),
+            ),
+          ],
+        ),
       ),
     );
   }

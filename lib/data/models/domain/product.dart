@@ -48,6 +48,7 @@ abstract class Product with _$Product {
     @Default('') String assignedUserId,
     @Default('') String incomeAccountId,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     @Default(false) bool isDirty,
   }) = _Product;
 
@@ -82,6 +83,10 @@ abstract class Product with _$Product {
     assignedUserId: a.assignedUserId,
     incomeAccountId: a.incomeAccountId,
     documents: mapDocuments(a.documents),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
   );
 }
 
@@ -166,6 +171,8 @@ extension ProductPayload on Product {
       'assigned_user_id': assignedUserId,
       if (userId.isNotEmpty) 'user_id': userId,
       if (incomeAccountId.isNotEmpty) 'income_account_id': incomeAccountId,
+      // Full-set replace: the server syncs attached tags to exactly this list.
+      'tags': tagIds,
     };
     return json;
   }

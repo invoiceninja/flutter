@@ -7,6 +7,8 @@ import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/data/repositories/group_setting_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
+import 'package:admin/data/repositories/tag_repository.dart';
+import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/custom_field_filter_key.dart';
@@ -140,6 +142,7 @@ List<FilterKey> buildClientFilterKeys({
   required StaticsRepository statics,
   required GroupSettingRepository groups,
   required UserRepository users,
+  required TagRepository tags,
   required String companyId,
   String? Function(String id)? nameForGroupId,
   String? Function(String id)? nameForAssignedId,
@@ -193,6 +196,7 @@ List<FilterKey> buildClientFilterKeys({
       companyId: companyId,
       nameForAssignedId: nameForAssignedId,
     ),
+    TagFilterKey(tags: tags, companyId: companyId, entityType: 'client'),
   ];
 }
 

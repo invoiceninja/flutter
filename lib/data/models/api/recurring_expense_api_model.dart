@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'recurring_expense_api_model.freezed.dart';
 part 'recurring_expense_api_model.g.dart';
@@ -81,6 +82,10 @@ abstract class RecurringExpenseApi with _$RecurringExpenseApi {
     @JsonKey(name: 'updated_at') @Default(0) int updatedAt,
     @JsonKey(name: 'archived_at') @Default(0) int archivedAt,
     List<DocumentApi>? documents,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
   }) = _RecurringExpenseApi;
 
   factory RecurringExpenseApi.fromJson(Map<String, dynamic> json) =>

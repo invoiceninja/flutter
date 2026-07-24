@@ -33,6 +33,8 @@ class PurchaseOrderFieldIds {
   static const String customValue2 = 'custom_value2';
   static const String customValue3 = 'custom_value3';
   static const String customValue4 = 'custom_value4';
+  // Display-only (tags live in the payload) — never add to sortOptions.
+  static const String tagIds = 'purchase_order_tag_ids';
 }
 
 @DriftAccessor(tables: [PurchaseOrders])

@@ -361,6 +361,19 @@ class _CompanyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final displayName = company.displayName;
+    // Long names truncate with an ellipsis; reveal the full name on hover.
+    // Threshold mirrors kCompanyNameTooltipThreshold in company_switcher_button.
+    final nameText = Text(
+      displayName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: tokens.ink,
+      ),
+    );
     return Material(
       color: isActive ? tokens.accentSoft : Colors.transparent,
       borderRadius: BorderRadius.circular(InRadii.r2),
@@ -382,16 +395,9 @@ class _CompanyRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      company.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: tokens.ink,
-                      ),
-                    ),
+                    displayName.length > 22
+                        ? Tooltip(message: displayName, child: nameText)
+                        : nameText,
                     if (isActive)
                       Text(
                         context.tr('active'),

@@ -3,6 +3,8 @@ import 'package:admin/data/db/dao/invoice_dao.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
@@ -148,6 +150,23 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
         : ProjectNameLabel(projectId: i.projectId, link: true),
     valueBuilder: (i) => cellNonZeroString(i.projectId),
   ),
+  // Link to the recurring invoice that generated this invoice. Display-only
+  // (not a Drift column / sort option) — renders a "View" link, matching the
+  // React admin client.
+  InvoiceColumn(
+    id: InvoiceFieldIds.recurringId,
+    labelKey: 'recurring_invoice',
+    width: 130,
+    cellBuilder: (i, ctx) => i.recurringId.isEmpty
+        ? cellEmpty()
+        : cellLink(
+            ctx,
+            ctx.tr('view'),
+            onTap: () =>
+                goEntityFullDetail(ctx, '/recurring_invoices', i.recurringId),
+          ),
+    valueBuilder: (i) => cellNonZeroString(i.recurringId),
+  ),
   InvoiceColumn(
     id: InvoiceFieldIds.assignedUserId,
     labelKey: 'assigned_user',
@@ -214,6 +233,16 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
     cellBuilder: (i, _) =>
         i.customValue4.isEmpty ? cellEmpty() : cellText(i.customValue4),
     valueBuilder: (i) => cellNonZeroString(i.customValue4),
+  ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  InvoiceColumn(
+    id: InvoiceFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (i, _) => i.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'invoice', tagIds: i.tagIds),
+    valueBuilder: (i) => '',
   ),
 ];
 

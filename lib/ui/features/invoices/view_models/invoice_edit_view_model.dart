@@ -197,6 +197,7 @@ class InvoiceEditViewModel extends GenericBillingDocEditViewModel<Invoice> {
   // ── Identity / dates ───────────────────────────────────────────────
 
   void setClientId(String v) => updateDraft(draft.copyWith(clientId: v));
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
   void setVendorId(String v) => updateDraft(draft.copyWith(vendorId: v));
   void setLocationId(String v) => updateDraft(draft.copyWith(locationId: v));
   void setProjectId(String v) => updateDraft(draft.copyWith(projectId: v));

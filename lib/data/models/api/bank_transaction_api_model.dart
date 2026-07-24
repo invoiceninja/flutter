@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'bank_transaction_api_model.freezed.dart';
 part 'bank_transaction_api_model.g.dart';
@@ -36,6 +37,10 @@ abstract class BankTransactionApi with _$BankTransactionApi {
     @JsonKey(name: 'created_at') @Default(0) int createdAt,
     @JsonKey(name: 'updated_at') @Default(0) int updatedAt,
     @JsonKey(name: 'archived_at') @Default(0) int archivedAt,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
   }) = _BankTransactionApi;
 
   factory BankTransactionApi.fromJson(Map<String, dynamic> json) =>

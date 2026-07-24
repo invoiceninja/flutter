@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'vendor_api_model.freezed.dart';
 part 'vendor_api_model.g.dart';
@@ -54,6 +55,10 @@ abstract class VendorApi with _$VendorApi {
     // include them while still propagating server-side deletes on
     // responses that did. See `VendorRepository._apiToCompanion`.
     List<DocumentApi>? documents,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
   }) = _VendorApi;
 
   factory VendorApi.fromJson(Map<String, dynamic> json) =>

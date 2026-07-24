@@ -3,6 +3,7 @@ import 'package:admin/data/db/dao/recurring_expense_dao.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/ui/core/widgets/category_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
@@ -220,6 +221,16 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
         cellBuilder: (e, _) =>
             e.customValue4.isEmpty ? cellEmpty() : cellText(e.customValue4),
         valueBuilder: (e) => cellNonZeroString(e.customValue4),
+      ),
+      // Attached tags. Display-only (not a sortable Drift column).
+      RecurringExpenseColumn(
+        id: RecurringExpenseFieldIds.tagIds,
+        labelKey: 'tags',
+        width: 200,
+        cellBuilder: (e, _) => e.tagIds.isEmpty
+            ? cellEmpty()
+            : EntityTagsView(entityType: 'recurring_expense', tagIds: e.tagIds),
+        valueBuilder: (e) => '',
       ),
     ];
 

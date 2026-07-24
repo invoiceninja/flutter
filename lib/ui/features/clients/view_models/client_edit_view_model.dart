@@ -77,6 +77,8 @@ class ClientEditViewModel extends GenericEditViewModel<Client> {
   void setAssignedUserId(String id) =>
       updateDraft(draft.copyWith(assignedUserId: id));
 
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
+
   void setName(String value) =>
       updateDraft(draft.copyWith(name: value, displayName: value));
   void setNumber(String value) => updateDraft(draft.copyWith(number: value));

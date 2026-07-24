@@ -3,15 +3,18 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/company_custom_fields.dart';
+import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/token_search_field.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_list_view_model.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_filter_keys.dart';
 
-/// Thin wrapper that wires [TokenSearchField] for the invoices list. The
-/// outer `StreamBuilder` keeps a live `id → name` map of active clients
-/// so the `client:` filter chip renders the client name on first paint
-/// instead of the raw id.
-class InvoiceTokenSearchField extends StatelessWidget {
+/// Thin wrapper that wires [TokenSearchField] for the invoices list.
+///
+/// Stateful + key-caching: `TagFilterKey` opens a Drift watch subscription in
+/// its constructor, so the key list is rebuilt (and the old one disposed) only
+/// when a shaping input changes — never on every stream re-emit.
+class InvoiceTokenSearchField extends StatefulWidget {
   const InvoiceTokenSearchField({
     required this.vm,
     required this.wide,
@@ -22,31 +25,92 @@ class InvoiceTokenSearchField extends StatelessWidget {
   final bool wide;
 
   @override
+  State<InvoiceTokenSearchField> createState() =>
+      _InvoiceTokenSearchFieldState();
+}
+
+class _InvoiceTokenSearchFieldState extends State<InvoiceTokenSearchField> {
+  Stream<Company?>? _companyStream;
+  Stream<Map<String, String>>? _clientNameStream;
+  String? _streamCompanyId;
+
+  List<FilterKey>? _keys;
+  String? _signature;
+
+  void _ensureStreams(Services services) {
+    if (_streamCompanyId == widget.vm.companyId && _companyStream != null) {
+      return;
+    }
+    _streamCompanyId = widget.vm.companyId;
+    _companyStream = services.company.watchCompany(widget.vm.companyId);
+    _clientNameStream = services.clients
+        .watchActiveNames(companyId: widget.vm.companyId)
+        .map(
+          (rows) => {
+            for (final r in rows)
+              if (r.name.isNotEmpty) r.id: r.name,
+          },
+        );
+  }
+
+  static String _sig(String companyId, Company? c, Map<String, String> names) {
+    final labels = c == null
+        ? ''
+        : [
+            for (var i = 1; i <= 4; i++) c.customFieldLabel('invoice$i'),
+          ].join('|');
+    final n = (names.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+        .map((e) => '${e.key}=${e.value}')
+        .join(',');
+    return '$companyId#$labels#$n';
+  }
+
+  void _disposeKeys() {
+    for (final k in _keys ?? const <FilterKey>[]) {
+      k.dispose();
+    }
+    _keys = null;
+  }
+
+  List<FilterKey> _keysFor(
+    Services services,
+    Company? company,
+    Map<String, String> names,
+  ) {
+    final signature = _sig(widget.vm.companyId, company, names);
+    if (_keys != null && _signature == signature) return _keys!;
+    _disposeKeys();
+    _signature = signature;
+    return _keys = buildInvoiceFilterKeys(
+      clients: services.clients,
+      tags: services.tags,
+      companyId: widget.vm.companyId,
+      company: company,
+      nameForClientId: (id) => names[id],
+    );
+  }
+
+  @override
+  void dispose() {
+    _disposeKeys();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
+    _ensureStreams(services);
     return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(vm.companyId),
+      stream: _companyStream,
       builder: (context, companySnap) {
         return StreamBuilder<Map<String, String>>(
-          stream: services.clients
-              .watchActiveNames(companyId: vm.companyId)
-              .map(
-                (rows) => {
-                  for (final r in rows)
-                    if (r.name.isNotEmpty) r.id: r.name,
-                },
-              ),
+          stream: _clientNameStream,
           builder: (context, snap) {
             final names = snap.data ?? const <String, String>{};
             return TokenSearchField(
-              vm: vm,
-              filterKeys: buildInvoiceFilterKeys(
-                clients: services.clients,
-                companyId: vm.companyId,
-                company: companySnap.data,
-                nameForClientId: (id) => names[id],
-              ),
-              wide: wide,
+              vm: widget.vm,
+              filterKeys: _keysFor(services, companySnap.data, names),
+              wide: widget.wide,
               hintKey: 'search_invoices_or_filter_hint',
             );
           },

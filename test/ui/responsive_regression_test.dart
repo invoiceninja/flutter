@@ -16,9 +16,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/contact_api_model.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/data/models/domain/project/project_burnup.dart';
 import 'package:admin/data/models/domain/system_log.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_cards_grid.dart';
+import 'package:admin/ui/features/projects/widgets/detail/analytics/project_burnup_chart.dart';
 import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
 
 import '../_responsive_helper.dart';
@@ -78,6 +80,46 @@ void main() {
               updatedAt: DateTime.utc(2026, 5, 1),
             ),
             isWide: width >= 600,
+          ),
+        );
+        expectNoOverflow(tester);
+      });
+
+      testWidgets('ProjectBurnupChart @ ${width.toInt()}px', (tester) async {
+        // The Analytics tab's chart: fl_chart plot + a Wrap legend + a
+        // width-derived clamped height. The endpoints still 404 on the demo
+        // host, so this sweep is the only pre-deploy check that the card
+        // lays out at every breakpoint.
+        await pumpAt(
+          tester,
+          width,
+          ProjectBurnupChart(
+            burnup: ProjectBurnup.fromJson(const {
+              'bucket_type': 'monthly',
+              'project': {'budgeted_amount': 4000.0, 'currency_id': '1'},
+              'markers': {'budgeted_hours': 40.0, 'budgeted_amount': 4000.0},
+              'series': [
+                {
+                  'period_end': '2026-01-31',
+                  'cumulative_logged_hours': 5.0,
+                  'cumulative_billable_hours': 4.0,
+                  'cumulative_invoiced_amount': 300.0,
+                  'cumulative_paid_to_date': 100.0,
+                  'ideal_hours': 13.3,
+                  'ideal_amount': 1330.0,
+                },
+                {
+                  'period_end': '2026-02-28',
+                  'cumulative_logged_hours': 12.5,
+                  'cumulative_billable_hours': 11.0,
+                  'cumulative_invoiced_amount': 600.0,
+                  'cumulative_paid_to_date': 400.0,
+                  'ideal_hours': 26.6,
+                  'ideal_amount': 2660.0,
+                },
+              ],
+            }),
+            formatter: null,
           ),
         );
         expectNoOverflow(tester);

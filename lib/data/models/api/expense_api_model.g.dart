@@ -56,6 +56,9 @@ _ExpenseApi _$ExpenseApiFromJson(Map<String, dynamic> json) => _ExpenseApi(
   documents: (json['documents'] as List<dynamic>?)
       ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
       .toList(),
+  tags: json['tags'] == null
+      ? const <TagRefApi>[]
+      : const EmbeddedTagsConverter().fromJson(json['tags']),
 );
 
 Map<String, dynamic> _$ExpenseApiToJson(_ExpenseApi instance) =>
@@ -107,6 +110,7 @@ Map<String, dynamic> _$ExpenseApiToJson(_ExpenseApi instance) =>
       'updated_at': instance.updatedAt,
       'archived_at': instance.archivedAt,
       'documents': instance.documents,
+      'tags': const EmbeddedTagsConverter().toJson(instance.tags),
     };
 
 _ExpenseListApi _$ExpenseListApiFromJson(Map<String, dynamic> json) =>

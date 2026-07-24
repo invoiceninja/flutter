@@ -12,6 +12,7 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/products/widgets/detail/product_detail_kpi_strip.dart'
     show formatProductAmount;
@@ -96,6 +97,7 @@ class ProductDetailCardsGrid extends StatelessWidget {
       if (hasInventory) _InventoryCard(product: product, formatter: formatter),
       if (hasTaxes) _TaxesCard(product: product, enabledSlots: enabledTaxSlots),
       if (_hasAnyCustomValue) _customFieldsCard(),
+      if (product.tagIds.isNotEmpty) _tagsCard(context),
     ];
     return IntrinsicHeight(
       child: Row(
@@ -120,6 +122,7 @@ class ProductDetailCardsGrid extends StatelessWidget {
       if (hasInventory) _InventoryCard(product: product, formatter: formatter),
       if (hasTaxes) _TaxesCard(product: product, enabledSlots: enabledTaxSlots),
       if (_hasAnyCustomValue) _customFieldsCard(),
+      if (product.tagIds.isNotEmpty) _tagsCard(context),
     ];
     return _stack(context, cards);
   }
@@ -140,6 +143,11 @@ class ProductDetailCardsGrid extends StatelessWidget {
       product.customValue4,
     ],
     formatter: formatter,
+  );
+
+  Widget _tagsCard(BuildContext context) => DashboardCardShell(
+    title: context.tr('tags'),
+    child: EntityTagsView(entityType: 'product', tagIds: product.tagIds),
   );
 
   Widget _stack(BuildContext context, List<Widget> cards) {

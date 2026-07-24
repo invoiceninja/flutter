@@ -51,6 +51,7 @@ abstract class Vendor with _$Vendor {
     // Last portal login (read-only, display-only); null when never signed in.
     DateTime? lastLogin,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     // Local-only — never sent to the server. Populated by the repository
     // from the Drift row's `is_dirty` column so the UI can render an
     // "Unsynced" chip on the detail screen.
@@ -91,6 +92,10 @@ abstract class Vendor with _$Vendor {
     contacts: a.contacts.map(VendorContact.fromApi).toList(growable: false),
     lastLogin: epochSecondsToUtcOrNull(a.lastLogin),
     documents: mapDocuments(a.documents),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
   );
 }
 
@@ -132,6 +137,8 @@ extension VendorPayload on Vendor {
     'custom_value2': customValue2,
     'custom_value3': customValue3,
     'custom_value4': customValue4,
+    // Full-set replace: the server syncs attached tags to exactly this list.
+    'tags': tagIds,
     // Read-only, but included so the local Drift payload round-trip
     // (`_domainToCompanion`) preserves it; the server ignores it on save.
     if (lastLogin != null)

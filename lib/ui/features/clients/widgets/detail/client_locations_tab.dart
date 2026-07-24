@@ -6,6 +6,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/location.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/utils/address_format.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify_async.dart';
@@ -74,20 +75,32 @@ class _LocationTile extends StatelessWidget {
   final Client client;
   final Location location;
 
-  String get _addressLine {
-    final parts = [
+  String _addressLine(BuildContext context) {
+    final swap = location.countryId.isEmpty
+        ? false
+        : (context
+                  .read<Services>()
+                  .statics
+                  .country(location.countryId)
+                  ?.swapPostalCode ??
+              false);
+    final cityLine = cityStateZip(
+      city: location.city,
+      state: location.state,
+      postalCode: location.postalCode,
+      swapPostalCode: swap,
+    );
+    return [
       location.address1,
       location.address2,
-      location.city,
-      location.state,
-      location.postalCode,
-    ].where((s) => s.isNotEmpty).toList();
-    return parts.join(', ');
+      cityLine,
+    ].where((s) => s.isNotEmpty).join(', ');
   }
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final addressLine = _addressLine(context);
     return ListTile(
       leading: Icon(Icons.place_outlined, color: tokens.ink2),
       title: Text(
@@ -96,8 +109,8 @@ class _LocationTile extends StatelessWidget {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_addressLine.isNotEmpty)
-            Text(_addressLine, style: TextStyle(color: tokens.ink3)),
+          if (addressLine.isNotEmpty)
+            Text(addressLine, style: TextStyle(color: tokens.ink3)),
           if (location.isShippingLocation)
             Padding(
               padding: const EdgeInsets.only(top: 2),

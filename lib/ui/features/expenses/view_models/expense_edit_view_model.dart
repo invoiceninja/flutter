@@ -60,6 +60,7 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
   // ── Field setters ──────────────────────────────────────────────────
 
   void setVendorId(String v) => updateDraft(draft.copyWith(vendorId: v));
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
   void setClientId(String v) => updateDraft(draft.copyWith(clientId: v));
   void setProjectId(String v) => updateDraft(draft.copyWith(projectId: v));
   void setCategoryId(String v) => updateDraft(draft.copyWith(categoryId: v));

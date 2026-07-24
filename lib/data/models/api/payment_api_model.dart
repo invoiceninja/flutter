@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'payment_api_model.freezed.dart';
 part 'payment_api_model.g.dart';
@@ -63,6 +64,10 @@ abstract class PaymentApi with _$PaymentApi {
     List<PaymentInvoiceRefApi>? invoices,
     List<PaymentCreditRefApi>? credits,
     List<DocumentApi>? documents,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
   }) = _PaymentApi;
 
   factory PaymentApi.fromJson(Map<String, dynamic> json) =>

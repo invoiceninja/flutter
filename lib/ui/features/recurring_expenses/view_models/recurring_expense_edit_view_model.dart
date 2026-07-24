@@ -63,6 +63,7 @@ class RecurringExpenseEditViewModel
 
   void setVendorId(String v) => updateDraft(draft.copyWith(vendorId: v));
   void setClientId(String v) => updateDraft(draft.copyWith(clientId: v));
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
   void setProjectId(String v) => updateDraft(draft.copyWith(projectId: v));
   void setCategoryId(String v) => updateDraft(draft.copyWith(categoryId: v));
   void setCurrencyId(String v) => updateDraft(draft.copyWith(currencyId: v));

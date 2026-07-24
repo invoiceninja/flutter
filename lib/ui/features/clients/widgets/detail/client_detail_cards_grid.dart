@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_address_card.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_contacts_card.dart';
@@ -10,6 +12,7 @@ import 'package:admin/ui/features/clients/widgets/detail/client_detail_details_c
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_notes_card.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_payment_methods_card.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_shipping_address_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Responsive grid for the client detail body cards.
@@ -97,6 +100,10 @@ class ClientDetailCardsGrid extends StatelessWidget {
           SizedBox(height: InSpacing.md(context)),
           ClientDetailNotesCard(client: c),
         ],
+        if (c.tagIds.isNotEmpty) ...[
+          SizedBox(height: InSpacing.md(context)),
+          _TagsCard(client: c),
+        ],
       ],
     );
   }
@@ -113,6 +120,7 @@ class ClientDetailCardsGrid extends StatelessWidget {
         ClientDetailPaymentMethodsCard(client: c),
       if (c.privateNotes.isNotEmpty || c.publicNotes.isNotEmpty)
         ClientDetailNotesCard(client: c),
+      if (c.tagIds.isNotEmpty) _TagsCard(client: c),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -125,4 +133,15 @@ class ClientDetailCardsGrid extends StatelessWidget {
       ],
     );
   }
+}
+
+class _TagsCard extends StatelessWidget {
+  const _TagsCard({required this.client});
+  final Client client;
+
+  @override
+  Widget build(BuildContext context) => DashboardCardShell(
+    title: context.tr('tags'),
+    child: EntityTagsView(entityType: 'client', tagIds: client.tagIds),
+  );
 }

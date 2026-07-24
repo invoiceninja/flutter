@@ -8,6 +8,10 @@ import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
 import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
 
+/// Company names longer than this get a hover tooltip revealing the full
+/// name (the label itself truncates with an ellipsis).
+const int kCompanyNameTooltipThreshold = 22;
+
 /// Header button at the top of the sidebar showing the active company and
 /// (when more than one workspace is available) opening the [CompanyPicker]
 /// on tap.
@@ -61,6 +65,16 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
       size: 28,
       logoUrl: current?.logoUrl,
     );
+    final nameText = Text(
+      name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: tokens.ink,
+      ),
+    );
     final Widget button = Material(
       key: _anchorKey,
       color: tokens.surfaceAlt,
@@ -86,16 +100,9 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
                     avatar,
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: tokens.ink,
-                        ),
-                      ),
+                      child: name.length > kCompanyNameTooltipThreshold
+                          ? Tooltip(message: name, child: nameText)
+                          : nameText,
                     ),
                     if (multi) ...[
                       const SizedBox(width: 4),

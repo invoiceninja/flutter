@@ -70,6 +70,9 @@ _ClientApi _$ClientApiFromJson(Map<String, dynamic> json) => _ClientApi(
           ?.map((e) => GatewayTokenApi.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const <GatewayTokenApi>[],
+  tags: json['tags'] == null
+      ? const <TagRefApi>[]
+      : const EmbeddedTagsConverter().fromJson(json['tags']),
   documents: (json['documents'] as List<dynamic>?)
       ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -129,6 +132,7 @@ Map<String, dynamic> _$ClientApiToJson(_ClientApi instance) =>
       'contacts': instance.contacts,
       'locations': instance.locations,
       'gateway_tokens': instance.gatewayTokens,
+      'tags': const EmbeddedTagsConverter().toJson(instance.tags),
       'documents': instance.documents,
       'settings': ?instance.settings,
     };

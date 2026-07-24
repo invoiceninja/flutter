@@ -636,6 +636,9 @@ class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
               SingleChildScrollView(
                 child: BillingDocSettingsTab(
                   companyId: vm.companyId,
+                  entityType: 'recurring_invoice',
+                  tagIds: vm.draft.tagIds,
+                  onTagIdsChanged: vm.setTagIds,
                   designId: vm.draft.designId,
                   onDesignChanged: vm.setDesignId,
                   userId: vm.draft.assignedUserId,
@@ -1037,6 +1040,9 @@ class _SettingsTab extends StatelessWidget {
       padding: EdgeInsets.all(InSpacing.lg(context)),
       child: BillingDocSettingsTab(
         companyId: vm.companyId,
+        entityType: 'recurring_invoice',
+        tagIds: vm.draft.tagIds,
+        onTagIdsChanged: vm.setTagIds,
         designId: vm.draft.designId,
         onDesignChanged: vm.setDesignId,
         userId: vm.draft.assignedUserId,

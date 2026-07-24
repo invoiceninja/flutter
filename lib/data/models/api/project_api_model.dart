@@ -27,6 +27,9 @@ abstract class ProjectApi with _$ProjectApi {
     @JsonKey(name: 'private_notes') @Default('') String privateNotes,
     @JsonKey(name: 'public_notes') @Default('') String publicNotes,
     @JsonKey(name: 'budgeted_hours') @Default(0) num budgetedHours,
+    // Money — typed `Object` like `task_rate` because the server has emitted
+    // both a number and a string for money fields; `parseMoney` normalizes.
+    @JsonKey(name: 'budgeted_amount') @Default('0') Object budgetedAmount,
     @JsonKey(name: 'current_hours') @Default(0) num currentHours,
     @JsonKey(name: 'custom_value1') @Default('') String customValue1,
     @JsonKey(name: 'custom_value2') @Default('') String customValue2,

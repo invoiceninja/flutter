@@ -15,6 +15,8 @@ import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/utils/address_format.dart';
 import 'package:admin/utils/formatting.dart';
 
 // ────────────────────────────────────────────────────────────────────
@@ -83,6 +85,10 @@ class VendorDetailCardsGrid extends StatelessWidget {
           SizedBox(height: InSpacing.md(context)),
           VendorDetailNotesCard(vendor: vendor),
         ],
+        if (vendor.tagIds.isNotEmpty) ...[
+          SizedBox(height: InSpacing.md(context)),
+          _TagsCard(vendor: vendor),
+        ],
       ],
     );
   }
@@ -94,6 +100,7 @@ class VendorDetailCardsGrid extends StatelessWidget {
       VendorDetailContactsCard(contacts: vendor.contacts),
       if (vendor.privateNotes.isNotEmpty || vendor.publicNotes.isNotEmpty)
         VendorDetailNotesCard(vendor: vendor),
+      if (vendor.tagIds.isNotEmpty) _TagsCard(vendor: vendor),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -113,6 +120,17 @@ class VendorDetailCardsGrid extends StatelessWidget {
 // (total + last expense date) computed from the local Drift store.
 
 // ───────────────────────── Details ─────────────────────────
+
+class _TagsCard extends StatelessWidget {
+  const _TagsCard({required this.vendor});
+  final Vendor vendor;
+
+  @override
+  Widget build(BuildContext context) => DashboardCardShell(
+    title: context.tr('tags'),
+    child: EntityTagsView(entityType: 'vendor', tagIds: vendor.tagIds),
+  );
+}
 
 class VendorDetailDetailsCard extends StatelessWidget {
   const VendorDetailDetailsCard({
@@ -235,20 +253,26 @@ class VendorDetailAddressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cityStateZip = [
-      vendor.city,
-      vendor.state,
-      vendor.postalCode,
-    ].where((s) => s.isNotEmpty).join(', ');
-    final country = _resolveCountryName(context, vendor.countryId);
+    final countryObj = vendor.countryId.isEmpty
+        ? null
+        : context.read<Services>().statics.country(vendor.countryId);
+    final cityLine = cityStateZip(
+      city: vendor.city,
+      state: vendor.state,
+      postalCode: vendor.postalCode,
+      swapPostalCode: countryObj?.swapPostalCode ?? false,
+    );
+    final country = vendor.countryId.isEmpty
+        ? ''
+        : (countryObj?.name ?? vendor.countryId);
 
     final rows = <Widget?>[
       if (vendor.address1.isNotEmpty)
         DetailInfoRow(label: context.tr('address1'), value: vendor.address1),
       if (vendor.address2.isNotEmpty)
         DetailInfoRow(label: context.tr('address2'), value: vendor.address2),
-      if (cityStateZip.isNotEmpty)
-        DetailInfoRow(label: context.tr('city'), value: cityStateZip),
+      if (cityLine.isNotEmpty)
+        DetailInfoRow(label: context.tr('city'), value: cityLine),
       if (country.isNotEmpty)
         DetailInfoRow(
           label: context.tr('country'),
@@ -261,12 +285,6 @@ class VendorDetailAddressCard extends StatelessWidget {
       title: context.tr('address'),
       child: DetailRowStack(children: rows),
     );
-  }
-
-  String _resolveCountryName(BuildContext context, String countryId) {
-    if (countryId.isEmpty) return '';
-    final statics = context.read<Services>().statics;
-    return statics.country(countryId)?.name ?? countryId;
   }
 }
 

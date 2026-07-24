@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/expense.dart';
@@ -11,12 +12,14 @@ import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/vendor.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/detail/entity_link_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
@@ -175,6 +178,26 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
         ),
       );
     }
+    // Link to the bank transaction this expense was created from / matched to.
+    // Gated on the bank-transaction module being enabled for the company.
+    if (e.transactionId.isNotEmpty) {
+      cards.add(
+        EntityLinkCard<BankTransaction>(
+          titleKey: 'transaction',
+          icon: Icons.swap_horiz_outlined,
+          entityId: e.transactionId,
+          routePath: '/transactions/${e.transactionId}',
+          permissionKey: 'view_bank_transaction',
+          module: EntityType.transaction,
+          watchBuilder: () => context.read<Services>().bankTransactions.watch(
+            companyId: companyId,
+            id: e.transactionId,
+          ),
+          displayNameOf: (t) =>
+              t.description.isEmpty ? e.transactionId : t.description,
+        ),
+      );
+    }
     // Show the payment card whenever *any* payment metadata is set — including
     // a payment type alone, which no longer counts as "paid" status but is
     // still worth surfacing.
@@ -187,6 +210,14 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
           expense: e,
           companyId: companyId,
           formatter: formatter,
+        ),
+      );
+    }
+    if (e.tagIds.isNotEmpty) {
+      cards.add(
+        DashboardCardShell(
+          title: context.tr('tags'),
+          child: EntityTagsView(entityType: 'expense', tagIds: e.tagIds),
         ),
       );
     }

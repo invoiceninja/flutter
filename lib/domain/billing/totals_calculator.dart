@@ -247,13 +247,17 @@ Map<String, Decimal> computeTaxBreakdown(
   // the local total reads too high until a refresh. Line-item tax is NOT
   // name-gated server-side (InvoiceItemSum), so the per-line rates above stay
   // rate-only. (L6)
-  // Σr for invoice-level inclusive tax: only tiers that pass the same
-  // name-length >= 2 gate share the divisor — a tier the server drops must not
-  // inflate the base. Zero rates contribute nothing. (issue #12072)
-  final invoiceRateSum =
-      (input.taxName1.length >= 2 ? input.taxRate1 : Decimal.zero) +
-      (input.taxName2.length >= 2 ? input.taxRate2 : Decimal.zero) +
-      (input.taxName3.length >= 2 ? input.taxRate3 : Decimal.zero);
+  // Σr for invoice-level inclusive tax is built from ALL THREE rates and is
+  // deliberately NOT name-gated: `InvoiceSumInclusive::calculateTaxes` passes
+  // the raw `[tax_rate1, tax_rate2, tax_rate3]` straight into
+  // `InclusiveTax::backout` and applies the name gate only afterwards, when
+  // deciding which component to add to `total_taxes`. So a rate carrying a
+  // blank / 1-char name still shrinks the shared base for the tiers that do
+  // survive the gate. Mirroring that keeps the on-screen total equal to what
+  // the server stores (reachable via API-created or imported invoices — the
+  // tax picker always sets name + rate together). Zero rates contribute
+  // nothing. (issue #12072)
+  final invoiceRateSum = input.taxRate1 + input.taxRate2 + input.taxRate3;
   if (input.taxRate1 != Decimal.zero && input.taxName1.length >= 2) {
     final t = _taxAmount(
       total,

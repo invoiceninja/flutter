@@ -3,6 +3,7 @@ import 'package:admin/data/db/dao/recurring_invoice_dao.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
@@ -149,6 +150,16 @@ final List<RecurringInvoiceColumn> kAllRecurringInvoiceColumns =
             return cellNonZeroString(v);
           },
         ),
+      // Attached tags. Display-only (not a sortable Drift column).
+      RecurringInvoiceColumn(
+        id: RecurringInvoiceFieldIds.tagIds,
+        labelKey: 'tags',
+        width: 200,
+        cellBuilder: (r, _) => r.tagIds.isEmpty
+            ? cellEmpty()
+            : EntityTagsView(entityType: 'recurring_invoice', tagIds: r.tagIds),
+        valueBuilder: (r) => '',
+      ),
     ];
 
 final Map<String, RecurringInvoiceColumn> recurringInvoiceColumnsById = {

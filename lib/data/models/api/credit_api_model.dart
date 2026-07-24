@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 
 part 'credit_api_model.freezed.dart';
@@ -67,6 +68,10 @@ abstract class CreditApi with _$CreditApi {
     List<LineItemApi> lineItems,
     @Default(<InvitationApi>[]) List<InvitationApi> invitations,
     List<DocumentApi>? documents,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
     @JsonKey(name: 'e_invoice') Map<String, dynamic>? eInvoice,
     @JsonKey(name: 'is_deleted') @Default(false) bool isDeleted,
     @JsonKey(name: 'created_at') @Default(0) int createdAt,

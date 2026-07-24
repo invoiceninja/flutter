@@ -41,6 +41,9 @@ class ProductFieldIds {
   static const String taxCategory = 'tax_category';
   static const String createdAt = 'created_at';
   static const String archivedAt = 'archived_at';
+  // Display-only column id (tags live in the payload, not a Drift column) —
+  // never add to the list screen's sortOptions.
+  static const String tagIds = 'product_tag_ids';
 }
 
 @DriftAccessor(tables: [Products])

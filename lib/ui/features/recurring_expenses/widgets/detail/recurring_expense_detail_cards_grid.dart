@@ -18,6 +18,7 @@ import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/detail/entity_link_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/recurring_expense_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
@@ -168,6 +169,17 @@ class RecurringExpenseDetailCardsGrid extends StatelessWidget {
           recurringExpense: e,
           companyId: companyId,
           formatter: formatter,
+        ),
+      );
+    }
+    if (e.tagIds.isNotEmpty) {
+      cards.add(
+        DashboardCardShell(
+          title: context.tr('tags'),
+          child: EntityTagsView(
+            entityType: 'recurring_expense',
+            tagIds: e.tagIds,
+          ),
         ),
       );
     }

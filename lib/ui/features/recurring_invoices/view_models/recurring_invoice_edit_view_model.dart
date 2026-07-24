@@ -155,6 +155,7 @@ class RecurringInvoiceEditViewModel
   // ── Setters ────────────────────────────────────────────────────────
 
   void setClientId(String v) => updateDraft(draft.copyWith(clientId: v));
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
   void setVendorId(String v) => updateDraft(draft.copyWith(vendorId: v));
   void setProjectId(String v) => updateDraft(draft.copyWith(projectId: v));
   void setAssignedUserId(String v) =>

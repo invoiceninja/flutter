@@ -3,6 +3,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/l10n/localization.dart';
 
 // Re-export the shared min width so vendor-screen code keeps the same
@@ -55,6 +56,8 @@ class VendorFieldIds {
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
   static const String archivedAt = 'archived_at';
+  // Display-only (tags live in the payload) — never add to sortOptions.
+  static const String tagIds = 'vendor_tag_ids';
 }
 
 /// Every column the new app knows how to render for the vendor list.
@@ -269,6 +272,16 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
     cellBuilder: (v, ctx) =>
         v.archivedAt == null ? cellEmpty() : cellDate(v.archivedAt!, ctx),
     valueBuilder: (v) => v.archivedAt?.toIso8601String(),
+  ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  VendorColumn(
+    id: VendorFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (v, _) => v.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'vendor', tagIds: v.tagIds),
+    valueBuilder: (v) => '',
   ),
 ];
 

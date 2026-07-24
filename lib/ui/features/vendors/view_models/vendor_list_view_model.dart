@@ -53,6 +53,12 @@ class VendorListViewModel extends GenericListViewModel<Vendor> {
   @override
   bool isDeleted(Vendor item) => item.isDeleted;
 
+  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
+  /// so a short filtered result must auto-chain page fetches (see the base).
+  @override
+  bool get localOnlyFilterActive =>
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+
   // ── Data-source hooks ──────────────────────────────────────────────
 
   @override
@@ -79,7 +85,11 @@ class VendorListViewModel extends GenericListViewModel<Vendor> {
     page: page,
     search: search,
     states: states,
-    extraFilters: extraFilters,
+    // `tag_ids` is applied locally (post-decode) — strip it from the fetch.
+    extraFilters: GenericListViewModel.extraFiltersWithout(
+      extraFilters,
+      'tag_ids',
+    ),
     ignoreCursor: ignoreCursor,
   );
 

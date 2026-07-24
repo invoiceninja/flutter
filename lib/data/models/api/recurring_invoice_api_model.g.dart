@@ -66,6 +66,9 @@ _RecurringInvoiceApi _$RecurringInvoiceApiFromJson(Map<String, dynamic> json) =>
       documents: (json['documents'] as List<dynamic>?)
           ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
           .toList(),
+      tags: json['tags'] == null
+          ? const <TagRefApi>[]
+          : const EmbeddedTagsConverter().fromJson(json['tags']),
       frequencyId: json['frequency_id'] as String? ?? '',
       nextSendDate: json['next_send_date'] as String? ?? '',
       nextSendDatetime: json['next_send_datetime'] as String? ?? '',
@@ -132,6 +135,7 @@ Map<String, dynamic> _$RecurringInvoiceApiToJson(
   'line_items': instance.lineItems,
   'invitations': instance.invitations,
   'documents': instance.documents,
+  'tags': const EmbeddedTagsConverter().toJson(instance.tags),
   'frequency_id': instance.frequencyId,
   'next_send_date': instance.nextSendDate,
   'next_send_datetime': instance.nextSendDatetime,

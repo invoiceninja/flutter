@@ -5,21 +5,65 @@ import 'package:admin/data/models/api/json_coercion.dart';
 part 'tag_api_model.freezed.dart';
 part 'tag_api_model.g.dart';
 
-/// Normalize a tag's `entity_type` to the short key (`task` / `project`).
+/// The canonical short `entity_type` keys a tag can be scoped to. These match
+/// each entity module's `wireName` (note the bank-transaction module's is
+/// `bank_transaction`). Tags are per-type — the same name may exist once per
+/// (company, entity_type).
+const Set<String> kTagEntityTypes = <String>{
+  'client',
+  'product',
+  'invoice',
+  'payment',
+  'recurring_invoice',
+  'quote',
+  'credit',
+  'project',
+  'task',
+  'vendor',
+  'expense',
+  'bank_transaction',
+  'purchase_order',
+  'recurring_expense',
+};
+
+/// Normalize a tag's `entity_type` to its canonical short key.
 ///
-/// The server stores + echoes the FQCN (`App\Models\Task`) because the
-/// morphMap only aliases invoices/proposals, but the index endpoint and our
-/// create payload both speak the short key. We normalize on every ingest so
-/// the rest of the app only ever sees `task` / `project`.
+/// The server may echo the short key (`invoice`), the FQCN
+/// (`App\Models\RecurringInvoice`), or a morph/plural alias (`invoices`). The
+/// index endpoint and our create payload both speak the short key, so we
+/// normalize on every ingest.
 String normalizeTagEntityType(String raw) {
   final v = raw.trim();
-  if (v == 'task' || v == 'project') return v;
-  final lower = v.toLowerCase();
-  if (lower.endsWith('project')) return 'project';
-  if (lower.endsWith('task')) return 'task';
-  // Defensive: anything else (unexpected) falls back to the raw value so a
-  // future taggable type isn't silently coerced to task/project.
+  if (kTagEntityTypes.contains(v)) return v;
+  // Class-name tail after a namespace / path separator → snake_case.
+  var tail = v;
+  for (final sep in const <String>['\\', '/']) {
+    final i = tail.lastIndexOf(sep);
+    if (i >= 0) tail = tail.substring(i + 1);
+  }
+  final snake = _pascalToSnake(tail);
+  if (kTagEntityTypes.contains(snake)) return snake;
+  // Plural morph alias (`invoices` → `invoice`).
+  if (snake.endsWith('s')) {
+    final singular = snake.substring(0, snake.length - 1);
+    if (kTagEntityTypes.contains(singular)) return singular;
+  }
+  // Defensive: an unexpected value falls through unchanged so a future
+  // taggable type isn't silently coerced.
   return v;
+}
+
+/// `RecurringInvoice` → `recurring_invoice`. Inserts an underscore before each
+/// interior uppercase letter (avoids RegExp lookbehind for portability).
+String _pascalToSnake(String s) {
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    final ch = s[i];
+    final isUpper = ch.toUpperCase() == ch && ch.toLowerCase() != ch;
+    if (i > 0 && isUpper) buf.write('_');
+    buf.write(ch.toLowerCase());
+  }
+  return buf.toString();
 }
 
 /// Raw JSON shape of a tag as returned by `/api/v1/tags`.

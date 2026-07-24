@@ -78,6 +78,7 @@ class VendorEditViewModel extends GenericEditViewModel<Vendor> {
 
   void setName(String value) => updateDraft(draft.copyWith(name: value));
   void setNumber(String value) => updateDraft(draft.copyWith(number: value));
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
   void setIdNumber(String value) =>
       updateDraft(draft.copyWith(idNumber: value));
   void setVatNumber(String value) =>

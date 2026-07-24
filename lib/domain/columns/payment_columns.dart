@@ -3,6 +3,7 @@ import 'package:admin/data/db/dao/payment_dao.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/company_gateway_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
@@ -179,6 +180,16 @@ final List<PaymentColumn> kAllPaymentColumns = <PaymentColumn>[
     cellBuilder: (p, _) =>
         p.customValue4.isEmpty ? cellEmpty() : cellText(p.customValue4),
     valueBuilder: (p) => cellNonZeroString(p.customValue4),
+  ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  PaymentColumn(
+    id: PaymentFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (p, _) => p.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'payment', tagIds: p.tagIds),
+    valueBuilder: (p) => '',
   ),
 ];
 

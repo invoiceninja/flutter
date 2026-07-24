@@ -26,6 +26,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/data/models/value/country.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/datetime_format.dart';
+import 'package:admin/utils/address_format.dart';
 
 // ---------------------------------------------------------------------------
 // Pure utilities (no app state, no statics).
@@ -993,17 +994,19 @@ class Formatter {
   /// the company's default country (matches the old code at
   /// `formatting.dart:306-313`).
   String address(Address addr, {String delimiter = '\n'}) {
-    final buf = StringBuffer();
-    if (addr.address1.isNotEmpty) buf.write('${addr.address1}$delimiter');
-    if (addr.address2.isNotEmpty) buf.write('${addr.address2}$delimiter');
-    if (addr.city.isNotEmpty) buf.write('${addr.city}, ');
-    if (addr.state.isNotEmpty) buf.write('${addr.state} ');
-    if (addr.postalCode.isNotEmpty) buf.write(addr.postalCode);
-    if (addr.countryId.isNotEmpty && addr.countryId != settings.countryId) {
-      if (buf.isNotEmpty) buf.write(delimiter);
-      buf.write(countries[addr.countryId]?.name ?? '');
-    }
-    return buf.toString();
+    final country = countries[addr.countryId];
+    // Suppress the country line when it matches the company's default country.
+    final showCountry =
+        addr.countryId.isNotEmpty && addr.countryId != settings.countryId;
+    return formatAddressLines(
+      address1: addr.address1,
+      address2: addr.address2,
+      city: addr.city,
+      state: addr.state,
+      postalCode: addr.postalCode,
+      swapPostalCode: country?.swapPostalCode ?? false,
+      countryName: showCountry ? (country?.name ?? '') : '',
+    ).join(delimiter);
   }
 
   /// Format a custom-field value. Type is one of `switch`, `date`, or

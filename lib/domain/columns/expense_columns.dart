@@ -3,6 +3,8 @@ import 'package:admin/data/db/dao/expense_dao.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/category_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
@@ -119,6 +121,22 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
         : InvoiceNameLabel(invoiceId: e.invoiceId, link: true),
     valueBuilder: (e) => cellNonZeroString(e.invoiceId),
   ),
+  // Link to the source bank transaction. Display-only (not a Drift column /
+  // sort option) — renders a "View" link, matching the React admin client.
+  ExpenseColumn(
+    id: ExpenseFieldIds.transactionId,
+    labelKey: 'transaction',
+    width: 110,
+    cellBuilder: (e, ctx) => e.transactionId.isEmpty
+        ? cellEmpty()
+        : cellLink(
+            ctx,
+            ctx.tr('view'),
+            onTap: () =>
+                goEntityFullDetail(ctx, '/transactions', e.transactionId),
+          ),
+    valueBuilder: (e) => cellNonZeroString(e.transactionId),
+  ),
   ExpenseColumn(
     id: ExpenseFieldIds.currencyId,
     labelKey: 'currency',
@@ -184,6 +202,16 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
     cellBuilder: (e, _) =>
         e.customValue4.isEmpty ? cellEmpty() : cellText(e.customValue4),
     valueBuilder: (e) => cellNonZeroString(e.customValue4),
+  ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  ExpenseColumn(
+    id: ExpenseFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (e, _) => e.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'expense', tagIds: e.tagIds),
+    valueBuilder: (e) => '',
   ),
 ];
 

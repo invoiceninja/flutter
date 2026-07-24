@@ -3,6 +3,7 @@ import 'package:admin/data/db/dao/purchase_order_dao.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
@@ -134,6 +135,16 @@ final List<PurchaseOrderColumn> kAllPurchaseOrderColumns =
             return cellNonZeroString(v);
           },
         ),
+      // Attached tags. Display-only (not a sortable Drift column).
+      PurchaseOrderColumn(
+        id: PurchaseOrderFieldIds.tagIds,
+        labelKey: 'tags',
+        width: 200,
+        cellBuilder: (o, _) => o.tagIds.isEmpty
+            ? cellEmpty()
+            : EntityTagsView(entityType: 'purchase_order', tagIds: o.tagIds),
+        valueBuilder: (o) => '',
+      ),
     ];
 
 final Map<String, PurchaseOrderColumn> purchaseOrderColumnsById = {

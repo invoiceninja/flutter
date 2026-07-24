@@ -63,6 +63,7 @@ abstract class Client with _$Client {
     required List<Contact> contacts,
     @Default(<Location>[]) List<Location> locations,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     // Shipping address (distinct from the billing address above). All
     // optional/defaulted so existing `Client(...)` fixtures don't need
     // updating — these were historically dropped on the floor.
@@ -153,6 +154,10 @@ abstract class Client with _$Client {
       contacts: a.contacts.map(Contact.fromApi).toList(growable: false),
       locations: a.locations.map(Location.fromApi).toList(growable: false),
       documents: mapDocuments(a.documents),
+      tagIds: [
+        for (final t in a.tags)
+          if (t.id.isNotEmpty) t.id,
+      ],
       shippingAddress1: a.shippingAddress1,
       shippingAddress2: a.shippingAddress2,
       shippingCity: a.shippingCity,
@@ -263,6 +268,8 @@ extension ClientPayload on Client {
       if (lastLogin != null)
         'last_login': lastLogin!.millisecondsSinceEpoch ~/ 1000,
       'contacts': contacts.map((c) => c.toApiJson()).toList(),
+      // Full-set replace: the server syncs attached tags to exactly this list.
+      'tags': tagIds,
       // Only emit `settings` when there's at least one override — an empty
       // map means the same as "inherit," so omit it to keep the wire minimal.
       if (mergedSettings.isNotEmpty) 'settings': mergedSettings,

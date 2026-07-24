@@ -57,6 +57,7 @@ abstract class Payment with _$Payment {
     @Default(<PaymentInvoiceRef>[]) List<PaymentInvoiceRef> invoices,
     @Default(<PaymentCreditRef>[]) List<PaymentCreditRef> credits,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     @Default(false) bool isDirty,
   }) = _Payment;
 
@@ -106,6 +107,10 @@ abstract class Payment with _$Payment {
         .map(PaymentCreditRef.fromApi)
         .toList(growable: false),
     documents: mapDocuments(a.documents),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
   );
 }
 
@@ -251,6 +256,8 @@ extension PaymentPayload on Payment {
       'custom_value2': customValue2,
       'custom_value3': customValue3,
       'custom_value4': customValue4,
+      // Full-set replace: the server syncs attached tags to exactly this list.
+      'tags': tagIds,
       'user_id': userId,
       'assigned_user_id': assignedUserId,
       'date': date?.toIso() ?? '',

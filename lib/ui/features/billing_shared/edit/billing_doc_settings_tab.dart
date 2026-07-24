@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 
@@ -19,6 +20,9 @@ class BillingDocSettingsTab extends StatelessWidget {
   const BillingDocSettingsTab({
     super.key,
     required this.companyId,
+    required this.entityType,
+    required this.tagIds,
+    required this.onTagIdsChanged,
     required this.designId,
     required this.onDesignChanged,
     required this.userId,
@@ -35,6 +39,9 @@ class BillingDocSettingsTab extends StatelessWidget {
   });
 
   final String companyId;
+  final String entityType;
+  final List<String> tagIds;
+  final ValueChanged<List<String>> onTagIdsChanged;
   final String designId;
   final ValueChanged<String> onDesignChanged;
   final String userId;
@@ -182,27 +189,39 @@ class BillingDocSettingsTab extends StatelessWidget {
     final gap = SizedBox(height: InSpacing.md(context));
     return Padding(
       padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [design(), gap, project(), gap, exchangeRate],
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [design(), gap, project(), gap, exchangeRate],
+                ),
+              ),
+              SizedBox(width: InSpacing.lg(context)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    user(),
+                    if (showVendor) ...[gap, vendor()],
+                    if (autoBill != null) ...[gap, autoBill],
+                  ],
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: InSpacing.lg(context)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                user(),
-                if (showVendor) ...[gap, vendor()],
-                if (autoBill != null) ...[gap, autoBill],
-              ],
-            ),
+          SizedBox(height: InSpacing.lg(context)),
+          EntityTagsField(
+            entityType: entityType,
+            selectedIds: tagIds,
+            onChanged: onTagIdsChanged,
           ),
         ],
       ),

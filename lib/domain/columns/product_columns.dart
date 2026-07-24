@@ -9,6 +9,7 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/product_tax_categories.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 
 typedef ProductColumn = ColumnDefinition<Product>;
@@ -206,6 +207,17 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     cellBuilder: (p, ctx) =>
         p.archivedAt == null ? cellEmpty() : cellDate(p.archivedAt!, ctx),
     valueBuilder: (p) => p.archivedAt?.toIso8601String(),
+  ),
+  // Attached tags. Display-only (not a sortable Drift column) — tag ids live
+  // only in the payload; the tag cache resolves names/colors for rendering.
+  ProductColumn(
+    id: ProductFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (p, _) => p.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'product', tagIds: p.tagIds),
+    valueBuilder: (p) => '',
   ),
 ];
 

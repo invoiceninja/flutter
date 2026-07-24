@@ -52,6 +52,9 @@ _PaymentApi _$PaymentApiFromJson(Map<String, dynamic> json) => _PaymentApi(
   documents: (json['documents'] as List<dynamic>?)
       ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
       .toList(),
+  tags: json['tags'] == null
+      ? const <TagRefApi>[]
+      : const EmbeddedTagsConverter().fromJson(json['tags']),
 );
 
 Map<String, dynamic> _$PaymentApiToJson(_PaymentApi instance) =>
@@ -93,6 +96,7 @@ Map<String, dynamic> _$PaymentApiToJson(_PaymentApi instance) =>
       'invoices': instance.invoices,
       'credits': instance.credits,
       'documents': instance.documents,
+      'tags': const EmbeddedTagsConverter().toJson(instance.tags),
     };
 
 _PaymentableApi _$PaymentableApiFromJson(Map<String, dynamic> json) =>

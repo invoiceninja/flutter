@@ -19,6 +19,11 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
 - Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
 
+**Shipped since this file was written** (kept for the record, no action left):
+- **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
+- **Calendar connect native callback** — `platform=flutter_native` on `/one_time_token`; both sides done.
+- **Multi-rate inclusive tax** — server adopted the additive `InclusiveTax::backout` model 2026-07-09 (two small client-side residuals noted in that section).
+
 **Provenance**
 - **2026-05-15** — empirical curl probe vs `demo.invoiceninja.com`.
 - **2026-05-17** — source-read of `app/Filters/*`; reclassified rows.
@@ -35,6 +40,9 @@ the Flutter app) so they are explicitly **out of scope** here.
   `client_status` value set, the four `date_range` contracts, `status_id`
   Invoice-only, the ClientFilters/ExpenseFilters/TaskFilters method lists,
   `next_send_between` dual separator) verified TRUE.
+- **2026-07-24** — backend catch-up review vs `v5-develop` HEAD `36f4a6b1c9`;
+  §§ A–E / calendar / inclusive-tax re-verified against current server
+  source and marked SHIPPED; §§ F, F1, F2, G, H re-verified still open.
 
 The root failure mode: **`QueryFilters::apply()` does
 `if (!method_exists($this,$name)) continue;`** — every unknown filter param
@@ -46,6 +54,23 @@ empty result. That is why this list is needed and why the hygiene item is #1.
 
 ## Requested backend changes (PR scope)
 
+> **STATUS 2026-07-24 — §§ A–E are SHIPPED upstream.** The filter PR
+> specified below merged into the official `invoiceninja/invoiceninja`
+> `v5-develop` as `db4aed2c5c` "List feature/sort" (2026-05-17), with
+> `tag_ids` following in `273efd5ffb` (2026-06-01). Verified against the
+> current server source: `ClientFilters` now has `group_settings_id`,
+> `country_id`, `industry_id`, `size_id`, `classification`, `vat_number`;
+> base `QueryFilters` has `custom_value1..4`, `client_ids`,
+> `assigned_user_ids`, `tag_ids`, `updated_between`, `created_at`,
+> `updated_at`, `date_range`, `due_date_range`; `ExpenseFilters` has
+> `project_ids`, `vendor_ids`, `payment_type`; `ProjectFilters` has
+> `assigned_user`; `TaskFilters` has `project_ids`. The Flutter client
+> already consumes these (see `lib/ui/features/clients/client_filter_keys.dart`).
+> **§§ F, F1, F2, G and H below remain open** — re-verified against current
+> source on 2026-07-24. Kept in full as the record of what was asked for and
+> why.
+
+
 Each row: **R**equired / **O**ptional · target file · what to add · one
 acceptance check. IDs in Invoice Ninja are Hashids — a CSV id filter must
 decode via `$this->transformKeys(explode(',', $value))` (multi) or
@@ -53,7 +78,7 @@ decode via `$this->transformKeys(explode(',', $value))` (multi) or
 `QueryFilters::client_ids():446` / `ClientFilters::group():109` for the
 pattern.
 
-### A. `app/Filters/ClientFilters.php` — add the missing id/enum filters
+### A. `app/Filters/ClientFilters.php` — add the missing id/enum filters — **SHIPPED upstream**
 
 `ClientFilters` has only `name`, `balance`, `between_balance`, `email`,
 `client_id`, `id_number`, `number`, `group`, `filter`.
@@ -108,7 +133,7 @@ document it distinctly from the owner `user_id` (today both are conflated).
 No Required backend work — the client can adopt `assigned_user_ids` now
 (see § Client-side).
 
-### B. Universal `custom_value1..4` filtering — **R**
+### B. Universal `custom_value1..4` filtering — **SHIPPED upstream**
 
 No `custom_value*` filter method exists on the base or any entity (it's only
 referenced inside `filter()` free-text search). Add to a shared trait / the
@@ -122,7 +147,7 @@ public function custom_value1(string $v=''): Builder
 ```
 - Accept: `invoices?custom_value1=<known>` narrows.
 
-### C. `app/Filters/ExpenseFilters.php`
+### C. `app/Filters/ExpenseFilters.php` — **SHIPPED upstream**
 
 `categories` already exists (`:185`, CSV→`whereIn('category_id', transformKeys)`).
 Inherited base methods already cover **single** `vendor_id`
@@ -145,18 +170,18 @@ public function vendor_ids(string $v=''): Builder
 - Accept: `expenses?project_ids=<id>` narrows (today: unchanged — no method);
   `expenses?vendor_id=<hashid>` already narrows via base.
 
-### D. `app/Filters/ProjectFilters.php` — **R**
+### D. `app/Filters/ProjectFilters.php` — **SHIPPED upstream**
 
 Add `assigned_user` / `assigned_user_ids` (mirror base
 `QueryFilters::assigned_user_ids():435`). Accept: `projects?assigned_user_ids=<id>`
 narrows.
 
-### E. Base — `updated_between` — **R**
+### E. Base — `updated_between` — **SHIPPED upstream**
 
 Only `created_between` exists (`QueryFilters:389`, 2-part on `created_at`).
 Add the symmetric `updated_between` (2-part `start,end`, `whereBetween('updated_at',…)`).
 
-### E2. Comparable date / numeric operators — **SHIPPED in this fork**
+### E2. Comparable date / numeric operators — **SHIPPED upstream** (was: in this fork)
 
 `feat/list-filter-sort-gaps` now carries `QueryFilters::comparableDate()`
 and rewires `created_at` / `updated_at` (base) + `date` / `due_date`
@@ -188,7 +213,7 @@ Tests: `tests/Feature/QueryFilterEnhancementsTest.php` (created_at
 gt/lte/eq-calendar-day, plain-date still `>=`, balance prefix, invoice
 date/due_date, quote/credit date, malformed-is-safe).
 
-### E3. `date_range` / `due_date_range` standardization — **SHIPPED in this fork**
+### E3. `date_range` / `due_date_range` standardization — **SHIPPED upstream** (was: in this fork)
 
 `feat/list-filter-sort-gaps` standardized the date-window filters on the
 **base** `QueryFilters` so every entity behaves identically (resolves the
@@ -743,7 +768,19 @@ server. Either unblocks removing the client-side fetch-gate.
 
 ---
 
-## Calendar connect — callback must reach native/Flutter clients — **R (server gap, blocks native calendar connect)**
+## Calendar connect — callback must reach native/Flutter clients — **SHIPPED (both sides)**
+
+> **STATUS 2026-07-24 — done, no action left.** Server side:
+> `OneTimeTokenRequest` accepts `platform` (`in:flutter_native,react`) and
+> `CalendarConnectionController::redirectToClient` sends the callback to
+> `config('ninja.calendar.native_redirect')` — default
+> `invoiceninja://calendar_connection/complete` — when
+> `platform === 'flutter_native'`, falling back to the React/web `react_url`
+> redirect otherwise. Client side: `CalendarConnectionRepository.buildAuthorizeUrl`
+> already passes `platform`, and `/calendar_connection/complete` is a
+> registered route (`lib/app/router.dart`). Kept below as the record of the
+> original ask.
+
 
 **Provenance** — 2026-06-14, porting React PR `invoiceninja/ui#3180`
 ("Connect Google/Microsoft calendar → convert event to task") to the Flutter
@@ -1046,7 +1083,36 @@ server is fixed — the client is already correct.
 feature test asserting a discounted/taxed recurring invoice stores the same
 `amount` the generated invoice carries.
 
-## Multi-rate **inclusive** tax extraction is mathematically incoherent (expense + invoice line-item + invoice-level) — **R (tax correctness; root of #12072)**
+## Multi-rate **inclusive** tax extraction is mathematically incoherent (expense + invoice line-item + invoice-level) — **SHIPPED server-side**
+
+> **STATUS 2026-07-24 — the server adopted the additive model.**
+> `App\Helpers\Invoice\InclusiveTax::backout` (2026-07-09, `a6ab6c1ca9` /
+> `c6d62cc43f` / `29552f4dc3`) is now the single source of truth, and all
+> three paths route through it: invoice line item
+> (`InvoiceItemSumInclusive`), invoice level (`InvoiceSumInclusive`) and
+> expense (`Expense::getNetAmount` → `inclusiveTaxTotal`). The model matches
+> what this app shipped on the same day: each component is
+> `round(amount x rate_i / (100 + Sum r), precision)`, tax-anchored, with the
+> net absorbing the sub-cent residual.
+>
+> **Two residual notes, both client-side follow-ups rather than server asks:**
+>
+> 1. **The invoice-level divisor is not name-gated.**
+>    `InvoiceSumInclusive::calculateTaxes` feeds the raw
+>    `[tax_rate1, tax_rate2, tax_rate3]` into `backout` and applies the
+>    `strlen(tax_name) > 1` gate only when deciding which component to *add*.
+>    So a rate carrying a blank / 1-char name still shrinks the shared base
+>    for the tiers that do survive the gate. Arguably surprising, but it is
+>    the stored behavior, so this app now mirrors it exactly
+>    (`computeTaxBreakdown` in `lib/domain/billing/totals_calculator.dart`).
+> 2. **Expense precision.** The server backs expense tax out at the client's
+>    **currency precision**; `expenseTierTaxAmount`
+>    (`lib/domain/expense_tax_math.dart`) hardcodes 2 decimals. Identical for
+>    2-decimal currencies, divergent for JPY (0) / BHD (3). Threading
+>    precision through touches every caller — not yet done.
+>
+> React remains unfixed. Kept below as the record of the original analysis.
+
 
 **Provenance** — 2026-07-07, financial-calculation audit. This is the general
 form of [#12072](https://github.com/invoiceninja/invoiceninja/issues/12072) (filed

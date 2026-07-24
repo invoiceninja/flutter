@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 
-/// Banking section — bank_id + transaction_id + transaction_reference. The
-/// full Bank Transactions editor is postponed, so when an expense is linked
-/// to one of those rows we surface ids as read-only context instead of
-/// trying to render a picker for an entity the app doesn't ship yet.
+/// Banking section — bank_id + transaction_id + transaction_reference. When an
+/// expense is linked to a bank transaction the bank/transaction ids are shown
+/// read-only, with a "View" link through to the transaction record.
 class ExpenseEditBankingSection extends StatelessWidget {
   const ExpenseEditBankingSection({super.key, required this.vm});
   final ExpenseEditViewModel vm;
@@ -32,6 +34,22 @@ class ExpenseEditBankingSection extends StatelessWidget {
           onChanged: vm.setTransactionId,
           readOnly: linked,
         ),
+        if (vm.draft.transactionId.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(
+              top: InSpacing.sm,
+              bottom: InSpacing.sm,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: LinkText(
+                label: context.tr('view'),
+                style: const TextStyle(fontWeight: FontWeight.w500),
+                onTap: () =>
+                    context.go('/transactions/${vm.draft.transactionId}'),
+              ),
+            ),
+          ),
         EntityEditField(
           label: context.tr('transaction_reference'),
           initial: vm.draft.transactionReference,

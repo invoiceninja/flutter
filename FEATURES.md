@@ -74,6 +74,7 @@ the honest default.
 | OAuth — Microsoft / Azure | ✅ | ❌ | ❌ |  | |
 | OAuth — Apple (Sign in with Apple) | ✅ | ✅ | ✅ | ✅ | |
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
+| Login precheck (hide OTP / API-secret fields unless the server needs them) | ❌ | ❌ | ✅ | | |
 | Two-factor SMS verification | ✅ | ✅ | ✅ | ✅ | |
 | Password reset / recovery email | ✅ | ✅ | ✅ | ✅ | |
 | Biometric lock (Touch ID / Face ID / fingerprint) | — | ✅ | ✅ | ✅ | |
@@ -326,6 +327,8 @@ the honest default.
 | Project — run template | ✅ | ✅ | ✅ | ✅ | |
 | Project — time summary | ✅ | ✅ | ✅ | ✅ | |
 | Project — budget / hours-worked tracking | ✅ | ✅ | ✅ | ✅ | |
+| Project — budgeted amount (money budget) | ❌ | ❌ | ✅ | | |
+| Project — analytics tab (server burn-up + budget/invoice/profit/health) | ❌ | ❌ | 🟡 | | |
 | Project — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Project — activities | ✅ | ✅ | ✅ | ✅ | |
 | Project — custom fields | ✅ | ✅ | ✅ | ✅ | |

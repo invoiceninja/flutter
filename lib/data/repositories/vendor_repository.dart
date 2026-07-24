@@ -17,6 +17,7 @@ import 'package:admin/data/models/api/vendor_api_model.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/services/vendors_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
@@ -85,7 +86,16 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
         )
-        .map((rows) => rows.map(_fromRow).toList(growable: false));
+        .map((rows) {
+          final items = rows.map(_fromRow);
+          // `tag_ids` lives only in the payload — post-decode predicate over
+          // the loaded page (the list VM strips it from the server fetch).
+          final tagIds = extraFilters['tag_ids'] ?? const <String>{};
+          if (tagIds.isEmpty) return items.toList(growable: false);
+          return items
+              .where((v) => matchesTagIdFilter(v.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   /// Distinct non-empty values populated by vendors in `companyId` for the

@@ -3,6 +3,7 @@ import 'package:admin/data/db/dao/quote_dao.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
@@ -163,6 +164,16 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
         return cellNonZeroString(v);
       },
     ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  QuoteColumn(
+    id: QuoteFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (q, _) => q.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'quote', tagIds: q.tagIds),
+    valueBuilder: (q) => '',
+  ),
 ];
 
 final Map<String, QuoteColumn> quoteColumnsById = {

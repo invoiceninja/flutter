@@ -12,6 +12,7 @@ import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/expense_api_model.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/expenses_api.dart';
@@ -93,7 +94,15 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
           vendorIds: parseCsvFilter(extraFilters, 'vendor_ids'),
           statuses: parseExpenseStatusFilter(extraFilters),
         )
-        .map((rows) => rows.map(_fromRow).toList(growable: false));
+        .map((rows) {
+          final items = rows.map(_fromRow);
+          // `tag_ids` lives only in the payload — post-decode predicate.
+          final tagIds = extraFilters['tag_ids'] ?? const <String>{};
+          if (tagIds.isEmpty) return items.toList(growable: false);
+          return items
+              .where((e) => matchesTagIdFilter(e.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   Stream<int> watchCount({required String companyId}) =>

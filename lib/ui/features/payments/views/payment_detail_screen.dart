@@ -6,6 +6,8 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
@@ -117,6 +119,16 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
                                   p.customValue4,
                                 ],
                                 formatter: formatter,
+                              ),
+                            ],
+                            if (p.tagIds.isNotEmpty) ...[
+                              SizedBox(height: InSpacing.md(context)),
+                              DashboardCardShell(
+                                title: context.tr('tags'),
+                                child: EntityTagsView(
+                                  entityType: 'payment',
+                                  tagIds: p.tagIds,
+                                ),
                               ),
                             ],
                           ],

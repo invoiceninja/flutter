@@ -65,6 +65,12 @@ class ClientListViewModel extends GenericListViewModel<Client> {
   @override
   bool isDeleted(Client item) => item.isDeleted;
 
+  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
+  /// so a short filtered result must auto-chain page fetches (see the base).
+  @override
+  bool get localOnlyFilterActive =>
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+
   // ── Data-source hooks ──────────────────────────────────────────────
 
   @override
@@ -92,12 +98,17 @@ class ClientListViewModel extends GenericListViewModel<Client> {
     // `group=` server filter never advances — and corrupts — the shared
     // `client` delta cursor. Serve purely from the local Drift watch.
     if (groupSettingsId != null) return Future.value(false);
+    // `tag_ids` is applied locally (post-decode in repo.watchPage) — strip it
+    // from the server fetch.
     return repo.ensurePageLoaded(
       companyId: companyId,
       page: page,
       search: search,
       states: states,
-      extraFilters: extraFilters,
+      extraFilters: GenericListViewModel.extraFiltersWithout(
+        extraFilters,
+        'tag_ids',
+      ),
       ignoreCursor: ignoreCursor,
     );
   }

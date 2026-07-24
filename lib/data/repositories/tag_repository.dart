@@ -15,8 +15,8 @@ import 'package:admin/domain/sync/mutation.dart';
 
 /// Repository for Tags — a small, admin-managed, name+color reference entity
 /// scoped per `(company_id, entity_type)`. Unlike most reference data tags are
-/// NOT bundled into the login envelope; [refreshAll] fetches both entity types
-/// on demand (company-activate + Settings pull-to-refresh). Mutations flow
+/// NOT bundled into the login envelope; [refreshAll] fetches every taggable
+/// type on demand (company-activate + Settings pull-to-refresh). Mutations flow
 /// through the standard outbox via the generic `wire<>()`.
 class TagRepository extends BaseEntityRepository<Tag, TagApi> {
   TagRepository({
@@ -73,12 +73,14 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
           .map((row) => row == null ? null : _fromRow(row));
 
   /// Fetch every tag for the company. Tags require an `entity_type` filter on
-  /// the index, so we fetch `task` and `project` separately and upsert both —
-  /// the sets are disjoint (a tag belongs to exactly one entity_type per the
-  /// server's `UNIQUE(company_id, entity_type, name)`). Bypasses the keyset
-  /// cursor entirely; tags are a small set, so we just page until exhausted.
+  /// the index, so we fetch each taggable type ([kTagEntityTypes]) separately
+  /// and upsert — the sets are disjoint (a tag belongs to exactly one
+  /// entity_type per the server's `UNIQUE(company_id, entity_type, name)`).
+  /// Bypasses the keyset cursor entirely; tags are a small set, so we just page
+  /// until exhausted. Sequential (one type at a time) keeps it simple; the
+  /// per-type sets are tiny.
   Future<void> refreshAll({required String companyId}) async {
-    for (final entityType in const ['task', 'project']) {
+    for (final entityType in kTagEntityTypes) {
       var page = 1;
       while (true) {
         final result = await api.list(

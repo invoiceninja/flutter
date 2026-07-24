@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'expense_api_model.freezed.dart';
 part 'expense_api_model.g.dart';
@@ -77,6 +78,10 @@ abstract class ExpenseApi with _$ExpenseApi {
     // Nullable so JSON-omitted (→ null) is distinguishable from
     // JSON-present-and-empty (→ const []). Same convention as `ProjectApi`.
     List<DocumentApi>? documents,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
   }) = _ExpenseApi;
 
   factory ExpenseApi.fromJson(Map<String, dynamic> json) =>

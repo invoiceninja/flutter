@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/products/view_models/product_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
@@ -78,6 +80,12 @@ class ProductEditDetailsSection extends StatelessWidget {
                 onChanged: vm.setNotes,
                 minLines: 2,
                 maxLines: null,
+              ),
+              SizedBox(height: InSpacing.md(context)),
+              EntityTagsField(
+                entityType: 'product',
+                selectedIds: vm.draft.tagIds,
+                onChanged: vm.setTagIds,
               ),
             ],
           ),

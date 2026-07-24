@@ -173,6 +173,23 @@ class AuthRepository {
   /// clobber the new session's token.
   int _sessionGeneration = 0;
 
+  /// Ask the server which credentials [email] needs before showing the form's
+  /// optional fields. Pure read — touches no session state. Returns null when
+  /// the precheck can't be answered (older server, offline, rate-limited);
+  /// callers must fall back to showing every field. See
+  /// [AuthService.precheck].
+  Future<LoginPrecheck?> precheckLogin({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    String? secret,
+  }) => _auth.precheck(
+    baseUrl: baseUrl,
+    isHosted: isHosted,
+    email: email,
+    secret: secret,
+  );
+
   /// Hot login. Calls `/api/v1/login`, persists everything, and primes
   /// [credentials] so subsequent API calls work.
   Future<void> login({

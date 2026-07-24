@@ -65,6 +65,9 @@ _RecurringExpenseApi _$RecurringExpenseApiFromJson(Map<String, dynamic> json) =>
       documents: (json['documents'] as List<dynamic>?)
           ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
           .toList(),
+      tags: json['tags'] == null
+          ? const <TagRefApi>[]
+          : const EmbeddedTagsConverter().fromJson(json['tags']),
     );
 
 Map<String, dynamic> _$RecurringExpenseApiToJson(
@@ -123,6 +126,7 @@ Map<String, dynamic> _$RecurringExpenseApiToJson(
   'updated_at': instance.updatedAt,
   'archived_at': instance.archivedAt,
   'documents': instance.documents,
+  'tags': const EmbeddedTagsConverter().toJson(instance.tags),
 };
 
 _RecurringDateApi _$RecurringDateApiFromJson(Map<String, dynamic> json) =>

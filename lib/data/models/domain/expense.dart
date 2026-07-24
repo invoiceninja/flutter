@@ -70,6 +70,7 @@ abstract class Expense with _$Expense {
     required DateTime createdAt,
     required DateTime? archivedAt,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     @Default(false) bool isDirty,
   }) = _Expense;
 
@@ -121,6 +122,10 @@ abstract class Expense with _$Expense {
     createdAt: epochSecondsToUtc(a.createdAt),
     archivedAt: epochSecondsToUtcOrNull(a.archivedAt),
     documents: mapDocuments(a.documents),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
   );
 }
 
@@ -247,6 +252,8 @@ extension ExpensePayload on Expense {
       'custom_value2': customValue2,
       'custom_value3': customValue3,
       'custom_value4': customValue4,
+      // Full-set replace: the server syncs attached tags to exactly this list.
+      'tags': tagIds,
       'tax_name1': taxName1,
       'tax_name2': taxName2,
       'tax_name3': taxName3,

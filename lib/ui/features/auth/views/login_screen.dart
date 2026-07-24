@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -236,30 +238,57 @@ class _LoginForm extends StatelessWidget {
               onChanged: vm.setUrlOverride,
             ),
             SizedBox(height: InSpacing.md(context)),
-            // Optional X-API-SECRET for self-hosted servers that set API_SECRET.
+            // X-API-SECRET for self-hosted servers that set API_SECRET.
             // Obscured + reveal (config secrets are usually pasted). autofillHints
             // null excludes it from the login AutofillGroup so iOS/macOS won't
             // offer the saved account password here. No Enter submit — the
             // password field below stays the submit trigger.
-            AuthPasswordField(
-              label: '${context.tr('api_secret')} (${context.tr('optional')})',
-              initialValue: vm.secret,
-              autofillHints: null,
-              onChanged: vm.setSecret,
-            ),
-            SizedBox(height: InSpacing.md(context)),
+            //
+            // `/login/precheck` reports whether the server actually has a
+            // secret configured: hidden when it says no, and shown without the
+            // "(optional)" qualifier when it says yes. Before the server
+            // answers (and whenever the precheck fails) it stays visible and
+            // optional — the pre-precheck behavior.
+            if (vm.showSecretField) ...[
+              AuthPasswordField(
+                label: vm.secretIsRequired
+                    ? context.tr('api_secret')
+                    : '${context.tr('api_secret')} (${context.tr('optional')})',
+                initialValue: vm.secret,
+                autofillHints: null,
+                onChanged: vm.setSecret,
+              ),
+              SizedBox(height: InSpacing.md(context)),
+            ],
           ],
           if (isEmail) ...[
-            AuthField(
-              label: context.tr('email'),
-              initialValue: vm.email,
-              keyboardType: TextInputType.emailAddress,
-              errorText: vm.fieldErrors['email']?.first,
-              autofillHints: const [
-                AutofillHints.username,
-                AutofillHints.email,
-              ],
-              onChanged: vm.setEmail,
+            // Blur triggers `/login/precheck`, which decides whether the
+            // optional TOTP / API-secret fields are shown at all. Deliberately
+            // fire-and-forget: `runPrecheck` swallows every failure, so this
+            // can never delay or block a login.
+            Focus(
+              // Observe-only: without `skipTraversal` this wrapper is itself a
+              // focus-traversal stop (`Focus` defaults `canRequestFocus: true`
+              // / `skipTraversal: false`, and the policy filter is exactly
+              // `canRequestFocus && !skipTraversal`), so Tab would land on an
+              // invisible node before reaching the email input. `hasFocus`
+              // still reports descendant focus, so `onFocusChange` is
+              // unaffected.
+              skipTraversal: true,
+              onFocusChange: (hasFocus) {
+                if (!hasFocus) unawaited(vm.runPrecheck());
+              },
+              child: AuthField(
+                label: context.tr('email'),
+                initialValue: vm.email,
+                keyboardType: TextInputType.emailAddress,
+                errorText: vm.fieldErrors['email']?.first,
+                autofillHints: const [
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
+                onChanged: vm.setEmail,
+              ),
             ),
             SizedBox(height: InSpacing.md(context)),
             AuthPasswordField(
@@ -269,13 +298,19 @@ class _LoginForm extends StatelessWidget {
               onChanged: vm.setPassword,
               onSubmitted: vm.busy ? null : (_) => onEmailSubmit(),
             ),
-            SizedBox(height: InSpacing.md(context)),
-            AuthField(
-              label: context.tr('two_factor_otp_optional'),
-              keyboardType: TextInputType.number,
-              autofillHints: const [AutofillHints.oneTimeCode],
-              onChanged: vm.setOneTimePassword,
-            ),
+            // Hidden once `/login/precheck` confirms this account has no TOTP.
+            // Until the server answers — and on any precheck failure — this
+            // stays visible, so an older or unreachable server behaves exactly
+            // as it did before precheck existed.
+            if (vm.showOtpField) ...[
+              SizedBox(height: InSpacing.md(context)),
+              AuthField(
+                label: context.tr('two_factor_otp_optional'),
+                keyboardType: TextInputType.number,
+                autofillHints: const [AutofillHints.oneTimeCode],
+                onChanged: vm.setOneTimePassword,
+              ),
+            ],
           ],
           const SizedBox(height: InSpacing.xl),
           FilledButton.icon(

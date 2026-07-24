@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/schedule_item.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
@@ -119,7 +120,15 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
           dueDateStart: dueDateRange.start,
           dueDateEnd: dueDateRange.end,
         )
-        .map((rows) => rows.map(_fromRow).toList(growable: false));
+        .map((rows) {
+          final items = rows.map(_fromRow);
+          // `tag_ids` lives only in the payload — post-decode predicate.
+          final tagIds = extraFilters['tag_ids'] ?? const <String>{};
+          if (tagIds.isEmpty) return items.toList(growable: false);
+          return items
+              .where((i) => matchesTagIdFilter(i.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   Stream<int> watchCount({required String companyId}) =>

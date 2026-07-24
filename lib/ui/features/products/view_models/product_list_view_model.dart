@@ -4,6 +4,7 @@ import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/repositories/product_repository.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/product_columns.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -93,15 +94,23 @@ class ProductListViewModel extends GenericListViewModel<Product> {
         customFilters: customFilters,
       )
       .map((products) {
-        // `in_stock_quantity` lives in the product payload, not a physical
-        // column, so low-stock is a post-decode predicate over the loaded page
-        // — never a SQL WHERE. Completeness is bounded by the loaded pages; the
-        // Product report is the authoritative full-dataset view. Read the
-        // filter + threshold per-emit so a Drift re-emit re-filters with the
-        // current company threshold.
+        var result = products;
+        // `tag_ids` and `in_stock_quantity` both live in the product payload,
+        // not physical columns, so both are post-decode predicates over the
+        // loaded page — never SQL WHEREs. Completeness is bounded by the loaded
+        // pages; the list VM auto-chains page loads to converge (see
+        // localOnlyFilterActive).
+        final tagIds = extraFilters['tag_ids'] ?? const <String>{};
+        if (tagIds.isNotEmpty) {
+          result = result
+              .where((p) => matchesTagIdFilter(p.tagIds, tagIds))
+              .toList(growable: false);
+        }
+        // Read the stock filter + threshold per-emit so a Drift re-emit
+        // re-filters with the current company threshold.
         final filter = _stockFilter;
-        if (filter == StockFilter.none) return products;
-        return products
+        if (filter == StockFilter.none) return result;
+        return result
             .where(
               (p) => stockFilterMatches(
                 p,
@@ -117,7 +126,9 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   /// otherwise `stock:low` with no match in the first 50 rows renders a
   /// false "No records found" that can never scroll itself out.
   @override
-  bool get localOnlyFilterActive => _stockFilter != StockFilter.none;
+  bool get localOnlyFilterActive =>
+      _stockFilter != StockFilter.none ||
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   int get pageSize => repo.pageSize;
@@ -143,9 +154,14 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     // local watch re-applies it post-decode in [watchPage]; see
     // [GenericListViewModel.extraFiltersWithout] for why it must not reach
     // the server fetch.
+    // Both `stock` and `tag_ids` are applied LOCALLY (post-decode in
+    // [watchPage]) — strip them from the server fetch.
     final serverFilters = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      StockFilterKey.serverKey,
+      GenericListViewModel.extraFiltersWithout(
+        extraFilters,
+        StockFilterKey.serverKey,
+      ),
+      'tag_ids',
     );
     return repo.ensurePageLoaded(
       companyId: companyId,

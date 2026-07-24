@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 
 part 'recurring_invoice_api_model.freezed.dart';
@@ -69,6 +70,10 @@ abstract class RecurringInvoiceApi with _$RecurringInvoiceApi {
     List<LineItemApi> lineItems,
     @Default(<InvitationApi>[]) List<InvitationApi> invitations,
     List<DocumentApi>? documents,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
     // Recurring-specific fields — required for this entity, optional on
     // invoices generated from it.
     @JsonKey(name: 'frequency_id') @Default('') String frequencyId,

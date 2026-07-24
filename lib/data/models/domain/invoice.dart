@@ -99,6 +99,7 @@ abstract class Invoice with _$Invoice {
     @Default(<LineItem>[]) List<LineItem> lineItems,
     @Default(<Invitation>[]) List<Invitation> invitations,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     Map<String, dynamic>? eInvoice,
     Map<String, dynamic>? backup,
     Map<String, dynamic>? taxInfo,
@@ -178,6 +179,10 @@ abstract class Invoice with _$Invoice {
     lineItems: a.lineItems.map(LineItem.fromApi).toList(growable: false),
     invitations: a.invitations.map(Invitation.fromApi).toList(growable: false),
     documents: mapDocuments(a.documents),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
     eInvoice: a.eInvoice,
     backup: a.backup,
     taxInfo: a.taxInfo,
@@ -306,6 +311,8 @@ extension InvoicePayload on Invoice {
       'custom_value2': customValue2,
       'custom_value3': customValue3,
       'custom_value4': customValue4,
+      // Full-set replace: the server syncs attached tags to exactly this list.
+      'tags': tagIds,
       'line_items': lineItems.map((l) => l.toApiJson()).toList(),
       'invitations': invitations.map((i) => i.toApiJson()).toList(),
       'reminder_schedule': reminderSchedule,

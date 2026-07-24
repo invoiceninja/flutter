@@ -143,6 +143,31 @@ void main() {
       expect(payload['budgeted_hours'], 40.0);
     });
 
+    test('budgetedAmount round-trips as Decimal from number or string', () {
+      // The server transformer emits a float; older/raw payloads can carry a
+      // string. Both must land on the same Decimal and serialize back as a
+      // string so precision survives (see `task_rate`).
+      for (final raw in <Object>[1250.5, '1250.50']) {
+        final domain = Project.fromApi(
+          ProjectApi(
+            id: 'proj_1',
+            name: 'Q1 work',
+            budgetedAmount: raw,
+            updatedAt: 1700000000,
+          ),
+        );
+        expect(domain.budgetedAmount, Decimal.parse('1250.5'));
+        expect(domain.toApiJson()['budgeted_amount'], '1250.5');
+      }
+    });
+
+    test('absent budgetedAmount defaults to zero', () {
+      final domain = Project.fromApi(
+        const ProjectApi(id: 'proj_1', name: 'X', updatedAt: 1700000000),
+      );
+      expect(domain.budgetedAmount, Decimal.zero);
+    });
+
     test('empty dueDate string parses to null, serializes back to empty', () {
       final domain = Project.fromApi(
         const ProjectApi(id: 'proj_1', name: 'X', updatedAt: 1700000000),

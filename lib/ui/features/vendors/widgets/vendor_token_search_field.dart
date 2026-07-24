@@ -3,14 +3,18 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/company_custom_fields.dart';
+import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/token_search_field.dart';
 import 'package:admin/ui/features/vendors/view_models/vendor_list_view_model.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_filter_keys.dart';
 
-/// Thin wrapper that wires [TokenSearchField] for the vendors list. Watches
-/// the current `Company` so the configured custom-field labels feed into
-/// the filter keys when those land. Mirror of `ClientTokenSearchField`.
-class VendorTokenSearchField extends StatelessWidget {
+/// Thin wrapper that wires [TokenSearchField] for the vendors list.
+///
+/// Stateful + key-caching: `TagFilterKey` opens a Drift watch subscription in
+/// its constructor, so the key list is rebuilt (and the old one disposed) only
+/// when the custom-field label signature changes — never on every re-emit.
+class VendorTokenSearchField extends StatefulWidget {
   const VendorTokenSearchField({
     required this.vm,
     required this.wide,
@@ -21,19 +25,61 @@ class VendorTokenSearchField extends StatelessWidget {
   final bool wide;
 
   @override
+  State<VendorTokenSearchField> createState() => _VendorTokenSearchFieldState();
+}
+
+class _VendorTokenSearchFieldState extends State<VendorTokenSearchField> {
+  Stream<Company?>? _companyStream;
+  String? _streamCompanyId;
+
+  List<FilterKey>? _keys;
+  String? _signature;
+
+  static String _sig(String companyId, Company? c) => c == null
+      ? '$companyId#'
+      : '$companyId#'
+            '${[for (var i = 1; i <= 4; i++) c.customFieldLabel('vendor$i')].join('|')}';
+
+  void _disposeKeys() {
+    for (final k in _keys ?? const <FilterKey>[]) {
+      k.dispose();
+    }
+    _keys = null;
+  }
+
+  List<FilterKey> _keysFor(Services services, Company? company) {
+    final signature = _sig(widget.vm.companyId, company);
+    if (_keys != null && _signature == signature) return _keys!;
+    _disposeKeys();
+    _signature = signature;
+    return _keys = buildVendorFilterKeys(
+      company: company,
+      statics: services.statics,
+      tags: services.tags,
+      companyId: widget.vm.companyId,
+    );
+  }
+
+  @override
+  void dispose() {
+    _disposeKeys();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
+    if (_companyStream == null || _streamCompanyId != widget.vm.companyId) {
+      _streamCompanyId = widget.vm.companyId;
+      _companyStream = services.company.watchCompany(widget.vm.companyId);
+    }
     return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(vm.companyId),
+      stream: _companyStream,
       builder: (context, snapshot) {
-        final keys = buildVendorFilterKeys(
-          company: snapshot.data,
-          statics: services.statics,
-        );
         return TokenSearchField(
-          vm: vm,
-          filterKeys: keys,
-          wide: wide,
+          vm: widget.vm,
+          filterKeys: _keysFor(services, snapshot.data),
+          wide: widget.wide,
           hintKey: 'search_vendors_or_filter_hint',
         );
       },

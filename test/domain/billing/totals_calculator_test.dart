@@ -245,6 +245,30 @@ void main() {
       expect(result.taxAmount, d('166.66'));
       expect(result.total, d('1000.00'));
     });
+
+    test('an un-named inclusive rate still shrinks the shared base', () {
+      // Server parity: `InvoiceSumInclusive::calculateTaxes` feeds the raw
+      // `[tax_rate1, tax_rate2, tax_rate3]` into `InclusiveTax::backout` and
+      // only name-gates which component it *adds*. So rate2 (blank name) is
+      // dropped from the breakdown but still counts toward Σr = 20, leaving
+      // VAT at 1000 × 10/120 = 83.33 — not the 90.91 a divisor of 10 alone
+      // would give. Reachable via API-created / imported invoices.
+      final result = computeTotals(
+        input(
+          lineItems: [item(cost: '1000')],
+          taxName1: 'VAT',
+          taxRate1: '10',
+          taxName2: '',
+          taxRate2: '10',
+          usesInclusiveTaxes: true,
+        ),
+        2,
+      );
+      expect(result.taxBreakdown['VAT'], d('83.33'));
+      expect(result.taxBreakdown.containsKey(''), isFalse);
+      expect(result.taxAmount, d('83.33'));
+      expect(result.total, d('1000.00'));
+    });
   });
 
   group('per-item taxes', () {

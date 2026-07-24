@@ -7,6 +7,8 @@ import 'package:admin/data/models/value/language.dart';
 import 'package:admin/data/models/value/size.dart';
 import 'package:decimal/decimal.dart';
 import 'package:admin/data/repositories/group_setting_repository.dart';
+import 'package:admin/data/repositories/tag_repository.dart';
+import 'package:admin/data/services/tags_api.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/group_settings_api.dart';
@@ -1649,6 +1651,7 @@ void main() {
                   api: _FakeGroupSettingsApi(),
                 ),
                 users: UserRepository(db: db, api: _FakeUsersApi()),
+                tags: TagRepository(db: db, api: _StubTagsApi()),
                 companyId: 'co',
               );
               displayLabels = [for (final k in keys) k.displayLabel(context)];
@@ -1660,12 +1663,14 @@ void main() {
       // is, name, email, number, balance, custom1..4 (4), country,
       // industry, size, currency, language, classification, vat,
       // id_number, created, updated, group, assigned
-      // → 21 keys. (The standalone "updated between" entry was folded into
-      // the `updated` DateColumnFilterKey's `between` operator; FilterFilterKey
-      // was removed earlier — it duplicated the plain-text search path.)
+      // → 21 keys + the appended tag filter = 22. (The standalone "updated
+      // between" entry was folded into the `updated` DateColumnFilterKey's
+      // `between` operator; FilterFilterKey was removed earlier — it
+      // duplicated the plain-text search path.)
       // custom1 gets "Region", custom3 gets "Project"; others fall through to
       // the generic label.
-      expect(displayLabels.length, 21);
+      expect(displayLabels.length, 22);
+      expect(displayLabels.last, 'Tags', reason: 'tag filter appended last');
       // Order: is(0), name(1), email(2), number(3), balance(4),
       // custom1(5)…custom4(8), …
       expect(
@@ -1825,6 +1830,11 @@ class _FakeGroupSettingsApi implements GroupSettingsApi {
 }
 
 class _FakeUsersApi implements UsersApi {
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _StubTagsApi implements TagsApi {
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

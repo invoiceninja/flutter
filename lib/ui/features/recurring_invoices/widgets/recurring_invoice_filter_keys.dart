@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/data/models/domain/recurring_invoice_status.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/client_filter_key.dart';
@@ -12,14 +13,21 @@ import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/membership_filter_key.dart';
+import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
 List<FilterKey> buildRecurringInvoiceFilterKeys({
   required ClientRepository clients,
+  required TagRepository tags,
   required String companyId,
   Company? company,
   String? Function(String id)? nameForClientId,
 }) => <FilterKey>[
   const IsFilterKey(),
+  TagFilterKey(
+    tags: tags,
+    companyId: companyId,
+    entityType: 'recurring_invoice',
+  ),
   ClientFilterKey(
     clients: clients,
     companyId: companyId,

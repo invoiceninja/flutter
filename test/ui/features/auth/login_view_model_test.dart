@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -63,6 +65,31 @@ class _CapturingAuthService implements AuthService {
     capturedBaseUrl = baseUrl;
     capturedSecret = secret;
     throw const NetworkException('captured');
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Serves a canned `/login/precheck` answer, optionally held open by [gate] so
+/// a test can dispose the VM while the request is still in flight.
+class _PrecheckAuthService implements AuthService {
+  _PrecheckAuthService({this.result, this.gate});
+
+  final LoginPrecheck? result;
+  final Completer<void>? gate;
+  int calls = 0;
+
+  @override
+  Future<LoginPrecheck?> precheck({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    String? secret,
+  }) async {
+    calls++;
+    if (gate != null) await gate!.future;
+    return result;
   }
 
   @override
@@ -257,6 +284,132 @@ void main() {
     test('submitApple is a no-op where the segment is hidden', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       expect(await vm.submitApple(), isFalse);
+    });
+  });
+
+  group('login precheck', () {
+    // The form hides its optional TOTP / API-secret fields based on this
+    // answer, so the load-bearing rule is: only ever hide a field the server
+    // has positively told us is unnecessary. Anything else — no answer yet,
+    // an older server, offline — must leave both visible.
+    LoginViewModel vmWithPrecheck(_PrecheckAuthService svc) {
+      final repo = AuthRepository(
+        db: db,
+        authService: svc,
+        tokenStorage: InMemoryTokenStorage(),
+        passwordCache: PasswordCache(),
+      );
+      return LoginViewModel(auth: repo)
+        ..setHosted(false)
+        ..setUrlOverride('https://ninja.example.com')
+        ..setEmail('a@b.test');
+    }
+
+    const passwordOnly = LoginPrecheck(
+      methods: {'password'},
+      secretRequired: false,
+    );
+
+    test('both optional fields stay visible until the server answers', () {
+      final vm = vmWithPrecheck(_PrecheckAuthService());
+      expect(vm.showOtpField, isTrue);
+      expect(vm.showSecretField, isTrue);
+      expect(vm.secretIsRequired, isFalse);
+    });
+
+    test('a null answer (older server / offline) keeps both fields', () async {
+      final vm = vmWithPrecheck(_PrecheckAuthService());
+      await vm.runPrecheck();
+      expect(vm.showOtpField, isTrue);
+      expect(vm.showSecretField, isTrue);
+    });
+
+    test('password-only account hides the OTP and secret fields', () async {
+      final vm = vmWithPrecheck(_PrecheckAuthService(result: passwordOnly));
+      await vm.runPrecheck();
+      expect(vm.showOtpField, isFalse);
+      expect(vm.showSecretField, isFalse);
+    });
+
+    test(
+      'totp + secret_required keeps both and marks the secret required',
+      () async {
+        final vm = vmWithPrecheck(
+          _PrecheckAuthService(
+            result: const LoginPrecheck(
+              methods: {'password', 'totp'},
+              secretRequired: true,
+            ),
+          ),
+        );
+        await vm.runPrecheck();
+        expect(vm.showOtpField, isTrue);
+        expect(vm.showSecretField, isTrue);
+        expect(vm.secretIsRequired, isTrue);
+      },
+    );
+
+    test('hiding the OTP field clears a stale code', () async {
+      // submit() sends one_time_password whenever it is non-empty, so a code
+      // left behind by the now-hidden field would fail a valid login.
+      final vm = vmWithPrecheck(_PrecheckAuthService(result: passwordOnly));
+      vm.setOneTimePassword('123456');
+      await vm.runPrecheck();
+      expect(vm.showOtpField, isFalse);
+      expect(vm.oneTimePassword, isEmpty);
+    });
+
+    test('a typed secret survives being hidden', () async {
+      // Deliberate asymmetry with the OTP: a stale secret is ignored by a
+      // server with no API_SECRET (ApiSecretCheck short-circuits), and keeping
+      // it means switching back to a secret-requiring URL restores the value.
+      final vm = vmWithPrecheck(_PrecheckAuthService(result: passwordOnly));
+      vm.setSecret('s3cret');
+      await vm.runPrecheck();
+      expect(vm.showSecretField, isFalse);
+      expect(vm.secret, 's3cret');
+    });
+
+    test('editing the email drops the previous answer', () async {
+      final vm = vmWithPrecheck(_PrecheckAuthService(result: passwordOnly));
+      await vm.runPrecheck();
+      expect(vm.showOtpField, isFalse);
+      vm.setEmail('other@b.test');
+      expect(
+        vm.showOtpField,
+        isTrue,
+        reason: 'answer belonged to the old email',
+      );
+    });
+
+    test('does not re-ask for an unchanged email', () async {
+      final svc = _PrecheckAuthService(result: passwordOnly);
+      final vm = vmWithPrecheck(svc);
+      await vm.runPrecheck();
+      await vm.runPrecheck();
+      expect(svc.calls, 1);
+    });
+
+    test('skips a blank or malformed email entirely', () async {
+      final svc = _PrecheckAuthService(result: passwordOnly);
+      final vm = vmWithPrecheck(svc)..setEmail('not-an-email');
+      await vm.runPrecheck();
+      expect(svc.calls, 0);
+    });
+
+    test('disposing mid-flight does not notify a disposed notifier', () async {
+      // runPrecheck is fire-and-forget from the email field's blur, and the
+      // server pads the response to a 250 ms floor, so a fast submit can tear
+      // the screen down first. Notifying past dispose throws
+      // debugAssertNotDisposed.
+      final gate = Completer<void>();
+      final vm = vmWithPrecheck(
+        _PrecheckAuthService(result: passwordOnly, gate: gate),
+      );
+      final pending = vm.runPrecheck();
+      vm.dispose();
+      gate.complete();
+      await expectLater(pending, completes);
     });
   });
 }

@@ -3,6 +3,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 
 // `kColumnFlexMinWidth` moved to `lib/ui/core/list/entity_list_constants.dart`
 // so every entity's list screen can use the same value.
@@ -55,6 +56,8 @@ class ClientFieldIds {
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
   static const String archivedAt = 'archived_at';
+  // Display-only (tags live in the payload) — never add to sortOptions.
+  static const String tagIds = 'client_tag_ids';
 }
 
 /// Every column the new app knows how to render for the client list.
@@ -293,6 +296,16 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
     cellBuilder: (c, ctx) =>
         c.archivedAt == null ? cellEmpty() : cellDate(c.archivedAt!, ctx),
     valueBuilder: (c) => c.archivedAt?.toIso8601String(),
+  ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  ClientColumn(
+    id: ClientFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (c, _) => c.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'client', tagIds: c.tagIds),
+    valueBuilder: (c) => '',
   ),
 ];
 

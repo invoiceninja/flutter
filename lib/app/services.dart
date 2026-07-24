@@ -72,6 +72,7 @@ import 'package:admin/data/services/device_contacts_service_factory.dart';
 import 'package:admin/data/services/documents_api.dart';
 import 'package:admin/data/services/emails_api.dart';
 import 'package:admin/data/services/dashboard_api.dart';
+import 'package:admin/data/services/project_charts_api.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/statics_service.dart';
@@ -232,6 +233,7 @@ class Services implements SidebarBadgeContext {
     required this.quickbooks,
     required this.calendarConnection,
     required this.dashboard,
+    required this.projectCharts,
     required this.reports,
     required this.statics,
     required this.system,
@@ -448,6 +450,10 @@ class Services implements SidebarBadgeContext {
   final CalendarConnectionRepository calendarConnection;
 
   final DashboardRepository dashboard;
+
+  /// Per-project analytics + burn-up charts. Read-only, live server reads
+  /// (never persisted to Drift) — same status as the dashboard charts.
+  final ProjectChartsApi projectCharts;
 
   /// Reports — queued-job endpoints (preview / export / email). Used only
   /// by the Reports screen at `/reports`; not part of the entity sync
@@ -1025,6 +1031,7 @@ class Services implements SidebarBadgeContext {
     );
     final dashboardApi = DashboardApi(apiClient);
     final dashboardRepo = DashboardRepository(db: db, api: dashboardApi);
+    final projectChartsApi = ProjectChartsApi(apiClient);
     final reportsApi = ReportsApi(apiClient);
     final reportsRepo = ReportsRepository(api: reportsApi);
     final statics = StaticsRepository(
@@ -1275,6 +1282,7 @@ class Services implements SidebarBadgeContext {
       quickbooks: quickbooksRepo,
       calendarConnection: calendarConnectionRepo,
       dashboard: dashboardRepo,
+      projectCharts: projectChartsApi,
       reports: reportsRepo,
       statics: statics,
       system: systemApi,

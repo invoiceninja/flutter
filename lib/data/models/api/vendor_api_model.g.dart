@@ -46,6 +46,9 @@ _VendorApi _$VendorApiFromJson(Map<String, dynamic> json) => _VendorApi(
   documents: (json['documents'] as List<dynamic>?)
       ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
       .toList(),
+  tags: json['tags'] == null
+      ? const <TagRefApi>[]
+      : const EmbeddedTagsConverter().fromJson(json['tags']),
 );
 
 Map<String, dynamic> _$VendorApiToJson(_VendorApi instance) =>
@@ -83,6 +86,7 @@ Map<String, dynamic> _$VendorApiToJson(_VendorApi instance) =>
       'is_deleted': instance.isDeleted,
       'contacts': instance.contacts,
       'documents': instance.documents,
+      'tags': const EmbeddedTagsConverter().toJson(instance.tags),
     };
 
 _VendorContactApi _$VendorContactApiFromJson(Map<String, dynamic> json) =>

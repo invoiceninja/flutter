@@ -28,6 +28,7 @@ class InvoiceFieldIds {
   static const String paidToDate = 'paid_to_date';
   static const String partial = 'partial';
   static const String poNumber = 'po_number';
+  static const String recurringId = 'recurring_id';
   static const String designId = 'design_id';
   static const String assignedUserId = 'assigned_user_id';
   static const String publicNotes = 'public_notes';
@@ -38,6 +39,8 @@ class InvoiceFieldIds {
   static const String customValue2 = 'custom_value2';
   static const String customValue3 = 'custom_value3';
   static const String customValue4 = 'custom_value4';
+  // Display-only (tags live in the payload) — never add to sortOptions.
+  static const String tagIds = 'invoice_tag_ids';
 }
 
 @DriftAccessor(tables: [Invoices])

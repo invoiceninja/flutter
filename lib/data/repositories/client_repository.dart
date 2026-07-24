@@ -20,6 +20,7 @@ import 'package:admin/data/models/domain/gateway_token.dart';
 import 'package:admin/data/models/domain/location.dart';
 import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
@@ -116,7 +117,17 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
           createdFrom: _isoDayStartEpoch(created.start),
           createdTo: _isoDayEndEpoch(created.end),
         )
-        .map((rows) => rows.map(_fromRow).toList(growable: false));
+        .map((rows) {
+          final items = rows.map(_fromRow);
+          // `tag_ids` lives only in the payload JSON — post-decode predicate
+          // over the loaded page (the list VM strips it from the server fetch
+          // and auto-chains page loads to converge).
+          final tagIds = parseCsvFilter(extraFilters, 'tag_ids');
+          if (tagIds.isEmpty) return items.toList(growable: false);
+          return items
+              .where((c) => matchesTagIdFilter(c.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   /// Extracts the numeric (gt, lt) thresholds from a `BalanceFilterKey`

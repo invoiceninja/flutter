@@ -23,6 +23,7 @@ class ExpenseFieldIds {
   static const String projectId = 'project_id';
   static const String categoryId = 'category_id';
   static const String invoiceId = 'invoice_id';
+  static const String transactionId = 'transaction_id';
   static const String currencyId = 'currency_id';
   static const String status = 'status';
   static const String publicNotes = 'public_notes';
@@ -33,6 +34,8 @@ class ExpenseFieldIds {
   static const String customValue2 = 'custom_value2';
   static const String customValue3 = 'custom_value3';
   static const String customValue4 = 'custom_value4';
+  // Display-only (tags live in the payload) — never add to sortOptions.
+  static const String tagIds = 'expense_tag_ids';
 }
 
 @DriftAccessor(tables: [Expenses])

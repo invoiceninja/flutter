@@ -27,6 +27,11 @@ abstract class Project with _$Project {
     required String privateNotes,
     required String publicNotes,
     required double budgetedHours,
+
+    /// Optional money budget, independent of `budgetedHours`. The server's
+    /// project charts fall back to `budgetedHours × taskRate` when this is
+    /// zero (`ProjectBurnUpService::budgetedAmount`).
+    required Decimal budgetedAmount,
     required double currentHours,
     required String customValue1,
     required String customValue2,
@@ -55,6 +60,7 @@ abstract class Project with _$Project {
     privateNotes: a.privateNotes,
     publicNotes: a.publicNotes,
     budgetedHours: a.budgetedHours.toDouble(),
+    budgetedAmount: parseMoney(a.budgetedAmount),
     currentHours: a.currentHours.toDouble(),
     customValue1: a.customValue1,
     customValue2: a.customValue2,
@@ -90,6 +96,8 @@ extension ProjectPayload on Project {
       'private_notes': privateNotes,
       'public_notes': publicNotes,
       'budgeted_hours': budgetedHours,
+      // Decimal → String so precision survives (see `task_rate` above).
+      'budgeted_amount': budgetedAmount.toString(),
       'custom_value1': customValue1,
       'custom_value2': customValue2,
       'custom_value3': customValue3,

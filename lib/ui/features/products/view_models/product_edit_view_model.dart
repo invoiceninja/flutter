@@ -87,6 +87,7 @@ class ProductEditViewModel extends GenericEditViewModel<Product> {
   void setTaxRate2(String v) => setDec((d, n) => d.copyWith(taxRate2: n), v);
   void setTaxName3(String v) => setStr((d, n) => d.copyWith(taxName3: n), v);
   void setTaxRate3(String v) => setDec((d, n) => d.copyWith(taxRate3: n), v);
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
 
   /// Atomically set a tax slot's name + rate from the bundled tax-rate
   /// picker. Takes a machine [Decimal] and bypasses the String-based

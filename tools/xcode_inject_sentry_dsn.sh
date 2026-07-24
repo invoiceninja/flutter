@@ -9,10 +9,22 @@ set -euo pipefail
 # xcconfig (macos/Flutter/ephemeral/Flutter-Generated.xcconfig,
 # ios/Flutter/Generated.xcconfig). A bare `flutter pub get` / `flutter run`
 # regenerates that file WITHOUT the DSN, so a manual Xcode archive would ship
-# with Sentry disabled. This rewrites the generated xcconfig with the DSN via
-# `flutter build <platform> --release --config-only` (the same seam CI uses in
-# appstore-{ios,macos}.yml) BEFORE Xcode compiles, so IDE archives report
-# crashes like the CLI/CI ones do.
+# with Sentry disabled.
+#
+# HOW: this rewrites *only* the IN_SENTRY_DSN entry inside the already-generated
+# xcconfig's DART_DEFINES list, in place, using only base64 + awk. It does NOT
+# invoke `flutter` / `pod` / `xcodebuild`, and that is the whole point:
+#
+#   An earlier version ran `flutter build <platform> --release --config-only`
+#   here. Run synchronously inside an *iOS* archive's pre-action it HUNG — the
+#   nested Flutter/CocoaPods work deadlocked under a GUI-launched Xcode that has
+#   no shell PATH and no TTY — so the archive stalled in the pre-action and never
+#   produced a .xcarchive (macOS happened to complete, so only iOS broke).
+#
+# Editing one line can't hang, needs nothing on PATH, and is instant. Xcode reads
+# DART_DEFINES from the xcconfig as a build setting and xcode_backend.sh /
+# macos_assemble.sh forward it to `flutter assemble`, so the compile consumes
+# exactly what we write here — the same seam the old --config-only write relied on.
 #
 # Wired in as the first BuildAction pre-action in BOTH shared schemes
 # (macos|ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme).
@@ -34,7 +46,7 @@ if [[ "${CONFIGURATION:-}" != "Release" ]]; then
   echo "==> [sentry-dsn] CONFIGURATION=${CONFIGURATION:-<unset>} (not Release) — skipping."
   exit 0
 fi
-# Pre-actions also fire on Clean; don't build there (mirrors Flutter's prepare).
+# Pre-actions also fire on Clean; don't touch the config there.
 if [[ "${ACTION:-}" == "clean" ]]; then
   exit 0
 fi
@@ -64,37 +76,55 @@ elif [[ -f "$dev_json" ]]; then
   [[ -n "$dsn" ]] && dsn_source="dev.json"
 fi
 
-# Locate flutter: prefer Xcode's FLUTTER_ROOT (from the generated xcconfig),
-# fall back to PATH so a manual run still works.
-if [[ -n "${FLUTTER_ROOT:-}" && -x "$FLUTTER_ROOT/bin/flutter" ]]; then
-  flutter_bin="$FLUTTER_ROOT/bin/flutter"
-elif command -v flutter >/dev/null 2>&1; then
-  flutter_bin="$(command -v flutter)"
-else
-  echo "error: [sentry-dsn] flutter not found (FLUTTER_ROOT unset and not on PATH)." >&2
-  exit 1
+# --- locate the platform's generated xcconfig ---
+case "$platform" in
+  ios)   xcconfig="$repo_root/ios/Flutter/Generated.xcconfig" ;;
+  macos) xcconfig="$repo_root/macos/Flutter/ephemeral/Flutter-Generated.xcconfig" ;;
+esac
+
+if [[ ! -f "$xcconfig" ]] || ! /usr/bin/grep -q '^DART_DEFINES=' "$xcconfig"; then
+  # Non-fatal: any `flutter pub get` / build / run writes DART_DEFINES, so this
+  # only trips on a never-built tree (which can't archive anyway). Don't block.
+  echo "warning: [sentry-dsn] no DART_DEFINES in ${xcconfig#"$repo_root"/} — run a build once first; skipping Sentry injection." >&2
+  exit 0
 fi
 
-if [[ -z "$dsn" ]]; then
+# DART_DEFINES is a comma-separated list of base64("KEY=VALUE") entries. Rebuild
+# it: keep every entry except a prior IN_SENTRY_DSN, then append a fresh one when
+# we have a DSN (an empty DSN drops it -> Sentry disabled, no blank entry baked).
+current="$(/usr/bin/grep -E '^DART_DEFINES=' "$xcconfig" | head -n1 | sed 's/^DART_DEFINES=//')"
+rebuilt=""
+saved_ifs="$IFS"
+IFS=','
+for entry in $current; do
+  IFS="$saved_ifs"
+  if [[ -n "$entry" ]]; then
+    decoded="$(printf '%s' "$entry" | /usr/bin/base64 -D 2>/dev/null || true)"
+    if [[ "$decoded" != IN_SENTRY_DSN=* ]]; then
+      rebuilt="${rebuilt:+$rebuilt,}$entry"
+    fi
+  fi
+  IFS=','
+done
+IFS="$saved_ifs"
+if [[ -n "$dsn" ]]; then
+  enc="$(printf '%s' "IN_SENTRY_DSN=$dsn" | /usr/bin/base64 | tr -d '\n')"
+  rebuilt="${rebuilt:+$rebuilt,}$enc"
+fi
+
+# Write the DART_DEFINES line back. `awk -v` treats the value literally, so the
+# / + = in base64 can't be mangled the way a `sed s/.../.../` replacement would.
+tmp="$(/usr/bin/mktemp)"
+/usr/bin/awk -v val="DART_DEFINES=$rebuilt" \
+  '/^DART_DEFINES=/ { print val; next } { print }' "$xcconfig" > "$tmp"
+mv "$tmp" "$xcconfig"
+
+if [[ -n "$dsn" ]]; then
+  echo "==> [sentry-dsn] Baked Sentry DSN into the $platform build (source: $dsn_source)."
+else
   # Loud but non-fatal: an archive with Sentry disabled is a safe no-op, and we
   # must not block a developer who simply hasn't configured a DSN. `warning:`
   # makes Xcode surface it in the Issue navigator.
   echo "warning: [sentry-dsn] IN_SENTRY_DSN is empty (not in environment or dev.json)." >&2
-  echo "warning: [sentry-dsn] This $platform archive will ship with Sentry DISABLED." >&2
-else
-  echo "==> [sentry-dsn] Baking Sentry DSN into the $platform archive (source: $dsn_source)."
+  echo "warning: [sentry-dsn] This $platform build will ship with Sentry DISABLED." >&2
 fi
-
-# macOS desktop must be enabled for `flutter build macos` (idempotent no-op when
-# already on). Mirrors tools/build_release.sh.
-[[ "$platform" == "macos" ]] && "$flutter_bin" config --enable-macos-desktop >/dev/null
-
-# Regenerate the platform's Generated.xcconfig with the DSN in DART_DEFINES.
-# --config-only writes the config and STOPS (no compile) -> no xcodebuild
-# re-entrancy / no pre-action recursion, and no codesigning needed. Runs from
-# the Flutter project root.
-cd "$repo_root"
-"$flutter_bin" build "$platform" --release --config-only \
-  --dart-define=IN_SENTRY_DSN="$dsn"
-
-echo "==> [sentry-dsn] Done — $platform Generated.xcconfig updated (Sentry: $([[ -n "$dsn" ]] && echo enabled || echo disabled))."

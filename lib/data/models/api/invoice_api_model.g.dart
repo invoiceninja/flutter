@@ -68,6 +68,9 @@ _InvoiceApi _$InvoiceApiFromJson(Map<String, dynamic> json) => _InvoiceApi(
   documents: (json['documents'] as List<dynamic>?)
       ?.map((e) => DocumentApi.fromJson(e as Map<String, dynamic>))
       .toList(),
+  tags: json['tags'] == null
+      ? const <TagRefApi>[]
+      : const EmbeddedTagsConverter().fromJson(json['tags']),
   reminder1Sent: json['reminder1_sent'] as String? ?? '',
   reminder2Sent: json['reminder2_sent'] as String? ?? '',
   reminder3Sent: json['reminder3_sent'] as String? ?? '',
@@ -149,6 +152,7 @@ Map<String, dynamic> _$InvoiceApiToJson(_InvoiceApi instance) =>
       'line_items': instance.lineItems,
       'invitations': instance.invitations,
       'documents': instance.documents,
+      'tags': const EmbeddedTagsConverter().toJson(instance.tags),
       'reminder1_sent': instance.reminder1Sent,
       'reminder2_sent': instance.reminder2Sent,
       'reminder3_sent': instance.reminder3Sent,

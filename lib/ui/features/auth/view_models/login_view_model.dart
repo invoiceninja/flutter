@@ -4,6 +4,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/utils/local_network_host.dart';
 
@@ -74,6 +75,86 @@ class LoginViewModel extends ChangeNotifier {
   bool _busy = false;
   bool get busy => _busy;
 
+  /// Set in [dispose] so the fire-and-forget [runPrecheck] can bail instead of
+  /// notifying a dead notifier. Mirrors the guard on `GenericListViewModel` /
+  /// `GenericDetailViewModel`.
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  // ── Login precheck ─────────────────────────────────────────────────
+  // `POST /login/precheck` tells us whether this email needs a TOTP code and
+  // whether the server enforces an API secret, so the form can hide the
+  // fields that don't apply instead of labelling them "(optional)" and making
+  // the user guess. Null = not asked yet, or the ask failed — either way the
+  // form shows everything, so a missing/older/unreachable endpoint degrades
+  // to exactly the pre-precheck behavior.
+  LoginPrecheck? _precheck;
+  LoginPrecheck? get precheck => _precheck;
+
+  /// Email address the current [_precheck] answer belongs to, so a repeated
+  /// blur on an unchanged field doesn't re-hit a rate-limited endpoint.
+  String _precheckedEmail = '';
+
+  /// Show the TOTP field unless the server has told us this account has no
+  /// TOTP. Optimistic on purpose — never hide a field we aren't sure about.
+  bool get showOtpField => _precheck?.requiresOtp ?? true;
+
+  /// Show the self-hosted API-secret field unless the server has told us it
+  /// isn't configured. Same optimistic rule as [showOtpField].
+  bool get showSecretField => _precheck?.secretRequired ?? true;
+
+  /// True once the server has answered for the current email — lets the view
+  /// label the secret field "required" rather than "(optional)".
+  bool get secretIsRequired => _precheck?.secretRequired ?? false;
+
+  /// Ask the server what this email needs. Safe to call repeatedly: it
+  /// no-ops on a blank/unchanged email and swallows every failure (the
+  /// service returns null rather than throwing), so it can never block the
+  /// user from logging in. Call on email-field blur.
+  Future<void> runPrecheck() async {
+    final target = email;
+    if (target.isEmpty || !target.contains('@')) return;
+    if (target == _precheckedEmail && _precheck != null) return;
+    // A bad self-hosted URL is surfaced by submit(), not here — silently skip.
+    final baseUrl = isHosted ? Env.hostedApiUrl : _bestEffortBaseUrl();
+    if (baseUrl == null) return;
+
+    final result = await auth.precheckLogin(
+      baseUrl: baseUrl,
+      isHosted: isHosted,
+      email: target,
+      secret: secret.isEmpty ? null : secret,
+    );
+    // Disposed while in flight — this is fire-and-forget from the email
+    // field's blur, so a fast submit can tear the screen down before the
+    // 250 ms server-side time floor elapses. Notifying past dispose throws.
+    if (_disposed) return;
+    // The user may have edited the address while the request was in flight.
+    if (target != email) return;
+    _precheckedEmail = target;
+    _precheck = result;
+    // Drop a code the user can no longer see: `submit()` sends
+    // `one_time_password` whenever it's non-empty, so a stale value left
+    // behind by the now-hidden field would fail an otherwise-valid login.
+    // (`secret` deliberately survives — a stale one is ignored by a server
+    // with no `API_SECRET` configured, and keeping it means switching back to
+    // a secret-requiring URL restores what was typed.)
+    if (!showOtpField) oneTimePassword = '';
+    notifyListeners();
+  }
+
+  /// Resolve the self-hosted URL without surfacing an error — the precheck is
+  /// best-effort, so an unusable URL just means "don't ask".
+  String? _bestEffortBaseUrl() => resolveSelfHostedBaseUrl(
+    urlOverride,
+    allowInsecureHttpAnywhere: kDebugMode,
+  ).url;
+
   // Localization key for the current error message. When set, the view
   // resolves it via `context.tr(errorKey!, errorParams)`. A null `errorKey`
   // with a non-null `errorMessage` means the message came back from the
@@ -121,7 +202,15 @@ class LoginViewModel extends ChangeNotifier {
   }
 
   void setEmail(String value) {
-    email = value.trim();
+    final next = value.trim();
+    if (next == email) return;
+    email = next;
+    // The answer belongs to the previous address — drop it so the form falls
+    // back to showing both optional fields until a fresh precheck lands.
+    if (_precheck != null) {
+      _precheck = null;
+      notifyListeners();
+    }
   }
 
   void setPassword(String value) {

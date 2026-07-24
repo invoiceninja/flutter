@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -220,6 +221,18 @@ class _DetailsCard extends StatelessWidget {
             _Row(
               label: context.tr('assigned_user'),
               value: UserNameLabel(userId: p.assignedUserId),
+            ),
+          // Optional money budget — blank (zero) means "derive from
+          // budgeted_hours × task_rate", so hide the row rather than show 0.
+          if (p.budgetedAmount != Decimal.zero)
+            _Row(
+              label: context.tr('budgeted_amount'),
+              value: Text(
+                f == null
+                    ? p.budgetedAmount.toString()
+                    : f.money(p.budgetedAmount),
+                style: moneyTextStyle(),
+              ),
             ),
           _Row(
             label: context.tr('task_rate'),

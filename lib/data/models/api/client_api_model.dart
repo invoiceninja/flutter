@@ -5,6 +5,7 @@ import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/gateway_token_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/models/api/location_api_model.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 
 part 'client_api_model.freezed.dart';
 part 'client_api_model.g.dart';
@@ -91,6 +92,10 @@ abstract class ClientApi with _$ClientApi {
     @JsonKey(name: 'gateway_tokens')
     @Default(<GatewayTokenApi>[])
     List<GatewayTokenApi> gatewayTokens,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
     // Nullable on purpose: the IN list endpoint omits the `documents` field
     // unless `?include=documents` is requested. Distinguishing "key missing
     // from JSON" (→ null) from "key present, array empty" (→ `const []`)

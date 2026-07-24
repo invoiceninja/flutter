@@ -472,7 +472,10 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       _applyIntentState(pending);
       _schedulePersist();
     }
-    _subscribeColumns();
+    // Embedded lists render the entity's default columns held in memory; they
+    // don't read (or write) the user's saved standalone-list column layout —
+    // same isolation as the nav_state guard below.
+    if (!isEmbedded) _subscribeColumns();
     _subscribe();
     _subscribeCustomValues();
     // Embedded lists ignore saved-view / nav_state writes — they're scoped to
@@ -953,6 +956,9 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       watchDistinctCustomValues(columnIndex);
 
   Future<void> setColumns(List<String> ids) async {
+    // Embedded lists have no Columns picker and must not touch the shared
+    // standalone-list column preference.
+    if (isEmbedded) return;
     final next = List<String>.unmodifiable(ids);
     if (listEquals(next, _columnIds)) return;
     _columnIds = next;
@@ -968,6 +974,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   }
 
   Future<void> resetColumns() async {
+    if (isEmbedded) return;
     _columnIds = List<String>.from(defaultColumnIds);
     _columnsCustomized = false;
     notifyListeners();

@@ -46,6 +46,7 @@ abstract class BankTransaction with _$BankTransaction {
     required DateTime updatedAt,
     required DateTime createdAt,
     required DateTime? archivedAt,
+    @Default(<String>[]) List<String> tagIds,
     @Default(false) bool isDirty,
   }) = _BankTransaction;
 
@@ -72,6 +73,10 @@ abstract class BankTransaction with _$BankTransaction {
     updatedAt: epochSecondsToUtc(a.updatedAt),
     createdAt: epochSecondsToUtc(a.createdAt),
     archivedAt: epochSecondsToUtcOrNull(a.archivedAt),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
   );
 
   Map<String, dynamic> toApiJson({bool preserveTempId = false}) {
@@ -101,6 +106,10 @@ abstract class BankTransaction with _$BankTransaction {
           ? 0
           : archivedAt!.millisecondsSinceEpoch ~/ 1000,
     ).toJson();
+    // The API model's EmbeddedTagsConverter would serialize bare ids as
+    // `[{id, name:'', color:null}]`; overwrite with the bare id list so the
+    // wire shape matches the other entities (full-set sync).
+    json['tags'] = tagIds;
     if (!preserveTempId && id.startsWith('tmp_')) {
       json.remove('id');
     }

@@ -72,6 +72,52 @@ class AuthService {
     return LoginResponseApi.fromJson(json);
   }
 
+  /// POST `/api/v1/login/precheck` — asks the server which credentials this
+  /// email actually needs, so the login form can hide the fields that don't
+  /// apply instead of labelling them "(optional)" and making the user guess.
+  ///
+  /// Body `{email}`; response `{methods: ['password'|'totp', …],
+  /// secret_required: bool}`. The server pads the response to a constant time
+  /// floor and returns a uniform payload for unknown accounts, so this leaks
+  /// no account-existence signal.
+  ///
+  /// **Fails open.** Every failure path — older server (404), rate limit,
+  /// offline, malformed body — returns null, and the caller falls back to
+  /// showing both optional fields. This must never be able to block a login.
+  Future<LoginPrecheck?> precheck({
+    required String baseUrl,
+    required bool isHosted,
+    required String email,
+    String? secret,
+  }) async {
+    try {
+      final response = await _post(
+        Uri.parse(baseUrl).resolve('/api/v1/login/precheck'),
+        headers: _headers(
+          isHosted: isHosted,
+          contentTypeJson: true,
+          secret: secret,
+        ),
+        body: jsonEncode({'email': email}),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) return null;
+      final json = jsonDecode(response.body);
+      if (json is! Map<String, dynamic>) return null;
+      final methods = json['methods'];
+      return LoginPrecheck(
+        methods: <String>{
+          if (methods is List)
+            for (final m in methods)
+              if (m is String) m,
+        },
+        secretRequired: json['secret_required'] == true,
+      );
+    } catch (_) {
+      // Deliberately swallows everything (see the fail-open contract above).
+      return null;
+    }
+  }
+
   /// POST `/api/v1/refresh` authenticated by an explicit API token rather
   /// than an active session. Used by demo builds to bootstrap a session from
   /// a baked-in token (see `Env.demoApiToken`). The server echoes the
@@ -239,4 +285,24 @@ class AuthService {
         throw ServerException(response.statusCode, message);
     }
   }
+}
+
+/// Result of [AuthService.precheck] — what the server says this email needs.
+///
+/// A null result (never an instance with everything false) means the precheck
+/// itself failed; callers must treat that as "show everything", not as
+/// "nothing required". See the fail-open contract on [AuthService.precheck].
+class LoginPrecheck {
+  const LoginPrecheck({required this.methods, required this.secretRequired});
+
+  /// Auth methods the account supports, e.g. `{'password'}` or
+  /// `{'password', 'totp'}`.
+  final Set<String> methods;
+
+  /// True when the server is configured with an `API_SECRET`, so the
+  /// self-hosted `X-API-SECRET` field is mandatory rather than optional.
+  final bool secretRequired;
+
+  /// Whether the account has TOTP two-factor enabled.
+  bool get requiresOtp => methods.contains('totp');
 }

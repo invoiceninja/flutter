@@ -56,6 +56,7 @@ class _ExpenseTokenSearchFieldState extends State<ExpenseTokenSearchField> {
       categories: services.expenseCategories,
       projects: services.projects,
       vendors: services.vendors,
+      tags: services.tags,
       companyId: widget.vm.companyId,
       // Reads through the State field, so the cached keys see the latest
       // names on every emission without being reconstructed.

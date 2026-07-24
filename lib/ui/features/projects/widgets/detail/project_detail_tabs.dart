@@ -10,6 +10,7 @@ import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/expenses/views/expense_list_screen.dart';
 import 'package:admin/ui/features/invoices/views/invoice_list_screen.dart';
+import 'package:admin/ui/features/projects/widgets/detail/analytics/project_analytics_tab.dart';
 import 'package:admin/ui/features/quotes/views/quote_list_screen.dart';
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart';
 import 'package:admin/utils/formatting.dart';
@@ -78,6 +79,20 @@ class ProjectDetailTabs extends StatelessWidget {
           repo: services.projects,
           formatter: formatter,
         ),
+        // Server-computed analytics + burn-up. Gated on `view_dashboard`
+        // because that's what both chart endpoints authorize against
+        // (`ShowProjectAnalyticsRequest::authorize`) — without the gate a
+        // restricted user would get a tab that can only 403. Also hidden for
+        // an unsynced project: the endpoints are keyed by the server id, and
+        // a `tmp_` id can only 404.
+        if ((me?.can('view_dashboard') ?? false) &&
+            !projectId.startsWith('tmp_'))
+          EntityDetailTab(
+            label: context.tr('analytics'),
+            icon: Icons.insights_outlined,
+            bodyBuilder: (_) =>
+                ProjectAnalyticsTab(projectId: projectId, formatter: formatter),
+          ),
         EntityDetailTab(
           label: context.tr('activity'),
           icon: Icons.history_outlined,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
@@ -9,6 +10,7 @@ import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/recurring_expenses/view_models/recurring_expense_edit_view_model.dart';
@@ -35,6 +37,12 @@ class RecurringExpenseEditIdentitySection extends StatelessWidget {
           _ProjectPicker(vm: vm),
           _CategoryPicker(vm: vm),
           _CurrencyPicker(vm: vm),
+          SizedBox(height: InSpacing.md(context)),
+          EntityTagsField(
+            entityType: 'recurring_expense',
+            selectedIds: vm.draft.tagIds,
+            onChanged: vm.setTagIds,
+          ),
         ],
       ),
     );

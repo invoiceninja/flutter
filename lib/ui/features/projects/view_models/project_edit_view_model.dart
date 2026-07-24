@@ -109,6 +109,8 @@ class ProjectEditViewModel extends GenericEditViewModel<Project> {
           0.0,
     ),
   );
+  void setBudgetedAmount(String input) =>
+      setDec((d, v) => d.copyWith(budgetedAmount: v), input);
   void setTaskRate(String input) =>
       setDec((d, v) => d.copyWith(taskRate: v), input);
   void setColor(String v) => updateDraft(draft.copyWith(color: v));
@@ -137,6 +139,7 @@ Project emptyProject() => Project(
   privateNotes: '',
   publicNotes: '',
   budgetedHours: 0.0,
+  budgetedAmount: Decimal.zero,
   currentHours: 0.0,
   customValue1: '',
   customValue2: '',

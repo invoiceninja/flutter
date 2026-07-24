@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
@@ -36,6 +37,12 @@ class ExpenseEditIdentitySection extends StatelessWidget {
           _ProjectPicker(vm: vm),
           _CategoryPicker(vm: vm),
           _CurrencyPicker(vm: vm),
+          SizedBox(height: InSpacing.md(context)),
+          EntityTagsField(
+            entityType: 'expense',
+            selectedIds: vm.draft.tagIds,
+            onChanged: vm.setTagIds,
+          ),
         ],
       ),
     );

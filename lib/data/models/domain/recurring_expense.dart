@@ -76,6 +76,7 @@ abstract class RecurringExpense with _$RecurringExpense {
     required DateTime createdAt,
     required DateTime? archivedAt,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     @Default(<RecurringDate>[]) List<RecurringDate> recurringDates,
     @Default(false) bool isDirty,
   }) = _RecurringExpense;
@@ -133,6 +134,10 @@ abstract class RecurringExpense with _$RecurringExpense {
     createdAt: epochSecondsToUtc(a.createdAt),
     archivedAt: epochSecondsToUtcOrNull(a.archivedAt),
     documents: mapDocuments(a.documents),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
     recurringDates: [
       for (final r in a.recurringDates ?? const <RecurringDateApi>[])
         RecurringDate.fromApi(r),
@@ -249,6 +254,8 @@ extension RecurringExpensePayload on RecurringExpense {
       'custom_value2': customValue2,
       'custom_value3': customValue3,
       'custom_value4': customValue4,
+      // Full-set replace: the server syncs attached tags to exactly this list.
+      'tags': tagIds,
       'tax_name1': taxName1,
       'tax_name2': taxName2,
       'tax_name3': taxName3,

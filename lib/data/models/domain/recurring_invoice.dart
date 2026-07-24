@@ -79,6 +79,7 @@ abstract class RecurringInvoice with _$RecurringInvoice {
     @Default(<LineItem>[]) List<LineItem> lineItems,
     @Default(<Invitation>[]) List<Invitation> invitations,
     @Default(<Document>[]) List<Document> documents,
+    @Default(<String>[]) List<String> tagIds,
     Map<String, dynamic>? eInvoice,
     @Default(false) bool isDirty,
   }) = _RecurringInvoice;
@@ -144,6 +145,10 @@ abstract class RecurringInvoice with _$RecurringInvoice {
     lineItems: a.lineItems.map(LineItem.fromApi).toList(growable: false),
     invitations: a.invitations.map(Invitation.fromApi).toList(growable: false),
     documents: mapDocuments(a.documents),
+    tagIds: [
+      for (final t in a.tags)
+        if (t.id.isNotEmpty) t.id,
+    ],
     eInvoice: a.eInvoice,
   );
 }
@@ -228,6 +233,8 @@ extension RecurringInvoicePayload on RecurringInvoice {
       'custom_value2': customValue2,
       'custom_value3': customValue3,
       'custom_value4': customValue4,
+      // Full-set replace: the server syncs attached tags to exactly this list.
+      'tags': tagIds,
       'frequency_id': frequencyId,
       'next_send_date': nextSendDate?.toIso() ?? '',
       // Server-managed: the API recomputes this from next_send_date + the

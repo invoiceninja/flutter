@@ -12,6 +12,8 @@ import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_field.dart';
+import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
@@ -117,6 +119,15 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
       mainAxisSize: MainAxisSize.min,
       children: [
         _IdentitySection(vm: vm, useCommaAsDecimalPlace: _useComma),
+        SizedBox(height: InSpacing.lg(context)),
+        DashboardCardShell(
+          title: context.tr('tags'),
+          child: EntityTagsField(
+            entityType: 'payment',
+            selectedIds: vm.draft.tagIds,
+            onChanged: vm.setTagIds,
+          ),
+        ),
         if (vm.isCreate) ...[
           SizedBox(height: InSpacing.lg(context)),
           PaymentAllocationsSection(

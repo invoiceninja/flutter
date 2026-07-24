@@ -152,6 +152,7 @@ class PurchaseOrderEditViewModel
   // ── Setters ────────────────────────────────────────────────────────
 
   void setClientId(String v) => updateDraft(draft.copyWith(clientId: v));
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
   // Changing the vendor must drop any invitations selected for the *previous*
   // vendor — they point at the old vendor's contacts (`vendor_contact_id`) and
   // are invisible in the Contacts tab once the vendor changes, but would still

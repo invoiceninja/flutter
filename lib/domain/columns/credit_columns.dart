@@ -3,6 +3,7 @@ import 'package:admin/data/db/dao/credit_dao.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
@@ -144,6 +145,16 @@ final List<CreditColumn> kAllCreditColumns = <CreditColumn>[
         return cellNonZeroString(v);
       },
     ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  CreditColumn(
+    id: CreditFieldIds.tagIds,
+    labelKey: 'tags',
+    width: 200,
+    cellBuilder: (c, _) => c.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'credit', tagIds: c.tagIds),
+    valueBuilder: (c) => '',
+  ),
 ];
 
 final Map<String, CreditColumn> creditColumnsById = {

@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/invitation_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 import 'package:admin/data/models/api/line_item_api_model.dart';
 import 'package:admin/data/models/api/schedule_item_api_model.dart';
 
@@ -89,6 +90,10 @@ abstract class InvoiceApi with _$InvoiceApi {
     // Nullable — `documents` only present when `?include=documents` was
     // sent; same convention as ClientApi/ExpenseApi.
     List<DocumentApi>? documents,
+    @JsonKey(name: 'tags')
+    @EmbeddedTagsConverter()
+    @Default(<TagRefApi>[])
+    List<TagRefApi> tags,
     // Reminder timestamps
     @JsonKey(name: 'reminder1_sent') @Default('') String reminder1Sent,
     @JsonKey(name: 'reminder2_sent') @Default('') String reminder2Sent,

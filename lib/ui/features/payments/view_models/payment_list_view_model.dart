@@ -68,6 +68,12 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
   @override
   bool isDeleted(Payment item) => item.isDeleted;
 
+  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
+  /// so a short filtered result must auto-chain page fetches (see the base).
+  @override
+  bool get localOnlyFilterActive =>
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+
   @override
   Stream<List<Payment>> watchPage() => repo.watchPage(
     companyId: companyId,
@@ -90,10 +96,15 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
+    // `tag_ids` is applied locally (post-decode in repo.watchPage) — strip it.
+    final base = GenericListViewModel.extraFiltersWithout(
+      extraFilters,
+      'tag_ids',
+    );
     final filters = clientId == null
-        ? extraFilters
+        ? base
         : {
-            ...extraFilters,
+            ...base,
             'client_id': {clientId!},
           };
     return repo.ensurePageLoaded(

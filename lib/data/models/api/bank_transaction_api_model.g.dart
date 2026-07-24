@@ -30,6 +30,9 @@ _BankTransactionApi _$BankTransactionApiFromJson(Map<String, dynamic> json) =>
       createdAt: (json['created_at'] as num?)?.toInt() ?? 0,
       updatedAt: (json['updated_at'] as num?)?.toInt() ?? 0,
       archivedAt: (json['archived_at'] as num?)?.toInt() ?? 0,
+      tags: json['tags'] == null
+          ? const <TagRefApi>[]
+          : const EmbeddedTagsConverter().fromJson(json['tags']),
     );
 
 Map<String, dynamic> _$BankTransactionApiToJson(_BankTransactionApi instance) =>
@@ -56,6 +59,7 @@ Map<String, dynamic> _$BankTransactionApiToJson(_BankTransactionApi instance) =>
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,
       'archived_at': instance.archivedAt,
+      'tags': ?const EmbeddedTagsConverter().toJson(instance.tags),
     };
 
 _BankTransactionListApi _$BankTransactionListApiFromJson(

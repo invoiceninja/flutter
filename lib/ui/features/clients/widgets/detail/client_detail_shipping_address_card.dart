@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/utils/address_format.dart';
 
 /// "Shipping Address" card on the client detail screen — the shipping_*
 /// mirror of [ClientDetailAddressCard]. Hides entirely when every shipping
@@ -28,12 +29,18 @@ class ClientDetailShippingAddressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cityStateZip = [
-      client.shippingCity,
-      client.shippingState,
-      client.shippingPostalCode,
-    ].where((s) => s.isNotEmpty).join(', ');
-    final country = _resolveCountryName(context, client.shippingCountryId);
+    final countryObj = client.shippingCountryId.isEmpty
+        ? null
+        : context.read<Services>().statics.country(client.shippingCountryId);
+    final cityLine = cityStateZip(
+      city: client.shippingCity,
+      state: client.shippingState,
+      postalCode: client.shippingPostalCode,
+      swapPostalCode: countryObj?.swapPostalCode ?? false,
+    );
+    final country = client.shippingCountryId.isEmpty
+        ? ''
+        : (countryObj?.name ?? client.shippingCountryId);
 
     final rows = <Widget?>[
       if (client.shippingAddress1.isNotEmpty)
@@ -46,8 +53,8 @@ class ClientDetailShippingAddressCard extends StatelessWidget {
           label: context.tr('address2'),
           value: client.shippingAddress2,
         ),
-      if (cityStateZip.isNotEmpty)
-        DetailInfoRow(label: context.tr('city'), value: cityStateZip),
+      if (cityLine.isNotEmpty)
+        DetailInfoRow(label: context.tr('city'), value: cityLine),
       if (country.isNotEmpty)
         DetailInfoRow(
           label: context.tr('country'),
@@ -60,13 +67,5 @@ class ClientDetailShippingAddressCard extends StatelessWidget {
       title: context.tr('shipping_address'),
       child: DetailRowStack(children: rows),
     );
-  }
-
-  /// Best-effort country name lookup (statics map; falls back to the raw id
-  /// during the first frame after login). Mirrors [ClientDetailAddressCard].
-  String _resolveCountryName(BuildContext context, String countryId) {
-    if (countryId.isEmpty) return '';
-    final statics = context.read<Services>().statics;
-    return statics.country(countryId)?.name ?? countryId;
   }
 }

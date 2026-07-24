@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
+import 'package:admin/utils/address_format.dart';
 
 /// "Address" card on the client detail screen. Renders street, city/state/zip,
 /// and country (country name resolved via the cached statics map when
@@ -18,20 +19,30 @@ class ClientDetailAddressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cityStateZip = [
-      client.city,
-      client.state,
-      client.postalCode,
-    ].where((s) => s.isNotEmpty).join(', ');
-    final country = _resolveCountryName(context, client.countryId);
+    // Resolve the country once — its name AND its swap_postal_code flag, which
+    // orders the city/state/postal line the same way the server renders PDFs.
+    final countryObj = client.countryId.isEmpty
+        ? null
+        : context.read<Services>().statics.country(client.countryId);
+    final cityLine = cityStateZip(
+      city: client.city,
+      state: client.state,
+      postalCode: client.postalCode,
+      swapPostalCode: countryObj?.swapPostalCode ?? false,
+    );
+    // Statics load at sign-in; in the first frame after login the map can be
+    // empty — fall back to the raw id so the row still renders something.
+    final country = client.countryId.isEmpty
+        ? ''
+        : (countryObj?.name ?? client.countryId);
 
     final rows = <Widget?>[
       if (client.address1.isNotEmpty)
         DetailInfoRow(label: context.tr('address1'), value: client.address1),
       if (client.address2.isNotEmpty)
         DetailInfoRow(label: context.tr('address2'), value: client.address2),
-      if (cityStateZip.isNotEmpty)
-        DetailInfoRow(label: context.tr('city'), value: cityStateZip),
+      if (cityLine.isNotEmpty)
+        DetailInfoRow(label: context.tr('city'), value: cityLine),
       if (country.isNotEmpty)
         DetailInfoRow(
           label: context.tr('country'),
@@ -44,15 +55,5 @@ class ClientDetailAddressCard extends StatelessWidget {
       title: context.tr('address'),
       child: DetailRowStack(children: rows),
     );
-  }
-
-  /// Best-effort country name lookup. Statics are loaded once at sign-in,
-  /// so this is normally available — but during the very first frame after
-  /// login the map can be empty. In that window we return the raw id so the
-  /// row still renders something useful instead of vanishing.
-  String _resolveCountryName(BuildContext context, String countryId) {
-    if (countryId.isEmpty) return '';
-    final statics = context.read<Services>().statics;
-    return statics.country(countryId)?.name ?? countryId;
   }
 }

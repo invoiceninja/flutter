@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart' show OutboxRow;
 import 'package:admin/data/models/domain/client.dart';
@@ -457,6 +459,26 @@ class _HeaderState extends State<_Header> {
             link: true,
             style: TextStyle(color: tokens.ink3),
           ),
+          // Link to the recurring invoice that generated this invoice.
+          if (invoice.recurringId.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.autorenew, size: 14, color: tokens.ink3),
+                const SizedBox(width: 4),
+                LinkText(
+                  label: context.tr('recurring_invoice'),
+                  style: TextStyle(
+                    color: tokens.ink3,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  onTap: () =>
+                      context.go('/recurring_invoices/${invoice.recurringId}'),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           BillingDatesCaption(
             formatter: formatter,

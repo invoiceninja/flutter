@@ -198,6 +198,7 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
   void setAssignedUserId(String v) =>
       updateDraft(draft.copyWith(assignedUserId: v));
   void setNumber(String v) => updateDraft(draft.copyWith(number: v));
+  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
   void setDate(Date? d) => updateDraft(draft.copyWith(date: d));
   void setTransactionReference(String v) =>
       updateDraft(draft.copyWith(transactionReference: v));

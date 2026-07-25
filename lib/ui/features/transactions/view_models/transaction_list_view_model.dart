@@ -2,6 +2,7 @@ import 'package:admin/data/db/dao/bank_transaction_dao.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/repositories/bank_transaction_repository.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/domain/columns/bank_transaction_columns.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -76,6 +77,12 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
   @override
   bool isDeleted(BankTransaction item) => item.isDeleted;
 
+  /// `tag_ids` is applied post-decode over the loaded window (watchPage), so a
+  /// short filtered result must auto-chain page fetches (see the base).
+  @override
+  bool get localOnlyFilterActive =>
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+
   @override
   Stream<List<BankTransaction>> watchPage() {
     // Mirror the status + type chips into the local Drift query. The server
@@ -90,23 +97,32 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
     // makes it work; the range also narrows the server fetch via `date_range`.
     final dateRange = parseDateRangeFilter(extraFilters);
     final dateCmp = parseComparableDateFilter(extraFilters, 'date');
-    return repo.watchPage(
-      companyId: companyId,
-      loadedPages: loadedPages,
-      search: search.isEmpty ? null : search,
-      states: states,
-      sortField: sortField,
-      sortAscending: sortAscending,
-      bankAccountId: bankAccountId,
-      statusIds: extraFilters['status_id'],
-      baseType: (baseTypes == null || baseTypes.isEmpty)
-          ? null
-          : baseTypes.first,
-      dateStart: dateRange.start,
-      dateEnd: dateRange.end,
-      dateOp: dateCmp.op,
-      dateValue: dateCmp.value,
-    );
+    return repo
+        .watchPage(
+          companyId: companyId,
+          loadedPages: loadedPages,
+          search: search.isEmpty ? null : search,
+          states: states,
+          sortField: sortField,
+          sortAscending: sortAscending,
+          bankAccountId: bankAccountId,
+          statusIds: extraFilters['status_id'],
+          baseType: (baseTypes == null || baseTypes.isEmpty)
+              ? null
+              : baseTypes.first,
+          dateStart: dateRange.start,
+          dateEnd: dateRange.end,
+          dateOp: dateCmp.op,
+          dateValue: dateCmp.value,
+        )
+        .map((items) {
+          // `tag_ids` lives only in the payload — post-decode predicate.
+          final tagIds = extraFilters['tag_ids'] ?? const <String>{};
+          if (tagIds.isEmpty) return items;
+          return items
+              .where((t) => matchesTagIdFilter(t.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   @override
@@ -121,7 +137,10 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
     // keyword param. `BankTransactionFilters` has no `status_id` / `base_type`
     // handler, and `QueryFilters::apply` silently skips params with no matching
     // method — so without this the server-side narrowing is a no-op.
-    final filters = _toServerFilters(extraFilters);
+    // `tag_ids` is applied locally (post-decode in watchPage) — strip it.
+    final filters = _toServerFilters(
+      GenericListViewModel.extraFiltersWithout(extraFilters, 'tag_ids'),
+    );
     if (bankAccountId != null) {
       // Server filter is `bank_integration_ids` (plural) — see
       // `BankTransactionFilters::bank_integration_ids`, which decodes the comma

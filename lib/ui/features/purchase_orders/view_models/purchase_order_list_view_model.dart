@@ -1,6 +1,7 @@
 import 'package:admin/data/db/dao/purchase_order_dao.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/repositories/purchase_order_repository.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/purchase_order_columns.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -57,17 +58,32 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
   @override
   bool isDeleted(PurchaseOrder item) => item.isDeleted;
 
+  /// `tag_ids` is applied post-decode over the loaded window (watchPage), so a
+  /// short filtered result must auto-chain page fetches (see the base).
   @override
-  Stream<List<PurchaseOrder>> watchPage() => repo.watchPage(
-    companyId: companyId,
-    loadedPages: loadedPages,
-    search: search.isEmpty ? null : search,
-    states: states,
-    sortField: sortField,
-    sortAscending: sortAscending,
-    vendorId: vendorId,
-    customFilters: customFilters,
-  );
+  bool get localOnlyFilterActive =>
+      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+
+  @override
+  Stream<List<PurchaseOrder>> watchPage() => repo
+      .watchPage(
+        companyId: companyId,
+        loadedPages: loadedPages,
+        search: search.isEmpty ? null : search,
+        states: states,
+        sortField: sortField,
+        sortAscending: sortAscending,
+        vendorId: vendorId,
+        customFilters: customFilters,
+      )
+      .map((items) {
+        // `tag_ids` lives only in the payload — post-decode predicate.
+        final tagIds = extraFilters['tag_ids'] ?? const <String>{};
+        if (tagIds.isEmpty) return items;
+        return items
+            .where((o) => matchesTagIdFilter(o.tagIds, tagIds))
+            .toList(growable: false);
+      });
 
   @override
   Future<bool> fetchPage({
@@ -77,10 +93,15 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
+    // `tag_ids` is applied locally (post-decode in watchPage) — strip it.
+    final base = GenericListViewModel.extraFiltersWithout(
+      extraFilters,
+      'tag_ids',
+    );
     final filters = vendorId == null
-        ? extraFilters
+        ? base
         : {
-            ...extraFilters,
+            ...base,
             'vendor_id': {vendorId!},
           };
     return repo.ensurePageLoaded(

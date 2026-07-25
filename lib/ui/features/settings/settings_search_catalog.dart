@@ -36,6 +36,7 @@ import 'package:admin/ui/features/settings/views/basic/company_details/documents
 import 'package:admin/ui/features/settings/views/basic/expense_settings_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/logo_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/import_export_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/keyboard_shortcuts_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/localization/custom_labels_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/localization/localization_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/online_payments/online_payments_defaults_body.dart';
@@ -243,6 +244,14 @@ const kSettingsSections = <SettingsSectionDef>[
     titleKey: 'device_settings',
     icon: Icons.devices_outlined,
     route: '/settings/device_settings',
+    isBasic: true,
+    clientEditable: false,
+  ),
+  SettingsSectionDef(
+    slug: 'keyboard_shortcuts',
+    titleKey: 'keyboard_shortcuts',
+    icon: Icons.keyboard_outlined,
+    route: '/settings/keyboard_shortcuts',
     isBasic: true,
     clientEditable: false,
   ),
@@ -464,6 +473,7 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'security',
     'biometric_authentication',
   ],
+  'keyboard_shortcuts': [...kKeyboardShortcutsSearchKeys],
   'invoice_design': [
     // General Settings tab — design pickers
     'invoice_design',

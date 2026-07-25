@@ -321,6 +321,8 @@ class _Overview extends StatelessWidget {
           terms: credit.terms,
           formatter: formatter,
           currencyId: currencyId,
+          entityType: 'credit',
+          tagIds: credit.tagIds,
           trailing: [
             if (credit.customValue1.isNotEmpty ||
                 credit.customValue2.isNotEmpty ||

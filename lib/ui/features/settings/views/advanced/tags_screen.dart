@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/api/tag_api_model.dart';
 import 'package:admin/data/models/domain/tag.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/core/widgets/tag_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
@@ -13,9 +15,11 @@ import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold
 /// adding / renaming a field updates both ends in one place.
 const kTagsSearchKeys = <String>['tags', 'name', 'color'];
 
-/// `/settings/tags` — manage tags, scoped to task or project via the
-/// Task/Project toggle in the banner. Tap a row to edit; "+ New" creates a
-/// tag of the currently-selected entity type. Admin/owner-gated for create.
+/// `/settings/tags` — manage tags, scoped to one tag-bearing entity type via
+/// the picker in the banner. Tags are polymorphic (each tag belongs to exactly
+/// one entity type), so the picker also fixes the type on "+ New". Tap a row to
+/// edit. Admin/owner-gated for create. (Widened from the original Task/Project
+/// toggle to all 14 tag-bearing types — React #3242.)
 class TagsScreen extends StatefulWidget {
   const TagsScreen({super.key});
 
@@ -65,8 +69,11 @@ class _TagsScreenState extends State<TagsScreen> {
   }
 }
 
-/// Task / Project segmented toggle rendered above the list (see React's two
-/// `/settings/tags` routes — we consolidate into one screen + a toggle).
+/// Entity-type picker rendered above the list. Widened from the original
+/// Task/Project segmented toggle to a searchable dropdown over all 14
+/// tag-bearing types (too many for a `SegmentedButton`). Labels + ordering
+/// come from the entity registry so a new tag-bearing entity shows up here for
+/// free. (React #3242 — one `/settings/tags` route per type on the web.)
 class _EntityTypeToggle extends StatelessWidget {
   const _EntityTypeToggle({required this.value, required this.onChanged});
 
@@ -75,6 +82,13 @@ class _EntityTypeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final registry = context.read<Services>().entityRegistry;
+    // `effectiveLabelKey` is already the plural sidebar label (e.g. `tasks`,
+    // `transactions`); fall back to the wire key if a type isn't registered.
+    String labelFor(String type) =>
+        context.tr(registry.byWireName(type)?.effectiveLabelKey ?? type);
+    final types = kTagEntityTypes.toList()
+      ..sort((a, b) => labelFor(a).compareTo(labelFor(b)));
     return Padding(
       padding: EdgeInsets.fromLTRB(
         InSpacing.lg(context),
@@ -84,17 +98,18 @@ class _EntityTypeToggle extends StatelessWidget {
       ),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: SegmentedButton<String>(
-          segments: [
-            ButtonSegment(value: 'task', label: Text(context.tr('tasks'))),
-            ButtonSegment(
-              value: 'project',
-              label: Text(context.tr('projects')),
-            ),
-          ],
-          selected: {value},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) => onChanged(s.first),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: SearchableDropdownField<String>(
+            label: context.tr('type'),
+            items: types,
+            initialValue: value,
+            idOf: (t) => t,
+            displayString: labelFor,
+            onChanged: (t) {
+              if (t != null) onChanged(t);
+            },
+          ),
         ),
       ),
     );

@@ -69,6 +69,7 @@ class TransactionEditViewModel extends GenericEditViewModel<BankTransaction> {
       updateDraft(draft.copyWith(bankAccountId: v));
   void setDescription(String v) => updateDraft(draft.copyWith(description: v));
   void setBaseType(String v) => updateDraft(draft.copyWith(baseType: v));
+  void setTagIds(List<String> v) => updateDraft(draft.copyWith(tagIds: v));
 }
 
 BankTransaction _emptyTransaction() => BankTransaction(

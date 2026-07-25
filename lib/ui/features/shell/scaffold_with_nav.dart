@@ -10,6 +10,8 @@ import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/nav_history_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
+import 'package:admin/app/shortcuts/keyboard_shortcuts_controller.dart';
+import 'package:admin/app/shortcuts/shortcut_catalog.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -82,6 +84,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   /// so we don't wrap the entire shell subtree.
   final Object _globalHintToken = Object();
   late final ShortcutHintController _shortcutHints;
+  late final KeyboardShortcutsController _keyboardShortcuts;
 
   @override
   void initState() {
@@ -95,22 +98,38 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
           context.read<Services>().auth.session.value?.currentCompanyId ?? '',
     );
     _shortcutHints = context.read<Services>().shortcutHints;
+    _keyboardShortcuts = context.read<Services>().keyboardShortcuts;
+    _shortcutHints.register(_globalHintToken, _globalShortcutHints());
+    // Re-register when a binding changes so the hold-modifier bar always shows
+    // the user's current chords (unified with the live Shortcuts map + dialog).
+    _keyboardShortcuts.addListener(_refreshGlobalHints);
+  }
+
+  void _refreshGlobalHints() {
+    if (!mounted) return;
     _shortcutHints.register(_globalHintToken, _globalShortcutHints());
   }
 
-  /// The global modifier shortcuts always available in the authenticated
-  /// shell. Mirrors the `Shortcuts` map in [build] + the help dialog.
+  /// The global modifier shortcuts surfaced in the hold-modifier hint bar.
+  /// Built from the resolved bindings (override → catalog default) so it stays
+  /// in lock-step with the live `Shortcuts` map + the `?` dialog. Only chords
+  /// that use the platform primary modifier belong in a ⌘/Ctrl bar; the bare
+  /// `?` / `/` shortcuts and unbound create actions are omitted.
   List<ShortcutHint> _globalShortcutHints() {
     final mod = platformModifierLabel();
-    final hints = <ShortcutHint>[
-      ShortcutHint(keys: [mod, 'K'], labelKey: 'switch_company'),
-      ShortcutHint(keys: [mod, '/'], labelKey: 'search_everything'),
-      ShortcutHint(keys: [mod, 'B'], labelKey: 'toggle_sidebar'),
-      ShortcutHint(keys: [mod, ','], labelKey: 'settings'),
-    ];
+    final hints = <ShortcutHint>[];
+    for (final def in kShortcutCatalog) {
+      if (def.scope != ShortcutScope.global) continue;
+      final binding = _keyboardShortcuts.resolvedBinding(def.id);
+      if (binding == null || !binding.usesPrimary) continue;
+      hints.add(
+        ShortcutHint(keys: binding.displayGlyphs(mod), labelKey: def.labelKey),
+      );
+    }
     // History back/forward is ⌘+Arrow on Apple but Alt+Arrow on
     // Windows/Linux — a *different* modifier — so only surface it in a
-    // ⌘/Ctrl bar when it matches the platform modifier (macOS/iOS).
+    // ⌘/Ctrl bar when it matches the platform modifier (macOS/iOS). Fixed +
+    // non-remappable, so it's appended directly rather than via the catalog.
     if (platformHistoryModifierLabel() == mod) {
       hints.add(ShortcutHint(keys: [mod, '←'], labelKey: 'go_back'));
       hints.add(ShortcutHint(keys: [mod, '→'], labelKey: 'go_forward'));
@@ -145,6 +164,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     // Clear the global latch if the shell unmounts mid-sequence (e.g. logout
     // during the leader window) so it can't strand single-key shortcuts off.
     leaderModeArmed = false;
+    _keyboardShortcuts.removeListener(_refreshGlobalHints);
     _shortcutHints.unregister(_globalHintToken);
     super.dispose();
   }
@@ -279,71 +299,97 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     return KeyEventResult.ignored;
   }
 
+  /// action id → the Intent to fire, handed to the controller's
+  /// `activatorsFor`. Data only — the behavior lives in the Actions map below;
+  /// built once. Create actions carry their entity type.
+  static final Map<String, Intent> _globalIntents = <String, Intent>{
+    ShortcutActionIds.openCompanyPicker: const _OpenCompanyPickerIntent(),
+    ShortcutActionIds.openCommandPalette: const _OpenCommandPaletteIntent(),
+    ShortcutActionIds.toggleSidebar: const _ToggleSidebarIntent(),
+    ShortcutActionIds.openSettings: const _OpenSettingsIntent(),
+    ShortcutActionIds.openKeyboardShortcuts:
+        const _OpenKeyboardShortcutsIntent(),
+    ShortcutActionIds.focusSearch: const _FocusSearchIntent(),
+    for (final type in kCreateShortcutEntities)
+      ShortcutActionIds.create(type): _CreateEntityIntent(type),
+  };
+
+  /// Non-remappable global combos merged in after the catalog map: browser
+  /// history back/forward. macOS uses ⌘+Arrow, Windows/Linux Alt+Arrow;
+  /// registering all four is harmless (a ⌘ combo won't fire on Windows and
+  /// vice-versa). Kept out of the catalog because one binding can't express
+  /// the per-OS modifier split.
+  static const Map<ShortcutActivator, Intent>
+  _fixedGlobalShortcuts = <ShortcutActivator, Intent>{
+    SingleActivator(LogicalKeyboardKey.arrowLeft, meta: true): _GoBackIntent(),
+    SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): _GoBackIntent(),
+    SingleActivator(LogicalKeyboardKey.arrowRight, meta: true):
+        _GoForwardIntent(),
+    SingleActivator(LogicalKeyboardKey.arrowRight, alt: true):
+        _GoForwardIntent(),
+  };
+
+  /// Navigate to an entity's create route (fired by a `create_<entity>`
+  /// shortcut). No-op when the entity has no create route or its module is
+  /// disabled for the active company (mirrors [_goBranch] — avoids the flash of
+  /// a router redirect).
+  void _createEntity(EntityType type) {
+    final services = context.read<Services>();
+    final route = services.entityRegistry[type]?.newRoute;
+    if (route == null || route.isEmpty) return;
+    final modules =
+        services.auth.session.value?.currentCompany?.enabledModules ?? 0;
+    if (!isEntityModuleEnabledForCompany(type, modules)) return;
+    context.go(route);
+  }
+
   @override
   Widget build(BuildContext context) {
     _maybeNotifyModuleDisabled(context);
-    return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        // ⌘K / Ctrl+K → company picker. ⌘/ / Ctrl+/ → global command
-        // palette (the bare `/` still focuses the in-page list search).
-        SingleActivator(LogicalKeyboardKey.keyK, meta: true):
-            _OpenCompanyPickerIntent(),
-        SingleActivator(LogicalKeyboardKey.keyK, control: true):
-            _OpenCompanyPickerIntent(),
-        SingleActivator(LogicalKeyboardKey.slash, meta: true):
-            _OpenCommandPaletteIntent(),
-        SingleActivator(LogicalKeyboardKey.slash, control: true):
-            _OpenCommandPaletteIntent(),
-        SingleActivator(LogicalKeyboardKey.keyB, meta: true):
-            _ToggleSidebarIntent(),
-        SingleActivator(LogicalKeyboardKey.keyB, control: true):
-            _ToggleSidebarIntent(),
-        SingleActivator(LogicalKeyboardKey.comma, meta: true):
-            _OpenSettingsIntent(),
-        SingleActivator(LogicalKeyboardKey.comma, control: true):
-            _OpenSettingsIntent(),
-        // Browser-style history. Per-OS browser convention: macOS uses
-        // Cmd+Arrow, Windows/Linux use Alt+Arrow. Registering all four is
-        // harmless — a Cmd combo won't fire on Windows and vice-versa, same
-        // as the ⌘/Ctrl dual entries above.
-        SingleActivator(LogicalKeyboardKey.arrowLeft, meta: true):
-            _GoBackIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true):
-            _GoBackIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowRight, meta: true):
-            _GoForwardIntent(),
-        SingleActivator(LogicalKeyboardKey.arrowRight, alt: true):
-            _GoForwardIntent(),
-        // Character-based activators handle the layout-independent case:
-        // `Shift+/` on US, `Shift+Comma` on AZERTY, etc. all produce the
-        // same character and trigger the same intent. SingleActivator on
-        // a logical key wouldn't fire here — there is no logical key for
-        // `?`, and `slash + shift` doesn't reach the matcher reliably
-        // across platforms. See Flutter SDK shortcuts.dart docstring on
-        // `CharacterActivator`.
-        CharacterActivator('?'): _OpenKeyboardShortcutsIntent(),
-        CharacterActivator('/'): _FocusSearchIntent(),
-      },
+    // Remappable global shortcuts come from the keyboard-shortcuts controller
+    // (user override → catalog default); the map rebuilds only when a binding
+    // changes. The browser-history ⌘/Alt+Arrow combos stay fixed — their
+    // per-OS asymmetric modifier isn't expressible as one portable binding —
+    // and the `G`+letter leader sequence is handled by the Focus below, not
+    // here. Full model: `lib/app/shortcuts/`.
+    final shortcutsController = context.read<Services>().keyboardShortcuts;
+    return ListenableBuilder(
+      listenable: shortcutsController,
+      builder: (context, child) => Shortcuts(
+        shortcuts: <ShortcutActivator, Intent>{
+          ...shortcutsController.activatorsFor(
+            ShortcutScope.global,
+            _globalIntents,
+          ),
+          ..._fixedGlobalShortcuts,
+        },
+        child: child!,
+      ),
+      // Built once — a binding change only re-wraps `Shortcuts`, never this
+      // Actions/Focus subtree.
       child: Actions(
         actions: <Type, Action<Intent>>{
-          _OpenCompanyPickerIntent: CallbackAction<_OpenCompanyPickerIntent>(
-            onInvoke: (_) {
-              // Ignore the shortcut when the user is typing — a focused
-              // text input handles modifier shortcuts itself (or has no
-              // useful binding for them); we no-op here so the shell's
-              // company picker doesn't pop over the field.
-              if (isTextInputFocused()) return null;
-              showCompanyPicker(context);
-              return null;
-            },
-          ),
-          _OpenCommandPaletteIntent: CallbackAction<_OpenCommandPaletteIntent>(
-            onInvoke: (_) {
-              if (isTextInputFocused()) return null;
-              showCommandPalette(context);
-              return null;
-            },
-          ),
+          // These four are now remappable (the recorder accepts bare keys), so
+          // they use `GuardedShortcutAction` — same as `?`/`/` and the create
+          // actions below. It disables the action (isEnabled + consumesKey)
+          // while a text field is focused or the leader is armed, so a bare-key
+          // rebind falls through to the field / leader handler instead of being
+          // swallowed. A plain CallbackAction would consume the key even while
+          // no-op'ing, making a rebound letter un-typeable app-wide.
+          _OpenCompanyPickerIntent:
+              GuardedShortcutAction<_OpenCompanyPickerIntent>(
+                onInvoke: (_) {
+                  showCompanyPicker(context);
+                  return null;
+                },
+              ),
+          _OpenCommandPaletteIntent:
+              GuardedShortcutAction<_OpenCommandPaletteIntent>(
+                onInvoke: (_) {
+                  showCommandPalette(context);
+                  return null;
+                },
+              ),
           // `?` and `/` are *unmodified* character activators — they
           // collide with typing in a field. Disable the action (via
           // `GuardedShortcutAction`, which overrides isEnabled +
@@ -362,16 +408,14 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
               return null;
             },
           ),
-          _ToggleSidebarIntent: CallbackAction<_ToggleSidebarIntent>(
+          _ToggleSidebarIntent: GuardedShortcutAction<_ToggleSidebarIntent>(
             onInvoke: (_) {
-              if (isTextInputFocused()) return null;
               context.read<Services>().sidebar.toggle();
               return null;
             },
           ),
-          _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
+          _OpenSettingsIntent: GuardedShortcutAction<_OpenSettingsIntent>(
             onInvoke: (_) {
-              if (isTextInputFocused()) return null;
               final idx = _settingsIndex;
               if (idx != null) _goBranch(idx);
               return null;
@@ -391,6 +435,17 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
             onInvoke: (_) {
               if (isTextInputFocused()) return null;
               context.read<NavHistoryController>().forward();
+              return null;
+            },
+          ),
+          // One shared action for every "create X" shortcut — the invoked
+          // intent carries the entity type, resolved to its `/…/new` route.
+          // `GuardedShortcutAction` stands the key down while a field is
+          // focused (or a leader sequence is armed), so an unmodified-letter
+          // binding still types normally in a text field.
+          _CreateEntityIntent: GuardedShortcutAction<_CreateEntityIntent>(
+            onInvoke: (intent) {
+              _createEntity(intent.type);
               return null;
             },
           ),
@@ -596,6 +651,14 @@ class _GoBackIntent extends Intent {
 
 class _GoForwardIntent extends Intent {
   const _GoForwardIntent();
+}
+
+/// Fires the "create X" shortcut for [type]. One shared action resolves it to
+/// the entity's `/…/new` route (see [_createEntity]); the [type] rides on the
+/// intent so a single Actions entry covers every create shortcut.
+class _CreateEntityIntent extends Intent {
+  const _CreateEntityIntent(this.type);
+  final EntityType type;
 }
 
 /// The hidden Debug Panel band, pinned at the bottom of the authenticated

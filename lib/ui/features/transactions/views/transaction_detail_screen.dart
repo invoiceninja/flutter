@@ -10,6 +10,7 @@ import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/transaction_rule_matched_chip.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_actions.dart';
@@ -175,6 +176,14 @@ class _Header extends StatelessWidget {
             ),
           if (tx.participant.isNotEmpty)
             _MetaRow(label: context.tr('participant'), value: tx.participant),
+          if (tx.tagIds.isNotEmpty)
+            _MetaRow(
+              label: context.tr('tags'),
+              valueChild: EntityTagsView(
+                entityType: 'bank_transaction',
+                tagIds: tx.tagIds,
+              ),
+            ),
         ],
       ),
     );

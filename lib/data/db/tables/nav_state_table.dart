@@ -24,6 +24,14 @@ class NavState extends Table {
 
   TextColumn get filtersJson => text().named('filters_json').nullable()();
 
+  /// Device-local keyboard-shortcut overrides (Settings → Keyboard Shortcuts),
+  /// as a JSON object keyed by catalog action id (value = binding JSON, or
+  /// `null` for an explicitly-cleared shortcut). Null column = no overrides
+  /// (everything at its catalog default). Only overrides are stored, never the
+  /// full resolved set. Added in schema v2.
+  TextColumn get keyboardShortcutsJson =>
+      text().named('keyboard_shortcuts_json').nullable()();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

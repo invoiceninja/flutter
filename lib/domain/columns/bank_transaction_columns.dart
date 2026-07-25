@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/expense_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_status_pill.dart';
@@ -29,6 +30,7 @@ class BankTransactionColumnIds {
   static const String currencyId = 'currency_id';
   static const String amount = BankTransactionFieldIds.amount;
   static const String updatedAt = BankTransactionFieldIds.updatedAt;
+  static const String tagIds = 'bank_transaction_tag_ids';
 }
 
 /// Default visible columns. Status pill leads, deposit + withdrawal split by
@@ -176,6 +178,16 @@ final List<BankTransactionColumn> kAllBankTransactionColumns =
         width: 120,
         cellBuilder: (t, ctx) => cellDate(t.updatedAt, ctx),
         valueBuilder: (t) => t.updatedAt.toIso8601String(),
+      ),
+      // Attached tags. Display-only (not a sortable Drift column).
+      BankTransactionColumn(
+        id: BankTransactionColumnIds.tagIds,
+        labelKey: 'tags',
+        width: 200,
+        cellBuilder: (t, _) => t.tagIds.isEmpty
+            ? cellEmpty()
+            : EntityTagsView(entityType: 'bank_transaction', tagIds: t.tagIds),
+        valueBuilder: (t) => '',
       ),
     ];
 

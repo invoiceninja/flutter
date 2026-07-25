@@ -550,6 +550,8 @@ class _Overview extends StatelessWidget {
           terms: invoice.terms,
           formatter: formatter,
           currencyId: currencyId,
+          entityType: 'invoice',
+          tagIds: invoice.tagIds,
           trailing: [
             if (invoice.customValue1.isNotEmpty ||
                 invoice.customValue2.isNotEmpty ||

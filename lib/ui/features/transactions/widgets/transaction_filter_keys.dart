@@ -1,11 +1,13 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:admin/data/models/domain/bank_transaction.dart';
+import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/date_column_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
+import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
 
 /// Per-key cap on the synchronous `quickValueSuggestions` lookup. Mirrors
@@ -317,9 +319,17 @@ class TransactionTypeFilterKey extends FilterKey {
 /// `date` routes to the server's `date_range` param — `BankTransactionFilters`
 /// extends `QueryFilters`, which exposes `date_range` (`column,start,end`)
 /// against the `bank_transactions.date` column.
-List<FilterKey> buildTransactionFilterKeys() => const <FilterKey>[
-  IsFilterKey(),
-  TransactionStatusFilterKey(),
-  TransactionTypeFilterKey(),
-  DateColumnFilterKey(id: 'date', serverKey: 'date', labelKey: 'date'),
+List<FilterKey> buildTransactionFilterKeys({
+  required TagRepository tags,
+  required String companyId,
+}) => <FilterKey>[
+  const IsFilterKey(),
+  TagFilterKey(
+    tags: tags,
+    companyId: companyId,
+    entityType: 'bank_transaction',
+  ),
+  const TransactionStatusFilterKey(),
+  const TransactionTypeFilterKey(),
+  const DateColumnFilterKey(id: 'date', serverKey: 'date', labelKey: 'date'),
 ];

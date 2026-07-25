@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
@@ -493,6 +494,23 @@ class _Overview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (recurringInvoice.tagIds.isNotEmpty) ...[
+          Text(
+            context.tr('tags'),
+            style: TextStyle(
+              fontSize: 12,
+              color: tokens.ink3,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          EntityTagsView(
+            entityType: 'recurring_invoice',
+            tagIds: recurringInvoice.tagIds,
+          ),
+          if (hasNotes || hasTerms || hasCustomFields)
+            SizedBox(height: InSpacing.md(context)),
+        ],
         if (hasNotes) ...[
           Text(
             context.tr('public_notes'),

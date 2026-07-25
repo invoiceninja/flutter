@@ -16,6 +16,7 @@ import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
+import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/transactions/view_models/transaction_edit_view_model.dart';
@@ -202,6 +203,12 @@ class _TransactionEditBody extends StatelessWidget {
               ),
               maxLines: 3,
               onChanged: vm.setDescription,
+            ),
+            const SizedBox(height: 12),
+            EntityTagsField(
+              entityType: 'bank_transaction',
+              selectedIds: vm.draft.tagIds,
+              onChanged: vm.setTagIds,
             ),
           ],
         ),

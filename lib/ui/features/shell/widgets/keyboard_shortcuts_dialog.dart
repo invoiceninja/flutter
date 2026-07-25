@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
+import 'package:admin/app/shortcuts/shortcut_catalog.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/key_cap.dart';
@@ -24,16 +27,28 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
     final mod = platformModifierLabel();
     final navMod = platformHistoryModifierLabel();
 
+    // Global + create rows come from the resolved bindings (override → default)
+    // so the dialog matches the live `Shortcuts` map + the hint bar. Cleared
+    // shortcuts and unbound create actions are omitted.
+    final controller = context.read<Services>().keyboardShortcuts;
+    List<_RowSpec> rowsFor(ShortcutGroup group) => [
+      for (final def in kShortcutCatalog)
+        if (def.group == group)
+          if (controller.resolvedBinding(def.id) case final b?)
+            _Row(
+              keys: [b.displayGlyphs(mod).join()],
+              description: context.tr(def.labelKey),
+            ),
+    ];
+
     final sections = <_Section>[
       _Section(
         icon: Icons.public_outlined,
         title: context.tr('shortcuts_global'),
         rows: [
-          _Row(keys: ['${mod}K'], description: context.tr('switch_company')),
-          _Row(keys: ['$mod/'], description: context.tr('search_everything')),
-          _Row(keys: ['${mod}B'], description: context.tr('toggle_sidebar')),
-          _Row(keys: ['$mod,'], description: context.tr('settings')),
-          _Row(keys: ['?'], description: context.tr('keyboard_shortcuts')),
+          ...rowsFor(ShortcutGroup.general),
+          // Bound "create X" shortcuts (empty by default — they ship unbound).
+          ...rowsFor(ShortcutGroup.create),
           _LeaderRow(
             leader: 'G',
             targets: ['D', 'C', 'I', 'P', 'S', 'T'],
@@ -65,7 +80,9 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
         icon: Icons.search,
         title: context.tr('shortcuts_search'),
         rows: [
-          _Row(keys: ['/'], description: context.tr('focus_search')),
+          // `/` (focus search) is a global, remappable shortcut — it's rendered
+          // dynamically in the Global section above (reflecting any rebind), so
+          // it's intentionally not repeated here.
           _Row(keys: ['↑', '↓'], description: context.tr('move_selection')),
           _Row(keys: ['Enter'], description: context.tr('apply_filter')),
           _Row(

@@ -1118,5 +1118,16 @@
   "convert_to_task": "Convert to Task",
   "show_events": "Show events",
   "hide_events": "Hide events",
-  "calendar_connect_failed": "Couldn't connect your calendar. Please try again."
+  "calendar_connect_failed": "Couldn't connect your calendar. Please try again.",
+  "shortcuts_general": "General",
+  "shortcuts_create_new": "Create new",
+  "customize_shortcuts": "Customize shortcuts",
+  "customize_shortcuts_hint": "Rebind or clear any shortcut. Single-key shortcuts still type normally inside a text field.",
+  "record_shortcut": "Record",
+  "press_keys_to_record": "Press the key combination…",
+  "shortcut_conflict": "Already used by another shortcut",
+  "shortcut_unassigned": "Unassigned",
+  "shortcut_reserved": "That combination is reserved",
+  "reset_all_shortcuts": "Reset all",
+  "reset_shortcut": "Reset to default"
 }

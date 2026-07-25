@@ -182,7 +182,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -197,10 +197,23 @@ class AppDatabase extends _$AppDatabase {
     // created imperatively (drift doesn't model them, so they're not part of
     // `createAll()`), hence the explicit calls here; `CREATE INDEX IF NOT
     // EXISTS` keeps this idempotent. NOTE: `onCreate` runs for fresh installs
-    // only — when you add an `onUpgrade`, call these two helpers there too so
-    // new indexes reach already-installed databases.
+    // only — `onUpgrade` re-runs both helpers so new indexes reach
+    // already-installed databases.
     onCreate: (m) async {
       await m.createAll();
+      await createPerformanceIndexes(this);
+      await createClientFilterIndexes(this);
+    },
+    // v1 → v2: add `nav_state.keyboard_shortcuts_json` (device-local keyboard
+    // shortcut overrides). A single nullable column — no data backfill needed
+    // (null = "all defaults"). Manual `addColumn` (no versioned-schema
+    // generation required for a plain column add).
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(navState, navState.keyboardShortcutsJson);
+      }
+      // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
+      // step adds reaches installed DBs. Cheap no-op for the current indexes.
       await createPerformanceIndexes(this);
       await createClientFilterIndexes(this);
     },

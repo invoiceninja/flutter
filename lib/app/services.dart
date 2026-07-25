@@ -10,6 +10,7 @@ import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services_entity_wiring.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
+import 'package:admin/app/shortcuts/keyboard_shortcuts_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
@@ -262,6 +263,7 @@ class Services implements SidebarBadgeContext {
     required this.accentColor,
     required this.locale,
     required this.textScale,
+    required this.keyboardShortcuts,
     required this.appLocale,
     required this.sidebar,
     required this.recentlyViewed,
@@ -547,6 +549,13 @@ class Services implements SidebarBadgeContext {
   /// into `MaterialApp`'s theme [Listenable] so a change rebuilds the app-wide
   /// `MediaQuery` `textScaler`.
   final TextScaleController textScale;
+
+  /// Device-local keyboard-shortcut overrides (Settings → Keyboard Shortcuts).
+  /// Resolves user overrides over the catalog defaults and feeds all three
+  /// consumers at once: the shell's live `Shortcuts` map, the hold-modifier
+  /// hint bar, and the `?` help dialog. Persists to `nav_state`, like [theme] /
+  /// [textScale]; not reset on logout (a device preference).
+  final KeyboardShortcutsController keyboardShortcuts;
 
   /// The locale `MaterialApp.locale` actually binds to — resolves the device
   /// override over the active company's `settings.language_id` (React parity).
@@ -1168,6 +1177,7 @@ class Services implements SidebarBadgeContext {
     final accentColor = AccentColorController(auth: auth, users: userRepo);
     final locale = LocaleController(db: db);
     final textScale = TextScaleController(db: db);
+    final keyboardShortcuts = KeyboardShortcutsController(db: db);
     // Resolves the UI locale: device override → active company's
     // settings.language_id → English. Listens to the override + auth.session,
     // and is recomputed on settings save via the onSettingsWritten hook above.
@@ -1313,6 +1323,7 @@ class Services implements SidebarBadgeContext {
       accentColor: accentColor,
       locale: locale,
       textScale: textScale,
+      keyboardShortcuts: keyboardShortcuts,
       appLocale: appLocale,
       sidebar: sidebar,
       recentlyViewed: recentlyViewed,

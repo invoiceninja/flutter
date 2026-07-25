@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/bank_transaction_api_model.dart';
 import 'package:admin/data/repositories/bank_transaction_repository.dart';
+import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/bank_transactions_api.dart';
+import 'package:admin/data/services/tags_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/ui/core/list/search/date_column_filter_key.dart';
 import 'package:admin/ui/features/transactions/view_models/transaction_list_view_model.dart';
@@ -123,7 +125,17 @@ void main() {
 
   group('buildTransactionFilterKeys — date range (P1)', () {
     test('exposes a transaction-date range filter routing to date_range', () {
-      final keys = buildTransactionFilterKeys();
+      // `TagFilterKey` opens a Drift watch in its constructor, so build the
+      // keys against a real in-memory db + tag repo and dispose after.
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final tags = TagRepository(db: db, api: _StubTagsApi());
+      final keys = buildTransactionFilterKeys(tags: tags, companyId: 'co_1');
+      addTearDown(() {
+        for (final k in keys) {
+          k.dispose();
+        }
+      });
       final dateKeys = keys.whereType<DateColumnFilterKey>().toList();
       expect(dateKeys, hasLength(1));
       expect(dateKeys.single.serverKey, 'date');
@@ -227,4 +239,11 @@ void main() {
       });
     },
   );
+}
+
+/// The tag filter reads tags from the local DAO (never the API) in this test,
+/// so the API is never exercised — throw if anything reaches it.
+class _StubTagsApi implements TagsApi {
+  @override
+  Never noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

@@ -35,6 +35,7 @@ void main() {
   // local DB via the reset backstop. See `docs/migrations.md`.
   const frozenSchemaHashes = <int, String>{
     1: '036c0de0fcd92c943e915800a61d5e20da8f8a345ad318e0ad43fc6624705004',
+    2: 'd5da8c93f363e8c7ab95bf6be124b387832bb84f0a24a576fd84edf522028b06',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB

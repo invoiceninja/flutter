@@ -104,5 +104,21 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Keyboard-shortcut-overrides-only update — [KeyboardShortcutsController]
+  /// calls this when the user rebinds / clears / resets a shortcut. Leaves the
+  /// other fields untouched, same partial-write pattern as [saveFilters].
+  Future<void> saveKeyboardShortcuts({
+    required String? keyboardShortcutsJson,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        keyboardShortcutsJson: Value(keyboardShortcutsJson),
+        updatedAt: now,
+      ),
+    );
+  }
+
   Future<void> clear() => (delete(navState)..where((n) => n.id.equals(0))).go();
 }

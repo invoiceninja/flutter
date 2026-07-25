@@ -157,6 +157,7 @@ the honest default.
 | Client — import (CSV / JSON) | ✅ | 🟡 | ✅ | ✅ | |
 | Client — cross-entity "New invoice / recurring / quote / credit / payment / task / expense" | ✅ | ✅ | ✅ | ✅ | |
 | Client — view client invoices / quotes / payments / credits / recurring / projects / tasks / expenses | ✅ | ✅ | ✅ | ✅ | |
+| Client — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -203,6 +204,7 @@ the honest default.
 | Invoice — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Invoice — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Invoice — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -231,6 +233,7 @@ the honest default.
 | Quote — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Quote — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Quote — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Quote — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -259,6 +262,7 @@ the honest default.
 | Credit — archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
 | Credit — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Credit — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Credit — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -288,6 +292,7 @@ the honest default.
 | Recurring invoice — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — import | ✅ | 🟡 | ✅ | ✅ | |
 | Recurring invoice — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Recurring invoice — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -309,6 +314,7 @@ the honest default.
 | Payment — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Payment — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Payment — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Payment — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -396,6 +402,7 @@ the honest default.
 | Vendor — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
+| Vendor — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -428,6 +435,7 @@ the honest default.
 | Purchase order — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — import | ✅ | 🟡 | ✅ | ✅ | |
 | Purchase order — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Purchase order — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -453,6 +461,7 @@ the honest default.
 | Expense — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Expense — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Expense — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
+| Expense — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -475,6 +484,7 @@ the honest default.
 | Recurring expense — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Recurring expense — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Recurring expense — bulk actions | ✅ | ✅ | ✅ | ✅ | |
+| Recurring expense — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -495,6 +505,7 @@ the honest default.
 | Bank transaction — bulk archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — bulk convert / unlink | ✅ | ✅ | ✅ | ✅ | |
 | Bank account — read-only detail with embedded transactions | ✅ | ✅ | ✅ | ✅ | |
+| Bank transaction — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -520,6 +531,7 @@ the honest default.
 | Product — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Product — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Product — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
+| Product — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
 
@@ -853,7 +865,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Task Round To Nearest (preset seconds / custom) | ✅ | ✅ | ✅ | ✅ | |
 | Round To Seconds (when "Custom" selected) | ✅ | ✅ | ✅ | ✅ | |
 | Configure Statuses (link) | ✅ | ✅ | ✅ | ✅ | |
-| Manage Tags (Settings → Tags; list / create / edit / recolor / archive, task + project toggle, admin-gated) | ✅ | — | ✅ | | |
+| Manage Tags (Settings → Tags; list / create / edit / recolor / archive, entity-type picker over all 14 tag-bearing types, admin-gated) | ✅ | — | ✅ | | |
 | Show Tasks Table | ✅ | ✅ | ✅ | ✅ | |
 | Invoice Task Datelog | ✅ | ✅ | ✅ | ✅ | |
 | Invoice Task Timelog | ✅ | ✅ | ✅ | ✅ | |
@@ -899,7 +911,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Auto Archive Paid Invoices | ✅ | ✅ | ✅ | ✅ | |
 | Auto Archive Cancelled Invoices | ✅ | ✅ | ✅ | ✅ | |
 | Lock Invoices (off / when sent / when paid / end of month) | ✅ | ✅ | ✅ | ✅ | Enforced: client-side cascade computation hard-blocks edit entry (action menu + deep-link guard) + repo/outbox backstop; reason-specific dialog/banner |
-| Global Tag Inheritance | — | — | ✅ |  | Company-level toggle (`settings.global_tag_inheritance`), company scope only — server reads it via `Company::getSetting()`, no client/group cascade. Server applies the tag cascade on entity create (`BaseRepository`); client only persists the flag. App surfaces tags on tasks/projects only today, so the visible effect is limited until tags expand |
+| Global Tag Inheritance | — | — | ✅ |  | Company-level toggle (`settings.global_tag_inheritance`), company scope only — server reads it via `Company::getSetting()`, no client/group cascade. Server applies the tag cascade on entity create (`BaseRepository`); client only persists the flag. App now surfaces tags on all 14 tag-bearing entities, so the inherited tags are visible across the board |
 
 #### Workflow Settings — Quotes tab
 
@@ -1458,6 +1470,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Multi-language UI (40+ locales) | ✅ | ✅ | ✅ | ✅ | |
 | Company switcher | ✅ | ✅ | ✅ | ✅ | |
 | Keyboard shortcuts | ✅ | ✅ | ✅ | ✅ | |
+| Customizable keyboard shortcuts (Settings → Keyboard Shortcuts; rebind/clear/reset globals, assign 14 create actions, conflict detection, device-local persist) — feeds live handlers + hint bar + `?` dialog | ✅ | — | ✅ | | |
 | Keyboard-shortcut discoverability — hold ⌘/Ctrl hint bar · Enter hint on dialog primaries · hover shortcut tooltips | — | — | ✅ | | |
 | Browser-style back/forward history (Cmd/Alt+←/→ · sidebar arrow buttons · mouse back/forward thumb buttons) | — | — | ✅ | ✅ | |
 | Recently-viewed entities (command palette "Recent" group, persisted, company-scoped) | ❌ | ✅ | ✅ | ✅ | |

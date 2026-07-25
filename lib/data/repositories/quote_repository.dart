@@ -13,6 +13,7 @@ import 'package:admin/data/models/api/quote_api_model.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/services/quotes_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -95,7 +96,14 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
           dueDateStart: dueDateRange.start,
           dueDateEnd: dueDateRange.end,
         )
-        .map((rows) => rows.map(_fromRow).toList(growable: false));
+        .map((rows) {
+          final items = rows.map(_fromRow);
+          final tagIds = extraFilters['tag_ids'] ?? const <String>{};
+          if (tagIds.isEmpty) return items.toList(growable: false);
+          return items
+              .where((q) => matchesTagIdFilter(q.tagIds, tagIds))
+              .toList(growable: false);
+        });
   }
 
   Stream<int> watchCount({required String companyId}) =>

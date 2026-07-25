@@ -11,6 +11,7 @@ import 'package:admin/ui/features/settings/views/basic/backup_restore/backup_res
 import 'package:admin/ui/features/settings/views/basic/company_details/company_details_shell.dart';
 import 'package:admin/ui/features/settings/views/basic/expense_settings_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/device_settings_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/keyboard_shortcuts_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/import_export_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/localization/localization_shell.dart';
 import 'package:admin/data/models/domain/payment_link.dart';
@@ -294,6 +295,7 @@ final List<RouteBase> settingsRoutes = [
   ),
   _leaf('import_export', () => const ImportExportScreen()),
   _leaf('device_settings', () => const DeviceSettingsScreen()),
+  _leaf('keyboard_shortcuts', () => const KeyboardShortcutsScreen()),
 
   // ── Advanced ──────────────────────────────────────────────────────────
   // Invoice Design is one shell with a Custom Designs tab + a tab per

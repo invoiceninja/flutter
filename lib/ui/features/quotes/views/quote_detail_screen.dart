@@ -343,6 +343,8 @@ class _Overview extends StatelessWidget {
           terms: quote.terms,
           formatter: formatter,
           currencyId: currencyId,
+          entityType: 'quote',
+          tagIds: quote.tagIds,
           trailing: [
             if (quote.customValue1.isNotEmpty ||
                 quote.customValue2.isNotEmpty ||

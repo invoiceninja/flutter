@@ -4963,6 +4963,17 @@ class $NavStateTable extends NavState
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _keyboardShortcutsJsonMeta =
+      const VerificationMeta('keyboardShortcutsJson');
+  @override
+  late final GeneratedColumn<String> keyboardShortcutsJson =
+      GeneratedColumn<String>(
+        'keyboard_shortcuts_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _recentEntitiesJsonMeta =
       const VerificationMeta('recentEntitiesJson');
   @override
@@ -5012,6 +5023,7 @@ class $NavStateTable extends NavState
     customThemeJson,
     textScale,
     filtersJson,
+    keyboardShortcutsJson,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
@@ -5103,6 +5115,15 @@ class $NavStateTable extends NavState
         ),
       );
     }
+    if (data.containsKey('keyboard_shortcuts_json')) {
+      context.handle(
+        _keyboardShortcutsJsonMeta,
+        keyboardShortcutsJson.isAcceptableOrUnknown(
+          data['keyboard_shortcuts_json']!,
+          _keyboardShortcutsJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('recent_entities_json')) {
       context.handle(
         _recentEntitiesJsonMeta,
@@ -5178,6 +5199,10 @@ class $NavStateTable extends NavState
         DriftSqlType.string,
         data['${effectivePrefix}filters_json'],
       ),
+      keyboardShortcutsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}keyboard_shortcuts_json'],
+      ),
       recentEntitiesJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}recent_entities_json'],
@@ -5215,6 +5240,13 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   final double? textScale;
   final String? filtersJson;
 
+  /// Device-local keyboard-shortcut overrides (Settings → Keyboard Shortcuts),
+  /// as a JSON object keyed by catalog action id (value = binding JSON, or
+  /// `null` for an explicitly-cleared shortcut). Null column = no overrides
+  /// (everything at its catalog default). Only overrides are stored, never the
+  /// full resolved set. Added in schema v2.
+  final String? keyboardShortcutsJson;
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,
@@ -5233,6 +5265,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     this.customThemeJson,
     this.textScale,
     this.filtersJson,
+    this.keyboardShortcutsJson,
     this.recentEntitiesJson,
     required this.sidebarCollapsed,
     required this.updatedAt,
@@ -5267,6 +5300,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     }
     if (!nullToAbsent || filtersJson != null) {
       map['filters_json'] = Variable<String>(filtersJson);
+    }
+    if (!nullToAbsent || keyboardShortcutsJson != null) {
+      map['keyboard_shortcuts_json'] = Variable<String>(keyboardShortcutsJson);
     }
     if (!nullToAbsent || recentEntitiesJson != null) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson);
@@ -5306,6 +5342,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       filtersJson: filtersJson == null && nullToAbsent
           ? const Value.absent()
           : Value(filtersJson),
+      keyboardShortcutsJson: keyboardShortcutsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(keyboardShortcutsJson),
       recentEntitiesJson: recentEntitiesJson == null && nullToAbsent
           ? const Value.absent()
           : Value(recentEntitiesJson),
@@ -5332,6 +5371,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       customThemeJson: serializer.fromJson<String?>(json['customThemeJson']),
       textScale: serializer.fromJson<double?>(json['textScale']),
       filtersJson: serializer.fromJson<String?>(json['filtersJson']),
+      keyboardShortcutsJson: serializer.fromJson<String?>(
+        json['keyboardShortcutsJson'],
+      ),
       recentEntitiesJson: serializer.fromJson<String?>(
         json['recentEntitiesJson'],
       ),
@@ -5353,6 +5395,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       'customThemeJson': serializer.toJson<String?>(customThemeJson),
       'textScale': serializer.toJson<double?>(textScale),
       'filtersJson': serializer.toJson<String?>(filtersJson),
+      'keyboardShortcutsJson': serializer.toJson<String?>(
+        keyboardShortcutsJson,
+      ),
       'recentEntitiesJson': serializer.toJson<String?>(recentEntitiesJson),
       'sidebarCollapsed': serializer.toJson<bool>(sidebarCollapsed),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -5370,6 +5415,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     Value<String?> customThemeJson = const Value.absent(),
     Value<double?> textScale = const Value.absent(),
     Value<String?> filtersJson = const Value.absent(),
+    Value<String?> keyboardShortcutsJson = const Value.absent(),
     Value<String?> recentEntitiesJson = const Value.absent(),
     bool? sidebarCollapsed,
     int? updatedAt,
@@ -5388,6 +5434,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         : this.customThemeJson,
     textScale: textScale.present ? textScale.value : this.textScale,
     filtersJson: filtersJson.present ? filtersJson.value : this.filtersJson,
+    keyboardShortcutsJson: keyboardShortcutsJson.present
+        ? keyboardShortcutsJson.value
+        : this.keyboardShortcutsJson,
     recentEntitiesJson: recentEntitiesJson.present
         ? recentEntitiesJson.value
         : this.recentEntitiesJson,
@@ -5418,6 +5467,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       filtersJson: data.filtersJson.present
           ? data.filtersJson.value
           : this.filtersJson,
+      keyboardShortcutsJson: data.keyboardShortcutsJson.present
+          ? data.keyboardShortcutsJson.value
+          : this.keyboardShortcutsJson,
       recentEntitiesJson: data.recentEntitiesJson.present
           ? data.recentEntitiesJson.value
           : this.recentEntitiesJson,
@@ -5441,6 +5493,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ..write('customThemeJson: $customThemeJson, ')
           ..write('textScale: $textScale, ')
           ..write('filtersJson: $filtersJson, ')
+          ..write('keyboardShortcutsJson: $keyboardShortcutsJson, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -5460,6 +5513,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     customThemeJson,
     textScale,
     filtersJson,
+    keyboardShortcutsJson,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
@@ -5478,6 +5532,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           other.customThemeJson == this.customThemeJson &&
           other.textScale == this.textScale &&
           other.filtersJson == this.filtersJson &&
+          other.keyboardShortcutsJson == this.keyboardShortcutsJson &&
           other.recentEntitiesJson == this.recentEntitiesJson &&
           other.sidebarCollapsed == this.sidebarCollapsed &&
           other.updatedAt == this.updatedAt);
@@ -5494,6 +5549,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
   final Value<String?> customThemeJson;
   final Value<double?> textScale;
   final Value<String?> filtersJson;
+  final Value<String?> keyboardShortcutsJson;
   final Value<String?> recentEntitiesJson;
   final Value<bool> sidebarCollapsed;
   final Value<int> updatedAt;
@@ -5508,6 +5564,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.customThemeJson = const Value.absent(),
     this.textScale = const Value.absent(),
     this.filtersJson = const Value.absent(),
+    this.keyboardShortcutsJson = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5523,6 +5580,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.customThemeJson = const Value.absent(),
     this.textScale = const Value.absent(),
     this.filtersJson = const Value.absent(),
+    this.keyboardShortcutsJson = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     required int updatedAt,
@@ -5538,6 +5596,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Expression<String>? customThemeJson,
     Expression<double>? textScale,
     Expression<String>? filtersJson,
+    Expression<String>? keyboardShortcutsJson,
     Expression<String>? recentEntitiesJson,
     Expression<bool>? sidebarCollapsed,
     Expression<int>? updatedAt,
@@ -5553,6 +5612,8 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       if (customThemeJson != null) 'custom_theme_json': customThemeJson,
       if (textScale != null) 'text_scale': textScale,
       if (filtersJson != null) 'filters_json': filtersJson,
+      if (keyboardShortcutsJson != null)
+        'keyboard_shortcuts_json': keyboardShortcutsJson,
       if (recentEntitiesJson != null)
         'recent_entities_json': recentEntitiesJson,
       if (sidebarCollapsed != null) 'sidebar_collapsed': sidebarCollapsed,
@@ -5571,6 +5632,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Value<String?>? customThemeJson,
     Value<double?>? textScale,
     Value<String?>? filtersJson,
+    Value<String?>? keyboardShortcutsJson,
     Value<String?>? recentEntitiesJson,
     Value<bool>? sidebarCollapsed,
     Value<int>? updatedAt,
@@ -5586,6 +5648,8 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       customThemeJson: customThemeJson ?? this.customThemeJson,
       textScale: textScale ?? this.textScale,
       filtersJson: filtersJson ?? this.filtersJson,
+      keyboardShortcutsJson:
+          keyboardShortcutsJson ?? this.keyboardShortcutsJson,
       recentEntitiesJson: recentEntitiesJson ?? this.recentEntitiesJson,
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -5625,6 +5689,11 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     if (filtersJson.present) {
       map['filters_json'] = Variable<String>(filtersJson.value);
     }
+    if (keyboardShortcutsJson.present) {
+      map['keyboard_shortcuts_json'] = Variable<String>(
+        keyboardShortcutsJson.value,
+      );
+    }
     if (recentEntitiesJson.present) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson.value);
     }
@@ -5650,6 +5719,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
           ..write('customThemeJson: $customThemeJson, ')
           ..write('textScale: $textScale, ')
           ..write('filtersJson: $filtersJson, ')
+          ..write('keyboardShortcutsJson: $keyboardShortcutsJson, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -46675,6 +46745,7 @@ typedef $$NavStateTableCreateCompanionBuilder =
       Value<String?> customThemeJson,
       Value<double?> textScale,
       Value<String?> filtersJson,
+      Value<String?> keyboardShortcutsJson,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       required int updatedAt,
@@ -46691,6 +46762,7 @@ typedef $$NavStateTableUpdateCompanionBuilder =
       Value<String?> customThemeJson,
       Value<double?> textScale,
       Value<String?> filtersJson,
+      Value<String?> keyboardShortcutsJson,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       Value<int> updatedAt,
@@ -46752,6 +46824,11 @@ class $$NavStateTableFilterComposer
 
   ColumnFilters<String> get filtersJson => $composableBuilder(
     column: $table.filtersJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get keyboardShortcutsJson => $composableBuilder(
+    column: $table.keyboardShortcutsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -46830,6 +46907,11 @@ class $$NavStateTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get keyboardShortcutsJson => $composableBuilder(
+    column: $table.keyboardShortcutsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => ColumnOrderings(column),
@@ -46897,6 +46979,11 @@ class $$NavStateTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get keyboardShortcutsJson => $composableBuilder(
+    column: $table.keyboardShortcutsJson,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => column,
@@ -46952,6 +47039,7 @@ class $$NavStateTableTableManager
                 Value<String?> customThemeJson = const Value.absent(),
                 Value<double?> textScale = const Value.absent(),
                 Value<String?> filtersJson = const Value.absent(),
+                Value<String?> keyboardShortcutsJson = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -46966,6 +47054,7 @@ class $$NavStateTableTableManager
                 customThemeJson: customThemeJson,
                 textScale: textScale,
                 filtersJson: filtersJson,
+                keyboardShortcutsJson: keyboardShortcutsJson,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,
@@ -46982,6 +47071,7 @@ class $$NavStateTableTableManager
                 Value<String?> customThemeJson = const Value.absent(),
                 Value<double?> textScale = const Value.absent(),
                 Value<String?> filtersJson = const Value.absent(),
+                Value<String?> keyboardShortcutsJson = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 required int updatedAt,
@@ -46996,6 +47086,7 @@ class $$NavStateTableTableManager
                 customThemeJson: customThemeJson,
                 textScale: textScale,
                 filtersJson: filtersJson,
+                keyboardShortcutsJson: keyboardShortcutsJson,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,

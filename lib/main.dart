@@ -155,6 +155,7 @@ Future<void> _bootstrap() async {
     services.theme.restore(),
     services.locale.restore(),
     services.textScale.restore(),
+    services.keyboardShortcuts.restore(),
     services.sidebar.restore(),
     services.recentlyViewed.restore(),
   ]);

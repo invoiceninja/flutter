@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
 import 'package:admin/ui/features/billing_shared/totals_widget.dart';
 import 'package:admin/utils/formatting.dart';
@@ -30,6 +31,8 @@ class BillingDocOverview extends StatelessWidget {
     this.formatter,
     this.currencyId,
     this.trailing = const <Widget>[],
+    this.entityType,
+    this.tagIds = const <String>[],
   });
 
   final BillingTotalsInput totalsInput;
@@ -51,6 +54,11 @@ class BillingDocOverview extends StatelessWidget {
   /// applied-payments list and reminders summary).
   final List<Widget> trailing;
 
+  /// Wire key for the tag chips shown at the top of the overview (e.g.
+  /// `'invoice'`). When null or [tagIds] is empty, no tags block renders.
+  final String? entityType;
+  final List<String> tagIds;
+
   @override
   Widget build(BuildContext context) {
     final totals = computeTotals(totalsInput, precision);
@@ -58,6 +66,10 @@ class BillingDocOverview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (entityType != null && tagIds.isNotEmpty) ...[
+          _tags(context),
+          SizedBox(height: gap),
+        ],
         LineItemsReadonlyTable(
           items: totalsInput.lineItems,
           formatter: formatter,
@@ -90,6 +102,25 @@ class BillingDocOverview extends StatelessWidget {
           SizedBox(height: gap),
           _notes(context, 'terms', terms),
         ],
+      ],
+    );
+  }
+
+  Widget _tags(BuildContext context) {
+    final tokens = context.inTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.tr('tags'),
+          style: TextStyle(
+            fontSize: 12,
+            color: tokens.ink3,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        EntityTagsView(entityType: entityType!, tagIds: tagIds),
       ],
     );
   }

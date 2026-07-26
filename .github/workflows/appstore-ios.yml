@@ -14,7 +14,16 @@ permissions:
   contents: read
 
 jobs:
+  # Test gate. CI (.github/workflows/ci.yaml) is workflow_dispatch-only, so
+  # without this a release could be built and uploaded without the suite ever
+  # having run. Runs on Linux regardless of this workflow's runner — see
+  # _test.yaml. Adds ~8-12 min to a release dispatch; that's the price of not
+  # shipping a red suite to testers.
+  test:
+    uses: ./.github/workflows/_test.yaml
+
   deploy-ios:
+    needs: test
     name: Build and Upload iOS to TestFlight
     # Same runner + Xcode select as the CI `apple` job. 10x-billed macOS minutes,
     # but a release dispatch is deliberate and infrequent.

@@ -18,7 +18,13 @@ permissions:
   contents: read
 
 jobs:
+  # Test gate — mirrors appstore-ios.yml. CI is workflow_dispatch-only, so this
+  # is what guarantees the suite ran before a build reaches TestFlight.
+  test:
+    uses: ./.github/workflows/_test.yaml
+
   deploy-macos:
+    needs: test
     name: Build and Upload macOS to TestFlight
     runs-on: macos-26
     timeout-minutes: 80

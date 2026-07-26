@@ -10,7 +10,13 @@ permissions:
   contents: read
 
 jobs:
+  # Test gate — mirrors appstore-ios.yml. CI is workflow_dispatch-only, so this
+  # is what guarantees the suite ran before a snap reaches the edge channel.
+  test:
+    uses: ./.github/workflows/_test.yaml
+
   deploy-snap:
+    needs: test
     name: Build and Publish Snap
     # REQUIRED: the snap base is core22 == Ubuntu 22.04 (glibc 2.35). `flutter
     # build linux` runs on the host here, so the host MUST be 22.04 — a binary

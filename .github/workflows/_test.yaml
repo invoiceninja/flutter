@@ -1,0 +1,50 @@
+name: Test
+
+# Reusable — called by ci.yaml and by every release workflow, so a dispatch can
+# never publish a build whose test suite was never run. Underscore-prefixed and
+# `workflow_call`-only: it is not dispatchable on its own and shows in the
+# Actions sidebar with no runs of its own.
+#
+# Single source of truth for "run the tests". Don't inline a second copy of
+# `flutter test` into a caller — add `uses: ./.github/workflows/_test.yaml`
+# instead, so the SDK pin and the codegen step can't drift between workflows.
+on:
+  workflow_call:
+
+# Least privilege: this job only checks out code and runs tests. Declared
+# explicitly rather than inherited — a called workflow otherwise takes the
+# caller's permissions, and appimage.yml runs with `contents: write`.
+permissions:
+  contents: read
+
+jobs:
+  # Unit / widget tests — the whole `test/` tree, unfiltered (no tags, no path
+  # filter, no dart_test.yaml). These instantiate NativeDatabase.memory(), whose
+  # native sqlite comes from the sqlite3mc native-assets hook — historically only
+  # built on macOS. Building it for Linux here is very likely fine (C toolchain
+  # present, sqlite3.dart supports Linux) but is the one unverified step of this
+  # layout. If it ever fails on Linux, move this onto a macOS runner.
+  #
+  # `runs-on` is deliberately pinned to Linux even for the macOS/Windows release
+  # callers: ubuntu-latest is the only platform this suite is proven green on.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned — keep in lockstep with ci.yaml and the release workflows.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Test
+        run: flutter test

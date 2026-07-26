@@ -16,7 +16,13 @@ permissions:
   contents: read
 
 jobs:
+  # Test gate — mirrors appstore-ios.yml. CI is workflow_dispatch-only, so this
+  # is what guarantees the suite ran before a bundle reaches the Play track.
+  test:
+    uses: ./.github/workflows/_test.yaml
+
   deploy-play:
+    needs: test
     name: Build and Publish App Bundle
     runs-on: ubuntu-latest
     timeout-minutes: 30

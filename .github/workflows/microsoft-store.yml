@@ -19,7 +19,15 @@ permissions:
   contents: read
 
 jobs:
+  # Test gate — mirrors appstore-ios.yml. Deliberately runs on Linux (see
+  # _test.yaml) rather than as a step inside the Windows job below: the suite has
+  # never been exercised on Windows, so a stray path-separator assumption in any
+  # of the 470 test files would red a release for no good reason.
+  test:
+    uses: ./.github/workflows/_test.yaml
+
   deploy-msstore:
+    needs: test
     name: Build and Publish MSIX
     # windows-latest is REQUIRED: `flutter build windows` needs the MSVC
     # toolchain and the `msstore` CLI is a Windows .NET tool.

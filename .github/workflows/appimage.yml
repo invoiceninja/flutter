@@ -29,7 +29,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Test gate — mirrors appstore-ios.yml, and matters most here: this is the one
+  # workflow that tags the repo and publishes a public GitHub Release. CI is
+  # workflow_dispatch-only, so without this the suite might never have run for the
+  # commit being tagged. Gates the dry run (`publish: false`) too, deliberately —
+  # a dry run that skips the tests wouldn't be a rehearsal of anything.
+  test:
+    uses: ./.github/workflows/_test.yaml
+
   deploy-appimage:
+    needs: test
     name: Build and Publish AppImage
     # REQUIRED: build on 22.04 (glibc 2.35) for broad distro compatibility — an
     # AppImage requires host glibc >= build glibc, so a 24.04 build (glibc 2.39)

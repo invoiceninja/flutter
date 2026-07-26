@@ -103,32 +103,12 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-  # Unit / widget tests. These instantiate NativeDatabase.memory(), whose native
-  # sqlite comes from the sqlite3mc native-assets hook — historically only built
-  # on macOS. Building it for Linux here is very likely fine (C toolchain present,
-  # sqlite3.dart supports Linux) but is the one unverified step of this layout.
-  # If it ever fails on Linux, move this `flutter test` step onto the `apple` job.
+  # Unit / widget tests — the whole `test/` tree, unfiltered. Defined once in the
+  # reusable `_test.yaml` (which carries the sqlite native-assets caveat and the
+  # SDK pin) because every release workflow gates on that same job; two inline
+  # copies would drift. Renders as `unit-tests / test` in the checks UI.
   unit-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v5
-
-      # Pinned — keep in lockstep with the analyze job.
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.44.1
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Generate code
-        run: dart run build_runner build --delete-conflicting-outputs
-
-      - name: Test
-        run: flutter test
+    uses: ./.github/workflows/_test.yaml
 
   # Web compile gate. The authoritative check for web-platform regressions:
   # `flutter analyze` runs against the VM target and won't catch a native-only
@@ -313,12 +293,14 @@ jobs:
   # here — it uses in-memory Drift + InMemoryTokenStorage + MockClient, all
   # web-compatible. The live demo/* suite and filesystem/secure-storage unit
   # tests are @TestOn('vm') / macOS-only and intentionally don't run on web.
-  # Non-blocking for now (continue-on-error) until the headless-Chrome path
-  # proves stable; flip to blocking once it has a green track record. See
-  # CLAUDE.md § Integration tests.
+  # BLOCKING: a failure here is a real web regression, not runner noise — this
+  # job has already caught the shortcut-hint notify-during-build crash and the
+  # Inter Tight font-overflow RenderFlex. It ran with `continue-on-error: true`
+  # while the headless-Chrome path was unproven; that's earned its keep, so the
+  # flag is gone. Don't re-add it to silence a red run. See CLAUDE.md
+  # § Integration tests.
   integration-web:
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5

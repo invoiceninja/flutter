@@ -12,6 +12,7 @@ import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
+import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -35,6 +36,22 @@ http.Client _failFastClient() => MockClient(
   (_) async => throw http.ClientException('offline (test fixture)'),
 );
 
+/// Depth-first walk over an action list, descending into group items
+/// (`pdfGroup` / `cloneGroup`) so a nested action is findable by kind.
+///
+/// Every `*_actions_test.dart` looks actions up this way. Shared rather than
+/// re-declared per file because a non-flattening lookup silently reports
+/// `false` for any action that later moves into a group — a false pass, not a
+/// failure.
+Iterable<EntityActionItem<A>> flattenActionItems<A>(
+  List<EntityActionItem<A>> items,
+) sync* {
+  for (final item in items) {
+    yield item;
+    yield* flattenActionItems(item.children ?? const []);
+  }
+}
+
 class FakeCompany {
   const FakeCompany({
     required this.id,
@@ -44,6 +61,7 @@ class FakeCompany {
     this.isOwner = true,
     this.isAdmin = true,
     this.enabledModules = 32767,
+    this.permissions = '',
   });
   final String id;
   final String name;
@@ -65,6 +83,15 @@ class FakeCompany {
   /// the module-gated actions (e.g. the client "New" menu) need a non-zero
   /// mask. Set to 0 to exercise the all-modules-off branch.
   final int enabledModules;
+
+  /// Comma-separated permission tokens (`'edit_invoice,create_invoice'`), as
+  /// the server sends them. `AuthCompany.can()` short-circuits to true for an
+  /// admin or owner, so this only bites once BOTH [isAdmin] and [isOwner] are
+  /// false — which is exactly how the entity-action tests reach the
+  /// per-permission gating (`can('edit_quote')` granted while
+  /// `can('create_quote')` is not). Defaults to `''` (the previous hardcoded
+  /// value), so existing callers are unaffected.
+  final String permissions;
 }
 
 class ShellFixture {
@@ -121,7 +148,7 @@ Future<ShellFixture> buildFixture({
         settings: jsonEncode({
           if (c.logoUrl != null) 'company_logo': c.logoUrl,
         }),
-        permissions: '',
+        permissions: c.permissions,
         accountId: 'acct1',
         token: c.token,
         isOwner: Value(c.isOwner),

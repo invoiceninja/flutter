@@ -43,6 +43,16 @@ class RecurringInvoiceRepository
   @override
   BaseEntityDao<dynamic, dynamic> get localDao => db.recurringInvoiceDao;
 
+  /// Discard-ghost seam — `SyncRepository.discardOutboxRow` calls this to drop
+  /// a never-synced offline create. Without it the base class throws
+  /// `UnsupportedError` and the discard aborts before `deleteAllForEntity`,
+  /// stranding both the ghost row and its outbox rows.
+  @override
+  Future<void> deleteLocalById({
+    required String companyId,
+    required String id,
+  }) => db.recurringInvoiceDao.deleteById(companyId: companyId, id: id);
+
   @override
   bool requiresPasswordFor(MutationKind kind) =>
       kind == MutationKind.delete ||

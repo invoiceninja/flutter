@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_custom_fields.dart';
+import 'package:admin/ui/core/list/search/name_map_signature.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/token_search_field.dart';
 import 'package:admin/ui/features/clients/client_filter_keys.dart';
@@ -78,11 +79,8 @@ class _ClientTokenSearchFieldState extends State<ClientTokenSearchField> {
         : [
             for (var i = 1; i <= 4; i++) company.customFieldLabel('client$i'),
           ].join('|');
-    String flatten(Map<String, String> m) =>
-        (m.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
-            .map((e) => '${e.key}=${e.value}')
-            .join(',');
-    return '$companyId#$labels#${flatten(groupNames)}#${flatten(userNames)}';
+    return '$companyId#$labels#${nameMapSignature(groupNames)}'
+        '#${nameMapSignature(userNames)}';
   }
 
   void _disposeKeys() {

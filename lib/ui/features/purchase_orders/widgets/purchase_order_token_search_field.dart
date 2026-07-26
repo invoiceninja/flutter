@@ -37,10 +37,13 @@ class _PurchaseOrderTokenSearchFieldState
   List<FilterKey>? _keys;
   String? _signature;
 
+  // The `invoice` slots, not `purchase_order` — POs reuse them (see
+  // `buildPurchaseOrderFilterKeys`). Hashing the wrong, always-empty slots
+  // meant the cached key list could never invalidate on a label change.
   static String _sig(String companyId, Company? c) => c == null
       ? '$companyId#'
       : '$companyId#'
-            '${[for (var i = 1; i <= 4; i++) c.customFieldLabel('purchase_order$i')].join('|')}';
+            '${[for (var i = 1; i <= 4; i++) c.customFieldLabel('invoice$i')].join('|')}';
 
   void _disposeKeys() {
     for (final k in _keys ?? const <FilterKey>[]) {

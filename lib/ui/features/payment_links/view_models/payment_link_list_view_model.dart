@@ -39,7 +39,7 @@ class PaymentLinkListViewModel extends GenericListViewModel<PaymentLink> {
 
   @override
   bool isValidColumnId(String field) =>
-      paymentLinkColumnsById.containsKey(field);
+      isSortableColumnId(paymentLinkColumnsById, field);
 
   @override
   String idOf(PaymentLink item) => item.id;

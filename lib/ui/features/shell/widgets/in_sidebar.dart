@@ -17,6 +17,7 @@ import 'package:admin/ui/core/list/saved_view_dialogs.dart';
 import 'package:admin/ui/core/list/saved_view_icons.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
 import 'package:admin/ui/features/shell/widgets/company_switcher_button.dart';
+import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
@@ -227,6 +228,23 @@ class _InSidebarState extends State<InSidebar> {
                   // needs none.
                   if (widget.width != null)
                     WindowCaptionStrip(controller: services.screenshotWindow),
+                  // Browser-style back/forward — the visible handle on the
+                  // Cmd/Alt+←/→ history. Top-left like a browser toolbar
+                  // (on macOS: right under the traffic lights).
+                  //
+                  // Load-bearing on touch: the shortcuts need a hardware
+                  // keyboard and `NavHistoryMouseListener` needs thumb
+                  // buttons, so without these a tablet/phone user who follows
+                  // a cross-entity link has no way back.
+                  Padding(
+                    padding: collapsed
+                        ? const EdgeInsets.only(top: 4)
+                        : const EdgeInsets.fromLTRB(10, 4, 10, 0),
+                    child: NavHistoryButtons(
+                      compact: collapsed,
+                      popDrawerFirst: widget.width == null,
+                    ),
+                  ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
                     child: CompanySwitcherButton(

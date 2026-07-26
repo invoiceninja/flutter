@@ -1155,9 +1155,13 @@ keeping the common single-rate case byte-identical, and a `Σr ≤ 0 → 0` guar
 every inclusive primitive mirroring `backout()`'s `combined_rate <= 0` clause:
 - New app: `lib/domain/expense_tax_math.dart` (`expenseTierTaxAmount`) and
   `lib/domain/billing/totals_calculator.dart` (`_taxAmount` + threaded
-  `itemRateSum` / name-gated `invoiceRateSum`); net via `gross − taxAmountSum`
+  `itemRateSum` / `invoiceRateSum`); net via `gross − taxAmountSum`
   on the expense/recurring-expense getters and `amount − taxAmount` on the
-  invoice. Covered by new multi-rate tests.
+  invoice. Covered by new multi-rate tests. Note `invoiceRateSum` is
+  deliberately **not** name-gated: `InvoiceSumInclusive::calculateTaxes` passes
+  all three raw rates into `backout()` and applies the `strlen(tax_nameN) ≥ 2`
+  gate only afterwards, when deciding which component lands in `total_taxes` —
+  so a blank-named rate still shrinks the shared base.
 - Old app (`admin-portal`): `expense_model.dart`, `invoice_model.dart`
   (`InvoiceItemEntity.taxAmount`), `mixins/invoice_mixin.dart`.
 

@@ -183,6 +183,7 @@ final List<BankTransactionColumn> kAllBankTransactionColumns =
       BankTransactionColumn(
         id: BankTransactionColumnIds.tagIds,
         labelKey: 'tags',
+        sortable: false,
         width: 200,
         cellBuilder: (t, _) => t.tagIds.isEmpty
             ? cellEmpty()

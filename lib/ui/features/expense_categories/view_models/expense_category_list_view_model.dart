@@ -42,7 +42,7 @@ class ExpenseCategoryListViewModel
 
   @override
   bool isValidColumnId(String field) =>
-      expenseCategoryColumnsById.containsKey(field);
+      isSortableColumnId(expenseCategoryColumnsById, field);
 
   @override
   String idOf(ExpenseCategory item) => item.id;

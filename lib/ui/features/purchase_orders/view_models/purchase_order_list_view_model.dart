@@ -46,7 +46,7 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
 
   @override
   bool isValidColumnId(String field) =>
-      purchaseOrderColumnsById.containsKey(field) ||
+      isSortableColumnId(purchaseOrderColumnsById, field) ||
       field == PurchaseOrderFieldIds.updatedAt;
 
   @override
@@ -57,12 +57,6 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
 
   @override
   bool isDeleted(PurchaseOrder item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (watchPage), so a
-  /// short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   Stream<List<PurchaseOrder>> watchPage() => repo
@@ -93,11 +87,7 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `tag_ids` is applied locally (post-decode in watchPage) — strip it.
-    final base = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    final base = extraFilters;
     final filters = vendorId == null
         ? base
         : {

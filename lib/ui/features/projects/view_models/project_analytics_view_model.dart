@@ -78,8 +78,18 @@ class ProjectAnalyticsViewModel extends ChangeNotifier {
   bool get initialLoading => _loading && !_loadedOnce;
   bool _loadedOnce = false;
 
+  /// A server-formatted failure message, shown verbatim. Null when the failure
+  /// has no message of its own — see [errorKey].
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+
+  /// Localization key for a failure with no server message (the view resolves
+  /// it via `context.tr`). Exactly one of this and [errorMessage] is non-null
+  /// while [hasError] is true.
+  String? _errorKey;
+  String? get errorKey => _errorKey;
+
+  bool get hasError => _errorMessage != null || _errorKey != null;
 
   ProjectAnalytics? _analytics;
   ProjectAnalytics? get analytics => _analytics;
@@ -91,7 +101,7 @@ class ProjectAnalyticsViewModel extends ChangeNotifier {
   /// with no tasks, invoices or expenses in the window.
   bool get isEmpty =>
       _loadedOnce &&
-      _errorMessage == null &&
+      !hasError &&
       (_analytics?.isEmpty ?? true) &&
       (_burnup?.isEmpty ?? true);
 
@@ -128,9 +138,13 @@ class ProjectAnalyticsViewModel extends ChangeNotifier {
     final seq = ++_requestSeq;
     _loading = true;
     _errorMessage = null;
+    _errorKey = null;
     notifyListeners();
 
     final start = _range.startFrom(_today);
+    // Request-local, so an abandoned load's failures can't be attributed to a
+    // newer one that happens to finish first.
+    final errors = <String>[];
     final results = await Future.wait<Object?>([
       _guard(
         () => api.fetchAnalytics(
@@ -139,6 +153,7 @@ class ProjectAnalyticsViewModel extends ChangeNotifier {
           endDate: _today,
           includeDrafts: _includeDrafts,
         ),
+        errors,
       ),
       _guard(
         () => api.fetchBurnup(
@@ -148,6 +163,7 @@ class ProjectAnalyticsViewModel extends ChangeNotifier {
           bucket: _bucket,
           includeDrafts: _includeDrafts,
         ),
+        errors,
       ),
     ]);
 
@@ -168,26 +184,36 @@ class ProjectAnalyticsViewModel extends ChangeNotifier {
     // Only surface an error when BOTH calls came back empty — a partial
     // answer is still worth rendering.
     if (_analytics == null && _burnup == null) {
-      _errorMessage = _lastError ?? 'unexpected_response';
+      // A server-formatted message is shown as-is; with none (both calls
+      // returned 200 carrying nothing decodable) fall back to a localization
+      // KEY the view resolves — a bare slug used to reach the screen.
+      _errorMessage = errors.isEmpty ? null : errors.first;
+      _errorKey = errors.isEmpty ? 'analytics_unexpected_response' : null;
     }
-    _lastError = null;
     _loading = false;
     _loadedOnce = true;
     notifyListeners();
   }
 
-  String? _lastError;
-
-  /// Runs one fetch, converting any failure into a null result plus a stashed
-  /// message. Keeps `Future.wait` from short-circuiting on the first throw.
-  Future<Object?> _guard(Future<Object?> Function() fetch) async {
+  /// Runs one fetch, converting any failure into a null result plus a message
+  /// appended to [errors]. Keeps `Future.wait` from short-circuiting on the
+  /// first throw.
+  ///
+  /// [errors] is created per `load()` rather than being a field: two loads can
+  /// be in flight at once (flip a control while the first is still parked on
+  /// the network), and a shared stash let the *abandoned* request's message
+  /// surface as the reason a newer one failed.
+  Future<Object?> _guard(
+    Future<Object?> Function() fetch,
+    List<String> errors,
+  ) async {
     try {
       return await fetch();
     } on ApiException catch (e) {
-      _lastError = e.message;
+      errors.add(e.message);
       return null;
     } catch (e) {
-      _lastError = e.toString();
+      errors.add(e.toString());
       return null;
     }
   }

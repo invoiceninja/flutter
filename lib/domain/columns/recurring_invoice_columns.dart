@@ -154,6 +154,7 @@ final List<RecurringInvoiceColumn> kAllRecurringInvoiceColumns =
       RecurringInvoiceColumn(
         id: RecurringInvoiceFieldIds.tagIds,
         labelKey: 'tags',
+        sortable: false,
         width: 200,
         cellBuilder: (r, _) => r.tagIds.isEmpty
             ? cellEmpty()

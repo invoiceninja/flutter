@@ -42,7 +42,8 @@ class VendorListViewModel extends GenericListViewModel<Vendor> {
   String get defaultSortField => VendorFieldIds.name;
 
   @override
-  bool isValidColumnId(String field) => vendorColumnsById.containsKey(field);
+  bool isValidColumnId(String field) =>
+      isSortableColumnId(vendorColumnsById, field);
 
   @override
   String idOf(Vendor item) => item.id;
@@ -52,12 +53,6 @@ class VendorListViewModel extends GenericListViewModel<Vendor> {
 
   @override
   bool isDeleted(Vendor item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
-  /// so a short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   // ── Data-source hooks ──────────────────────────────────────────────
 
@@ -85,11 +80,7 @@ class VendorListViewModel extends GenericListViewModel<Vendor> {
     page: page,
     search: search,
     states: states,
-    // `tag_ids` is applied locally (post-decode) — strip it from the fetch.
-    extraFilters: GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    ),
+    extraFilters: extraFilters,
     ignoreCursor: ignoreCursor,
   );
 

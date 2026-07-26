@@ -44,7 +44,7 @@ class ProjectListViewModel extends GenericListViewModel<Project> {
 
   @override
   bool isValidColumnId(String field) =>
-      projectColumnsById.containsKey(field) ||
+      isSortableColumnId(projectColumnsById, field) ||
       field == ProjectFieldIds.updatedAt;
 
   @override
@@ -69,13 +69,6 @@ class ProjectListViewModel extends GenericListViewModel<Project> {
     customFilters: customFilters,
   );
 
-  /// `tag:` is filtered post-decode over the loaded window (the tag ids live
-  /// only in the row payload), so a short filtered result must auto-chain
-  /// page fetches — see the base class.
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
-
   @override
   int get pageSize => repo.pageSize;
 
@@ -87,13 +80,7 @@ class ProjectListViewModel extends GenericListViewModel<Project> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `tag_ids` is applied locally (post-decode in repo.watchPage) — see
-    // [GenericListViewModel.extraFiltersWithout] for why it must not reach
-    // the server fetch.
-    var filters = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    var filters = extraFilters;
     if (clientId != null) {
       filters = {
         ...filters,

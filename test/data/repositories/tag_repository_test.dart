@@ -62,42 +62,91 @@ void main() {
       expect(t.color, '');
     });
 
-    test(
-      'refreshAll fetches both entity types and stamps the short key',
-      () async {
-        final repo = TagRepository(
-          db: db,
-          api: _FakeTagsApi({
-            'task': const [
-              TagApi(
-                id: 'tt',
-                entityType: 'App\\Models\\Task',
-                name: 'TaskTag',
-              ),
-            ],
-            'project': const [
-              TagApi(
-                id: 'pt',
-                entityType: 'App\\Models\\Project',
-                name: 'ProjTag',
-              ),
-            ],
-          }),
-        );
-        await repo.refreshAll(companyId: 'co');
+    test('refreshAll fetches every scope in ONE request and keeps each row\'s '
+        'own entity_type', () async {
+      final api = _FakeTagsApi({
+        'task': const [
+          TagApi(id: 'tt', entityType: 'App\\Models\\Task', name: 'TaskTag'),
+        ],
+        'project': const [
+          TagApi(id: 'pt', entityType: 'App\\Models\\Project', name: 'ProjTag'),
+        ],
+      });
+      final repo = TagRepository(db: db, api: api);
+      await repo.refreshAll(companyId: 'co');
 
-        final taskTags = await repo
-            .watchAll(companyId: 'co', entityType: 'task')
-            .first;
-        final projectTags = await repo
-            .watchAll(companyId: 'co', entityType: 'project')
-            .first;
-        expect(taskTags.map((t) => t.id), ['tt']);
-        expect(taskTags.single.entityType, 'task');
-        expect(projectTags.map((t) => t.id), ['pt']);
-        expect(projectTags.single.entityType, 'project');
-      },
-    );
+      // One paged sweep, not one request per taggable type.
+      expect(api.calls, 1);
+
+      final taskTags = await repo
+          .watchAll(companyId: 'co', entityType: 'task')
+          .first;
+      final projectTags = await repo
+          .watchAll(companyId: 'co', entityType: 'project')
+          .first;
+      expect(taskTags.map((t) => t.id), ['tt']);
+      expect(taskTags.single.entityType, 'task');
+      expect(projectTags.map((t) => t.id), ['pt']);
+      expect(projectTags.single.entityType, 'project');
+    });
+
+    // `TagFilters::entity_type` is `whereIn('entity_type', [$type, GLOBAL])`,
+    // so every per-type fetch already ships the company's global tags. They
+    // arrive stamped with the Company FQCN, and the server lets them be
+    // attached to any entity (`HasTags::resolveTagIds`) — including
+    // automatically, via `global_tag_inheritance`. If the app can't recognise
+    // them, every inherited tag renders as a raw hashid instead of its name.
+    test('a global tag is normalized and visible from every entity type', () {
+      final t = Tag.fromApi(
+        const TagApi(
+          id: 'g1',
+          entityType: 'App\\Models\\Company',
+          name: 'Priority',
+        ),
+      );
+      expect(t.entityType, 'global');
+    });
+
+    test('global tags come back from a per-type watch', () async {
+      final repo = TagRepository(
+        db: db,
+        api: _FakeTagsApi({
+          // One request per type, and the server folds the global tags into
+          // each response.
+          'invoice': const [
+            TagApi(id: 'it', entityType: 'App\\Models\\Invoice', name: 'Rush'),
+            TagApi(
+              id: 'g1',
+              entityType: 'App\\Models\\Company',
+              name: 'Priority',
+            ),
+          ],
+        }),
+      );
+      await repo.refreshAll(companyId: 'co');
+
+      final invoiceTags = await repo
+          .watchAll(companyId: 'co', entityType: 'invoice')
+          .first;
+      expect(
+        invoiceTags.map((t) => t.name),
+        containsAll(<String>['Rush', 'Priority']),
+        reason:
+            'a global tag is attachable to an invoice, so it must show up '
+            'in the invoice picker and resolve to its name',
+      );
+      // …and it keeps its OWN scope. Stamping it with the requested type would
+      // both mislabel it in Settings → Tags and make the last type fetched win.
+      expect(invoiceTags.firstWhere((t) => t.id == 'g1').entityType, 'global');
+      expect(invoiceTags.firstWhere((t) => t.id == 'it').entityType, 'invoice');
+
+      // Same for the all-lifecycle stream the picker uses for its
+      // inline-create collision check.
+      final anyState = await repo
+          .watchAllAnyState(companyId: 'co', entityType: 'invoice')
+          .first;
+      expect(anyState.map((t) => t.id), containsAll(<String>['it', 'g1']));
+    });
 
     test('archive optimistically flips local archived_at + is_dirty so it '
         'leaves the active pool offline (M4)', () async {
@@ -183,10 +232,13 @@ void main() {
 
 /// Stub TagsApi. The CRUD-contract path never reaches the network; [list] is
 /// implemented so the `refreshAll` test can exercise the two-entity_type fetch.
+/// Mirrors `TagFilters::entity_types` — one request, CSV of scopes, union of
+/// the matching rows. [calls] lets a test pin the request count.
 class _FakeTagsApi implements TagsApi {
   _FakeTagsApi([this.byType = const {}]);
 
   final Map<String, List<TagApi>> byType;
+  int calls = 0;
 
   @override
   Future<({TagListApi data, int? cursorUpdatedAt, String? cursorId})> list({
@@ -197,9 +249,14 @@ class _FakeTagsApi implements TagsApi {
     String? sinceId,
     Map<String, String> filters = const {},
   }) async {
-    final type = filters['entity_type'] ?? '';
+    calls++;
+    final requested = (filters['entity_types'] ?? '').split(',').toSet();
     final items = page == 1
-        ? (byType[type] ?? const <TagApi>[])
+        ? [
+            for (final entry in byType.entries)
+              if (requested.isEmpty || requested.contains(entry.key))
+                ...entry.value,
+          ]
         : const <TagApi>[];
     return (
       data: TagListApi(data: items),

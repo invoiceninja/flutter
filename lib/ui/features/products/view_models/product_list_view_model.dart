@@ -71,7 +71,8 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   String get defaultSortField => ProductFieldIds.productKey;
 
   @override
-  bool isValidColumnId(String field) => productColumnsById.containsKey(field);
+  bool isValidColumnId(String field) =>
+      isSortableColumnId(productColumnsById, field);
 
   @override
   String idOf(Product item) => item.id;
@@ -95,10 +96,12 @@ class ProductListViewModel extends GenericListViewModel<Product> {
       )
       .map((products) {
         var result = products;
-        // `tag_ids` and `in_stock_quantity` both live in the product payload,
-        // not physical columns, so both are post-decode predicates over the
-        // loaded page — never SQL WHEREs. Completeness is bounded by the loaded
-        // pages; the list VM auto-chains page loads to converge (see
+        // Both live in the product payload rather than a physical column, so
+        // both are post-decode predicates — never SQL WHEREs. The difference:
+        // `tag_ids` is ALSO sent to the server (`QueryFilters::tag_ids`), so it
+        // narrows the fetch and this predicate only has to keep the local view
+        // in step; `in_stock_quantity` has no server dimension at all, so it's
+        // bounded by the loaded window and drives the auto-chain (see
         // localOnlyFilterActive).
         final tagIds = extraFilters['tag_ids'] ?? const <String>{};
         if (tagIds.isNotEmpty) {
@@ -126,9 +129,7 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   /// otherwise `stock:low` with no match in the first 50 rows renders a
   /// false "No records found" that can never scroll itself out.
   @override
-  bool get localOnlyFilterActive =>
-      _stockFilter != StockFilter.none ||
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
+  bool get localOnlyFilterActive => _stockFilter != StockFilter.none;
 
   @override
   int get pageSize => repo.pageSize;
@@ -150,18 +151,12 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `stock` is a LOCAL filter — the server has no such dimension. The
-    // local watch re-applies it post-decode in [watchPage]; see
-    // [GenericListViewModel.extraFiltersWithout] for why it must not reach
-    // the server fetch.
-    // Both `stock` and `tag_ids` are applied LOCALLY (post-decode in
-    // [watchPage]) — strip them from the server fetch.
+    // `stock` is a LOCAL filter — the server has no such dimension, so it must
+    // not reach the fetch; the local watch re-applies it post-decode in
+    // [watchPage]. `tag_ids` DOES have a server dimension and is passed through.
     final serverFilters = GenericListViewModel.extraFiltersWithout(
-      GenericListViewModel.extraFiltersWithout(
-        extraFilters,
-        StockFilterKey.serverKey,
-      ),
-      'tag_ids',
+      extraFilters,
+      StockFilterKey.serverKey,
     );
     return repo.ensurePageLoaded(
       companyId: companyId,

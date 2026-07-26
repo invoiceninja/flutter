@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/router.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
@@ -45,8 +45,11 @@ class ExpenseEditBankingSection extends StatelessWidget {
               child: LinkText(
                 label: context.tr('view'),
                 style: const TextStyle(fontWeight: FontWeight.w500),
-                onTap: () =>
-                    context.go('/transactions/${vm.draft.transactionId}'),
+                onTap: () => goEntityFullDetail(
+                  context,
+                  '/transactions',
+                  vm.draft.transactionId,
+                ),
               ),
             ),
           ),

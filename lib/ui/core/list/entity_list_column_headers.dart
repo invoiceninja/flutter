@@ -93,12 +93,19 @@ class _HeaderCell<T> extends StatelessWidget {
       children: isEnd ? [arrow, text] : [text, arrow],
     );
     final content = InkWell(
-      onTap: () => vm.setSort(
-        field: column.id,
-        // Flip direction only when the active field is tapped again;
-        // switching field keeps the current direction.
-        ascending: isActive ? !vm.sortAscending : vm.sortAscending,
-      ),
+      // Display-only columns (tags, notes, a derived status, a "View" link)
+      // have no Drift column to order by — a null `onTap` also drops the
+      // hover/ripple affordance, so the header doesn't advertise a sort it
+      // can't perform. `setSort` rejects them too (via `isValidColumnId`),
+      // which covers the persisted-sort and deep-link paths.
+      onTap: column.sortable
+          ? () => vm.setSort(
+              field: column.id,
+              // Flip direction only when the active field is tapped again;
+              // switching field keeps the current direction.
+              ascending: isActive ? !vm.sortAscending : vm.sortAscending,
+            )
+          : null,
       child: Align(
         alignment: isEnd
             ? AlignmentDirectional.centerEnd

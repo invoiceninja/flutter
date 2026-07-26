@@ -554,7 +554,10 @@ class Services implements SidebarBadgeContext {
   /// Resolves user overrides over the catalog defaults and feeds all three
   /// consumers at once: the shell's live `Shortcuts` map, the hold-modifier
   /// hint bar, and the `?` help dialog. Persists to `nav_state`, like [theme] /
-  /// [textScale]; not reset on logout (a device preference).
+  /// [textScale] — and, like them, **does not survive logout**: `logout()`
+  /// wipes every Drift table, `nav_state` included, and nothing re-seeds the
+  /// row. (The in-memory map outlives the wipe, so the UI keeps showing the
+  /// custom bindings until the next launch — don't read that as persistence.)
   final KeyboardShortcutsController keyboardShortcuts;
 
   /// The locale `MaterialApp.locale` actually binds to — resolves the device

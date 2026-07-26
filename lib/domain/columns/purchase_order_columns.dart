@@ -139,6 +139,7 @@ final List<PurchaseOrderColumn> kAllPurchaseOrderColumns =
       PurchaseOrderColumn(
         id: PurchaseOrderFieldIds.tagIds,
         labelKey: 'tags',
+        sortable: false,
         width: 200,
         cellBuilder: (o, _) => o.tagIds.isEmpty
             ? cellEmpty()

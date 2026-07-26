@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/api/tag_api_model.dart'
+    show kGlobalTagEntityType;
 import 'package:admin/data/db/company_scoped_dao.dart';
 import 'package:admin/data/db/tables/tags_table.dart';
 
@@ -12,20 +14,37 @@ class TagDao extends DatabaseAccessor<AppDatabase>
     with _$TagDaoMixin, CompanyScopedDao {
   TagDao(super.db);
 
-  /// Watch tags for a company, scoped to a single [entityType] (`task` /
-  /// `project`) when provided. Used by the picker, the list filter
-  /// suggestions, and the Settings → Tags list. Tags are a small set, so
-  /// there is no pagination — the full (filtered) set is returned in name
-  /// order.
+  /// `entity_type IN (<type>, 'global')` — the local mirror of the server's
+  /// `TagFilters::entity_type`, which is literally
+  /// `whereIn('entity_type', [$entity_type, Tag::GLOBAL_ENTITY_TYPE])`.
+  ///
+  /// A global tag is attachable to any entity, so anything that resolves or
+  /// offers tags **for an entity** must see them; only the Settings → Tags
+  /// management list wants the type in isolation ([includeGlobal] `false`).
+  Expression<bool> _entityTypeMatches(
+    Tags t,
+    String entityType, {
+    required bool includeGlobal,
+  }) => includeGlobal
+      ? t.entityType.isIn([entityType, kGlobalTagEntityType])
+      : t.entityType.equals(entityType);
+
+  /// Watch tags for a company, scoped to a single [entityType] when provided.
+  /// Used by the picker, the list filter suggestions, the read-only chips, and
+  /// the Settings → Tags list. Tags are a small set, so there is no pagination
+  /// — the full (filtered) set is returned in name order.
   Stream<List<TagRow>> watchAll({
     required String companyId,
     String? entityType,
     bool includeArchived = false,
+    bool includeGlobal = true,
   }) {
     final q = select(tags)
       ..where((t) => t.companyId.equals(companyId) & t.isDeleted.equals(false));
     if (entityType != null) {
-      q.where((t) => t.entityType.equals(entityType));
+      q.where(
+        (t) => _entityTypeMatches(t, entityType, includeGlobal: includeGlobal),
+      );
     }
     if (!includeArchived) {
       q.where((t) => t.archivedAt.isNull());
@@ -43,10 +62,13 @@ class TagDao extends DatabaseAccessor<AppDatabase>
   Stream<List<TagRow>> watchAllAnyState({
     required String companyId,
     required String entityType,
+    bool includeGlobal = true,
   }) {
     final q = select(tags)
       ..where(
-        (t) => t.companyId.equals(companyId) & t.entityType.equals(entityType),
+        (t) =>
+            t.companyId.equals(companyId) &
+            _entityTypeMatches(t, entityType, includeGlobal: includeGlobal),
       )
       ..orderBy([(t) => OrderingTerm(expression: t.name.lower())]);
     return q.watch().distinctRows();

@@ -301,6 +301,7 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
   ClientColumn(
     id: ClientFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (c, _) => c.tagIds.isEmpty
         ? cellEmpty()

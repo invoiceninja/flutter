@@ -22,6 +22,7 @@ class ColumnDefinition<T> {
     this.valueBuilder,
     this.width,
     this.align = ColumnAlign.start,
+    this.sortable = true,
   });
 
   final String id;
@@ -38,5 +39,25 @@ class ColumnDefinition<T> {
   /// is suppressed.
   final String? Function(T entity)? valueBuilder;
 
+  /// Whether this column can back a sort. Every header is a sort control, and
+  /// the DAOs' `_sortExpression` throws `ArgumentError` on a field it has no
+  /// case for — so a column whose value lives only in the row payload (tags,
+  /// notes, a derived status, a foreign-key "View" link) has no Drift column
+  /// to order by and **must** set this false. Enforced by
+  /// `test/domain/columns/sortable_columns_test.dart`.
+  final bool sortable;
+
   bool get isFlex => width == null;
 }
+
+/// True when [field] names a known, sortable column.
+///
+/// This is the gate behind every list ViewModel's `isValidColumnId`, which
+/// guards all three ways a sort field is set: the header tap (`setSort`), the
+/// persisted `nav_state` restore, and deep-link sort intents. Rejecting
+/// display-only columns here is what keeps an unmapped field from reaching a
+/// DAO — see [ColumnDefinition.sortable].
+bool isSortableColumnId<T>(
+  Map<String, ColumnDefinition<T>> columnsById,
+  String field,
+) => columnsById[field]?.sortable ?? false;

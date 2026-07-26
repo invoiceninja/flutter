@@ -70,7 +70,7 @@ class _ProjectAnalyticsTabState extends State<ProjectAnalyticsTab> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-        if (_vm.errorMessage != null) {
+        if (_vm.hasError) {
           return _AnalyticsError(vm: _vm);
         }
         return Column(
@@ -154,7 +154,9 @@ class _AnalyticsError extends StatelessWidget {
     return EmptyState(
       icon: Icons.insights_outlined,
       title: context.tr('analytics_unavailable'),
-      subtitle: vm.errorMessage,
+      // A server message is shown verbatim; a keyed failure is translated
+      // (rendering the raw key would put a bare slug on screen).
+      subtitle: vm.errorMessage ?? context.tr(vm.errorKey ?? ''),
       action: FilledButton(
         // Centered single action must constrain its own width, or the
         // Size.fromHeight(44) button theme stretches it edge-to-edge.
@@ -247,10 +249,22 @@ class _BudgetCard extends StatelessWidget {
                       ? '—'
                       : money(summary.budgetedAmount),
                 ),
-                _Kpi(context.tr('remaining'), money(summary.remainingBudget)),
+                _Kpi(
+                  context.tr('remaining'),
+                  summary.budgetedAmount == Decimal.zero
+                      ? '—'
+                      : money(summary.remainingBudget),
+                ),
+                // The HOURS ratio (`logged ÷ budgeted hours`). The server also
+                // sends `budget_utilization` (actual ÷ budgeted MONEY), which
+                // used to be rendered here — under an hours-led row, and
+                // reading 0% for any project without a money budget or task
+                // rate, which is the common non-billable case.
                 _Kpi(
                   context.tr('utilization'),
-                  _percent(summary.budgetUtilization),
+                  summary.budgetedHours == 0
+                      ? '—'
+                      : _percent(summary.utilization),
                 ),
               ],
             ),

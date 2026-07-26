@@ -38,6 +38,7 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
       RecurringExpenseColumn(
         id: RecurringExpenseFieldIds.status,
         labelKey: 'status',
+        sortable: false,
         width: 110,
         cellBuilder: (e, _) =>
             RecurringExpenseStatusPill(statusId: e.calculatedStatusId),
@@ -170,6 +171,7 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
       RecurringExpenseColumn(
         id: RecurringExpenseFieldIds.publicNotes,
         labelKey: 'public_notes',
+        sortable: false,
         width: 240,
         cellBuilder: (e, _) =>
             e.publicNotes.isEmpty ? cellEmpty() : cellText(e.publicNotes),
@@ -178,6 +180,7 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
       RecurringExpenseColumn(
         id: RecurringExpenseFieldIds.privateNotes,
         labelKey: 'private_notes',
+        sortable: false,
         width: 240,
         cellBuilder: (e, _) =>
             e.privateNotes.isEmpty ? cellEmpty() : cellText(e.privateNotes),
@@ -226,6 +229,7 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
       RecurringExpenseColumn(
         id: RecurringExpenseFieldIds.tagIds,
         labelKey: 'tags',
+        sortable: false,
         width: 200,
         cellBuilder: (e, _) => e.tagIds.isEmpty
             ? cellEmpty()

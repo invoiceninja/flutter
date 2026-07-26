@@ -390,6 +390,59 @@ void main() {
       expect(svc.calls, 1);
     });
 
+    // The answer is per (server, email). Only `setEmail` used to drop it, so
+    // pointing at a different server left the previous host's answer standing
+    // — and if that host had no API_SECRET while the new one does, the secret
+    // field stays hidden and there is nowhere to type the secret.
+    test('changing the server URL drops the previous answer', () async {
+      final vm = vmWithPrecheck(_PrecheckAuthService(result: passwordOnly));
+      await vm.runPrecheck();
+      expect(vm.showSecretField, isFalse);
+
+      vm.setUrlOverride('https://other.example.com');
+      expect(
+        vm.showSecretField,
+        isTrue,
+        reason: 'the answer belonged to the previous server',
+      );
+    });
+
+    test('toggling hosted drops the previous answer', () async {
+      final vm = vmWithPrecheck(_PrecheckAuthService(result: passwordOnly));
+      await vm.runPrecheck();
+      expect(vm.showSecretField, isFalse);
+
+      vm.setHosted(true);
+      expect(
+        vm.showSecretField,
+        isTrue,
+        reason: 'the answer belonged to the self-hosted server',
+      );
+    });
+
+    test('re-asks after the server URL changes', () async {
+      final svc = _PrecheckAuthService(result: passwordOnly);
+      final vm = vmWithPrecheck(svc);
+      await vm.runPrecheck();
+      vm.setUrlOverride('https://other.example.com');
+      await vm.runPrecheck();
+      expect(svc.calls, 2);
+    });
+
+    // `/login/precheck` is registered under `throttle:precheck`. A failed
+    // answer must still count as "asked", or every blur re-hits it.
+    test('a failed answer is not retried on the next blur', () async {
+      final svc = _PrecheckAuthService(); // null result = no answer
+      final vm = vmWithPrecheck(svc);
+      await vm.runPrecheck();
+      await vm.runPrecheck();
+      await vm.runPrecheck();
+      expect(svc.calls, 1);
+      // …and the form stays in its optimistic state, as before.
+      expect(vm.showOtpField, isTrue);
+      expect(vm.showSecretField, isTrue);
+    });
+
     test('skips a blank or malformed email entirely', () async {
       final svc = _PrecheckAuthService(result: passwordOnly);
       final vm = vmWithPrecheck(svc)..setEmail('not-an-email');

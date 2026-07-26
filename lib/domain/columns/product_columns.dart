@@ -213,6 +213,7 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
   ProductColumn(
     id: ProductFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (p, _) => p.tagIds.isEmpty
         ? cellEmpty()

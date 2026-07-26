@@ -60,7 +60,7 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
 
   @override
   bool isValidColumnId(String field) =>
-      invoiceColumnsById.containsKey(field) ||
+      isSortableColumnId(invoiceColumnsById, field) ||
       field == InvoiceFieldIds.updatedAt;
 
   @override
@@ -71,12 +71,6 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
 
   @override
   bool isDeleted(Invoice item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
-  /// so a short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   Stream<List<Invoice>> watchPage() => repo.watchPage(
@@ -103,11 +97,7 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
     // Embedded mode: thread the client scope through to the server via the
     // standard `extraFilters` plumbing so pagination cursors stay aligned
     // with the on-screen rows.
-    // `tag_ids` is applied locally (post-decode in repo.watchPage) — strip it.
-    final base = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    final base = extraFilters;
     final filters = clientId == null
         ? base
         : {

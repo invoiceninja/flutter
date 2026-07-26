@@ -49,7 +49,32 @@ void main() {
       final b = KeyBinding.logical(LogicalKeyboardKey.keyN.keyId);
       expect(b.toActivators(), hasLength(1));
       expect(b.toActivators().single, isA<SingleActivator>());
-      expect(b.activatorSignatures(), [_keySig(LogicalKeyboardKey.keyN)]);
+      // Two signatures, one activator: an unmodified chord also types a
+      // character, so it has to be comparable against a CharacterActivator
+      // binding (which would match the same keystroke and lose at dispatch).
+      expect(b.activatorSignatures(), [
+        _keySig(LogicalKeyboardKey.keyN),
+        'char:n',
+      ]);
+    });
+
+    test(
+      'a primary-modified chord types nothing, so has no char signature',
+      () {
+        final b = KeyBinding.logical(
+          LogicalKeyboardKey.keyN.keyId,
+          usesPrimary: true,
+        );
+        expect(
+          b.activatorSignatures().where((s) => s.startsWith('char:')),
+          isEmpty,
+        );
+      },
+    );
+
+    test('a chord on a key that types nothing has no char signature', () {
+      final b = KeyBinding.logical(LogicalKeyboardKey.f5.keyId);
+      expect(b.activatorSignatures(), [_keySig(LogicalKeyboardKey.f5)]);
     });
 
     test('json round-trips logical + character bindings', () {
@@ -214,6 +239,69 @@ void main() {
     });
 
     test('distinct default bindings do not conflict', () {
+      expect(KeyboardShortcutsController().conflictingIds(), isEmpty);
+    });
+
+    test('a clashing binding loses to the earlier catalog entry', () {
+      // "First catalog entry wins" has to be enforced, not incidental — the
+      // activator types use identity equality, so a Map keyed by them can't
+      // dedupe on its own.
+      final c = KeyboardShortcutsController();
+      final createId = ShortcutActionIds.create(kCreateShortcutEntities.first);
+      c.setBinding(
+        createId,
+        KeyBinding.logical(LogicalKeyboardKey.keyK.keyId, usesPrimary: true),
+      );
+      final intents = _allIntents();
+      final map = c.activatorsFor(ShortcutScope.global, intents);
+      expect(
+        map.values,
+        contains(intents[ShortcutActionIds.openCompanyPicker]),
+        reason: 'the earlier catalog entry keeps the chord',
+      );
+      expect(
+        map.values,
+        isNot(contains(intents[createId])),
+        reason: 'the later, clashing entry contributes nothing',
+      );
+    });
+
+    // A recorded chord is always a logical key, but two catalog defaults are
+    // CharacterActivators (`?` help, `/` focus-search). Both shapes can match
+    // the SAME physical keystroke, and Flutter's dispatch prefers the
+    // trigger-keyed SingleActivator — so the recorded one silently wins and the
+    // built-in stops working. Signatures must therefore cross the shapes.
+    test('an unmodified logical key conflicts with the character it types', () {
+      final c = KeyboardShortcutsController();
+      final createId = ShortcutActionIds.create(kCreateShortcutEntities.first);
+      c.setBinding(
+        createId,
+        KeyBinding.logical(LogicalKeyboardKey.slash.keyId),
+      );
+      expect(
+        c.conflictingIds(),
+        containsAll([ShortcutActionIds.focusSearch, createId]),
+        reason: 'bare `/` shadows the built-in focus-search shortcut',
+      );
+    });
+
+    test('shift + that key conflicts with the shifted character', () {
+      final c = KeyboardShortcutsController();
+      final createId = ShortcutActionIds.create(kCreateShortcutEntities.first);
+      c.setBinding(
+        createId,
+        KeyBinding.logical(LogicalKeyboardKey.slash.keyId, shift: true),
+      );
+      expect(
+        c.conflictingIds(),
+        containsAll([ShortcutActionIds.openKeyboardShortcuts, createId]),
+        reason: 'Shift+/ types `?` and shadows the help dialog',
+      );
+    });
+
+    test('a primary-modified key does NOT conflict with the bare glyph', () {
+      // ⌘/ is search_everything's default and must not be reported as clashing
+      // with the bare `/` focus-search default — the modifier disambiguates.
       expect(KeyboardShortcutsController().conflictingIds(), isEmpty);
     });
 

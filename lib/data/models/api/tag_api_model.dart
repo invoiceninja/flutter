@@ -26,6 +26,16 @@ const Set<String> kTagEntityTypes = <String>{
   'recurring_expense',
 };
 
+/// The company-wide scope. A global tag can be attached to **any** entity
+/// (`HasTags::resolveTagIds` accepts `[static::class, GLOBAL_ENTITY_TYPE]`), and
+/// with `settings.global_tag_inheritance` on, the server attaches a parent's
+/// global tags to each new child automatically. The server also folds them into
+/// every per-type index response (`TagFilters::entity_type` is
+/// `whereIn('entity_type', [$type, GLOBAL])`), so they arrive without being
+/// asked for — deliberately kept OUT of [kTagEntityTypes], which drives the
+/// per-type fetch loop and the Settings type picker.
+const String kGlobalTagEntityType = 'global';
+
 /// Normalize a tag's `entity_type` to its canonical short key.
 ///
 /// The server may echo the short key (`invoice`), the FQCN
@@ -35,6 +45,10 @@ const Set<String> kTagEntityTypes = <String>{
 String normalizeTagEntityType(String raw) {
   final v = raw.trim();
   if (kTagEntityTypes.contains(v)) return v;
+  if (v == kGlobalTagEntityType) return v;
+  // `App\Models\Company` is the server's global scope, not a taggable company
+  // entity — snake-casing it would yield `company`, which matches nothing.
+  if (v.endsWith('Company')) return kGlobalTagEntityType;
   // Class-name tail after a namespace / path separator → snake_case.
   var tail = v;
   for (final sep in const <String>['\\', '/']) {

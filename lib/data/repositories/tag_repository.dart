@@ -35,19 +35,26 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
   @override
   String get entityTypeName => 'tag';
 
-  /// Watch tags for a company, optionally scoped to one [entityType]
-  /// (`task` / `project`). Used by the picker, the list-filter suggestions,
-  /// and the Settings → Tags list.
+  /// Watch tags for a company, optionally scoped to one [entityType]. Used by
+  /// the picker, the list-filter suggestions, the read-only chips, and the
+  /// Settings → Tags list.
+  ///
+  /// [includeGlobal] mirrors the server: `?entity_type=invoice` returns invoice
+  /// tags **plus** the company's global ones, because a global tag is
+  /// attachable to any entity. Only the Settings management list, which edits
+  /// one scope at a time, passes `false`.
   Stream<List<Tag>> watchAll({
     required String companyId,
     String? entityType,
     bool includeArchived = false,
+    bool includeGlobal = true,
   }) {
     return db.tagDao
         .watchAll(
           companyId: companyId,
           entityType: entityType,
           includeArchived: includeArchived,
+          includeGlobal: includeGlobal,
         )
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
@@ -60,9 +67,14 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
   Stream<List<Tag>> watchAllAnyState({
     required String companyId,
     required String entityType,
+    bool includeGlobal = true,
   }) {
     return db.tagDao
-        .watchAllAnyState(companyId: companyId, entityType: entityType)
+        .watchAllAnyState(
+          companyId: companyId,
+          entityType: entityType,
+          includeGlobal: includeGlobal,
+        )
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
 
@@ -72,36 +84,47 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
           .watchById(companyId: companyId, id: id)
           .map((row) => row == null ? null : _fromRow(row));
 
-  /// Fetch every tag for the company. Tags require an `entity_type` filter on
-  /// the index, so we fetch each taggable type ([kTagEntityTypes]) separately
-  /// and upsert — the sets are disjoint (a tag belongs to exactly one
-  /// entity_type per the server's `UNIQUE(company_id, entity_type, name)`).
+  /// Fetch every tag for the company in ONE paged sweep.
+  ///
+  /// `TagFilters::entity_types` (plural) takes a CSV and normalizes each entry,
+  /// so a single request covers all 14 taggable types plus the company-wide
+  /// `global` scope — which has to be listed explicitly, because unlike the
+  /// singular `entity_type` filter the plural one doesn't fold globals in for
+  /// free. This used to be one request per type (14 serialized round trips on
+  /// every company activate, each re-downloading the whole global set).
+  ///
+  /// An older server with no `entity_types` handler silently ignores the param
+  /// (`QueryFilters::apply` skips unknown keys) and returns every tag for the
+  /// company — a harmless superset, since each row is scoped by its own
+  /// echoed `entity_type` on ingest.
+  ///
   /// Bypasses the keyset cursor entirely; tags are a small set, so we just page
-  /// until exhausted. Sequential (one type at a time) keeps it simple; the
-  /// per-type sets are tiny.
+  /// until exhausted.
   Future<void> refreshAll({required String companyId}) async {
-    for (final entityType in kTagEntityTypes) {
-      var page = 1;
-      while (true) {
-        final result = await api.list(
-          page: page,
-          perPage: 200,
-          filters: {'entity_type': entityType},
-        );
-        final items = result.data.data;
-        if (items.isEmpty) break;
-        final byId = <String, TagsCompanion>{
-          for (final a in items)
-            a.id: _apiToCompanion(a, companyId, entityType: entityType),
-        };
-        await db.tagDao.upsertAllPreservingDirty(
-          companyId: companyId,
-          byId: byId,
-        );
-        if (items.length < 200) break;
-        page++;
-        if (page > 50) break; // safety cap (~10k tags per type)
-      }
+    final types = [...kTagEntityTypes, kGlobalTagEntityType].join(',');
+    var page = 1;
+    while (true) {
+      final result = await api.list(
+        page: page,
+        perPage: 200,
+        filters: {'entity_types': types},
+      );
+      final items = result.data.data;
+      if (items.isEmpty) break;
+      // Scope comes from the row's own `entity_type`, never from what we asked
+      // for: a global tag rides along with every type, and stamping it with the
+      // requested one would mislabel it (and, across several requests, let the
+      // last one win).
+      final byId = <String, TagsCompanion>{
+        for (final a in items) a.id: _apiToCompanion(a, companyId),
+      };
+      await db.tagDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      );
+      if (items.length < 200) break;
+      page++;
+      if (page > 50) break; // safety cap (~10k tags)
     }
   }
 
@@ -261,12 +284,11 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
 
   // -------------------- conversions --------------------
 
-  TagsCompanion _apiToCompanion(
-    TagApi a,
-    String companyId, {
-    String? entityType,
-  }) {
-    final normalized = entityType ?? normalizeTagEntityType(a.entityType);
+  TagsCompanion _apiToCompanion(TagApi a, String companyId) {
+    // Always the row's OWN echoed scope. It used to be overridable by the
+    // requested `entity_type`, which silently relabelled every global tag as
+    // whichever type was being fetched at the time.
+    final normalized = normalizeTagEntityType(a.entityType);
     // Store the payload with the normalized (short) entity_type so a later
     // `_fromRow` round-trip stays consistent with the column.
     final stored = a.copyWith(entityType: normalized);

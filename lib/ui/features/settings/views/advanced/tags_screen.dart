@@ -60,6 +60,11 @@ class _TagsScreenState extends State<TagsScreen> {
         companyId: companyId,
         entityType: _entityType,
         includeArchived: includeArchived,
+        // Management list: show exactly the picked scope. Everywhere a tag is
+        // *attached to an entity* the global ones ride along (that's the
+        // server's rule), but folding them into every type here would show the
+        // same tag under all 14 tabs.
+        includeGlobal: false,
       ),
       isArchivedOf: (t) => t.archivedAt != null,
       isDeletedOf: (t) => t.isDeleted,

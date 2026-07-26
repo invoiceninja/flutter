@@ -47,6 +47,13 @@ final _kAllColumns = <ColumnDefinition<FakeInvoice>>[
     labelKey: 'amount',
     cellBuilder: (i, _) => Text(i.amount.toString()),
   ),
+  // Display-only: renders from the payload, has no column to ORDER BY.
+  ColumnDefinition(
+    id: 'tags',
+    labelKey: 'tags',
+    sortable: false,
+    cellBuilder: (i, _) => const Text(''),
+  ),
 ];
 
 class FakeInvoiceListViewModel extends GenericListViewModel<FakeInvoice> {
@@ -79,7 +86,8 @@ class FakeInvoiceListViewModel extends GenericListViewModel<FakeInvoice> {
   String get defaultSortField => 'number';
 
   @override
-  bool isValidColumnId(String field) => _kAllColumns.any((c) => c.id == field);
+  bool isValidColumnId(String field) =>
+      _kAllColumns.any((c) => c.id == field && c.sortable);
 
   @override
   String idOf(FakeInvoice item) => item.id;
@@ -266,6 +274,56 @@ void main() {
       vm.dispose();
     },
   );
+
+  // Every column header is a sort control, and a DAO throws `ArgumentError`
+  // on a sort field it has no expression for — which cancels the watch
+  // subscription and leaves the list frozen (search and filters silently stop
+  // working). `isValidColumnId` is the shared gate for all three ways a sort
+  // field is set, so a display-only column must be rejected by every one.
+  test('a display-only column can never become the sort field', () async {
+    final vm = FakeInvoiceListViewModel(
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      userSettings: UserSettingsRepository(db: db),
+      searchDebounce: const Duration(milliseconds: 1),
+      persistDebounce: const Duration(milliseconds: 1),
+    );
+    await settle();
+    final original = vm.sortField;
+
+    await vm.setSort(field: 'tags', ascending: true);
+    expect(
+      vm.sortField,
+      original,
+      reason: 'setSort must reject a non-sortable column',
+    );
+
+    // A sortable column still works, so the gate isn't just refusing everything.
+    await vm.setSort(field: 'amount', ascending: true);
+    expect(vm.sortField, 'amount');
+    vm.dispose();
+  });
+
+  test('a persisted display-only sort field is not restored', () async {
+    // A blob written before the column was marked display-only (or by a build
+    // that let the header set it) must not come back and re-break the list.
+    await db.navStateDao.saveFilters(
+      filtersJson:
+          '{"co":{"invoice":{"search":"","states":["active"],'
+          '"sortField":"tags","sortAscending":true,"customFilters":{}}}}',
+      now: DateTime.now().millisecondsSinceEpoch,
+    );
+    final vm = FakeInvoiceListViewModel(
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      userSettings: UserSettingsRepository(db: db),
+      searchDebounce: const Duration(milliseconds: 1),
+      persistDebounce: const Duration(milliseconds: 1),
+    );
+    await settle();
+    expect(vm.sortField, isNot('tags'));
+    vm.dispose();
+  });
 
   test('persisted filter blob is keyed by entity type', () async {
     final vm = FakeInvoiceListViewModel(

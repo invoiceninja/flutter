@@ -13,9 +13,13 @@ List<FilterKey> buildPurchaseOrderFilterKeys({
 }) => <FilterKey>[
   const IsFilterKey(),
   TagFilterKey(tags: tags, companyId: companyId, entityType: 'purchase_order'),
+  // Purchase orders reuse the `invoice` custom-field config slots — there are
+  // no `purchase_order1..4` keys server-side, and the PO detail/edit screens
+  // already read `prefix: 'invoice'`. Reading the wrong slot yields an empty
+  // label, which silently drops all four filters (`isAvailable` is false).
   for (var i = 1; i <= 4; i++)
     CustomFieldFilterKey(
       columnIndex: i,
-      configuredLabel: company?.customFieldLabel('purchase_order$i') ?? '',
+      configuredLabel: company?.customFieldLabel('invoice$i') ?? '',
     ),
 ];

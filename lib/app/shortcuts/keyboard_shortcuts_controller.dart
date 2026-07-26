@@ -58,14 +58,23 @@ class KeyboardShortcutsController extends ChangeNotifier {
     Map<String, Intent> intents,
   ) {
     final out = <ShortcutActivator, Intent>{};
+    // Dedupe on the canonical signature, NOT the activator: SingleActivator /
+    // CharacterActivator declare no `operator ==`, so a `Map` keyed by them
+    // uses identity and `putIfAbsent` could never actually collide — both
+    // conflicting entries would land in the map and "first wins" would hold
+    // only by accident (via `_indexShortcuts`' insertion order).
+    final claimed = <String>{};
     for (final def in kShortcutCatalog) {
       if (def.scope != scope) continue;
       final intent = intents[def.id];
       if (intent == null) continue;
       final binding = resolvedBinding(def.id);
       if (binding == null) continue;
+      final signatures = binding.activatorSignatures();
+      if (signatures.any(claimed.contains)) continue;
+      claimed.addAll(signatures);
       for (final activator in binding.toActivators()) {
-        out.putIfAbsent(activator, () => intent);
+        out[activator] = intent;
       }
     }
     return out;

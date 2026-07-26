@@ -270,6 +270,24 @@ void main() {
       expect(b.series.single.cumulativeLoggedHours, 5.0);
     });
 
+    test('hasMoneySeries ignores expenses — they are not a plotted series', () {
+      // The chart plots cumulative INVOICED and PAID. Counting expenses here
+      // flips a project with spend but nothing invoiced into the money view,
+      // where both series are flat zero and the hours data it does have is
+      // hidden — exactly the case this flag exists to avoid.
+      final b = ProjectBurnup.fromJson({
+        'series': [
+          {
+            'period_end': '2026-01-31',
+            'cumulative_logged_hours': 8.0,
+            'cumulative_expense_amount': 2400.0,
+          },
+        ],
+      });
+      expect(b.series.single.cumulativeExpenseAmount, Decimal.parse('2400'));
+      expect(b.hasMoneySeries, isFalse);
+    });
+
     test('falls back to project.* when markers is absent', () {
       final b = ProjectBurnup.fromJson({
         'project': {'budgeted_hours': 20.0, 'budgeted_amount': 2000.0},

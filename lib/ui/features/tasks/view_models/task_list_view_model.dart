@@ -54,7 +54,8 @@ class TaskListViewModel extends GenericListViewModel<Task> {
 
   @override
   bool isValidColumnId(String field) =>
-      taskColumnsById.containsKey(field) || field == TaskFieldIds.updatedAt;
+      isSortableColumnId(taskColumnsById, field) ||
+      field == TaskFieldIds.updatedAt;
 
   @override
   String idOf(Task item) => item.id;
@@ -79,13 +80,6 @@ class TaskListViewModel extends GenericListViewModel<Task> {
     customFilters: customFilters,
   );
 
-  /// `tag:` is filtered post-decode over the loaded window (the tag ids live
-  /// only in the row payload), so a short filtered result must auto-chain
-  /// page fetches — see the base class.
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
-
   @override
   int get pageSize => repo.pageSize;
 
@@ -97,13 +91,7 @@ class TaskListViewModel extends GenericListViewModel<Task> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `tag_ids` is applied locally (post-decode in repo.watchPage) — see
-    // [GenericListViewModel.extraFiltersWithout] for why it must not reach
-    // the server fetch.
-    var filters = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    var filters = extraFilters;
     if (clientId != null) {
       filters = {
         ...filters,

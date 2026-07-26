@@ -86,6 +86,62 @@ void main() {
       expect(sent.containsKey('bank_integration_id'), isFalse);
     });
 
+    // `tag_ids` was stripped from the fetch and applied post-decode over the
+    // loaded window instead. The auto-chain that backfills that window is
+    // capped at 5 extra pages, so a tag whose matches all sort below ~row 300
+    // rendered a permanent, wrong "No records found". The server has supported
+    // `QueryFilters::tag_ids` since 2026-06-01 — send it and let the server
+    // narrow, while the post-decode predicate keeps the local view in step.
+    test('tag_ids reaches the server as a CSV', () async {
+      final vm = makeVm();
+      addTearDown(vm.dispose);
+
+      await vm.fetchPage(
+        page: 1,
+        search: null,
+        states: const {EntityState.active},
+        extraFilters: const {
+          'tag_ids': {'tag_a', 'tag_b'},
+        },
+        ignoreCursor: false,
+      );
+
+      expect(api.listFilters, isNotEmpty);
+      expect(api.listFilters.last['tag_ids'], 'tag_a,tag_b');
+    });
+
+    test(
+      'a tag filter still narrows alongside the other server params',
+      () async {
+        // Sanity: the pass-through doesn't clobber the chip→server translation
+        // that `_toServerFilters` does for status/type, or the embedded scope.
+        final vm = makeVm(bankAccountId: 'acct_1');
+        addTearDown(vm.dispose);
+
+        await vm.fetchPage(
+          page: 1,
+          search: null,
+          states: const {EntityState.active},
+          extraFilters: const {
+            'tag_ids': {'tag_a'},
+          },
+          ignoreCursor: false,
+        );
+
+        // The VM also runs its own hydrate-time fetch, so match on content
+        // rather than assuming ours is the last request recorded.
+        expect(
+          api.listFilters.any(
+            (f) =>
+                f['tag_ids'] == 'tag_a' &&
+                f['bank_integration_ids'] == 'acct_1',
+          ),
+          isTrue,
+          reason: 'sent: ${api.listFilters}',
+        );
+      },
+    );
+
     test('unscoped workspace list sends no bank-account filter', () async {
       final vm = makeVm();
       addTearDown(vm.dispose);

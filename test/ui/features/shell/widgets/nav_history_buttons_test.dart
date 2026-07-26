@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -188,5 +190,25 @@ void main() {
     await touch.removePointer();
     await tester.pump();
     expect(router.path, '/clients/c_1');
+  });
+
+  // The buttons are the ONLY history affordance that works without a hardware
+  // keyboard (`Cmd/Alt+←/→`) or a multi-button mouse (`NavHistoryMouseListener`),
+  // so on a tablet/phone they're the difference between "go back" existing and
+  // not. They were briefly unmounted from the sidebar; this pins them there.
+  //
+  // A source scan rather than a pump: `InSidebar` needs the whole `Services`
+  // graph, and the property under test is simply "still wired up".
+  test('NavHistoryButtons stays mounted in the sidebar', () {
+    final sidebar = File(
+      'lib/ui/features/shell/widgets/in_sidebar.dart',
+    ).readAsStringSync();
+    expect(
+      sidebar.contains('NavHistoryButtons('),
+      isTrue,
+      reason:
+          'in_sidebar.dart must render NavHistoryButtons — without it there is '
+          'no pointer-reachable back/forward on touch platforms.',
+    );
   });
 }

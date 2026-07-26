@@ -76,7 +76,36 @@ class KeyBinding {
     if (char != null) return ['char:$char'];
     final base = 'key:$logicalKeyId:shift=$shift';
     if (usesPrimary) return ['$base:meta', '$base:control'];
-    return [base];
+    // An *unmodified* logical chord and a [CharacterActivator] can match the
+    // same physical keystroke, and Flutter's dispatch prefers the trigger-keyed
+    // SingleActivator (`ShortcutManager._indexShortcuts` buckets it under the
+    // trigger, `CharacterActivator` under `null`, and `_getCandidates` yields
+    // the keyed bucket first). So a recorded bare `/` silently shadows the
+    // built-in focus-search `/` — with no conflict reported unless signatures
+    // cross the two shapes. Emit the produced glyph alongside the key form.
+    final glyph = _producedGlyph();
+    return [base, if (glyph != null) 'char:$glyph'];
+  }
+
+  /// The glyph this chord types on a US layout, or null when it types nothing
+  /// (Enter/Tab/arrows) or the mapping isn't reliable.
+  ///
+  /// Only meaningful for an unmodified chord — a primary-modified one doesn't
+  /// produce a character at all. The US-layout assumption is deliberate and
+  /// safe in one direction: conflict detection is a *warning*, so a miss on an
+  /// exotic layout costs a missing warning, never a wrong binding. It can't
+  /// produce a false positive for the shipped catalog, whose only character
+  /// triggers are `?` and `/`.
+  String? _producedGlyph() {
+    final id = logicalKeyId;
+    if (id == null || usesPrimary) return null;
+    final symbol = _symbolGlyphs[id];
+    if (symbol != null) return shift ? _shiftedSymbolGlyphs[symbol] : symbol;
+    final label = LogicalKeyboardKey(id).keyLabel;
+    // Letters only: a shifted digit types punctuation that varies by layout,
+    // and multi-character labels (Enter, Tab, F1…) type nothing.
+    if (label.length != 1 || !_isAsciiLetter(label)) return null;
+    return shift ? label.toUpperCase() : label.toLowerCase();
   }
 
   /// Human-facing glyph sequence for `KeyCap` chips. [primaryModifierLabel] is
@@ -147,6 +176,27 @@ const Map<int, String> _symbolGlyphs = {
   0x0000002d: '-', // minus
   0x0000003d: '=', // equal
 };
+
+/// US-layout shifted forms of [_symbolGlyphs]. Used only to spot a chord that
+/// collides with a [CharacterActivator] — see [KeyBinding._producedGlyph].
+const Map<String, String> _shiftedSymbolGlyphs = {
+  ',': '<',
+  '.': '>',
+  '/': '?',
+  ';': ':',
+  "'": '"',
+  '[': '{',
+  ']': '}',
+  r'\': '|',
+  '`': '~',
+  '-': '_',
+  '=': '+',
+};
+
+bool _isAsciiLetter(String s) {
+  final c = s.codeUnitAt(0);
+  return (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a);
+}
 
 String _glyphForLogicalKey(LogicalKeyboardKey key) {
   final symbol = _symbolGlyphs[key.keyId];

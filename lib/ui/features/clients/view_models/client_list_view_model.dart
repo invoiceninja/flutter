@@ -54,7 +54,8 @@ class ClientListViewModel extends GenericListViewModel<Client> {
   String get defaultSortField => ClientFieldIds.name;
 
   @override
-  bool isValidColumnId(String field) => clientColumnsById.containsKey(field);
+  bool isValidColumnId(String field) =>
+      isSortableColumnId(clientColumnsById, field);
 
   @override
   String idOf(Client item) => item.id;
@@ -64,12 +65,6 @@ class ClientListViewModel extends GenericListViewModel<Client> {
 
   @override
   bool isDeleted(Client item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
-  /// so a short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   // ── Data-source hooks ──────────────────────────────────────────────
 
@@ -98,17 +93,12 @@ class ClientListViewModel extends GenericListViewModel<Client> {
     // `group=` server filter never advances — and corrupts — the shared
     // `client` delta cursor. Serve purely from the local Drift watch.
     if (groupSettingsId != null) return Future.value(false);
-    // `tag_ids` is applied locally (post-decode in repo.watchPage) — strip it
-    // from the server fetch.
     return repo.ensurePageLoaded(
       companyId: companyId,
       page: page,
       search: search,
       states: states,
-      extraFilters: GenericListViewModel.extraFiltersWithout(
-        extraFilters,
-        'tag_ids',
-      ),
+      extraFilters: extraFilters,
       ignoreCursor: ignoreCursor,
     );
   }

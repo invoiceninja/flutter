@@ -303,4 +303,46 @@ void main() {
       reason: 'stale response must not clobber the newer answer',
     );
   });
+
+  test("a superseded failure's message never surfaces on a later request", () {
+    // The error stash belongs to one request. It used to survive the supersede
+    // early-return, so an abandoned "Connection closed" could be shown as the
+    // reason a *different*, later request came back unusable.
+    final gate = Completer<Object?>();
+    final api = _FakeProjectChartsApi()
+      ..analyticsGate = gate
+      ..burnupError = const NetworkException('Connection closed');
+    final vm = build(api);
+
+    final stale = vm.load(); // parks on `gate`
+
+    // A newer request that gets HTTP 200s carrying nothing decodable.
+    api
+      ..analyticsGate = null
+      ..burnupError = null
+      ..analytics =
+          <Object>[] // not a Map → no analytics
+      ..burnup = <Object>[]; // not a Map → no burnup
+
+    return vm
+        .load()
+        .then((_) {
+          // Release the stale one; it must drop silently.
+          gate.complete(<String, dynamic>{});
+          return stale;
+        })
+        .then((_) {
+          expect(vm.hasError, isTrue);
+          expect(
+            vm.errorMessage,
+            isNull,
+            reason: 'no server message belongs to the newer request',
+          );
+          expect(
+            vm.errorKey,
+            'analytics_unexpected_response',
+            reason: 'a localization key, not a raw slug rendered as-is',
+          );
+        });
+  });
 }

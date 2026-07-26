@@ -156,6 +156,7 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
   InvoiceColumn(
     id: InvoiceFieldIds.recurringId,
     labelKey: 'recurring_invoice',
+    sortable: false,
     width: 130,
     cellBuilder: (i, ctx) => i.recurringId.isEmpty
         ? cellEmpty()
@@ -182,6 +183,7 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
   InvoiceColumn(
     id: InvoiceFieldIds.publicNotes,
     labelKey: 'public_notes',
+    sortable: false,
     width: 240,
     cellBuilder: (i, _) =>
         i.publicNotes.isEmpty ? cellEmpty() : cellText(i.publicNotes),
@@ -190,6 +192,7 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
   InvoiceColumn(
     id: InvoiceFieldIds.privateNotes,
     labelKey: 'private_notes',
+    sortable: false,
     width: 240,
     cellBuilder: (i, _) =>
         i.privateNotes.isEmpty ? cellEmpty() : cellText(i.privateNotes),
@@ -238,6 +241,7 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
   InvoiceColumn(
     id: InvoiceFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (i, _) => i.tagIds.isEmpty
         ? cellEmpty()

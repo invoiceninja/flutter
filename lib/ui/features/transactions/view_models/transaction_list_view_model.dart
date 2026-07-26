@@ -64,7 +64,7 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
 
   @override
   bool isValidColumnId(String field) =>
-      bankTransactionColumnsById.containsKey(field) ||
+      isSortableColumnId(bankTransactionColumnsById, field) ||
       field == BankTransactionFieldIds.updatedAt ||
       field == BankTransactionFieldIds.amount;
 
@@ -76,12 +76,6 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
 
   @override
   bool isDeleted(BankTransaction item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (watchPage), so a
-  /// short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   Stream<List<BankTransaction>> watchPage() {
@@ -137,10 +131,7 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
     // keyword param. `BankTransactionFilters` has no `status_id` / `base_type`
     // handler, and `QueryFilters::apply` silently skips params with no matching
     // method — so without this the server-side narrowing is a no-op.
-    // `tag_ids` is applied locally (post-decode in watchPage) — strip it.
-    final filters = _toServerFilters(
-      GenericListViewModel.extraFiltersWithout(extraFilters, 'tag_ids'),
-    );
+    final filters = _toServerFilters(extraFilters);
     if (bankAccountId != null) {
       // Server filter is `bank_integration_ids` (plural) — see
       // `BankTransactionFilters::bank_integration_ids`, which decodes the comma

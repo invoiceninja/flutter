@@ -333,13 +333,28 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   /// shortcut). No-op when the entity has no create route or its module is
   /// disabled for the active company (mirrors [_goBranch] — avoids the flash of
   /// a router redirect).
-  void _createEntity(EntityType type) {
+  Future<void> _createEntity(EntityType type) async {
+    // A modal sheet lives in THIS navigator (`showModalBottomSheet` defaults to
+    // `useRootNavigator: false`, and all but one call site takes that default),
+    // so it sits inside this `Shortcuts` subtree and a bare-letter binding would
+    // still fire — swapping the route out from under the open sheet. Dialogs
+    // use the root navigator and are unaffected either way.
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
     final services = context.read<Services>();
     final route = services.entityRegistry[type]?.newRoute;
     if (route == null || route.isEmpty) return;
+    // Don't navigate into an entity whose module is disabled for the active
+    // company (mirrors [_goBranch] — avoids the flash of a router redirect).
     final modules =
         services.auth.session.value?.currentCompany?.enabledModules ?? 0;
     if (!isEntityModuleEnabledForCompany(type, modules)) return;
+    // Same guard every other shell-level navigation runs: leaving a dirty
+    // editor must prompt, not silently discard. Async like [_goBranch], which
+    // is likewise invoked fire-and-forget from a shortcut action.
+    if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
+    // `State.mounted` (not `context.mounted`) — `context` below is this
+    // State's, and the analyzer only accepts the matching guard.
+    if (!mounted) return;
     context.go(route);
   }
 
@@ -445,7 +460,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
           // binding still types normally in a text field.
           _CreateEntityIntent: GuardedShortcutAction<_CreateEntityIntent>(
             onInvoke: (intent) {
-              _createEntity(intent.type);
+              unawaited(_createEntity(intent.type));
               return null;
             },
           ),

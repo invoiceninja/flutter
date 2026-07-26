@@ -44,7 +44,8 @@ class CreditListViewModel extends GenericListViewModel<Credit> {
 
   @override
   bool isValidColumnId(String field) =>
-      creditColumnsById.containsKey(field) || field == CreditFieldIds.updatedAt;
+      isSortableColumnId(creditColumnsById, field) ||
+      field == CreditFieldIds.updatedAt;
 
   @override
   String idOf(Credit item) => item.id;
@@ -54,12 +55,6 @@ class CreditListViewModel extends GenericListViewModel<Credit> {
 
   @override
   bool isDeleted(Credit item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
-  /// so a short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   Stream<List<Credit>> watchPage() => repo.watchPage(
@@ -82,11 +77,7 @@ class CreditListViewModel extends GenericListViewModel<Credit> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `tag_ids` is applied locally (post-decode in repo.watchPage) — strip it.
-    final base = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    final base = extraFilters;
     final filters = clientId == null
         ? base
         : {

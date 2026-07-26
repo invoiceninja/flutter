@@ -185,6 +185,7 @@ final List<PaymentColumn> kAllPaymentColumns = <PaymentColumn>[
   PaymentColumn(
     id: PaymentFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (p, _) => p.tagIds.isEmpty
         ? cellEmpty()

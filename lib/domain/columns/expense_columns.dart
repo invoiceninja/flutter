@@ -34,6 +34,7 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
   ExpenseColumn(
     id: ExpenseFieldIds.status,
     labelKey: 'status',
+    sortable: false,
     width: 110,
     cellBuilder: (e, _) => ExpenseStatusPill(statusId: e.calculatedStatusId),
     valueBuilder: (e) => e.calculatedStatusId,
@@ -126,6 +127,7 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
   ExpenseColumn(
     id: ExpenseFieldIds.transactionId,
     labelKey: 'transaction',
+    sortable: false,
     width: 110,
     cellBuilder: (e, ctx) => e.transactionId.isEmpty
         ? cellEmpty()
@@ -151,6 +153,7 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
   ExpenseColumn(
     id: ExpenseFieldIds.publicNotes,
     labelKey: 'public_notes',
+    sortable: false,
     width: 240,
     cellBuilder: (e, _) =>
         e.publicNotes.isEmpty ? cellEmpty() : cellText(e.publicNotes),
@@ -159,6 +162,7 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
   ExpenseColumn(
     id: ExpenseFieldIds.privateNotes,
     labelKey: 'private_notes',
+    sortable: false,
     width: 240,
     cellBuilder: (e, _) =>
         e.privateNotes.isEmpty ? cellEmpty() : cellText(e.privateNotes),
@@ -207,6 +211,7 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
   ExpenseColumn(
     id: ExpenseFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (e, _) => e.tagIds.isEmpty
         ? cellEmpty()

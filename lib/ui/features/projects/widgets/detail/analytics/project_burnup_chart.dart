@@ -224,11 +224,17 @@ class _Body extends StatelessWidget {
     final f = formatter;
     if (f == null) return value.toStringAsFixed(0);
     // Compact so the reserved axis width holds — full precision lives in the
-    // KPI cards below the chart.
-    if (value.abs() >= 1000) return '${(value / 1000).toStringAsFixed(1)}k';
+    // KPI cards below the chart. Both branches go through `Formatter`: a raw
+    // `toStringAsFixed` here printed a period decimal separator and dropped the
+    // currency, so a de-DE project's axis mixed `€900,00` with `1.1k`.
+    final currencyId = burnup.currencyId.isEmpty ? null : burnup.currencyId;
+    if (value.abs() >= 1000) {
+      final thousands = f.decimal(value / 1000, minDecimals: 1, maxDecimals: 1);
+      return '${thousands}k';
+    }
     return f.money(
       Decimal.parse(value.toStringAsFixed(2)),
-      clientCurrencyId: burnup.currencyId.isEmpty ? null : burnup.currencyId,
+      clientCurrencyId: currencyId,
     );
   }
 

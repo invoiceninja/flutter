@@ -9,9 +9,11 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 /// current location rather than pushing it — so go_router keeps no usable
 /// back/forward stack. This controller records every distinct location the
 /// router lands on and lets the user walk backward/forward through it.
-/// Surfaced two ways: `Cmd/Alt + Left/Right` shortcuts and the mouse
-/// back/forward thumb buttons (both in `ScaffoldWithNav`). A visible sidebar
-/// arrow pair (`NavHistoryButtons`) also exists but is not currently mounted.
+/// Surfaced three ways: `Cmd/Alt + Left/Right` shortcuts, the mouse
+/// back/forward thumb buttons (both in `ScaffoldWithNav`), and the sidebar
+/// arrow pair (`NavHistoryButtons`) — the only one of the three that works
+/// without a keyboard or a multi-button mouse, so it's what makes history
+/// reachable on touch.
 ///
 /// Decoupled from [GoRouter] for testability — same seam as
 /// [NavStatePersister] (`lib/app/nav_state_persister.dart`): takes a

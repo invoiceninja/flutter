@@ -55,7 +55,7 @@ class CompanyGatewayListViewModel extends GenericListViewModel<CompanyGateway> {
 
   @override
   bool isValidColumnId(String field) =>
-      companyGatewayColumnsById.containsKey(field) ||
+      isSortableColumnId(companyGatewayColumnsById, field) ||
       field == CompanyGatewayFieldIds.updatedAt;
 
   @override

@@ -42,7 +42,8 @@ class UserListViewModel extends GenericListViewModel<User> {
   String get defaultSortField => UserFieldIds.firstName;
 
   @override
-  bool isValidColumnId(String field) => userColumnsById.containsKey(field);
+  bool isValidColumnId(String field) =>
+      isSortableColumnId(userColumnsById, field);
 
   @override
   String idOf(User item) => item.id;

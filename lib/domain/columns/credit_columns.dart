@@ -149,6 +149,7 @@ final List<CreditColumn> kAllCreditColumns = <CreditColumn>[
   CreditColumn(
     id: CreditFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (c, _) => c.tagIds.isEmpty
         ? cellEmpty()

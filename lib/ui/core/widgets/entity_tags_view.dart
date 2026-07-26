@@ -11,6 +11,13 @@ import 'package:admin/ui/core/widgets/tag_pill.dart';
 /// attached-then-archived tag still renders properly). Renders nothing when
 /// there are no tags — callers on detail screens should rely on that to hide
 /// the row entirely (no dash).
+///
+/// The per-cell `StreamBuilder` is deliberate, and matches `ClientNameLabel` /
+/// `UserNameLabel` / every other id→name resolver: every cell in a column
+/// builds the *same* query, and drift keys its active query streams by
+/// SQL+variables+tables, so N rows share one underlying query. Don't "optimize"
+/// this into a hoisted stream threaded through the column definitions — it
+/// would diverge from the shared pattern for no measured gain.
 class EntityTagsView extends StatelessWidget {
   const EntityTagsView({
     super.key,

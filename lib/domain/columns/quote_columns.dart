@@ -128,6 +128,7 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
   QuoteColumn(
     id: QuoteFieldIds.publicNotes,
     labelKey: 'public_notes',
+    sortable: false,
     width: 240,
     cellBuilder: (q, _) =>
         q.publicNotes.isEmpty ? cellEmpty() : cellText(q.publicNotes),
@@ -168,6 +169,7 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
   QuoteColumn(
     id: QuoteFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (q, _) => q.tagIds.isEmpty
         ? cellEmpty()

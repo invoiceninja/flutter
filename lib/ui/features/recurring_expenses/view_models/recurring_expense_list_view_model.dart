@@ -67,7 +67,7 @@ class RecurringExpenseListViewModel
 
   @override
   bool isValidColumnId(String field) =>
-      recurringExpenseColumnsById.containsKey(field) ||
+      isSortableColumnId(recurringExpenseColumnsById, field) ||
       field == RecurringExpenseFieldIds.updatedAt;
 
   @override
@@ -78,12 +78,6 @@ class RecurringExpenseListViewModel
 
   @override
   bool isDeleted(RecurringExpense item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (watchPage), so a
-  /// short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   Stream<List<RecurringExpense>> watchPage() => repo
@@ -115,11 +109,7 @@ class RecurringExpenseListViewModel
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `tag_ids` is applied locally (post-decode in watchPage) — strip it.
-    final base = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    final base = extraFilters;
     final filters = vendorId == null
         ? base
         : {

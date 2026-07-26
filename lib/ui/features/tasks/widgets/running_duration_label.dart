@@ -105,6 +105,19 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
   @override
   void didUpdateWidget(RunningDurationLabel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // `_pulse` is created in initState, so a State reused across a `showDot`
+    // flip would otherwise be stuck: false→true leaves the dot permanently
+    // missing, true→false leaves a repeating controller scheduling frames for
+    // a dot that is never painted.
+    if (oldWidget.showDot != widget.showDot) {
+      _pulse?.dispose();
+      _pulse = widget.showDot
+          ? (AnimationController(
+              vsync: this,
+              duration: const Duration(milliseconds: 1000),
+            )..repeat(reverse: true))
+          : null;
+    }
     if (oldWidget.start != widget.start ||
         oldWidget.precision != widget.precision) {
       _label.value = _compute();

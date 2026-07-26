@@ -53,7 +53,8 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
 
   @override
   bool isValidColumnId(String field) =>
-      quoteColumnsById.containsKey(field) || field == QuoteFieldIds.updatedAt;
+      isSortableColumnId(quoteColumnsById, field) ||
+      field == QuoteFieldIds.updatedAt;
 
   @override
   String idOf(Quote item) => item.id;
@@ -63,12 +64,6 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
 
   @override
   bool isDeleted(Quote item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
-  /// so a short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   Stream<List<Quote>> watchPage() => repo.watchPage(
@@ -92,11 +87,7 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `tag_ids` is applied locally (post-decode in repo.watchPage) — strip it.
-    final base = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    final base = extraFilters;
     final filters = clientId == null
         ? base
         : {

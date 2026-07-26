@@ -1,25 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
+import 'package:admin/app/shortcuts/keyboard_shortcuts_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
 
 import '../../../../_localization_helper.dart';
 
+/// The dialog resolves its Global/Create rows through the live shortcut
+/// controller, so it needs a `Services` ancestor. Everything else throws so the
+/// test fails loudly if the dialog reaches for more.
+class _FakeServices implements Services {
+  _FakeServices(this.keyboardShortcuts);
+  @override
+  final KeyboardShortcutsController keyboardShortcuts;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 Future<void> _open(WidgetTester tester) async {
+  // No `db` — the controller resolves catalog defaults purely in memory.
+  final shortcuts = KeyboardShortcutsController();
+  addTearDown(shortcuts.dispose);
   await tester.pumpWidget(
-    MaterialApp(
-      theme: buildInTheme(InTheme.light),
-      localizationsDelegates: kTestLocalizationsDelegates,
-      supportedLocales: kTestSupportedLocales,
-      home: Scaffold(
-        body: Builder(
-          builder: (context) => Center(
-            child: ElevatedButton(
-              onPressed: () => showKeyboardShortcutsDialog(context),
-              child: const Text('open'),
+    Provider<Services>.value(
+      value: _FakeServices(shortcuts),
+      child: MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => Center(
+              child: ElevatedButton(
+                onPressed: () => showKeyboardShortcutsDialog(context),
+                child: const Text('open'),
+              ),
             ),
           ),
         ),

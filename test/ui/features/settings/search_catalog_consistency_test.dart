@@ -18,6 +18,7 @@ import 'package:admin/ui/features/settings/views/advanced/custom_fields/projects
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/tasks_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/users_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/vendors_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/keyboard_shortcuts_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/address_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/company_details_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/defaults_screen.dart';
@@ -170,6 +171,16 @@ class _TabUnderTest {
 }
 
 final List<_TabUnderTest> _tabsUnderTest = [
+  const _TabUnderTest(
+    label: 'keyboard_shortcuts',
+    // The per-action rows render `context.tr(def.labelKey)`, so the labels
+    // live in the catalog rather than the screen — both files are the source.
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/keyboard_shortcuts_screen.dart',
+      'lib/app/shortcuts/shortcut_catalog.dart',
+    ],
+    keys: kKeyboardShortcutsSearchKeys,
+  ),
   const _TabUnderTest(
     label: 'company_details/details',
     sourcePaths: [

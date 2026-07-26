@@ -57,14 +57,19 @@ class ProjectBurnup {
 
   bool get isEmpty => series.isEmpty;
 
-  /// True when there is any non-zero money anywhere in the series — the
-  /// signal to offer the money view at all. A time-only project would
-  /// otherwise render a flat zero line.
+  /// True when either **plotted** money series carries a non-zero value — the
+  /// signal to offer the money view at all. A time-only project would otherwise
+  /// render a flat zero line.
+  ///
+  /// Deliberately excludes `cumulativeExpenseAmount`: the chart draws invoiced
+  /// (primary) and paid (secondary), never expenses. Counting it here sent a
+  /// project with spend but nothing invoiced into the money view, where both
+  /// lines sit at zero under an "Invoiced / Paid" legend and the hours data it
+  /// does have is hidden.
   bool get hasMoneySeries => series.any(
     (p) =>
         p.cumulativeInvoicedAmount != Decimal.zero ||
-        p.cumulativePaidToDate != Decimal.zero ||
-        p.cumulativeExpenseAmount != Decimal.zero,
+        p.cumulativePaidToDate != Decimal.zero,
   );
 
   static ProjectBurnup fromJson(Map<String, dynamic> json) {

@@ -267,6 +267,15 @@ class _LoginForm extends StatelessWidget {
             // fire-and-forget: `runPrecheck` swallows every failure, so this
             // can never delay or block a login.
             Focus(
+              // Keyed so this element survives a rebuild that changes the
+              // Column's child list. The API-secret block above and the OTP
+              // block below are both precheck-driven and a single answer
+              // routinely drops both at once, which strands the email and
+              // password fields in the unkeyed middle range — Flutter then
+              // discards and re-inflates them, and the user loses focus (and
+              // the OTP field's text) mid-typing. Keys let the keyed
+              // middle-range match reuse them instead.
+              key: const ValueKey('login_email'),
               // Observe-only: without `skipTraversal` this wrapper is itself a
               // focus-traversal stop (`Focus` defaults `canRequestFocus: true`
               // / `skipTraversal: false`, and the policy filter is exactly
@@ -292,6 +301,7 @@ class _LoginForm extends StatelessWidget {
             ),
             SizedBox(height: InSpacing.md(context)),
             AuthPasswordField(
+              key: const ValueKey('login_password'),
               label: context.tr('password'),
               initialValue: vm.password,
               errorText: vm.fieldErrors['password']?.first,
@@ -305,7 +315,13 @@ class _LoginForm extends StatelessWidget {
             if (vm.showOtpField) ...[
               SizedBox(height: InSpacing.md(context)),
               AuthField(
+                key: const ValueKey('login_otp'),
                 label: context.tr('two_factor_otp_optional'),
+                // Seeded like every other field: without it a rebuild that
+                // re-inflates this element renders an empty box while the VM
+                // still holds the typed code, so an expired value gets
+                // submitted for a field the user sees as blank.
+                initialValue: vm.oneTimePassword,
                 keyboardType: TextInputType.number,
                 autofillHints: const [AutofillHints.oneTimeCode],
                 onChanged: vm.setOneTimePassword,

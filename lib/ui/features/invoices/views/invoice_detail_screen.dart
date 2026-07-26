@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/router.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/app/services.dart';
@@ -473,8 +473,11 @@ class _HeaderState extends State<_Header> {
                     color: tokens.ink3,
                     fontWeight: FontWeight.w500,
                   ),
-                  onTap: () =>
-                      context.go('/recurring_invoices/${invoice.recurringId}'),
+                  onTap: () => goEntityFullDetail(
+                    context,
+                    '/recurring_invoices',
+                    invoice.recurringId,
+                  ),
                 ),
               ],
             ),

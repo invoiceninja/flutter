@@ -45,7 +45,7 @@ class RecurringInvoiceListViewModel
 
   @override
   bool isValidColumnId(String field) =>
-      recurringInvoiceColumnsById.containsKey(field) ||
+      isSortableColumnId(recurringInvoiceColumnsById, field) ||
       field == RecurringInvoiceFieldIds.updatedAt;
 
   @override
@@ -56,12 +56,6 @@ class RecurringInvoiceListViewModel
 
   @override
   bool isDeleted(RecurringInvoice item) => item.isDeleted;
-
-  /// `tag_ids` is applied post-decode over the loaded window (repo.watchPage),
-  /// so a short filtered result must auto-chain page fetches (see the base).
-  @override
-  bool get localOnlyFilterActive =>
-      (extraFilters['tag_ids'] ?? const <String>{}).isNotEmpty;
 
   @override
   Stream<List<RecurringInvoice>> watchPage() => repo.watchPage(
@@ -84,11 +78,7 @@ class RecurringInvoiceListViewModel
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    // `tag_ids` is applied locally (post-decode in repo.watchPage) — strip it.
-    final base = GenericListViewModel.extraFiltersWithout(
-      extraFilters,
-      'tag_ids',
-    );
+    final base = extraFilters;
     final filters = clientId == null
         ? base
         : {

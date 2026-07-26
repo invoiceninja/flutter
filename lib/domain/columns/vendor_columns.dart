@@ -277,6 +277,7 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
   VendorColumn(
     id: VendorFieldIds.tagIds,
     labelKey: 'tags',
+    sortable: false,
     width: 200,
     cellBuilder: (v, _) => v.tagIds.isEmpty
         ? cellEmpty()

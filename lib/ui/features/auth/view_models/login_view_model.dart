@@ -96,8 +96,14 @@ class LoginViewModel extends ChangeNotifier {
   LoginPrecheck? _precheck;
   LoginPrecheck? get precheck => _precheck;
 
-  /// Email address the current [_precheck] answer belongs to, so a repeated
-  /// blur on an unchanged field doesn't re-hit a rate-limited endpoint.
+  /// Email address we have already **asked** about, under the current server
+  /// config — so a repeated blur on an unchanged field doesn't re-hit
+  /// `/login/precheck` (the server registers it under `throttle:precheck`).
+  ///
+  /// Set on every completed attempt, including one that came back null: a
+  /// server that 404s the route would otherwise be re-hit on every single
+  /// blur. [_invalidatePrecheck] clears it whenever the server or the email
+  /// changes, which is what re-arms the ask.
   String _precheckedEmail = '';
 
   /// Show the TOTP field unless the server has told us this account has no
@@ -119,7 +125,9 @@ class LoginViewModel extends ChangeNotifier {
   Future<void> runPrecheck() async {
     final target = email;
     if (target.isEmpty || !target.contains('@')) return;
-    if (target == _precheckedEmail && _precheck != null) return;
+    // Deliberately does NOT also require a non-null `_precheck`: a failed
+    // attempt still counts as asked (see [_precheckedEmail]).
+    if (target == _precheckedEmail) return;
     // A bad self-hosted URL is surfaced by submit(), not here — silently skip.
     final baseUrl = isHosted ? Env.hostedApiUrl : _bestEffortBaseUrl();
     if (baseUrl == null) return;
@@ -181,6 +189,20 @@ class LoginViewModel extends ChangeNotifier {
   Map<String, List<String>> _fieldErrors = const {};
   Map<String, List<String>> get fieldErrors => _fieldErrors;
 
+  /// Drop a precheck answer that no longer applies.
+  ///
+  /// The answer is per **(server, email)** — changing either invalidates it.
+  /// Clearing [_precheckedEmail] is the part that lets [runPrecheck] ask again;
+  /// without it the stale answer stands and, when the new server *does* set
+  /// `API_SECRET`, the secret field never reappears and there is nowhere to
+  /// type it. Notifies only when something visible actually changed.
+  void _invalidatePrecheck() {
+    _precheckedEmail = '';
+    if (_precheck == null) return;
+    _precheck = null;
+    notifyListeners();
+  }
+
   void setHosted(bool value) {
     if (isHosted == value) return;
     isHosted = value;
@@ -188,6 +210,8 @@ class LoginViewModel extends ChangeNotifier {
     if (!value && method != LoginMethod.email) {
       method = LoginMethod.email;
     }
+    // Different origin → the previous host's answer no longer applies.
+    _invalidatePrecheck();
     notifyListeners();
   }
 
@@ -198,7 +222,11 @@ class LoginViewModel extends ChangeNotifier {
   }
 
   void setUrlOverride(String value) {
-    urlOverride = value.trim();
+    final next = value.trim();
+    if (next == urlOverride) return;
+    urlOverride = next;
+    // The answer belongs to the previous server.
+    _invalidatePrecheck();
   }
 
   void setEmail(String value) {
@@ -207,10 +235,7 @@ class LoginViewModel extends ChangeNotifier {
     email = next;
     // The answer belongs to the previous address — drop it so the form falls
     // back to showing both optional fields until a fresh precheck lands.
-    if (_precheck != null) {
-      _precheck = null;
-      notifyListeners();
-    }
+    _invalidatePrecheck();
   }
 
   void setPassword(String value) {

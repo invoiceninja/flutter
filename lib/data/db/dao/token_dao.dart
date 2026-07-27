@@ -124,4 +124,19 @@ class TokenDao extends DatabaseAccessor<AppDatabase>
       );
     return q.map((row) => row.read(tokens.id.count()) ?? 0).watchSingle();
   }
+
+  /// Clear the local `is_dirty` flag for one row (mirrors
+  /// [BaseEntityDao.clearDirtyById]).
+  ///
+  /// Load-bearing: this DAO doesn't extend `BaseEntityDao`, so
+  /// `BaseEntityRepository.localDao` is null and the discard-reconciliation
+  /// hook would be a silent no-op. Because every refresh path here goes
+  /// through `upsertAllPreservingDirty`, a row left dirty after the user
+  /// discards its edit is skipped by EVERY later refresh — the abandoned
+  /// value would be shown as authoritative forever.
+  Future<void> clearDirtyById({required String companyId, required String id}) {
+    return (update(tokens)
+          ..where((t) => t.companyId.equals(companyId) & t.id.equals(id)))
+        .write(const TokensCompanion(isDirty: Value(false)));
+  }
 }

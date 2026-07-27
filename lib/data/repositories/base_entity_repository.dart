@@ -400,10 +400,21 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// entities (bundled / settings lists whose DAO extends `DatabaseAccessor`
   /// directly — tax rates, gateways, payment terms, tokens, webhooks,
   /// schedules, designs, task statuses, expense categories, payment links,
-  /// bank accounts/transactions, transaction rules) leave it null and fall
-  /// back to a no-op clear (they're refreshed wholesale and edited rarely;
-  /// reconciling their discards is a known follow-up). Additive — does not
-  /// replace the per-entity [deleteLocalById] override.
+  /// bank accounts/transactions, transaction rules) leave it null.
+  ///
+  /// Those entities therefore override [clearLocalDirty] themselves. They must:
+  /// the "they're refreshed wholesale so a stale dirty flag is harmless"
+  /// reasoning that used to live here was **false** — every one of them writes
+  /// `is_dirty = true` on optimistic create/save AND refreshes through
+  /// `upsertAllPreservingDirty`, which *skips dirty rows*. A row left dirty
+  /// after the user discards its edit is skipped by every later bundle and
+  /// paged refresh, so the abandoned value is shown as authoritative until the
+  /// database is wiped.
+  ///
+  /// Additive — does not replace the per-entity [deleteLocalById] override.
+  /// (The sibling gap — no optimistic `setArchived` / `markRestored` /
+  /// `markDeletedDirty` for these entities — IS benign, because it sets no
+  /// `is_dirty`; see the note on [archive].)
   @protected
   BaseEntityDao<dynamic, dynamic>? get localDao => null;
 

@@ -16,6 +16,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/services/live_design_service.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/import_design_json_dialog.dart';
 import 'package:admin/ui/features/settings/view_models/design_edit_view_model.dart'
     show kBlankDesignBody;
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_sizing.dart';
@@ -674,36 +675,8 @@ class _TopBar extends StatelessWidget {
   /// Shared paste-JSON dialog body. The Twig editor's
   /// `_promptImportJson` keeps its own copy in `custom_designs_body.dart`;
   /// merging the two is a separate refactor.
-  Future<String?> _showImportJsonDialog(BuildContext context) {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(ctx.tr('import_design')),
-        content: TextField(
-          controller: controller,
-          maxLines: 8,
-          decoration: InputDecoration(
-            hintText: ctx.tr('paste_design_json'),
-            border: const OutlineInputBorder(),
-          ),
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(ctx.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: ctx.tr('import'),
-            autofocus: false,
-            showEnterHint: false,
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-          ),
-        ],
-      ),
-    ).whenComplete(controller.dispose);
-  }
+  Future<String?> _showImportJsonDialog(BuildContext context) =>
+      showImportDesignJsonDialog(context);
 
   void _openPreview(BuildContext context, WysiwygDesignViewModel vm) {
     final services = context.read<Services>();

@@ -215,6 +215,16 @@ class TaxRateRepository extends BaseEntityRepository<TaxRate, TaxRateApi> {
     return SaveResult(entity: rate, outboxRowId: rowId);
   }
 
+  /// This DAO doesn't extend `BaseEntityDao`, so the base's `localDao` hook is
+  /// null and the discard-reconciliation clear would be a no-op. Combined with
+  /// `upsertAllPreservingDirty` on every refresh path, that pinned a discarded
+  /// edit permanently — see [taxRateDao.clearDirtyById].
+  @override
+  Future<void> clearLocalDirty({
+    required String companyId,
+    required String id,
+  }) => db.taxRateDao.clearDirtyById(companyId: companyId, id: id);
+
   @override
   Future<void> deleteLocalById({
     required String companyId,

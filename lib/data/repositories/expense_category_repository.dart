@@ -243,6 +243,16 @@ class ExpenseCategoryRepository
 
   /// Hard-delete on the server. Password-gated per [requiresPasswordFor]; the
   /// outbox handler attaches the cached password header before POST.
+  /// This DAO doesn't extend `BaseEntityDao`, so the base's `localDao` hook is
+  /// null and the discard-reconciliation clear would be a no-op. Combined with
+  /// `upsertAllPreservingDirty` on every refresh path, that pinned a discarded
+  /// edit permanently — see [expenseCategoryDao.clearDirtyById].
+  @override
+  Future<void> clearLocalDirty({
+    required String companyId,
+    required String id,
+  }) => db.expenseCategoryDao.clearDirtyById(companyId: companyId, id: id);
+
   @override
   Future<void> deleteLocalById({
     required String companyId,

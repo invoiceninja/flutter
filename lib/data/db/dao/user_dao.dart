@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/domain/columns/user_columns.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/tables/user_table.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -132,8 +133,17 @@ class UserDao extends BaseEntityDao<$UsersTable, UserRow> with _$UserDaoMixin {
         return u.createdAt;
       case 'updated_at':
         return u.updatedAt;
+      case UserFieldIds.phone:
+        return u.phone;
       default:
-        return u.firstName;
+        // Throw rather than silently ordering by first name — see the note in
+        // `bank_transaction_dao`. `phone` reached this fallback.
+        throw ArgumentError.value(
+          field,
+          'sortField',
+          'no sort expression for this user column — add a case, or mark the '
+              'column sortable: false',
+        );
     }
   }
 

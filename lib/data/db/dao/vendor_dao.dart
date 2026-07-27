@@ -146,12 +146,26 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
         return CustomExpression<String>(
           "LOWER(COALESCE(json_extract(payload, '\$.contacts[0].email'), ''))",
         );
+      case VendorFieldIds.lastLogin:
+        // `Vendor.toApiJson` emits `last_login` only when non-null while
+        // `VendorApi` always emits 0, so never-logged-in vendors are 0 when
+        // server-synced and ABSENT after a local edit — COALESCE keeps both
+        // spellings in one group. Same guard client already has.
+        return CustomExpression<int>(
+          "COALESCE(json_extract(payload, '\$.last_login'), 0)",
+        );
       case VendorFieldIds.contactPhone:
         return CustomExpression<String>(
           "COALESCE(json_extract(payload, '\$.contacts[0].phone'), '')",
         );
     }
-    return CustomExpression<String>("json_extract(payload, '\$.$field')");
+    // Generic payload fallback. `LOWER(COALESCE(...))` matches every explicit
+    // case above: without it SQLite's BINARY collation sorts "Zurich" before
+    // "amsterdam" on City / State / Website / Notes, while the adjacent Name
+    // column on the same screen sorts case-insensitively.
+    return CustomExpression<String>(
+      "LOWER(COALESCE(json_extract(payload, '\$.$field'), ''))",
+    );
   }
 
   /// Stream `(id, name)` pairs for active vendors in this company. Cheap

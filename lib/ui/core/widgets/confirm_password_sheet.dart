@@ -21,13 +21,11 @@ Future<bool> showConfirmPasswordSheet(
   required PasswordCache cache,
   String? message,
 }) async {
-  final controller = TextEditingController();
   final confirmed = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) {
       return _ConfirmPasswordDialog(
-        controller: controller,
         message: message ?? ctx.tr('confirm_password_message'),
         onConfirm: (pw) {
           cache.set(pw);
@@ -37,19 +35,16 @@ Future<bool> showConfirmPasswordSheet(
       );
     },
   );
-  controller.dispose();
   return confirmed ?? false;
 }
 
 class _ConfirmPasswordDialog extends StatefulWidget {
   const _ConfirmPasswordDialog({
-    required this.controller,
     required this.message,
     required this.onConfirm,
     required this.onCancel,
   });
 
-  final TextEditingController controller;
   final String message;
   final void Function(String password) onConfirm;
   final VoidCallback onCancel;
@@ -61,11 +56,25 @@ class _ConfirmPasswordDialog extends StatefulWidget {
 class _ConfirmPasswordDialogState extends State<_ConfirmPasswordDialog> {
   bool _obscure = true;
 
-  bool get _canSubmit => widget.controller.text.isNotEmpty;
+  /// Owned here, not by the caller. Disposing after `await showDialog(...)`
+  /// races the exit transition: `Route.didPop` resolves that future
+  /// immediately (routes deliberately "should not wait for their exit
+  /// animation"), so this autofocused, obscured field — and its live
+  /// `TextInputConnection` — is still mounted when the caller would have
+  /// disposed. `State.dispose()` runs after `finalizeRoute`.
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _canSubmit => _controller.text.isNotEmpty;
 
   void _submit() {
     if (!_canSubmit) return;
-    widget.onConfirm(widget.controller.text);
+    widget.onConfirm(_controller.text);
   }
 
   @override
@@ -83,7 +92,7 @@ class _ConfirmPasswordDialogState extends State<_ConfirmPasswordDialog> {
             Text(widget.message, style: TextStyle(color: tokens.ink2)),
             SizedBox(height: InSpacing.md(context)),
             _PasswordField(
-              controller: widget.controller,
+              controller: _controller,
               obscure: _obscure,
               onObscureToggle: () => setState(() => _obscure = !_obscure),
               onChanged: (_) => setState(() {}),

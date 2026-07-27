@@ -209,7 +209,15 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
           "LOWER(COALESCE(json_extract(payload, '\$.$field'), ''))",
         );
       default:
-        return p.productKey.lower();
+        // Every registered product column now has a case, so this is
+        // unreachable — throw rather than silently ordering by product_key, so
+        // `sortable_columns_test` catches any future omission.
+        throw ArgumentError.value(
+          field,
+          'sortField',
+          'no sort expression for this product column — add a case, or mark '
+              'the column sortable: false',
+        );
     }
   }
 }

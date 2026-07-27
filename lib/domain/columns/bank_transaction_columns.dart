@@ -81,6 +81,9 @@ final List<BankTransactionColumn> kAllBankTransactionColumns =
       // Sort by `amount`, not `deposit` (the column id is display-only).
       BankTransactionColumn(
         id: BankTransactionColumnIds.deposit,
+        // Display-only split of `amount` by `base_type` (see the note at the
+        // top of this file) — there is no column to order by.
+        sortable: false,
         labelKey: 'deposit',
         width: 130,
         align: ColumnAlign.end,
@@ -91,6 +94,9 @@ final List<BankTransactionColumn> kAllBankTransactionColumns =
       ),
       BankTransactionColumn(
         id: BankTransactionColumnIds.withdrawal,
+        // Display-only split of `amount` by `base_type` (see the note at the
+        // top of this file) — there is no column to order by.
+        sortable: false,
         labelKey: 'withdrawal',
         width: 130,
         align: ColumnAlign.end,

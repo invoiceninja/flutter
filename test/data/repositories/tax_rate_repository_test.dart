@@ -59,6 +59,55 @@ void main() {
     });
     tearDown(() async => db.close());
 
+    test('discarding an unsynced edit clears is_dirty, so the next refresh can '
+        'land the server value again', () async {
+      // Regression: this DAO does not extend BaseEntityDao, so the base's
+      // `localDao` hook is null and `clearLocalDirty` used to be a silent
+      // no-op. Because every refresh path goes through
+      // `upsertAllPreservingDirty` (which SKIPS dirty rows), a discarded edit
+      // pinned the abandoned value permanently.
+      await repo.applyBundle(
+        companyId: 'co',
+        bundle: const [TaxRateApi(id: 't1', name: 'GST', rate: 10)],
+      );
+
+      // Optimistic local edit → row goes dirty and the refresh starts skipping.
+      final edited = (await repo.watch(companyId: 'co', id: 't1').first)!
+          .copyWith(name: 'GST (edited)');
+      await repo.save(companyId: 'co', rate: edited);
+      expect(
+        (await repo.watch(companyId: 'co', id: 't1').first)!.isDirty,
+        isTrue,
+      );
+
+      await repo.applyBundle(
+        companyId: 'co',
+        bundle: const [TaxRateApi(id: 't1', name: 'GST', rate: 10)],
+      );
+      expect(
+        (await repo.watch(companyId: 'co', id: 't1').first)!.name,
+        'GST (edited)',
+        reason: 'preserving upsert correctly protects a still-queued edit',
+      );
+
+      // The user discards it — this is the hook the sync engine calls.
+      await repo.clearLocalDirty(companyId: 'co', id: 't1');
+      expect(
+        (await repo.watch(companyId: 'co', id: 't1').first)!.isDirty,
+        isFalse,
+      );
+
+      await repo.applyBundle(
+        companyId: 'co',
+        bundle: const [TaxRateApi(id: 't1', name: 'GST', rate: 10)],
+      );
+      expect(
+        (await repo.watch(companyId: 'co', id: 't1').first)!.name,
+        'GST',
+        reason: 'server value lands again once the row is no longer dirty',
+      );
+    });
+
     test('delete and purge are password-gated, ordinary edits are not', () {
       // Server policy: destructive tax-rate ops sit behind
       // X-API-PASSWORD-BASE64, so ConfirmPasswordSheet must fire for them.

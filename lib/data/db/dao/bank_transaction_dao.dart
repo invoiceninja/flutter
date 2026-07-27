@@ -4,6 +4,7 @@ import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/domain/columns/bank_transaction_columns.dart';
 import 'package:admin/data/db/company_scoped_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/bank_transactions_table.dart';
@@ -126,8 +127,29 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
       case BankTransactionFieldIds.createdAt:
         return t.createdAt;
       case BankTransactionFieldIds.updatedAt:
-      default:
         return t.updatedAt;
+      // Opt-in columns that ARE backed by real Drift columns. Without these
+      // cases they hit the fallback and the header silently ordered by
+      // `updated_at`.
+      case BankTransactionColumnIds.bankAccountId:
+        return t.bankAccountId;
+      case BankTransactionColumnIds.currencyId:
+        return t.currencyId;
+      case BankTransactionColumnIds.invoices:
+        return t.invoiceIds;
+      case BankTransactionColumnIds.expenses:
+        return t.expenseId;
+      default:
+        // Throw like every other list DAO rather than silently ordering by
+        // something else: `sortable_columns_test` probes every registered
+        // sortable column and can only detect a gap if the DAO throws. A
+        // silent fallback here is what let six dead headers ship.
+        throw ArgumentError.value(
+          field,
+          'sortField',
+          'no sort expression for this bank-transaction column — add a case, '
+              'or mark the column sortable: false',
+        );
     }
   }
 
@@ -189,5 +211,20 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
     return q
         .map((row) => row.read(bankTransactions.id.count()) ?? 0)
         .watchSingle();
+  }
+
+  /// Clear the local `is_dirty` flag for one row (mirrors
+  /// [BaseEntityDao.clearDirtyById]).
+  ///
+  /// Load-bearing: this DAO doesn't extend `BaseEntityDao`, so
+  /// `BaseEntityRepository.localDao` is null and the discard-reconciliation
+  /// hook would be a silent no-op. Because every refresh path here goes
+  /// through `upsertAllPreservingDirty`, a row left dirty after the user
+  /// discards its edit is skipped by EVERY later refresh — the abandoned
+  /// value would be shown as authoritative forever.
+  Future<void> clearDirtyById({required String companyId, required String id}) {
+    return (update(bankTransactions)
+          ..where((t) => t.companyId.equals(companyId) & t.id.equals(id)))
+        .write(const BankTransactionsCompanion(isDirty: Value(false)));
   }
 }

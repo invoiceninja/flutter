@@ -10,8 +10,8 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/static/built_in_designs_catalog.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/import_design_json_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/design_edit_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/templates.dart';
 import 'package:admin/ui/features/settings/views/settings_shell.dart'
@@ -221,40 +221,9 @@ Future<void> showWysiwygDesignScreen(
 }
 
 Future<void> _promptImportJson(BuildContext context) async {
-  final controller = TextEditingController();
-  try {
-    final json = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(ctx.tr('import_design')),
-        content: TextField(
-          controller: controller,
-          maxLines: 8,
-          decoration: InputDecoration(
-            hintText: ctx.tr('paste_design_json'),
-            border: const OutlineInputBorder(),
-          ),
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(ctx.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: ctx.tr('import'),
-            autofocus: false,
-            showEnterHint: false,
-            onPressed: () => Navigator.of(ctx).pop(controller.text),
-          ),
-        ],
-      ),
-    );
-    if (json == null || json.trim().isEmpty || !context.mounted) return;
-    unawaited(showDesignEditScreen(context, importJson: json));
-  } finally {
-    controller.dispose();
-  }
+  final json = await showImportDesignJsonDialog(context);
+  if (json == null || json.trim().isEmpty || !context.mounted) return;
+  unawaited(showDesignEditScreen(context, importJson: json));
 }
 
 Future<void> _exportDesign(BuildContext context, Design design) async {

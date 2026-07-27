@@ -269,7 +269,13 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
           "COALESCE(json_extract(payload, '\$.last_login'), 0)",
         );
     }
-    return CustomExpression<String>("json_extract(payload, '\$.$field')");
+    // Generic payload fallback. `LOWER(COALESCE(...))` matches every explicit
+    // case above: without it SQLite's BINARY collation sorts "Zurich" before
+    // "amsterdam" on City / State / Website / Notes, while the adjacent Name
+    // column on the same screen sorts case-insensitively.
+    return CustomExpression<String>(
+      "LOWER(COALESCE(json_extract(payload, '\$.$field'), ''))",
+    );
   }
 
   /// Stream `(id, name)` pairs for active clients in this company. Cheap

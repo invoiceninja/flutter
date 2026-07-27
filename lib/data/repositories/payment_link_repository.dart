@@ -238,6 +238,16 @@ class PaymentLinkRepository
   Future<List<String>> checkSteps(List<String> orderedStepIds) =>
       api.checkSteps(orderedStepIds);
 
+  /// This DAO doesn't extend `BaseEntityDao`, so the base's `localDao` hook is
+  /// null and the discard-reconciliation clear would be a no-op. Combined with
+  /// `upsertAllPreservingDirty` on every refresh path, that pinned a discarded
+  /// edit permanently — see [paymentLinkDao.clearDirtyById].
+  @override
+  Future<void> clearLocalDirty({
+    required String companyId,
+    required String id,
+  }) => db.paymentLinkDao.clearDirtyById(companyId: companyId, id: id);
+
   @override
   Future<void> deleteLocalById({
     required String companyId,

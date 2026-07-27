@@ -158,4 +158,19 @@ class PaymentLinkDao extends DatabaseAccessor<AppDatabase>
       paymentLinks,
     )..where((s) => s.companyId.equals(companyId) & s.id.equals(id))).go();
   }
+
+  /// Clear the local `is_dirty` flag for one row (mirrors
+  /// [BaseEntityDao.clearDirtyById]).
+  ///
+  /// Load-bearing: this DAO doesn't extend `BaseEntityDao`, so
+  /// `BaseEntityRepository.localDao` is null and the discard-reconciliation
+  /// hook would be a silent no-op. Because every refresh path here goes
+  /// through `upsertAllPreservingDirty`, a row left dirty after the user
+  /// discards its edit is skipped by EVERY later refresh — the abandoned
+  /// value would be shown as authoritative forever.
+  Future<void> clearDirtyById({required String companyId, required String id}) {
+    return (update(paymentLinks)
+          ..where((t) => t.companyId.equals(companyId) & t.id.equals(id)))
+        .write(const PaymentLinksCompanion(isDirty: Value(false)));
+  }
 }

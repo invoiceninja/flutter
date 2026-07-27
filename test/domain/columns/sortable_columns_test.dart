@@ -27,6 +27,7 @@ import 'package:admin/domain/columns/quote_columns.dart';
 import 'package:admin/domain/columns/recurring_expense_columns.dart';
 import 'package:admin/domain/columns/recurring_invoice_columns.dart';
 import 'package:admin/domain/columns/task_columns.dart';
+import 'package:admin/domain/columns/user_columns.dart';
 import 'package:admin/domain/columns/vendor_columns.dart';
 
 /// Every column header is a sort control (`EntityListColumnHeaders._HeaderCell`
@@ -40,10 +41,11 @@ import 'package:admin/domain/columns/vendor_columns.dart';
 /// This test locks the invariant: a column is either **sortable and mapped** in
 /// its DAO, or explicitly marked `sortable: false`.
 ///
-/// Note the coverage limit — `product` / `bank_transaction` fall back silently
-/// and `client` / `vendor` have no `_sortExpression` at all, so for those four
-/// this only pins the `sortable` flags (the header-tap widget test covers the
-/// UI symptom).
+/// Every list DAO now THROWS on an unmapped sort field, so this probe detects a
+/// gap for all of them — that is the whole mechanism. Any DAO that silently
+/// falls back instead makes its own dead headers invisible here, which is
+/// exactly how six bank-transaction columns and `user.phone` shipped ordering
+/// by something else.
 void main() {
   late AppDatabase db;
 
@@ -197,6 +199,16 @@ void main() {
       'client',
       kAllClientColumns,
       (f) => db.clientDao.watchPage(
+        companyId: 'co',
+        offset: 0,
+        limit: 10,
+        sortField: f,
+      ),
+    );
+    register<dynamic>(
+      'user',
+      kAllUserColumns,
+      (f) => db.userDao.watchPage(
         companyId: 'co',
         offset: 0,
         limit: 10,

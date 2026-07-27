@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/client_settings_cascade.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 
 /// Resolves a billing-doc party's (client *or* vendor) `currency_id` from the
@@ -96,9 +97,13 @@ class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
           .watch(companyId: companyId, id: vendorId)
           .map((v) => v?.currencyId);
     } else {
-      _currencyId = services.clients
-          .watch(companyId: companyId, id: clientId)
-          .map((c) => c?.currencyId);
+      // Client → GROUP → company (see `watchEffectiveClientCurrency`).
+      _currencyId = watchEffectiveClientCurrency(
+        clients: services.clients,
+        groups: services.groupSettings,
+        companyId: companyId,
+        clientId: clientId,
+      );
     }
   }
 

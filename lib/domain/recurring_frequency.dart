@@ -70,26 +70,50 @@ Date? nextSendAfter(Date start, String frequencyId, int n) {
       next = start.addDays(14 * n).toDateTime();
     case kRecurringFrequencyFourWeeks:
       next = start.addDays(28 * n).toDateTime();
+    // Month-based steps are applied ONE PERIOD AT A TIME, feeding each result
+    // back in — never `start + (step × n)`. That's what the server does for
+    // the MONTHLY family (the yearly ones differ — see below).
+    // `RecurringInvoice::recurringDates()` loops
+    // `$next_send_date = nextDateByFrequencyNoOffset($next_send_date)` over
+    // Carbon's `addMonthNoOverflow`, which makes the month-end clamp STICKY:
+    // Jan 31 monthly → Feb 28 → Mar 28 → Apr 28. Multiplying from the original
+    // start let the day climb back (… → Mar 31), so every preview chip from the
+    // third one on disagreed with the dates the server would actually send.
     case kRecurringFrequencyMonthly:
-      next = _addMonths(dt, n);
+      next = _addMonthsRepeated(dt, 1, n);
     case kRecurringFrequencyTwoMonths:
-      next = _addMonths(dt, 2 * n);
+      next = _addMonthsRepeated(dt, 2, n);
     case kRecurringFrequencyThreeMonths:
-      next = _addMonths(dt, 3 * n);
+      next = _addMonthsRepeated(dt, 3, n);
     case kRecurringFrequencyFourMonths:
-      next = _addMonths(dt, 4 * n);
+      next = _addMonthsRepeated(dt, 4, n);
     case kRecurringFrequencySixMonths:
-      next = _addMonths(dt, 6 * n);
+      next = _addMonthsRepeated(dt, 6, n);
+    // Yearly steps OVERFLOW rather than clamp — the server uses Carbon's
+    // `addYear()` / `addYears(n)` for these three (NOT the `NoOverflow`
+    // variants it uses for months), so Feb 29 + 1 year is Mar 1, not Feb 28.
+    // Dart's `DateTime` normalizes out-of-range days the same way.
     case kRecurringFrequencyAnnually:
-      next = _addMonths(dt, 12 * n);
+      next = DateTime(dt.year + n, dt.month, dt.day);
     case kRecurringFrequencyTwoYears:
-      next = _addMonths(dt, 24 * n);
+      next = DateTime(dt.year + 2 * n, dt.month, dt.day);
     case kRecurringFrequencyThreeYears:
-      next = _addMonths(dt, 36 * n);
+      next = DateTime(dt.year + 3 * n, dt.month, dt.day);
     default:
       return null;
   }
   return Date(next.year, next.month, next.day);
+}
+
+/// Apply a [step]-month advance [times] times, each from the PREVIOUS result.
+/// The repetition is what makes the month-end clamp sticky, matching the
+/// server's iterative `addMonthNoOverflow` loop — see [nextSendAfter].
+DateTime _addMonthsRepeated(DateTime dt, int step, int times) {
+  var out = dt;
+  for (var i = 0; i < times; i++) {
+    out = _addMonths(out, step);
+  }
+  return out;
 }
 
 /// Add [months] to [dt], clamping to the last valid day of the target
@@ -97,7 +121,10 @@ Date? nextSendAfter(Date start, String frequencyId, int n) {
 /// "rolls forward to March" surprise).
 DateTime _addMonths(DateTime dt, int months) {
   final totalMonths = dt.month - 1 + months;
-  final newYear = dt.year + (totalMonths ~/ 12);
+  // Floor division, not truncation: Dart's `%` is non-negative for a positive
+  // divisor but `~/` truncates toward zero, so a negative [months] would land
+  // in December of the SAME year instead of the previous one.
+  final newYear = dt.year + ((totalMonths - (totalMonths % 12)) ~/ 12);
   final newMonth = (totalMonths % 12) + 1;
   // Last day of the new month — use the Day 0 of next-month trick.
   final lastDay = DateTime(newYear, newMonth + 1, 0).day;

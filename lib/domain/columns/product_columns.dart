@@ -161,6 +161,10 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     labelKey: 'stock_value',
     width: 130,
     align: ColumnAlign.end,
+    // Computed (in_stock_quantity × price) — there is no column or payload key
+    // to order by, and a sortable header that silently orders by something
+    // else is worse than no header control at all.
+    sortable: false,
     cellBuilder: (p, context) =>
         cellMoney(p.inStockQuantity * p.price, context),
     valueBuilder: (p) => cellMoneyValue(p.inStockQuantity * p.price),

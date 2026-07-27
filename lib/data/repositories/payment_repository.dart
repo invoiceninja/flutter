@@ -85,6 +85,9 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
       'loadedPages is 1-based; pass 1 for the first page',
     );
     final dateRange = parseDateRangeFilter(extraFilters);
+    // Single-date comparators live in the `op:value` slot, not the range
+    // slot — mirror them locally or the chip only narrows the server fetch.
+    final dateCmp = parseComparableDateFilter(extraFilters, 'date');
     // Fold the `client_status` filter into `statusIds` — the DAO already
     // resolves numeric ('1'..'6') + virtual ('-1'/'-2') discriminators,
     // and `parsePaymentStatusFilter` maps the wire labels onto them.
@@ -109,6 +112,8 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
           customValues2: customFilters[2] ?? const {},
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
+          dateOp: dateCmp.op,
+          dateValue: dateCmp.value,
           dateStart: dateRange.start,
           dateEnd: dateRange.end,
         )

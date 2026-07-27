@@ -228,18 +228,14 @@ Map<String, Decimal> computeTaxBreakdown(
       total = total - _round(_mulRate(total, input.discount), precision);
     }
   }
-  if (input.customSurcharge1 != Decimal.zero && input.customTaxes1) {
-    total = total + _round(input.customSurcharge1, precision);
-  }
-  if (input.customSurcharge2 != Decimal.zero && input.customTaxes2) {
-    total = total + _round(input.customSurcharge2, precision);
-  }
-  if (input.customSurcharge3 != Decimal.zero && input.customTaxes3) {
-    total = total + _round(input.customSurcharge3, precision);
-  }
-  if (input.customSurcharge4 != Decimal.zero && input.customTaxes4) {
-    total = total + _round(input.customSurcharge4, precision);
-  }
+  // NOTE: taxable surcharges are deliberately NOT folded into the tax base.
+  // The server keeps them out of `$this->total` (they live in
+  // `total_custom_values`) and instead adds a SEPARATELY ROUNDED tax component
+  // per taxable slot via `InvoiceSum::getSurchargeTaxTotalForKey`. Folding them
+  // in rounded once over the combined base, which differs by a cent once two
+  // taxable surcharges are present — and in INCLUSIVE mode it was plain wrong:
+  // `InvoiceSumInclusive` has the surcharge-tax lines commented out, so a
+  // taxable surcharge must not shrink/inflate the inclusive base at all.
   // Invoice-level tax tiers require a tax NAME of length >= 2, matching the
   // server (InvoiceSum: each tier applies only when strlen(tax_nameN) >= 2,
   // with no rate-only escape hatch). Without this the breakdown shows — and
@@ -259,33 +255,39 @@ Map<String, Decimal> computeTaxBreakdown(
   // nothing. (issue #12072)
   final invoiceRateSum = input.taxRate1 + input.taxRate2 + input.taxRate3;
   if (input.taxRate1 != Decimal.zero && input.taxName1.length >= 2) {
-    final t = _taxAmount(
-      total,
-      input.taxRate1,
-      input.usesInclusiveTaxes,
-      precision,
-      totalRate: invoiceRateSum,
-    );
+    final t =
+        _taxAmount(
+          total,
+          input.taxRate1,
+          input.usesInclusiveTaxes,
+          precision,
+          totalRate: invoiceRateSum,
+        ) +
+        _surchargeTax(input, input.taxRate1, precision);
     map.update(input.taxName1, (v) => v + t, ifAbsent: () => t);
   }
   if (input.taxRate2 != Decimal.zero && input.taxName2.length >= 2) {
-    final t = _taxAmount(
-      total,
-      input.taxRate2,
-      input.usesInclusiveTaxes,
-      precision,
-      totalRate: invoiceRateSum,
-    );
+    final t =
+        _taxAmount(
+          total,
+          input.taxRate2,
+          input.usesInclusiveTaxes,
+          precision,
+          totalRate: invoiceRateSum,
+        ) +
+        _surchargeTax(input, input.taxRate2, precision);
     map.update(input.taxName2, (v) => v + t, ifAbsent: () => t);
   }
   if (input.taxRate3 != Decimal.zero && input.taxName3.length >= 2) {
-    final t = _taxAmount(
-      total,
-      input.taxRate3,
-      input.usesInclusiveTaxes,
-      precision,
-      totalRate: invoiceRateSum,
-    );
+    final t =
+        _taxAmount(
+          total,
+          input.taxRate3,
+          input.usesInclusiveTaxes,
+          precision,
+          totalRate: invoiceRateSum,
+        ) +
+        _surchargeTax(input, input.taxRate3, precision);
     map.update(input.taxName3, (v) => v + t, ifAbsent: () => t);
   }
 
@@ -441,45 +443,58 @@ Decimal _calculateTotal(BillingTotalsInput input, int precision) {
       total = total - _round(_mulRate(total, input.discount), precision);
     }
   }
-  if (input.customSurcharge1 != Decimal.zero && input.customTaxes1) {
-    total = total + _round(input.customSurcharge1, precision);
-  }
-  if (input.customSurcharge2 != Decimal.zero && input.customTaxes2) {
-    total = total + _round(input.customSurcharge2, precision);
-  }
-  if (input.customSurcharge3 != Decimal.zero && input.customTaxes3) {
-    total = total + _round(input.customSurcharge3, precision);
-  }
-  if (input.customSurcharge4 != Decimal.zero && input.customTaxes4) {
-    total = total + _round(input.customSurcharge4, precision);
-  }
   if (!input.usesInclusiveTaxes) {
     // Invoice-level tiers require tax_name length >= 2 (server parity — see
     // computeTaxBreakdown); `itemTax` (per-line) is name-independent. (L6)
+    // Each tier = round(base × rate) + a separately-rounded component per
+    // taxable surcharge, matching `InvoiceSum::getSurchargeTaxTotalForKey`.
+    // The surcharges themselves stay OUT of the base (server:
+    // `total_custom_values`) and are added after tax, below.
     final t1 = input.taxName1.length >= 2
-        ? _round(_mulRate(total, input.taxRate1), precision)
+        ? _round(_mulRate(total, input.taxRate1), precision) +
+              _surchargeTax(input, input.taxRate1, precision)
         : Decimal.zero;
     final t2 = input.taxName2.length >= 2
-        ? _round(_mulRate(total, input.taxRate2), precision)
+        ? _round(_mulRate(total, input.taxRate2), precision) +
+              _surchargeTax(input, input.taxRate2, precision)
         : Decimal.zero;
     final t3 = input.taxName3.length >= 2
-        ? _round(_mulRate(total, input.taxRate3), precision)
+        ? _round(_mulRate(total, input.taxRate3), precision) +
+              _surchargeTax(input, input.taxRate3, precision)
         : Decimal.zero;
     total = total + itemTax + t1 + t2 + t3;
   }
-  if (input.customSurcharge1 != Decimal.zero && !input.customTaxes1) {
-    total = total + _round(input.customSurcharge1, precision);
-  }
-  if (input.customSurcharge2 != Decimal.zero && !input.customTaxes2) {
-    total = total + _round(input.customSurcharge2, precision);
-  }
-  if (input.customSurcharge3 != Decimal.zero && !input.customTaxes3) {
-    total = total + _round(input.customSurcharge3, precision);
-  }
-  if (input.customSurcharge4 != Decimal.zero && !input.customTaxes4) {
-    total = total + _round(input.customSurcharge4, precision);
-  }
+  // All four surcharges are added AFTER tax (server: `total_custom_values` is
+  // summed into the total once, regardless of the per-slot tax flag).
+  total = total + _round(input.customSurcharge1, precision);
+  total = total + _round(input.customSurcharge2, precision);
+  total = total + _round(input.customSurcharge3, precision);
+  total = total + _round(input.customSurcharge4, precision);
   return _round(total, precision);
+}
+
+/// Invoice-level tax contributed by the taxable custom surcharges at [rate].
+///
+/// Mirrors `InvoiceSum::getSurchargeTaxTotalForKey`: each flagged slot's
+/// component is rounded INDEPENDENTLY and summed, rather than taxing the
+/// combined surcharge amount in one go. Inclusive mode contributes nothing —
+/// `InvoiceSumInclusive` has these lines commented out.
+Decimal _surchargeTax(BillingTotalsInput input, Decimal rate, int precision) {
+  if (input.usesInclusiveTaxes || rate == Decimal.zero) return Decimal.zero;
+  var out = Decimal.zero;
+  if (input.customTaxes1) {
+    out = out + _round(_mulRate(input.customSurcharge1, rate), precision);
+  }
+  if (input.customTaxes2) {
+    out = out + _round(_mulRate(input.customSurcharge2, rate), precision);
+  }
+  if (input.customTaxes3) {
+    out = out + _round(_mulRate(input.customSurcharge3, rate), precision);
+  }
+  if (input.customTaxes4) {
+    out = out + _round(_mulRate(input.customSurcharge4, rate), precision);
+  }
+  return out;
 }
 
 Decimal _taxAmount(
@@ -497,11 +512,19 @@ Decimal _taxAmount(
     // `InclusiveTax::backout` `combined_rate <= 0` guard.
     if (sumRate <= Decimal.zero) return _round(Decimal.zero, precision);
     if (sumRate == rate) {
-      // Single applicable rate: exact legacy extraction, byte-identical.
-      // `amount - amount / (1 + rate/100)`
+      // Single applicable rate: `amount - amount / (1 + rate/100)`.
+      //
+      // The net MUST be taken at working scale 10, not at `precision`.
+      // `_div` goes through `Rational.toDecimal(scaleOnInfinitePrecision:)`,
+      // which TRUNCATES (`decimal`'s default `toBigInt` is `Rational.truncate`),
+      // so dividing at currency precision truncated the net and turned the tax
+      // into a ceiling: 100.00 @ 10% gave 100 − 90.90 = 9.10 where the server's
+      // `InclusiveTax::backout` (`round(amount × rate / (100 + Σr))`) gives
+      // 9.09. Every non-divisible gross was a cent out, and it was persisted
+      // via `stampTotalsForSave`. Scale 10 matches the multi-rate branch below
+      // and `expense_tax_math.dart`, which had it right all along.
       final divisor = Decimal.one + _div(rate, Decimal.fromInt(100), 10);
-      final taxAmount =
-          amount - _safeDiv(amount, divisor, precision: precision);
+      final taxAmount = amount - _safeDiv(amount, divisor, precision: 10);
       return _round(taxAmount, precision);
     }
     // Two or more inclusive rates (issue #12072): additive shared base — this

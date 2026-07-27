@@ -962,10 +962,23 @@ class Services implements SidebarBadgeContext {
     );
     final debugStore = debugCaptureStore ?? DebugCaptureStore();
     final debugPanelRevealed = ValueNotifier<bool>(false);
+    // Assigned a few lines below; the `onUnauthorized` closure captures the
+    // variable (not its value) and only ever runs once a request has come
+    // back 401 — long after construction completes.
+    late final SyncRepository sync;
     final apiClient = ApiClient(
       credentials: auth.credentials,
       passwordCache: passwordCache,
-      onUnauthorized: auth.logout,
+      // A 401 ends the session involuntarily (token revoked, "end all
+      // sessions" on another device, removed from the company). The default
+      // `logout()` is DESTRUCTIVE — it wipes the whole Drift database, and
+      // `outbox` is one of the tables — so handing `auth.logout` straight to
+      // ApiClient silently destroyed every queued offline edit. Consult the
+      // same predicate the idle-timeout re-lock uses: with unsynced work
+      // pending, keep the encrypted DB (and set the re-lock gate) so the rows
+      // survive to drain after re-auth.
+      onUnauthorized: () async =>
+          auth.logout(preserveLocalData: await sync.hasUnsyncedWork()),
       onServerVersion: (v) => serverVersion.value = v,
       onClientTooOld: (info) => clientTooOld.value = info,
       httpClient: httpClient,
@@ -979,7 +992,7 @@ class Services implements SidebarBadgeContext {
     // dispatch only fires inside [drainOnce], which won't run until after
     // construction completes.
     final registry = EntityRegistry({});
-    final sync = SyncRepository(db: db, registry: registry);
+    sync = SyncRepository(db: db, registry: registry);
     // Wired into every BaseEntityRepository's onEnqueued so a mutation
     // drains as soon as it lands in the outbox (instead of sitting until
     // the next user-driven trigger). Fire-and-forget — drainOnce returns a
@@ -1133,7 +1146,13 @@ class Services implements SidebarBadgeContext {
     // sync before wiping Drift; SyncRepository itself reads from Drift only,
     // so it can be built without AuthRepository.
     auth.onBeforeLogout = sync.cancel;
-    auth.onActiveCompanyChanged = kickDrain;
+    // Activating a company (login / restore / switch) is the resume point for
+    // the sync engine — `cancel()` latches until here, and `logout()` re-arms
+    // `_lastActivatedCompanyId` so a re-login always fires this.
+    auth.onActiveCompanyChanged = (companyId) {
+      sync.resume();
+      kickDrain(companyId);
+    };
     // Clear app-lifetime per-session repo state on logout so a second user on
     // the same install never inherits it (e.g. the previous user's connected
     // calendar email — cross-user leak).

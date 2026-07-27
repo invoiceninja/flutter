@@ -106,8 +106,12 @@ void main() {
       expect(companySafeLocation('/clients', _testRoots), '/clients');
     });
 
-    test('passes /clients/new through unchanged', () {
-      expect(companySafeLocation('/clients/new', _testRoots), '/clients/new');
+    test('strips /clients/new back to /clients — a create form binds the '
+        'active company at mount, so it must not survive a switch', () {
+      // Keeping the location made go_router short-circuit (same path), so the
+      // form stayed bound to the previous company and Save queued the record
+      // into the wrong workspace.
+      expect(companySafeLocation('/clients/new', _testRoots), '/clients');
     });
 
     test('strips /clients/<id> back to /clients', () {
@@ -155,10 +159,11 @@ void main() {
       );
     });
 
-    test('passes /settings/<entity>/new through unchanged', () {
+    test('strips /settings/<entity>/new back to its list — same reason as '
+        '/clients/new: the create form binds the company at mount', () {
       expect(
         companySafeLocation('/settings/company_gateways/new', settingsRoots),
-        '/settings/company_gateways/new',
+        '/settings/company_gateways',
       );
     });
 

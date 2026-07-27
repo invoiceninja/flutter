@@ -520,15 +520,17 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   /// with no permission tokens) this fails open and lets the server be the
   /// authority — matching how those screens already behave. `archive` /
   /// `restore` and every entity-specific action (`email`, `mark_sent`,
-  /// `convert_to_invoice`, …) are edits → `edit_<entity>`; `delete` →
-  /// `delete_<entity>`.
+  /// `convert_to_invoice`, …) are edits → `edit_<entity>`, and so is `delete`:
+  /// there is no `delete_*` permission in the product, and the server
+  /// authorizes a destroy through `EntityPolicy::edit`. ([AuthCompany.can]
+  /// resolves a `delete_<entity>` probe the same way, so either spelling
+  /// works — this asks the question directly.)
   bool _bulkActionAllowed(String actionId) {
     final wire = _services.entityRegistry[_vm.entityType]?.wireName;
     if (wire == null || !kPermissionEntities.contains(wire)) return true;
     final me = _services.auth.session.value?.currentCompany;
     if (me == null) return true; // server still enforces
-    final verb = actionId == 'delete' ? 'delete' : 'edit';
-    return me.can('${verb}_$wire');
+    return me.can('edit_$wire');
   }
 
   /// Maps the entity's [EntityListBulkAction] descriptors onto the shared

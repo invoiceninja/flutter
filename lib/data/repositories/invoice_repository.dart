@@ -94,6 +94,10 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       'loadedPages is 1-based; pass 1 for the first page',
     );
     final dateRange = parseDateRangeFilter(extraFilters);
+    // Single-date comparators live in the `op:value` slot, not the range
+    // slot — mirror them locally or the chip only narrows the server fetch.
+    final dateCmp = parseComparableDateFilter(extraFilters, 'date');
+    final dueDateCmp = parseComparableDateFilter(extraFilters, 'due_date');
     final dueDateRange = parseDueDateRangeFilter(extraFilters);
     return db.invoiceDao
         .watchPage(
@@ -115,6 +119,10 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
           overdueAsOf: parseOverdueFilter(extraFilters)
               ? Date.today().toIso()
               : null,
+          dateOp: dateCmp.op,
+          dateValue: dateCmp.value,
+          dueDateOp: dueDateCmp.op,
+          dueDateValue: dueDateCmp.value,
           dateStart: dateRange.start,
           dateEnd: dateRange.end,
           dueDateStart: dueDateRange.start,
@@ -243,8 +251,14 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     );
 
     final apiRows = result.data.data;
+    // Shared rule (see `hasMoreAfterPage`): with the keyset cursor applied a
+    // short/empty page is an exhausted DELTA, not end-of-list.
     if (apiRows.isEmpty) {
-      return false;
+      return hasMoreAfterPage(
+        rowCount: 0,
+        cursorApplied: cursor?.isEmpty == false,
+        pageSize: pageSize,
+      );
     }
 
     await db.invoiceDao.upsertAllPreservingDirty(
@@ -252,9 +266,15 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       byId: {for (final a in apiRows) a.id: _apiToCompanion(a, companyId)},
     );
 
-    if (!hasClientScope &&
-        !isSearchScoped &&
-        page == 1 &&
+    // Shared rule (see `shouldAdvanceCursor`): only an unscoped,
+    // unfiltered page 1 may move the global watermark.
+    if (shouldAdvanceCursor(
+          page: page,
+          hasParentScope: hasClientScope,
+          isSearchScoped: isSearchScoped,
+          states: states,
+          extraFilters: resolvedExtra,
+        ) &&
         result.cursorUpdatedAt != null &&
         result.cursorId != null) {
       await advanceCursor(
@@ -264,7 +284,11 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         wasFullSync: ignoreCursor,
       );
     }
-    return apiRows.length >= pageSize;
+    return hasMoreAfterPage(
+      rowCount: apiRows.length,
+      cursorApplied: cursor?.isEmpty == false,
+      pageSize: pageSize,
+    );
   }
 
   /// Backs `InvoiceNameLabel`'s cache-miss path: a quote/expense that

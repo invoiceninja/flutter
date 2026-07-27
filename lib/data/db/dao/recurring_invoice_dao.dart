@@ -66,6 +66,7 @@ class RecurringInvoiceDao
     String sortField = RecurringInvoiceFieldIds.number,
     bool sortAscending = false,
     String? clientId,
+    Set<String> clientIds = const {},
     Set<String> statusIds = const {},
     Set<String> customValues1 = const {},
     Set<String> customValues2 = const {},
@@ -77,10 +78,17 @@ class RecurringInvoiceDao
     if (clientId != null && clientId.isNotEmpty) {
       q.where((e) => e.clientId.equals(clientId));
     }
+    // Local mirror of the `client:` chip's `client_id` server filter. This was
+    // the only ClientFilterKey list missing it, so the chip narrowed the server
+    // fetch while the watch kept emitting every cached recurring invoice — the
+    // list looked unchanged and the chip looked broken.
+    if (clientIds.isNotEmpty) {
+      q.where((e) => e.clientId.isIn(clientIds.toList()));
+    }
     // Workspace list: hide rows of soft-deleted clients (offline parity with
     // the server `without_deleted_clients` filter). Suppressed under an explicit
     // client scope so a client's detail tabs still show its rows.
-    if (clientId == null || clientId.isEmpty) {
+    if ((clientId == null || clientId.isEmpty) && clientIds.isEmpty) {
       q.where(
         (e) =>
             clientNotDeletedFilter(clientId: e.clientId, companyId: companyId),

@@ -166,7 +166,15 @@ class GroupSettingRepository
     );
 
     final apiRows = result.data.data;
-    if (apiRows.isEmpty) return false;
+    // Shared rule (see `hasMoreAfterPage`): with the keyset cursor applied a
+    // short/empty page is an exhausted DELTA, not end-of-list.
+    if (apiRows.isEmpty) {
+      return hasMoreAfterPage(
+        rowCount: 0,
+        cursorApplied: cursor?.isEmpty == false,
+        pageSize: pageSize,
+      );
+    }
 
     // Server-refresh: skip ids whose existing local row has is_dirty=true,
     // so a paged refresh doesn't clobber the user's pending offline edit.
@@ -178,7 +186,15 @@ class GroupSettingRepository
     // Advance only on page 1 (deeper pages carry older rows under id DESC,
     // and the cursor write is last-write-wins — advancing on page >= 2 would
     // walk the watermark backward). Matches the other hand-rolled repos.
-    if (page == 1 &&
+    // Shared rule (see `shouldAdvanceCursor`): only an unscoped,
+    // unfiltered page 1 may move the global watermark.
+    if (shouldAdvanceCursor(
+          page: page,
+          hasParentScope: false,
+          isSearchScoped: false,
+          states: states,
+          extraFilters: const {},
+        ) &&
         result.cursorUpdatedAt != null &&
         result.cursorId != null) {
       await advanceCursor(
@@ -188,7 +204,11 @@ class GroupSettingRepository
         wasFullSync: ignoreCursor,
       );
     }
-    return apiRows.length >= pageSize;
+    return hasMoreAfterPage(
+      rowCount: apiRows.length,
+      cursorApplied: cursor?.isEmpty == false,
+      pageSize: pageSize,
+    );
   }
 
   /// Pull-to-refresh / foreground-resume.

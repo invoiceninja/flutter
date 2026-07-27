@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/permissions.dart' show kPermissionSpecial;
 
 /// Hard cap on companies per account (matches admin-portal's UI limit).
 const int kMaxCompaniesPerAccount = 10;
@@ -396,10 +397,52 @@ class AuthCompany {
   final bool isAdmin;
   final bool isOwner;
 
+  /// Whether the active company-user holds [permission].
+  ///
+  /// Mirrors the server's `User::hasPermission` (`app/Models/User.php`) for
+  /// the CRUD grid, so the UI doesn't hide an action the API would accept.
+  /// (The `kPermissionSpecial` toggles are a deliberate exception — see the
+  /// last bullet.) The rules:
+  ///
+  ///   * `<verb>_all` grants every entity token for that verb. This is how the
+  ///     app's OWN permission editor stores a whole column
+  ///     (`permissionsAfterToggleAll` / the auto-promote in
+  ///     `permissionsAfterToggleCell` collapse the 14 entity tokens into
+  ///     `view_all` / `edit_all` / `create_all`), so exact-token matching left
+  ///     a user granted "everything" with no dashboard, no Reports, no entity
+  ///     actions and no bulk actions.
+  ///   * `edit_<entity>` and `edit_all` imply `view_<entity>` — you cannot edit
+  ///     what you cannot see, and the server says so explicitly.
+  ///   * `delete_<entity>` is NOT a real token anywhere in the product (the
+  ///     grid only produces create/view/edit). The server authorizes a destroy
+  ///     through `EntityPolicy::edit`, so delete is treated as an edit here;
+  ///     React gates its delete actions on `edit_*` for the same reason.
+  ///
+  /// [kPermissionSpecial] toggles (`view_dashboard` / `view_reports` /
+  /// `disable_emails`) stay EXACT-token on purpose: they're standalone
+  /// checkboxes above the grid, and React deliberately excludes them from
+  /// `_all` expansion, so ticking "view all" shouldn't silently unlock Reports.
   bool can(String permission) {
     if (isAdmin || isOwner) return true;
     if (permissions.isEmpty) return false;
-    return permissions.split(',').contains(permission);
+    final held = permissions.split(',').map((p) => p.trim()).toSet();
+    if (held.contains(permission)) return true;
+    if (kPermissionSpecial.contains(permission)) return false;
+    // Split on the FIRST underscore only: `view_recurring_invoice` must yield
+    // ('view', 'recurring_invoice'), never ('view', 'recurring') — which would
+    // leak permissions across the other `recurring_*` entities.
+    final sep = permission.indexOf('_');
+    if (sep <= 0) return false;
+    var verb = permission.substring(0, sep);
+    final entity = permission.substring(sep + 1);
+    if (verb == 'delete') verb = 'edit';
+    if (held.contains('${verb}_all') || held.contains('${verb}_$entity')) {
+      return true;
+    }
+    if (verb == 'view') {
+      return held.contains('edit_all') || held.contains('edit_$entity');
+    }
+    return false;
   }
 
   /// True when [type]'s module is enabled for this company (or the entity is

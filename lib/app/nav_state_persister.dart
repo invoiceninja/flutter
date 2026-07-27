@@ -65,7 +65,8 @@ class NavStatePersister {
   /// - `view=full`: the master-detail full-screen pane choice is deliberately
   ///   *never* remembered across a restart — a cold launch always lands in the
   ///   sidebar preview. Stripping it covers routes `companySafeLocation`
-  ///   passes through verbatim (e.g. `/foo/new?view=full`).
+  ///   passes through verbatim (arbitrary settings sub-routes — note it does
+  ///   strip `/foo/new` back to `/foo`, query string and all).
   ///
   /// NOTE: only `view=full` is transient. The Tasks screen reuses the same
   /// `view=` key for its LAYOUT mode (`calendar`/`daily`/`weekly`/`kanban`),

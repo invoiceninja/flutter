@@ -4,7 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/invoice.dart';
+import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/repositories/invoice_repository.dart';
+import 'package:admin/data/models/domain/quote.dart';
+import 'package:admin/data/models/domain/quote_status.dart';
 import 'package:admin/data/repositories/quote_repository.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/services/invoices_api.dart';
@@ -50,7 +54,13 @@ void main() {
       clientRequiredMessage: '',
       crossClientLineItemsMessage: '',
       partialInvalidMessage: '',
-      existing: emptyInvoice().copyWith(paidToDate: Decimal.parse('30')),
+      // SENT, not draft: the server only recomputes `balance` for
+      // non-draft invoices (`InvoiceSum::setCalculatedAttributes`), and the
+      // client mirrors that — see `copyWithStampedTotals`.
+      existing: emptyInvoice().copyWith(
+        paidToDate: Decimal.parse('30'),
+        statusId: InvoiceStatus.sent,
+      ),
     );
     vm.addLineItem(item('100', '1'));
     vm.addLineItem(item('50', '2')); // +100 → total 200
@@ -70,13 +80,43 @@ void main() {
     );
   });
 
-  test('quote: stamp sets balance = total (no paidToDate)', () {
-    final vm = QuoteEditViewModel(
-      repo: QuoteRepository(db: db, api: _FakeQuotesApi()),
+  test('invoice: a DRAFT keeps its stored balance — the server never '
+      'recomputes a draft balance, and a stamped one lit up "Past Due" and '
+      'made the draft an auto-apply target', () {
+    final vm = InvoiceEditViewModel(
+      repo: InvoiceRepository(
+        db: db,
+        api: _FakeInvoicesApi(),
+        settings: SettingsRepository(db: db),
+      ),
       companyId: 'co',
       clientRequiredMessage: '',
       crossClientLineItemsMessage: '',
       partialInvalidMessage: '',
+      existing: emptyInvoice(),
+    );
+    vm.addLineItem(item('100', '1'));
+    vm.totalsAt(2);
+
+    vm.stampTotalsForSave();
+
+    expect(vm.draft.amount, Decimal.parse('100'));
+    expect(vm.draft.balance, Decimal.zero);
+    expect(vm.draft.isPastDue, isFalse);
+  });
+
+  QuoteEditViewModel quoteVm({Quote? existing}) => QuoteEditViewModel(
+    repo: QuoteRepository(db: db, api: _FakeQuotesApi()),
+    companyId: 'co',
+    clientRequiredMessage: '',
+    crossClientLineItemsMessage: '',
+    partialInvalidMessage: '',
+    existing: existing,
+  );
+
+  test('quote: a SENT quote stamps balance = total (no paidToDate)', () {
+    final vm = quoteVm(
+      existing: emptyQuote().copyWith(statusId: QuoteStatus.sent),
     );
     vm.addLineItem(item('100', '1'));
     vm.totalsAt(2);
@@ -85,5 +125,17 @@ void main() {
 
     expect(vm.draft.amount, Decimal.parse('100'));
     expect(vm.draft.balance, Decimal.parse('100'));
+  });
+
+  test('quote: a DRAFT keeps its stored balance — InvoiceSum::getQuote() '
+      'skips a draft balance exactly like invoices', () {
+    final vm = quoteVm();
+    vm.addLineItem(item('100', '1'));
+    vm.totalsAt(2);
+
+    vm.stampTotalsForSave();
+
+    expect(vm.draft.amount, Decimal.parse('100'));
+    expect(vm.draft.balance, Decimal.zero);
   });
 }

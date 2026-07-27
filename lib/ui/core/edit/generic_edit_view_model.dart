@@ -111,6 +111,18 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// a disposed `ChangeNotifier`, which asserts in debug Flutter.
   bool get isDisposed => _disposed;
 
+  /// Swallow notifications after disposal instead of asserting. Edit screens
+  /// legitimately mutate the VM from post-frame callbacks and resolved futures
+  /// that can outlive the route (e.g. an auto-seed scheduled on the frame the
+  /// user closes the pane), and every such call site guarding itself is a rule
+  /// that gets forgotten. `GenericListViewModel` and `GenericDetailViewModel`
+  /// already do exactly this.
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
+
   @override
   void dispose() {
     _disposed = true;

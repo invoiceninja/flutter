@@ -4,6 +4,7 @@ import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/_payload_search.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/invoices_table.dart';
@@ -79,6 +80,10 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
     String? overdueAsOf,
+    String? dateOp,
+    String? dateValue,
+    String? dueDateOp,
+    String? dueDateValue,
     String? dateStart,
     String? dateEnd,
     String? dueDateStart,
@@ -136,6 +141,11 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
       q.where(
         (e) =>
             e.balance.cast<double>().isBiggerThanValue(0) &
+            // Drafts are never past due (nothing has been sent yet) — the
+            // getter says so and the server's own filter is
+            // `whereIn(status_id, [SENT, PARTIAL])`. Without this the chip
+            // returned rows whose pill reads "Draft".
+            e.statusId.equals('1').not() &
             e.statusId.isIn(const ['4', '5', '6']).not() &
             effectiveDue.isNotNull() &
             effectiveDue.isSmallerThanValue(overdueAsOf),
@@ -144,6 +154,20 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
     if (dateStart != null && dateEnd != null) {
       q.where((e) => e.date.isBetweenValues(dateStart, dateEnd));
     }
+    // Single-date comparators (>, >=, <, <=, =) live in the `op:value`
+    // slot; without this mirror the chip narrowed only the server fetch.
+    final datePred = comparableDatePredicate(
+      invoices.date,
+      op: dateOp,
+      value: dateValue,
+    );
+    if (datePred != null) q.where((e) => datePred);
+    final dueDatePred = comparableDatePredicate(
+      invoices.dueDate,
+      op: dueDateOp,
+      value: dueDateValue,
+    );
+    if (dueDatePred != null) q.where((e) => dueDatePred);
     if (dueDateStart != null && dueDateEnd != null) {
       q.where((e) => e.dueDate.isBetweenValues(dueDateStart, dueDateEnd));
     }

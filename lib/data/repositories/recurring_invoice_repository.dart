@@ -81,6 +81,7 @@ class RecurringInvoiceRepository
           sortField: sortField,
           sortAscending: sortAscending,
           clientId: clientId,
+          clientIds: parseClientIdFilter(extraFilters),
           statusIds: parseRecurringInvoiceStatusFilter(extraFilters),
           customValues1: customFilters[1] ?? const {},
           customValues2: customFilters[2] ?? const {},
@@ -187,14 +188,28 @@ class RecurringInvoiceRepository
       filters: filters,
     );
     final apiRows = result.data.data;
-    if (apiRows.isEmpty) return false;
+    // Shared rule (see `hasMoreAfterPage`): with the keyset cursor applied a
+    // short/empty page is an exhausted DELTA, not end-of-list.
+    if (apiRows.isEmpty) {
+      return hasMoreAfterPage(
+        rowCount: 0,
+        cursorApplied: cursor?.isEmpty == false,
+        pageSize: pageSize,
+      );
+    }
     await db.recurringInvoiceDao.upsertAllPreservingDirty(
       companyId: companyId,
       byId: {for (final a in apiRows) a.id: _apiToCompanion(a, companyId)},
     );
-    if (!hasClientScope &&
-        !isSearchScoped &&
-        page == 1 &&
+    // Shared rule (see `shouldAdvanceCursor`): only an unscoped,
+    // unfiltered page 1 may move the global watermark.
+    if (shouldAdvanceCursor(
+          page: page,
+          hasParentScope: hasClientScope,
+          isSearchScoped: isSearchScoped,
+          states: states,
+          extraFilters: resolvedExtra,
+        ) &&
         result.cursorUpdatedAt != null &&
         result.cursorId != null) {
       await advanceCursor(
@@ -204,7 +219,11 @@ class RecurringInvoiceRepository
         wasFullSync: ignoreCursor,
       );
     }
-    return apiRows.length >= pageSize;
+    return hasMoreAfterPage(
+      rowCount: apiRows.length,
+      cursorApplied: cursor?.isEmpty == false,
+      pageSize: pageSize,
+    );
   }
 
   Future<void> refreshAll({

@@ -16,6 +16,9 @@ class PaymentLinkFieldIds {
   static const String name = 'name';
   static const String price = 'price';
   static const String updatedAt = 'updated_at';
+
+  /// Payload-only column surfaced by the column picker.
+  static const String purchasePage = 'purchase_page';
 }
 
 @DriftAccessor(tables: [PaymentLinks])
@@ -72,6 +75,11 @@ class PaymentLinkDao extends DatabaseAccessor<AppDatabase>
         return s.priceCents;
       case PaymentLinkFieldIds.updatedAt:
         return s.updatedAt;
+      // Payload-only column — see the note in ExpenseCategoryDao.
+      case PaymentLinkFieldIds.purchasePage:
+        return CustomExpression<String>(
+          "LOWER(COALESCE(json_extract(payload, '\$.purchase_page'), ''))",
+        );
       default:
         return s.name.lower();
     }

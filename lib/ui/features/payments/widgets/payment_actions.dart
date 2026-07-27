@@ -5,12 +5,12 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
 /// Action set surfaced for a payment. Apply intentionally lives inline on the
 /// detail screen (not the action menu) since it's a one-tap/two-tap flow.
@@ -175,43 +175,9 @@ Future<void> _promptAddComment(
   String companyId,
   Payment payment,
 ) async {
-  final controller = TextEditingController();
-  final text = await showDialog<String>(
-    context: context,
-    builder: (ctx) {
-      return AlertDialog(
-        title: Text(ctx.tr('add_comment')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 3,
-          decoration: InputDecoration(hintText: ctx.tr('notes')),
-        ),
-        actions: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(64, 40),
-                ),
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(ctx.tr('cancel')),
-              ),
-              const SizedBox(width: 8),
-              PrimaryDialogAction(
-                label: ctx.tr('save'),
-                onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-                autofocus: false,
-                showEnterHint: false,
-              ),
-            ],
-          ),
-        ],
-      );
-    },
-  );
+  // Shared dialog — it owns its controller in a State so disposal cannot
+  // race the exit transition (see `showAddCommentPrompt`).
+  final text = await showAddCommentPrompt(context);
   if (text == null || text.isEmpty) return;
   await services.payments.addComment(
     companyId: companyId,

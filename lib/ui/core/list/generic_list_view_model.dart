@@ -187,7 +187,16 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// [_kAutoChainMaxPages] per filter/search/sort change so completeness
   /// stays page-bounded (by design) instead of sweeping the whole table.
   @protected
-  bool get localOnlyFilterActive => false;
+  bool get localOnlyFilterActive => tagFilterActive;
+
+  /// True while a `tag:` chip is applied. `tag_ids` IS a real server filter and
+  /// stays on the request, but every repo also re-applies it in memory over
+  /// rows the DAO already truncated to `limit: pageSize * loadedPages` — a
+  /// post-LIMIT filter. Without flagging it here the auto-chain never ran, so a
+  /// tag whose matches sort outside the first window rendered "No records
+  /// found" even though the server had just fetched and upserted them.
+  @protected
+  bool get tagFilterActive => _extraFilters['tag_ids']?.isNotEmpty ?? false;
 
   /// Rows per fetched page — the auto-chain's "shorter than a page" fill
   /// target. Repos default to 50; override only if an entity pages

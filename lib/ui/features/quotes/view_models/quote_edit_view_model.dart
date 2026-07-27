@@ -153,7 +153,15 @@ class QuoteEditViewModel extends GenericBillingDocEditViewModel<Quote> {
     Quote draft, {
     required Decimal amount,
     required Decimal taxAmount,
-  }) => draft.copyWith(amount: amount, balance: amount, taxAmount: taxAmount);
+  }) => draft.copyWith(
+    amount: amount,
+    // Drafts keep their stored balance — `InvoiceSum::setCalculatedAttributes`
+    // skips a draft's balance for every doc type, and `balance` isn't
+    // `$fillable`, so the value we PUT is discarded anyway. Stamping one
+    // locally showed a balance the server would report as 0.
+    balance: draft.isDraft ? draft.balance : amount,
+    taxAmount: taxAmount,
+  );
 
   // ── Setters ────────────────────────────────────────────────────────
 

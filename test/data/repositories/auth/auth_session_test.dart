@@ -423,4 +423,95 @@ void main() {
       expect(s.trialDaysRemaining, inInclusiveRange(11, 12));
     });
   });
+
+  _permissionTests();
+}
+
+AuthCompany _company({
+  String permissions = '',
+  bool isAdmin = false,
+  bool isOwner = false,
+}) => AuthCompany(
+  id: 'co1',
+  name: 'Acme',
+  displayName: 'Acme',
+  permissions: permissions,
+  isAdmin: isAdmin,
+  isOwner: isOwner,
+);
+
+void _permissionTests() {
+  group('AuthCompany.can', () {
+    test('admin and owner bypass every check', () {
+      expect(_company(isAdmin: true).can('view_client'), isTrue);
+      expect(_company(isOwner: true).can('edit_all'), isTrue);
+      expect(_company(isAdmin: true).can('view_reports'), isTrue);
+    });
+
+    test('no permissions grants nothing', () {
+      expect(_company().can('view_client'), isFalse);
+      expect(_company().can('view_dashboard'), isFalse);
+    });
+
+    test('exact tokens still match', () {
+      final c = _company(permissions: 'view_client,create_invoice');
+      expect(c.can('view_client'), isTrue);
+      expect(c.can('create_invoice'), isTrue);
+      expect(c.can('view_product'), isFalse);
+    });
+
+    test('<verb>_all grants every entity for that verb — this is how the '
+        'permission editor stores a whole column', () {
+      final c = _company(permissions: 'view_all,create_all,edit_all');
+      expect(c.can('view_client'), isTrue);
+      expect(c.can('create_invoice'), isTrue);
+      expect(c.can('edit_recurring_expense'), isTrue);
+    });
+
+    test('view_all does not leak across verbs', () {
+      final c = _company(permissions: 'view_all');
+      expect(c.can('view_invoice'), isTrue);
+      expect(c.can('create_invoice'), isFalse);
+      expect(c.can('edit_invoice'), isFalse);
+    });
+
+    test('edit implies view (server User::hasPermission parity)', () {
+      expect(_company(permissions: 'edit_invoice').can('view_invoice'), isTrue);
+      expect(_company(permissions: 'edit_all').can('view_client'), isTrue);
+      // …but only for the same entity.
+      expect(_company(permissions: 'edit_invoice').can('view_client'), isFalse);
+    });
+
+    test('delete resolves as edit — there is no delete_* token and the server '
+        'authorizes destroy through EntityPolicy::edit', () {
+      expect(
+        _company(permissions: 'edit_invoice').can('delete_invoice'),
+        isTrue,
+      );
+      expect(_company(permissions: 'edit_all').can('delete_quote'), isTrue);
+      expect(
+        _company(permissions: 'view_invoice').can('delete_invoice'),
+        isFalse,
+      );
+    });
+
+    test('multi-underscore entities split on the FIRST underscore only', () {
+      final c = _company(permissions: 'view_recurring_invoice');
+      expect(c.can('view_recurring_invoice'), isTrue);
+      // Must not leak to the other `recurring_*` entity.
+      expect(c.can('view_recurring_expense'), isFalse);
+      expect(c.can('view_invoice'), isFalse);
+    });
+
+    test('special toggles stay exact-token — view_all must not unlock the '
+        'dashboard or Reports (React parity)', () {
+      final c = _company(permissions: 'view_all,edit_all');
+      expect(c.can('view_dashboard'), isFalse);
+      expect(c.can('view_reports'), isFalse);
+      expect(
+        _company(permissions: 'view_dashboard').can('view_dashboard'),
+        isTrue,
+      );
+    });
+  });
 }

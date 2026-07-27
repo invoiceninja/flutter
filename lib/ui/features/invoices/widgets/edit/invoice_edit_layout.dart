@@ -732,6 +732,12 @@ class _StickyTotals extends StatelessWidget {
         clientId: vm.draft.clientId,
         discount: vm.draft.discount,
         discountIsAmount: vm.draft.isAmountDiscount,
+        surchargeAmounts: [
+          vm.draft.customSurcharge1,
+          vm.draft.customSurcharge2,
+          vm.draft.customSurcharge3,
+          vm.draft.customSurcharge4,
+        ],
         partial: vm.draft.partial,
         dense: true,
       ),
@@ -752,6 +758,12 @@ class _TotalsCardDesktop extends StatelessWidget {
       clientId: vm.draft.clientId,
       discount: vm.draft.discount,
       discountIsAmount: vm.draft.isAmountDiscount,
+      surchargeAmounts: [
+        vm.draft.customSurcharge1,
+        vm.draft.customSurcharge2,
+        vm.draft.customSurcharge3,
+        vm.draft.customSurcharge4,
+      ],
       partial: vm.draft.partial,
       bordered: false,
     );
@@ -772,6 +784,12 @@ class _SlimTotalsBar extends StatelessWidget {
       clientId: vm.draft.clientId,
       discount: vm.draft.discount,
       discountIsAmount: vm.draft.isAmountDiscount,
+      surchargeAmounts: [
+        vm.draft.customSurcharge1,
+        vm.draft.customSurcharge2,
+        vm.draft.customSurcharge3,
+        vm.draft.customSurcharge4,
+      ],
       partial: vm.draft.partial,
       dense: true,
       slim: true,

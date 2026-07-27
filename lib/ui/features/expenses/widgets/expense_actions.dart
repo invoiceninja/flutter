@@ -10,13 +10,13 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/expense_invoice_line_item.dart';
 import 'package:admin/domain/expense_recurring_conversion.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 
@@ -281,43 +281,9 @@ Future<void> _promptAddComment(
   String companyId,
   Expense expense,
 ) async {
-  final controller = TextEditingController();
-  final text = await showDialog<String>(
-    context: context,
-    builder: (ctx) {
-      return AlertDialog(
-        title: Text(ctx.tr('add_comment')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 3,
-          decoration: InputDecoration(hintText: ctx.tr('notes')),
-        ),
-        actions: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(64, 40),
-                ),
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(ctx.tr('cancel')),
-              ),
-              const SizedBox(width: 8),
-              PrimaryDialogAction(
-                label: ctx.tr('save'),
-                onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-                autofocus: false,
-                showEnterHint: false,
-              ),
-            ],
-          ),
-        ],
-      );
-    },
-  );
+  // Shared dialog — it owns its controller in a State so disposal cannot
+  // race the exit transition (see `showAddCommentPrompt`).
+  final text = await showAddCommentPrompt(context);
   if (text == null || text.isEmpty) return;
   await services.expenses.addComment(
     companyId: companyId,

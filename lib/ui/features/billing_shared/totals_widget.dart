@@ -128,7 +128,11 @@ class TotalsWidget extends StatelessWidget {
         ),
       for (final s in surcharges)
         if (s.amount != Decimal.zero)
-          _row(context, label: s.label, amount: s.amount),
+          _row(
+            context,
+            label: s.labelIsKey ? context.tr(s.label) : s.label,
+            amount: s.amount,
+          ),
       for (final entry in totals.taxBreakdown.entries)
         if (entry.value != Decimal.zero)
           _row(
@@ -268,7 +272,52 @@ class TotalsWidget extends StatelessWidget {
 /// for the four invoice-level custom surcharges (whose labels come from
 /// `company.customFields['surcharge1'..'surcharge4']`).
 class TotalsSurcharge {
-  const TotalsSurcharge({required this.label, required this.amount});
+  const TotalsSurcharge({
+    required this.label,
+    required this.amount,
+    this.labelIsKey = false,
+  });
+
+  /// Either the company's configured label, or — when it has none — a
+  /// localization KEY (see [labelIsKey]).
   final String label;
   final Decimal amount;
+
+  /// True when [label] is a localization key rather than user-entered text.
+  final bool labelIsKey;
+}
+
+/// Build the [TotalsSurcharge] rows for a billing doc: one per slot the
+/// company has labelled (`customFields['surcharge1'..'surcharge4']`) that also
+/// carries a non-zero amount.
+///
+/// `computeTotals` folds all four surcharges into `total`, so a doc with a
+/// surcharge and no row here renders a footer that doesn't add up (Subtotal
+/// 100 → Total 150, nothing explaining the 50). Shared by the edit footer and
+/// the read-only Overview tab so both itemize identically.
+List<TotalsSurcharge> buildSurchargeRows({
+  required Map<String, String>? customFields,
+  required List<Decimal> amounts,
+}) {
+  final rows = <TotalsSurcharge>[];
+  for (var i = 0; i < amounts.length && i < 4; i++) {
+    // Visibility keys off the AMOUNT alone, matching the PDF
+    // (`PdfBuilder::…` shows the row whenever the value is non-zero; the
+    // label is a separate slot that may legitimately be blank). Skipping an
+    // unlabelled surcharge here would put back the non-reconciling footer
+    // this function exists to prevent — an invoice created by API/import, or
+    // one billed before the label was cleared, still carries the amount.
+    if (amounts[i] == Decimal.zero) continue;
+    final label = customFields?['surcharge${i + 1}'] ?? '';
+    // Fall back to the generic slot label key (`surcharge1`…`surcharge4` are
+    // real localization keys) so an unlabelled row still reads sensibly.
+    rows.add(
+      TotalsSurcharge(
+        label: label.isNotEmpty ? label : 'surcharge${i + 1}',
+        amount: amounts[i],
+        labelIsKey: label.isEmpty,
+      ),
+    );
+  }
+  return rows;
 }

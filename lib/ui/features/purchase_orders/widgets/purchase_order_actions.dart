@@ -123,7 +123,7 @@ class PurchaseOrderActions {
     final me = context.read<Services>().auth.session.value?.currentCompany;
     final canEdit = me?.can('edit_purchase_order') ?? false;
     final canCreate = me?.can('create_purchase_order') ?? false;
-    final canDelete = me?.can('delete_purchase_order') ?? false;
+    final canDelete = me?.can('edit_purchase_order') ?? false;
     final canMarkSent = canEdit && po.isDraft;
     // Server cancels a PO while `status_id <= SENT` (Draft or Sent) and
     // silently no-ops for Accepted/Received (`PurchaseOrderController` cancel

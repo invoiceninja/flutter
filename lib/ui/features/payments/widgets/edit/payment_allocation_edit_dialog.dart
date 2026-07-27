@@ -23,6 +23,7 @@ Future<Paymentable?> showPaymentAllocationEditDialog(
   required Decimal paymentAmount,
   required Decimal allocatedExcludingThisRow,
   Formatter? formatter,
+  String? currencyId,
 }) {
   return showDialog<Paymentable>(
     context: context,
@@ -35,6 +36,7 @@ Future<Paymentable?> showPaymentAllocationEditDialog(
       paymentAmount: paymentAmount,
       allocatedExcludingThisRow: allocatedExcludingThisRow,
       formatter: formatter,
+      currencyId: currencyId,
     ),
   );
 }
@@ -47,6 +49,7 @@ class _PaymentAllocationEditDialog extends StatefulWidget {
     required this.paymentAmount,
     required this.allocatedExcludingThisRow,
     required this.formatter,
+    required this.currencyId,
   });
 
   final AllocationKind kind;
@@ -55,6 +58,9 @@ class _PaymentAllocationEditDialog extends StatefulWidget {
   final Decimal paymentAmount;
   final Decimal allocatedExcludingThisRow;
   final Formatter? formatter;
+
+  /// Payment currency — see `PaymentAllocationsSection.currencyId`.
+  final String? currencyId;
 
   @override
   State<_PaymentAllocationEditDialog> createState() =>
@@ -159,7 +165,10 @@ class _PaymentAllocationEditDialogState
                     : '#${t.number}';
                 final amount = widget.formatter == null
                     ? t.balance.toString()
-                    : widget.formatter!.money(t.balance);
+                    : widget.formatter!.money(
+                        t.balance,
+                        clientCurrencyId: widget.currencyId,
+                      );
                 return '$number · $amount';
               },
               idOf: (t) => t.id,

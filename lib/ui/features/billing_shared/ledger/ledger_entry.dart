@@ -156,7 +156,11 @@ List<LedgerEntry> buildClientLedger({
           p.number,
           p.date,
           p.createdAt,
-          -p.amount,
+          // Net of refunds: a refund credits the client's balance back on the
+          // server (`updateBalanceAndPaidToDate($amount, -$amount)`), so
+          // subtracting the gross made the running balance disagree with the
+          // authoritative summary header on the same tab.
+          -(p.amount - p.refunded),
         ),
     for (final c in credits)
       if (!c.isDeleted && !c.isDraft)

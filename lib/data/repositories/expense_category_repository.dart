@@ -106,8 +106,10 @@ class ExpenseCategoryRepository
     idOf: (a) => a.id,
     updatedAtOf: (a) => a.updatedAt,
     toCompanion: (a) => _apiToCompanion(a, companyId),
-    upsert: (byId) =>
-        db.expenseCategoryDao.upsertAll(byId.values.toList(growable: false)),
+    upsert: (byId) => db.expenseCategoryDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
   );
 
   Future<bool> ensurePageLoaded({
@@ -129,8 +131,10 @@ class ExpenseCategoryRepository
     itemsOf: (l) => l.data,
     idOf: (a) => a.id,
     toCompanion: (a) => _apiToCompanion(a, companyId),
-    upsert: (byId) =>
-        db.expenseCategoryDao.upsertAll(byId.values.toList(growable: false)),
+    upsert: (byId) => db.expenseCategoryDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
   );
 
   /// Lazily hydrate one expense category by id when a reference (e.g. an
@@ -143,8 +147,9 @@ class ExpenseCategoryRepository
         fetch: (id) async => (await api.get(id)).data,
         idOf: (a) => a.id,
         toCompanion: (a) => _apiToCompanion(a, companyId),
-        upsert: (byId) => db.expenseCategoryDao.upsertAll(
-          byId.values.toList(growable: false),
+        upsert: (byId) => db.expenseCategoryDao.upsertAllPreservingDirty(
+          companyId: companyId,
+          byId: byId,
         ),
       );
 

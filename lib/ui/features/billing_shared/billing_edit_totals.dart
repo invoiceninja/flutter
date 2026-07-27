@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/repositories/client_settings_cascade.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
+import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/billing_shared/totals_widget.dart';
 
 /// Reactive totals block for billing-doc edit screens.
@@ -32,6 +35,7 @@ class BillingEditTotals extends StatefulWidget {
     Decimal? partial,
     this.clientId,
     this.vendorId,
+    this.surchargeAmounts = const <Decimal>[],
     this.dense = false,
     this.slim = false,
     this.bordered = true,
@@ -46,6 +50,13 @@ class BillingEditTotals extends StatefulWidget {
 
   /// Partial-payment amount (invoices only; zero for the other docs).
   final Decimal partial;
+
+  /// The four invoice-level custom surcharge amounts, in slot order. Labels
+  /// are resolved here from `company.customFields['surcharge1'..'4']` so call
+  /// sites stay one line. `computeTotals` already folds these into `total`, so
+  /// without the rows the footer showed a Total that didn't reconcile with the
+  /// lines above it.
+  final List<Decimal> surchargeAmounts;
 
   /// Currency source for client-billed docs (invoice / quote / credit /
   /// recurring). Empty / null falls back to the company default currency.
@@ -67,6 +78,10 @@ class _BillingEditTotalsState extends State<BillingEditTotals> {
   Stream<String?>? _currencyId;
   String? _sourceKey;
 
+  /// Hoisted so a keystroke-driven rebuild doesn't resubscribe (stable-stream
+  /// rule). Only needed for the surcharge labels.
+  Stream<Company?>? _company;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -85,6 +100,13 @@ class _BillingEditTotalsState extends State<BillingEditTotals> {
     final companyId = services.auth.currentCompanyId ?? '';
     final vendorId = widget.vendorId ?? '';
     final clientId = widget.clientId ?? '';
+    // Lazy: only a doc that actually carries a surcharge needs the company
+    // (for its labels), and this keeps the widget usable without a Services
+    // provider in tests.
+    if (_company == null &&
+        widget.surchargeAmounts.any((a) => a != Decimal.zero)) {
+      _company = services.company.watchCompany(companyId);
+    }
     final key = vendorId.isNotEmpty ? 'v:$vendorId' : 'c:$clientId';
     if (key == _sourceKey && _currencyId != null) return;
     _sourceKey = key;
@@ -96,9 +118,15 @@ class _BillingEditTotalsState extends State<BillingEditTotals> {
           .watch(companyId: companyId, id: vendorId)
           .map((v) => v?.currencyId);
     } else {
-      _currencyId = services.clients
-          .watch(companyId: companyId, id: clientId)
-          .map((c) => c?.currencyId);
+      // Client → GROUP → company. Resolving only the client's own override
+      // here rendered a grouped client's totals in the company currency, with
+      // the wrong symbol AND precision, while the PDF used the group's.
+      _currencyId = watchEffectiveClientCurrency(
+        clients: services.clients,
+        groups: services.groupSettings,
+        companyId: companyId,
+        clientId: clientId,
+      );
     }
   }
 
@@ -120,18 +148,46 @@ class _BillingEditTotalsState extends State<BillingEditTotals> {
         // Resolved party currency (client or vendor) → explicit slot, so the
         // precision is right for vendor docs (purchase orders) as well.
         final precision = formatter?.precisionFor(currencyId: currencyId) ?? 2;
-        return TotalsWidget(
-          totals: widget.totalsAt(precision),
-          discount: widget.discount,
-          discountIsAmount: widget.discountIsAmount,
-          partial: widget.partial,
-          formatter: formatter,
-          currencyId: currencyId,
-          dense: widget.dense,
-          slim: widget.slim,
-          bordered: widget.bordered,
+        final companyStream = _company;
+        if (companyStream == null) {
+          return _totals(
+            formatter,
+            currencyId,
+            precision,
+            const <TotalsSurcharge>[],
+          );
+        }
+        return StreamBuilder<Company?>(
+          stream: companyStream,
+          builder: (context, companySnap) {
+            final surchargeRows = buildSurchargeRows(
+              customFields: companySnap.data?.customFields,
+              amounts: widget.surchargeAmounts,
+            );
+            return _totals(formatter, currencyId, precision, surchargeRows);
+          },
         );
       },
+    );
+  }
+
+  Widget _totals(
+    Formatter? formatter,
+    String? currencyId,
+    int precision,
+    List<TotalsSurcharge> surchargeRows,
+  ) {
+    return TotalsWidget(
+      totals: widget.totalsAt(precision),
+      discount: widget.discount,
+      discountIsAmount: widget.discountIsAmount,
+      partial: widget.partial,
+      formatter: formatter,
+      currencyId: currencyId,
+      surcharges: surchargeRows,
+      dense: widget.dense,
+      slim: widget.slim,
+      bordered: widget.bordered,
     );
   }
 }

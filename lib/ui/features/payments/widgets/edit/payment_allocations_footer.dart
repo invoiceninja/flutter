@@ -18,13 +18,31 @@ import 'package:admin/utils/formatting.dart';
 ///   * **Remaining** — `draft.amount - net`. Negative means the user has
 ///     over-allocated relative to the payment amount they typed.
 class PaymentAllocationsFooter extends StatelessWidget {
-  const PaymentAllocationsFooter({super.key, required this.vm, this.formatter});
+  const PaymentAllocationsFooter({
+    super.key,
+    required this.vm,
+    this.formatter,
+    this.currencyId,
+  });
 
   final PaymentEditViewModel vm;
   final Formatter? formatter;
 
-  String _fmt(Decimal value) =>
-      formatter == null ? value.toString() : formatter!.money(value);
+  /// Effective payment currency, resolved by the layout (client → group →
+  /// company). Falls back to `draft.currencyId` when not supplied.
+  final String? currencyId;
+
+  // `clientCurrencyId` matters: the Formatter handed down here is
+  // company-scoped, so without it a JPY/EUR client's totals rendered with the
+  // company's symbol, separators AND precision.
+  String _fmt(Decimal value) => formatter == null
+      ? value.toString()
+      : formatter!.money(
+          value,
+          clientCurrencyId: currencyId?.isNotEmpty == true
+              ? currencyId
+              : vm.draft.currencyId,
+        );
 
   @override
   Widget build(BuildContext context) {

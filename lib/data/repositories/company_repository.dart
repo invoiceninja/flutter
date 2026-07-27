@@ -29,6 +29,12 @@ final _log = Logger('CompanyRepository');
 /// Unlike most entities there is no create/delete/archive flow — a company's
 /// lifecycle is managed at the account level. Logo + document uploads still
 /// go through the outbox so they survive offline.
+/// Outbox `entity_type` for company mutations. The `companies` table has no
+/// `is_dirty` column, so a pending row of this type IS the dirty marker —
+/// `AuthRepository._persistAndActivate` consults it before letting a delta
+/// `/refresh` overwrite the locally-edited row. Mirrors [kUserSettingsWireName].
+const String kCompanyWireName = 'company';
+
 class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
   CompanyRepository({
     required super.db,
@@ -91,7 +97,7 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
   }
 
   @override
-  String get entityTypeName => 'company';
+  String get entityTypeName => kCompanyWireName;
 
   /// Enqueue a Danger-Zone delete. Returns the outbox row id so the caller
   /// can poll for the row's terminal state after the drain.

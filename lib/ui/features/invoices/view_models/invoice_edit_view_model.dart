@@ -190,7 +190,16 @@ class InvoiceEditViewModel extends GenericBillingDocEditViewModel<Invoice> {
     required Decimal taxAmount,
   }) => draft.copyWith(
     amount: amount,
-    balance: amount - draft.paidToDate,
+    // A DRAFT keeps its stored balance (0). The server does the same —
+    // `InvoiceSum::setCalculatedAttributes` only recomputes `balance` when
+    // `status_id != STATUS_DRAFT`, and `balance` isn't `$fillable`, so the
+    // value we PUT is discarded anyway. Stamping `amount - paidToDate` here
+    // gave drafts a non-zero local balance, which lit up the red "Past Due"
+    // pill on back-dated drafts and — worse — made them eligible targets for
+    // the payment screen's "Auto-apply oldest" (whose server-side
+    // `applyPayment` calls `markSent()` first, so a draft would get sent AND
+    // paid).
+    balance: draft.isDraft ? draft.balance : amount - draft.paidToDate,
     taxAmount: taxAmount,
   );
 

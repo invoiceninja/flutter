@@ -285,13 +285,15 @@ class _CreatePaymentScheduleDialogState
             for (final r in _rows)
               <String, dynamic>{
                 'date': Date(r.date!.year, r.date!.month, r.date!.day).toIso(),
+                // Exact decimal string, like every other money field on the
+                // wire (`Invoice.toApiJson` etc.) — never a binary double.
                 'amount':
                     (parseDecimal(
                               r.amount.text,
                               useCommaAsDecimalPlace: _useComma,
                             ) ??
                             Decimal.zero)
-                        .toDouble(),
+                        .toString(),
                 'is_amount': true,
               },
           ],

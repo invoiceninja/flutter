@@ -61,9 +61,11 @@ bool isCompanySetupRequired(AuthSession? session) {
 
 /// Returns the route to land on after a company switch from [currentLocation].
 /// Any path under one of the [entityRoots] entries that references a specific
-/// entity ID is stripped back to that list root; every other path (including
-/// `<root>/new` create forms and arbitrary settings sub-routes) passes
-/// through unchanged, query string and all.
+/// entity is stripped back to that list root — that includes `<root>/new`
+/// create forms, which bind the active company once at mount (see the note in
+/// the loop). Anything else (arbitrary settings sub-routes, the dashboard, …)
+/// passes through unchanged, query string and all. Note that a stripped path
+/// loses its query string along with its trailing segment.
 ///
 /// Pass `services.entityRegistry.uiRoutePaths` for [entityRoots] in
 /// production — keeping this function dependency-free of the registry makes
@@ -86,8 +88,14 @@ String companySafeLocation(
   for (final root in roots) {
     final prefix = '$root/';
     if (!uri.path.startsWith(prefix)) continue;
-    final firstSeg = uri.path.substring(prefix.length).split('/').first;
-    if (firstSeg == 'new') return currentLocation;
+    // `/x/new` is stripped just like `/x/<id>`: the create screen captures the
+    // active company ONCE at mount (`EntityEditScreenScaffold._companyId` is
+    // `late final`, behind the `_bootstrapped` latch) and never listens to the
+    // session. Keeping the location meant go_router short-circuited the
+    // navigation (same path), so the form stayed bound to the PREVIOUS company
+    // while the list behind it switched — and saving queued the record into
+    // the wrong workspace. The unsaved-changes guard already prompts before a
+    // switch when the form is dirty, so nothing is lost by leaving.
     return root;
   }
   return currentLocation;

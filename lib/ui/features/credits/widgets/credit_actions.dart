@@ -116,7 +116,7 @@ class CreditActions {
     final me = context.read<Services>().auth.session.value?.currentCompany;
     final canEdit = me?.can('edit_credit') ?? false;
     final canCreate = me?.can('create_credit') ?? false;
-    final canDelete = me?.can('delete_credit') ?? false;
+    final canDelete = me?.can('edit_credit') ?? false;
     final canMarkSent = canEdit && credit.isDraft;
     // Mark paid only for negative credits (which behave like a receivable),
     // and only while still open — mirrors React's `amount < 0` + status gate.

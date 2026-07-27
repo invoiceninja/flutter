@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dart analyze *)",
+      "Bash(xmllint --noout *)",
+      "Bash(dart format --output=none *)",
+      "Bash(shasum -a 256 *)"
+    ]
+  }
+}

@@ -97,6 +97,12 @@ class _CreditEditLayoutState extends State<CreditEditLayout>
       clientId: widget.vm.draft.clientId,
       discount: widget.vm.draft.discount,
       discountIsAmount: widget.vm.draft.isAmountDiscount,
+      surchargeAmounts: [
+        widget.vm.draft.customSurcharge1,
+        widget.vm.draft.customSurcharge2,
+        widget.vm.draft.customSurcharge3,
+        widget.vm.draft.customSurcharge4,
+      ],
       partial: widget.vm.draft.partial,
       dense: true,
     ),
@@ -107,6 +113,12 @@ class _CreditEditLayoutState extends State<CreditEditLayout>
     clientId: widget.vm.draft.clientId,
     discount: widget.vm.draft.discount,
     discountIsAmount: widget.vm.draft.isAmountDiscount,
+    surchargeAmounts: [
+      widget.vm.draft.customSurcharge1,
+      widget.vm.draft.customSurcharge2,
+      widget.vm.draft.customSurcharge3,
+      widget.vm.draft.customSurcharge4,
+    ],
     partial: widget.vm.draft.partial,
     bordered: false,
   );
@@ -116,6 +128,12 @@ class _CreditEditLayoutState extends State<CreditEditLayout>
     clientId: widget.vm.draft.clientId,
     discount: widget.vm.draft.discount,
     discountIsAmount: widget.vm.draft.isAmountDiscount,
+    surchargeAmounts: [
+      widget.vm.draft.customSurcharge1,
+      widget.vm.draft.customSurcharge2,
+      widget.vm.draft.customSurcharge3,
+      widget.vm.draft.customSurcharge4,
+    ],
     partial: widget.vm.draft.partial,
     dense: true,
     slim: true,

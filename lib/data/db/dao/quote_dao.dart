@@ -4,6 +4,7 @@ import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/_payload_search.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/quotes_table.dart';
@@ -73,6 +74,10 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
     String? statusAsOf,
+    String? dateOp,
+    String? dateValue,
+    String? dueDateOp,
+    String? dueDateValue,
     String? dateStart,
     String? dateEnd,
     String? dueDateStart,
@@ -140,7 +145,16 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
             case 'draft':
               add(e.statusId.equals('1'));
             case 'sent':
-              add(e.statusId.equals('2'));
+              // Server `QuoteFilters::client_status` scopes `sent` to
+              // NOT-yet-expired quotes (`due_date IS NULL OR due_date >=
+              // today`); expired ones belong to the `expired` bucket. Without
+              // the guard the local watch surfaced past-due quotes under the
+              // Sent chip — each rendering an "Expired" pill — and the same
+              // rows appeared again under Expired.
+              add(
+                e.statusId.equals('2') &
+                    (dueNN.isNull() | dueNN.isBiggerOrEqualValue(today)),
+              );
             case 'approved':
               add(e.statusId.equals('3'));
             case 'converted':
@@ -171,6 +185,20 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
     if (dateStart != null && dateEnd != null) {
       q.where((e) => e.date.isBetweenValues(dateStart, dateEnd));
     }
+    // Single-date comparators (>, >=, <, <=, =) live in the `op:value`
+    // slot; without this mirror the chip narrowed only the server fetch.
+    final datePred = comparableDatePredicate(
+      quotes.date,
+      op: dateOp,
+      value: dateValue,
+    );
+    if (datePred != null) q.where((e) => datePred);
+    final dueDatePred = comparableDatePredicate(
+      quotes.dueDate,
+      op: dueDateOp,
+      value: dueDateValue,
+    );
+    if (dueDatePred != null) q.where((e) => dueDatePred);
     if (dueDateStart != null && dueDateEnd != null) {
       q.where((e) => e.dueDate.isBetweenValues(dueDateStart, dueDateEnd));
     }

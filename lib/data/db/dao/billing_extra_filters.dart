@@ -1,3 +1,5 @@
+import 'package:drift/drift.dart';
+
 import 'package:admin/data/models/domain/credit_status.dart';
 import 'package:admin/domain/payment_status.dart';
 
@@ -267,4 +269,36 @@ const Set<String> _comparableDateOps = {'gt', 'gte', 'lt', 'lte', 'eq'};
     return (op: wire.substring(0, idx), value: value);
   }
   return (op: 'gte', value: wire);
+}
+
+/// Drift predicate for a single-date comparator (`>`, `>=`, `<`, `<=`, `=`) on
+/// an ISO `YYYY-MM-DD` TEXT column, or null when the slot is empty.
+///
+/// `DateColumnFilterKey` stores `between` in the `<key>_range` slot and every
+/// other operator in the `<key>` slot as an `op:value` wire. The billing repos
+/// read only the range slot, so a bare `date:2026-06-01` (which defaults to
+/// `gte`) narrowed the SERVER fetch while the local watch applied no date
+/// predicate at all — the list re-emitted unfiltered cached rows. Pair this
+/// with [parseComparableDateFilter]. `gte` is the fallback so it matches
+/// `DateColumnFilterKey.defaultOp`.
+Expression<bool>? comparableDatePredicate(
+  GeneratedColumn<String> column, {
+  required String? op,
+  required String? value,
+}) {
+  if (value == null || value.isEmpty) return null;
+  // These columns default to `''` (an unset date), and in SQLite
+  // `'' < '2026-08-01'` is TRUE — so a naive `<` / `<=` sweeps in every row
+  // with no date at all, which the server (comparing a real DATE column,
+  // where NULL comparisons are false) excludes. Compare against the
+  // NULL-ified column so an empty date matches nothing, mirroring
+  // `quote_dao`'s existing `NULLIF(due_date, '')` idiom.
+  final notEmpty = CustomExpression<String>("NULLIF(${column.name}, '')");
+  return switch (op) {
+    'gt' => notEmpty.isBiggerThanValue(value),
+    'lt' => notEmpty.isSmallerThanValue(value),
+    'lte' => notEmpty.isSmallerOrEqualValue(value),
+    'eq' => notEmpty.equals(value),
+    _ => notEmpty.isBiggerOrEqualValue(value),
+  };
 }

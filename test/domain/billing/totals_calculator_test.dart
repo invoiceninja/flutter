@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
+import 'package:admin/ui/features/billing_shared/totals_widget.dart';
 
 /// Tests the totals math ported from admin-portal's `CalculateInvoiceTotal`
 /// mixin. Each scenario exercises one knob of the math so regressions
@@ -224,6 +225,51 @@ void main() {
       expect(result.taxBreakdown['VAT'], d('10.00'));
       expect(result.total, d('110.00'));
     });
+
+    test('inclusive single rate on a NON-divisible gross rounds like the '
+        'server: 100 @ 10% is 9.09, not 9.10', () {
+      // `InclusiveTax::backout` → round(100 × 10 / 110, 2) = 9.09.
+      // Dividing the gross at currency precision TRUNCATED the net (90.90),
+      // which turned the tax into a ceiling (9.10) on every gross that isn't
+      // evenly divisible — i.e. most inclusive-VAT invoices.
+      final result = computeTotals(
+        input(
+          lineItems: [item(cost: '100')],
+          taxName1: 'VAT',
+          taxRate1: '10',
+          usesInclusiveTaxes: true,
+        ),
+        2,
+      );
+      expect(result.taxBreakdown['VAT'], d('9.09'));
+      expect(result.total, d('100.00'));
+    });
+
+    test(
+      'inclusive single rate: more non-divisible cases match the server',
+      () {
+        for (final (cost, rate, expected) in <(String, String, String)>[
+          ('100', '5', '4.76'),
+          ('100', '15', '13.04'),
+          ('100', '20', '16.67'),
+        ]) {
+          final result = computeTotals(
+            input(
+              lineItems: [item(cost: cost)],
+              taxName1: 'VAT',
+              taxRate1: rate,
+              usesInclusiveTaxes: true,
+            ),
+            2,
+          );
+          expect(
+            result.taxBreakdown['VAT'],
+            d(expected),
+            reason: '$cost @ $rate% inclusive',
+          );
+        }
+      },
+    );
 
     test('inclusive two invoice-level rates share the base → 83.33 each', () {
       // issue #12072: additive shared base 1000/(1+0.20) = 833.33, each tier
@@ -455,6 +501,73 @@ void main() {
       );
       expect(result.taxBreakdown['GST'], d('12.00'));
       expect(result.total, d('132.00'));
+    });
+
+    test('two taxable surcharges: each tax component rounds independently '
+        '(server InvoiceSum::getSurchargeTaxTotalForKey)', () {
+      // Subtotal 100, VAT 8.25%, two taxable surcharges of 6.00.
+      // Server: round(100 × .0825) + round(6 × .0825) + round(6 × .0825)
+      //       = 8.25 + 0.50 + 0.50 = 9.25   (total 121.25)
+      // Folding both into one base first gave round(112 × .0825) = 9.24.
+      final result = computeTotals(
+        input(
+          lineItems: [item(cost: '100')],
+          customSurcharge1: '6',
+          customTaxes1: true,
+          customSurcharge2: '6',
+          customTaxes2: true,
+          taxName1: 'VAT',
+          taxRate1: '8.25',
+        ),
+        2,
+      );
+      expect(result.taxBreakdown['VAT'], d('9.25'));
+      expect(result.total, d('121.25'));
+    });
+
+    test(
+      'inclusive mode: a taxable surcharge contributes NO tax and is not '
+      'part of the inclusive base (server has those lines commented out)',
+      () {
+        // Gross line 110 @ 10% inclusive → tax 10.00, and the 20.00 surcharge
+        // rides on top untouched: total 130.00.
+        final result = computeTotals(
+          input(
+            lineItems: [item(cost: '110')],
+            usesInclusiveTaxes: true,
+            customSurcharge1: '20',
+            customTaxes1: true,
+            taxName1: 'VAT',
+            taxRate1: '10',
+          ),
+          2,
+        );
+        expect(result.taxBreakdown['VAT'], d('10.00'));
+        expect(result.total, d('130.00'));
+      },
+    );
+
+    test('an UNLABELLED surcharge still renders a row — the PDF keys row '
+        'visibility off the amount, not the label', () {
+      final rows = buildSurchargeRows(
+        customFields: const {'surcharge1': 'Shipping'},
+        amounts: [d('50'), d('20'), Decimal.zero, Decimal.zero],
+      );
+      expect(rows, hasLength(2));
+      expect(rows.first.label, 'Shipping');
+      expect(rows.first.labelIsKey, isFalse);
+      // Slot 2 has an amount but no configured label → generic key.
+      expect(rows.last.label, 'surcharge2');
+      expect(rows.last.labelIsKey, isTrue);
+      expect(rows.last.amount, d('20'));
+    });
+
+    test('zero-amount slots are skipped even when labelled', () {
+      final rows = buildSurchargeRows(
+        customFields: const {'surcharge1': 'Shipping'},
+        amounts: [Decimal.zero, Decimal.zero, Decimal.zero, Decimal.zero],
+      );
+      expect(rows, isEmpty);
     });
 
     test('non-taxable surcharge added AFTER tax, not part of tax base', () {

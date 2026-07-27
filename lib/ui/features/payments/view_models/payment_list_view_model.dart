@@ -90,7 +90,13 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    final base = extraFilters;
+    // `date` is a LOCAL-ONLY filter here: `PaymentFilters` has no `date()`
+    // method (unlike Invoice/Quote/Credit), so the server silently ignores it
+    // and returns an unnarrowed page. Strip it from the request and let the
+    // DAO predicate + the auto-chain (`localOnlyFilterActive` below) converge,
+    // instead of shipping a page the local filter guts down to a handful of
+    // rows with no way to scroll for more.
+    final base = GenericListViewModel.extraFiltersWithout(extraFilters, 'date');
     final filters = clientId == null
         ? base
         : {
@@ -106,6 +112,14 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
       ignoreCursor: ignoreCursor,
     );
   }
+
+  /// `date` is filtered locally (see [fetchPage]), so a page the predicate
+  /// guts down must auto-chain the next one — otherwise the list dead-ends on a
+  /// false "No records found".
+  @override
+  bool get localOnlyFilterActive =>
+      super.localOnlyFilterActive ||
+      (extraFilters['date']?.isNotEmpty ?? false);
 
   @override
   Future<void> refreshAll() => repo.refreshAll(companyId: companyId);

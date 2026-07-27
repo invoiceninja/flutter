@@ -98,6 +98,11 @@ class SyncRepository {
   /// clears it on entry so the next drain starts fresh.
   bool _cancelRequested = false;
 
+  /// Sticky cancellation latch, distinct from the per-pass [_cancelRequested].
+  /// Set by [cancel] and cleared only by [resume], so no new pass can start
+  /// behind a logout's back between `cancel()` returning and the Drift wipe.
+  bool _cancelled = false;
+
   /// Outbox rows whose caller is synchronously surfacing the failure itself
   /// (an open edit form via [awaitRow], or any `awaitRow(callerWillDisplayFailure:
   /// true)` caller). [_markDead] tags such rows' [DeadEvent] with
@@ -117,24 +122,47 @@ class SyncRepository {
   /// Used by [AuthRepository.logout] so the local DB wipe doesn't race a
   /// pending mutation that's still using the soon-to-be-revoked credentials.
   Future<void> cancel() async {
+    // Latch, not a one-shot flag. Awaiting a snapshot of `_inFlight` was not
+    // enough: any `drainOnce` that landed during the await (a connectivity
+    // flap — the listener only checks `auth.session`, which logout clears
+    // AFTER this hook — or `awaitRow`'s poll) cleared `_cancelRequested` and
+    // registered a new future the snapshot didn't cover. cancel() then
+    // returned while a fresh pass was still dispatching, and logout wiped
+    // Drift underneath it.
+    _cancelled = true;
     _cancelRequested = true;
     // Drop queued trailing re-drains: logout relies on cancel() meaning "no
     // drain is running once this returns" before it wipes Drift — a
     // re-drain auto-kicked from a completing pass would start a NEW pass
     // behind logout's back and race the wipe with stale-credential writes.
     _redrainRequested.clear();
-    // Snapshot before awaiting — entries clean themselves up via the
-    // `whenComplete` hook in [drainOnce], which would mutate the map
-    // while we iterate.
-    final pending = _inFlight.values.toList(growable: false);
-    for (final f in pending) {
-      try {
-        await f;
-      } catch (_) {
-        // Errors are reported via events on the SyncEvent stream; here we
-        // only care that the iteration has settled.
+    // Loop until the map is empty rather than awaiting one snapshot: a pass
+    // that was already mid-flight when the latch flipped still has to settle,
+    // and awaiting it can yield. No new pass can be added while `_cancelled`
+    // is set, so this terminates.
+    while (_inFlight.isNotEmpty) {
+      // Snapshot before awaiting — entries clean themselves up via the
+      // `whenComplete` hook in [drainOnce], which would mutate the map
+      // while we iterate.
+      final pending = _inFlight.values.toList(growable: false);
+      for (final f in pending) {
+        try {
+          await f;
+        } catch (_) {
+          // Errors are reported via events on the SyncEvent stream; here we
+          // only care that the iteration has settled.
+        }
       }
     }
+  }
+
+  /// Release the [cancel] latch so drains can run again. Called when a company
+  /// is activated (login / restore / switch) — `onActiveCompanyChanged` fires
+  /// only on an actual change and `logout()` re-arms it, so a re-login always
+  /// reaches here. Deliberately NOT called from the per-mutation drain kick: a
+  /// write landing mid-logout must not restart the engine.
+  void resume() {
+    _cancelled = false;
   }
 
   /// Count of non-`dead` outbox rows for [companyId]. Wraps the DAO so the
@@ -148,6 +176,26 @@ class SyncRepository {
   /// `session.companies`).
   Future<List<String>> companiesWithActiveRows() =>
       db.outboxDao.companiesWithActiveRows();
+
+  /// True when ANY company still holds unsynced outbox rows — the predicate
+  /// every involuntary session-end must consult before choosing a destructive
+  /// logout. `AuthRepository.logout()`'s default (`preserveLocalData: false`)
+  /// wipes the whole Drift database, outbox included, so ending a session
+  /// without this check silently destroys the user's offline edits (CLAUDE.md:
+  /// "never silently drops user data").
+  ///
+  /// A non-active company's pending rows count just as much as the active
+  /// one's — the wipe is global. Fast local read only (no network drain), so
+  /// it's safe on the security-lock and 401 paths. **Errs toward preserving**
+  /// on any error: keeping data that could have been dropped is recoverable,
+  /// dropping data that should have been kept is not.
+  Future<bool> hasUnsyncedWork() async {
+    try {
+      return (await companiesWithActiveRows()).isNotEmpty;
+    } catch (_) {
+      return true;
+    }
+  }
 
   /// Discard one outbox row. If it's a never-synced offline `create`
   /// (`tmp_` id, no `id_remap` entry yet) the orphaned local Drift record
@@ -505,6 +553,10 @@ class SyncRepository {
   final Set<String> _redrainRequested = <String>{};
 
   Future<int> drainOnce({required String companyId}) {
+    // Cancelled (logout in progress, or completed and not yet re-activated) —
+    // starting a pass here would dispatch under soon-to-be-revoked credentials
+    // and race the Drift wipe. See [cancel] / [resume].
+    if (_cancelled) return Future<int>.value(0);
     final existing = _inFlight[companyId];
     if (existing != null) {
       // A kick landed mid-pass. The row that triggered it isn't in the

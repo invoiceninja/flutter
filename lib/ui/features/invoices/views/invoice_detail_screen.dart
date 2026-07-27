@@ -546,6 +546,12 @@ class _Overview extends StatelessWidget {
             formatter?.precisionFor(clientCurrencyId: currencyId) ?? 2;
         return BillingDocOverview(
           totalsInput: _invoiceTotalsInput(invoice),
+          surchargeAmounts: [
+            invoice.customSurcharge1,
+            invoice.customSurcharge2,
+            invoice.customSurcharge3,
+            invoice.customSurcharge4,
+          ],
           precision: precision,
           paidToDate: invoice.paidToDate,
           balance: invoice.balance,

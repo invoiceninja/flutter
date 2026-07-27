@@ -49,6 +49,14 @@ class ClientSettingsDraftViewModel extends SettingsDraftHost
   final String clientId;
 
   Map<String, dynamic> _companyDefaults = const {};
+
+  /// The client's group's sparse overrides — the MIDDLE cascade tier the
+  /// server applies between the client and the company
+  /// (`Client::getSetting()`). Without it the editor greyed out the COMPANY
+  /// value as "inherited" for every field the group actually overrides, i.e.
+  /// it told the user the wrong value was in effect.
+  Map<String, dynamic> _groupDefaults = const {};
+  String _groupId = '';
   Company? _companyContext;
   CompanySettings _initial = const CompanySettingsApi();
   CompanySettings _draft = const CompanySettingsApi();
@@ -84,7 +92,7 @@ class ClientSettingsDraftViewModel extends SettingsDraftHost
   /// sees what would apply if they don't opt in.
   @override
   CompanySettings get settings {
-    final merged = <String, dynamic>{..._companyDefaults};
+    final merged = <String, dynamic>{..._companyDefaults, ..._groupDefaults};
     final draftJson = _draft.toJson();
     draftJson.forEach((key, value) {
       if (value != null) merged[key] = value;
@@ -190,9 +198,48 @@ class ClientSettingsDraftViewModel extends SettingsDraftHost
         );
   }
 
+  /// Read the assigned group's sparse settings blob straight from Drift (it is
+  /// bundled with `/refresh`, so no network hop). Clears when the client has no
+  /// group.
+  Future<void> _loadGroupDefaults(String groupId) async {
+    if (groupId.isEmpty) {
+      if (_groupDefaults.isEmpty) return;
+      _groupDefaults = const {};
+      if (!_disposed) notifyListeners();
+      return;
+    }
+    Map<String, dynamic> next = const {};
+    try {
+      final row = await db.groupSettingDao
+          .watchById(companyId: companyId, id: groupId)
+          .first;
+      final raw = row?.payload ?? '';
+      if (raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) {
+          final settings = decoded['settings'];
+          if (settings is Map<String, dynamic>) next = settings;
+        }
+      }
+    } catch (e, st) {
+      _log.warning('group settings read failed for $groupId', e, st);
+    }
+    if (_disposed || _groupId != groupId) return;
+    _groupDefaults = next;
+    notifyListeners();
+  }
+
   void _onRowEmitted(Client? client) {
     if (_disposed) return;
     _client = client;
+    // Re-read the group tier whenever the client's group assignment changes.
+    // Fire-and-forget: it only widens the "inherited" values shown, and a
+    // notifyListeners() lands when it resolves.
+    final groupId = client?.groupSettingsId ?? '';
+    if (groupId != _groupId) {
+      _groupId = groupId;
+      unawaited(_loadGroupDefaults(groupId));
+    }
     final raw = client?.settings ?? const <String, dynamic>{};
     final next = CompanySettingsApi.fromJsonLenient(raw);
     if (!_loaded) {

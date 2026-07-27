@@ -129,7 +129,8 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   /// otherwise `stock:low` with no match in the first 50 rows renders a
   /// false "No records found" that can never scroll itself out.
   @override
-  bool get localOnlyFilterActive => _stockFilter != StockFilter.none;
+  bool get localOnlyFilterActive =>
+      _stockFilter != StockFilter.none || super.localOnlyFilterActive;
 
   @override
   int get pageSize => repo.pageSize;

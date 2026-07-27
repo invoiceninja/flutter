@@ -90,6 +90,17 @@ class _FakeSync implements SyncRepository {
     return activeCompanies;
   }
 
+  // Mirrors the real `SyncRepository.hasUnsyncedWork` (errs toward preserving)
+  // so the controller's delegation is exercised end-to-end.
+  @override
+  Future<bool> hasUnsyncedWork() async {
+    try {
+      return (await companiesWithActiveRows()).isNotEmpty;
+    } catch (_) {
+      return true;
+    }
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

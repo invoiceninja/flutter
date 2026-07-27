@@ -234,6 +234,12 @@ extension InvoiceCalculation on Invoice {
   /// `invoice_model.dart` `isPastDue` logic.
   bool get isPastDue {
     if (balance <= Decimal.zero) return false;
+    // A draft is never past due — it hasn't been sent, so there is nothing
+    // owed yet. The server keeps a draft's balance at 0 so this never fired
+    // server-side; the client's optimistic totals stamp could produce a
+    // non-zero local balance and light up the pill. Mirrors admin-portal's
+    // `isPastDue`, which requires `isSent`.
+    if (isDraft) return false;
     if (isPaid || isCancelled || isReversed) return false;
     final today = Date.today();
     final effectiveDue = partialDueDate ?? dueDate;

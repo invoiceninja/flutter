@@ -4,6 +4,7 @@ import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/db/dao/_payload_search.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/payments_table.dart';
@@ -77,6 +78,8 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
     Set<String> customValues2 = const {},
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
+    String? dateOp,
+    String? dateValue,
     String? dateStart,
     String? dateEnd,
   }) {
@@ -114,6 +117,14 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
     if (dateStart != null && dateEnd != null) {
       q.where((p) => p.date.isBetweenValues(dateStart, dateEnd));
     }
+    // Single-date comparators (>, >=, <, <=, =) live in the `op:value`
+    // slot; without this mirror the chip narrowed only the server fetch.
+    final datePred = comparableDatePredicate(
+      payments.date,
+      op: dateOp,
+      value: dateValue,
+    );
+    if (datePred != null) q.where((p) => datePred);
 
     if (states.isNotEmpty) {
       q.where(

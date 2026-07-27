@@ -182,6 +182,32 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
         return p.createdAt;
       case ProductFieldIds.archivedAt:
         return p.archivedAt;
+      // Payload-only columns (tax config + the inventory fields). These are
+      // `sortable: true` by default, so without a case here the header tap was
+      // accepted and then silently ordered by product_key — the arrow moved,
+      // the rows didn't.
+      case ProductFieldIds.inStockQuantity:
+      case ProductFieldIds.stockNotificationThreshold:
+      case ProductFieldIds.maxQuantity:
+      case ProductFieldIds.taxRate1:
+      case ProductFieldIds.taxRate2:
+      case ProductFieldIds.taxRate3:
+        return CustomExpression<double>(
+          "CAST(COALESCE(json_extract(payload, '\$.$field'), 0) AS REAL)",
+        );
+      // NOT part of the `$field` group below: the column id is
+      // `tax_category` but the payload key is `tax_id`, so interpolating the
+      // id would json_extract nothing and silently collapse the sort.
+      case ProductFieldIds.taxCategory:
+        return CustomExpression<String>(
+          "LOWER(COALESCE(json_extract(payload, '\$.tax_id'), ''))",
+        );
+      case ProductFieldIds.taxName1:
+      case ProductFieldIds.taxName2:
+      case ProductFieldIds.taxName3:
+        return CustomExpression<String>(
+          "LOWER(COALESCE(json_extract(payload, '\$.$field'), ''))",
+        );
       default:
         return p.productKey.lower();
     }

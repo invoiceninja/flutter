@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/domain/payment.dart';
+import 'package:admin/data/repositories/client_settings_cascade.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/payment_type.dart';
@@ -65,6 +66,31 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
   PaymentEditViewModel get vm => widget.vm;
 
   bool get _useComma => formatter?.settings.useCommaAsDecimalPlace ?? false;
+
+  /// Effective currency for the money shown in the allocations editor.
+  ///
+  /// `draft.currencyId` alone is not enough: it is seeded only by the client
+  /// dropdown's `onChanged`, so every other entry path — "Enter payment" from
+  /// an invoice, "Apply credit", a restored deep link — arrives with it empty
+  /// and the rows rendered in the COMPANY currency. Resolve from the client
+  /// instead (client → group → company, `watchEffectiveClientCurrency`), and
+  /// let an explicit pick in the currency dropdown win over it.
+  Stream<String>? _clientCurrency;
+  String? _clientCurrencyFor;
+
+  Stream<String> _effectiveCurrencyStream(String clientId) {
+    if (_clientCurrency != null && _clientCurrencyFor == clientId) {
+      return _clientCurrency!;
+    }
+    final services = context.read<Services>();
+    _clientCurrencyFor = clientId;
+    return _clientCurrency = watchEffectiveClientCurrency(
+      clients: services.clients,
+      groups: services.groupSettings,
+      companyId: vm.companyId,
+      clientId: clientId,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -130,18 +156,40 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
         ),
         if (vm.isCreate) ...[
           SizedBox(height: InSpacing.lg(context)),
-          PaymentAllocationsSection(
-            kind: AllocationKind.invoice,
-            paymentables: vm.draft.paymentables,
-            clientId: vm.draft.clientId,
-            paymentAmount: vm.draft.amount,
-            onChanged: vm.replacePaymentables,
-            formatter: formatter,
+          StreamBuilder<String>(
+            stream: _effectiveCurrencyStream(vm.draft.clientId),
+            builder: (context, snap) {
+              final currencyId = vm.draft.currencyId.isNotEmpty
+                  ? vm.draft.currencyId
+                  : (snap.data ?? '');
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PaymentAllocationsSection(
+                    kind: AllocationKind.invoice,
+                    paymentables: vm.draft.paymentables,
+                    clientId: vm.draft.clientId,
+                    paymentAmount: vm.draft.amount,
+                    onChanged: vm.replacePaymentables,
+                    formatter: formatter,
+                    currencyId: currencyId,
+                  ),
+                  SizedBox(height: InSpacing.lg(context)),
+                  _CreditsSectionGate(
+                    vm: vm,
+                    formatter: formatter,
+                    currencyId: currencyId,
+                  ),
+                  SizedBox(height: InSpacing.md(context)),
+                  PaymentAllocationsFooter(
+                    vm: vm,
+                    formatter: formatter,
+                    currencyId: currencyId,
+                  ),
+                ],
+              );
+            },
           ),
-          SizedBox(height: InSpacing.lg(context)),
-          _CreditsSectionGate(vm: vm, formatter: formatter),
-          SizedBox(height: InSpacing.md(context)),
-          PaymentAllocationsFooter(vm: vm, formatter: formatter),
         ],
       ],
     );
@@ -569,9 +617,14 @@ class _Section extends StatelessWidget {
 }
 
 class _CreditsSectionGate extends StatefulWidget {
-  const _CreditsSectionGate({required this.vm, required this.formatter});
+  const _CreditsSectionGate({
+    required this.vm,
+    required this.formatter,
+    required this.currencyId,
+  });
   final PaymentEditViewModel vm;
   final Formatter? formatter;
+  final String? currencyId;
 
   @override
   State<_CreditsSectionGate> createState() => _CreditsSectionGateState();
@@ -606,6 +659,7 @@ class _CreditsSectionGateState extends State<_CreditsSectionGate> {
           paymentAmount: widget.vm.draft.amount,
           onChanged: widget.vm.replacePaymentables,
           formatter: widget.formatter,
+          currencyId: widget.currencyId,
           // Invoices section owns the "select a client first" hint — keep
           // the credits side silent to avoid the duplicate prompt.
           showClientFirstHint: false,

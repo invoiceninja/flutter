@@ -10,6 +10,8 @@ import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:admin/data/models/api/user_api_model.dart';
 import 'package:admin/data/repositories/auth/auth_helpers.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/data/repositories/company_repository.dart'
+    show kCompanyWireName;
 import 'package:admin/data/repositories/user_settings_repository.dart'
     show kUserSettingsWireName;
 import 'package:admin/data/services/api_client.dart';
@@ -1066,115 +1068,146 @@ class AuthRepository {
           updatedAt: nowMs,
         ),
       );
+      // Don't clobber a pending local edit on a DELTA refresh. `updateCompany`
+      // writes the companies row optimistically inside its enqueue
+      // transaction, so the local row IS the user's not-yet-synced state;
+      // overwriting it with the server's stale copy visibly reverts their
+      // settings edit while the mutation is still queued — and the next save,
+      // seeded from the reverted row, would then overwrite edit #1 on the
+      // server too. This table has no `is_dirty` column, so the queued outbox
+      // row is the dirty marker (same contract as the `user_settings` loop
+      // below). A FULL sync is exempt: it wiped the table above, so skipping
+      // the insert would leave no company row at all — there the queued
+      // mutation still carries the user's payload and applies on drain.
+      final skipCompanyIds = <String>{};
+      if (!isFullSync) {
+        for (final uc in response.data) {
+          if (await _db.outboxDao.hasActiveRowsFor(
+            companyId: uc.company.id,
+            entityType: kCompanyWireName,
+          )) {
+            skipCompanyIds.add(uc.company.id);
+          }
+        }
+      }
+      // A skipped company still needs its delta watermark advanced, or every
+      // later /refresh re-requests an ever-wider window for as long as the
+      // edit stays parked (a 409 parks a year out).
+      for (final id in skipCompanyIds) {
+        await _db.companiesDao.touchLastSyncAt(companyId: id, at: syncMark);
+      }
       await _db.companiesDao.upsertAll([
         for (final uc in response.data)
-          CompaniesCompanion.insert(
-            id: uc.company.id,
-            name: uc.company.name,
-            displayName: Value(
-              companyDisplayName(
-                settings: uc.company.settings,
-                displayName: uc.company.displayName,
-                name: uc.company.name,
+          if (!skipCompanyIds.contains(uc.company.id))
+            CompaniesCompanion.insert(
+              id: uc.company.id,
+              name: uc.company.name,
+              displayName: Value(
+                companyDisplayName(
+                  settings: uc.company.settings,
+                  displayName: uc.company.displayName,
+                  name: uc.company.name,
+                ),
               ),
-            ),
-            logoUrl: Value(companyLogoUrl(uc.company.settings)),
-            settings: jsonEncode(uc.company.settings),
-            customFields: Value(jsonEncode(uc.company.customFields)),
-            // Persist envelope-carried company documents so the Documents tab
-            // survives the wipe+upsert and renders offline (mirrors how
-            // `applyUpdateResponse` writes this column on a settings save).
-            documents: Value(
-              jsonEncode(uc.company.documents.map((d) => d.toJson()).toList()),
-            ),
-            sizeId: Value(uc.company.sizeId),
-            industryId: Value(uc.company.industryId),
-            firstMonthOfYear: Value(uc.company.firstMonthOfYear),
-            firstDayOfWeek: Value(uc.company.firstDayOfWeek),
-            useCommaAsDecimalPlace: Value(uc.company.useCommaAsDecimalPlace),
-            legalEntityId: Value(uc.company.legalEntityId),
-            enabledModules: Value(uc.company.enabledModules),
-            googleAnalyticsKey: Value(uc.company.googleAnalyticsKey),
-            matomoId: Value(uc.company.matomoId),
-            matomoUrl: Value(uc.company.matomoUrl),
-            sessionTimeout: Value(uc.company.sessionTimeout),
-            defaultPasswordTimeout: Value(uc.company.defaultPasswordTimeout),
-            oauthPasswordRequired: Value(uc.company.oauthPasswordRequired),
-            isDisabled: Value(uc.company.isDisabled),
-            markdownEnabled: Value(uc.company.markdownEnabled),
-            markdownEmailEnabled: Value(uc.company.markdownEmailEnabled),
-            reportIncludeDrafts: Value(uc.company.reportIncludeDrafts),
-            reportIncludeDeleted: Value(uc.company.reportIncludeDeleted),
-            quickbooksJson: Value(
-              uc.company.quickbooks == null
-                  ? null
-                  : jsonEncode(uc.company.quickbooks),
-            ),
-            enabledTaxRates: Value(uc.company.enabledTaxRates),
-            enabledItemTaxRates: Value(uc.company.enabledItemTaxRates),
-            enabledExpenseTaxRates: Value(uc.company.enabledExpenseTaxRates),
-            calculateTaxes: Value(uc.company.calculateTaxes),
-            taxDataJson: Value(
-              uc.company.taxData == null
-                  ? null
-                  : jsonEncode(uc.company.taxData!.toJson()),
-            ),
-            eInvoiceJson: Value(
-              uc.company.eInvoice == null
-                  ? null
-                  : jsonEncode(uc.company.eInvoice),
-            ),
-            customSurchargeTaxes1: Value(uc.company.customSurchargeTaxes1),
-            customSurchargeTaxes2: Value(uc.company.customSurchargeTaxes2),
-            customSurchargeTaxes3: Value(uc.company.customSurchargeTaxes3),
-            customSurchargeTaxes4: Value(uc.company.customSurchargeTaxes4),
-            trackInventory: Value(uc.company.trackInventory),
-            stockNotification: Value(uc.company.stockNotification),
-            inventoryNotificationThreshold: Value(
-              uc.company.inventoryNotificationThreshold,
-            ),
-            enableProductDiscount: Value(uc.company.enableProductDiscount),
-            enableProductCost: Value(uc.company.enableProductCost),
-            enableProductQuantity: Value(uc.company.enableProductQuantity),
-            defaultQuantity: Value(uc.company.defaultQuantity),
-            showProductDetails: Value(uc.company.showProductDetails),
-            fillProducts: Value(uc.company.fillProducts),
-            updateProducts: Value(uc.company.updateProducts),
-            convertProducts: Value(uc.company.convertProducts),
-            convertRateToClient: Value(uc.company.convertRateToClient),
-            stopOnUnpaidRecurring: Value(uc.company.stopOnUnpaidRecurring),
-            useQuoteTermsOnConversion: Value(
-              uc.company.useQuoteTermsOnConversion,
-            ),
-            subdomain: Value(uc.company.subdomain),
-            portalDomain: Value(uc.company.portalDomain),
-            portalMode: Value(uc.company.portalMode),
-            clientCanRegister: Value(uc.company.clientCanRegister),
-            companyKey: Value(uc.company.companyKey),
-            clientRegistrationFields: Value(
-              jsonEncode(
-                uc.company.clientRegistrationFields
-                    .map((f) => f.toJson())
-                    .toList(),
+              logoUrl: Value(companyLogoUrl(uc.company.settings)),
+              settings: jsonEncode(uc.company.settings),
+              customFields: Value(jsonEncode(uc.company.customFields)),
+              // Persist envelope-carried company documents so the Documents tab
+              // survives the wipe+upsert and renders offline (mirrors how
+              // `applyUpdateResponse` writes this column on a settings save).
+              documents: Value(
+                jsonEncode(
+                  uc.company.documents.map((d) => d.toJson()).toList(),
+                ),
               ),
+              sizeId: Value(uc.company.sizeId),
+              industryId: Value(uc.company.industryId),
+              firstMonthOfYear: Value(uc.company.firstMonthOfYear),
+              firstDayOfWeek: Value(uc.company.firstDayOfWeek),
+              useCommaAsDecimalPlace: Value(uc.company.useCommaAsDecimalPlace),
+              legalEntityId: Value(uc.company.legalEntityId),
+              enabledModules: Value(uc.company.enabledModules),
+              googleAnalyticsKey: Value(uc.company.googleAnalyticsKey),
+              matomoId: Value(uc.company.matomoId),
+              matomoUrl: Value(uc.company.matomoUrl),
+              sessionTimeout: Value(uc.company.sessionTimeout),
+              defaultPasswordTimeout: Value(uc.company.defaultPasswordTimeout),
+              oauthPasswordRequired: Value(uc.company.oauthPasswordRequired),
+              isDisabled: Value(uc.company.isDisabled),
+              markdownEnabled: Value(uc.company.markdownEnabled),
+              markdownEmailEnabled: Value(uc.company.markdownEmailEnabled),
+              reportIncludeDrafts: Value(uc.company.reportIncludeDrafts),
+              reportIncludeDeleted: Value(uc.company.reportIncludeDeleted),
+              quickbooksJson: Value(
+                uc.company.quickbooks == null
+                    ? null
+                    : jsonEncode(uc.company.quickbooks),
+              ),
+              enabledTaxRates: Value(uc.company.enabledTaxRates),
+              enabledItemTaxRates: Value(uc.company.enabledItemTaxRates),
+              enabledExpenseTaxRates: Value(uc.company.enabledExpenseTaxRates),
+              calculateTaxes: Value(uc.company.calculateTaxes),
+              taxDataJson: Value(
+                uc.company.taxData == null
+                    ? null
+                    : jsonEncode(uc.company.taxData!.toJson()),
+              ),
+              eInvoiceJson: Value(
+                uc.company.eInvoice == null
+                    ? null
+                    : jsonEncode(uc.company.eInvoice),
+              ),
+              customSurchargeTaxes1: Value(uc.company.customSurchargeTaxes1),
+              customSurchargeTaxes2: Value(uc.company.customSurchargeTaxes2),
+              customSurchargeTaxes3: Value(uc.company.customSurchargeTaxes3),
+              customSurchargeTaxes4: Value(uc.company.customSurchargeTaxes4),
+              trackInventory: Value(uc.company.trackInventory),
+              stockNotification: Value(uc.company.stockNotification),
+              inventoryNotificationThreshold: Value(
+                uc.company.inventoryNotificationThreshold,
+              ),
+              enableProductDiscount: Value(uc.company.enableProductDiscount),
+              enableProductCost: Value(uc.company.enableProductCost),
+              enableProductQuantity: Value(uc.company.enableProductQuantity),
+              defaultQuantity: Value(uc.company.defaultQuantity),
+              showProductDetails: Value(uc.company.showProductDetails),
+              fillProducts: Value(uc.company.fillProducts),
+              updateProducts: Value(uc.company.updateProducts),
+              convertProducts: Value(uc.company.convertProducts),
+              convertRateToClient: Value(uc.company.convertRateToClient),
+              stopOnUnpaidRecurring: Value(uc.company.stopOnUnpaidRecurring),
+              useQuoteTermsOnConversion: Value(
+                uc.company.useQuoteTermsOnConversion,
+              ),
+              subdomain: Value(uc.company.subdomain),
+              portalDomain: Value(uc.company.portalDomain),
+              portalMode: Value(uc.company.portalMode),
+              clientCanRegister: Value(uc.company.clientCanRegister),
+              companyKey: Value(uc.company.companyKey),
+              clientRegistrationFields: Value(
+                jsonEncode(
+                  uc.company.clientRegistrationFields
+                      .map((f) => f.toJson())
+                      .toList(),
+                ),
+              ),
+              permissions: uc.permissions,
+              accountId: uc.account.id,
+              token: uc.token.token,
+              isAdmin: Value(uc.isAdmin),
+              isOwner: Value(uc.isOwner),
+              // Mirror the server's `updated_at` (seconds), not local wall-clock
+              // ms, so the derived `cacheBustedLogoUrl` `?v=` only changes when
+              // the company actually changes. With `nowMs` every no-op /refresh
+              // re-minted the logo URL — re-emitting the session (sidebar rebuild)
+              // and re-fetching an identical logo every 5 min. Matches
+              // CompanyRepository's persist (server seconds, now-seconds fallback);
+              // `lastSyncAt` below is what tracks "last synced".
+              updatedAt: uc.company.updatedAt > 0
+                  ? uc.company.updatedAt
+                  : nowMs ~/ 1000,
+              lastSyncAt: Value(syncMark),
             ),
-            permissions: uc.permissions,
-            accountId: uc.account.id,
-            token: uc.token.token,
-            isAdmin: Value(uc.isAdmin),
-            isOwner: Value(uc.isOwner),
-            // Mirror the server's `updated_at` (seconds), not local wall-clock
-            // ms, so the derived `cacheBustedLogoUrl` `?v=` only changes when
-            // the company actually changes. With `nowMs` every no-op /refresh
-            // re-minted the logo URL — re-emitting the session (sidebar rebuild)
-            // and re-fetching an identical logo every 5 min. Matches
-            // CompanyRepository's persist (server seconds, now-seconds fallback);
-            // `lastSyncAt` below is what tracks "last synced".
-            updatedAt: uc.company.updatedAt > 0
-                ? uc.company.updatedAt
-                : nowMs ~/ 1000,
-            lastSyncAt: Value(syncMark),
-          ),
       ]);
       // Per-(user, company) settings — split `table_columns` out of the
       // generic settings blob so the picker can watch it directly. Keep

@@ -161,7 +161,10 @@ class CreditEditViewModel extends GenericBillingDocEditViewModel<Credit> {
     required Decimal taxAmount,
   }) => draft.copyWith(
     amount: amount,
-    balance: amount - draft.paidToDate,
+    // Drafts keep their stored balance — see the note on
+    // `InvoiceEditViewModel.copyWithStampedTotals`; the server's
+    // `InvoiceSum::setCalculatedAttributes` skips draft balances too.
+    balance: draft.isDraft ? draft.balance : amount - draft.paidToDate,
     taxAmount: taxAmount,
   );
 

@@ -130,6 +130,27 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
       case VendorFieldIds.custom4:
         return v.customValue4;
     }
+    // Contact columns are derived from the `contacts[]` array — their column
+    // ids are not payload keys, so the generic fallback below returned NULL
+    // for every row and the sort silently collapsed to the id tiebreak.
+    // Vendors have no denormalized contact column, so these sort on
+    // `contacts[0]`: an approximation vs the displayed primary contact, and
+    // the same one the server makes.
+    switch (field) {
+      case VendorFieldIds.contactName:
+        return CustomExpression<String>(
+          "LOWER(TRIM(COALESCE(json_extract(payload, '\$.contacts[0].first_name'), '') "
+          "|| ' ' || COALESCE(json_extract(payload, '\$.contacts[0].last_name'), '')))",
+        );
+      case VendorFieldIds.contactEmail:
+        return CustomExpression<String>(
+          "LOWER(COALESCE(json_extract(payload, '\$.contacts[0].email'), ''))",
+        );
+      case VendorFieldIds.contactPhone:
+        return CustomExpression<String>(
+          "COALESCE(json_extract(payload, '\$.contacts[0].phone'), '')",
+        );
+    }
     return CustomExpression<String>("json_extract(payload, '\$.$field')");
   }
 

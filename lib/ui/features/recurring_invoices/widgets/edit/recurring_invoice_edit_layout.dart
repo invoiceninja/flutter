@@ -98,6 +98,12 @@ class _RecurringInvoiceEditLayoutState extends State<RecurringInvoiceEditLayout>
       clientId: widget.vm.draft.clientId,
       discount: widget.vm.draft.discount,
       discountIsAmount: widget.vm.draft.isAmountDiscount,
+      surchargeAmounts: [
+        widget.vm.draft.customSurcharge1,
+        widget.vm.draft.customSurcharge2,
+        widget.vm.draft.customSurcharge3,
+        widget.vm.draft.customSurcharge4,
+      ],
       dense: true,
     ),
   );
@@ -107,6 +113,12 @@ class _RecurringInvoiceEditLayoutState extends State<RecurringInvoiceEditLayout>
     clientId: widget.vm.draft.clientId,
     discount: widget.vm.draft.discount,
     discountIsAmount: widget.vm.draft.isAmountDiscount,
+    surchargeAmounts: [
+      widget.vm.draft.customSurcharge1,
+      widget.vm.draft.customSurcharge2,
+      widget.vm.draft.customSurcharge3,
+      widget.vm.draft.customSurcharge4,
+    ],
     bordered: false,
   );
 
@@ -115,6 +127,12 @@ class _RecurringInvoiceEditLayoutState extends State<RecurringInvoiceEditLayout>
     clientId: widget.vm.draft.clientId,
     discount: widget.vm.draft.discount,
     discountIsAmount: widget.vm.draft.isAmountDiscount,
+    surchargeAmounts: [
+      widget.vm.draft.customSurcharge1,
+      widget.vm.draft.customSurcharge2,
+      widget.vm.draft.customSurcharge3,
+      widget.vm.draft.customSurcharge4,
+    ],
     dense: true,
     slim: true,
   );

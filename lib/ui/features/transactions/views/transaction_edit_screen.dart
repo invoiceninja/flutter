@@ -174,6 +174,10 @@ class _TransactionEditBody extends StatelessWidget {
                 if (vm.draft.bankAccountId.isEmpty && accounts.length == 1) {
                   final only = accounts.first.id;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
+                    // The pane can close on the very frame the accounts stream
+                    // first emits; without this guard the seed lands on a
+                    // disposed VM.
+                    if (vm.isDisposed) return;
                     if (vm.draft.bankAccountId.isEmpty) {
                       vm.setBankAccountId(only);
                     }

@@ -19,6 +19,7 @@ class PaymentAllocationCard extends StatelessWidget {
     required this.onTap,
     required this.onRemove,
     this.formatter,
+    this.currencyId,
   });
 
   final AllocationKind kind;
@@ -34,6 +35,9 @@ class PaymentAllocationCard extends StatelessWidget {
   /// Optional active-company [Formatter] for the amount + balance text.
   /// Null falls back to raw `Decimal.toString()`.
   final Formatter? formatter;
+
+  /// Payment currency — see `PaymentAllocationsSection.currencyId`.
+  final String? currencyId;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +87,7 @@ class PaymentAllocationCard extends StatelessWidget {
                     if (target != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        '${context.tr('balance')} ${formatter == null ? target.balance.toString() : formatter!.money(target.balance)}',
+                        '${context.tr('balance')} ${formatter == null ? target.balance.toString() : formatter!.money(target.balance, clientCurrencyId: currencyId)}',
                         style: TextStyle(color: tokens.ink3, fontSize: 12),
                       ),
                     ],
@@ -94,7 +98,10 @@ class PaymentAllocationCard extends StatelessWidget {
               Text(
                 formatter == null
                     ? row.amount.toString()
-                    : formatter!.money(row.amount),
+                    : formatter!.money(
+                        row.amount,
+                        clientCurrencyId: currencyId,
+                      ),
                 style: moneyTextStyle(
                   color: tokens.ink,
                   fontWeight: FontWeight.w600,

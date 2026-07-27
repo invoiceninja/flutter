@@ -178,7 +178,12 @@ class InvoiceActions {
     // gates just hide affordances the user can't action.
     final canEditInvoice = me?.can('edit_invoice') ?? false;
     final canCreateInvoice = me?.can('create_invoice') ?? false;
-    final canDeleteInvoice = me?.can('delete_invoice') ?? false;
+    // There is no `delete_*` permission in the product — the server authorizes
+    // a destroy through `EntityPolicy::edit` (`DestroyInvoiceRequest` →
+    // `can('edit', $invoice)`), and React gates delete on `edit_*` too. Asking
+    // for a `delete_invoice` token could never be granted, so Delete was hidden
+    // from every non-admin.
+    final canDeleteInvoice = me?.can('edit_invoice') ?? false;
     // `isLocked` (Verifactu) prevents *edits* but not status transitions —
     // marking sent / auto-billing a locked invoice is allowed; only
     // `markPaid` is gated because the synthetic payment it records is

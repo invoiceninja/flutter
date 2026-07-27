@@ -64,6 +64,7 @@ class PaymentAllocationsSection extends StatelessWidget {
     required this.paymentAmount,
     required this.onChanged,
     this.formatter,
+    this.currencyId,
     this.showClientFirstHint = true,
   });
 
@@ -85,6 +86,12 @@ class PaymentAllocationsSection extends StatelessWidget {
   /// the picker / card / dialog render via `formatter.money(...)`. When
   /// null, falls back to raw `Decimal.toString()` (tests and bootstrap).
   final Formatter? formatter;
+
+  /// Currency the payment is denominated in (`draft.currencyId`). Passed as
+  /// `clientCurrencyId` on every `money()` call below — the [Formatter] handed
+  /// down here is company-scoped, so without it a JPY/EUR client's invoices
+  /// rendered with the company's symbol, separators and precision.
+  final String? currencyId;
 
   /// When false, the "Select a client first" placeholder is suppressed so
   /// only one section in the parent owns the hint (the Invoices section
@@ -123,6 +130,7 @@ class PaymentAllocationsSection extends StatelessWidget {
       belongsToThisKind: _belongsToThisKind,
       idOfRow: _idOf,
       formatter: formatter,
+      currencyId: currencyId,
     );
   }
 }
@@ -137,6 +145,7 @@ class _LiveSection extends StatefulWidget {
     required this.belongsToThisKind,
     required this.idOfRow,
     required this.formatter,
+    required this.currencyId,
   });
 
   final AllocationKind kind;
@@ -147,6 +156,7 @@ class _LiveSection extends StatefulWidget {
   final bool Function(Paymentable) belongsToThisKind;
   final String Function(Paymentable) idOfRow;
   final Formatter? formatter;
+  final String? currencyId;
 
   @override
   State<_LiveSection> createState() => _LiveSectionState();
@@ -237,6 +247,7 @@ class _LiveSectionState extends State<_LiveSection> {
                     belongsToThisKind: belongsToThisKind,
                     idOfRow: idOfRow,
                     formatter: widget.formatter,
+                    currencyId: widget.currencyId,
                   );
                 }
                 return _NarrowEditor(
@@ -248,6 +259,7 @@ class _LiveSectionState extends State<_LiveSection> {
                   belongsToThisKind: belongsToThisKind,
                   idOfRow: idOfRow,
                   formatter: widget.formatter,
+                  currencyId: widget.currencyId,
                 );
               },
             ),
@@ -323,6 +335,7 @@ class _WideEditor extends StatelessWidget {
     required this.belongsToThisKind,
     required this.idOfRow,
     required this.formatter,
+    required this.currencyId,
   });
 
   final AllocationKind kind;
@@ -333,6 +346,7 @@ class _WideEditor extends StatelessWidget {
   final bool Function(Paymentable) belongsToThisKind;
   final String Function(Paymentable) idOfRow;
   final Formatter? formatter;
+  final String? currencyId;
 
   @override
   Widget build(BuildContext context) {
@@ -353,6 +367,7 @@ class _WideEditor extends StatelessWidget {
           belongsToThisKind: belongsToThisKind,
           idOfRow: idOfRow,
           formatter: formatter,
+          currencyId: currencyId,
         ),
       );
       widgets.add(const SizedBox(height: 8));
@@ -377,6 +392,7 @@ class _WideEditor extends StatelessWidget {
           belongsToThisKind: belongsToThisKind,
           idOfRow: idOfRow,
           formatter: formatter,
+          currencyId: currencyId,
         ),
       );
     } else if (rowsForKind.isNotEmpty) {
@@ -422,6 +438,7 @@ class _AllocationRow extends StatelessWidget {
     required this.belongsToThisKind,
     required this.idOfRow,
     required this.formatter,
+    required this.currencyId,
   });
 
   final AllocationKind kind;
@@ -436,6 +453,7 @@ class _AllocationRow extends StatelessWidget {
   final bool Function(Paymentable) belongsToThisKind;
   final String Function(Paymentable) idOfRow;
   final Formatter? formatter;
+  final String? currencyId;
 
   @override
   Widget build(BuildContext context) {
@@ -478,7 +496,7 @@ class _AllocationRow extends StatelessWidget {
                   : '#${t.number}';
               final amount = formatter == null
                   ? t.balance.toString()
-                  : formatter!.money(t.balance);
+                  : formatter!.money(t.balance, clientCurrencyId: currencyId);
               return '$number · $amount';
             },
             idOf: (t) => t.id,
@@ -664,6 +682,7 @@ class _NarrowEditor extends StatelessWidget {
     required this.belongsToThisKind,
     required this.idOfRow,
     required this.formatter,
+    required this.currencyId,
   });
 
   final AllocationKind kind;
@@ -674,6 +693,7 @@ class _NarrowEditor extends StatelessWidget {
   final bool Function(Paymentable) belongsToThisKind;
   final String Function(Paymentable) idOfRow;
   final Formatter? formatter;
+  final String? currencyId;
 
   @override
   Widget build(BuildContext context) {
@@ -695,6 +715,7 @@ class _NarrowEditor extends StatelessWidget {
             row: rowsForKind[i],
             targets: targets,
             formatter: formatter,
+            currencyId: currencyId,
             onTap: () => _openEditor(
               context,
               rowsForKind[i],
@@ -760,6 +781,7 @@ class _NarrowEditor extends StatelessWidget {
           .where((p) => !identical(p, existing))
           .fold<Decimal>(Decimal.zero, (sum, p) => sum + p.amount),
       formatter: formatter,
+      currencyId: currencyId,
     );
     if (result == null) return;
     if (rowIndex == null) {

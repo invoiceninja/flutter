@@ -328,6 +328,21 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
       );
     }
     final vm = _vm!;
+    // Rebuild the whole scaffold when the VM notifies. `canSave` (below) and
+    // `EntityEditScaffold`'s `PopScope.canPop` are both plain values read at
+    // build time; this State has no other listener on the VM, so without this
+    // they froze at their first-ready value. That left Save permanently
+    // disabled on every screen whose `canSave` depends on `vm.isDirty`
+    // (Expense Category and Payment Link could not be created OR edited at
+    // all), and made the back-swipe / predictive-back discard guard dead code.
+    // The sibling settings scaffolds already do exactly this.
+    return ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) => _scaffold(context, vm),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, VM vm) {
     final canSave = widget.canSave?.call(vm) ?? !vm.isSaving;
     return EntityEditScaffold<T>(
       vm: vm,

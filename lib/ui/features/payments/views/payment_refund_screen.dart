@@ -119,7 +119,12 @@ class _PaymentRefundScreenState extends State<PaymentRefundScreen> {
   Decimal get _remaining {
     final p = _payment;
     if (p == null) return Decimal.zero;
-    return p.refundable - _allocatedTotal;
+    // Ceiling is the APPLIED total, not `refundable` (= amount − refunded),
+    // which also counts unapplied funds this invoice-allocation-only flow can
+    // never refund. Using the larger figure let an over-allocation pass the
+    // local gate and get rejected by the server's `ValidRefundableInvoices`
+    // after the user had already committed.
+    return _fullRefundAmount(p) - _allocatedTotal;
   }
 
   @override

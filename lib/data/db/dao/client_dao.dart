@@ -235,6 +235,40 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
         "CAST(json_extract(payload, '\$.$field') AS REAL)",
       );
     }
+    // Columns whose id is NOT a payload key. The generic fallback below
+    // interpolates the column id straight into the JSON path, so these
+    // resolved to NULL for every row — the primary ordering term became a
+    // constant and the list collapsed into internal-id order (silently: the
+    // header still showed its sort arrow).
+    //   * contact_name / contact_phone are derived from the `contacts[]`
+    //     array by the cell builders, which render `_primary()` (the
+    //     `is_primary` contact, else the first). There is no denormalized
+    //     column for them, so these sort on `contacts[0]` — an approximation
+    //     that differs only for a multi-contact client whose primary isn't
+    //     first, and the same one the server's `ClientFilters::sort` makes.
+    //     `contact_email` is exact (see below).
+    //   * last_login_at's payload key is `last_login`.
+    switch (field) {
+      case ClientFieldIds.contactName:
+        return CustomExpression<String>(
+          "LOWER(TRIM(COALESCE(json_extract(payload, '\$.contacts[0].first_name'), '') "
+          "|| ' ' || COALESCE(json_extract(payload, '\$.contacts[0].last_name'), '')))",
+        );
+      case ClientFieldIds.contactEmail:
+        // Exact: `clients.email` is denormalized with the SAME
+        // primary-else-first rule the cell builder uses (`_primaryEmailOf`),
+        // so this orders by precisely what the column displays — and it's an
+        // indexed column rather than a JSON scan.
+        return c.email.lower();
+      case ClientFieldIds.contactPhone:
+        return CustomExpression<String>(
+          "COALESCE(json_extract(payload, '\$.contacts[0].phone'), '')",
+        );
+      case ClientFieldIds.lastLoginAt:
+        return CustomExpression<int>(
+          "COALESCE(json_extract(payload, '\$.last_login'), 0)",
+        );
+    }
     return CustomExpression<String>("json_extract(payload, '\$.$field')");
   }
 

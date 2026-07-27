@@ -71,6 +71,10 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
   }) {
     assert(loadedPages >= 1);
     final dateRange = parseDateRangeFilter(extraFilters);
+    // Single-date comparators live in the `op:value` slot, not the range
+    // slot — mirror them locally or the chip only narrows the server fetch.
+    final dateCmp = parseComparableDateFilter(extraFilters, 'date');
+    final dueDateCmp = parseComparableDateFilter(extraFilters, 'due_date');
     final dueDateRange = parseDueDateRangeFilter(extraFilters);
     final statuses = parseQuoteStatusFilter(extraFilters);
     return db.quoteDao
@@ -91,6 +95,10 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
           customValues4: customFilters[4] ?? const {},
           statuses: statuses,
           statusAsOf: statuses.isEmpty ? null : Date.today().toIso(),
+          dateOp: dateCmp.op,
+          dateValue: dateCmp.value,
+          dueDateOp: dueDateCmp.op,
+          dueDateValue: dueDateCmp.value,
           dateStart: dateRange.start,
           dateEnd: dateRange.end,
           dueDateStart: dueDateRange.start,
@@ -191,14 +199,28 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
       filters: filters,
     );
     final apiRows = result.data.data;
-    if (apiRows.isEmpty) return false;
+    // Shared rule (see `hasMoreAfterPage`): with the keyset cursor applied a
+    // short/empty page is an exhausted DELTA, not end-of-list.
+    if (apiRows.isEmpty) {
+      return hasMoreAfterPage(
+        rowCount: 0,
+        cursorApplied: cursor?.isEmpty == false,
+        pageSize: pageSize,
+      );
+    }
     await db.quoteDao.upsertAllPreservingDirty(
       companyId: companyId,
       byId: {for (final a in apiRows) a.id: _apiToCompanion(a, companyId)},
     );
-    if (!hasClientScope &&
-        !isSearchScoped &&
-        page == 1 &&
+    // Shared rule (see `shouldAdvanceCursor`): only an unscoped,
+    // unfiltered page 1 may move the global watermark.
+    if (shouldAdvanceCursor(
+          page: page,
+          hasParentScope: hasClientScope,
+          isSearchScoped: isSearchScoped,
+          states: states,
+          extraFilters: resolvedExtra,
+        ) &&
         result.cursorUpdatedAt != null &&
         result.cursorId != null) {
       await advanceCursor(
@@ -208,7 +230,11 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
         wasFullSync: ignoreCursor,
       );
     }
-    return apiRows.length >= pageSize;
+    return hasMoreAfterPage(
+      rowCount: apiRows.length,
+      cursorApplied: cursor?.isEmpty == false,
+      pageSize: pageSize,
+    );
   }
 
   Future<void> refreshAll({

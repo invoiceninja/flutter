@@ -85,6 +85,11 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
     labelKey: 'duration',
     width: 120,
     align: ColumnAlign.end,
+    // Derived from `time_log` (and ticks live while a timer runs) — there is
+    // no column or payload key to order by, so `TaskDao._sortExpression` fell
+    // through to its silent `updated_at` default: the header showed a sort
+    // arrow and the rows didn't move.
+    sortable: false,
     // Ticks live + accent while a timer runs — this is the row's primary
     // running signal now that the trailing slot is an icon-only toggle. The
     // `base` (sum of already-stopped entries) makes it tick the full

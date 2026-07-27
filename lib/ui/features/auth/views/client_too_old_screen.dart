@@ -59,7 +59,13 @@ class ClientTooOldScreen extends StatelessWidget {
                           // Clear the too-old flag first so the router can
                           // redirect cleanly to /login after logout completes.
                           services.clientTooOld.value = null;
-                          await services.auth.logout();
+                          // Same rule as the 401 path: a destructive logout
+                          // wipes the outbox, so preserve the local DB while
+                          // unsynced edits are still queued.
+                          await services.auth.logout(
+                            preserveLocalData: await services.sync
+                                .hasUnsyncedWork(),
+                          );
                         },
                       ),
                     ],

@@ -140,10 +140,28 @@ void main() {
       );
     });
 
-    test('clamping does not stick — Jan 31 + 2 months is Mar 31', () {
+    test('clamping STICKS — the server iterates, so Jan 31 monthly goes '
+        'Feb 28 → Mar 28, never back up to Mar 31', () {
+      // `RecurringInvoice::recurringDates()` feeds each computed date back
+      // through Carbon's `addMonthNoOverflow`, so once a month-end clamps the
+      // day never climbs again. Computing `start + n months` from the original
+      // start disagreed with the dates the server actually sends.
+      expect(
+        nextSendAfter(const Date(2026, 1, 31), kRecurringFrequencyMonthly, 1),
+        Date(2026, 2, 28),
+      );
       expect(
         nextSendAfter(const Date(2026, 1, 31), kRecurringFrequencyMonthly, 2),
-        Date(2026, 3, 31),
+        Date(2026, 3, 28),
+      );
+      expect(
+        nextSendAfter(const Date(2026, 1, 31), kRecurringFrequencyMonthly, 3),
+        Date(2026, 4, 28),
+      );
+      // Aug 31 → Sep 30 → Oct 30 (not Oct 31).
+      expect(
+        nextSendAfter(const Date(2026, 8, 31), kRecurringFrequencyMonthly, 2),
+        Date(2026, 10, 30),
       );
     });
 
@@ -199,10 +217,22 @@ void main() {
       );
     });
 
-    test('annually from Feb 29 clamps to Feb 28 in the following year', () {
+    test('annually from Feb 29 OVERFLOWS to Mar 1 — the server uses Carbon '
+        'addYear(), not the NoOverflow variant it uses for months', () {
       expect(
         nextSendAfter(const Date(2028, 2, 29), kRecurringFrequencyAnnually, 1),
-        Date(2029, 2, 28),
+        Date(2029, 3, 1),
+      );
+      // …and it keeps overflowing rather than sticking, since each step is
+      // computed from the original start.
+      expect(
+        nextSendAfter(const Date(2028, 2, 29), kRecurringFrequencyTwoYears, 1),
+        Date(2030, 3, 1),
+      );
+      // A real Feb 29 target still lands exactly when the year has one.
+      expect(
+        nextSendAfter(const Date(2028, 2, 29), kRecurringFrequencyAnnually, 4),
+        Date(2032, 2, 29),
       );
     });
 

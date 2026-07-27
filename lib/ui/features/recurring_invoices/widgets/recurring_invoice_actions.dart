@@ -114,7 +114,7 @@ class RecurringInvoiceActions {
     final me = context.read<Services>().auth.session.value?.currentCompany;
     final canEdit = me?.can('edit_recurring_invoice') ?? false;
     final canCreate = me?.can('create_recurring_invoice') ?? false;
-    final canDelete = me?.can('delete_recurring_invoice') ?? false;
+    final canDelete = me?.can('edit_recurring_invoice') ?? false;
     // React gates send_now on draft (it sends the first occurrence now); it is
     // performed as `?send_now=true` on a normal save, not a bulk action.
     final canSendNow = canEdit && ri.isDraft;

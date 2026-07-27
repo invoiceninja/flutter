@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -103,8 +104,20 @@ Future<void> _autoApplyOldest(BuildContext context, Payment payment) async {
   final invoices = await services.invoices
       .watchForClient(companyId: companyId, clientId: payment.clientId)
       .first;
+  // Drafts and archived invoices are NOT auto-apply targets: the server's
+  // `applyPayment` calls `markSent()` first, so auto-applying to a draft would
+  // silently send AND pay it. Mirrors the manual picker's filter in
+  // `payment_allocations_section.dart`.
   final candidates =
-      invoices.where((i) => i.balance > Decimal.zero && !i.isDeleted).toList()
+      invoices
+          .where(
+            (i) =>
+                i.balance > Decimal.zero &&
+                !i.isDeleted &&
+                !i.isDraft &&
+                i.archivedAt == null,
+          )
+          .toList()
         ..sort((a, b) {
           final ad = a.date?.toIso() ?? '';
           final bd = b.date?.toIso() ?? '';

@@ -87,6 +87,18 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     // closed `[start, end]` window in `updated_at_range` / `created_at_range`.
     final updated = parseUpdatedAtRangeFilter(extraFilters);
     final created = parseCreatedAtRangeFilter(extraFilters);
+    // …and the SINGLE-date comparators (>, >=, <, <=, =), which live in the
+    // bare `updated_at` / `created_at` slot as an `op:value` wire. Only the
+    // range slot was read here, so a bare `updated:2026-06-01` (defaultOp
+    // `gte`) narrowed the server fetch while the local watch applied nothing.
+    // These columns are epoch seconds, so the comparator resolves to the same
+    // from/to day bounds the range path already uses.
+    final updatedCmp = _epochBoundsFor(
+      parseComparableDateFilter(extraFilters, 'updated_at'),
+    );
+    final createdCmp = _epochBoundsFor(
+      parseComparableDateFilter(extraFilters, 'created_at'),
+    );
     return db.clientDao
         .watchPage(
           companyId: companyId,
@@ -112,10 +124,10 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
           idNumbers: parseCsvFilter(extraFilters, 'id_number'),
           vatNumberContains: parseSubstringFilter(extraFilters, 'vat_number'),
           numberExact: parseSubstringFilter(extraFilters, 'number'),
-          updatedFrom: _isoDayStartEpoch(updated.start),
-          updatedTo: _isoDayEndEpoch(updated.end),
-          createdFrom: _isoDayStartEpoch(created.start),
-          createdTo: _isoDayEndEpoch(created.end),
+          updatedFrom: _isoDayStartEpoch(updated.start) ?? updatedCmp.from,
+          updatedTo: _isoDayEndEpoch(updated.end) ?? updatedCmp.to,
+          createdFrom: _isoDayStartEpoch(created.start) ?? createdCmp.from,
+          createdTo: _isoDayEndEpoch(created.end) ?? createdCmp.to,
         )
         .map((rows) {
           final items = rows.map(_fromRow);
@@ -972,6 +984,24 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
 /// `updated_at` between filters. Those columns are stored as epoch seconds;
 /// the filter value is an ISO `YYYY-MM-DD`, so the start is that day's
 /// 00:00:00 and the end is 23:59:59 so the whole end day is included.
+/// Translate a single-date comparator (`op:value`, ISO `YYYY-MM-DD`) into the
+/// inclusive epoch-second `from`/`to` bounds the client DAO already applies to
+/// `updated_at` / `created_at`. Reuses the day-window helpers below so the
+/// comparator and the range slot agree on boundaries.
+({int? from, int? to}) _epochBoundsFor(({String? op, String? value}) cmp) {
+  final v = cmp.value;
+  if (v == null || v.isEmpty) return (from: null, to: null);
+  final start = _isoDayStartEpoch(v);
+  final end = _isoDayEndEpoch(v);
+  return switch (cmp.op) {
+    'gt' => (from: end == null ? null : end + 1, to: null),
+    'lt' => (from: null, to: start == null ? null : start - 1),
+    'lte' => (from: null, to: end),
+    'eq' => (from: start, to: end),
+    _ => (from: start, to: null),
+  };
+}
+
 int? _isoDayStartEpoch(String? iso) {
   if (iso == null || iso.isEmpty) return null;
   final d = DateTime.tryParse(iso);

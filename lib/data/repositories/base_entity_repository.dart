@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/foundation.dart' show protected;
+import 'package:flutter/foundation.dart' show protected, visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
@@ -518,6 +518,81 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     );
   }
 
+  /// Whether a just-fetched page implies more rows are reachable.
+  ///
+  /// Shared by [ensurePageLoadedTemplate] and by the repos that hand-roll their
+  /// own `ensurePageLoaded` body, so the rule can't drift between them again.
+  ///
+  /// [cursorApplied] must mean a REAL watermark went out on the request, not
+  /// merely that a cursor object was read: `SyncStateDao.read` returns an
+  /// empty `SyncCursor` (never null) when nothing is stored, and the request
+  /// then sends `sinceUpdatedAt: null` — so a cold first load is unnarrowed and
+  /// must conclude normally. Pass `cursor?.isEmpty == false`.
+  ///
+  /// The subtlety is the keyset cursor. A page-1 fetch that applied it returned
+  /// only the `updated_at >= W` **delta**, not a true first page — so a short
+  /// (or empty) result means "the delta window is exhausted", NOT "end of
+  /// list". Concluding `false` there latched `hasMore = false`, which
+  /// hard-gates `loadMore()`, so every warm-session filter/sort change capped
+  /// the list at one page while rows 51+ sat unreachable in the local cache.
+  /// Defer the decision to the next page, which drops the cursor (`page > 1`)
+  /// and reads true offset rows. A cold page 1 (no cursor) concludes normally
+  /// from the row count.
+  @protected
+  @visibleForTesting
+  bool hasMoreAfterPage({
+    required int rowCount,
+    required bool cursorApplied,
+    required int pageSize,
+  }) {
+    if (cursorApplied) return true;
+    return rowCount >= pageSize;
+  }
+
+  /// Whether this page's `data.last` may advance the shared
+  /// `(companyId, entityType)` keyset cursor.
+  ///
+  /// Only an UNSCOPED, UNFILTERED page 1 may. `SyncStateDao.writeCursor` is
+  /// last-write-wins with no max guard, so advancing from a narrowed page walks
+  /// the watermark past rows that page's filter excluded, and the next
+  /// unfiltered delta never fetches them — they stay stale until a forced full
+  /// resync. The exclusions:
+  ///
+  ///  * **parent scope** (a client's Invoices tab): `data.last` is a scoped
+  ///    high-water mark, not the entity's global one.
+  ///  * **page >= 2**: under `id DESC` deeper pages carry OLDER rows, so
+  ///    last-write-wins would walk the watermark backwards.
+  ///  * **an active search**: a filtered view, same as any other filter.
+  ///  * **any user filter** in `extraFilters`.
+  ///  * **a `states` set that narrows away from the list's baseline.** Two
+  ///    shapes are baselines and DO advance: the default `{active}`
+  ///    (long-standing behaviour — the archived/deleted tail is swept by
+  ///    `refreshAll`), and any set [stateQueryParams] sends nothing for (empty,
+  ///    or all of `EntityState.values` — the widest possible fetch, which is
+  ///    what stamps `lastFullSyncAt` on a forced full resync). Anything in
+  ///    between, e.g. `{archived}` from the status chip, is a slice. Deciding
+  ///    this by comparing against `{active}` alone had it backwards: it blocked
+  ///    the advance on the widest fetch and allowed it on narrow slices.
+  ///
+  /// `staticFilters` is deliberately NOT considered here: those are per-repo
+  /// constants, and the ones that do narrow the row set (`active_banks` on bank
+  /// transactions, `hideOwnerUsers` / `without` on users) are constant for that
+  /// repo's list, so they can't skew the watermark relative to its own baseline.
+  @protected
+  @visibleForTesting
+  bool shouldAdvanceCursor({
+    required int page,
+    required bool hasParentScope,
+    required bool isSearchScoped,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+  }) {
+    if (page != 1 || hasParentScope || isSearchScoped) return false;
+    if (extraFilters.values.any((v) => v.isNotEmpty)) return false;
+    if (stateQueryParams(states).isEmpty) return true;
+    return states.length == 1 && states.contains(EntityState.active);
+  }
+
   /// Shared shape for `ensurePageLoaded` across every paginated repo (CRUD
   /// + bundled). Encodes the contract every list-fetching repo has shared
   /// independently:
@@ -644,7 +719,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     );
 
     final apiRows = itemsOf(result.data);
-    if (apiRows.isEmpty) return false;
+    if (apiRows.isEmpty) {
+      return hasMoreAfterPage(
+        rowCount: 0,
+        cursorApplied: cursor?.isEmpty == false,
+        pageSize: pageSize,
+      );
+    }
 
     // Server-refresh: skip ids whose existing local row has is_dirty=true,
     // so a paged refresh doesn't clobber the user's pending offline edit.
@@ -656,9 +737,20 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     // pages carry OLDER rows, so `writeCursor` (last-write-wins, no max
     // guard) would walk the watermark backwards — and mid-sweep advances
     // were what re-truncated full resyncs.
-    if (!hasParentScope &&
-        !isSearchScoped &&
-        page == 1 &&
+    // …and neither may a fetch narrowed by ANY user filter. `data.last` from a
+    // `country_id=US` / `client_status=paid` / date-range page is a high-water
+    // mark for that SLICE, not for the entity: `SyncStateDao.writeCursor` is
+    // last-write-wins with no max guard, so advancing it walked the shared
+    // watermark past rows the filter excluded, and the next unfiltered delta
+    // never fetched them (they stayed stale until a forced full resync). Same
+    // reasoning as the search / parent-scope guards above.
+    if (shouldAdvanceCursor(
+          page: page,
+          hasParentScope: hasParentScope,
+          isSearchScoped: isSearchScoped,
+          states: states,
+          extraFilters: resolvedExtra,
+        ) &&
         result.cursorUpdatedAt != null &&
         result.cursorId != null) {
       await advanceCursor(
@@ -679,8 +771,11 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     // next page, which drops the cursor (see the `page > 1` guard above) and
     // reads true offset rows. A cold page 1 (no cursor) still concludes
     // normally from the row count.
-    if (cursor != null) return true;
-    return apiRows.length >= pageSize;
+    return hasMoreAfterPage(
+      rowCount: apiRows.length,
+      cursorApplied: cursor?.isEmpty == false,
+      pageSize: pageSize,
+    );
   }
 
   /// Lazily hydrate a single referenced row into Drift on a cache miss —

@@ -188,16 +188,25 @@ class _CommandPaletteState extends State<_CommandPalette> {
     _revealSelected();
   }
 
-  void _select() {
+  Future<void> _select() async {
+    // The palette navigates away from whatever is on screen, so it owes the
+    // same unsaved-changes prompt the sidebar / branch switcher gives. Without
+    // it, a dirty editor was left behind unprompted and then tripped the guard
+    // later, on an unrelated (clean) screen.
+    final services = context.read<Services>();
     if (_recentMode) {
       if (_selected < 0 || _selected >= _recents.length) return;
       final r = _recents[_selected];
+      if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
+      if (!mounted) return;
       Navigator.of(context).pop();
       goEntityRecord(context, r.type, r.id);
       return;
     }
     if (_selected < 0 || _selected >= _results.length) return;
     final r = _results[_selected];
+    if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
+    if (!mounted) return;
     Navigator.of(context).pop();
     final type = entityTypeForSearchGroup(r.group);
     if (type != null && r.id.isNotEmpty) {

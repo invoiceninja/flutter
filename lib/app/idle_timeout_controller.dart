@@ -131,13 +131,7 @@ class IdleTimeoutController with WidgetsBindingObserver {
   /// sign-in (which also clears the re-lock gate). Errs toward preserving on
   /// any error — per CLAUDE.md, never silently drop the user's offline edits.
   @visibleForTesting
-  Future<bool> shouldPreserveOnTimeout() async {
-    try {
-      return (await sync.companiesWithActiveRows()).isNotEmpty;
-    } catch (_) {
-      return true;
-    }
-  }
+  Future<bool> shouldPreserveOnTimeout() => sync.hasUnsyncedWork();
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {

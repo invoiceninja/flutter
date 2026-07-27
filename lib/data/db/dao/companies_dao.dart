@@ -33,6 +33,21 @@ class CompaniesDao extends DatabaseAccessor<AppDatabase>
     await batch((b) => b.insertAllOnConflictUpdate(companies, rows));
   }
 
+  /// Advance only the delta watermark, leaving every other column alone.
+  ///
+  /// `_persistAndActivate` skips the full row write for a company whose
+  /// settings edit is still queued in the outbox (that row IS the dirty
+  /// marker). Without this the watermark would freeze for as long as the edit
+  /// is parked, so each later `/refresh` would re-request a wider delta.
+  Future<void> touchLastSyncAt({
+    required String companyId,
+    required int at,
+  }) async {
+    await (update(companies)..where((c) => c.id.equals(companyId))).write(
+      CompaniesCompanion(lastSyncAt: Value(at)),
+    );
+  }
+
   Future<AccountRow?> account() =>
       (select(accounts)..limit(1)).getSingleOrNull();
 

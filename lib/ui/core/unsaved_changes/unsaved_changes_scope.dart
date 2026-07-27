@@ -46,10 +46,31 @@ class _UnsavedChangesScopeState extends State<UnsavedChangesScope> {
     // Defer to didChangeDependencies so we can read Services from context.
   }
 
+  /// Whether this editor is on-stage. `StatefulShellRoute.indexedStack` keeps
+  /// every branch MOUNTED, so an offstage Settings tab with a dirty draft used
+  /// to make the app-wide guard report "unsaved" — producing a
+  /// "Discard changes?" prompt on a completely different, clean screen, with
+  /// no way to satisfy it from there (and a Discard that silently reset the
+  /// offstage draft). `TickerMode` is the same on-stage signal
+  /// `ShortcutHintScope` uses.
+  bool _onStage = true;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _dispose ??= _register();
+    final onStage = TickerMode.valuesOf(context).enabled;
+    if (_dispose == null) {
+      _onStage = onStage;
+      _dispose = _register();
+      return;
+    }
+    if (onStage != _onStage) {
+      _onStage = onStage;
+      // Re-register so the guard re-evaluates `hasUnsaved` (and notifies) with
+      // this entry's new on-stage state.
+      _dispose?.call();
+      _dispose = _register();
+    }
   }
 
   @override
@@ -69,7 +90,11 @@ class _UnsavedChangesScopeState extends State<UnsavedChangesScope> {
 
   VoidCallback _register() =>
       context.read<Services>().unsavedChangesGuard.register(
-        isDirty: widget.isDirty,
+        // Offstage editors report clean: they must neither trigger a prompt on
+        // an unrelated screen nor be reset by a Discard the user aimed at a
+        // different form (`confirmIfDirty` only calls `onDiscard` on entries
+        // whose `isDirty()` is true).
+        isDirty: () => _onStage && widget.isDirty(),
         source: widget.source,
         onDiscard: widget.onDiscard,
       );

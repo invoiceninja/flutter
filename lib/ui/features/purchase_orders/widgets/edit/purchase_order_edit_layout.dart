@@ -89,6 +89,12 @@ class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout>
       vendorId: widget.vm.draft.vendorId,
       discount: widget.vm.draft.discount,
       discountIsAmount: widget.vm.draft.isAmountDiscount,
+      surchargeAmounts: [
+        widget.vm.draft.customSurcharge1,
+        widget.vm.draft.customSurcharge2,
+        widget.vm.draft.customSurcharge3,
+        widget.vm.draft.customSurcharge4,
+      ],
       dense: true,
     ),
   );
@@ -98,6 +104,12 @@ class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout>
     vendorId: widget.vm.draft.vendorId,
     discount: widget.vm.draft.discount,
     discountIsAmount: widget.vm.draft.isAmountDiscount,
+    surchargeAmounts: [
+      widget.vm.draft.customSurcharge1,
+      widget.vm.draft.customSurcharge2,
+      widget.vm.draft.customSurcharge3,
+      widget.vm.draft.customSurcharge4,
+    ],
     bordered: false,
   );
 
@@ -106,6 +118,12 @@ class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout>
     vendorId: widget.vm.draft.vendorId,
     discount: widget.vm.draft.discount,
     discountIsAmount: widget.vm.draft.isAmountDiscount,
+    surchargeAmounts: [
+      widget.vm.draft.customSurcharge1,
+      widget.vm.draft.customSurcharge2,
+      widget.vm.draft.customSurcharge3,
+      widget.vm.draft.customSurcharge4,
+    ],
     dense: true,
     slim: true,
   );

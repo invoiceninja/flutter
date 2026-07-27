@@ -118,7 +118,7 @@ class QuoteActions {
     final me = context.read<Services>().auth.session.value?.currentCompany;
     final canEdit = me?.can('edit_quote') ?? false;
     final canCreate = me?.can('create_quote') ?? false;
-    final canDelete = me?.can('delete_quote') ?? false;
+    final canDelete = me?.can('edit_quote') ?? false;
     final canMarkSent = canEdit && quote.isDraft;
     // Approve any non-terminal quote (draft or sent) — matches React
     // (`Draft || Sent`) and admin-portal (`!isApproved`); excludes

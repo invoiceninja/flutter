@@ -255,6 +255,21 @@ class _LoadedShellState extends State<_LoadedShell>
   }
 
   @override
+  void didUpdateWidget(covariant _LoadedShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The host swaps the ViewModel in place on a company switch
+    // (`SettingsCompanyScopedHost` — no key in that chain, so this State is
+    // reused). Without re-binding, the listener stays attached to the old,
+    // disposed VM and `dispose` removes it from the wrong instance, so the
+    // 422 → jump-to-offending-tab behaviour silently stops working.
+    if (!identical(oldWidget.vm, widget.vm)) {
+      if (_vmListener != null) oldWidget.vm.removeListener(_vmListener!);
+      _vmListener = null;
+      _bindVm();
+    }
+  }
+
+  @override
   void dispose() {
     if (_vmListener != null) widget.vm.removeListener(_vmListener!);
     _controller.removeListener(_onTabSettled);

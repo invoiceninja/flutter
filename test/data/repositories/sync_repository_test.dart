@@ -965,23 +965,35 @@ void main() {
       await engine.cancel().timeout(const Duration(seconds: 1));
     });
 
-    test('a fresh drainOnce after cancel processes all rows', () async {
-      final disp = _ProgrammableDispatcher()
-        ..queueSuccess()
-        ..queueSuccess();
-      final engine = makeEngine(disp);
-      await engine.cancel(); // sets the flag while idle
-      await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
-      await enqueueClient(entityId: 'c2', idempotencyKey: 'k2');
+    test(
+      'cancel latches: drainOnce is a no-op until resume(), then drains',
+      () async {
+        final disp = _ProgrammableDispatcher()
+          ..queueSuccess()
+          ..queueSuccess();
+        final engine = makeEngine(disp);
+        await engine.cancel(); // latches while idle
+        await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+        await enqueueClient(entityId: 'c2', idempotencyKey: 'k2');
 
-      final success = await engine.drainOnce(companyId: 'co');
+        expect(
+          await engine.drainOnce(companyId: 'co'),
+          0,
+          reason:
+              'a cancelled engine must not start a pass — logout relies on '
+              'cancel() meaning "no drain runs" right through the Drift wipe',
+        );
 
-      expect(
-        success,
-        2,
-        reason: 'drainOnce clears the stale cancel flag on entry',
-      );
-    });
+        // Company activation (login / restore / switch) releases the latch.
+        engine.resume();
+
+        expect(
+          await engine.drainOnce(companyId: 'co'),
+          2,
+          reason: 'resume() re-enables draining and both rows go out',
+        );
+      },
+    );
   });
 
   group('discard', () {

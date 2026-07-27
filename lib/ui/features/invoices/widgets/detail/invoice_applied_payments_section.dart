@@ -104,9 +104,14 @@ class _AppliedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // Net of refunds. A refund leaves `paymentable.amount` untouched and
+    // accrues into `paymentable.refunded` (`RefundPayment::updatePaymentables`)
+    // while decrementing the invoice's `paid_to_date`, so summing the gross
+    // showed a figure that didn't reconcile with the Paid-to-date / Balance
+    // card directly above it. The refund screen already nets the same way.
     final applied = payment.paymentables
         .where((p) => p.invoiceId == invoiceId)
-        .fold<Decimal>(Decimal.zero, (sum, p) => sum + p.amount);
+        .fold<Decimal>(Decimal.zero, (sum, p) => sum + (p.amount - p.refunded));
     final appliedText =
         formatter?.money(applied, clientCurrencyId: currencyId) ??
         applied.toString();

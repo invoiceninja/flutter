@@ -179,20 +179,28 @@ class RecurringExpenseDao
     String recurringStatus,
   ) {
     switch (recurringStatus) {
+      // `remaining_cycles == 0` takes precedence in
+      // `RecurringExpenseStatus.calculatedStatusId`, so such a row DISPLAYS as
+      // Completed no matter what `status_id` says. Every chip must therefore
+      // exclude exhausted rows or it matches rows labelled with a different
+      // status (and inflates the chip's count badge).
       case kRecurringExpenseStatusDraft:
-        return e.statusId.equals(kRecurringExpenseStatusDraft);
+        return e.statusId.equals(kRecurringExpenseStatusDraft) &
+            e.remainingCycles.equals(0).not();
       case kRecurringExpenseStatusActive:
         return e.statusId.equals(kRecurringExpenseStatusActive) &
             e.remainingCycles.equals(0).not() &
             e.lastSentDate.isNotNull() &
             e.lastSentDate.equals('').not();
       case kRecurringExpenseStatusPaused:
-        return e.statusId.equals(kRecurringExpenseStatusPaused);
+        return e.statusId.equals(kRecurringExpenseStatusPaused) &
+            e.remainingCycles.equals(0).not();
       case kRecurringExpenseStatusCompleted:
         return e.statusId.equals(kRecurringExpenseStatusCompleted) |
             e.remainingCycles.equals(0);
       case kRecurringExpenseStatusPending:
         return e.statusId.equals(kRecurringExpenseStatusActive) &
+            e.remainingCycles.equals(0).not() &
             (e.lastSentDate.isNull() | e.lastSentDate.equals(''));
       default:
         // Unknown — treat as "no filter" so a stray value doesn't blank

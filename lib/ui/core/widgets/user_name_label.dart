@@ -46,7 +46,12 @@ class UserNameLabel extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: services.user.watch(companyId: companyId, id: userId),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Only blank out when there is genuinely nothing yet — a resubscribe
+        // (any parent rebuild) puts the snapshot back into `waiting` with the
+        // previous value still attached, and discarding it flickered the name
+        // to empty for a frame.
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return _text(context, '');
         }
         final user = snapshot.data;

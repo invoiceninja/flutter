@@ -89,61 +89,79 @@ Invoice rectifiedDraft(Invoice invoice, String reason) {
 /// Required-reason prompt. Returns the trimmed reason, or null if the user
 /// cancelled. Confirm stays disabled until the field is non-empty (React
 /// requires the rectification reason).
-Future<String?> showRectifyReasonDialog(BuildContext context) {
-  final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    builder: (ctx) {
-      return StatefulBuilder(
-        builder: (ctx, setState) {
-          final canConfirm = controller.text.trim().isNotEmpty;
-          return AlertDialog(
-            title: Text(ctx.tr('rectify')),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(ctx.tr('rectify_invoice_help')),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  maxLines: 2,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: ctx.tr('reason'),
-                    hintText: ctx.tr('enter_reason'),
-                  ),
-                ),
-              ],
+Future<String?> showRectifyReasonDialog(BuildContext context) =>
+    showDialog<String>(
+      context: context,
+      builder: (_) => const _RectifyReasonDialog(),
+    );
+
+/// Stateful so the `TextEditingController` is owned by an element and disposed
+/// in `State.dispose()` — which runs after `finalizeRoute`. Disposing it after
+/// `await showDialog(...)` would race the exit transition: `Route.didPop`
+/// resolves that future immediately (routes deliberately "should not wait for
+/// their exit animation"), leaving the autofocused field and its live
+/// `TextInputConnection` mounted with a disposed controller behind them.
+class _RectifyReasonDialog extends StatefulWidget {
+  const _RectifyReasonDialog();
+
+  @override
+  State<_RectifyReasonDialog> createState() => _RectifyReasonDialogState();
+}
+
+class _RectifyReasonDialogState extends State<_RectifyReasonDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canConfirm = _controller.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: Text(context.tr('rectify')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(context.tr('rectify_invoice_help')),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLines: 2,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: context.tr('reason'),
+              hintText: context.tr('enter_reason'),
             ),
-            actions: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(64, 40),
-                    ),
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: Text(ctx.tr('cancel')),
-                  ),
-                  const SizedBox(width: 8),
-                  PrimaryDialogAction(
-                    label: ctx.tr('rectify'),
-                    onPressed: () =>
-                        Navigator.of(ctx).pop(controller.text.trim()),
-                    enabled: canConfirm,
-                    autofocus: false,
-                    showEnterHint: false,
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
+          ),
+        ],
+      ),
+      actions: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(context.tr('cancel')),
+            ),
+            const SizedBox(width: 8),
+            PrimaryDialogAction(
+              label: context.tr('rectify'),
+              onPressed: () =>
+                  Navigator.of(context).pop(_controller.text.trim()),
+              enabled: canConfirm,
+              autofocus: false,
+              showEnterHint: false,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }

@@ -44,6 +44,21 @@ class _BillingDocEmailRouteScreenState
   late final bool _isHosted;
   Formatter? _formatter;
 
+  /// The doc stream, built ONCE and already TYPED.
+  ///
+  /// `repo.watch(...)` returns a fresh mapped stream object on every call, and
+  /// so does `Stream.cast` — so building or casting in `build()` makes
+  /// `StreamBuilder.didUpdateWidget` (an identity comparison) resubscribe on
+  /// every rebuild, re-running the Drift query each time. Only one of these is
+  /// ever non-null, chosen by the final `widget.type`. Assigned after the
+  /// `tmp_` guard below: `watchByTempId` hands back a SINGLE-SUBSCRIPTION
+  /// controller stream, which a resubscribe would blow up on.
+  Stream<Invoice?>? _invoiceDoc;
+  Stream<Quote?>? _quoteDoc;
+  Stream<Credit?>? _creditDoc;
+  Stream<PurchaseOrder?>? _purchaseOrderDoc;
+  Stream<RecurringInvoice?>? _recurringDoc;
+
   /// Set when reached with an unsaved `tmp_` id (deep link / restored
   /// route) — there's no server id to email, so redirect to the detail.
   bool _redirecting = false;
@@ -63,6 +78,33 @@ class _BillingDocEmailRouteScreenState
         }
       });
       return;
+    }
+    switch (widget.type) {
+      case BillingDocType.invoice:
+        _invoiceDoc = _services.invoices.watch(
+          companyId: _companyId,
+          id: widget.id,
+        );
+      case BillingDocType.quote:
+        _quoteDoc = _services.quotes.watch(
+          companyId: _companyId,
+          id: widget.id,
+        );
+      case BillingDocType.credit:
+        _creditDoc = _services.credits.watch(
+          companyId: _companyId,
+          id: widget.id,
+        );
+      case BillingDocType.purchaseOrder:
+        _purchaseOrderDoc = _services.purchaseOrders.watch(
+          companyId: _companyId,
+          id: widget.id,
+        );
+      case BillingDocType.recurringInvoice:
+        _recurringDoc = _services.recurringInvoices.watch(
+          companyId: _companyId,
+          id: widget.id,
+        );
     }
     _services.formatterFor(_companyId).then((f) {
       if (mounted) setState(() => _formatter = f);
@@ -123,9 +165,11 @@ class _BillingDocEmailRouteScreenState
   );
 
   Widget _invoice() => StreamBuilder<Invoice?>(
-    stream: _services.invoices.watch(companyId: _companyId, id: widget.id),
+    stream: _invoiceDoc,
     builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting) return _loading();
+      if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+        return _loading();
+      }
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
@@ -169,9 +213,11 @@ class _BillingDocEmailRouteScreenState
   );
 
   Widget _quote() => StreamBuilder<Quote?>(
-    stream: _services.quotes.watch(companyId: _companyId, id: widget.id),
+    stream: _quoteDoc,
     builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting) return _loading();
+      if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+        return _loading();
+      }
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
@@ -214,9 +260,11 @@ class _BillingDocEmailRouteScreenState
   );
 
   Widget _credit() => StreamBuilder<Credit?>(
-    stream: _services.credits.watch(companyId: _companyId, id: widget.id),
+    stream: _creditDoc,
     builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting) return _loading();
+      if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+        return _loading();
+      }
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
@@ -259,12 +307,11 @@ class _BillingDocEmailRouteScreenState
   );
 
   Widget _purchaseOrder() => StreamBuilder<PurchaseOrder?>(
-    stream: _services.purchaseOrders.watch(
-      companyId: _companyId,
-      id: widget.id,
-    ),
+    stream: _purchaseOrderDoc,
     builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting) return _loading();
+      if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+        return _loading();
+      }
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(
@@ -307,12 +354,11 @@ class _BillingDocEmailRouteScreenState
   );
 
   Widget _recurring() => StreamBuilder<RecurringInvoice?>(
-    stream: _services.recurringInvoices.watch(
-      companyId: _companyId,
-      id: widget.id,
-    ),
+    stream: _recurringDoc,
     builder: (context, snap) {
-      if (snap.connectionState == ConnectionState.waiting) return _loading();
+      if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+        return _loading();
+      }
       final e = snap.data;
       if (e == null) return _notFound(context);
       return _screen(

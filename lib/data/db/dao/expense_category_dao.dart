@@ -16,6 +16,9 @@ part 'expense_category_dao.g.dart';
 class ExpenseCategoryFieldIds {
   static const String name = 'name';
   static const String updatedAt = 'updated_at';
+
+  /// Payload-only column surfaced by the column picker.
+  static const String color = 'color';
 }
 
 @DriftAccessor(tables: [ExpenseCategories])
@@ -68,6 +71,12 @@ class ExpenseCategoryDao extends DatabaseAccessor<AppDatabase>
         return c.name.lower();
       case ExpenseCategoryFieldIds.updatedAt:
         return c.updatedAt;
+      // Payload-only column. Without a case it hit the silent `name` fallback
+      // below while still rendering a sortable header.
+      case ExpenseCategoryFieldIds.color:
+        return CustomExpression<String>(
+          "LOWER(COALESCE(json_extract(payload, '\$.color'), ''))",
+        );
       default:
         return c.name.lower();
     }
@@ -128,6 +137,33 @@ class ExpenseCategoryDao extends DatabaseAccessor<AppDatabase>
   Future<void> upsertAll(List<ExpenseCategoriesCompanion> rows) async {
     if (rows.isEmpty) return;
     await batch((b) => b.insertAllOnConflictUpdate(expenseCategories, rows));
+  }
+
+  /// Server-refresh upsert that preserves the user's in-flight edits.
+  /// Mirrors [BaseEntityDao.upsertAllPreservingDirty]; used by `applyBundle`
+  /// and `ensurePageLoaded` so the user's queued offline edit isn't clobbered
+  /// by a stale server payload.
+  Future<void> upsertAllPreservingDirty({
+    required String companyId,
+    required Map<String, ExpenseCategoriesCompanion> byId,
+  }) async {
+    if (byId.isEmpty) return;
+    final candidateIds = byId.keys.toList(growable: false);
+    final dirtyQ = selectOnly(expenseCategories)
+      ..addColumns([expenseCategories.id])
+      ..where(
+        expenseCategories.companyId.equals(companyId) &
+            expenseCategories.id.isIn(candidateIds) &
+            expenseCategories.isDirty.equals(true),
+      );
+    final dirty = {
+      for (final r in await dirtyQ.get()) r.read(expenseCategories.id)!,
+    };
+    final filtered = [
+      for (final entry in byId.entries)
+        if (!dirty.contains(entry.key)) entry.value,
+    ];
+    await upsertAll(filtered);
   }
 
   Future<int> deleteById({required String companyId, required String id}) {

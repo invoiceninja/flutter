@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_client.dart';
 
@@ -117,10 +119,11 @@ class PurchaseService {
   Future<void> _deliver(PurchaseDetails p) async {
     busy.value = true;
     try {
-      var purchaseId = p.purchaseID;
-      if (p is AppStorePurchaseDetails) {
-        final original = p.skPaymentTransaction.originalTransaction;
-        if (original != null) purchaseId = original.transactionIdentifier;
+      final purchaseId = _inAppTransactionId(p);
+      if (purchaseId == null || purchaseId.isEmpty) {
+        // The server requires a non-empty string; posting null just 422s.
+        _log.warning('no transaction id for ${p.productID} — skipping deliver');
+        return;
       }
       await _apiClient.postJson(
         '/api/admin/subscription',
@@ -139,9 +142,63 @@ class PurchaseService {
     }
   }
 
+  /// The value the hosted endpoint stores as `accounts.inapp_transaction_id`.
+  ///
+  /// Apple keys its renewal / cancellation / refund notifications on the
+  /// subscription's **original** transaction id and the server matches that
+  /// exactly, so storing a per-transaction id silently orphans the account —
+  /// later notifications find no match and the plan stops being extended. For
+  /// an initial purchase the two are identical; they diverge on restore and on
+  /// renewals, which both reach here.
+  ///
+  /// Google is the opposite: its notifications resolve to the `orderId` that
+  /// already arrives as [PurchaseDetails.purchaseID], so Android falls through
+  /// unchanged.
+  String? _inAppTransactionId(PurchaseDetails p) {
+    if (p is AppStorePurchaseDetails) {
+      // StoreKit 1 — only reached if `enableStoreKit1()` is ever called.
+      // `originalTransaction` is populated for restored transactions only.
+      final original = p.skPaymentTransaction.originalTransaction;
+      if (original != null) return original.transactionIdentifier;
+    } else {
+      // StoreKit 2 (the plugin default) drops `originalId` when it builds
+      // SK2PurchaseDetails, but Apple's own transaction JSON is passed through
+      // as `localVerificationData` and still carries it. Google's equivalent
+      // JSON has no such key, so Android returns null here and falls back to
+      // `purchaseID`.
+      final original = appleOriginalTransactionId(
+        p.verificationData.localVerificationData,
+      );
+      if (original != null) return original;
+    }
+    return p.purchaseID;
+  }
+
   Future<void> dispose() async {
     await _sub?.cancel();
     products.dispose();
     busy.dispose();
+  }
+}
+
+/// Pulls Apple's `originalTransactionId` out of a StoreKit 2 transaction's
+/// `localVerificationData` — Apple's `Transaction.jsonRepresentation`.
+///
+/// Returns `null` when the payload is empty, isn't a JSON object, or carries no
+/// usable `originalTransactionId`, so callers can fall back to `purchaseID`.
+/// Never throws: this runs inside the purchase-stream callback, where an
+/// exception would take down delivery of a paid purchase.
+@visibleForTesting
+String? appleOriginalTransactionId(String localVerificationData) {
+  if (localVerificationData.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(localVerificationData);
+    if (decoded is! Map<String, dynamic>) return null;
+    // Apple documents the field as a string, but encodes some numeric ids as
+    // JSON numbers — same coercion hazard as the invoice line-item payloads.
+    final id = jsonScalarToString(decoded['originalTransactionId']);
+    return (id == null || id.isEmpty) ? null : id;
+  } catch (_) {
+    return null;
   }
 }

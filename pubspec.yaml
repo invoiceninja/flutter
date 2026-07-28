@@ -13,14 +13,14 @@ flutter_icons:
   adaptive_icon_foreground: "assets/images/icon.png"
   adaptive_icon_background: "#000000"
 
-# Dependency versions: `flutter pub outdated` lists ~22 transitive packages with a
+# Dependency versions: `flutter pub outdated` lists ~21 transitive packages with a
 # newer "Latest" (analyzer 13, xml 7, qr 4, meta / vector_math / the test family, …)
 # that are NOT updatable from here — `flutter pub upgrade --major-versions` moves none
 # of them. Each is capped by an already-latest upstream (freezed pins analyzer <11; pdf
-# pins xml <7; qr_flutter pins qr <4; in_app_purchase pins its android impl) or by the
-# Flutter SDK's exact pins (meta, vector_math, test*). They clear only when those
-# upstreams widen their bounds or Flutter ships a newer stable. Full blocker map +
-# routine-bump recipe: docs/setup.md § Dependency updates. (verified 2026-06-02, Flutter 3.44.1)
+# pins xml <7; qr_flutter pins qr <4) or by the Flutter SDK's exact pins (meta,
+# vector_math, test*). They clear only when those upstreams widen their bounds or
+# Flutter ships a newer stable. Full blocker map + routine-bump recipe:
+# docs/setup.md § Dependency updates. (verified 2026-06-02, Flutter 3.44.1)
 dependencies:
   app_links: ^6.3.0
   collection: ^1.18.0
@@ -45,7 +45,7 @@ dependencies:
   google_sign_in: ^7.2.0
   http: ^1.5.0
   image_picker: ^1.0.0
-  in_app_purchase: ^3.2.0
+  in_app_purchase: ^3.3.0
   in_app_purchase_storekit: ^0.4.9
   # integration_test lives here (not dev_dependencies) as a workaround for
   # flutter/flutter#186800 + #169336: on Flutter 3.44.x the dev-dependency

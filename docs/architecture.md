@@ -43,7 +43,7 @@ Every write goes through this pipeline:
 4. On success, the row is removed; the server response upserts into Drift.
 5. On `422`: row marked `dead` — shown on the Outbox screen for user action.
 6. On `409` or stale-data: emits `Conflict` → `ConflictResolutionSheet` modal.
-7. On `403 password-required`: emits `PasswordRequired` → `ConfirmPasswordSheet`.
+7. On `412 password-required` (or the legacy `403` sniff): emits `PasswordRequired` → `ConfirmPasswordSheet`, **once per row**. The row then follows the same backoff as any 4xx and dies into the Outbox screen, so a cancelled or wrong password can't re-prompt forever; entering a password later resurrects the dead row (`OutboxDao.readyPasswordRows`).
 
 **Offline create uses temp IDs** (`tmp_<uuid>`). When the server assigns a real ID, an `id_remap` row is written and any pending outbox payloads referencing the temp ID are rewritten before send. `Repository.watch(id)` resolves through `id_remap` so an open detail screen survives the swap without a URL change.
 

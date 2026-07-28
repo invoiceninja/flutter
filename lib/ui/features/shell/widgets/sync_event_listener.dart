@@ -42,10 +42,12 @@ class _SyncEventListenerState extends State<SyncEventListener> {
   bool _secretDialogShowing = false;
 
   /// Conflict / password events that arrived while a modal was already open.
-  /// Parked rows (409/404 → +1yr, password → parked) are NOT re-emitted by the
-  /// sync engine, so if we merely dropped an overlapping event the second of
-  /// two conflicts in one drain pass would never be prompted. Instead we defer
-  /// it here and replay it when the current modal closes.
+  /// Neither is re-emitted by the sync engine — a conflict parks for a year,
+  /// and a password row emits only on its FIRST 412 (`sync_repository`) — so
+  /// if we merely dropped an overlapping event, the second of two conflicts in
+  /// one drain pass would never be prompted, and a password row would be
+  /// silently swallowed. Instead we defer it here and replay it when the
+  /// current modal closes.
   final List<SyncEvent> _deferredEvents = [];
 
   @override
@@ -112,8 +114,8 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       return;
     }
 
-    // Suppress overlapping dialogs — but conflict/password rows are parked and
-    // never re-emitted, so DEFER the event (don't drop it) and replay it when
+    // Suppress overlapping dialogs — but neither event is re-emitted (see
+    // `_deferredEvents`), so DEFER the event (don't drop it) and replay it when
     // the current modal closes. Otherwise a flurry of failed rows would stack N
     // dialogs; without deferral the extra conflicts would be lost forever.
     if (_dialogOpen) {

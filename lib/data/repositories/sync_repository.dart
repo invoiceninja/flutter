@@ -943,23 +943,30 @@ class SyncRepository {
       // when it's true. Without this, a row enqueued with
       // requiresPassword=false would 412 forever.
       await db.outboxDao.updateRequiresPassword(id: row.id, value: true);
-      // Leave the row pending; the UI prompts the user and the sync engine
-      // retries once the password cache is populated.
-      await db.outboxDao.scheduleRetry(
-        id: row.id,
-        attempts: row.attempts,
-        nextAttemptAt:
-            _now().millisecondsSinceEpoch +
-            const Duration(minutes: 1).inMilliseconds,
-        error: 'Password required',
-        statusCode: 403,
-      );
-      _events.add(
-        PasswordRequiredEvent(
-          entityType: handlers.type,
-          entityId: row.entityId,
-        ),
-      );
+      // Count the failure like any other 4xx. This path used to re-park at
+      // +1 min with `attempts: row.attempts` — never incremented — so the row
+      // could never reach `kMaxAttempts` and every drain trigger (the 5-min
+      // refresh tick, app resume, connectivity, any new enqueue) re-emitted
+      // the event below and reopened the sheet. A user who cancelled, or who
+      // mistyped (the sheet does no server-side validation, so a wrong
+      // password is cached and 412s here), got that modal every few minutes
+      // forever with no terminal state. Now it backs off and dies into the
+      // Outbox screen like any other permanent failure — and
+      // `readyPasswordRows` resurrects it if a password arrives later.
+      final isFirstPark = row.attempts == 0;
+      await _retryWithBackoff(row, 'Password required', 412);
+      // Prompt ONCE per row. Re-emitting on every retry is what made a cancel
+      // mean "ask again in five minutes" instead of "leave me alone"; the
+      // death path (DeadEvent → failure toast → Outbox) is the visible
+      // fallback for a row the user never unlocked.
+      if (isFirstPark) {
+        _events.add(
+          PasswordRequiredEvent(
+            entityType: handlers.type,
+            entityId: row.entityId,
+          ),
+        );
+      }
       return false;
     } on RateLimitedException catch (e) {
       final delay = e.retryAfter ?? const Duration(seconds: 30);

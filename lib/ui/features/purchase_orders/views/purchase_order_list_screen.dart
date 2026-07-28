@@ -155,12 +155,18 @@ class PurchaseOrderListScreen extends StatelessWidget {
           pluralSuccessKey: 'marked_sent_purchase_orders',
           nothingKey: 'nothing_to_send',
         ),
+        // NOT `accept`: a PO is accepted by the vendor through the portal, and
+        // the server has no admin accept route (it isn't in
+        // `BulkPurchaseOrderRequest`'s allow-list) — see the class doc on
+        // `PurchaseOrderActions`. `add_to_inventory` is the real bulk verb the
+        // server exposes here, and it matches the row menu's own gate
+        // (`canEdit && po.isAccepted`).
         const EntityListBulkAction(
-          actionId: 'accept',
-          icon: Icons.check_circle_outline,
-          tooltipKey: 'accept',
-          singleSuccessKey: 'accepted_purchase_order',
-          pluralSuccessKey: 'accepted_purchase_orders',
+          actionId: 'add_to_inventory',
+          icon: Icons.inventory_2_outlined,
+          tooltipKey: 'add_to_inventory',
+          singleSuccessKey: 'added_to_inventory_purchase_order',
+          pluralSuccessKey: 'added_to_inventory_purchase_orders',
           nothingKey: 'nothing_to_update',
         ),
         const EntityListBulkAction(

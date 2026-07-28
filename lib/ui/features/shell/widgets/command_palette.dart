@@ -15,6 +15,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/key_cap.dart';
+import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 
 /// Maps a `POST /api/v1/search` response group key to an [EntityType] so
 /// the hit routes through the entity registry (module-enabled + permission
@@ -47,9 +48,34 @@ EntityType? entityTypeForSearchGroup(String group) {
     case 'vendors':
     case 'vendor_contacts':
       return EntityType.vendor;
+    case 'purchase_orders':
+      return EntityType.purchaseOrder;
     default:
       return null; // settings + anything unknown → use server path
   }
+}
+
+/// Groups whose row describes a **contact**, not the record it routes to.
+///
+/// `SearchController::mapResults` puts the CONTACT's `hashed_id` in `id` and
+/// the parent in `path` (`/clients/{client_id}`), so routing by `id` opens a
+/// client/vendor that doesn't exist — the detail screen resolves nothing and
+/// renders its empty state. Only the Elasticsearch branch does this; the
+/// non-ES `clientMap` fallback happens to put the parent id in BOTH fields, so
+/// reading the parent out of `path` is correct on either backend.
+const _contactGroups = {'client_contacts', 'vendor_contacts'};
+
+/// The id to route a hit by: the parent's id for a contact row (parsed out of
+/// the server `path`), otherwise the hit's own `id`.
+///
+/// Falls back to `id` when `path` is empty or has no trailing segment, so an
+/// unexpected server shape degrades to today's behavior rather than to nothing.
+String recordIdForSearchHit(SearchResult r) {
+  if (!_contactGroups.contains(r.group)) return r.id;
+  final segments = Uri.parse(
+    r.path,
+  ).pathSegments.where((s) => s.isNotEmpty).toList();
+  return segments.isEmpty ? r.id : segments.last;
 }
 
 /// Cmd/Ctrl+/ global command palette. Server-backed search
@@ -163,8 +189,14 @@ class _CommandPaletteState extends State<_CommandPalette> {
     try {
       final r = await context.read<Services>().search.search(q);
       if (!mounted || seq != _reqSeq) return;
+      // Server `settings` hits are dropped in favour of the local catalog —
+      // see [_localSettingsHits]. Everything else routes by entity group.
+      final merged = [
+        ...r.where((hit) => !hit.isSettings),
+        ..._localSettingsHits(q),
+      ];
       setState(() {
-        _results = r;
+        _results = merged;
         _selected = 0;
         _loading = false;
       });
@@ -176,6 +208,50 @@ class _CommandPaletteState extends State<_CommandPalette> {
         _loading = false;
       });
     }
+  }
+
+  /// Settings hits, served from the app's own catalog instead of the server's.
+  ///
+  /// `POST /api/v1/search` builds its `settings` group from `settingsMap($user)`,
+  /// which never sees the query — it returns the WHOLE catalogue (~92 rows) on
+  /// every request and expects the client to filter. Worse, those rows carry
+  /// React web routes (`/settings/subscriptions`, `…/create`,
+  /// `/settings/user_details/accent_color`, …); ~19 of them match no route
+  /// here, and `errorBuilder` is registered at the ROOT, so selecting one
+  /// replaced the entire app — sidebar included — with the route-error screen.
+  ///
+  /// `kSettingsSearchCatalog` is route-correct by construction (a consistency
+  /// test binds it to the real screens), so this filters properly, never
+  /// dead-ends, and works offline. Gating mirrors the settings screen's own
+  /// search (`settings_screen.dart`) so a module-disabled or admin-only page
+  /// can't surface as a dead link.
+  ///
+  /// Navigates to the section root rather than the exact tab: catalog entries
+  /// carry no per-field route, and this matches in-app settings search.
+  List<SearchResult> _localSettingsHits(String query) {
+    // An empty query must stay empty — `searchSettings('')` returns the full
+    // catalogue by design, which would bury the Recents resting state.
+    if (query.trim().isEmpty) return const [];
+    final l10n = Localization.of(context);
+    if (l10n == null) return const [];
+    final services = context.read<Services>();
+    final me = services.auth.session.value?.currentCompany;
+    final modules = me?.enabledModules ?? 0;
+    final isAdminOrOwner = me?.isAdmin == true || me?.isOwner == true;
+    final level = services.settingsLevel;
+    final isCascade = level.isClient || level.isGroup;
+    return [
+      for (final hit in searchSettings(query, l10n))
+        if ((!isCascade || hit.section.clientEditable) &&
+            hit.section.isVisibleFor(modules) &&
+            (!hit.section.adminOnly || isAdminOrOwner))
+          SearchResult(
+            group: 'settings',
+            name: l10n.lookup(hit.fieldKey),
+            id: '',
+            path: hit.section.route,
+          ),
+    ];
   }
 
   void _move(int delta) {
@@ -209,8 +285,9 @@ class _CommandPaletteState extends State<_CommandPalette> {
     if (!mounted) return;
     Navigator.of(context).pop();
     final type = entityTypeForSearchGroup(r.group);
-    if (type != null && r.id.isNotEmpty) {
-      goEntityRecord(context, type, r.id);
+    final recordId = recordIdForSearchHit(r);
+    if (type != null && recordId.isNotEmpty) {
+      goEntityRecord(context, type, recordId);
     } else if (r.path.isNotEmpty) {
       context.go(r.path);
     }

@@ -20,7 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 ///   * success → outbox row removed
 ///   * 422 → row marked dead + ValidationFailedEvent
 ///   * 409 → row stays pending + ConflictEvent (with retry deferred)
-///   * PasswordRequired → row stays pending + PasswordRequiredEvent
+///   * PasswordRequired → row stays pending + PasswordRequiredEvent (emitted
+///     on the FIRST 412 only; repeats back off and finally die)
 ///   * 429 with Retry-After → row stays pending with delay honored
 ///   * 5xx/network → backoff schedule (1st failure → 5s, 2nd → 30s, ...)
 ///   * exceeding max attempts → marked dead
@@ -320,6 +321,111 @@ void main() {
         // X-API-PASSWORD-BASE64 header.
         expect(row.requiresPassword, isTrue);
         expect(events.single, isA<PasswordRequiredEvent>());
+        expect(
+          row.attempts,
+          1,
+          reason:
+              'the failure is COUNTED. It used to re-park with the same '
+              'attempt count, so the row could never reach kMaxAttempts and '
+              'every drain trigger re-opened the password sheet forever',
+        );
+      },
+    );
+
+    test(
+      'repeated 412s back off, prompt only once, and finally mark the row dead',
+      () async {
+        // A user who cancels the sheet — or mistypes (the sheet does no
+        // server-side validation, so a wrong password is cached and 412s
+        // here) — must land in a terminal, visible state instead of being
+        // re-prompted every few minutes forever.
+        final disp = _ProgrammableDispatcher();
+        for (var i = 0; i < kMaxAttempts; i++) {
+          disp.queueThrow(const PasswordRequiredException());
+        }
+        final engine = makeEngine(disp);
+        final events = <SyncEvent>[];
+        engine.events.listen(events.add);
+        final id = await enqueueClient(
+          entityId: 'c1',
+          kind: MutationKind.delete,
+        );
+
+        // Each pass re-arms the row the way the password sheet does, so the
+        // loop mirrors a user repeatedly failing to unlock it.
+        for (var i = 0; i < kMaxAttempts; i++) {
+          await engine.retryPasswordRows(companyId: 'co');
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        final dead = await (db.select(
+          db.outbox,
+        )..where((o) => o.id.equals(id))).getSingle();
+        expect(
+          dead.state,
+          'dead',
+          reason: 'the row reaches a terminal state the Outbox screen shows',
+        );
+        expect(dead.lastStatusCode, 412);
+        expect(
+          events.whereType<PasswordRequiredEvent>(),
+          hasLength(1),
+          reason: 'the sheet is offered once, not on every retry',
+        );
+        expect(events.whereType<DeadEvent>(), hasLength(1));
+      },
+    );
+
+    test(
+      'a later password resurrects a dead 412 row (and only a 412 one)',
+      () async {
+        // Without this, marking the row dead would swap an infinite nag for a
+        // silently stuck edit: `readyPasswordRows` only ever re-armed
+        // `pending` rows, so a password supplied afterwards could not heal it.
+        final disp = _ProgrammableDispatcher();
+        for (var i = 0; i < kMaxAttempts; i++) {
+          disp.queueThrow(const PasswordRequiredException());
+        }
+        disp.queueSuccess();
+        final engine = makeEngine(disp);
+        final gated = await enqueueClient(
+          entityId: 'c1',
+          kind: MutationKind.delete,
+        );
+        for (var i = 0; i < kMaxAttempts; i++) {
+          await engine.retryPasswordRows(companyId: 'co');
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(
+          (await (db.select(
+            db.outbox,
+          )..where((o) => o.id.equals(gated))).getSingle()).state,
+          'dead',
+        );
+
+        // An unrelated dead row must NOT be swept back in by the same call.
+        final unrelated = await enqueueClient(entityId: 'c2');
+        await db.outboxDao.markDead(
+          id: unrelated,
+          error: 'Validation failed',
+          statusCode: 422,
+        );
+
+        await engine.retryPasswordRows(companyId: 'co');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          await rowById(gated),
+          isNull,
+          reason: 'resurrected with a fresh budget, then drained to success',
+        );
+        expect(
+          (await (db.select(
+            db.outbox,
+          )..where((o) => o.id.equals(unrelated))).getSingle()).state,
+          'dead',
+          reason: 'a 422 death is not a password problem — it stays dead',
+        );
       },
     );
 

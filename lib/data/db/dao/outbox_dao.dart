@@ -328,21 +328,47 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         OutboxCompanion(requiresPassword: Value(value)),
       );
 
-  /// Re-arm every parked, password-required `pending` row for a company so the
-  /// next [nextReady] returns it immediately. Called right after the user
-  /// enters their password (cache now warm) — without it the rows sit on their
-  /// +1 min park until an unrelated drain trigger fires.
+  /// Re-arm every password-required row for a company so the next [nextReady]
+  /// returns it immediately. Called right after the user enters their password
+  /// (cache now warm) — without it the rows sit on their park until an
+  /// unrelated drain trigger fires.
+  ///
+  /// Covers two states:
+  ///  * `pending` — just un-park it. `attempts` is deliberately PRESERVED so a
+  ///    repeatedly-wrong password still walks the backoff and eventually dies
+  ///    instead of looping forever.
+  ///  * `dead` **with a 412** — a password-gated row that exhausted its
+  ///    attempts while the user was away. Resurrect it with a fresh budget:
+  ///    the user has just supplied a password, which is exactly the input that
+  ///    was missing. Without this branch the terminal state is a trap — the
+  ///    row can only be revived by hunting down the Outbox screen's Retry.
+  ///    Scoped to 412 so an unrelated dead row (422, 5xx) stays dead.
   Future<void> readyPasswordRows({
     required String companyId,
     required int now,
-  }) =>
-      (update(outbox)..where(
-            (o) =>
-                o.companyId.equals(companyId) &
-                o.state.equals('pending') &
-                o.requiresPassword.equals(true),
-          ))
-          .write(OutboxCompanion(nextAttemptAt: Value(now)));
+  }) async {
+    await (update(outbox)..where(
+          (o) =>
+              o.companyId.equals(companyId) &
+              o.state.equals('pending') &
+              o.requiresPassword.equals(true),
+        ))
+        .write(OutboxCompanion(nextAttemptAt: Value(now)));
+    await (update(outbox)..where(
+          (o) =>
+              o.companyId.equals(companyId) &
+              o.state.equals('dead') &
+              o.requiresPassword.equals(true) &
+              o.lastStatusCode.equals(412),
+        ))
+        .write(
+          OutboxCompanion(
+            state: const Value('pending'),
+            attempts: const Value(0),
+            nextAttemptAt: Value(now),
+          ),
+        );
+  }
 
   Future<void> markDead({
     required int id,

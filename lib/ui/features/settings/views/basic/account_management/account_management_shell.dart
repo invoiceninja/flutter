@@ -14,6 +14,29 @@ import 'package:admin/ui/features/settings/views/basic/account_management/referr
 import 'package:admin/ui/features/settings/views/basic/account_management/security_settings_screen.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
 
+const String _kBasePath = '/settings/account_management';
+
+/// The Account Management tab slug encoded in [path]: `''` for the bare base
+/// path (the Plan tab), or the first segment after it — so a sub-route such as
+/// `…/integrations/analytics` still resolves to the `integrations` tab. Returns
+/// null when [path] is not under the shell at all.
+///
+/// The shell can't just read `:tab` off the route: go_router hands every page
+/// in the stack the *whole match list's* `pathParameters`, so once a
+/// `tabSubRoutes` child is the terminal match `:tab` is null — and a shell that
+/// trusted it would snap back to the Plan tab and navigate the child the user
+/// is looking at away. Same shape as `_activeSlug` in `settings_screen.dart`.
+@visibleForTesting
+String? accountManagementTabSlug(String path) {
+  if (!path.startsWith(_kBasePath)) return null;
+  final rest = path.substring(_kBasePath.length);
+  if (rest.isEmpty) return '';
+  // Guard against a sibling route that merely shares the prefix.
+  if (!rest.startsWith('/')) return null;
+  final segments = rest.split('/').where((s) => s.isNotEmpty);
+  return segments.isEmpty ? '' : segments.first;
+}
+
 /// Settings → Account Management. Seven URL-driven tabs:
 ///
 /// * `/settings/account_management` → Plan (default).
@@ -34,14 +57,19 @@ import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart
 /// button. The `TabbedSettingsShell<V extends SettingsDraftHost>` machinery
 /// would be pure overhead here.
 ///
-/// QuickBooks lives at `/settings/account_management/integrations/quickbooks`
-/// as a standalone sub-page outside this shell — the Integrations tab body
-/// links to it. OAuth-style flows render better without competing tab chrome.
+/// The Integrations tab's destinations (API Tokens, API Webhooks, Analytics,
+/// QuickBooks) are `tabSubRoutes` children of
+/// `/settings/account_management/integrations`, so this shell stays on the back
+/// stack underneath them and system back returns here with the Integrations tab
+/// still selected. The active tab therefore comes from the path (see
+/// [accountManagementTabSlug]), not from the `:tab` path parameter.
 class AccountManagementShell extends StatefulWidget {
   const AccountManagementShell({super.key, this.initialTab});
 
-  /// The `:tab` path-parameter from the route, or null on the bare URL
-  /// (defaults to the Plan tab).
+  /// The tab to mount on: the `:tab` path-parameter for a tab URL, the fixed
+  /// slug for a tab that owns sub-routes (see `tabSubRoutes`), or null on the
+  /// bare URL (defaults to the Plan tab). Only read at mount — afterwards the
+  /// active tab tracks the location via [accountManagementTabSlug].
   final String? initialTab;
 
   @override
@@ -50,7 +78,6 @@ class AccountManagementShell extends StatefulWidget {
 
 class _AccountManagementShellState extends State<AccountManagementShell>
     with SingleTickerProviderStateMixin {
-  static const _basePath = '/settings/account_management';
   static const _tabs = <_TabDef>[
     _TabDef(slug: '', labelKey: 'plan'),
     _TabDef(slug: 'overview', labelKey: 'overview'),
@@ -121,9 +148,11 @@ class _AccountManagementShellState extends State<AccountManagementShell>
     if (!mounted) return;
     if (_controller.indexIsChanging) return;
     final tab = _tabs[_controller.index];
-    final desired = tab.slug.isEmpty ? _basePath : '$_basePath/${tab.slug}';
     final current = GoRouterState.of(context).uri.path;
-    if (current == desired) return;
+    // A sub-route of this tab (e.g. `…/integrations/analytics`) already counts
+    // as "on this tab" — rewriting the URL there would pop the child away.
+    if (accountManagementTabSlug(current) == tab.slug) return;
+    final desired = tab.slug.isEmpty ? _kBasePath : '$_kBasePath/${tab.slug}';
     context.go(desired);
   }
 
@@ -140,10 +169,15 @@ class _AccountManagementShellState extends State<AccountManagementShell>
     // Keep the controller in sync if the URL changed externally (back button,
     // deep link, settings search). The `!=` guard prevents the controller
     // listener (which pushes URL updates) from looping back into another
-    // `animateTo`.
-    final currentTab = GoRouterState.of(context).pathParameters['tab'];
+    // `animateTo`. A null slug means the location left this shell entirely
+    // (the page is being torn down) — leave the tab alone.
+    final currentTab = accountManagementTabSlug(
+      GoRouterState.of(context).uri.path,
+    );
     final urlIndex = _indexForSlug(currentTab);
-    if (urlIndex != _controller.index && !_controller.indexIsChanging) {
+    if (currentTab != null &&
+        urlIndex != _controller.index &&
+        !_controller.indexIsChanging) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (urlIndex != _controller.index) {

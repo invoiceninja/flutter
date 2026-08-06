@@ -53,7 +53,6 @@ import 'package:admin/ui/features/settings/views/advanced/integrations/api_token
 import 'package:admin/ui/features/settings/views/advanced/integrations/api_webhooks_screen.dart';
 import 'package:admin/ui/features/tokens/views/token_edit_screen.dart';
 import 'package:admin/ui/features/webhooks/views/webhook_edit_screen.dart';
-import 'package:admin/ui/features/settings/views/advanced/integrations/integrations_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/invoice_design_shell.dart';
 import 'package:admin/ui/features/settings/views/advanced/schedules_edit_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/schedules_screen.dart';
@@ -130,6 +129,33 @@ GoRoute _settingsRoute({
 GoRoute _leaf(String path, Widget Function() child) =>
     _settingsRoute(path: path, builder: (_, _) => child());
 
+/// Redirect child mapping `<root>/:id/edit` back onto `<root>/:id`. Attach it
+/// to the `:id` route of every settings entity block that has no detail screen.
+///
+/// Those blocks invert the entity-branch shape: there, `:id` is the detail
+/// screen and `:id/edit` the form; here `:id` IS the form and nothing lives at
+/// `:id/edit`. But `entityRecordPath` (`router.dart`), the outbox row "Open"
+/// action (`outbox_screen.dart`), and the sync listener's validation / conflict
+/// actions (`sync_event_listener.dart`) all append `/edit` for a detail-less
+/// entity — so that URL has to resolve or the user lands on the route-error
+/// view. Registering it as a redirect (rather than a second route onto the same
+/// screen) keeps one canonical URL, and contributes no page of its own.
+GoRoute _editAlias() =>
+    GoRoute(path: 'edit', redirect: (_, state) => stripEditSuffix(state.uri));
+
+/// [uri] with a trailing `/edit` segment removed, query string preserved.
+/// Returns the location unchanged when there is no such segment. Lives here
+/// rather than beside `legacyIntegrationsRedirect` in `router.dart` because
+/// `router.dart` already imports this library — the reverse import would be a
+/// cycle. Backs [_editAlias].
+String stripEditSuffix(Uri uri) {
+  const suffix = '/edit';
+  if (!uri.path.endsWith(suffix)) return uri.toString();
+  return uri
+      .replace(path: uri.path.substring(0, uri.path.length - suffix.length))
+      .toString();
+}
+
 /// Route pair for a tabbed settings shell — registers `/settings/<path>` and
 /// `/settings/<path>/:tab(<slugs>)` against a single [CustomTransitionPage]
 /// builder so both routes resolve to the same Navigator Page. The constant
@@ -141,20 +167,35 @@ GoRoute _leaf(String path, Widget Function() child) =>
 /// `lib/ui/features/settings/widgets/tabbed_settings_shell.dart` — the shell
 /// reads `:tab` off the route, the route trusts the shell to keep
 /// [TabController] aligned. Both halves are required.
+///
+/// [tabSubRoutes] maps a tab slug to routes that live *under* that tab (e.g.
+/// Account Management → Integrations → Analytics). Such a slug gets its own
+/// explicit `GoRoute` — carrying the same [pageKey], so the shell's Element
+/// survives navigating into and back out of a child — and is dropped from the
+/// `:tab(…)` pattern so exactly one route matches each URL. `:tab` is null on
+/// those routes, hence the fixed slug passed to [shellBuilder]; a shell with
+/// sub-routes must ALSO derive its active tab from the path rather than the
+/// `:tab` path parameter, which go_router reports as null once a child route is
+/// the terminal match (see `accountManagementTabSlug`).
+///
+/// If [tabSubRoutes] covers every slug the `:tab` route is dropped entirely —
+/// go_router's `patternToRegExp` needs at least one character inside the
+/// parens, so an empty `:tab()` alternation is not a parse error: `:tab`
+/// degrades to a bare parameter and `()` becomes a literal, leaving a route
+/// that silently matches nothing.
 List<RouteBase> tabbedSettingsRoutePair({
   required String path,
   required String pageKey,
   required List<String> tabSlugs,
   required Widget Function(String? initialTab) shellBuilder,
+  Map<String, List<RouteBase>> tabSubRoutes = const {},
 }) {
-  CustomTransitionPage<void> pageBuilder(
-    BuildContext context,
-    GoRouterState state,
-  ) {
-    return CustomTransitionPage<void>(
+  CustomTransitionPage<void> Function(BuildContext, GoRouterState)
+  pageBuilderFor(String? fixedTab) {
+    return (context, state) => CustomTransitionPage<void>(
       key: ValueKey(pageKey),
       child: _SettingsLevelKeyed(
-        child: shellBuilder(state.pathParameters['tab']),
+        child: shellBuilder(state.pathParameters['tab'] ?? fixedTab),
       ),
       transitionsBuilder: (context, animation, _, child) {
         final wide = MediaQuery.sizeOf(context).width >= Breakpoints.wide;
@@ -170,18 +211,36 @@ List<RouteBase> tabbedSettingsRoutePair({
     );
   }
 
+  final patternSlugs = tabSlugs
+      .where((s) => !tabSubRoutes.containsKey(s))
+      .toList();
+
   return [
-    GoRoute(path: path, pageBuilder: pageBuilder),
-    GoRoute(
-      path: '$path/:tab(${tabSlugs.join('|')})',
-      pageBuilder: pageBuilder,
-    ),
+    GoRoute(path: path, pageBuilder: pageBuilderFor(null)),
+    for (final entry in tabSubRoutes.entries)
+      GoRoute(
+        path: '$path/${entry.key}',
+        pageBuilder: pageBuilderFor(entry.key),
+        routes: entry.value,
+      ),
+    if (patternSlugs.isNotEmpty)
+      GoRoute(
+        path: '$path/:tab(${patternSlugs.join('|')})',
+        pageBuilder: pageBuilderFor(null),
+      ),
   ];
 }
 
 /// All sub-routes under `/settings`. Mounted by `router.dart` as the `routes:`
 /// list of the `/settings` `GoRoute`. URL slugs are user-facing (e.g.
 /// `payment_links`, `users` for User Management).
+///
+/// **Nesting defines the back stack.** go_router emits one `Page` per matched
+/// route in the chain, so a nested route with a `builder`/`pageBuilder` becomes
+/// a real page the user lands on when they press back — whether or not they
+/// ever visited it. Nest a route only under a parent that is genuinely the
+/// screen it was reached from; a URL grouping that nobody navigates through
+/// shows up as a phantom page on the way back (issue #8).
 final List<RouteBase> settingsRoutes = [
   // ── Basic ─────────────────────────────────────────────────────────────
   // Company Details is one shell with 6 tabs in a TabBarView. The bare URL
@@ -263,8 +322,15 @@ final List<RouteBase> settingsRoutes = [
   // Account Management is one shell with seven URL-driven tabs (Plan default,
   // Overview / Enabled Modules / Integrations / Security Settings / Referral
   // Program / Danger Zone). Shared page key keeps the TabController + each
-  // tab's local state alive across navigations. The QuickBooks sub-page lives
-  // outside the shell (focused OAuth-style flow without competing nav chrome).
+  // tab's local state alive across navigations.
+  //
+  // The Integrations tab's four in-app destinations are `tabSubRoutes`
+  // children (the other two tiles are external links), so
+  // the shell page sits under them in the back stack and system back returns
+  // to the tab the user tapped from (issue #8). They used to hang off a
+  // top-level `/settings/integrations` route whose own page — an orphan left
+  // behind when that sidebar section was removed — became a phantom screen on
+  // the way back.
   ...tabbedSettingsRoutePair(
     path: 'account_management',
     pageKey: 'account_management_shell',
@@ -278,10 +344,47 @@ final List<RouteBase> settingsRoutes = [
     ],
     shellBuilder: (initialTab) =>
         AccountManagementShell(initialTab: initialTab),
+    tabSubRoutes: {
+      'integrations': [
+        _settingsRoute(
+          path: 'api_tokens',
+          builder: (_, _) => const IntegrationsApiTokensScreen(),
+          routes: [
+            _leaf('new', () => const TokenEditScreen()),
+            _settingsRoute(
+              path: ':id',
+              builder: (_, state) =>
+                  TokenEditScreen(existingId: state.pathParameters['id']),
+              routes: [_editAlias()],
+            ),
+          ],
+        ),
+        _settingsRoute(
+          path: 'api_webhooks',
+          builder: (_, _) => const IntegrationsApiWebhooksScreen(),
+          routes: [
+            _leaf('new', () => const WebhookEditScreen()),
+            _settingsRoute(
+              path: ':id',
+              builder: (_, state) =>
+                  WebhookEditScreen(existingId: state.pathParameters['id']),
+              routes: [_editAlias()],
+            ),
+          ],
+        ),
+        _leaf('analytics', () => const IntegrationsAnalyticsScreen()),
+        _leaf('quickbooks', () => const QuickbooksScreen()),
+      ],
+    },
   ),
-  _leaf(
-    'account_management/integrations/quickbooks',
-    () => const QuickbooksScreen(),
+  // `plan` is the shell's empty-slug default tab, so it is deliberately absent
+  // from `tabSlugs` and `/settings/account_management/plan` matches no route.
+  // Callers still reach for it (and `nav_state_persister` would then save the
+  // dead URL, re-opening the route-error view on every launch), so heal it with
+  // a redirect. A redirect-only GoRoute contributes no page of its own.
+  GoRoute(
+    path: 'account_management/plan',
+    redirect: (_, _) => '/settings/account_management',
   ),
   // Backup | Restore is a single shell with two URL-driven tabs. Bare URL
   // resolves to the Backup tab; `/restore` to the Restore tab. Shared page
@@ -395,6 +498,7 @@ final List<RouteBase> settingsRoutes = [
             builder: (_, state) => TransactionRuleEditScreen(
               existingId: state.pathParameters['id'],
             ),
+            routes: [_editAlias()],
           ),
         ],
       ),
@@ -421,6 +525,7 @@ final List<RouteBase> settingsRoutes = [
         path: ':id',
         builder: (_, state) =>
             GroupSettingsEditScreen(existingId: state.pathParameters['id']),
+        routes: [_editAlias()],
       ),
     ],
   ),
@@ -433,6 +538,7 @@ final List<RouteBase> settingsRoutes = [
         path: ':id',
         builder: (_, state) =>
             TaskStatusesEditScreen(existingId: state.pathParameters['id']),
+        routes: [_editAlias()],
       ),
     ],
   ),
@@ -451,6 +557,7 @@ final List<RouteBase> settingsRoutes = [
         path: ':id',
         builder: (_, state) =>
             TagsEditScreen(existingId: state.pathParameters['id']),
+        routes: [_editAlias()],
       ),
     ],
   ),
@@ -463,6 +570,7 @@ final List<RouteBase> settingsRoutes = [
         path: ':id',
         builder: (_, state) =>
             PaymentTermsEditScreen(existingId: state.pathParameters['id']),
+        routes: [_editAlias()],
       ),
     ],
   ),
@@ -475,6 +583,7 @@ final List<RouteBase> settingsRoutes = [
         path: ':id',
         builder: (_, state) =>
             TaxRatesEditScreen(existingId: state.pathParameters['id']),
+        routes: [_editAlias()],
       ),
     ],
   ),
@@ -531,6 +640,7 @@ final List<RouteBase> settingsRoutes = [
         path: ':id',
         builder: (_, state) =>
             SchedulesEditScreen(existingId: state.pathParameters['id']),
+        routes: [_editAlias()],
       ),
     ],
   ),
@@ -554,35 +664,4 @@ final List<RouteBase> settingsRoutes = [
     ],
   ),
   _leaf('system_logs', () => const SystemLogsScreen()),
-  _settingsRoute(
-    path: 'integrations',
-    builder: (_, _) => const IntegrationsScreen(),
-    routes: [
-      _settingsRoute(
-        path: 'api_tokens',
-        builder: (_, _) => const IntegrationsApiTokensScreen(),
-        routes: [
-          _leaf('new', () => const TokenEditScreen()),
-          _settingsRoute(
-            path: ':id',
-            builder: (_, state) =>
-                TokenEditScreen(existingId: state.pathParameters['id']),
-          ),
-        ],
-      ),
-      _settingsRoute(
-        path: 'api_webhooks',
-        builder: (_, _) => const IntegrationsApiWebhooksScreen(),
-        routes: [
-          _leaf('new', () => const WebhookEditScreen()),
-          _settingsRoute(
-            path: ':id',
-            builder: (_, state) =>
-                WebhookEditScreen(existingId: state.pathParameters['id']),
-          ),
-        ],
-      ),
-      _leaf('analytics', () => const IntegrationsAnalyticsScreen()),
-    ],
-  ),
 ];

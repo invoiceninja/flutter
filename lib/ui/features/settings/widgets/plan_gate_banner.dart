@@ -32,7 +32,7 @@ enum PlanGateLevel { pro, enterprise }
 /// - Owner-aware copy: non-owners cannot act on the upgrade, so they see
 ///   `owner_upgrade_to_paid_plan` with no link CTA.
 /// - CTA helper [openUpgradeFlow] launches `ninjaPortalUrl` externally when
-///   set, otherwise navigates to `/settings/account_management/plan`.
+///   set, otherwise navigates to `/settings/account_management` (the Plan tab).
 class PlanGateBanner extends StatelessWidget {
   const PlanGateBanner({
     required this.style,

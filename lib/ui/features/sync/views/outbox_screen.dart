@@ -277,10 +277,17 @@ class _OutboxTile extends StatelessWidget {
 /// pending / in-flight rows land on the detail screen since the local
 /// state already reflects the in-progress mutation.
 String _destinationFor(EntityHandlers handlers, OutboxRow row) {
-  // `user_settings` / `user` rows aren't an addressable entity record — the
-  // user handler's routePath (`/settings/account`) has no route. Point them
-  // at the real screen those column/preference changes belong to.
+  // Some entities aren't an addressable record at all — point those rows at
+  // the screen the change actually belongs to:
+  //   * `user_settings` / `user` — the user handler's routePath
+  //     (`/settings/account`) has no route.
+  //   * `design` — custom designs are created / edited in a modal
+  //     (`showDesignEditScreen`), so `custom_designs` exists only as an
+  //     Invoice Design tab slug; there is no `<root>/<id>` route.
   if (handlers.type == EntityType.user) return '/settings/user_details';
+  if (handlers.type == EntityType.design) {
+    return '/settings/invoice_design/custom_designs';
+  }
   final isDead = row.state == 'dead';
   final suffix = isDead ? '/edit' : '';
   return '${handlers.routePath}/${row.entityId}$suffix';

@@ -11,7 +11,7 @@ import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
 
-/// `/settings/integrations/api_webhooks` — list every webhook. Tap a row to
+/// `/settings/account_management/integrations/api_webhooks` — list every webhook. Tap a row to
 /// edit; tap "+ New Webhook" to create.
 class WebhookListScreen extends StatelessWidget {
   const WebhookListScreen({super.key});
@@ -41,7 +41,7 @@ class WebhookListScreen extends StatelessWidget {
     return SettingsEntityListScaffold<Webhook>(
       titleKey: 'api_webhooks',
       sectionTitleKey: 'api_webhooks',
-      newRoute: '/settings/integrations/api_webhooks/new',
+      newRoute: '/settings/account_management/integrations/api_webhooks/new',
       newLabelKey: 'new_webhook',
       emptyIcon: Icons.webhook_outlined,
       emptyTitleKey: 'no_webhooks',
@@ -118,8 +118,9 @@ class _WebhookRow extends StatelessWidget {
                   ),
                 )
               : const Icon(Icons.chevron_right),
-          onTap: () =>
-              context.go('/settings/integrations/api_webhooks/${webhook.id}'),
+          onTap: () => context.go(
+            '/settings/account_management/integrations/api_webhooks/${webhook.id}',
+          ),
         ),
         const Divider(height: 1),
       ],

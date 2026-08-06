@@ -596,9 +596,12 @@ void main() {
         screenType: ExpenseCategoryListScreen,
       ),
       (route: '/settings/payment_links', screenType: PaymentLinkListScreen),
-      (route: '/settings/integrations/api_tokens', screenType: TokenListScreen),
       (
-        route: '/settings/integrations/api_webhooks',
+        route: '/settings/account_management/integrations/api_tokens',
+        screenType: TokenListScreen,
+      ),
+      (
+        route: '/settings/account_management/integrations/api_webhooks',
         screenType: WebhookListScreen,
       ),
     ];

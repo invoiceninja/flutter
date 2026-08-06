@@ -12,7 +12,7 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
 
-/// `/settings/integrations/analytics` — Google Analytics + Matomo tracking
+/// `/settings/account_management/integrations/analytics` — Google Analytics + Matomo tracking
 /// IDs. Mirrors React's dedicated Analytics page. Fields write to the
 /// top-level company record (`google_analytics_key`, `matomo_id`,
 /// `matomo_url`) via `services.company.updateCompany`.

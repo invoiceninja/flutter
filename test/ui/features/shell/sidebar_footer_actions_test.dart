@@ -26,7 +26,10 @@ void main() {
     test('other settings subroutes map to /advanced-settings', () {
       expect(userGuideUrl('/settings'), '$base/advanced-settings');
       expect(userGuideUrl('/settings/account'), '$base/advanced-settings');
-      expect(userGuideUrl('/settings/integrations'), '$base/advanced-settings');
+      expect(
+        userGuideUrl('/settings/account_management/integrations'),
+        '$base/advanced-settings',
+      );
     });
 
     test('unknown routes fall back to the docs base', () {

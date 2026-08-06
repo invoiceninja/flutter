@@ -13,7 +13,7 @@ import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart
 
 const kTokensListSearchKeys = <String>['api_tokens', 'token', 'new_token'];
 
-/// `/settings/integrations/api_tokens` — list every API token. Tap a row
+/// `/settings/account_management/integrations/api_tokens` — list every API token. Tap a row
 /// to rename; tap "+ New Token" to create. System tokens (`is_system`)
 /// render as locked rows that can't be edited or deleted.
 ///
@@ -48,7 +48,7 @@ class TokenListScreen extends StatelessWidget {
     return SettingsEntityListScaffold<Token>(
       titleKey: 'api_tokens',
       sectionTitleKey: 'api_tokens',
-      newRoute: '/settings/integrations/api_tokens/new',
+      newRoute: '/settings/account_management/integrations/api_tokens/new',
       newLabelKey: 'new_token',
       emptyIcon: Icons.key_outlined,
       emptyTitleKey: 'no_api_tokens',
@@ -135,8 +135,9 @@ class _TokenRow extends StatelessWidget {
               : const Icon(Icons.chevron_right),
           onTap: token.isSystem
               ? null
-              : () =>
-                    context.go('/settings/integrations/api_tokens/${token.id}'),
+              : () => context.go(
+                  '/settings/account_management/integrations/api_tokens/${token.id}',
+                ),
         ),
         const Divider(height: 1),
       ],

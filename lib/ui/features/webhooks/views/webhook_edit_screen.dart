@@ -11,7 +11,7 @@ import 'package:admin/ui/features/settings/widgets/settings_text_field.dart';
 import 'package:admin/ui/features/webhooks/view_models/webhook_edit_view_model.dart';
 import 'package:admin/ui/features/webhooks/widgets/webhook_headers_editor.dart';
 
-/// `/settings/integrations/api_webhooks/new` and `/.../:id`.
+/// `/settings/account_management/integrations/api_webhooks/new` and `/.../:id`.
 class WebhookEditScreen extends StatelessWidget {
   const WebhookEditScreen({this.existingId, super.key});
 
@@ -25,7 +25,7 @@ class WebhookEditScreen extends StatelessWidget {
 
     return SettingsEntityEditScaffold<Webhook, WebhookEditViewModel>(
       existingId: existingId,
-      backRoute: '/settings/integrations/api_webhooks',
+      backRoute: '/settings/account_management/integrations/api_webhooks',
       createTitleKey: 'new_webhook',
       editTitleKey: 'edit_webhook',
       wireName: 'webhook',

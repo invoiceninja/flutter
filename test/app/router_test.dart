@@ -243,6 +243,71 @@ void main() {
     );
   });
 
+  // The Integrations destinations moved under Account Management (issue #8) so
+  // the shell page sits under them in the back stack. Old deep links and — the
+  // reason this exists — a persisted "where you left off" route saved by an
+  // earlier build must still resolve instead of hitting the route-error view.
+  group('legacyIntegrationsRedirect', () {
+    test('rewrites the bare legacy root', () {
+      expect(
+        legacyIntegrationsRedirect(Uri.parse('/settings/integrations')),
+        '/settings/account_management/integrations',
+      );
+    });
+
+    test('rewrites each legacy child', () {
+      for (final slug in ['api_tokens', 'api_webhooks', 'analytics']) {
+        expect(
+          legacyIntegrationsRedirect(Uri.parse('/settings/integrations/$slug')),
+          '/settings/account_management/integrations/$slug',
+        );
+      }
+    });
+
+    test('rewrites a deeper id sub-path', () {
+      expect(
+        legacyIntegrationsRedirect(
+          Uri.parse('/settings/integrations/api_tokens/tok1'),
+        ),
+        '/settings/account_management/integrations/api_tokens/tok1',
+      );
+    });
+
+    test('preserves the query string', () {
+      expect(
+        legacyIntegrationsRedirect(
+          Uri.parse('/settings/integrations/analytics?view=full'),
+        ),
+        '/settings/account_management/integrations/analytics?view=full',
+      );
+    });
+
+    test('returns null for unrelated settings routes', () {
+      expect(
+        legacyIntegrationsRedirect(Uri.parse('/settings/company_details')),
+        isNull,
+      );
+      expect(legacyIntegrationsRedirect(Uri.parse('/clients')), isNull);
+    });
+
+    test('does not match a path that merely shares the prefix', () {
+      // Prefix-only matching would swallow a future sibling route.
+      expect(
+        legacyIntegrationsRedirect(Uri.parse('/settings/integrations_foo')),
+        isNull,
+      );
+    });
+
+    test('leaves the already-migrated path alone', () {
+      expect(
+        legacyIntegrationsRedirect(
+          Uri.parse('/settings/account_management/integrations/analytics'),
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('isCompanySetupRequired', () {
     test('false when there is no session', () {
       expect(isCompanySetupRequired(null), isFalse);

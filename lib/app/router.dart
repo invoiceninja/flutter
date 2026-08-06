@@ -101,6 +101,27 @@ String companySafeLocation(
   return currentLocation;
 }
 
+/// Rewrites a legacy `/settings/integrations[/…]` location onto its current
+/// home under Account Management, or returns null when [uri] isn't one.
+///
+/// The Integrations destinations used to hang off a top-level
+/// `/settings/integrations` route. Its page was an orphan — the sidebar section
+/// had been removed — but go_router still synthesized it as the parent page of
+/// every child, so back from Analytics landed on a screen the user had never
+/// visited (issue #8). Re-parenting them fixed that and changed their URLs;
+/// this keeps old deep links and, more importantly, a restored "where you left
+/// off" route (`nav_state_persister` saves only the location, and an unmatched
+/// one renders the route-error view) working.
+String? legacyIntegrationsRedirect(Uri uri) {
+  const legacyRoot = '/settings/integrations';
+  const currentRoot = '/settings/account_management/integrations';
+  final path = uri.path;
+  if (path != legacyRoot && !path.startsWith('$legacyRoot/')) return null;
+  return uri
+      .replace(path: '$currentRoot${path.substring(legacyRoot.length)}')
+      .toString();
+}
+
 /// Redirect target for the `/settings` index.
 ///
 /// On viewports wide enough for the two-pane settings layout — shell width
@@ -552,6 +573,12 @@ GoRouter buildRouter({
                 ).replace(queryParameters: {'module_off': label}).toString();
         }
       }
+      // Legacy Integrations URLs. Sits last so the auth / setup gates still win,
+      // and works even though these paths no longer match any route: go_router
+      // runs the top-level redirect on an error match list too, with
+      // `uri` carrying the requested location.
+      final legacy = legacyIntegrationsRedirect(state.uri);
+      if (legacy != null) return legacy;
       return null;
     },
     errorBuilder: (context, state) => _RouteErrorView(error: state.error),

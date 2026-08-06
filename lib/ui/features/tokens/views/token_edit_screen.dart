@@ -9,7 +9,7 @@ import 'package:admin/ui/features/settings/widgets/settings_entity_edit_scaffold
 import 'package:admin/ui/features/settings/widgets/settings_text_field.dart';
 import 'package:admin/ui/features/tokens/view_models/token_edit_view_model.dart';
 
-/// `/settings/integrations/api_tokens/new` and `/.../:id`. Edit is
+/// `/settings/account_management/integrations/api_tokens/new` and `/.../:id`. Edit is
 /// name-only — `token`, `is_system`, and `user_id` are server-owned.
 ///
 /// On create, the server mints the raw bearer secret once and we surface
@@ -29,7 +29,7 @@ class TokenEditScreen extends StatelessWidget {
 
     return SettingsEntityEditScaffold<Token, TokenEditViewModel>(
       existingId: existingId,
-      backRoute: '/settings/integrations/api_tokens',
+      backRoute: '/settings/account_management/integrations/api_tokens',
       createTitleKey: 'new_token',
       editTitleKey: 'edit_token',
       wireName: 'token',

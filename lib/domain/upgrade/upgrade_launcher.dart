@@ -67,7 +67,9 @@ Future<void> _openPortalOrPlanScreen(BuildContext context, String url) async {
     }
   }
   if (!context.mounted) return;
-  context.go('/settings/account_management/plan');
+  // Plan is the Account Management shell's bare-URL default tab; `/plan` is not
+  // a matchable route (it would land on the route-error view).
+  context.go('/settings/account_management');
 }
 
 Future<void> _openStoreSubscriptions() async {

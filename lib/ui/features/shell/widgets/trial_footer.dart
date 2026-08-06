@@ -75,8 +75,9 @@ class TrialFooter extends StatelessWidget {
                 if (urgent) ...[
                   const SizedBox(height: 6),
                   InkWell(
-                    onTap: () =>
-                        context.go('/settings/account_management/plan'),
+                    // Plan is the shell's bare-URL default tab — `/plan` is not
+                    // a matchable route.
+                    onTap: () => context.go('/settings/account_management'),
                     child: Text(
                       context.tr('plan_change'),
                       style: TextStyle(

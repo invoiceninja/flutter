@@ -18,7 +18,7 @@ const String _kZapierUrl = 'https://zapier.com/apps/invoice-ninja/integrations';
 /// Account Management → Integrations. A pure hub of link tiles — API Tokens /
 /// API Webhooks / API Docs / Zapier / Analytics / QuickBooks. Mirrors React's
 /// Integrations hub; the Google Analytics / Matomo editor lives on its own
-/// page at `/settings/integrations/analytics` (reached via the Analytics
+/// page at `/settings/account_management/integrations/analytics` (reached via the Analytics
 /// tile), so there's a single source of truth for those fields.
 class AccountManagementIntegrationsScreen extends StatelessWidget {
   const AccountManagementIntegrationsScreen({super.key});
@@ -37,12 +37,16 @@ class AccountManagementIntegrationsScreen extends StatelessWidget {
             _IntegrationTile(
               icon: Icons.lock_outline,
               labelKey: 'api_tokens',
-              onTap: () => context.go('/settings/integrations/api_tokens'),
+              onTap: () => context.go(
+                '/settings/account_management/integrations/api_tokens',
+              ),
             ),
             _IntegrationTile(
               icon: Icons.webhook_outlined,
               labelKey: 'api_webhooks',
-              onTap: () => context.go('/settings/integrations/api_webhooks'),
+              onTap: () => context.go(
+                '/settings/account_management/integrations/api_webhooks',
+              ),
             ),
             _IntegrationTile(
               icon: Icons.menu_book_outlined,
@@ -59,7 +63,9 @@ class AccountManagementIntegrationsScreen extends StatelessWidget {
             _IntegrationTile(
               icon: Icons.analytics_outlined,
               labelKey: 'analytics',
-              onTap: () => context.go('/settings/integrations/analytics'),
+              onTap: () => context.go(
+                '/settings/account_management/integrations/analytics',
+              ),
             ),
             _IntegrationTile(
               icon: Icons.account_balance_outlined,

@@ -26,6 +26,7 @@ Plus two non-negotiables carried from admin-portal:
 | Bundled vs per-entity data loading | § Data loading — bundled vs per-entity |
 | Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
 | Changing the Drift schema (forward migration) | `docs/migrations.md` |
+| Adding / changing a sidebar count badge | § Sidebar counters + `lib/domain/sidebar_badge_modes.dart` |
 | Localization / Transifex import | § Localization |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
@@ -242,6 +243,22 @@ Before adding a new module, decide how its data is fetched. Two buckets:
 Rule of thumb: small / mostly-read / company-shared / rarely-paginated (≲ a few hundred rows) → **bundled** (three-step seam in `docs/adding-an-entity.md` § Bundled entities: `CompanyEnvelopeApi` field + repo `applyBundle` + `AuthRepository.onPersistBundles` fan-out). The kind of list a user scrolls / searches / filters → **own route**, full per-entity stack. If unsure, probe `/api/v1/refresh?first_load=true&include_static=true` against the demo API — anything already there belongs in the bundled bucket.
 
 **Bundled today**: the auth user record (`data[N].user`, written directly in `_persistAndActivate`), `task_statuses`, `company_gateways`. `applyBundle` is **upsert-only — never deletes** (`is_dirty=true` rows keep their outbox-bound payload until the next real sync); it advances the keyset cursor with `wasFullSync: true` so the screen's first `ensurePageLoaded` short-circuits.
+
+## Sidebar counters
+
+`lib/domain/sidebar_badge_modes.dart` is the single source of truth for what each sidebar row's count badge can count (`total` / `overdue` / `low_stock` / `assigned_to_me` / …, plus `none` to hide it). Every mode is answerable from columns already in Drift — **the badge never issues a network call**. Adding or changing one is three coordinated edits:
+
+1. the per-entity `SidebarBadgeMode` list here (+ its `badgeModes:` reference in `kWiredEntityModules`),
+2. a case in that DAO's `badgeModePredicate` (`BaseEntityDao`; `BankTransactionDao` hand-rolls the same hook),
+3. the mode's `labelKey` in `kSidebarBadgeModeLabelKeys`, which the settings-search catalog spreads.
+
+`sidebar_badge_count_test` fails the build if a declared mode has no predicate — the failure mode otherwise is silent, since a null predicate makes the badge count *every* row and still look like it works. Both pickers (the row's right-click menu and Settings → Device Settings → Sidebar counters) read the same registry list through `availableBadgeModes(...)`, so they can't drift apart.
+
+Counts come from the **local Drift cache**, which after login holds page 1 per entity and fills in as the user browses (or runs Download data) — so on a large account a counter can under-report, exactly as the plain total always has. Making it exact needs a server-side count; `ApiClient.getList` currently discards the response `meta`.
+
+Second known staleness: `Date.today()` is baked into the SQL when a badge stream is built, and a sidebar stream lives for the whole session — so **leaving the app open past midnight keeps the date-sensitive counters (invoice/client/project `overdue`, quote `expired`) on yesterday's date** until a restart or company switch. The list filter chip has always had this property; it's just more visible on a permanent surface. Fixing it needs a date-rollover trigger to re-key the streams — deliberately not built.
+
+Note `BaseEntityDao.watchBadgeCount` counts **active** rows (`archived_at IS NULL`), unlike the older `watchCount`, which is archived-inclusive and still backs list empty-states.
 
 ## Localization
 

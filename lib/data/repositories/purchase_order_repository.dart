@@ -18,6 +18,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 final _log = Logger('PurchaseOrderRepository');
 
@@ -95,6 +96,19 @@ class PurchaseOrderRepository
 
   Stream<int> watchCount({required String companyId}) =>
       db.purchaseOrderDao.watchCount(companyId: companyId);
+
+  /// Live count behind this entity's sidebar counter badge. [modeId] is one of
+  /// the entity's `SidebarBadgeMode` ids; [currentUserId] is read only by the
+  /// `assigned_to_me` mode.
+  Stream<int> watchBadgeCount({
+    required String companyId,
+    String modeId = kBadgeModeTotal,
+    String currentUserId = '',
+  }) => db.purchaseOrderDao.watchBadgeCount(
+    companyId: companyId,
+    modeId: modeId,
+    currentUserId: currentUserId,
+  );
 
   Stream<List<PurchaseOrder>> watchForVendor({
     required String companyId,

@@ -5,6 +5,8 @@ import 'package:admin/data/db/dao/_payload_search.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/models/domain/purchase_order_status.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/purchase_orders_table.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -53,6 +55,27 @@ class PurchaseOrderDao
   GeneratedColumn<bool> get isDeletedColumn => purchaseOrders.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => purchaseOrders.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => purchaseOrders.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    'draft' => purchaseOrders.statusId.equals(PurchaseOrderStatus.draft.wireId),
+    'sent' => purchaseOrders.statusId.equals(PurchaseOrderStatus.sent.wireId),
+    'accepted' => purchaseOrders.statusId.equals(
+      PurchaseOrderStatus.accepted.wireId,
+    ),
+    kBadgeModeAssignedToMe => assignedToUserFilter(
+      currentUserId,
+      column: purchaseOrders.assignedUserId,
+    ),
+    _ => null,
+  };
 
   Stream<List<PurchaseOrderRow>> watchPage({
     required String companyId,

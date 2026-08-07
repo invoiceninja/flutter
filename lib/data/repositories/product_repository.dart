@@ -18,6 +18,7 @@ import 'package:admin/data/services/products_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
 
@@ -128,6 +129,20 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
 
   Stream<int> watchCount({required String companyId}) =>
       db.productDao.watchCount(companyId: companyId);
+
+  /// Live count behind the Products sidebar counter. Plain passthrough like
+  /// every other repo — the stock modes' dependency on the company's inventory
+  /// settings is resolved inside the query (see
+  /// `ProductDao.badgeModePredicate`), so nothing has to be composed here.
+  Stream<int> watchBadgeCount({
+    required String companyId,
+    String modeId = kBadgeModeTotal,
+    String currentUserId = '',
+  }) => db.productDao.watchBadgeCount(
+    companyId: companyId,
+    modeId: modeId,
+    currentUserId: currentUserId,
+  );
 
   /// Distinct active `product_key` values as `(id, name)` pairs. Backs the
   /// reports product multi-select (the report filter keys on `product_key`).

@@ -57,6 +57,7 @@ import 'package:admin/ui/features/settings/views/advanced/group_settings_screen.
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/templates_reminders_body.dart';
 import 'package:admin/ui/features/payment_links/views/payment_link_edit_screen.dart';
 import 'package:admin/ui/features/payment_links/views/payment_link_list_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/device_settings_screen.dart';
 
 /// Single source of truth for the settings sidebar layout and the in-app
 /// settings search. `SettingsListSidebar` reads `kSettingsSections` to render
@@ -465,14 +466,7 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'company_backup_file',
   ],
   'import_export': [...kImportExportSearchKeys],
-  'device_settings': [
-    'theme',
-    'font_size',
-    'customize_colors',
-    'download',
-    'security',
-    'biometric_authentication',
-  ],
+  'device_settings': [...kDeviceSettingsSearchKeys],
   'keyboard_shortcuts': [...kKeyboardShortcutsSearchKeys],
   'invoice_design': [
     // General Settings tab — design pickers

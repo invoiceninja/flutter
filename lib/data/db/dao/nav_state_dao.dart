@@ -120,5 +120,21 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Sidebar-counter-choices-only update — [SidebarBadgeModeController] calls
+  /// this when the user picks a different counter for a sidebar row. Leaves
+  /// the other fields untouched, same partial-write pattern as [saveFilters].
+  Future<void> saveSidebarBadgeModes({
+    required String? sidebarBadgeModesJson,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        sidebarBadgeModesJson: Value(sidebarBadgeModesJson),
+        updatedAt: now,
+      ),
+    );
+  }
+
   Future<void> clear() => (delete(navState)..where((n) => n.id.equals(0))).go();
 }

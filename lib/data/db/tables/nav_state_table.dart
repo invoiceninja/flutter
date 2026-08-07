@@ -32,6 +32,14 @@ class NavState extends Table {
   TextColumn get keyboardShortcutsJson =>
       text().named('keyboard_shortcuts_json').nullable()();
 
+  /// Device-local sidebar counter choices (Settings → Device Settings →
+  /// Sidebar counters, or a right-click on the row), as a JSON object keyed by
+  /// `EntityType.name` → `SidebarBadgeMode.id`. Null column = every row on its
+  /// default (`total`). Only non-default choices are stored, so a mode added
+  /// later doesn't need a backfill. Added in schema v3.
+  TextColumn get sidebarBadgeModesJson =>
+      text().named('sidebar_badge_modes_json').nullable()();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

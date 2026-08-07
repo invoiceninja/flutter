@@ -8,7 +8,10 @@ import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/invoices_table.dart';
+import 'package:admin/data/models/domain/invoice_status.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_state.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'invoice_dao.g.dart';
 
@@ -59,6 +62,29 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
   GeneratedColumn<bool> get isDeletedColumn => invoices.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => invoices.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => invoices.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    'overdue' => invoiceOverdueFilter(invoices, Date.today().toIso()),
+    // Sent + partial, matching the server's `client_status=unpaid`.
+    'unpaid' => invoices.statusId.isIn([
+      InvoiceStatus.sent.wireId,
+      InvoiceStatus.partial.wireId,
+    ]),
+    'draft' => invoices.statusId.equals(InvoiceStatus.draft.wireId),
+    kBadgeModeAssignedToMe => assignedToUserFilter(
+      currentUserId,
+      column: invoices.assignedUserId,
+    ),
+    _ => null,
+  };
 
   /// Windowed list watch. Filters: state (active/archived/deleted), free-text
   /// search across number + public_notes + private_notes + po_number (via
@@ -130,26 +156,7 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
       q.where((e) => e.statusId.isIn(statusIds.toList()));
     }
     if (overdueAsOf != null) {
-      // Mirror `Invoice.isPastDue` (the single source of truth): balance > 0,
-      // not paid/cancelled/reversed, and the effective due date
-      // (partial_due_date ?? due_date, ignoring empty strings) is before
-      // `overdueAsOf` (the domain's `Date.today()`, passed in so the local
-      // predicate and the getter use the same clock).
-      const effectiveDue = CustomExpression<String>(
-        "COALESCE(NULLIF(partial_due_date, ''), NULLIF(due_date, ''))",
-      );
-      q.where(
-        (e) =>
-            e.balance.cast<double>().isBiggerThanValue(0) &
-            // Drafts are never past due (nothing has been sent yet) — the
-            // getter says so and the server's own filter is
-            // `whereIn(status_id, [SENT, PARTIAL])`. Without this the chip
-            // returned rows whose pill reads "Draft".
-            e.statusId.equals('1').not() &
-            e.statusId.isIn(const ['4', '5', '6']).not() &
-            effectiveDue.isNotNull() &
-            effectiveDue.isSmallerThanValue(overdueAsOf),
-      );
+      q.where((e) => invoiceOverdueFilter(e, overdueAsOf));
     }
     if (dateStart != null && dateEnd != null) {
       q.where((e) => e.date.isBetweenValues(dateStart, dateEnd));
@@ -356,4 +363,30 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
 extension on Invoices {
   Expression<bool> notesLikePayload(String needle) =>
       payloadJsonLike(needle, const ['public_notes', 'private_notes']);
+}
+
+/// SQL mirror of `Invoice.isPastDue` — the single source of truth for what
+/// "overdue" means, shared by the list's `overdue:true` filter chip and the
+/// sidebar counter so the two can never disagree.
+///
+/// Balance > 0, not draft / paid / cancelled / reversed, and the effective due
+/// date (`partial_due_date ?? due_date`) is before [asOf] — pass
+/// `Date.today().toIso()` so the predicate and the domain getter share a clock.
+///
+/// `NULLIF(col, '')` is load-bearing: the date columns default to `''`, and in
+/// SQLite `'' < '2026-08-07'` is TRUE, so without it every dateless invoice
+/// would count as overdue.
+Expression<bool> invoiceOverdueFilter(Invoices e, String asOf) {
+  const effectiveDue = CustomExpression<String>(
+    "COALESCE(NULLIF(partial_due_date, ''), NULLIF(due_date, ''))",
+  );
+  return e.balance.cast<double>().isBiggerThanValue(0) &
+      // Drafts are never past due (nothing has been sent yet) — the getter
+      // says so and the server's own filter is
+      // `whereIn(status_id, [SENT, PARTIAL])`. Without this the chip returned
+      // rows whose pill reads "Draft".
+      e.statusId.equals('1').not() &
+      e.statusId.isIn(const ['4', '5', '6']).not() &
+      effectiveDue.isNotNull() &
+      effectiveDue.isSmallerThanValue(asOf);
 }

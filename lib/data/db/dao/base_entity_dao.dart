@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show protected, visibleForTesting;
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/company_scoped_dao.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 /// Universal CRUD-list scaffolding for per-entity DAOs. Owns the five
 /// methods every entity DAO needs to expose identically — `watchById`,
@@ -50,6 +52,10 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
 
   /// Count of non-deleted rows for [companyId]. Drives the empty-state UI
   /// and total-count badges on list screens.
+  ///
+  /// Note this counts archived rows too. That's wrong for the sidebar badge
+  /// (whose list shows active rows only) — see [watchBadgeCount] — but it's
+  /// the long-standing behaviour for the other ~10 callers, so it stays.
   Stream<int> watchCount({required String companyId}) {
     final count = idColumn.count();
     final q = selectOnly(table)
@@ -58,6 +64,84 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
         companyIdColumn.equals(companyId) & isDeletedColumn.equals(false),
       );
     return q.map((row) => row.read(count) ?? 0).watchSingle();
+  }
+
+  // -- Sidebar counter badge ------------------------------------------------
+
+  /// `archived_at` — bound by the DAOs whose entity shows a sidebar badge, so
+  /// [watchBadgeCount] can exclude archived rows and match the list the user
+  /// sees when they click the row. Every entity table has the column (via
+  /// `EntityTimestampColumns`); leaving it null on a DAO simply opts that DAO
+  /// out of the active-only filter.
+  GeneratedColumn<int>? get archivedAtColumn => null;
+
+  /// Extra predicate for a non-`total` [SidebarBadgeMode]. Return null for a
+  /// mode this entity doesn't understand — the count then falls back to
+  /// counting everything, which is friendlier than showing a hard zero. The
+  /// coherence check in `sidebar_badge_count_test` is what stops a *declared*
+  /// mode from quietly landing in that fallback; hence `@visibleForTesting`
+  /// alongside `@protected`.
+  @protected
+  @visibleForTesting
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => null;
+
+  /// Live count behind the sidebar badge: active rows for [companyId] that
+  /// match [modeId]. `total` counts them all; every other id delegates to
+  /// [badgeModePredicate]. [currentUserId] is only read by the
+  /// `assigned_to_me` mode.
+  Stream<int> watchBadgeCount({
+    required String companyId,
+    String modeId = kBadgeModeTotal,
+    String currentUserId = '',
+  }) {
+    if (modeId == kBadgeModeNone) return Stream.value(0);
+    final count = idColumn.count();
+    final q = selectOnly(table)
+      ..addColumns([count])
+      ..where(badgeBaseFilter(companyId));
+    final extra = modeId == kBadgeModeTotal
+        ? null
+        : badgeModePredicate(
+            modeId,
+            companyId: companyId,
+            currentUserId: currentUserId,
+          );
+    if (extra != null) q.where(extra);
+    return q.map((row) => row.read(count) ?? 0).watchSingle();
+  }
+
+  /// The company + active-state predicate every badge count starts from. Also
+  /// used to scope the cross-entity subqueries (a vendor's unpaid expenses
+  /// shouldn't count an expense the user archived).
+  @protected
+  Expression<bool> badgeBaseFilter(String companyId) {
+    final base =
+        companyIdColumn.equals(companyId) & isDeletedColumn.equals(false);
+    final archived = archivedAtColumn;
+    return archived == null ? base : base & archived.isNull();
+  }
+
+  /// `assigned_to_me` predicate. An empty [userId] matches **nothing** — a
+  /// logged-out or mid-switch session must show no rows rather than every row.
+  ///
+  /// Pass [column] when the entity has a real `assigned_user_id` column; omit
+  /// it for tasks / expenses, whose tables don't, and the value is read out of
+  /// the `payload` JSON instead (the same `json_extract` idiom `ProductDao`
+  /// uses for the inventory fields).
+  @protected
+  Expression<bool> assignedToUserFilter(
+    String userId, {
+    GeneratedColumn<String>? column,
+  }) {
+    if (userId.isEmpty) return const Constant(false);
+    if (column != null) return column.equals(userId);
+    return const CustomExpression<String>(
+      "COALESCE(json_extract(payload, '\$.assigned_user_id'), '')",
+    ).equals(userId);
   }
 
   /// Single-row watch. Used by detail screens and edit screens that survive

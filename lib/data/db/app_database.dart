@@ -182,7 +182,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -208,9 +208,15 @@ class AppDatabase extends _$AppDatabase {
     // shortcut overrides). A single nullable column — no data backfill needed
     // (null = "all defaults"). Manual `addColumn` (no versioned-schema
     // generation required for a plain column add).
+    //
+    // v2 → v3: add `nav_state.sidebar_badge_modes_json` (device-local sidebar
+    // counter choices). Same shape — nullable, null = "every row on total".
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
+      }
+      if (from < 3) {
+        await m.addColumn(navState, navState.sidebarBadgeModesJson);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

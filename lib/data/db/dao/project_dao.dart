@@ -2,11 +2,13 @@ import 'package:drift/drift.dart';
 
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/projects_table.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'project_dao.g.dart';
 
@@ -49,6 +51,33 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
   GeneratedColumn<bool> get isDeletedColumn => projects.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => projects.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => projects.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    // `NULLIF` is load-bearing: `due_date` defaults to `''`, and in SQLite
+    // `'' < '2026-08-07'` is TRUE, so without it every dateless project would
+    // read as overdue.
+    'overdue' => const CustomExpression<String>(
+      "NULLIF(due_date, '')",
+    ).isSmallerThanValue(Date.today().toIso()),
+    // Budget blown. Guarded on a budget actually being set — a project with
+    // `budgeted_hours = 0` has no budget to exceed.
+    'over_budget' =>
+      projects.budgetedHours.isBiggerThanValue(0) &
+          projects.currentHours.isBiggerThan(projects.budgetedHours),
+    kBadgeModeAssignedToMe => assignedToUserFilter(
+      currentUserId,
+      column: projects.assignedUserId,
+    ),
+    _ => null,
+  };
 
   /// Watch a windowed slice of projects. Filters: state (active/archived/
   /// deleted), free-text search across name + number + public/private

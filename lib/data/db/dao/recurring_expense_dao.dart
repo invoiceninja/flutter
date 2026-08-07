@@ -59,6 +59,9 @@ class RecurringExpenseDao
   @override
   GeneratedColumn<bool> get isDirtyColumn => recurringExpenses.isDirty;
 
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => recurringExpenses.archivedAt;
+
   /// Windowed list watch. Filter by state + free-text search + status chip
   /// (the 5 [kRecurringExpenseStatus*] values, or `null` for "all"). The
   /// status SQL fragments mirror admin-portal `expense_model.dart:817-854`
@@ -173,6 +176,35 @@ class RecurringExpenseDao
     }
     return q.watchSingle().map((row) => row.read(countExp) ?? 0);
   }
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    // The chip filter already models the whole computed-status cascade
+    // (including "exhausted rows display as Completed"), so reuse it verbatim
+    // rather than re-deriving a second, subtly-different version here. It
+    // keys on the wire id, not the label, hence the hop through the map.
+    'pending' => _statusChipFilter(
+      recurringExpenses,
+      kRecurringExpenseStatusPending,
+    ),
+    'active' => _statusChipFilter(
+      recurringExpenses,
+      kRecurringExpenseStatusActive,
+    ),
+    'paused' => _statusChipFilter(
+      recurringExpenses,
+      kRecurringExpenseStatusPaused,
+    ),
+    'draft' => _statusChipFilter(
+      recurringExpenses,
+      kRecurringExpenseStatusDraft,
+    ),
+    _ => null,
+  };
 
   Expression<bool> _statusChipFilter(
     RecurringExpenses e,

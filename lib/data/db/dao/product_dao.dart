@@ -62,6 +62,72 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
   @override
   GeneratedColumn<bool> get isDirtyColumn => products.isDirty;
 
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => products.archivedAt;
+
+  /// The stock counters are the only badge modes that need values from outside
+  /// the row: the company's `track_inventory` switch, and its
+  /// `inventory_notification_threshold` as the fallback when a product carries
+  /// no threshold of its own.
+  ///
+  /// Both are pulled in as **subqueries over `companies`** rather than being
+  /// passed down from the repository. That keeps this a single query, and —
+  /// because drift registers a subquery's table as one this stream reads from —
+  /// the badge recomputes on its own when Product Settings changes, with no
+  /// stream-switching plumbing in the repo.
+  ///
+  /// The inventory fields themselves are payload-only, read with the same
+  /// `json_extract` shape `_sortExpression` already uses for them.
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) {
+    if (modeId != 'out_of_stock' && modeId != 'low_stock') return null;
+    const qty = CustomExpression<double>(
+      r"CAST(COALESCE(json_extract(payload, '$.in_stock_quantity'), 0) AS REAL)",
+    );
+    const ownThreshold = CustomExpression<double>(
+      r"CAST(COALESCE(json_extract(payload, '$.stock_notification_threshold')"
+      r', 0) AS REAL)',
+    );
+    // Inventory off ⇒ on-hand stock is meaningless. Without this gate every
+    // product would read as out of stock, since the payload key is absent and
+    // `COALESCE(…, 0) <= 0` holds.
+    final trackingOn = existsQuery(
+      selectOnly(attachedDatabase.companies)
+        ..addColumns([attachedDatabase.companies.id])
+        ..where(
+          attachedDatabase.companies.id.equals(companyId) &
+              attachedDatabase.companies.trackInventory.equals(true),
+        ),
+    );
+    if (modeId == 'out_of_stock') {
+      return trackingOn & qty.isSmallerOrEqualValue(0);
+    }
+    final companyThreshold = subqueryExpression<double>(
+      selectOnly(attachedDatabase.companies)
+        ..addColumns([
+          attachedDatabase.companies.inventoryNotificationThreshold
+              .cast<double>(),
+        ])
+        ..where(attachedDatabase.companies.id.equals(companyId)),
+    );
+    // Mirrors `InventoryScope.statusFor`, which mirrors the backend
+    // `AdjustProductInventory` two-tier check: the product's own threshold, or
+    // the company fallback when the product's is 0. `out` wins over `low`, so
+    // low-stock excludes rows already at or below zero.
+    final effective = CaseWhenExpression<double>(
+      cases: [CaseWhen(ownThreshold.isBiggerThanValue(0), then: ownThreshold)],
+      orElse: companyThreshold,
+    );
+    return trackingOn &
+        qty.isBiggerThanValue(0) &
+        effective.isBiggerThanValue(0) &
+        qty.isSmallerOrEqual(effective);
+  }
+
   /// Watch a windowed slice of products. Filters: state (active/archived/
   /// deleted), free-text search across product_key + notes.
   Stream<List<ProductRow>> watchPage({

@@ -2,12 +2,15 @@ import 'package:drift/drift.dart';
 
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/columns/client_columns.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/db/dao/invoice_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/clients_table.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'client_dao.g.dart';
 
@@ -26,6 +29,43 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
   GeneratedColumn<bool> get isDeletedColumn => clients.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => clients.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => clients.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    // Clients with at least one past-due invoice — who's actually late, which
+    // is sharper than "who has a balance". Reuses the invoice list's own
+    // overdue expression, so the two can't disagree. The `invoices` subquery
+    // keeps the badge reactive to invoice changes, not just client ones.
+    'overdue' => clients.id.isInQuery(_overdueInvoiceClientIds(companyId)),
+    'outstanding' => clients.balance.cast<double>().isBiggerThanValue(0),
+    kBadgeModeAssignedToMe => assignedToUserFilter(
+      currentUserId,
+      column: clients.assignedUserId,
+    ),
+    _ => null,
+  };
+
+  /// Client ids with at least one active, past-due invoice in [companyId].
+  JoinedSelectStatement<HasResultSet, dynamic> _overdueInvoiceClientIds(
+    String companyId,
+  ) {
+    final invoices = attachedDatabase.invoices;
+    return selectOnly(invoices)
+      ..addColumns([invoices.clientId])
+      ..where(
+        invoices.companyId.equals(companyId) &
+            invoices.isDeleted.equals(false) &
+            invoices.archivedAt.isNull() &
+            invoiceOverdueFilter(invoices, Date.today().toIso()),
+      );
+  }
 
   Stream<List<ClientRow>> watchPage({
     required String companyId,

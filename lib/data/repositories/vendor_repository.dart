@@ -21,6 +21,7 @@ import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 final _log = Logger('VendorRepository');
 
@@ -113,6 +114,19 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
   /// badge; emits every time a vendor is added, archived, or deleted.
   Stream<int> watchCount({required String companyId}) =>
       db.vendorDao.watchCount(companyId: companyId);
+
+  /// Live count behind this entity's sidebar counter badge. [modeId] is one of
+  /// the entity's `SidebarBadgeMode` ids; [currentUserId] is read only by the
+  /// `assigned_to_me` mode.
+  Stream<int> watchBadgeCount({
+    required String companyId,
+    String modeId = kBadgeModeTotal,
+    String currentUserId = '',
+  }) => db.vendorDao.watchBadgeCount(
+    companyId: companyId,
+    modeId: modeId,
+    currentUserId: currentUserId,
+  );
 
   /// Stream `(id, name)` pairs for active vendors. Powers the vendor picker
   /// on the Expense edit screen.

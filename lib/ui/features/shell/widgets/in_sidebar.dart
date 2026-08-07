@@ -5,11 +5,13 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/db/app_database.dart' show CompanyRow;
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/domain/saved_view.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart'
     show goToCreateRoute;
@@ -104,8 +106,19 @@ class _InSidebarState extends State<InSidebar> {
 
   _CachedStream<SavedView?>? _activeView;
   _CachedStream<List<SavedView>>? _savedViews;
+
+  /// The active company row. Only the product stock counters care about it
+  /// (`track_inventory` gates whether those modes are offered at all), but the
+  /// menu has to know before it renders — so it rides the same per-company
+  /// cached-stream generation as the saved views.
+  _CachedStream<CompanyRow?>? _company;
   final Map<Object, _CachedStream<int>> _badgeStreams =
       <Object, _CachedStream<int>>{};
+
+  /// Last-seen counter mode per entity, so [_syncStreams] can tear down the
+  /// stream a row just switched away from. Only entities that have rendered a
+  /// badge appear here.
+  final Map<EntityType, String> _badgeModes = <EntityType, String>{};
 
   /// The entity owning the active branch, or `null` for a fixed branch
   /// (Dashboard / Settings / Outbox / Reports). Drives the active-view
@@ -158,15 +171,37 @@ class _InSidebarState extends State<InSidebar> {
       _savedViews = _CachedStream<List<SavedView>>(
         services.savedViews.watchAll(companyId),
       );
+      _company?.close();
+      _company = _CachedStream<CompanyRow?>(
+        services.db.companiesDao.watchById(companyId),
+      );
       for (final s in _badgeStreams.values) {
         s.close();
       }
       _badgeStreams.clear();
+      _badgeModes.clear();
     }
   }
 
+  /// Record the counter mode [type]'s row is rendering with, and tear down the
+  /// stream it just switched away from.
+  ///
+  /// Badge streams are keyed by `(entity, mode)`, so a switch misses the cache
+  /// and builds a fresh query — but without this the superseded entry would
+  /// keep a live Drift query open for the rest of the session. Called from
+  /// `_entityNav` rather than [_syncStreams] so it compares against the mode
+  /// actually rendered (which may have fallen back to `total` because the
+  /// stored one isn't offered for this company), not a freshly-resolved one.
+  void _noteBadgeMode(EntityType type, String modeId) {
+    final previous = _badgeModes[type];
+    if (previous == modeId) return;
+    if (previous != null) _badgeStreams.remove((type, previous))?.close();
+    _badgeModes[type] = modeId;
+  }
+
   /// Memoize a badge stream within the current company generation. Cleared
-  /// (and closed) wholesale by [_syncStreams] when the company changes.
+  /// (and closed) wholesale by [_syncStreams] when the company changes, and
+  /// per-entity when its counter mode changes.
   Stream<int> _cachedBadge(Object key, Stream<int> Function() factory) =>
       _badgeStreams
           .putIfAbsent(key, () => _CachedStream<int>(factory()))
@@ -176,6 +211,7 @@ class _InSidebarState extends State<InSidebar> {
   void dispose() {
     _activeView?.close();
     _savedViews?.close();
+    _company?.close();
     for (final s in _badgeStreams.values) {
       s.close();
     }
@@ -257,17 +293,31 @@ class _InSidebarState extends State<InSidebar> {
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
-                      child: StreamBuilder<SavedView?>(
-                        stream: _activeView?.stream,
-                        builder: (context, snap) => Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: _buildItems(
-                            context,
-                            services,
-                            session.currentCompanyId,
-                            compact: collapsed,
-                            activeViewId: snap.data?.id,
-                          ),
+                      // Counter choices repaint the rail: a badge switching
+                      // from a grey total to a red overdue count changes the
+                      // row, not just the number.
+                      child: ListenableBuilder(
+                        listenable: services.sidebarBadgeModes,
+                        builder: (context, _) => StreamBuilder<CompanyRow?>(
+                          stream: _company?.stream,
+                          builder: (context, companySnap) =>
+                              StreamBuilder<SavedView?>(
+                                stream: _activeView?.stream,
+                                builder: (context, snap) => Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: _buildItems(
+                                    context,
+                                    services,
+                                    session.currentCompanyId,
+                                    compact: collapsed,
+                                    activeViewId: snap.data?.id,
+                                    trackInventory:
+                                        companySnap.data?.trackInventory ??
+                                        false,
+                                  ),
+                                ),
+                              ),
                         ),
                       ),
                     ),
@@ -326,6 +376,7 @@ class _InSidebarState extends State<InSidebar> {
     String companyId, {
     required bool compact,
     required String? activeViewId,
+    required bool trackInventory,
   }) {
     final registry = services.entityRegistry;
     // Modules disabled for the active company hide their sidebar row entirely
@@ -358,6 +409,7 @@ class _InSidebarState extends State<InSidebar> {
             companyId,
             compact: compact,
             activeViewId: activeViewId,
+            trackInventory: trackInventory,
           ),
       // Reports — hidden when the active company lacks `view_reports`.
       // Rendered after the entity list to match the React app's order
@@ -434,6 +486,7 @@ class _InSidebarState extends State<InSidebar> {
     String companyId, {
     required bool compact,
     required String? activeViewId,
+    required bool trackInventory,
   }) {
     final branch = services.entityRegistry.branchIndexFor(handlers.type);
     // The current-branch entity row yields its highlight to the active
@@ -469,30 +522,71 @@ class _InSidebarState extends State<InSidebar> {
             if (!context.mounted) return;
             widget.onSelectBranch(branch);
           };
-    final tile = SidebarNavItem(
+    SidebarNavItem buildTile({
+      int? count,
+      SidebarBadgeTone tone = SidebarBadgeTone.neutral,
+      String? countLabel,
+    }) => SidebarNavItem(
       label: label,
       icon: handlers.effectiveOutlinedIcon,
       active: isActive,
       disabled: handlers.disabled,
       compact: compact,
+      count: count,
+      countTone: tone,
+      countLabel: countLabel,
       onTap: onTap,
       trailingHover: hoverAdd,
       leaderKey: branch == null ? null : _entityLeaderKey(handlers.type),
     );
+
     final badge = handlers.badgeStream;
-    if (badge == null) return tile;
-    return StreamBuilder<int>(
-      stream: _cachedBadge(handlers.type, () => badge(services, companyId)),
-      builder: (context, snap) => SidebarNavItem(
-        label: label,
-        icon: handlers.effectiveOutlinedIcon,
-        active: isActive,
-        disabled: handlers.disabled,
-        compact: compact,
-        count: snap.data,
-        onTap: onTap,
-        trailingHover: hoverAdd,
-        leaderKey: branch == null ? null : _entityLeaderKey(handlers.type),
+    final offered = availableBadgeModes(
+      handlers.badgeModes,
+      trackInventory: trackInventory,
+    );
+    final modeId = services.sidebarBadgeModes.modeFor(
+      handlers.type,
+      available: offered,
+    );
+    _noteBadgeMode(handlers.type, modeId);
+
+    Widget withMenu(Widget child) {
+      // Right-click / long-press to change what this row counts. Mirrors the
+      // saved-view rows' menu (see `_openSavedViewMenu`); skipped in compact
+      // mode and on disabled rows for the same reasons they skip it.
+      if (compact || handlers.disabled || offered.length < 2) return child;
+      return _BadgeModeMenuTarget(
+        entityType: handlers.type,
+        modes: offered,
+        selectedId: modeId,
+        child: child,
+      );
+    }
+
+    if (badge == null || modeId == kBadgeModeNone) {
+      return withMenu(buildTile());
+    }
+    final mode = offered.firstWhere(
+      (m) => m.id == modeId,
+      orElse: () => offered.first,
+    );
+    return withMenu(
+      StreamBuilder<int>(
+        // Keyed by (entity, mode): keying by entity alone would hand a row that
+        // just switched to "Overdue" the previously-cached total.
+        stream: _cachedBadge((
+          handlers.type,
+          modeId,
+        ), () => badge(services, companyId, modeId)),
+        builder: (context, snap) => buildTile(
+          count: snap.data,
+          tone: mode.tone,
+          // A plain total needs no explaining; a status count does.
+          countLabel: modeId == kBadgeModeTotal
+              ? null
+              : context.tr(mode.labelKey),
+        ),
       ),
     );
   }
@@ -920,6 +1014,63 @@ class _SavedViewMenuButton extends StatelessWidget {
       constraints: const BoxConstraints.tightFor(width: 18, height: 18),
       icon: Icon(Icons.more_vert, color: context.inTheme.ink3),
       onPressed: () => _open(context),
+    );
+  }
+}
+
+/// Wraps an entity sidebar row with a right-click / long-press menu for
+/// choosing what its badge counts. Mirrors the saved-view rows' menu
+/// ([_openSavedViewMenu]) — `showMenu` rather than `PopupMenuButton`, which
+/// sizes the menu to the trigger's footprint and clips it.
+///
+/// Unlike saved-view rows there's no always-visible `⋮` trigger: the entity
+/// row's right edge already belongs to the hover `+`. Settings → Device
+/// Settings → Sidebar counters is the discoverable (and keyboard-reachable)
+/// path; this is the shortcut for people who already know it's here.
+class _BadgeModeMenuTarget extends StatelessWidget {
+  const _BadgeModeMenuTarget({
+    required this.entityType,
+    required this.modes,
+    required this.selectedId,
+    required this.child,
+  });
+
+  final EntityType entityType;
+  final List<SidebarBadgeMode> modes;
+  final String selectedId;
+  final Widget child;
+
+  Future<void> _open(BuildContext context, Offset globalPosition) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final controller = context.read<Services>().sidebarBadgeModes;
+    final picked = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        for (final mode in modes)
+          CheckedPopupMenuItem<String>(
+            value: mode.id,
+            checked: mode.id == selectedId,
+            child: Text(context.tr(mode.labelKey)),
+          ),
+      ],
+    );
+    if (picked == null) return;
+    await controller.set(entityType, picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onSecondaryTapDown: (d) => unawaited(_open(context, d.globalPosition)),
+      onLongPressStart: (d) => unawaited(_open(context, d.globalPosition)),
+      child: child,
     );
   }
 }

@@ -6,15 +6,31 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/text_scale_controller.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/widgets/biometric_toggle_tile.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
+import 'package:admin/ui/features/settings/widgets/sidebar_counters_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
 import 'package:admin/ui/features/settings/widgets/theme_tile.dart';
 import 'package:admin/utils/formatting.dart';
+
+/// Search keys for the settings sidebar search. Colocated with the screen so
+/// adding / renaming a field updates both ends in one place (see
+/// `search_catalog_consistency_test`).
+const kDeviceSettingsSearchKeys = <String>[
+  'theme',
+  'font_size',
+  'customize_colors',
+  'download',
+  'security',
+  'biometric_authentication',
+  ...kSidebarCountersSearchKeys,
+  ...kSidebarBadgeModeSearchKeys,
+];
 
 /// Top-level "Device Settings" page. Holds the device-local, no-save controls:
 /// theme (mode + palette), the per-preset colour overrides, biometric
@@ -67,6 +83,7 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
                   title: context.tr('security'),
                   children: const [BiometricToggleTile()],
                 ),
+              const SidebarCountersSection(),
               const _DataSection(),
             ],
           );

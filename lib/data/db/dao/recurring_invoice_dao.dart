@@ -5,6 +5,8 @@ import 'package:admin/data/db/dao/_payload_search.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/models/domain/recurring_invoice_status.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/recurring_invoices_table.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -56,6 +58,34 @@ class RecurringInvoiceDao
   GeneratedColumn<bool> get isDeletedColumn => recurringInvoices.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => recurringInvoices.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => recurringInvoices.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    'active' => recurringInvoices.statusId.equals(
+      RecurringInvoiceStatus.active.wireId,
+    ),
+    'paused' => recurringInvoices.statusId.equals(
+      RecurringInvoiceStatus.paused.wireId,
+    ),
+    'draft' => recurringInvoices.statusId.equals(
+      RecurringInvoiceStatus.draft.wireId,
+    ),
+    kBadgeModeAssignedToMe => assignedToUserFilter(
+      currentUserId,
+      column: recurringInvoices.assignedUserId,
+    ),
+    // No `pending` (active but never sent): that computed status needs
+    // `last_sent_date`, which this table doesn't carry — recurring *expenses*
+    // does, which is why the mode is offered there and not here.
+    _ => null,
+  };
 
   Stream<List<RecurringInvoiceRow>> watchPage({
     required String companyId,

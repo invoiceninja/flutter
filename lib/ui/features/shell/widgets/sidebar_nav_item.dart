@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_badge.dart';
 import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 
 /// One row in the sidebar nav list. Three visual states:
@@ -24,6 +26,8 @@ class SidebarNavItem extends StatefulWidget {
     required this.active,
     this.onTap,
     this.count,
+    this.countTone = SidebarBadgeTone.neutral,
+    this.countLabel,
     this.disabled = false,
     this.compact = false,
     this.trailingHover,
@@ -37,6 +41,17 @@ class SidebarNavItem extends StatefulWidget {
   final bool active;
   final VoidCallback? onTap;
   final int? count;
+
+  /// Colour weight of the [count] badge — set from the row's selected
+  /// `SidebarBadgeMode`. Neutral is the plain "how many are there" count.
+  final SidebarBadgeTone countTone;
+
+  /// Localized name of what [count] is counting ("Overdue", "Low stock"). Shown
+  /// in a tooltip on the badge, and folded into the row tooltip in [compact]
+  /// mode where the number isn't rendered at all. Null for a plain total, which
+  /// needs no explanation.
+  final String? countLabel;
+
   final bool disabled;
 
   /// Icon-only variant for the collapsed wide-layout sidebar. The label
@@ -51,10 +66,10 @@ class SidebarNavItem extends StatefulWidget {
 
   /// Always-visible secondary action at the row's right edge (no hover
   /// gate), used by saved-view rows so their context menu is discoverable
-  /// and keyboard-reachable. Ignored in [compact] mode (no room). Takes
-  /// priority over [trailingHover] and the [count] badge. Invariant: a row
-  /// never sets both [trailing] and [count] — saved-view rows set [trailing]
-  /// only, badge rows set [count] only.
+  /// and keyboard-reachable. Ignored in [compact] mode (no room). Replaces
+  /// both [trailingHover] and the [count] badge. Invariant: a row never sets
+  /// both [trailing] and [count] — saved-view rows set [trailing] only, badge
+  /// rows set [count] only. ([trailingHover] and [count] *do* coexist.)
   final Widget? trailing;
 
   /// The second key of this row's `G`-then-letter leader jump (e.g. `'C'`
@@ -71,6 +86,33 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
 
   bool get _showsTrailingHover =>
       widget.trailingHover != null && !widget.compact && !widget.disabled;
+
+  /// The badge, plus a tooltip naming what it counts when that isn't obvious.
+  /// A bare red `3` is only useful if you can find out it means "overdue".
+  Widget _badgeWithTooltip() {
+    final badge = SidebarBadge(
+      count: widget.count!,
+      active: widget.active,
+      tone: widget.countTone,
+    );
+    final label = widget.countLabel;
+    if (label == null) return badge;
+    return Tooltip(
+      message: '${widget.count} $label',
+      waitDuration: const Duration(milliseconds: 400),
+      child: badge,
+    );
+  }
+
+  /// Row tooltip text in compact mode. The collapsed rail shows a coloured dot
+  /// with no number, so the count and what it counts ride along here — this is
+  /// the only place that information exists when the sidebar is collapsed.
+  String get _compactTooltip {
+    final label = widget.countLabel;
+    final count = widget.count;
+    if (label == null || count == null || count == 0) return widget.label;
+    return '${widget.label} — $count $label';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +153,10 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: tokens.accent,
+                              color: SidebarBadge.dotColorFor(
+                                tokens,
+                                widget.countTone,
+                              ),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: tokens.surface,
@@ -156,12 +201,20 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
                 if (widget.trailing != null) ...[
                   const SizedBox(width: 4),
                   widget.trailing!,
-                ] else if (_showsTrailingHover && _hovered) ...[
-                  const SizedBox(width: 4),
-                  widget.trailingHover!,
-                ] else if (widget.count != null && widget.count! > 0) ...[
-                  const SizedBox(width: 6),
-                  _Badge(count: widget.count!, active: widget.active),
+                ] else ...[
+                  // The hover `+` and the badge coexist. They used to be
+                  // mutually exclusive, which was harmless for a plain total
+                  // but not once the number can be a red "3 overdue" — hovering
+                  // a row must not hide the thing it's warning you about. The
+                  // label ellipsizes to make room, as it already did.
+                  if (_showsTrailingHover && _hovered) ...[
+                    const SizedBox(width: 4),
+                    widget.trailingHover!,
+                  ],
+                  if (widget.count != null && widget.count! > 0) ...[
+                    const SizedBox(width: 6),
+                    _badgeWithTooltip(),
+                  ],
                 ],
               ],
             ),
@@ -199,7 +252,9 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
       // (which otherwise shows only the bare label tooltip) since the label
       // rides along in the shortcut tooltip.
       return ShortcutTooltip(
-        label: widget.label,
+        // Compact rows fold the count into the label — the collapsed rail's
+        // dot has no number, and this tooltip is the only text it gets.
+        label: widget.compact ? _compactTooltip : widget.label,
         keys: ['G', widget.leaderKey!],
         sequence: true,
         waitDuration: const Duration(milliseconds: 600),
@@ -210,39 +265,11 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
       // Enabled items also need a tooltip in compact mode — the label is the
       // only thing telling the user what this icon is.
       return Tooltip(
-        message: widget.label,
+        message: _compactTooltip,
         waitDuration: const Duration(milliseconds: 600),
         child: result,
       );
     }
     return result;
-  }
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge({required this.count, required this.active});
-
-  final int count;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: active ? tokens.surface : tokens.surfaceAlt,
-        borderRadius: BorderRadius.circular(InRadii.r1),
-        border: Border.all(color: tokens.border),
-      ),
-      child: Text(
-        count > 999 ? '999+' : '$count',
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: active ? tokens.accent : tokens.ink3,
-        ),
-      ),
-    );
   }
 }

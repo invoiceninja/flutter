@@ -57,6 +57,31 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
   @override
   GeneratedColumn<bool> get isDirtyColumn => payments.isDirty;
 
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => payments.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    // Money received but not yet applied to a document — the one thing on this
+    // row that's genuinely waiting on the user. Same clause `watchPage` uses
+    // for the virtual `-1`/`-2` statuses: the completed-ish gate is
+    // load-bearing, since `applied < amount` is just the normal state of a
+    // pending or failed payment.
+    'unapplied' =>
+      (payments.statusId.equals(kPaymentStatusCompleted) |
+              payments.statusId.equals(kPaymentStatusPartiallyRefunded)) &
+          payments.amount.cast<double>().isBiggerThan(
+            payments.applied.cast<double>(),
+          ),
+    'failed' => payments.statusId.equals(kPaymentStatusFailed),
+    'pending' => payments.statusId.equals(kPaymentStatusPending),
+    _ => null,
+  };
+
   /// Windowed list watch. Filters: state (active/archived/deleted), free-text
   /// search across number + transaction_reference + private_notes (payload
   /// JSON extract), optional status set, optional has-unapplied-funds chip

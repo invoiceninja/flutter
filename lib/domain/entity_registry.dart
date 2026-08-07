@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' show IconData;
 import 'package:go_router/go_router.dart' show GoRouterWidgetBuilder, RouteBase;
 
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
 
@@ -46,6 +47,7 @@ class EntityHandlers {
     this.editBuilder,
     this.extraChildRoutes = const [],
     this.badgeStream,
+    this.badgeModes = kDefaultBadgeModes,
   });
 
   final EntityType type;
@@ -125,6 +127,11 @@ class EntityHandlers {
   /// reach repositories or DAOs without an explicit `Services` dependency.
   final SidebarBadgeStream? badgeStream;
 
+  /// What that badge is allowed to count — the choices offered in the row's
+  /// right-click menu and in Settings → Device Settings → Sidebar counters.
+  /// Both surfaces read this list, so they can't drift apart.
+  final List<SidebarBadgeMode> badgeModes;
+
   /// Effective localization key for the sidebar / AppBar.
   String get effectiveLabelKey => labelKey ?? wireName;
 
@@ -141,20 +148,30 @@ class EntityHandlers {
 }
 
 /// Callback signature for [EntityHandlers.badgeStream]. Receives the active
-/// company id and a lookup hook for repositories (the registry doesn't
-/// import `Services` directly; the caller provides the lookup).
+/// company id, the user's chosen [SidebarBadgeMode] id for this row, and a
+/// lookup hook for repositories (the registry doesn't import `Services`
+/// directly; the caller provides the lookup).
 typedef SidebarBadgeStream =
-    Stream<int> Function(SidebarBadgeContext context, String companyId);
+    Stream<int> Function(
+      SidebarBadgeContext context,
+      String companyId,
+      String modeId,
+    );
 
 /// Marker interface for whatever the badge callback needs to read counts.
 /// Implemented by `Services` in `lib/app/services.dart`; defined here so the
 /// registry stays free of an app-layer import.
 abstract class SidebarBadgeContext {
-  /// Live count of non-deleted rows of [type] for [companyId]. Drives every
+  /// Live count of active rows of [type] for [companyId] matching [modeId]
+  /// (one of the entity's [EntityHandlers.badgeModes] ids). Drives every
   /// per-entity sidebar badge. Returns `Stream.value(0)` for an entity that
   /// isn't wired with a sidebar count (settings-only, disabled, etc.) so
   /// callers don't need to null-check.
-  Stream<int> watchEntityCount(EntityType type, String companyId);
+  Stream<int> watchEntityCount(
+    EntityType type,
+    String companyId, {
+    String modeId = kBadgeModeTotal,
+  });
   Stream<int> watchOutboxPending(String companyId);
   Stream<int> watchOutboxDead(String companyId);
 }

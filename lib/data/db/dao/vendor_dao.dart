@@ -8,6 +8,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/vendors_table.dart';
+import 'package:admin/data/models/domain/purchase_order_status.dart';
 
 part 'vendor_dao.g.dart';
 
@@ -26,6 +27,70 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
   GeneratedColumn<bool> get isDeletedColumn => vendors.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => vendors.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => vendors.archivedAt;
+
+  /// The vendors table itself has no status, balance or date to count — so
+  /// both counters here look *outward*, at what the user owes each vendor.
+  /// The number is a count of **vendors**, not documents: "3" means three
+  /// vendors need attention, which is what a row labelled Vendors should say.
+  ///
+  /// Both use the subquery idiom from [clientNotDeletedFilter]; Drift registers
+  /// the subquery's table, so the badge re-emits when an expense or purchase
+  /// order changes, not only when a vendor does.
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    'unpaid_expenses' => vendors.id.isInQuery(
+      _unpaidExpenseVendorIds(companyId),
+    ),
+    'open_purchase_orders' => vendors.id.isInQuery(
+      _openPurchaseOrderVendorIds(companyId),
+    ),
+    _ => null,
+  };
+
+  /// Vendor ids with at least one active, unpaid expense in [companyId].
+  JoinedSelectStatement<HasResultSet, dynamic> _unpaidExpenseVendorIds(
+    String companyId,
+  ) {
+    final expenses = attachedDatabase.expenses;
+    return selectOnly(expenses)
+      ..addColumns([expenses.vendorId])
+      ..where(
+        expenses.companyId.equals(companyId) &
+            expenses.isDeleted.equals(false) &
+            expenses.archivedAt.isNull() &
+            expenses.isPaid.equals(false) &
+            // Vendor-less expenses would otherwise contribute an empty id that
+            // matches no vendor — harmless, but skip the rows outright.
+            expenses.vendorId.equals('').not(),
+      );
+  }
+
+  /// Vendor ids with at least one active purchase order still in play — draft
+  /// or sent, i.e. not yet accepted / received / cancelled.
+  JoinedSelectStatement<HasResultSet, dynamic> _openPurchaseOrderVendorIds(
+    String companyId,
+  ) {
+    final orders = attachedDatabase.purchaseOrders;
+    return selectOnly(orders)
+      ..addColumns([orders.vendorId])
+      ..where(
+        orders.companyId.equals(companyId) &
+            orders.isDeleted.equals(false) &
+            orders.archivedAt.isNull() &
+            orders.statusId.isIn([
+              PurchaseOrderStatus.draft.wireId,
+              PurchaseOrderStatus.sent.wireId,
+            ]) &
+            orders.vendorId.equals('').not(),
+      );
+  }
 
   Stream<List<VendorRow>> watchPage({
     required String companyId,

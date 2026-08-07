@@ -134,6 +134,12 @@ typedef BundleApplier =
 /// The full set of per-entity APIs + repositories built by [wireEntities],
 /// returned typed so [Services.build] can unpack them into its named
 /// constructor params without going through a runtime cast bag.
+/// Signature of a sidebar counter stream: `(companyId, badge mode id, current
+/// user id) -> live count`. The user id is read only by the `assigned_to_me`
+/// mode; every other mode ignores it.
+typedef SidebarCountWatcher =
+    Stream<int> Function(String companyId, String modeId, String currentUserId);
+
 class WiredEntities {
   WiredEntities({
     required this.clientsApi,
@@ -259,12 +265,12 @@ class WiredEntities {
   /// reproduces what the prior hand-written chain did.
   final List<BundleApplier> bundleAppliers;
 
-  /// Live count streams per entity type, scoped by [companyId]. Backs the
-  /// generic `SidebarBadgeContext.watchEntityCount(...)` accessor so each
-  /// sidebar row can read its repo's `watchCount` without per-entity plumbing
-  /// on `Services`. Populated only for entities with a workspace sidebar
-  /// nav row (entries whose `EntityModuleSpec.sidebarSection != none`).
-  final Map<EntityType, Stream<int> Function(String companyId)> countWatchers;
+  /// Live count streams per entity type, scoped by company. Backs the generic
+  /// `SidebarBadgeContext.watchEntityCount(...)` accessor so each sidebar row
+  /// can read its repo's `watchBadgeCount` without per-entity plumbing on
+  /// `Services`. Populated only for entities with a workspace sidebar nav row
+  /// (entries whose `EntityModuleSpec.sidebarSection != none`).
+  final Map<EntityType, SidebarCountWatcher> countWatchers;
 
   /// First-page prefetch callbacks per entity type. Fired in parallel on
   /// every `auth.onActiveCompanyChanged` (login, refresh, switchCompany,
@@ -1974,23 +1980,65 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
   // and a prefetch (fires on every `auth.onActiveCompanyChanged` so the
   // badge is non-zero before the user opens the list). Settings-only and
   // bundled-only entities are intentionally absent.
-  final countWatchers = <EntityType, Stream<int> Function(String)>{
-    EntityType.client: (c) => clientRepo.watchCount(companyId: c),
-    EntityType.product: (c) => productRepo.watchCount(companyId: c),
-    EntityType.task: (c) => taskRepo.watchCount(companyId: c),
-    EntityType.project: (c) => projectRepo.watchCount(companyId: c),
-    EntityType.vendor: (c) => vendorRepo.watchCount(companyId: c),
-    EntityType.expense: (c) => expenseRepo.watchCount(companyId: c),
-    EntityType.recurringExpense: (c) =>
-        recurringExpenseRepo.watchCount(companyId: c),
-    EntityType.invoice: (c) => invoiceRepo.watchCount(companyId: c),
-    EntityType.quote: (c) => quoteRepo.watchCount(companyId: c),
-    EntityType.credit: (c) => creditRepo.watchCount(companyId: c),
-    EntityType.purchaseOrder: (c) => purchaseOrderRepo.watchCount(companyId: c),
-    EntityType.recurringInvoice: (c) =>
-        recurringInvoiceRepo.watchCount(companyId: c),
-    EntityType.payment: (c) => paymentRepo.watchCount(companyId: c),
-    EntityType.transaction: (c) => bankTransactionRepo.watchCount(companyId: c),
+  final countWatchers = <EntityType, SidebarCountWatcher>{
+    EntityType.client: (c, mode, user) => clientRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.product: (c, mode, user) => productRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.task: (c, mode, user) => taskRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.project: (c, mode, user) => projectRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.vendor: (c, mode, user) => vendorRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.expense: (c, mode, user) => expenseRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.recurringExpense: (c, mode, user) => recurringExpenseRepo
+        .watchBadgeCount(companyId: c, modeId: mode, currentUserId: user),
+    EntityType.invoice: (c, mode, user) => invoiceRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.quote: (c, mode, user) => quoteRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.credit: (c, mode, user) => creditRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.purchaseOrder: (c, mode, user) => purchaseOrderRepo
+        .watchBadgeCount(companyId: c, modeId: mode, currentUserId: user),
+    EntityType.recurringInvoice: (c, mode, user) => recurringInvoiceRepo
+        .watchBadgeCount(companyId: c, modeId: mode, currentUserId: user),
+    EntityType.payment: (c, mode, user) => paymentRepo.watchBadgeCount(
+      companyId: c,
+      modeId: mode,
+      currentUserId: user,
+    ),
+    EntityType.transaction: (c, mode, user) => bankTransactionRepo
+        .watchBadgeCount(companyId: c, modeId: mode, currentUserId: user),
   };
   final firstPagePrefetchers = <EntityType, Future<bool> Function(String)>{
     EntityType.client: (c) =>

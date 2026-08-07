@@ -1,13 +1,16 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
+import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/domain/columns/bank_transaction_columns.dart';
 import 'package:admin/data/db/company_scoped_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/bank_transactions_table.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'bank_transaction_dao.g.dart';
 
@@ -199,6 +202,40 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
       bankTransactions,
     )..where((t) => t.companyId.equals(companyId) & t.id.equals(id))).go();
   }
+
+  /// Sidebar counter. Same contract as `BaseEntityDao.watchBadgeCount`, but
+  /// hand-rolled: this DAO predates the base class and isn't a `BaseEntityDao`,
+  /// so there's no `badgeModePredicate` hook to override.
+  Stream<int> watchBadgeCount({
+    required String companyId,
+    String modeId = kBadgeModeTotal,
+    String currentUserId = '',
+  }) {
+    if (modeId == kBadgeModeNone) return Stream.value(0);
+    final count = bankTransactions.id.count();
+    final q = selectOnly(bankTransactions)
+      ..addColumns([count])
+      ..where(
+        bankTransactions.companyId.equals(companyId) &
+            bankTransactions.isDeleted.equals(false) &
+            bankTransactions.archivedAt.isNull(),
+      );
+    final predicate = badgeModePredicate(modeId);
+    if (predicate != null) q.where(predicate);
+    return q.map((row) => row.read(count) ?? 0).watchSingle();
+  }
+
+  /// Mirrors `BaseEntityDao.badgeModePredicate` so the sidebar-counter
+  /// coherence test can cover this DAO the same way as the others.
+  @visibleForTesting
+  Expression<bool>? badgeModePredicate(String modeId) => switch (modeId) {
+    // The one that means work: an imported transaction nobody has reconciled.
+    'unmatched' => bankTransactions.statusId.equals(
+      kTransactionStatusUnmatched,
+    ),
+    'matched' => bankTransactions.statusId.equals(kTransactionStatusMatched),
+    _ => null,
+  };
 
   Stream<int> watchActiveCount({required String companyId}) {
     final q = selectOnly(bankTransactions)

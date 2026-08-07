@@ -6,8 +6,10 @@ import 'package:admin/data/db/dao/_payload_search.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/credits_table.dart';
+import 'package:admin/data/models/domain/credit_status.dart';
 import 'package:admin/domain/entity_state.dart';
 
 part 'credit_dao.g.dart';
@@ -53,6 +55,29 @@ class CreditDao extends BaseEntityDao<$CreditsTable, CreditRow>
   GeneratedColumn<bool> get isDeletedColumn => credits.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => credits.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => credits.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    // Credit still owed back to the client — issued (not a draft) with some
+    // balance left to apply. The actionable one for this row.
+    'unapplied' =>
+      credits.statusId.equals(CreditStatus.draft.wireId).not() &
+          credits.balance.cast<double>().isBiggerThanValue(0),
+    'draft' => credits.statusId.equals(CreditStatus.draft.wireId),
+    'sent' => credits.statusId.equals(CreditStatus.sent.wireId),
+    kBadgeModeAssignedToMe => assignedToUserFilter(
+      currentUserId,
+      column: credits.assignedUserId,
+    ),
+    _ => null,
+  };
 
   Stream<List<CreditRow>> watchPage({
     required String companyId,

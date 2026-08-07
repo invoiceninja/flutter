@@ -89,6 +89,7 @@ import 'package:admin/data/services/user_settings_api.dart';
 import 'package:admin/data/services/users_api.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
@@ -101,6 +102,7 @@ import 'package:admin/app/diagnostics_log.dart';
 import 'package:admin/app/locale_controller.dart';
 import 'package:admin/app/recently_viewed_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
+import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme_controller.dart';
@@ -266,6 +268,7 @@ class Services implements SidebarBadgeContext {
     required this.keyboardShortcuts,
     required this.appLocale,
     required this.sidebar,
+    required this.sidebarBadgeModes,
     required this.recentlyViewed,
     required this.settingsLevel,
     required this.serverVersion,
@@ -274,8 +277,7 @@ class Services implements SidebarBadgeContext {
     required this.debugCaptureStore,
     required this.debugPanelRevealed,
     this.diagnosticsLog,
-    required Map<EntityType, Stream<int> Function(String companyId)>
-    countWatchers,
+    required Map<EntityType, SidebarCountWatcher> countWatchers,
     required Map<EntityType, Future<bool> Function(String companyId)>
     firstPagePrefetchers,
   }) : _countWatchers = countWatchers,
@@ -566,6 +568,12 @@ class Services implements SidebarBadgeContext {
 
   final SidebarController sidebar;
 
+  /// What each sidebar row's count badge counts (Settings → Device Settings →
+  /// Sidebar counters, or a right-click on the row). Persists to `nav_state`
+  /// like [theme] / [keyboardShortcuts] — and, like them, does not survive
+  /// logout, which wipes every Drift table.
+  final SidebarBadgeModeController sidebarBadgeModes;
+
   /// Recently-viewed entities backing the command palette's "Recent" group.
   /// Company-scoped (clears on company switch / logout).
   final RecentlyViewedController recentlyViewed;
@@ -690,14 +698,22 @@ class Services implements SidebarBadgeContext {
   // -- SidebarBadgeContext -------------------------------------------------
 
   @override
-  Stream<int> watchEntityCount(EntityType type, String companyId) {
+  Stream<int> watchEntityCount(
+    EntityType type,
+    String companyId, {
+    String modeId = kBadgeModeTotal,
+  }) {
     // Built once at construction (in `Services.build`) from the wired
-    // entities' typed `watchCount` methods. Sidebar-visible entities are
+    // entities' typed `watchBadgeCount` methods. Sidebar-visible entities are
     // present; settings-only / bundled-only / disabled ones return zero so
     // unwired sidebar rows degrade gracefully (the row just shows no badge).
     final watcher = _countWatchers[type];
     if (watcher == null) return Stream.value(0);
-    return watcher(companyId);
+    // The `assigned_to_me` mode is the only one that needs a value from
+    // outside the row, and `Services` is where the session lives — so resolve
+    // it here rather than making every call site pass it. An empty id (no
+    // session) counts nothing, never everything.
+    return watcher(companyId, modeId, auth.session.value?.userId ?? '');
   }
 
   @override
@@ -710,8 +726,9 @@ class Services implements SidebarBadgeContext {
 
   /// Sidebar count streams keyed by entity type. Populated once in
   /// [Services.build] from [WiredEntities.countWatchers] and read by
-  /// [watchEntityCount].
-  final Map<EntityType, Stream<int> Function(String companyId)> _countWatchers;
+  /// [watchEntityCount]. Keyed by entity type; each entry takes
+  /// `(companyId, modeId, currentUserId)`.
+  final Map<EntityType, SidebarCountWatcher> _countWatchers;
 
   /// First-page prefetch callbacks keyed by entity type. Fired in parallel
   /// from [prefetchSidebarEntities] on every active-company change so the
@@ -1210,6 +1227,7 @@ class Services implements SidebarBadgeContext {
       db: db,
     );
     final sidebar = SidebarController(db: db);
+    final sidebarBadgeModes = SidebarBadgeModeController(db: db);
     // Company-scoped — clears itself off `auth.session` changes, same as the
     // nav history. No `onActiveCompanyChanged` hook needed here.
     final recentlyViewed = RecentlyViewedController(
@@ -1348,6 +1366,7 @@ class Services implements SidebarBadgeContext {
       keyboardShortcuts: keyboardShortcuts,
       appLocale: appLocale,
       sidebar: sidebar,
+      sidebarBadgeModes: sidebarBadgeModes,
       recentlyViewed: recentlyViewed,
       settingsLevel: settingsLevel,
       serverVersion: serverVersion,

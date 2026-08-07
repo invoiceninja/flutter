@@ -8,6 +8,7 @@ import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/expenses_table.dart';
 import 'package:admin/domain/entity_state.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'expense_dao.g.dart';
 
@@ -53,6 +54,23 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
   GeneratedColumn<bool> get isDeletedColumn => expenses.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => expenses.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => expenses.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    'unpaid' ||
+    'pending' ||
+    'logged' => expenseClientStatusFilter(expenses, modeId),
+    // No `assigned_user_id` column on this table — read it out of the payload.
+    kBadgeModeAssignedToMe => assignedToUserFilter(currentUserId),
+    _ => null,
+  };
 
   /// Windowed list watch. Filters: state (active/archived/deleted), free-text
   /// search across number + public_notes + private_notes (via payload JSON
@@ -119,23 +137,11 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
       // paid / unpaid = the `is_paid` triple. Selecting multiple ORs, so the
       // paid/unpaid overlap with the lifecycle statuses is intentional.
       q.where((e) {
-        final notInvoiced = e.invoiceId.equals('');
         Expression<bool>? clause;
-        void add(Expression<bool> p) =>
-            clause = clause == null ? p : clause! | p;
         for (final s in statuses) {
-          switch (s) {
-            case 'invoiced':
-              add(notInvoiced.not());
-            case 'pending':
-              add(notInvoiced & e.shouldBeInvoiced.equals(true));
-            case 'logged':
-              add(notInvoiced & e.shouldBeInvoiced.equals(false));
-            case 'paid':
-              add(e.isPaid.equals(true));
-            case 'unpaid':
-              add(e.isPaid.equals(false));
-          }
+          final p = expenseClientStatusFilter(e, s);
+          if (p == null) continue;
+          clause = clause == null ? p : clause | p;
         }
         return clause ?? const Constant(true);
       });
@@ -351,4 +357,24 @@ extension on Expenses {
         'public_notes',
         'private_notes',
       ]);
+}
+
+/// SQL mirror of the computed expense status (admin-portal
+/// `Expense.matchesStatuses`), over the denormalized `invoice_id` /
+/// `should_be_invoiced` / `is_paid` columns. Shared by the list's
+/// `client_status` chip and the sidebar counter. Returns null for a label this
+/// mirror doesn't model.
+///
+/// `paid`/`unpaid` deliberately overlap the lifecycle statuses — an expense can
+/// be both invoiced and unpaid — and the caller ORs whatever it selects.
+Expression<bool>? expenseClientStatusFilter(Expenses e, String status) {
+  final notInvoiced = e.invoiceId.equals('');
+  return switch (status) {
+    'invoiced' => notInvoiced.not(),
+    'pending' => notInvoiced & e.shouldBeInvoiced.equals(true),
+    'logged' => notInvoiced & e.shouldBeInvoiced.equals(false),
+    'paid' => e.isPaid.equals(true),
+    'unpaid' => e.isPaid.equals(false),
+    _ => null,
+  };
 }

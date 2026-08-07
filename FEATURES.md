@@ -1467,6 +1467,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Settings search | ✅ | ✅ | ✅ | ✅ | |
 | Dark mode / light mode toggle | ✅ | ✅ | ✅ | ✅ | |
 | Sidebar footer theme quick-switch (light/dark/system + settings shortcut) | — | — | ✅ | | |
+| Selectable sidebar counters (per-row: overdue / unpaid / draft / assigned-to-me / low stock / …, colour-coded, right-click or Settings → Device Settings) | — | — | ✅ | | |
 | Multi-language UI (40+ locales) | ✅ | ✅ | ✅ | ✅ | |
 | Company switcher | ✅ | ✅ | ✅ | ✅ | |
 | Keyboard shortcuts | ✅ | ✅ | ✅ | ✅ | |

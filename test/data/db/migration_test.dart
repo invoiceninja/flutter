@@ -36,6 +36,7 @@ void main() {
   const frozenSchemaHashes = <int, String>{
     1: '036c0de0fcd92c943e915800a61d5e20da8f8a345ad318e0ad43fc6624705004',
     2: 'd5da8c93f363e8c7ab95bf6be124b387832bb84f0a24a576fd84edf522028b06',
+    3: 'b320f8d71dffdd0e7a8f6fd069f8a7207c2beb8d7207907007811f71f2303bf2',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB

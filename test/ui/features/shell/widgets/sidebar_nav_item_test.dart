@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_badge.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
 
 /// Theme that supplies the `InTheme` extension `SidebarNavItem` reads via
@@ -138,8 +140,8 @@ void main() {
   });
 
   testWidgets(
-    'trailingHover replaces the count badge on hover and the row height '
-    'stays constant',
+    'trailingHover appears alongside the count badge on hover and the row '
+    'height stays constant',
     (tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -172,8 +174,11 @@ void main() {
       await gesture.moveTo(tester.getCenter(find.byType(SidebarNavItem)));
       await tester.pump();
 
-      // On hover: count hidden, trailing visible.
-      expect(find.text('7'), findsNothing);
+      // On hover: BOTH show. The badge used to be swapped out for the hover
+      // affordance, which was harmless for a plain total but not once the
+      // number can be a red "3 overdue" — hovering a row must not hide the
+      // thing it's warning you about.
+      expect(find.text('7'), findsOneWidget);
       expect(find.byKey(const Key('trailing')), findsOneWidget);
       expect(
         tester.getSize(find.byType(SidebarNavItem)).height,
@@ -181,7 +186,7 @@ void main() {
         reason: 'hovering must not change the row height',
       );
 
-      // Off hover: count returns.
+      // Off hover: badge stays, trailing goes.
       await gesture.moveTo(const Offset(1000, 1000));
       await tester.pump();
       expect(find.text('7'), findsOneWidget);
@@ -327,4 +332,151 @@ void main() {
       );
     },
   );
+
+  group('counter badge tones', () {
+    // A red overdue count has to stay red on the row you're standing on — the
+    // whole point is that it keeps warning you.
+    for (final active in [false, true]) {
+      testWidgets('danger tone uses the overdue palette (active: $active)', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          _wrap(
+            SidebarNavItem(
+              label: 'Invoices',
+              icon: Icons.receipt_long_outlined,
+              active: active,
+              count: 3,
+              countTone: SidebarBadgeTone.danger,
+              onTap: () {},
+            ),
+          ),
+        );
+        final container = tester.widget<Container>(
+          find
+              .ancestor(of: find.text('3'), matching: find.byType(Container))
+              .first,
+        );
+        final decoration = container.decoration! as BoxDecoration;
+        expect(decoration.color, InTheme.light.overdueSoft);
+      });
+    }
+
+    testWidgets('neutral tone keeps the pre-existing palette', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Clients',
+            icon: Icons.people_outline,
+            active: false,
+            count: 12,
+            onTap: () {},
+          ),
+        ),
+      );
+      final container = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('12'), matching: find.byType(Container))
+            .first,
+      );
+      final decoration = container.decoration! as BoxDecoration;
+      expect(decoration.color, InTheme.light.surfaceAlt);
+    });
+
+    testWidgets('compact dot picks up the tone', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Invoices',
+            icon: Icons.receipt_long_outlined,
+            active: false,
+            compact: true,
+            count: 3,
+            countTone: SidebarBadgeTone.warning,
+            onTap: () {},
+          ),
+        ),
+      );
+      final dot = tester.widget<Container>(
+        find.byKey(const Key('clients-badge-dot')),
+      );
+      expect((dot.decoration! as BoxDecoration).color, InTheme.light.warning);
+    });
+  });
+
+  group('counter badge labelling', () {
+    // A bare red `3` is only useful if you can find out what it counts.
+    testWidgets('badge carries a tooltip naming what it counts', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Invoices',
+            icon: Icons.receipt_long_outlined,
+            active: false,
+            count: 3,
+            countTone: SidebarBadgeTone.danger,
+            countLabel: 'Overdue',
+            onTap: () {},
+          ),
+        ),
+      );
+      final tooltip = tester.widget<Tooltip>(
+        find
+            .ancestor(
+              of: find.byType(SidebarBadge),
+              matching: find.byType(Tooltip),
+            )
+            .first,
+      );
+      expect(tooltip.message, '3 Overdue');
+    });
+
+    testWidgets('a plain total gets no tooltip — nothing to explain', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Clients',
+            icon: Icons.people_outline,
+            active: false,
+            count: 12,
+            onTap: () {},
+          ),
+        ),
+      );
+      expect(
+        find.ancestor(
+          of: find.byType(SidebarBadge),
+          matching: find.byType(Tooltip),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'compact rail folds the count into the row tooltip — the dot has no '
+      'number, so this is the only place that information exists',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            SidebarNavItem(
+              label: 'Invoices',
+              icon: Icons.receipt_long_outlined,
+              active: false,
+              compact: true,
+              count: 3,
+              countTone: SidebarBadgeTone.danger,
+              countLabel: 'Overdue',
+              onTap: () {},
+            ),
+          ),
+        );
+        final tooltip = tester.widget<Tooltip>(find.byType(Tooltip).first);
+        expect(tooltip.message, 'Invoices — 3 Overdue');
+      },
+    );
+  });
 }

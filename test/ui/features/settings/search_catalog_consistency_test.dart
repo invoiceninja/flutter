@@ -18,6 +18,7 @@ import 'package:admin/ui/features/settings/views/advanced/custom_fields/projects
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/tasks_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/users_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/vendors_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/device_settings_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/keyboard_shortcuts_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/address_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/company_details_screen.dart';
@@ -171,6 +172,20 @@ class _TabUnderTest {
 }
 
 final List<_TabUnderTest> _tabsUnderTest = [
+  const _TabUnderTest(
+    label: 'device_settings',
+    // The six long-standing keys are rendered across the screen and its two
+    // extracted tiles; the counter keys live in the section widget, and every
+    // badge-mode label is a `labelKey:` literal in the domain catalog.
+    sourcePaths: [
+      'lib/ui/features/settings/views/basic/device_settings_screen.dart',
+      'lib/ui/features/settings/widgets/customize_colors_section.dart',
+      'lib/ui/features/settings/widgets/biometric_toggle_tile.dart',
+      'lib/ui/features/settings/widgets/sidebar_counters_section.dart',
+      'lib/domain/sidebar_badge_modes.dart',
+    ],
+    keys: kDeviceSettingsSearchKeys,
+  ),
   const _TabUnderTest(
     label: 'keyboard_shortcuts',
     // The per-action rows render `context.tr(def.labelKey)`, so the labels

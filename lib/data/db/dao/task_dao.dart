@@ -7,6 +7,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/tasks_table.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'task_dao.g.dart';
 
@@ -41,6 +42,24 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
   GeneratedColumn<bool> get isDeletedColumn => tasks.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => tasks.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => tasks.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    // Same predicate as `watchRunningCount` — work literally in progress.
+    'running' => tasks.isRunning.equals(true),
+    // Time logged but not yet billed: the backlog to invoice.
+    'uninvoiced' => tasks.invoiceId.equals(''),
+    // No `assigned_user_id` column on this table — read it out of the payload.
+    kBadgeModeAssignedToMe => assignedToUserFilter(currentUserId),
+    _ => null,
+  };
 
   Stream<List<TaskRow>> watchPage({
     required String companyId,

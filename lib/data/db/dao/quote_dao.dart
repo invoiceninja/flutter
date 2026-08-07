@@ -8,7 +8,9 @@ import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/quotes_table.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_state.dart';
+import 'package:admin/domain/sidebar_badge_modes.dart';
 
 part 'quote_dao.g.dart';
 
@@ -56,6 +58,26 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
   GeneratedColumn<bool> get isDeletedColumn => quotes.isDeleted;
   @override
   GeneratedColumn<bool> get isDirtyColumn => quotes.isDirty;
+
+  @override
+  GeneratedColumn<int>? get archivedAtColumn => quotes.archivedAt;
+
+  @override
+  Expression<bool>? badgeModePredicate(
+    String modeId, {
+    required String companyId,
+    required String currentUserId,
+  }) => switch (modeId) {
+    'expired' ||
+    'draft' ||
+    'sent' ||
+    'approved' => quoteClientStatusFilter(quotes, modeId, Date.today().toIso()),
+    kBadgeModeAssignedToMe => assignedToUserFilter(
+      currentUserId,
+      column: quotes.assignedUserId,
+    ),
+    _ => null,
+  };
 
   Stream<List<QuoteRow>> watchPage({
     required String companyId,
@@ -131,53 +153,12 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
       // isn't reachable locally — invitations live in the payload, not a
       // column. Selecting multiple statuses ORs, so the overlap is benign.
       final today = statusAsOf ?? '';
-      final notConverted =
-          quotes.statusId.equals('4').not() & quotes.invoiceId.equals('');
-      final notApproved = quotes.statusId.equals('3').not();
-      final notRejected = quotes.statusId.equals('5').not();
-      const dueNN = CustomExpression<String>("NULLIF(due_date, '')");
       q.where((e) {
         Expression<bool>? clause;
-        void add(Expression<bool> p) =>
-            clause = clause == null ? p : clause! | p;
         for (final s in statuses) {
-          switch (s) {
-            case 'draft':
-              add(e.statusId.equals('1'));
-            case 'sent':
-              // Server `QuoteFilters::client_status` scopes `sent` to
-              // NOT-yet-expired quotes (`due_date IS NULL OR due_date >=
-              // today`); expired ones belong to the `expired` bucket. Without
-              // the guard the local watch surfaced past-due quotes under the
-              // Sent chip — each rendering an "Expired" pill — and the same
-              // rows appeared again under Expired.
-              add(
-                e.statusId.equals('2') &
-                    (dueNN.isNull() | dueNN.isBiggerOrEqualValue(today)),
-              );
-            case 'approved':
-              add(e.statusId.equals('3'));
-            case 'converted':
-              add(e.statusId.equals('4') | e.invoiceId.equals('').not());
-            case 'rejected':
-              add(e.statusId.equals('5'));
-            case 'expired':
-              add(
-                notConverted &
-                    notApproved &
-                    notRejected &
-                    dueNN.isNotNull() &
-                    dueNN.isSmallerThanValue(today),
-              );
-            case 'upcoming':
-              add(
-                notConverted &
-                    notApproved &
-                    notRejected &
-                    dueNN.isNotNull() &
-                    dueNN.isBiggerOrEqualValue(today),
-              );
-          }
+          final p = quoteClientStatusFilter(e, s, today);
+          if (p == null) continue;
+          clause = clause == null ? p : clause | p;
         }
         return clause ?? const Constant(false);
       });
@@ -344,4 +325,50 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
 extension on Quotes {
   Expression<bool> notesLikePayload(String needle) =>
       payloadJsonLike(needle, const ['public_notes', 'private_notes']);
+}
+
+/// SQL mirror of the computed quote status (`Quote.calculatedStatusId` /
+/// `Quote.isExpired`), shared by the list's `client_status` chip and the
+/// sidebar counter. Returns null for a label this mirror doesn't model.
+///
+/// Wire ids: draft='1' sent='2' approved='3' converted='4' rejected='5'.
+/// `converted` also covers a set `invoice_id`; `expired`/`upcoming` split
+/// non-terminal quotes by whether the (non-empty) due date falls before or on
+/// or after [asOf] — pass `Date.today().toIso()`.
+///
+/// Two known approximations, unchanged from when this was inline: status
+/// precedence isn't applied (a past-due draft matches both `draft` and
+/// `expired`), and `viewed` isn't reachable locally because invitations live
+/// in the payload rather than a column. Selecting several statuses ORs them,
+/// so the overlap is benign.
+Expression<bool>? quoteClientStatusFilter(
+  Quotes e,
+  String status,
+  String asOf,
+) {
+  const dueNN = CustomExpression<String>("NULLIF(due_date, '')");
+  final notTerminal =
+      e.statusId.equals('4').not() &
+      e.invoiceId.equals('') &
+      e.statusId.equals('3').not() &
+      e.statusId.equals('5').not();
+  return switch (status) {
+    'draft' => e.statusId.equals('1'),
+    // Server `QuoteFilters::client_status` scopes `sent` to NOT-yet-expired
+    // quotes (`due_date IS NULL OR due_date >= today`); expired ones belong to
+    // the `expired` bucket. Without the guard the local watch surfaced
+    // past-due quotes under the Sent chip — each rendering an "Expired" pill —
+    // and the same rows appeared again under Expired.
+    'sent' =>
+      e.statusId.equals('2') &
+          (dueNN.isNull() | dueNN.isBiggerOrEqualValue(asOf)),
+    'approved' => e.statusId.equals('3'),
+    'converted' => e.statusId.equals('4') | e.invoiceId.equals('').not(),
+    'rejected' => e.statusId.equals('5'),
+    'expired' =>
+      notTerminal & dueNN.isNotNull() & dueNN.isSmallerThanValue(asOf),
+    'upcoming' =>
+      notTerminal & dueNN.isNotNull() & dueNN.isBiggerOrEqualValue(asOf),
+    _ => null,
+  };
 }

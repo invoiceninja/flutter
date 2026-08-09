@@ -101,6 +101,7 @@ import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/diagnostics_log.dart';
 import 'package:admin/app/locale_controller.dart';
 import 'package:admin/app/recently_viewed_controller.dart';
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
@@ -269,6 +270,7 @@ class Services implements SidebarBadgeContext {
     required this.appLocale,
     required this.sidebar,
     required this.sidebarBadgeModes,
+    required this.resync,
     required this.recentlyViewed,
     required this.settingsLevel,
     required this.serverVersion,
@@ -574,6 +576,15 @@ class Services implements SidebarBadgeContext {
   /// logout, which wipes every Drift table.
   final SidebarBadgeModeController sidebarBadgeModes;
 
+  /// App-wide single-flight + progress state for the user-initiated "Sync" pass
+  /// (see [syncNow]). Driven by the sidebar header's Sync button, Settings →
+  /// Device Settings → Data → Download, and Account Management → Force full
+  /// resync, so the three can't start competing passes.
+  ///
+  /// Not to be confused with [sync], the outbox drain — this one *downloads*
+  /// (and pushes first, via [syncNow]).
+  final ResyncController resync;
+
   /// Recently-viewed entities backing the command palette's "Recent" group.
   /// Company-scoped (clears on company switch / logout).
   final RecentlyViewedController recentlyViewed;
@@ -769,7 +780,16 @@ class Services implements SidebarBadgeContext {
   /// their queued outbox payloads survive the refresh. Bundled/settings entities
   /// (task statuses, gateways, designs, payment terms, …) are intentionally
   /// omitted — `auth.refresh(fullSync: true)` already re-bundles those.
-  Future<List<String>> resyncAllEntities({required String companyId}) async {
+  ///
+  /// [onProgress] reports `(completed, total)` over the module-filtered plan —
+  /// `(0, n)` once the plan is known, then after each entity. [isCancelled] is
+  /// polled at each entity boundary. Both are driven by [ResyncController];
+  /// direct callers can omit them.
+  Future<List<String>> resyncAllEntities({
+    required String companyId,
+    void Function(int completed, int total)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
     await auth.refresh(fullSync: true);
     // The full refresh re-seeded the companies row from the envelope (omitting
     // the server-only columns) and re-locked the Account-Management gate. Pull
@@ -779,17 +799,58 @@ class Services implements SidebarBadgeContext {
     await company.refresh(companyId);
     final enabledModules =
         (await db.companiesDao.byId(companyId))?.enabledModules ?? 0;
+    // Materialize the module-filtered plan up front so the reported step total
+    // is exact — counting steps that are then skipped would misreport how far
+    // along the pass is on a company with modules switched off.
+    final planned = [
+      for (final step in _resyncSteps(companyId))
+        if (isEntityModuleEnabledForCompany(step.$1, enabledModules)) step,
+    ];
+    onProgress?.call(0, planned.length);
     final failed = <String>[];
-    for (final (type, run) in _resyncSteps(companyId)) {
-      if (!isEntityModuleEnabledForCompany(type, enabledModules)) continue;
+    for (var i = 0; i < planned.length; i++) {
+      // Cooperative cancellation (logout): that wipes every Drift table, and
+      // the rest of this loop would keep writing rows into the wiped database.
+      // Entity granularity only — `refreshAll` pages internally and can't be
+      // interrupted, so the entity already in flight still completes.
+      if (isCancelled?.call() ?? false) break;
+      final (type, run) = planned[i];
       try {
         await run();
       } catch (e, st) {
         _servicesLog.warning('resyncAllEntities: "${type.name}" failed', e, st);
         failed.add(type.name);
       }
+      onProgress?.call(i + 1, planned.length);
     }
     return failed;
+  }
+
+  /// One-tap "Sync": push any queued offline edits, then re-download everything
+  /// ([resyncAllEntities]). Backs the sidebar header's Sync button and both
+  /// Settings entry points, funnelled through [resync] so they single-flight.
+  ///
+  /// Push-before-pull is the meaningful order — the server sees the user's
+  /// local edits before we re-download over them. The push is best-effort: a
+  /// failed drain must not block the download, since the queued rows stay
+  /// queued and retry on their own schedule (and conflicts / 412s raised by the
+  /// drain surface through `SyncEventListener` as usual).
+  Future<List<String>> syncNow({
+    required String companyId,
+    void Function(int completed, int total)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    try {
+      await sync.flushNow(companyId: companyId);
+    } catch (e, st) {
+      _servicesLog.warning('syncNow: outbox flush failed', e, st);
+    }
+    if (isCancelled?.call() ?? false) return const <String>[];
+    return resyncAllEntities(
+      companyId: companyId,
+      onProgress: onProgress,
+      isCancelled: isCancelled,
+    );
   }
 
   /// The own-route entities "Download all data" re-pulls, each paired with the
@@ -1228,6 +1289,17 @@ class Services implements SidebarBadgeContext {
     );
     final sidebar = SidebarController(db: db);
     final sidebarBadgeModes = SidebarBadgeModeController(db: db);
+    // Captures the deferred `late final Services services` declared above —
+    // same pattern as `companyRepo.onSettingsWritten`. The runner only fires on
+    // a user action, long after the assignment below.
+    final resync = ResyncController(
+      runner: ({required companyId, onProgress, isCancelled}) =>
+          services.syncNow(
+            companyId: companyId,
+            onProgress: onProgress,
+            isCancelled: isCancelled,
+          ),
+    );
     // Company-scoped — clears itself off `auth.session` changes, same as the
     // nav history. No `onActiveCompanyChanged` hook needed here.
     final recentlyViewed = RecentlyViewedController(
@@ -1255,6 +1327,12 @@ class Services implements SidebarBadgeContext {
     );
     final priorOnBeforeLogout = auth.onBeforeLogout;
     auth.onBeforeLogout = () async {
+      // Logout wipes every Drift table, and the remaining entities of an
+      // in-flight download would keep writing rows into it behind the login
+      // screen. Synchronous and cooperative — see `ResyncController.cancel`:
+      // this stops the *next* entity, not the one already paging, so it
+      // narrows the window rather than closing it.
+      resync.cancel();
       settingsLevel.reset();
       refreshScheduler.stop();
       services.toasts.clearAll();
@@ -1367,6 +1445,7 @@ class Services implements SidebarBadgeContext {
       appLocale: appLocale,
       sidebar: sidebar,
       sidebarBadgeModes: sidebarBadgeModes,
+      resync: resync,
       recentlyViewed: recentlyViewed,
       settingsLevel: settingsLevel,
       serverVersion: serverVersion,

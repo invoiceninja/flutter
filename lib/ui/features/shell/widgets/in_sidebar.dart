@@ -18,11 +18,12 @@ import 'package:admin/ui/core/list/master_detail_layout.dart'
     show goToCreateRoute;
 import 'package:admin/ui/core/list/saved_view_dialogs.dart';
 import 'package:admin/ui/core/list/saved_view_icons.dart';
+import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
-import 'package:admin/ui/features/shell/widgets/company_switcher_button.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_header.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
 import 'package:admin/ui/features/shell/widgets/window_caption_strip.dart';
@@ -290,11 +291,27 @@ class _InSidebarState extends State<InSidebar> {
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-                    child: CompanySwitcherButton(
+                    child: SidebarHeader(
                       session: session,
-                      onBeforeOpen: widget.onBeforeCompanyPicker,
+                      onBeforeCompanyPicker: widget.onBeforeCompanyPicker,
                       compact: collapsed,
                       touch: touch,
+                      resync: services.resync,
+                      // Deliberately does not pop the mobile drawer the way
+                      // the company switcher does: closing it would hide the
+                      // spinner the user just started. The toast host paints
+                      // above the drawer either way.
+                      // "Sync" wording, not "Download": this button is
+                      // tooltipped `sync_now` and the pass pushes queued edits
+                      // before it downloads, so a "Download complete" toast
+                      // would describe half the work.
+                      onSync: () => unawaited(
+                        SettingsActions.forceResync(
+                          context,
+                          successKey: 'sync_complete',
+                          failureKey: 'sync_failed',
+                        ),
+                      ),
                     ),
                   ),
                   Container(height: 1, color: tokens.border),

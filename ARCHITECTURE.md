@@ -103,7 +103,7 @@ Notable members of `Services`:
 - Entity repos: `clients`, `products`, `tasks`, `vendors`, `expenses`, `projects`, `recurringExpenses`, `taskStatuses`, `companyGateways`, `paymentTerms`, `taxRates`, `groupSettings`, `designs`, `expenseCategories`
 - `sync` (`SyncRepository`) — outbox drain loop
 - `apiClient` (`ApiClient`) — shared HTTP client (auth, version, error mapping)
-- Controllers: `ThemeController`, `LocaleController`, `SidebarController`, `SettingsLevelController`, `AccentColorController`
+- Controllers: `ThemeController`, `LocaleController`, `SidebarController`, `SettingsLevelController`, `AccentColorController`, `ResyncController`
 - `diagnosticsLog` (debug only, `null` in release)
 
 ---

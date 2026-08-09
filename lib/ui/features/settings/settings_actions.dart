@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -8,11 +9,13 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 
 /// Shared user-flow helpers for settings screens. Keeps the confirmation
-/// dialogs / error snackbars consistent across the screens that expose
-/// them — currently sign-out (`User Details`) and force-resync
-/// (`Account Management → Overview`). Both are called from screens that
-/// otherwise have no shared state, so static methods rather than a
-/// ChangeNotifier are the right shape.
+/// dialogs / error toasts consistent across the surfaces that expose them —
+/// currently sign-out (`User Details`) and force-resync (`Account Management →
+/// Overview`, `Device Settings → Data`, and the sidebar header's Sync button).
+/// They're called from places that otherwise have no shared state, so static
+/// methods rather than a ChangeNotifier are the right shape. (The one piece of
+/// state force-resync *does* need — is a pass already running? — lives on
+/// `Services.resync`, not here.)
 class SettingsActions {
   SettingsActions._();
 
@@ -68,14 +71,18 @@ class SettingsActions {
     return true;
   }
 
-  /// Re-download all data for the active company — a full auth refresh plus a
-  /// forced `refreshAll` over every user-browsable entity (see
-  /// [Services.resyncAllEntities]). Backs both the Device Settings "Download"
-  /// action and the Account Management overview's "Force full resync" recovery
-  /// path. Non-destructive to unsynced offline edits.
+  /// Push queued offline edits, then re-download all data for the active
+  /// company (see [Services.syncNow]). Backs all three entry points: the
+  /// sidebar header's Sync button, the Device Settings "Download" action, and
+  /// the Account Management overview's "Force full resync" recovery path.
+  /// Non-destructive to unsynced offline edits.
   ///
-  /// Reports success / (partial-or-total) failure via SnackBar. Caller surfaces
-  /// the in-flight state — `await`ing this returns when the work is done.
+  /// Routed through [Services.resync], so a second call while a pass is running
+  /// joins it rather than starting a competing one — and only the call that
+  /// *started* the pass reports the outcome, so one user action means one toast.
+  ///
+  /// Caller surfaces the in-flight state from `services.resync`; `await`ing
+  /// this returns when the work is done.
   static Future<void> forceResync(
     BuildContext context, {
     String successKey = 'resync_complete',
@@ -83,20 +90,37 @@ class SettingsActions {
   }) async {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
-    if (companyId == null) return;
-    try {
-      final failed = await services.resyncAllEntities(companyId: companyId);
-      if (!context.mounted) return;
-      if (failed.isEmpty) {
-        Notify.success(context, context.tr(successKey));
-      } else {
-        // Some entities landed, some didn't — report failure rather than a
-        // misleading "complete" (the auth refresh + the rest still applied).
-        Notify.error(context, context.tr(failureKey));
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      Notify.error(context, context.tr(failureKey), error: e);
+    if (companyId == null || companyId.isEmpty) return;
+    // Resolve the toast queue and every string BEFORE the first await. The pass
+    // runs for tens of seconds and the surface that started it (a sidebar
+    // button, a settings card) is routinely gone by the time it lands — the
+    // toast host is global and outlives any context, so the result still shows.
+    final toasts = Notify.capture(context);
+    final success = context.tr(successKey);
+    final failure = context.tr(failureKey);
+    final busy = context.tr('sync_in_progress');
+
+    final result = await services.resync.run(companyId);
+    switch (result.disposition) {
+      case ResyncDisposition.busy:
+        toasts?.info(busy);
+      case ResyncDisposition.joined:
+      case ResyncDisposition.cancelled:
+        // The call that started the pass owns the toast; a cancelled pass was
+        // cut short by logout, where a toast would be noise.
+        break;
+      case ResyncDisposition.completed:
+        final error = result.error;
+        if (result.isClean) {
+          toasts?.success(success);
+        } else {
+          // Some entities landed, some didn't — report failure rather than a
+          // misleading "complete" (the auth refresh + the rest still applied).
+          toasts?.error(
+            failure,
+            detail: error == null ? null : formatNotifyError(error),
+          );
+        }
     }
   }
 }

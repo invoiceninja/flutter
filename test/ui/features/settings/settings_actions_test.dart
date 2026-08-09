@@ -184,4 +184,60 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('forceResync still reports once the initiating widget is gone '
+      '(issue #14: the sidebar Sync button outlives its screen)', (
+    tester,
+  ) async {
+    // A pass started from the sidebar runs for tens of seconds, and the user
+    // routinely navigates away before it lands. `forceResync` captures the
+    // toast queue before its first await precisely so the result survives —
+    // this pins that contract. Without it the toast is silently dropped.
+    final fixture = await buildFixture(
+      companies: const [
+        FakeCompany(id: 'c1', name: 'Acme Co', token: 'tok-c1'),
+      ],
+      currentCompanyId: 'c1',
+      online: true,
+    );
+    addTearDown(fixture.dispose);
+
+    var showTrigger = true;
+    late StateSetter setOuterState;
+
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        StatefulBuilder(
+          builder: (context, setState) {
+            setOuterState = setState;
+            return showTrigger
+                ? TextButton(
+                    onPressed: () => SettingsActions.forceResync(context),
+                    child: const Text('trigger-resync'),
+                  )
+                : const Text('trigger-gone');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('trigger-resync'));
+    await tester.pump();
+
+    // Unmount the initiating widget mid-pass, the way navigating away does.
+    setOuterState(() => showTrigger = false);
+    await tester.pumpAndSettle();
+    expect(find.text('trigger-resync'), findsNothing);
+
+    // The toast host is a Stack sibling of the body, not a descendant of the
+    // trigger, so the outcome still reaches the user.
+    expect(find.text('Resync failed'), findsOneWidget);
+
+    fixture.services.toasts.clearAll();
+    fixture.services.recentlyViewed.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
@@ -149,14 +150,18 @@ class _DataSection extends StatefulWidget {
 }
 
 class _DataSectionState extends State<_DataSection> {
-  bool _running = false;
   int? _lastSyncAt;
   Timer? _ticker;
+  late final ResyncController _resync;
+  late bool _wasRunning;
 
   @override
   void initState() {
     super.initState();
     _loadLastSync();
+    _resync = context.read<Services>().resync;
+    _wasRunning = _resync.isRunning;
+    _resync.addListener(_onResyncChanged);
     // Keep the relative "last updated" label fresh while the screen is open
     // ("just now" → "2m ago") without needing a manual refresh.
     _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -166,8 +171,19 @@ class _DataSectionState extends State<_DataSection> {
 
   @override
   void dispose() {
+    _resync.removeListener(_onResyncChanged);
     _ticker?.cancel();
     super.dispose();
+  }
+
+  /// Re-read the high-water mark whenever *any* pass ends, not just one this
+  /// screen started — the sidebar Sync button can finish a pass while this
+  /// screen is open, and a stale "Last Updated" is exactly the staleness it's
+  /// there to report.
+  void _onResyncChanged() {
+    final running = _resync.isRunning;
+    if (_wasRunning && !running) unawaited(_loadLastSync());
+    _wasRunning = running;
   }
 
   /// Read the active company's last-sync high-water mark so the user can see
@@ -181,21 +197,20 @@ class _DataSectionState extends State<_DataSection> {
     if (mounted) setState(() => _lastSyncAt = row?.lastSyncAt);
   }
 
-  Future<void> _run() async {
-    setState(() => _running = true);
-    await SettingsActions.forceResync(
-      context,
-      successKey: 'download_complete',
-      failureKey: 'download_failed',
-    );
-    if (mounted) setState(() => _running = false);
-    await _loadLastSync();
-  }
+  /// In-flight state and the post-run `lastSyncAt` re-read both come from
+  /// [_resync] now, so this is just the trigger.
+  Future<void> _run() => SettingsActions.forceResync(
+    context,
+    successKey: 'download_complete',
+    failureKey: 'download_failed',
+  );
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final lastSync = _lastSyncAt;
+    final companyId =
+        context.read<Services>().auth.session.value?.currentCompanyId ?? '';
     return FormSection(
       title: context.tr('data'),
       children: [
@@ -203,7 +218,12 @@ class _DataSectionState extends State<_DataSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              context.tr('download_data'),
+              // Not `download_data` ("Press button below to download the
+              // data."): that key lives in en.json, which the Transifex
+              // importer regenerates and which `_app_pending.json` can't
+              // override — and it no longer describes the action, which now
+              // uploads queued edits first.
+              context.tr('download_data_help'),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: tokens.ink2),
@@ -222,21 +242,37 @@ class _DataSectionState extends State<_DataSection> {
         ),
         Align(
           alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            // Compact, content-sized button. Without this the themed
-            // `Size.fromHeight(44)` default (= infinite min-width) would make
-            // the button fill the stretched FormSection column, defeating the
-            // centerRight alignment and rendering edge-to-edge.
-            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-            onPressed: _running ? null : _run,
-            icon: _running
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.cloud_download_outlined),
-            label: Text(context.tr('download')),
+          child: ValueListenableBuilder<ResyncProgress>(
+            valueListenable: _resync,
+            builder: (context, p, _) {
+              // Shared with the sidebar Sync button, so a pass started there
+              // shows here too — and tapping can't start a competing one.
+              final running = p.isRunningFor(companyId);
+              return FilledButton.icon(
+                // Compact, content-sized button. Without this the themed
+                // `Size.fromHeight(44)` default (= infinite min-width) would
+                // make the button fill the stretched FormSection column,
+                // defeating the centerRight alignment and rendering
+                // edge-to-edge.
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+                onPressed: running ? null : _run,
+                icon: running
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cloud_download_outlined),
+                label: Text(
+                  running && p.total > 0
+                      ? context.tr('syncing_progress', {
+                          'count': '${p.completed}',
+                          'total': '${p.total}',
+                        })
+                      : context.tr('download'),
+                ),
+              );
+            },
           ),
         ),
       ],

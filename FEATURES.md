@@ -1456,6 +1456,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Per-company FIFO outbox ordering | — | 🟡 | ✅ | ✅ | |
 | Offline editing (full CRUD without network) | — | 🟡 | ✅ | ✅ | |
 | Encrypted local database (SQLCipher) | — | ❌ | ✅ | ✅ | |
+| One-tap Sync in the sidebar header (push + download, shared progress) | — | — | ✅ | | |
 
 ---
 

@@ -189,7 +189,13 @@ String userGuideUrl(String location) {
   if (location.startsWith('/settings')) {
     return '$_kDocsBaseUrl/advanced-settings';
   }
-  return _kDocsBaseUrl;
+  // The docs site has no page at the bare `/en` base — it 404s. Every route
+  // without a specific mapping (Invoices, Products, Tasks, Reports, …) reaches
+  // this line, so returning the base sent most of the app to a "page not
+  // found". `/user-guide` is the docs landing page and is what Dashboard
+  // already uses. Found while fixing issue #12: once the Android launch bug was
+  // fixed, this was the next thing standing between the button and a useful page.
+  return '$_kDocsBaseUrl/user-guide';
 }
 
 Future<void> _openExternal(BuildContext context, String url) async {

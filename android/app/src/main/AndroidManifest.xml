@@ -56,15 +56,43 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
-
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <!-- Android 11 (API 30) package visibility hides every app we don't declare
+         here from PackageManager queries. See
+         https://developer.android.com/training/package-visibility. -->
     <queries>
+        <!-- Required to query activities that can process text, see
+             https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+             In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+
+        <!-- Lets url_launcher's `canLaunchUrl` see an installed browser. Without
+             these it returns false for every web URL, and each of the app's
+             ~18 external-link call sites reports "failed to open URL" without
+             ever attempting the launch: User Guide / Support Forum, client &
+             vendor portals, payment links, the upgrade flow, gateway and
+             QuickBooks OAuth, and bank reconnect. (`launchUrl` itself would
+             have succeeded — package visibility restricts *querying*, not
+             starting an implicit intent — so the gate is what fails, and it
+             fails silently at build time.) Issue #12.
+
+             `http` alongside `https`: self-hosted portals on internal networks
+             are a real case, which is why `isSafeWebUrl`
+             (lib/utils/url_safety.dart) permits it. Every other scheme is
+             rejected before it ever reaches `launchUrl`, so no `mailto:` /
+             `tel:` intents are needed here.
+
+             Guarded by test/lint/android_url_queries_test.dart. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
         </intent>
     </queries>
 </manifest>

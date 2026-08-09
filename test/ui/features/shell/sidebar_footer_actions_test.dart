@@ -32,10 +32,30 @@ void main() {
       );
     });
 
-    test('unknown routes fall back to the docs base', () {
-      expect(userGuideUrl('/login'), base);
-      expect(userGuideUrl('/'), base);
-      expect(userGuideUrl(''), base);
+    // The bare `$base` 404s on the docs site, and this branch catches most of
+    // the app — Invoices, Products, Tasks, Quotes, Payments, Reports, Outbox.
+    // Verified against the live site while fixing issue #12.
+    test('unmapped routes fall back to the user guide, not the bare base', () {
+      const routes = ['/invoices', '/products', '/reports', '/login', '/', ''];
+      for (final route in routes) {
+        expect(userGuideUrl(route), '$base/user-guide', reason: route);
+      }
+    });
+
+    test('no route ever returns the bare docs base — it 404s', () {
+      const routes = [
+        '/clients',
+        '/dashboard',
+        '/settings',
+        '/settings/company_details',
+        '/invoices',
+        '/login',
+        '/',
+        '',
+      ];
+      for (final route in routes) {
+        expect(userGuideUrl(route), isNot(base), reason: route);
+      }
     });
   });
 }

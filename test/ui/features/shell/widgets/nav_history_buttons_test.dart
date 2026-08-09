@@ -85,6 +85,36 @@ void main() {
     expect(find.byType(IconButton), findsNWidgets(2));
   });
 
+  group('touch density (issue #11)', () {
+    testWidgets('touch grows both arrows to the touch target', (tester) async {
+      await tester.pumpWidget(wrap(const NavHistoryButtons(touch: true)));
+
+      for (final icon in [Icons.arrow_back, Icons.arrow_forward]) {
+        final size = tester.getSize(find.widgetWithIcon(IconButton, icon));
+        expect(size.height, greaterThanOrEqualTo(InSizes.touchTarget));
+        expect(size.width, greaterThanOrEqualTo(InSizes.touchTarget));
+      }
+    });
+
+    testWidgets('compact + touch grows height only — 2x44 wide would overflow '
+        'the 64-px collapsed rail', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const SizedBox(
+            width: 64,
+            child: NavHistoryButtons(compact: true, touch: true),
+          ),
+        ),
+      );
+      // An overflow here throws and fails the test.
+      for (final icon in [Icons.arrow_back, Icons.arrow_forward]) {
+        final size = tester.getSize(find.widgetWithIcon(IconButton, icon));
+        expect(size.height, greaterThanOrEqualTo(InSizes.touchTarget));
+        expect(size.width, 32);
+      }
+    });
+  });
+
   testWidgets('back walks to the previous location, forward returns', (
     tester,
   ) async {

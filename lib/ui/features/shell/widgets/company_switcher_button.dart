@@ -22,6 +22,7 @@ class CompanySwitcherButton extends StatefulWidget {
     required this.session,
     this.onBeforeOpen,
     this.compact = false,
+    this.touch = false,
     super.key,
   });
 
@@ -36,6 +37,12 @@ class CompanySwitcherButton extends StatefulWidget {
   /// the avatar renders, no name text or chevron. Tap still opens the picker
   /// anchored on the same key.
   final bool compact;
+
+  /// Floors the button at [InSizes.touchTarget] tall. Only bites in [compact]
+  /// mode — the expanded button is already 44 (28 avatar + 8 padding either
+  /// side). Height only: the collapsed rail leaves just 64 − 28 = 36 px of
+  /// usable width. Set from `Env.isTouchPrimary` by `InSidebar`; see issue #11.
+  final bool touch;
 
   @override
   State<CompanySwitcherButton> createState() => _CompanySwitcherButtonState();
@@ -93,6 +100,9 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
             border: Border.all(color: tokens.border),
           ),
           padding: EdgeInsets.all(widget.compact ? 4 : 8),
+          constraints: widget.touch
+              ? const BoxConstraints(minHeight: InSizes.touchTarget)
+              : null,
           child: widget.compact
               ? Align(alignment: Alignment.centerLeft, child: avatar)
               : Row(

@@ -63,4 +63,30 @@ void main() {
       });
     });
   });
+
+  // Unlike the two getters above, this one has *no* `kIsWeb` guard — that
+  // absence is the point (a mobile browser reports `android`, and a finger is
+  // still a finger). A VM run can't observe the web path either way, so the
+  // contract is documented on the getter rather than asserted here.
+  group('Env.isTouchPrimary', () {
+    test('true only on iOS and Android', () {
+      for (final p in [TargetPlatform.iOS, TargetPlatform.android]) {
+        withPlatform(p, () => expect(Env.isTouchPrimary, isTrue, reason: '$p'));
+      }
+    });
+
+    test('false on desktop and fuchsia', () {
+      for (final p in [
+        TargetPlatform.macOS,
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.fuchsia,
+      ]) {
+        withPlatform(
+          p,
+          () => expect(Env.isTouchPrimary, isFalse, reason: '$p'),
+        );
+      }
+    });
+  });
 }

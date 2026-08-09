@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart' show CompanyRow;
 import 'package:admin/data/models/domain/enabled_modules.dart';
@@ -235,6 +236,11 @@ class _InSidebarState extends State<InSidebar> {
             // the collapse toggle is wide-layout-only, so ignore the
             // preference when there's no fixed width.
             final canCollapse = widget.width != null;
+            // Touch pointers get bigger hit areas throughout the sidebar —
+            // both hosts (the 280-px drawer and the persistent rail a tablet
+            // shows at >=600 px). Read once and threaded like `compact` so the
+            // leaf widgets stay pure and directly pumpable in tests.
+            final touch = Env.isTouchPrimary;
             final collapsed = canCollapse && collapsedPref;
             final effectiveWidth = canCollapse
                 ? (collapsed ? kInSidebarCollapsedWidth : kInSidebarWidth)
@@ -279,6 +285,7 @@ class _InSidebarState extends State<InSidebar> {
                     child: NavHistoryButtons(
                       compact: collapsed,
                       popDrawerFirst: widget.width == null,
+                      touch: touch,
                     ),
                   ),
                   Padding(
@@ -287,6 +294,7 @@ class _InSidebarState extends State<InSidebar> {
                       session: session,
                       onBeforeOpen: widget.onBeforeCompanyPicker,
                       compact: collapsed,
+                      touch: touch,
                     ),
                   ),
                   Container(height: 1, color: tokens.border),
@@ -311,6 +319,7 @@ class _InSidebarState extends State<InSidebar> {
                                     services,
                                     session.currentCompanyId,
                                     compact: collapsed,
+                                    touch: touch,
                                     activeViewId: snap.data?.id,
                                     trackInventory:
                                         companySnap.data?.trackInventory ??
@@ -326,6 +335,7 @@ class _InSidebarState extends State<InSidebar> {
                   SidebarFooterActions(
                     compact: collapsed,
                     showCollapseToggle: canCollapse,
+                    touch: touch,
                   ),
                   TrialFooter(compact: collapsed),
                 ],
@@ -375,6 +385,7 @@ class _InSidebarState extends State<InSidebar> {
     Services services,
     String companyId, {
     required bool compact,
+    required bool touch,
     required String? activeViewId,
     required bool trackInventory,
   }) {
@@ -391,6 +402,7 @@ class _InSidebarState extends State<InSidebar> {
         context,
         services,
         compact: compact,
+        touch: touch,
         labelKey: 'dashboard',
         icon: Icons.dashboard_outlined,
         kind: FixedBranchKind.dashboard,
@@ -408,6 +420,7 @@ class _InSidebarState extends State<InSidebar> {
             h,
             companyId,
             compact: compact,
+            touch: touch,
             activeViewId: activeViewId,
             trackInventory: trackInventory,
           ),
@@ -426,6 +439,7 @@ class _InSidebarState extends State<InSidebar> {
           context,
           services,
           compact: compact,
+          touch: touch,
           labelKey: 'reports',
           icon: Icons.bar_chart_outlined,
           kind: FixedBranchKind.reports,
@@ -453,6 +467,7 @@ class _InSidebarState extends State<InSidebar> {
         currentBranch: widget.currentBranch,
         onSelectBranch: widget.onSelectBranch,
         compact: compact,
+        touch: touch,
         activeViewId: activeViewId,
         savedViewsStream: _savedViews!.stream,
       ),
@@ -460,6 +475,7 @@ class _InSidebarState extends State<InSidebar> {
         context,
         services,
         compact: compact,
+        touch: touch,
         labelKey: 'settings',
         icon: Icons.settings_outlined,
         kind: FixedBranchKind.settings,
@@ -468,6 +484,7 @@ class _InSidebarState extends State<InSidebar> {
         context,
         services,
         compact: compact,
+        touch: touch,
         labelKey: 'outbox',
         icon: Icons.outbox_outlined,
         kind: FixedBranchKind.outbox,
@@ -485,6 +502,7 @@ class _InSidebarState extends State<InSidebar> {
     EntityHandlers handlers,
     String companyId, {
     required bool compact,
+    required bool touch,
     required String? activeViewId,
     required bool trackInventory,
   }) {
@@ -532,6 +550,7 @@ class _InSidebarState extends State<InSidebar> {
       active: isActive,
       disabled: handlers.disabled,
       compact: compact,
+      touch: touch,
       count: count,
       countTone: tone,
       countLabel: countLabel,
@@ -595,6 +614,7 @@ class _InSidebarState extends State<InSidebar> {
     BuildContext context,
     Services services, {
     required bool compact,
+    required bool touch,
     required String labelKey,
     required IconData icon,
     required FixedBranchKind kind,
@@ -611,6 +631,7 @@ class _InSidebarState extends State<InSidebar> {
       icon: icon,
       active: isActive,
       compact: compact,
+      touch: touch,
       count: count,
       trailing: trailing,
       trailingHover: trailingHover,
@@ -778,6 +799,7 @@ class _SavedViewsSection extends StatelessWidget {
     required this.currentBranch,
     required this.onSelectBranch,
     required this.compact,
+    required this.touch,
     required this.activeViewId,
     required this.savedViewsStream,
   });
@@ -786,6 +808,7 @@ class _SavedViewsSection extends StatelessWidget {
   final int currentBranch;
   final ValueChanged<int> onSelectBranch;
   final bool compact;
+  final bool touch;
 
   /// Id of the saved view whose snapshot currently matches the live list
   /// state of the active branch's entity (`null` when none / fixed branch).
@@ -827,6 +850,7 @@ class _SavedViewsSection extends StatelessWidget {
               _SavedViewNavItem(
                 view: view,
                 compact: compact,
+                touch: touch,
                 active: view.id == activeViewId,
                 onTap: () => _onTap(context, view),
               ),
@@ -927,12 +951,14 @@ class _SavedViewNavItem extends StatelessWidget {
   const _SavedViewNavItem({
     required this.view,
     required this.compact,
+    required this.touch,
     required this.active,
     required this.onTap,
   });
 
   final SavedView view;
   final bool compact;
+  final bool touch;
   final bool active;
   final VoidCallback onTap;
 
@@ -959,10 +985,11 @@ class _SavedViewNavItem extends StatelessWidget {
       icon: savedViewIcon(view.iconKey),
       active: active,
       compact: compact,
+      touch: touch,
       onTap: onTap,
       // Always-visible (not hover-gated) so the menu is discoverable; the
       // collapsed rail has no room for it (handled by SidebarNavItem).
-      trailing: compact ? null : _SavedViewMenuButton(view: view),
+      trailing: compact ? null : _SavedViewMenuButton(view: view, touch: touch),
     );
     if (compact) return item;
     return GestureDetector(
@@ -981,9 +1008,10 @@ class _SavedViewNavItem extends StatelessWidget {
 /// `showMenu` path (correctly sized — `PopupMenuButton.constraints` sizes
 /// the menu and clipped it). Still keyboard-focusable.
 class _SavedViewMenuButton extends StatelessWidget {
-  const _SavedViewMenuButton({required this.view});
+  const _SavedViewMenuButton({required this.view, required this.touch});
 
   final SavedView view;
+  final bool touch;
 
   void _open(BuildContext context) {
     final box = context.findRenderObject() as RenderBox?;
@@ -1006,12 +1034,44 @@ class _SavedViewMenuButton extends StatelessWidget {
       tooltip: context.tr('view_options'),
       iconSize: 16,
       padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
-      // `constraints` here sizes the IconButton itself — the wide-mode
-      // sidebar row body is wrapped in SizedBox(height: 18), so match the
-      // proven `_HoverAddButton` footprint. `ink3` is the established weight
-      // for sidebar trailing affordances (the entity-row `+`).
-      constraints: const BoxConstraints.tightFor(width: 18, height: 18),
+      // Without this the `constraints` below are advisory on touch platforms:
+      // `ThemeData.materialTapTargetSize` is `padded` on android/iOS, which
+      // wraps the button in `_InputPadding` and inflates its *layout* size
+      // (not just its hit area) to `kMinInteractiveDimension` = 48 — so the row
+      // would be 48 + 14 padding = 62 px. Matches the explicit `shrinkWrap` the
+      // sibling `_CollapseToggleButton` and `_HistoryButton` already carry.
+      // No-op on desktop, where the theme default is already `shrinkWrap`.
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      // Deliberately unset on touch. Under Material 3 `IconButton` converts
+      // `constraints` into ButtonStyle `minimumSize`/`maximumSize`, and
+      // `ButtonStyleButton` runs *those* through
+      // `visualDensity.effectiveConstraints` — so `compact`'s -8 would turn the
+      // width below into a 36..44 range that the 16-px icon collapses back to
+      // 36, silently undoing the bigger target. (The `effectiveConstraints`
+      // call inside `icon_button.dart` is on the legacy pre-M3 branch and never
+      // runs here.) Unset falls back to `ThemeData.visualDensity`, which is
+      // `standard` — zero adjustment — on exactly the platforms `touch` covers.
+      visualDensity: touch ? null : VisualDensity.compact,
+      // `constraints` here sizes the IconButton itself — matching the proven
+      // `_HoverAddButton` footprint against the row's 18-px icon. `ink3` is the
+      // established weight for sidebar trailing affordances (the entity-row
+      // `+`). This one is always visible rather than hover-gated, so on touch
+      // it is a real target and widens to the full 44.
+      //
+      // Height stays at the row's *content* box (44 floor − 7/7 padding = 30),
+      // not 44: `trailing` sits inside the row's Row, so a 44-tall button would
+      // drive the Row to 44 and the row's own padding would stack on top for a
+      // 58-px row — 32% taller than every other row in the sidebar. Width is
+      // the axis a thumb misses on in a vertical list anyway, and the row's own
+      // 44-px floor still governs what the finger lands in.
+      constraints: touch
+          ? const BoxConstraints.tightFor(
+              width: InSizes.touchTarget,
+              height: 30,
+            )
+          : const BoxConstraints.tightFor(width: 18, height: 18),
       icon: Icon(Icons.more_vert, color: context.inTheme.ink3),
       onPressed: () => _open(context),
     );

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +18,23 @@ ThemeData _theme() => ThemeData.light().copyWith(
 Widget _wrap(Widget child) => MaterialApp(
   theme: _theme(),
   home: Scaffold(body: child),
+);
+
+/// Stands in for the private `_SavedViewMenuButton` (`in_sidebar.dart`) in its
+/// touch configuration. Kept structurally identical — `iconSize`, zero padding,
+/// `shrinkWrap`, no `visualDensity`, and the same `constraints` — because every
+/// one of those participates in the final size; a plain `SizedBox` would prove
+/// the row arithmetic while hiding the Material sizing rules that actually bite.
+Widget _savedViewMenuButtonLookalike() => IconButton(
+  iconSize: 16,
+  padding: EdgeInsets.zero,
+  style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+  constraints: const BoxConstraints.tightFor(
+    width: InSizes.touchTarget,
+    height: 30,
+  ),
+  icon: const Icon(Icons.more_vert),
+  onPressed: () {},
 );
 
 /// Overrides only the text scaler for [child] so a row can be measured at the
@@ -332,6 +351,233 @@ void main() {
       );
     },
   );
+
+  // The rows only ever render at the sidebar's real host widths — 280 (the
+  // `AppDrawer`) and 232 (the persistent rail). The generic sweep in
+  // responsive_regression_test.dart starts at 500, where a nav row has so much
+  // slack it can't overflow, so these live here instead.
+  //
+  // Height is asserted as *equal* to the target, not merely above it: the row's
+  // `trailing` sits inside its Row, so an over-tall trailing widget drives the
+  // Row's cross axis and the row's own 7/7 padding stacks on top. A 44-px-tall
+  // `⋮` renders a 58-px row — taller than every other row, and invisible to an
+  // overflow check.
+  group('touch density at real sidebar widths (issue #11)', () {
+    const hostWidths = <double>[232, 280];
+    const longLabel = 'Recurring purchase orders — awaiting approval';
+
+    Future<void> pumpAtWidth(
+      WidgetTester tester,
+      double width,
+      Widget child,
+    ) async {
+      await tester.binding.setSurfaceSize(Size(width, 200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _wrap(
+          Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(width: width, child: child),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    for (final width in hostWidths) {
+      testWidgets(
+        'badge row is exactly the touch target @ ${width.toInt()}px',
+        (tester) async {
+          await pumpAtWidth(
+            tester,
+            width,
+            SidebarNavItem(
+              label: longLabel,
+              icon: Icons.receipt_long_outlined,
+              active: true,
+              touch: true,
+              count: 1234,
+              countLabel: 'Overdue',
+              onTap: () {},
+            ),
+          );
+
+          expect(tester.getSize(find.byType(SidebarNavItem)).height, 44);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets('saved-view row keeps the same height as every other row '
+          '@ ${width.toInt()}px', (tester) async {
+        await pumpAtWidth(
+          tester,
+          width,
+          SidebarNavItem(
+            label: longLabel,
+            icon: Icons.bookmark_outline,
+            active: false,
+            touch: true,
+            trailing: _savedViewMenuButtonLookalike(),
+            onTap: () {},
+          ),
+        );
+
+        // The button itself: proof the `constraints` actually govern. Drop the
+        // `shrinkWrap` and android's `padded` tap target inflates this to
+        // 48×48; keep `visualDensity.compact` and it shrinks to 36 wide.
+        expect(
+          tester.getSize(find.byType(IconButton)),
+          const Size(InSizes.touchTarget, 30),
+        );
+        expect(
+          tester.getSize(find.byType(SidebarNavItem)).height,
+          44,
+          reason:
+              'an over-tall trailing widget silently inflates the row past '
+              'the touch target and breaks the sidebar rhythm',
+        );
+        expect(tester.takeException(), isNull);
+        // `touch` only ever means android/iOS, and both the tap-target and
+        // visual-density defaults governing this button differ from desktop —
+        // measure on a real touch platform, not the test host's.
+      }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+    }
+  });
+
+  group('touch density (issue #11)', () {
+    testWidgets('row is floored at the touch target when touch: true', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Clients',
+            icon: Icons.people_outline,
+            active: false,
+            touch: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byType(SidebarNavItem)).height,
+        greaterThanOrEqualTo(InSizes.touchTarget),
+      );
+    });
+
+    testWidgets('pointer platforms keep the dense row (touch defaults false)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Clients',
+            icon: Icons.people_outline,
+            active: false,
+            onTap: () {},
+          ),
+        ),
+      );
+      // Guards the desktop rail against the touch floor leaking out of its
+      // branch. Asserted as "under the target" rather than an exact number —
+      // the row sizes to max(18px icon, label line box), so the pixel value
+      // moves with the font.
+      expect(
+        tester.getSize(find.byType(SidebarNavItem)).height,
+        lessThan(InSizes.touchTarget),
+      );
+    });
+
+    testWidgets(
+      'the touch floor is a minimum, not a clamp — the label keeps its full '
+      'line box at large text scale',
+      (tester) async {
+        const label = 'Payments'; // has p / y descenders
+        const scale = 2.0;
+
+        await tester.pumpWidget(
+          _wrap(
+            _scaled(
+              scale,
+              const Align(
+                alignment: Alignment.topLeft,
+                child: Text(label, style: TextStyle(fontSize: 13)),
+              ),
+            ),
+          ),
+        );
+        final naturalHeight = tester.getSize(find.text(label)).height;
+
+        await tester.pumpWidget(
+          _wrap(
+            _scaled(
+              scale,
+              SidebarNavItem(
+                label: label,
+                icon: Icons.payments_outlined,
+                active: false,
+                touch: true,
+                onTap: () {},
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          tester.getSize(find.text(label)).height,
+          greaterThanOrEqualTo(naturalHeight - 0.5),
+          reason:
+              'a SizedBox(height:) floor would slice the label; the touch '
+              'target must be expressed as a minimum constraint',
+        );
+      },
+    );
+  });
+
+  // The cases above pass `touch:` by hand, so none of them would notice the
+  // sidebar forgetting to derive or forward it. `_fixedNav` / `_entityNav` /
+  // `_SavedViewsSection` take it as a *required* param, so the analyzer covers
+  // that half; what it can't see is the derivation and the three leaf handoffs
+  // to `SidebarNavItem`, which silently fall back to the dense default.
+  //
+  // A source scan rather than a pump, same rationale as the sibling guard in
+  // nav_history_buttons_test.dart: `InSidebar` needs the whole `Services`
+  // graph, and pumping it holds live Drift watch streams that never settle.
+  group('sidebar wiring (issue #11)', () {
+    final sidebar = File(
+      'lib/ui/features/shell/widgets/in_sidebar.dart',
+    ).readAsStringSync();
+
+    test('InSidebar derives the touch flag from the platform', () {
+      expect(
+        sidebar.contains('Env.isTouchPrimary'),
+        isTrue,
+        reason:
+            'in_sidebar.dart must read Env.isTouchPrimary — without it every '
+            'row silently falls back to the 32-px pointer density.',
+      );
+    });
+
+    test('every SidebarNavItem in the sidebar is passed touch', () {
+      const marker = 'SidebarNavItem(';
+      final starts = <int>[];
+      for (var i = sidebar.indexOf(marker); i != -1;) {
+        starts.add(i);
+        i = sidebar.indexOf(marker, i + marker.length);
+      }
+      expect(starts, isNotEmpty, reason: 'no SidebarNavItem constructions?');
+      for (final start in starts) {
+        final end = (start + 600).clamp(0, sidebar.length);
+        expect(
+          sidebar.substring(start, end).contains('touch:'),
+          isTrue,
+          reason:
+              'the SidebarNavItem at offset $start does not forward `touch:` — '
+              'that row keeps the dense height on phones.',
+        );
+      }
+    });
+  });
 
   group('counter badge tones', () {
     // A red overdue count has to stay red on the row you're standing on — the

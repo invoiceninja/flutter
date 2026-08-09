@@ -678,6 +678,19 @@ class InRadii {
   static const double r4 = 20;
 }
 
+/// Brightness-independent dimensions — interactive sizes.
+class InSizes {
+  InSizes._();
+
+  /// Minimum interactive size on a touch pointer — the iOS HIG minimum, and
+  /// already the app's button floor (`theme.dart`'s `Size.fromHeight(44)`, the
+  /// "thumb-friendly" rows in `segment_menu.dart` / `filter_suggestion_menu.dart`).
+  /// Material's Android figure is 48, but 44 keeps the sidebar's ~19 nav rows
+  /// inside a phone viewport. Applied only when `Env.isTouchPrimary` — pointer
+  /// platforms keep their denser metrics. See issue #11.
+  static const double touchTarget = 44;
+}
+
 /// Brightness-independent dimensions — spacing scale.
 ///
 /// `xs`, `sm`, `xl`, `xxl` are plain `static const` values for math

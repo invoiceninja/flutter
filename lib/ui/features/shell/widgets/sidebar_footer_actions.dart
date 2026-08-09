@@ -31,6 +31,7 @@ class SidebarFooterActions extends StatelessWidget {
   const SidebarFooterActions({
     this.compact = false,
     this.showCollapseToggle = false,
+    this.touch = false,
     super.key,
   });
 
@@ -42,6 +43,10 @@ class SidebarFooterActions extends StatelessWidget {
   /// which can't collapse; true on the persistent wide rail.
   final bool showCollapseToggle;
 
+  /// Grows every action to [InSizes.touchTarget] tall. Set from
+  /// `Env.isTouchPrimary` by `InSidebar`; see issue #11.
+  final bool touch;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
@@ -49,16 +54,19 @@ class SidebarFooterActions extends StatelessWidget {
       _FooterAction(
         icon: Icons.mail_outline,
         tooltipKey: 'contact_us',
+        touch: touch,
         onTap: () => showContactUsDialog(context),
       ),
       _FooterAction(
         icon: Icons.forum_outlined,
         tooltipKey: 'support_forum',
+        touch: touch,
         onTap: () => _openExternal(context, _kForumUrl),
       ),
       _FooterAction(
         icon: Icons.help_outline,
         tooltipKey: 'user_guide',
+        touch: touch,
         onTap: () => _openExternal(
           context,
           userGuideUrl(GoRouterState.of(context).matchedLocation),
@@ -67,19 +75,30 @@ class SidebarFooterActions extends StatelessWidget {
       _FooterAction(
         icon: Icons.info_outline,
         tooltipKey: 'about',
+        touch: touch,
         onTap: () => showAppAboutDialog(context),
       ),
-      _ThemeFooterAction(),
+      _ThemeFooterAction(touch: touch),
     ];
+
+    // On touch each action claims an equal share of the row instead of sitting
+    // at its intrinsic 30 px with `spaceEvenly` gaps around it — a near-miss
+    // then lands on a neighbour rather than on dead space. It also keeps the
+    // row from overflowing: fixed 44-wide actions would need
+    // 5×44 + 9 (divider) + 44 (toggle) = 273 px, but the expanded rail only
+    // offers 232 − 16 = 216. `Expanded` shares out whatever is there (52.8 px
+    // each in the 280 px drawer, 32.6 px each on the rail).
+    List<Widget> shareWidth(List<Widget> items) =>
+        touch ? [for (final a in items) Expanded(child: a)] : items;
 
     final Widget body;
     if (showCollapseToggle && compact) {
       // Collapsed wide rail: only the expand toggle, pinned right so it
       // slides smoothly from its expanded-state position (rightmost child
       // of the footer Row) rather than jumping inward at toggle-time.
-      body = const Align(
+      body = Align(
         alignment: Alignment.centerRight,
-        child: _CollapseToggleButton(collapsed: true),
+        child: _CollapseToggleButton(collapsed: true, touch: touch),
       );
     } else if (showCollapseToggle) {
       // Expanded wide rail: 4 actions, vertical divider, collapse toggle.
@@ -88,21 +107,21 @@ class SidebarFooterActions extends StatelessWidget {
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: actions,
+              children: shareWidth(actions),
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Container(width: 1, height: 24, color: tokens.border),
           ),
-          const _CollapseToggleButton(collapsed: false),
+          _CollapseToggleButton(collapsed: false, touch: touch),
         ],
       );
     } else {
       // Drawer: 4 actions, no toggle.
       body = Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: actions,
+        children: shareWidth(actions),
       );
     }
 
@@ -122,9 +141,10 @@ class SidebarFooterActions extends StatelessWidget {
 /// footer row with the help/info actions when expanded; sits alone when
 /// the rail is collapsed.
 class _CollapseToggleButton extends StatelessWidget {
-  const _CollapseToggleButton({required this.collapsed});
+  const _CollapseToggleButton({required this.collapsed, this.touch = false});
 
   final bool collapsed;
+  final bool touch;
 
   @override
   Widget build(BuildContext context) {
@@ -135,9 +155,14 @@ class _CollapseToggleButton extends StatelessWidget {
       child: IconButton(
         // The theme sets `IconButton.minimumSize = Size.fromHeight(44)` via
         // the surrounding button defaults; without these overrides the
-        // toggle balloons inside this tight footer.
+        // toggle balloons inside this tight footer. 44 on touch still fits the
+        // collapsed 64-px rail (64 − 16 padding = 48). This goes through
+        // `ButtonStyle`, not `IconButton.constraints`, so the density
+        // adjustment that shrinks an explicit `constraints` box doesn't apply.
         style: IconButton.styleFrom(
-          minimumSize: const Size(36, 36),
+          minimumSize: touch
+              ? const Size(InSizes.touchTarget, InSizes.touchTarget)
+              : const Size(36, 36),
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
@@ -196,11 +221,13 @@ class _FooterAction extends StatelessWidget {
     required this.icon,
     required this.tooltipKey,
     required this.onTap,
+    this.touch = false,
   });
 
   final IconData icon;
   final String tooltipKey;
   final VoidCallback onTap;
+  final bool touch;
 
   @override
   Widget build(BuildContext context) {
@@ -214,17 +241,37 @@ class _FooterAction extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(InRadii.r2),
-          child: Padding(
-            // 6, not 8: with the fifth (theme) action the expanded 232-px rail
-            // would otherwise sit flush against the divider + collapse toggle
-            // with no inter-icon breathing room.
-            padding: const EdgeInsets.all(6),
-            child: Icon(icon, size: 18, color: tokens.ink3),
+          child: _footerActionBody(
+            glyph: Icon(icon, size: 18, color: tokens.ink3),
+            touch: touch,
           ),
         ),
       ),
     );
   }
+}
+
+/// Shared inner body for the footer's icon actions.
+///
+/// On touch the slot's width is tight (the caller wraps each action in an
+/// `Expanded`), so the icon has to be explicitly centred — a bare `Padding`
+/// would pin it to the left edge of its share of the row. `SizedBox` is safe
+/// for the height here because it wraps an `Icon`, not text: there is no line
+/// box to clamp, unlike `SidebarNavItem`, which must use a minimum.
+Widget _footerActionBody({required Widget glyph, required bool touch}) {
+  if (touch) {
+    return SizedBox(
+      height: InSizes.touchTarget,
+      child: Center(child: glyph),
+    );
+  }
+  return Padding(
+    // 6, not 8: with the fifth (theme) action the expanded 232-px rail
+    // would otherwise sit flush against the divider + collapse toggle
+    // with no inter-icon breathing room.
+    padding: const EdgeInsets.all(6),
+    child: glyph,
+  );
 }
 
 /// The theme switcher action. Unlike [_FooterAction] it owns a [GlobalKey] to
@@ -236,7 +283,9 @@ class _FooterAction extends StatelessWidget {
 /// popup's anchor mid-rebuild. (Collision isn't the concern — only one footer
 /// is ever mounted, rail XOR drawer — instability across rebuilds is.)
 class _ThemeFooterAction extends StatefulWidget {
-  const _ThemeFooterAction();
+  const _ThemeFooterAction({this.touch = false});
+
+  final bool touch;
 
   @override
   State<_ThemeFooterAction> createState() => _ThemeFooterActionState();
@@ -259,9 +308,9 @@ class _ThemeFooterActionState extends State<_ThemeFooterAction> {
         child: InkWell(
           onTap: () => showThemeMenu(context, anchorKey: _anchorKey),
           borderRadius: BorderRadius.circular(InRadii.r2),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: ListenableBuilder(
+          child: _footerActionBody(
+            touch: widget.touch,
+            glyph: ListenableBuilder(
               listenable: theme,
               builder: (context, _) =>
                   Icon(_iconFor(theme.themeMode), size: 18, color: tokens.ink3),

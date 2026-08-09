@@ -158,4 +158,27 @@ class Env {
         return false;
     }
   }
+
+  /// True when the primary pointer is a finger — iOS / Android, **including a
+  /// mobile browser**. Unlike [isMobile] there is deliberately no `kIsWeb`
+  /// guard: on web `defaultTargetPlatform` is derived from the browser's
+  /// operating system, so Chrome on a Pixel reports `android` while a desktop
+  /// browser reports `macOS` / `linux` / `windows` — exactly the split touch
+  /// sizing wants.
+  ///
+  /// Drives touch-target sizing only (see `InSizes.touchTarget`). For "is this
+  /// a native mobile build" — platform channels, haptics, biometrics — use
+  /// [isMobile] instead.
+  static bool get isTouchPrimary {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.android:
+        return true;
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
 }

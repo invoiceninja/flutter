@@ -21,12 +21,18 @@ class NavHistoryButtons extends StatelessWidget {
   const NavHistoryButtons({
     this.compact = false,
     this.popDrawerFirst = false,
+    this.touch = false,
     super.key,
   });
 
   /// Collapsed-rail variant: the pair centers itself in the 64-px rail
   /// instead of left-aligning under the company switcher.
   final bool compact;
+
+  /// Grows the pair to [InSizes.touchTarget]. Set from `Env.isTouchPrimary` by
+  /// `InSidebar`; see issue #11. Height always, width only when there's room —
+  /// see [_HistoryButton].
+  final bool touch;
 
   /// True when hosted inside `AppDrawer`: dismisses the drawer before
   /// navigating (same order as `AppDrawer.onSelectBranch` — the route change
@@ -49,6 +55,8 @@ class NavHistoryButtons extends StatelessWidget {
           labelKey: 'go_back',
           keys: [mod, '←'],
           enabled: history.canGoBack,
+          touch: touch,
+          compact: compact,
           onPressed: () => _navigate(context, history.back),
         ),
         _HistoryButton(
@@ -56,6 +64,8 @@ class NavHistoryButtons extends StatelessWidget {
           labelKey: 'go_forward',
           keys: [mod, '→'],
           enabled: history.canGoForward,
+          touch: touch,
+          compact: compact,
           onPressed: () => _navigate(context, history.forward),
         ),
       ],
@@ -80,6 +90,8 @@ class _HistoryButton extends StatelessWidget {
     required this.keys,
     required this.enabled,
     required this.onPressed,
+    this.touch = false,
+    this.compact = false,
   });
 
   final IconData icon;
@@ -87,13 +99,20 @@ class _HistoryButton extends StatelessWidget {
   final List<String> keys;
   final bool enabled;
   final VoidCallback onPressed;
+  final bool touch;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final button = IconButton(
       style: IconButton.styleFrom(
-        minimumSize: const Size(32, 32),
+        // Touch grows the height always, the width only off the collapsed
+        // rail: the pair is centred in 64 px with no horizontal padding, so
+        // 2×32 already fills it exactly and 2×44 would overflow.
+        minimumSize: touch
+            ? Size(compact ? 32 : InSizes.touchTarget, InSizes.touchTarget)
+            : const Size(32, 32),
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),

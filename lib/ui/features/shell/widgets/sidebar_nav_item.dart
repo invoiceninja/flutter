@@ -30,6 +30,7 @@ class SidebarNavItem extends StatefulWidget {
     this.countLabel,
     this.disabled = false,
     this.compact = false,
+    this.touch = false,
     this.trailingHover,
     this.trailing,
     this.leaderKey,
@@ -58,6 +59,12 @@ class SidebarNavItem extends StatefulWidget {
   /// surfaces in a hover tooltip; the optional `count` becomes a small accent
   /// dot at the icon's top-right (numbers don't fit in 64 px).
   final bool compact;
+
+  /// Floors the row at [InSizes.touchTarget] so a finger has something to aim
+  /// at. Set from `Env.isTouchPrimary` by `InSidebar` — pointer platforms keep
+  /// the denser 32-px row. Typography and icon size are identical either way;
+  /// only the hit area grows. See issue #11.
+  final bool touch;
 
   /// Secondary action revealed at the row's right edge when the mouse
   /// hovers over this row. Ignored in [compact] mode (no horizontal room)
@@ -179,6 +186,9 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
             // accessibility scaler passes through unclamped; at the default
             // (Normal) size the icon already pins the row to 18px, so this is
             // a no-op there. Regression: sidebar_nav_item_test.dart.
+            // (`touch` adds a *minimum* below, which is safe for the same
+            // reason a fixed height wasn't: it can only add space, never take
+            // the label's line box away.)
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             child: Row(
               children: [
@@ -225,7 +235,20 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
       child: InkWell(
         onTap: effectiveOnTap,
         borderRadius: BorderRadius.circular(InRadii.r2),
-        child: body,
+        // Inside the InkWell so the ripple and the hit area both fill the
+        // target, and the Material above sizes to it so an active row's accent
+        // background does too. `minHeight`, never `SizedBox(height:)` — see the
+        // padding comment above; the Row centres its icon inside the extra
+        // space, which reads as the `vertical: 13` the app's other
+        // thumb-friendly rows use.
+        child: widget.touch
+            ? ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: InSizes.touchTarget,
+                ),
+                child: body,
+              )
+            : body,
       ),
     );
     Widget result = tile;

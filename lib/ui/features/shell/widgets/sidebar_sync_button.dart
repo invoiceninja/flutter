@@ -6,7 +6,7 @@ import 'package:admin/app/resync_controller.dart';
 import 'package:admin/l10n/localization.dart';
 
 /// One-tap Sync, paired with the company switcher at the top of the sidebar
-/// (issue #14 — "Download data" used to be four taps deep in Settings).
+/// (issue #14 — syncing used to be four taps deep in Settings).
 ///
 /// Pure and directly pumpable: it takes the progress listenable and the
 /// callback rather than reaching for `context.read<Services>()`, matching

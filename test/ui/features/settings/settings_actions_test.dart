@@ -134,7 +134,7 @@ void main() {
   });
 
   testWidgets(
-    'forceResync surfaces a failure snackbar when the server is unreachable '
+    'forceResync surfaces a failure toast when the server is unreachable '
     'and leaves the active session intact (orchestration error path)',
     (tester) async {
       // forceResync now fans out across every entity via
@@ -170,10 +170,11 @@ void main() {
       await tester.tap(find.text('trigger-resync'));
       await tester.pumpAndSettle();
 
-      // Default failureKey = resync_failed; either the leading auth refresh
-      // throws or every entity refresh is collected as failed — both report it.
-      // The failure now surfaces via the global toast host (no more SnackBar).
-      expect(find.text('Resync failed'), findsOneWidget);
+      // Failure reports `sync_failed` — the one vocabulary every surface uses;
+      // either the leading auth refresh throws or every entity refresh is
+      // collected as failed, and both report it. The failure surfaces via the
+      // global toast host (no more SnackBar).
+      expect(find.text('Sync failed'), findsOneWidget);
       expect(fixture.services.auth.session.value?.currentCompanyId, 'c1');
 
       // Cancel the toast's auto-dismiss timer before the body ends (flutter_test
@@ -233,7 +234,7 @@ void main() {
 
     // The toast host is a Stack sibling of the body, not a descendant of the
     // trigger, so the outcome still reaches the user.
-    expect(find.text('Resync failed'), findsOneWidget);
+    expect(find.text('Sync failed'), findsOneWidget);
 
     fixture.services.toasts.clearAll();
     fixture.services.recentlyViewed.dispose();

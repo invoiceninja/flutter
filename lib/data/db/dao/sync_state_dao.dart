@@ -66,7 +66,7 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
     ),
   );
 
-  /// Clear the cursor — used by "Force full resync".
+  /// Clear the cursor — used by "Force full sync".
   Future<void> reset({required String companyId, required String entityType}) =>
       (delete(syncStateRows)..where(
             (s) =>

@@ -578,8 +578,8 @@ class Services implements SidebarBadgeContext {
 
   /// App-wide single-flight + progress state for the user-initiated "Sync" pass
   /// (see [syncNow]). Driven by the sidebar header's Sync button, Settings →
-  /// Device Settings → Data → Download, and Account Management → Force full
-  /// resync, so the three can't start competing passes.
+  /// Device Settings → Data → Sync, and Account Management → Force full sync,
+  /// so the three can't start competing passes.
   ///
   /// Not to be confused with [sync], the outbox drain — this one *downloads*
   /// (and pushes first, via [syncNow]).
@@ -758,8 +758,8 @@ class Services implements SidebarBadgeContext {
       _runSidebarPrefetch(_firstPagePrefetchers, companyId);
 
   /// Re-download every user-browsable ("own route") entity for [companyId] in a
-  /// single user-initiated pass — the Settings "Download all data" / "Force full
-  /// resync" action. Runs a full [AuthRepository.refresh] first (re-bundles the
+  /// single user-initiated pass — the download half of the "Sync" / "Force full
+  /// sync" action. Runs a full [AuthRepository.refresh] first (re-bundles the
   /// `first_load` reference data and advances the company `lastSyncAt` cursor),
   /// then a forced `refreshAll(full: true)` per entity.
   ///
@@ -853,7 +853,7 @@ class Services implements SidebarBadgeContext {
     );
   }
 
-  /// The own-route entities "Download all data" re-pulls, each paired with the
+  /// The own-route entities a Sync pass re-pulls, each paired with the
   /// repo call that loads it — the single source of truth for
   /// [resyncAllEntities] and [resyncEntityTypes]. Covers exactly the
   /// workspace-sidebar ([SidebarSection.top]) list entities; the bank-feature

@@ -957,7 +957,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Enable Email Markdown | ✅ | ✅ | ✅ | ✅ | |
 | Include Drafts in lists | ✅ | ✅ | ✅ | ✅ | |
 | Include Deleted in lists | ✅ | ✅ | ✅ | ✅ | |
-| Force Full Resync | ✅ | ✅ | ✅ | ✅ | |
+| Force Full Sync | ✅ | ✅ | ✅ | ✅ | |
 | Purchase License | ✅ | ✅ | ✅ | ✅ | |
 | Apply License | ✅ | ✅ | ✅ | ✅ | |
 
@@ -1040,7 +1040,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Theme (light / dark / system, local) | — | ✅ | ✅ | ✅ | |
 | Font Size (text scale, local) | — | ✅ | ✅ | ✅ | |
 | Biometric Authentication toggle | — | ✅ | ✅ | ✅ | |
-| Refresh Data (force resync, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
+| Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
 
 ---
 

@@ -124,7 +124,7 @@ void main() {
   testWidgets(
     'right-aligned FilledButton in a FormSection sizes to content, not full width',
     (tester) async {
-      // Regression for the Device Settings "Download" button: the themed
+      // Regression for the Device Settings "Sync" button: the themed
       // FilledButton default `Size.fromHeight(44)` (infinite min-width) would
       // otherwise fill the stretched FormSection column and defeat the
       // centerRight alignment. The per-call `minimumSize` keeps it compact.
@@ -134,14 +134,17 @@ void main() {
         FormSection(
           title: 'Data',
           children: [
-            const Text('Press the button below to download the data.'),
+            // Placeholder prose, deliberately NOT a copy of the screen's real
+            // `sync_data_help` string: this test never touches Localization,
+            // and a verbatim duplicate would go stale on the next copy edit.
+            const Text('Body copy that wraps across more than a single line.'),
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
                 style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
                 onPressed: () {},
-                icon: const Icon(Icons.cloud_download_outlined),
-                label: const Text('Download'),
+                icon: const Icon(Icons.sync),
+                label: const Text('Sync'),
               ),
             ),
           ],

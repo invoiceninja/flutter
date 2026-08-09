@@ -138,9 +138,9 @@ typedef ResyncRunner =
 /// offline edits, then re-download every browsable entity).
 ///
 /// Three surfaces drive this one controller — the sidebar header's Sync button,
-/// Settings → Device Settings → Data → Download, and Account Management →
-/// Force full resync — so they can't start competing passes and can't disagree
-/// about whether a spinner should be showing.
+/// Settings → Device Settings → Data → Sync, and Account Management → Force
+/// full sync — so they can't start competing passes and can't disagree about
+/// whether a spinner should be showing.
 class ResyncController extends ValueNotifier<ResyncProgress> {
   ResyncController({required ResyncRunner runner})
     : _runner = runner,

@@ -26,7 +26,7 @@ const kDeviceSettingsSearchKeys = <String>[
   'theme',
   'font_size',
   'customize_colors',
-  'download',
+  'sync',
   'security',
   'biometric_authentication',
   ...kSidebarCountersSearchKeys,
@@ -35,10 +35,10 @@ const kDeviceSettingsSearchKeys = <String>[
 
 /// Top-level "Device Settings" page. Holds the device-local, no-save controls:
 /// theme (mode + palette), the per-preset colour overrides, biometric
-/// security, and the "download all data locally" action. Unlike most settings
-/// screens this has no cascade and no save bar — every control writes
-/// immediately to a device-local store (`nav_state`). Only the accent colour
-/// is server-synced; it lives on User Details → Preferences with the save bar.
+/// security, and the Sync action. Unlike most settings screens this has no
+/// cascade and no save bar — every control writes immediately to a
+/// device-local store (`nav_state`). Only the accent colour is server-synced;
+/// it lives on User Details → Preferences with the save bar.
 class DeviceSettingsScreen extends StatefulWidget {
   const DeviceSettingsScreen({super.key});
 
@@ -187,7 +187,7 @@ class _DataSectionState extends State<_DataSection> {
   }
 
   /// Read the active company's last-sync high-water mark so the user can see
-  /// how stale their local cache is. One-shot (re-read after a download) — the
+  /// how stale their local cache is. One-shot (re-read after a pass) — the
   /// value only moves on sync.
   Future<void> _loadLastSync() async {
     final services = context.read<Services>();
@@ -199,11 +199,7 @@ class _DataSectionState extends State<_DataSection> {
 
   /// In-flight state and the post-run `lastSyncAt` re-read both come from
   /// [_resync] now, so this is just the trigger.
-  Future<void> _run() => SettingsActions.forceResync(
-    context,
-    successKey: 'download_complete',
-    failureKey: 'download_failed',
-  );
+  Future<void> _run() => SettingsActions.forceResync(context);
 
   @override
   Widget build(BuildContext context) {
@@ -218,12 +214,11 @@ class _DataSectionState extends State<_DataSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              // Not `download_data` ("Press button below to download the
-              // data."): that key lives in en.json, which the Transifex
-              // importer regenerates and which `_app_pending.json` can't
-              // override — and it no longer describes the action, which now
-              // uploads queued edits first.
-              context.tr('download_data_help'),
+              // App-local key, not Transifex's `download_data` ("Press button
+              // below to download the data."): en.json can't be overridden
+              // from `_app_pending.json`, and that wording no longer describes
+              // the action, which uploads queued edits first.
+              context.tr('sync_data_help'),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: tokens.ink2),
@@ -262,14 +257,14 @@ class _DataSectionState extends State<_DataSection> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.cloud_download_outlined),
+                    : const Icon(Icons.sync),
                 label: Text(
                   running && p.total > 0
                       ? context.tr('syncing_progress', {
                           'count': '${p.completed}',
                           'total': '${p.total}',
                         })
-                      : context.tr('download'),
+                      : context.tr('sync'),
                 ),
               );
             },

@@ -301,17 +301,8 @@ class _InSidebarState extends State<InSidebar> {
                       // the company switcher does: closing it would hide the
                       // spinner the user just started. The toast host paints
                       // above the drawer either way.
-                      // "Sync" wording, not "Download": this button is
-                      // tooltipped `sync_now` and the pass pushes queued edits
-                      // before it downloads, so a "Download complete" toast
-                      // would describe half the work.
-                      onSync: () => unawaited(
-                        SettingsActions.forceResync(
-                          context,
-                          successKey: 'sync_complete',
-                          failureKey: 'sync_failed',
-                        ),
-                      ),
+                      onSync: () =>
+                          unawaited(SettingsActions.forceResync(context)),
                     ),
                   ),
                   Container(height: 1, color: tokens.border),

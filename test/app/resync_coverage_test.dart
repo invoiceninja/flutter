@@ -1,4 +1,4 @@
-// Completeness guard for "Download all data" (Services.resyncAllEntities).
+// Completeness guard for the Sync pass (Services.resyncAllEntities).
 // Its whole promise is to re-download everything the user can browse, but the
 // covered set is a hand-maintained list (Services._resyncSteps). This asserts
 // that list covers every workspace-sidebar (SidebarSection.top) entity, so a
@@ -28,8 +28,8 @@ void main() {
       browsable.difference(fixture.services.resyncEntityTypes),
       isEmpty,
       reason:
-          'every workspace-sidebar list entity must be re-downloaded by '
-          '"Download all" — add the missing entity to Services._resyncSteps',
+          'every workspace-sidebar list entity must be re-downloaded by a '
+          'Sync pass — add the missing entity to Services._resyncSteps',
     );
 
     // restore() armed the recently-viewed debounce timer; dispose it so the

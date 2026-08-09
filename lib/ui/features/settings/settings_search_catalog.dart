@@ -428,7 +428,7 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'enable_email_markdown',
     'include_drafts',
     'include_deleted',
-    'force_full_resync',
+    'force_full_sync',
     'purchase_license',
     'apply_license',
     // Enabled modules

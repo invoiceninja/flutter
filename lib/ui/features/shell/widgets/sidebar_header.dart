@@ -8,7 +8,7 @@ import 'package:admin/ui/features/shell/widgets/company_switcher_button.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
 
 /// Top of the sidebar: the company switcher paired with the one-tap Sync
-/// button (issue #14 — "Download data" used to be four taps deep in Settings).
+/// button (issue #14 — syncing used to be four taps deep in Settings).
 ///
 /// The two are *siblings*, never nested: [CompanySwitcherButton]'s `InkWell`
 /// covers its whole box and would swallow a tap landing on a child.

@@ -25,7 +25,7 @@ const String _kWhiteLabelUrl =
 ///   2. Account info (account ID, account email — copy-to-clipboard tiles).
 ///   3. Default company (Set as default button when not already default).
 ///   4. Company toggles (activate, PDF/email markdown, include drafts/deleted).
-///   5. Data (Force Full Resync — pre-existing).
+///   5. Data (Force full sync — pre-existing).
 class AccountManagementOverviewScreen extends StatefulWidget {
   const AccountManagementOverviewScreen({super.key});
 
@@ -582,15 +582,15 @@ class _DataCard extends StatelessWidget {
             final resyncing = p.isRunningFor(companyId);
             return ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.refresh),
-              title: Text(context.tr('force_full_resync')),
+              leading: const Icon(Icons.sync),
+              title: Text(context.tr('force_full_sync')),
               subtitle: Text(
                 resyncing && p.total > 0
                     ? context.tr('syncing_progress', {
                         'count': '${p.completed}',
                         'total': '${p.total}',
                       })
-                    : context.tr('force_resync_description'),
+                    : context.tr('force_sync_description'),
               ),
               trailing: resyncing
                   ? const SizedBox(

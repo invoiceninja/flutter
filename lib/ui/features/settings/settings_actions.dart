@@ -10,7 +10,7 @@ import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 
 /// Shared user-flow helpers for settings screens. Keeps the confirmation
 /// dialogs / error toasts consistent across the surfaces that expose them —
-/// currently sign-out (`User Details`) and force-resync (`Account Management →
+/// currently sign-out (`User Details`) and sync (`Account Management →
 /// Overview`, `Device Settings → Data`, and the sidebar header's Sync button).
 /// They're called from places that otherwise have no shared state, so static
 /// methods rather than a ChangeNotifier are the right shape. (The one piece of
@@ -73,9 +73,15 @@ class SettingsActions {
 
   /// Push queued offline edits, then re-download all data for the active
   /// company (see [Services.syncNow]). Backs all three entry points: the
-  /// sidebar header's Sync button, the Device Settings "Download" action, and
-  /// the Account Management overview's "Force full resync" recovery path.
+  /// sidebar header's Sync button, the Device Settings "Sync" action, and the
+  /// Account Management overview's "Force full sync" recovery path.
   /// Non-destructive to unsynced offline edits.
+  ///
+  /// One action, one vocabulary: every surface reports the same
+  /// `sync_complete` / `sync_failed` outcome, so the toast doesn't depend on
+  /// which button the user happened to press. Before issue #15 the same pass
+  /// toasted "Download complete" from Device Settings and "Resync complete"
+  /// from the overview (whose tile read "Force full resync").
   ///
   /// Routed through [Services.resync], so a second call while a pass is running
   /// joins it rather than starting a competing one — and only the call that
@@ -83,11 +89,7 @@ class SettingsActions {
   ///
   /// Caller surfaces the in-flight state from `services.resync`; `await`ing
   /// this returns when the work is done.
-  static Future<void> forceResync(
-    BuildContext context, {
-    String successKey = 'resync_complete',
-    String failureKey = 'resync_failed',
-  }) async {
+  static Future<void> forceResync(BuildContext context) async {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId == null || companyId.isEmpty) return;
@@ -96,8 +98,8 @@ class SettingsActions {
     // button, a settings card) is routinely gone by the time it lands — the
     // toast host is global and outlives any context, so the result still shows.
     final toasts = Notify.capture(context);
-    final success = context.tr(successKey);
-    final failure = context.tr(failureKey);
+    final success = context.tr('sync_complete');
+    final failure = context.tr('sync_failed');
     final busy = context.tr('sync_in_progress');
 
     final result = await services.resync.run(companyId);

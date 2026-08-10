@@ -166,23 +166,17 @@ class ChartCard extends StatelessWidget {
     );
   }
 
-  Widget _legend(BuildContext context, InTheme tokens) {
-    final chips = <Widget>[
-      _legendChip(
-        context.tr('invoices'),
-        tokens.accent,
-        ChartSeriesId.invoices,
-      ),
-      _legendChip(context.tr('payments'), tokens.paid, ChartSeriesId.payments),
-      _legendChip(
-        context.tr('outstanding'),
-        tokens.overdue,
-        ChartSeriesId.outstanding,
-      ),
-      _legendChip(context.tr('expenses'), tokens.ink3, ChartSeriesId.expenses),
-    ];
-    return Wrap(spacing: 12, runSpacing: 4, children: chips);
-  }
+  /// Reads its colors from [_colorFor] rather than repeating them: the curve
+  /// and the tooltip swatch both derive from that one mapping, so a second
+  /// copy here could make the legend dot disagree with the line it labels.
+  Widget _legend(BuildContext context, InTheme tokens) => Wrap(
+    spacing: 12,
+    runSpacing: 4,
+    children: [
+      for (final id in ChartSeriesId.values)
+        _legendChip(_labelFor(context, id), _colorFor(tokens, id), id),
+    ],
+  );
 
   Widget _legendChip(String label, Color color, ChartSeriesId id) {
     return Builder(
@@ -358,14 +352,40 @@ class ChartCard extends StatelessWidget {
           enabled: true,
           touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (_) => tokens.ink,
+            // One row per visible series, and fl_chart re-sorts them by value
+            // on every pointer move — so with four series on by default, row
+            // position carries no identity and a bare column of numbers can't
+            // be read. The swatch carries the series color; the value stays on
+            // `surface` because the series colors only reach ~3.3:1 against
+            // the `ink` fill, below the small-text contrast floor.
+            // The default 120 wraps a long amount, and the painter applies
+            // the user's text scaler on top.
+            maxContentWidth: 160,
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
             getTooltipItems: (touchedSpots) {
+              // Must return exactly one entry per touched spot — fl_chart
+              // throws on a length mismatch. Map 1:1, never filter.
               return touchedSpots.map((spot) {
                 return LineTooltipItem(
-                  formatter.money(
-                    Decimal.parse(spot.y.toStringAsFixed(2)),
-                    currencyId: currencyKey,
+                  '● ',
+                  TextStyle(
+                    color: spot.bar.color ?? tokens.surface,
+                    fontSize: 11.5,
                   ),
-                  moneyTextStyle(color: tokens.surface, fontSize: 11.5),
+                  textAlign: TextAlign.left,
+                  children: [
+                    TextSpan(
+                      text: formatter.money(
+                        Decimal.parse(spot.y.toStringAsFixed(2)),
+                        currencyId: currencyKey,
+                      ),
+                      style: moneyTextStyle(
+                        color: tokens.surface,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
                 );
               }).toList();
             },
@@ -376,6 +396,20 @@ class ChartCard extends StatelessWidget {
           ? Duration.zero
           : const Duration(milliseconds: 250),
     );
+  }
+
+  /// Localized series label, paired with [_colorFor] by the legend.
+  String _labelFor(BuildContext context, ChartSeriesId id) {
+    switch (id) {
+      case ChartSeriesId.invoices:
+        return context.tr('invoices');
+      case ChartSeriesId.payments:
+        return context.tr('payments');
+      case ChartSeriesId.outstanding:
+        return context.tr('outstanding');
+      case ChartSeriesId.expenses:
+        return context.tr('expenses');
+    }
   }
 
   Color _colorFor(InTheme tokens, ChartSeriesId id) {

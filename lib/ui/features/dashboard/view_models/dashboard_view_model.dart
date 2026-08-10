@@ -76,9 +76,10 @@ class DashboardViewModel extends ChangeNotifier {
   AsyncSection<List<DashboardRecurringInvoiceRow>> upcomingRecurring =
       const AsyncSection.idle();
 
-  /// Which chart series the legend has enabled. Default = invoices only,
-  /// matching the v2 hero chart's "Revenue" framing.
-  Set<ChartSeriesId> visibleChartSeries = const {ChartSeriesId.invoices};
+  /// Which chart series the legend has enabled. Default = all four, matching
+  /// the React web client. Reassigned (never mutated in place) by
+  /// [toggleChartSeries] and `_hydrate` — see [kDefaultChartSeries].
+  Set<ChartSeriesId> visibleChartSeries = kDefaultChartSeries;
 
   /// Chart x-axis bucketing. Default = month, matching React's
   /// `dashboard_charts.default_view`. Persisted alongside [visibleChartSeries];
@@ -611,6 +612,16 @@ class DashboardViewModel extends ChangeNotifier {
         _filter = loadedFilter.copyWith(firstMonthOfYear: _fiscalYearStart);
       }
 
+      // `chartSeriesV` marks an envelope written by a build whose default is
+      // all four series. Its absence means the blob predates that change, so a
+      // stored set that is *exactly* the retired default ({invoices}) records
+      // the old default, not a choice, and is upgraded. Any other stored set
+      // could only have come from tapping the legend, so it is honored as-is.
+      // Once the marker is present the stored set wins outright — including a
+      // deliberate invoices-only, which must stay reachable. See #23.
+      final seriesVersion = dash['chartSeriesV'];
+      final seriesChosenPostUpgrade =
+          seriesVersion is int && seriesVersion >= _kChartSeriesVersion;
       final series = dash['chartSeries'];
       if (series is List) {
         final next = <ChartSeriesId>{};
@@ -619,7 +630,12 @@ class DashboardViewModel extends ChangeNotifier {
             if (id.name == s) next.add(id);
           }
         }
-        if (next.isNotEmpty) visibleChartSeries = next;
+        final isRetiredDefault =
+            !seriesChosenPostUpgrade &&
+            setEquals(next, _kRetiredDefaultChartSeries);
+        if (next.isNotEmpty) {
+          visibleChartSeries = isRetiredDefault ? kDefaultChartSeries : next;
+        }
       }
 
       final grouping = dash['chartGrouping'];
@@ -697,6 +713,12 @@ class DashboardViewModel extends ChangeNotifier {
       companyMap['dashboard'] = {
         'filter': _filter.toJson(),
         'chartSeries': visibleChartSeries.map((s) => s.name).toList(),
+        // Seals the #23 migration for this company. Written on *every*
+        // persist, not just from toggleChartSeries: `_schedulePersist` bails
+        // while `!_hydrated`, so the stamped value is always post-migration,
+        // and an unrelated write (date range, card add) finishes the upgrade
+        // sooner.
+        'chartSeriesV': _kChartSeriesVersion,
         'chartGrouping': chartGrouping.name,
         'dashboardCards': dashboardCards.map((c) => c.toJson()).toList(),
         'panels': panelPrefs.map((p) => p.toJson()).toList(),
@@ -749,6 +771,32 @@ class _SectionNotifier extends ChangeNotifier {
 
 /// Series ids that the chart card can toggle via legend chips.
 enum ChartSeriesId { invoices, payments, outstanding, expenses }
+
+/// Legend default: all four series, matching the React web client, which
+/// renders invoices/payments/outstanding/expenses unconditionally with no
+/// toggle at all (`react/src/pages/dashboard/components/Chart.tsx`). See #23.
+///
+/// Kept a `const` literal rather than `ChartSeriesId.values.toSet()`: every VM
+/// aliases this value until something reassigns, and a shared *growable* set
+/// would let one stray in-place `add` / `remove` poison the default
+/// process-wide. `const` turns that into an immediate `UnsupportedError`.
+const Set<ChartSeriesId> kDefaultChartSeries = {
+  ChartSeriesId.invoices,
+  ChartSeriesId.payments,
+  ChartSeriesId.outstanding,
+  ChartSeriesId.expenses,
+};
+
+/// The retired default. A persisted envelope holding exactly this set *and* no
+/// `chartSeriesV` marker was written by a build whose default was
+/// invoices-only, so it records that default rather than a user's choice —
+/// `_hydrate` upgrades it to [kDefaultChartSeries].
+const Set<ChartSeriesId> _kRetiredDefaultChartSeries = {ChartSeriesId.invoices};
+
+/// Version stamp written under `chartSeriesV`. Bump only when the *default*
+/// set changes; its absence in a stored envelope means "written before the
+/// all-four default shipped".
+const int _kChartSeriesVersion = 2;
 
 /// Chart x-axis bucketing granularity. Pure client-side re-bucketing of the
 /// same `chart_summary_v2` response — never sent to the server. Mirrors

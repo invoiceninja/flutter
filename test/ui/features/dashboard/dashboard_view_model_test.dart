@@ -2,178 +2,33 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/native.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_calculated_field.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_chart_series.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
-import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
-import 'package:admin/data/services/api_client.dart';
-import 'package:admin/data/services/api_credentials.dart';
-import 'package:admin/data/services/dashboard_api.dart';
-import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 
-/// 4.5 — per-section listenables. A single section's stream emission must
-/// bump *only* that section's listenable (so one card rebuilds), and must
-/// NOT fire the global VM notify (which is reserved for cross-cutting
-/// chrome: filter / refresh state). Cross-cutting actions (`setFilter`)
-/// must still fire the global notify.
-final ApiClient _dummyClient = ApiClient(
-  credentials: ValueNotifier<ApiCredentials?>(
-    const ApiCredentials(baseUrl: 'https://t', token: 't'),
-  ),
-  passwordCache: PasswordCache(),
-  onUnauthorized: () async {},
-);
-
-/// Repo whose watch streams are test-driven controllers; refreshes no-op.
-class _FakeDashboardRepo extends DashboardRepository {
-  _FakeDashboardRepo(AppDatabase db)
-    : super(db: db, api: DashboardApi(_dummyClient));
-
-  final activities = StreamController<List<DashboardActivity>?>.broadcast();
-  final pastDue = StreamController<List<DashboardInvoiceRow>?>.broadcast();
-  final upcomingInvoices =
-      StreamController<List<DashboardInvoiceRow>?>.broadcast();
-  final recentPayments =
-      StreamController<List<DashboardPaymentRow>?>.broadcast();
-  final expiredQuotes = StreamController<List<DashboardQuoteRow>?>.broadcast();
-  final upcomingQuotes = StreamController<List<DashboardQuoteRow>?>.broadcast();
-  final upcomingRecurring =
-      StreamController<List<DashboardRecurringInvoiceRow>?>.broadcast();
-  final totals = StreamController<DashboardTotals?>.broadcast();
-  final totalsPrev = StreamController<DashboardTotals?>.broadcast();
-  final chart = StreamController<DashboardChartSeries?>.broadcast();
-
-  @override
-  Stream<List<DashboardActivity>?> watchActivities(String c) =>
-      activities.stream;
-  @override
-  Stream<List<DashboardInvoiceRow>?> watchPastDue(String c) => pastDue.stream;
-  @override
-  Stream<List<DashboardInvoiceRow>?> watchUpcomingInvoices(String c) =>
-      upcomingInvoices.stream;
-  @override
-  Stream<List<DashboardPaymentRow>?> watchRecentPayments(String c) =>
-      recentPayments.stream;
-  @override
-  Stream<List<DashboardQuoteRow>?> watchExpiredQuotes(String c) =>
-      expiredQuotes.stream;
-  @override
-  Stream<List<DashboardQuoteRow>?> watchUpcomingQuotes(String c) =>
-      upcomingQuotes.stream;
-  @override
-  Stream<List<DashboardRecurringInvoiceRow>?> watchUpcomingRecurring(
-    String c,
-  ) => upcomingRecurring.stream;
-  @override
-  Stream<DashboardTotals?> watchTotals(
-    String c,
-    DashboardFilter f, {
-    bool previousPeriod = false,
-  }) => previousPeriod ? totalsPrev.stream : totals.stream;
-  @override
-  Stream<DashboardChartSeries?> watchChart(String c, DashboardFilter f) =>
-      chart.stream;
-
-  /// Cards the VM asked us to fetch (asserted by tests). The last refresh
-  /// wins; reset by reading then clearing.
-  final List<String> refreshedCardKeys = [];
-  final List<String> droppedCardKeys = [];
-
-  @override
-  Future<Map<String, Object>> refreshAll(
-    String c,
-    DashboardFilter f, {
-    List<DashboardCardConfig> cards = const [],
-  }) async {
-    refreshedCardKeys
-      ..clear()
-      ..addAll(cards.map((e) => e.key));
-    return const {};
-  }
-
-  @override
-  Future<Map<String, Object>> refreshFilterKeyed(
-    String c,
-    DashboardFilter f, {
-    List<DashboardCardConfig> cards = const [],
-  }) async {
-    refreshedCardKeys
-      ..clear()
-      ..addAll(cards.map((e) => e.key));
-    return const {};
-  }
-
-  @override
-  Stream<DashboardCalculatedField?> watchCalculatedField(
-    String c,
-    DashboardFilter f,
-    DashboardCardConfig config,
-  ) => Stream<DashboardCalculatedField?>.value(null);
-
-  @override
-  Future<void> refreshCalculatedField(
-    String c,
-    DashboardFilter f,
-    DashboardCardConfig config,
-  ) async {
-    refreshedCardKeys.add(config.key);
-  }
-
-  /// When set, `dropCalculatedField` blocks on this until completed — lets a
-  /// test interleave a re-add against an in-flight drop (P0 race).
-  Completer<void>? dropGate;
-
-  @override
-  Future<void> dropCalculatedField(String c, DashboardCardConfig config) async {
-    droppedCardKeys.add(config.key);
-    final gate = dropGate;
-    if (gate != null) await gate.future;
-  }
-
-  @override
-  Future<void> refreshTotals(String c, DashboardFilter f) async {}
-  @override
-  Future<void> refreshChart(String c, DashboardFilter f) async {}
-  @override
-  Future<void> refreshActivities(String c) async {}
-  @override
-  Future<void> refreshPastDue(String c) async {}
-  @override
-  Future<void> refreshUpcomingInvoices(String c) async {}
-  @override
-  Future<void> refreshRecentPayments(String c) async {}
-  @override
-  Future<void> refreshExpiredQuotes(String c) async {}
-  @override
-  Future<void> refreshUpcomingQuotes(String c) async {}
-  @override
-  Future<void> refreshUpcomingRecurring(String c) async {}
-}
+import '_fake_dashboard_repo.dart';
 
 void main() {
   late AppDatabase db;
-  late _FakeDashboardRepo repo;
+  late FakeDashboardRepo repo;
   late DashboardViewModel vm;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
-    repo = _FakeDashboardRepo(db);
+    repo = FakeDashboardRepo(db);
     vm = DashboardViewModel(
       repo: repo,
       companyId: 'co',
       navStateDao: db.navStateDao,
-      statics: StaticsRepository(db: db, service: StaticsService(_dummyClient)),
+      statics: StaticsRepository(
+        db: db,
+        service: StaticsService(dummyDashboardClient),
+      ),
     );
     // Let _init() (hydrate + subscribeAll + refresh) settle.
     await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -184,6 +39,11 @@ void main() {
     await db.close();
   });
 
+  // 4.5 — per-section listenables. A single section's stream emission must
+  // bump *only* that section's listenable (so one card rebuilds), and must
+  // NOT fire the global VM notify (which is reserved for cross-cutting
+  // chrome: filter / refresh state). Cross-cutting actions (`setFilter`)
+  // must still fire the global notify.
   test('a single section emission bumps only that section listenable, '
       'not peers and not the global notify', () async {
     var activitiesHits = 0;
@@ -237,6 +97,152 @@ void main() {
     // retry(pastDue) → _setSectionError(pastDue, null) → bumps pastDue.
     expect(pastDueHits, greaterThanOrEqualTo(1));
     expect(activitiesHits, 0);
+  });
+
+  // #23: the legend defaults to all four series (React renders every series
+  // unconditionally). Envelopes written before that change carry the retired
+  // invoices-only default and are upgraded once, while any deliberate choice
+  // — including invoices-only made *after* the upgrade — survives.
+  group('chart series legend', () {
+    DashboardViewModel newVm({Duration? persistDebounce}) => DashboardViewModel(
+      repo: repo,
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      statics: StaticsRepository(
+        db: db,
+        service: StaticsService(dummyDashboardClient),
+      ),
+      persistDebounce: persistDebounce ?? const Duration(milliseconds: 500),
+    );
+
+    Future<DashboardViewModel> readerFor(Map<String, Object?> dashboard) async {
+      await db.navStateDao.saveFilters(
+        filtersJson: jsonEncode({
+          'co': {'dashboard': dashboard},
+        }),
+        now: 1,
+      );
+      final reader = newVm();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      return reader;
+    }
+
+    test('defaults to all four series', () {
+      expect(vm.visibleChartSeries, kDefaultChartSeries);
+    });
+
+    test('kDefaultChartSeries covers every ChartSeriesId and is immutable', () {
+      // Fails if a fifth series is added to the enum without updating the
+      // const, which would silently ship it disabled-by-default.
+      expect(kDefaultChartSeries, ChartSeriesId.values.toSet());
+      // Fails if the const is swapped for a shared growable set, which one
+      // stray in-place mutation could poison process-wide.
+      expect(
+        () => kDefaultChartSeries.add(ChartSeriesId.invoices),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('legacy invoices-only envelope upgrades to all four', () async {
+      final reader = await readerFor({
+        'chartSeries': ['invoices'],
+      });
+      expect(reader.visibleChartSeries, kDefaultChartSeries);
+      reader.dispose();
+    });
+
+    test('a legacy hand-picked subset is preserved', () async {
+      final reader = await readerFor({
+        'chartSeries': ['payments', 'expenses'],
+      });
+      expect(reader.visibleChartSeries, {
+        ChartSeriesId.payments,
+        ChartSeriesId.expenses,
+      });
+      reader.dispose();
+    });
+
+    test('invoices-only is honored once the marker is present', () async {
+      final reader = await readerFor({
+        'chartSeries': ['invoices'],
+        'chartSeriesV': 2,
+      });
+      expect(reader.visibleChartSeries, {ChartSeriesId.invoices});
+      reader.dispose();
+    });
+
+    test('toggling down to invoices-only survives a restart', () async {
+      final writer = newVm(persistDebounce: const Duration(milliseconds: 5));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      writer
+        ..toggleChartSeries(ChartSeriesId.payments)
+        ..toggleChartSeries(ChartSeriesId.outstanding)
+        ..toggleChartSeries(ChartSeriesId.expenses);
+      // Let the debounced _persist() flush to nav_state.
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      writer.dispose();
+
+      final reader = newVm();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(
+        reader.visibleChartSeries,
+        {ChartSeriesId.invoices},
+        reason: 'a deliberate invoices-only choice must not be re-upgraded',
+      );
+      reader.dispose();
+    });
+
+    test('an unrelated persist stamps the version marker', () async {
+      final writer = newVm(persistDebounce: const Duration(milliseconds: 5));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      // Legend untouched — only the grouping changes.
+      writer.setChartGrouping(ChartGrouping.week);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      writer.dispose();
+
+      final doc =
+          jsonDecode((await db.navStateDao.current())!.filtersJson!)
+              as Map<String, dynamic>;
+      final dash =
+          (doc['co']! as Map<String, dynamic>)['dashboard']!
+              as Map<String, dynamic>;
+      expect(dash['chartSeriesV'], 2);
+      expect(
+        (dash['chartSeries']! as List).cast<String>().toSet(),
+        kDefaultChartSeries.map((s) => s.name).toSet(),
+      );
+    });
+
+    test('absent chartSeries key (pre-legend install) → all four', () async {
+      final reader = await readerFor({
+        'dashboardCards': ['active_invoices|current|sum|money'],
+      });
+      expect(reader.visibleChartSeries, kDefaultChartSeries);
+      reader.dispose();
+    });
+
+    test('an all-unknown series list falls back to the default', () async {
+      final reader = await readerFor({
+        'chartSeries': ['bogus'],
+      });
+      expect(reader.visibleChartSeries, kDefaultChartSeries);
+      reader.dispose();
+    });
+
+    test('toggleChartSeries refuses to empty the set', () {
+      var globalHits = 0;
+      vm.addListener(() => globalHits++);
+      for (final id in ChartSeriesId.values) {
+        vm.toggleChartSeries(id);
+      }
+      // The last toggle would have emptied the chart, so it is refused.
+      expect(vm.visibleChartSeries, {ChartSeriesId.expenses});
+      expect(
+        globalHits,
+        ChartSeriesId.values.length - 1,
+        reason: 'the refused toggle must not notify',
+      );
+    });
   });
 
   group('chart grouping', () {
@@ -302,7 +308,7 @@ void main() {
         navStateDao: db.navStateDao,
         statics: StaticsRepository(
           db: db,
-          service: StaticsService(_dummyClient),
+          service: StaticsService(dummyDashboardClient),
         ),
         persistDebounce: const Duration(milliseconds: 5),
       );
@@ -324,7 +330,7 @@ void main() {
         navStateDao: db.navStateDao,
         statics: StaticsRepository(
           db: db,
-          service: StaticsService(_dummyClient),
+          service: StaticsService(dummyDashboardClient),
         ),
       );
       await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -342,7 +348,7 @@ void main() {
         navStateDao: db.navStateDao,
         statics: StaticsRepository(
           db: db,
-          service: StaticsService(_dummyClient),
+          service: StaticsService(dummyDashboardClient),
         ),
         persistDebounce: const Duration(milliseconds: 5),
       );
@@ -358,7 +364,7 @@ void main() {
         navStateDao: db.navStateDao,
         statics: StaticsRepository(
           db: db,
-          service: StaticsService(_dummyClient),
+          service: StaticsService(dummyDashboardClient),
         ),
       );
       await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -406,7 +412,10 @@ void main() {
       repo: repo,
       companyId: 'co',
       navStateDao: db.navStateDao,
-      statics: StaticsRepository(db: db, service: StaticsService(_dummyClient)),
+      statics: StaticsRepository(
+        db: db,
+        service: StaticsService(dummyDashboardClient),
+      ),
       persistDebounce: persistDebounce ?? const Duration(milliseconds: 500),
     );
 

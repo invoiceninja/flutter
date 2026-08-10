@@ -17,6 +17,7 @@ import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_client_picker.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
@@ -239,7 +240,7 @@ class _ClientCardDesktop extends StatelessWidget {
       spacing: 0,
       elevated: false,
       children: [
-        _ClientPicker(vm: vm),
+        BillingDocClientPicker(vm: vm, companyId: vm.companyId),
         SizedBox(height: InSpacing.md(context)),
         _ContactsForClient(vm: vm),
       ],
@@ -925,7 +926,7 @@ class _DetailsTabState extends State<_DetailsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ClientPicker(vm: vm),
+          BillingDocClientPicker(vm: vm, companyId: vm.companyId),
           SizedBox(height: InSpacing.lg(context)),
           Row(
             children: [
@@ -1114,46 +1115,6 @@ class _DesignPicker extends StatelessWidget {
     );
   }
 }
-
-class _ClientPicker extends StatelessWidget {
-  const _ClientPicker({required this.vm});
-  final InvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final companyId = vm.companyId;
-    // Watch the client list from the repo. The dropdown handles the
-    // searchability; the caller only needs a snapshot list.
-    return StreamBuilder<List<Client>>(
-      stream: services.clients.watchPage(
-        companyId: companyId,
-        loadedPages: 100,
-      ),
-      builder: (context, snapshot) {
-        final clients = snapshot.data ?? const <Client>[];
-        Client? selected;
-        for (final c in clients) {
-          if (c.id == vm.draft.clientId) {
-            selected = c;
-            break;
-          }
-        }
-        return SearchableDropdownField<Client>(
-          label: context.tr('client'),
-          items: clients,
-          initialValue: selected,
-          displayString: (c) => c.displayName.isEmpty ? c.name : c.displayName,
-          idOf: (c) => c.id,
-          onChanged: (c) =>
-              vm.selectClient(c?.id ?? '', c?.contacts ?? const []),
-          errorText: vm.fieldErrorFor('client_id'),
-        );
-      },
-    );
-  }
-}
-
 // ── Contacts tab ─────────────────────────────────────────────────────
 
 class _ContactsTab extends StatelessWidget {

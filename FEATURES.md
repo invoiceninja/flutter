@@ -158,6 +158,7 @@ the honest default.
 | Client — cross-entity "New invoice / recurring / quote / credit / payment / task / expense" | ✅ | ✅ | ✅ | ✅ | |
 | Client — view client invoices / quotes / payments / credits / recurring / projects / tasks / expenses | ✅ | ✅ | ✅ | ✅ | |
 | Client — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
+| Client — create inline from the billing-doc Client picker, auto-selected on the document (invoice / quote / credit / recurring) | ✅ | ✅ | ✅ | | |
 
 ---
 

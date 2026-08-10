@@ -371,6 +371,13 @@ abstract class GenericBillingDocEditViewModel<T>
   /// after the first send. Vendor contacts use the `vendorContactId`
   /// slot via [setVendorContactInvitation] instead.
   void setContactInvitation(String contactId, bool included) {
+    // An empty id means the contact hasn't synced yet (ids are server-minted),
+    // so the server has no row to attach an invitation to.
+    // `Invitation.toApiJson` omits the key when empty, shipping `{}`, which
+    // fails `invitations.*.client_contact_id => bail|required|distinct` and
+    // 422s the whole save. Ignore rather than half-write; the Contacts section
+    // renders such rows disabled so this is only a backstop.
+    if (contactId.isEmpty) return;
     final current = invitationsOf(draft);
     final exists = current.any((i) => i.clientContactId == contactId);
     if (included == exists) return;
@@ -403,6 +410,9 @@ abstract class GenericBillingDocEditViewModel<T>
   /// Vendor variant of [setContactInvitation] — used by PurchaseOrder.
   /// Keyed off `vendorContactId` instead of `clientContactId`.
   void setVendorContactInvitation(String vendorContactId, bool included) {
+    // Same unsynced-contact guard as [setContactInvitation] — vendor contact
+    // ids are server-minted too.
+    if (vendorContactId.isEmpty) return;
     final current = invitationsOf(draft);
     final exists = current.any((i) => i.vendorContactId == vendorContactId);
     if (included == exists) return;
@@ -457,8 +467,26 @@ abstract class GenericBillingDocEditViewModel<T>
   /// Empty when the client has no contacts at all. `ccOnly` contacts are
   /// still emailed (the server demotes them to CC), so they must keep an
   /// invitation even though CC-only auto-clears `sendEmail`.
+  ///
+  /// Contacts with no server id are skipped. Contact ids are minted by the
+  /// server, so a contact on a client that hasn't synced yet — one created
+  /// inline from a billing-doc picker, or added offline to an existing
+  /// client — carries `id: ''` while the blank-contact factory defaults
+  /// `sendEmail: true`. The wire rule is
+  /// `invitations.*.client_contact_id => bail|required|distinct`, and
+  /// `Invitation.toApiJson` omits the key when empty, so such a row ships as
+  /// `{}` and 422s the entire save.
+  ///
+  /// Seeding nothing is the correct answer, not a degraded fallback: the
+  /// server fires `createInvitations()` whenever a saved document has zero
+  /// invitations, which creates one per `send_email && !cc_only` contact —
+  /// exactly the set this method would have produced.
   List<Invitation> _autoInvitations(Iterable<Contact> contacts) {
-    final live = contacts.where((c) => !c.isDeleted).toList(growable: false);
+    // Filtered here rather than after `chosen` so the primary-contact
+    // fallback below still lands on a real contact in a mixed list.
+    final live = contacts
+        .where((c) => !c.isDeleted && c.id.isNotEmpty)
+        .toList(growable: false);
     var chosen = live
         .where((c) => c.sendEmail || c.ccOnly)
         .toList(growable: false);

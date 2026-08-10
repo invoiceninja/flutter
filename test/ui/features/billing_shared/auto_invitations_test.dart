@@ -218,4 +218,80 @@ void main() {
       expect(_Vm(const _Doc(clientId: 'client-9')).clientId, 'client-9');
     });
   });
+
+  // Contact ids are minted by the server, so a client that hasn't synced yet
+  // (created inline from a billing-doc picker, or a contact added offline to
+  // an existing client) carries `id: ''` with `sendEmail: true`. Shipping an
+  // invitation for one fails the server's `required` rule on
+  // `invitations.*.client_contact_id` and 422s the whole document save.
+  //
+  // Seeding nothing is equivalent, not degraded: the server runs
+  // `createInvitations()` for any saved doc with zero invitations, producing
+  // one per `send_email && !cc_only` contact.
+  group('unsynced contacts (blank id)', () {
+    test('selectClient seeds no invitation for a blank-id contact', () {
+      final vm = _Vm(const _Doc());
+      vm.selectClient('tmp_abc', [
+        _contact('', sendEmail: true, isPrimary: true),
+      ]);
+
+      expect(vm.draft.clientId, 'tmp_abc');
+      expect(vm.draft.invitations, isEmpty);
+    });
+
+    test('keeps only real-id contacts in a mixed list', () {
+      final vm = _Vm(const _Doc());
+      vm.selectClient('client-1', [
+        _contact('a', sendEmail: true),
+        _contact('', sendEmail: true, isPrimary: true),
+      ]);
+
+      expect(vm.draft.invitations.map((i) => i.clientContactId), ['a']);
+    });
+
+    test(
+      'primary fallback skips a blank-id primary and picks a real contact',
+      () {
+        final vm = _Vm(const _Doc());
+        vm.selectClient('client-1', [
+          _contact('a'),
+          _contact('', isPrimary: true),
+        ]);
+
+        expect(vm.draft.invitations.map((i) => i.clientContactId), ['a']);
+      },
+    );
+
+    test('seedClientInvitationsIfEmpty also skips blank ids', () {
+      final vm = _Vm(const _Doc(clientId: 'tmp_abc'));
+      vm.seedClientInvitationsIfEmpty([
+        _contact('', sendEmail: true, isPrimary: true),
+      ]);
+
+      expect(vm.draft.invitations, isEmpty);
+    });
+
+    test('setContactInvitation ignores a blank contact id', () {
+      final vm = _Vm(const _Doc(clientId: 'tmp_abc'));
+      vm.setContactInvitation('', true);
+
+      expect(vm.draft.invitations, isEmpty);
+    });
+
+    test('setVendorContactInvitation ignores a blank contact id', () {
+      final vm = _Vm(const _Doc(clientId: 'tmp_abc'));
+      vm.setVendorContactInvitation('', true);
+
+      expect(vm.draft.invitations, isEmpty);
+    });
+
+    test('real contact ids still toggle normally', () {
+      final vm = _Vm(const _Doc(clientId: 'client-1'));
+      vm.setContactInvitation('a', true);
+      expect(vm.draft.invitations.map((i) => i.clientContactId), ['a']);
+
+      vm.setContactInvitation('a', false);
+      expect(vm.draft.invitations, isEmpty);
+    });
+  });
 }

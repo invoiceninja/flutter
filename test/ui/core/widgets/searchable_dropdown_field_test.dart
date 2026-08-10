@@ -231,4 +231,59 @@ void main() {
     // Default empty hint key is 'loading'; localization helper resolves it.
     expect(field.decoration?.hintText, isNotNull);
   });
+
+  // Pins the two limitations that make this widget unusable for inline
+  // "create new <entity>" affordances, so a future refactor doesn't try to
+  // fold `ClientPickerField` (lib/ui/core/widgets/client_picker_field.dart)
+  // back into it. Both fail silently rather than throwing.
+  group('why inline-create needs a different widget', () {
+    testWidgets('footerBuilder is unreachable when nothing matches', (
+      tester,
+    ) async {
+      var footerBuilds = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 360,
+                child: SearchableDropdownField<_Option>(
+                  label: 'Fruit',
+                  items: _items,
+                  initialValue: null,
+                  displayString: (o) => o.name,
+                  idOf: (o) => o.id,
+                  onChanged: (_) {},
+                  footerBuilder: (_) {
+                    footerBuilds++;
+                    return const Text('+ New fruit');
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // A partial match shows the popover, so the footer renders.
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'ap');
+      await tester.pumpAndSettle();
+      expect(find.text('+ New fruit'), findsOneWidget);
+      expect(footerBuilds, greaterThan(0));
+
+      // Type a name that matches nothing — RawAutocomplete only mounts its
+      // options overlay while the option list is non-empty
+      // (`_canShowOptionsView`), so the footer vanishes exactly when the user
+      // most needs "create this new thing".
+      final before = footerBuilds;
+      await tester.enterText(find.byType(TextField), 'Dragonfruit');
+      await tester.pumpAndSettle();
+      expect(find.text('+ New fruit'), findsNothing);
+      expect(footerBuilds, before);
+    });
+  });
 }

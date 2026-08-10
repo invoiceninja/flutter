@@ -168,6 +168,7 @@
   "connect_microsoft_web_hint": "To connect Microsoft, use the Invoice Ninja web app.",
   "connect_oauth_coming_soon": "Sign in with Google or Microsoft will be enabled in a follow-up update.",
   "connected_to": "Connected to",
+  "contact_available_after_sync": "Available once this client syncs",
   "contact_details": "Contact details",
   "contact_with_index": "Contact :index",
   "contacts_with_count": "Contacts (:count)",

@@ -57,6 +57,13 @@ class BillingDocContactsSection extends StatelessWidget {
             contact: contact,
             selected: selectedContactIds.contains(contact.id),
             readOnly: readOnly,
+            // Contact ids are server-minted, so an empty one means this
+            // contact hasn't synced yet (its client was created offline, or
+            // inline from a billing-doc picker). The server has no row to
+            // attach an invitation to and would 422 the save, so the row is
+            // shown disabled — not hidden, which would read as data loss on a
+            // freshly created client.
+            unsynced: contact.id.isEmpty,
             onTap: () {
               final next = Set<String>.from(selectedContactIds);
               if (next.contains(contact.id)) {
@@ -77,17 +84,22 @@ class _ContactRow extends StatelessWidget {
     required this.contact,
     required this.selected,
     required this.readOnly,
+    required this.unsynced,
     required this.onTap,
   });
 
   final BillingContact contact;
   final bool selected;
   final bool readOnly;
+
+  /// Contact has no server id yet — selectable only once its client syncs.
+  final bool unsynced;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final disabled = readOnly || unsynced;
     final fullName = [
       contact.firstName,
       contact.lastName,
@@ -96,7 +108,7 @@ class _ContactRow extends StatelessWidget {
         ? (contact.email.isEmpty ? context.tr('unnamed') : contact.email)
         : fullName;
     return InkWell(
-      onTap: readOnly ? null : onTap,
+      onTap: disabled ? null : onTap,
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: InSpacing.lg(context),
@@ -106,7 +118,7 @@ class _ContactRow extends StatelessWidget {
           children: [
             Checkbox(
               value: selected,
-              onChanged: readOnly ? null : (_) => onTap(),
+              onChanged: disabled ? null : (_) => onTap(),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -116,7 +128,7 @@ class _ContactRow extends StatelessWidget {
                   Text(
                     displayName,
                     style: TextStyle(
-                      color: tokens.ink,
+                      color: unsynced ? tokens.ink3 : tokens.ink,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -131,6 +143,17 @@ class _ContactRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (unsynced) ...[
+              const SizedBox(width: 8),
+              Tooltip(
+                message: context.tr('contact_available_after_sync'),
+                child: Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 15,
+                  color: tokens.ink3,
+                ),
+              ),
+            ],
             if (contact.isLocked) ...[
               const SizedBox(width: 8),
               Tooltip(

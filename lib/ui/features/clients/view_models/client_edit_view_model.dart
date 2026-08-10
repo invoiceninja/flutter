@@ -22,9 +22,11 @@ class ClientEditViewModel extends GenericEditViewModel<Client> {
     Client? existing,
     Client? cloneFrom,
     String? prefillGroupId,
+    this.nameOrContactRequiredMessage,
     super.sync,
     super.connectivity,
     super.useCommaAsDecimalPlace,
+    super.onlineSaveTimeout,
   }) : super(
          initialDraft:
              cloneFrom ??
@@ -36,6 +38,37 @@ class ClientEditViewModel extends GenericEditViewModel<Client> {
 
   final ClientRepository repo;
   final String companyId;
+
+  /// Localized `please_enter_a_client_or_contact_name`, enabling the
+  /// name-or-contact-name guard in [validate].
+  ///
+  /// Non-null **only** for the quick New-Client dialog: React applies this
+  /// guard in its inline create modal but not in the full client form, and the
+  /// server's own rule is `name => sometimes|nullable`. Leaving it null keeps
+  /// the full edit screen's behavior unchanged. VMs have no `BuildContext`, so
+  /// the string is injected — same shape as `VendorEditViewModel`.
+  final String? nameOrContactRequiredMessage;
+
+  /// Blocks a save that would create a client with no way to identify it.
+  /// Mirrors React's `ClientCreate` guard: allowed as soon as *either* the
+  /// client name or the primary contact's first/last name is filled.
+  @override
+  Map<String, List<String>> validate() {
+    final message = nameOrContactRequiredMessage;
+    if (message == null) return const {};
+    final contact = draft.contacts.isEmpty ? null : draft.contacts.first;
+    final named =
+        draft.name.trim().isNotEmpty ||
+        (contact?.firstName.trim().isNotEmpty ?? false) ||
+        (contact?.lastName.trim().isNotEmpty ?? false);
+    if (named) return const {};
+    // React binds the same message under all three fields.
+    return {
+      'name': [message],
+      'contacts.0.first_name': [message],
+      'contacts.0.last_name': [message],
+    };
+  }
 
   @override
   bool draftIsNonEmpty() {

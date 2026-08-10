@@ -18,6 +18,34 @@ DashboardCurrencyTotals? selectCurrencyTotals(
       totals.byCurrency.values.first;
 }
 
+/// Bucket key for the selected currency: null under "All currencies"
+/// ([kDashboardCurrencyAll]), whose bucket the server has already
+/// exchange-rate-converted to the company base currency. Doubles as the
+/// `currencyId` to format that bucket's money with — under "All" the figures
+/// really are in the base currency, which is what a null `currencyId` resolves
+/// to.
+String? selectedCurrencyKey(int selectedCurrencyId) =>
+    selectedCurrencyId == kDashboardCurrencyAll ? null : '$selectedCurrencyId';
+
+/// Whether the company transacts in any currency other than its base one.
+///
+/// The server's `currencies` map (`ChartService::getCurrencyCodes`) is the
+/// distinct set of client + expense currencies with the company currency
+/// always pushed on, so it holds at least the base currency and a single entry
+/// provably means nothing can be exchange-rate-converted. The `999` aggregate
+/// bucket never lands in that map, but is filtered defensively so a stray one
+/// can't fake a foreign currency.
+///
+/// Null / empty totals (cold start, decode failure, a server that omits the
+/// map) → false: suppress currency-conversion chrome until we know better.
+bool hasForeignCurrency(DashboardTotals? totals, String baseCurrencyId) {
+  final ids = totals?.currencies.keys;
+  if (ids == null) return false;
+  return ids.any(
+    (id) => id != baseCurrencyId && id != kDashboardCurrencyAll.toString(),
+  );
+}
+
 /// Period-over-period delta as a percentage. Returns null when either side
 /// is null or when the previous period is zero (division would be
 /// undefined / infinite, not a real "delta").

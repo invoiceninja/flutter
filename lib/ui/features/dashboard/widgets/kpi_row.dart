@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
-import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
@@ -14,7 +14,8 @@ import 'package:admin/ui/features/dashboard/widgets/kpi_card.dart';
 /// Builds the four-KPI row. Picks the current-currency totals out of the
 /// `totals.byCurrency` map. When `All currencies` is selected the figures come
 /// from the server's exchange-rate-converted base-currency bucket; a subtle
-/// "converted to base currency" caption flags that.
+/// "converted to base currency" caption flags that — but only when the company
+/// actually trades in more than one currency (see `convertedToBaseCaption`).
 class KpiRow extends StatelessWidget {
   const KpiRow({
     super.key,
@@ -31,15 +32,15 @@ class KpiRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAll = vm.filter.currencyId == kDashboardCurrencyAll;
-    final currencyKey = isAll ? null : vm.filter.currencyId.toString();
+    final currencyKey = selectedCurrencyKey(vm.filter.currencyId);
     final current = selectCurrencyTotals(vm.totals.data, currencyKey);
     final previous = selectCurrencyTotals(vm.totalsPrevious.data, currencyKey);
-    final baseCode =
-        formatter.currencies[formatter.settings.currencyId]?.code ?? '';
-    final convertedHint = isAll && baseCode.isNotEmpty
-        ? context.tr('converted_to_currency', {'currency': baseCode})
-        : null;
+    final convertedHint = convertedToBaseCaption(
+      context,
+      selectedCurrencyId: vm.filter.currencyId,
+      totals: vm.totals.data,
+      formatter: formatter,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -55,9 +56,21 @@ class KpiRow extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           shrinkWrap: true,
           children: [
-            _outstandingCard(context, current, previous, convertedHint),
+            _outstandingCard(
+              context,
+              current,
+              previous,
+              convertedHint,
+              currencyKey,
+            ),
             _unpaidCard(context, current, previous),
-            _paidThisMonthCard(context, current, previous, convertedHint),
+            _paidThisMonthCard(
+              context,
+              current,
+              previous,
+              convertedHint,
+              currencyKey,
+            ),
           ],
         );
       },
@@ -89,8 +102,12 @@ class KpiRow extends StatelessWidget {
     DashboardCurrencyTotals? current,
     DashboardCurrencyTotals? previous,
     String? convertedHint,
+    String? currencyKey,
   ) {
-    final value = formatter.money(current?.outstandingAmount ?? Decimal.zero);
+    final value = formatter.money(
+      current?.outstandingAmount ?? Decimal.zero,
+      currencyId: currencyKey,
+    );
     final delta = percentDelta(
       current?.outstandingAmount,
       previous?.outstandingAmount,
@@ -146,8 +163,12 @@ class KpiRow extends StatelessWidget {
     DashboardCurrencyTotals? current,
     DashboardCurrencyTotals? previous,
     String? convertedHint,
+    String? currencyKey,
   ) {
-    final value = formatter.money(current?.revenuePaidToDate ?? Decimal.zero);
+    final value = formatter.money(
+      current?.revenuePaidToDate ?? Decimal.zero,
+      currencyId: currencyKey,
+    );
     final delta = percentDelta(
       current?.revenuePaidToDate,
       previous?.revenuePaidToDate,

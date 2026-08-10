@@ -1,4 +1,5 @@
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
+import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -102,6 +103,59 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('selectedCurrencyKey', () {
+    test('"All currencies" maps to null (the server-converted bucket)', () {
+      expect(selectedCurrencyKey(kDashboardCurrencyAll), isNull);
+    });
+
+    test('a specific currency maps to its string bucket key', () {
+      expect(selectedCurrencyKey(2), '2');
+    });
+  });
+
+  /// flutter#22: a single-currency company was told its untouched totals were
+  /// "Converted to <its own currency>". The server's `currencies` map always
+  /// carries the company currency, so one entry means nothing can convert.
+  group('hasForeignCurrency', () {
+    DashboardTotals currencies(Map<String, String> map) =>
+        DashboardTotals.fromJson({'currencies': map});
+
+    test('true when a non-base currency is present', () {
+      expect(
+        hasForeignCurrency(currencies(const {'2': 'GBP', '3': 'EUR'}), '2'),
+        isTrue,
+      );
+    });
+
+    test('false for a single-currency company — the flutter#22 case', () {
+      expect(hasForeignCurrency(currencies(const {'2': 'GBP'}), '2'), isFalse);
+    });
+
+    test('false while totals are loading', () {
+      expect(hasForeignCurrency(null, '2'), isFalse);
+    });
+
+    test('false when the server omits the currencies map', () {
+      final totals = DashboardTotals.fromJson({
+        '2': {
+          'outstanding': {'amount': '9802.00'},
+        },
+      });
+      expect(hasForeignCurrency(totals, '2'), isFalse);
+    });
+
+    test('a stray 999 aggregate key does not fake a foreign currency', () {
+      expect(
+        hasForeignCurrency(currencies(const {'2': 'GBP', '999': 'All'}), '2'),
+        isFalse,
+      );
+    });
+
+    test('true when the only currency is a foreign one', () {
+      expect(hasForeignCurrency(currencies(const {'3': 'EUR'}), '2'), isTrue);
     });
   });
 }

@@ -7,12 +7,12 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
-import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
@@ -236,18 +236,21 @@ class MobileDashboardBody extends StatelessWidget {
   // Hero KPI — dark surface, Outstanding number + sparkline, 2 sub-KPIs.
 
   Widget _heroKpi(BuildContext context, InTheme tokens) {
-    final isAll = vm.filter.currencyId == kDashboardCurrencyAll;
-    final currencyKey = isAll ? null : vm.filter.currencyId.toString();
-    final baseCode =
-        formatter.currencies[formatter.settings.currencyId]?.code ?? '';
-    final convertedHint = isAll && baseCode.isNotEmpty
-        ? context.tr('converted_to_currency', {'currency': baseCode})
-        : null;
+    final currencyKey = selectedCurrencyKey(vm.filter.currencyId);
+    final convertedHint = convertedToBaseCaption(
+      context,
+      selectedCurrencyId: vm.filter.currencyId,
+      totals: vm.totals.data,
+      formatter: formatter,
+    );
     final current = selectCurrencyTotals(vm.totals.data, currencyKey);
     final previous = selectCurrencyTotals(vm.totalsPrevious.data, currencyKey);
 
     final outstanding = current?.outstandingAmount ?? Decimal.zero;
-    final outstandingText = formatter.money(outstanding);
+    final outstandingText = formatter.money(
+      outstanding,
+      currencyId: currencyKey,
+    );
     final outstandingDelta = percentDelta(
       current?.outstandingAmount,
       previous?.outstandingAmount,
@@ -257,6 +260,7 @@ class MobileDashboardBody extends StatelessWidget {
 
     final paidText = formatter.money(
       current?.revenuePaidToDate ?? Decimal.zero,
+      currencyId: currencyKey,
     );
 
     final heroRadius = BorderRadius.circular(InRadii.r3);

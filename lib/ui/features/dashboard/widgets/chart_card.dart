@@ -8,6 +8,7 @@ import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/helpers/chart_series_math.dart';
+import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
@@ -25,14 +26,14 @@ class ChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final series = vm.chart.data;
-    final isAll = vm.filter.currencyId == kDashboardCurrencyAll;
-    final currencyKey = isAll ? null : vm.filter.currencyId.toString();
+    final currencyKey = selectedCurrencyKey(vm.filter.currencyId);
     final byCurrency = _selectCurrency(series, currencyKey);
-    final baseCode =
-        formatter.currencies[formatter.settings.currencyId]?.code ?? '';
-    final convertedHint = isAll && baseCode.isNotEmpty
-        ? context.tr('converted_to_currency', {'currency': baseCode})
-        : null;
+    final convertedHint = convertedToBaseCaption(
+      context,
+      selectedCurrencyId: vm.filter.currencyId,
+      totals: vm.totals.data,
+      formatter: formatter,
+    );
 
     final pointsBySeries = <ChartSeriesId, List<DashboardChartPoint>>{
       ChartSeriesId.invoices: byCurrency?.invoices ?? const [],
@@ -50,6 +51,7 @@ class ChartCard extends StatelessWidget {
     final previous = selectCurrencyTotals(vm.totalsPrevious.data, currencyKey);
     final heroValueText = formatter.money(
       current?.revenuePaidToDate ?? Decimal.zero,
+      currencyId: currencyKey,
     );
 
     return DashboardCardShell(
@@ -105,7 +107,7 @@ class ChartCard extends StatelessWidget {
                               ? context.tr('no_series_selected')
                               : context.tr('no_data_for_period'),
                         )
-                      : _chart(context, tokens, pointsBySeries)),
+                      : _chart(context, tokens, pointsBySeries, currencyKey)),
           ),
         ],
       ),
@@ -236,6 +238,7 @@ class ChartCard extends StatelessWidget {
     BuildContext context,
     InTheme tokens,
     Map<ChartSeriesId, List<DashboardChartPoint>> pointsBySeries,
+    String? currencyKey,
   ) {
     final visible = vm.visibleChartSeries;
     final series = vm.chart.data;
@@ -324,6 +327,7 @@ class ChartCard extends StatelessWidget {
               getTitlesWidget: (value, meta) => Text(
                 formatter.money(
                   Decimal.parse(value.toStringAsFixed(0)),
+                  currencyId: currencyKey,
                   compact: true,
                 ),
                 style: moneyTextStyle(fontSize: 10, color: tokens.ink3),
@@ -357,7 +361,10 @@ class ChartCard extends StatelessWidget {
             getTooltipItems: (touchedSpots) {
               return touchedSpots.map((spot) {
                 return LineTooltipItem(
-                  formatter.money(Decimal.parse(spot.y.toStringAsFixed(2))),
+                  formatter.money(
+                    Decimal.parse(spot.y.toStringAsFixed(2)),
+                    currencyId: currencyKey,
+                  ),
                   moneyTextStyle(color: tokens.surface, fontSize: 11.5),
                 );
               }).toList();

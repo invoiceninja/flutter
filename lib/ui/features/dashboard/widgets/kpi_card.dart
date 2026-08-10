@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_sparkline.dart';
 
@@ -121,7 +122,7 @@ class KpiCard extends StatelessWidget {
                 DeltaChip(
                   percent: deltaPercent,
                   goodDirection: goodDirection,
-                  suffix: 'vs prior',
+                  suffix: context.tr('vs_prior'),
                 ),
                 if (sparklineValues != null) ...[
                   const Spacer(),

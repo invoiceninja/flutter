@@ -158,6 +158,22 @@ When a single page touches *both* `company.settings.*` (cascade-aware) and `comp
 
 Reminder: every new settings page must also contribute its field labels to `kSettingsSearchCatalog` — see CLAUDE.md § Settings search catalog.
 
+## Adding a top-level `company.*` field
+
+A field under `company.settings.*` round-trips automatically through the `settings` JSON blob. A **top-level** `company.*` field does not — it needs a dedicated column and five coordinated edits, and skipping any one of them loses the server's value silently:
+
+1. `CompanyApi` declaration (`lib/data/models/api/company_api_model.dart`) with the wire `@JsonKey` name.
+2. Domain `Company`: field + `fromApi` + `toApiJson()` (`lib/data/models/domain/company.dart`).
+3. Drift column in `companies_table.dart` — plus a forward migration (`docs/migrations.md`), since the app is shipped.
+4. `CompanyRepository`: the `updateCompany` companion, the `applyUpdateResponse` companion, and `_fromRow`.
+5. **`CompanyEnvelopeApi` (`lib/data/models/api/login_response_api_model.dart`) *and* the `CompaniesCompanion.insert` in `AuthRepository._persistAndActivate`.**
+
+Step 5 is the one that used to get skipped. `_persistAndActivate` re-writes the companies row from the envelope on every login/refresh, so a column the envelope doesn't declare lands its Drift **table default** — overwriting whatever the server actually sent. That's issue #29: the SMTP block was modelled everywhere except the envelope, so every app launch blanked the user's mail credentials, and a save made from that blanked draft pushed the blanks back to the server.
+
+There is no "applyUpdateResponse-only" exemption. `/login` and `/refresh` build the company with the same `CompanyTransformer` as `GET /companies/{id}`, so every top-level column is already on the wire — declare it on the envelope and mirror it in the login insert. Sole exception: a **write-only** secret the server never returns (`e_invoice_certificate_passphrase` — only its `has_…` flag comes back). Verify with a probe (`docs/probing-the-demo-api.md`) if you're unsure a key is returned.
+
+If the money/date `Formatter` reads the field, also overlay it from the row in `Services._buildFormatter`.
+
 ## Company Details style — when each option applies
 
 - **Cascade-aware (fields on `company.settings.*`)** → wrap in `CascadeSettingsScaffold` (`lib/ui/features/settings/widgets/cascade_settings_scaffold.dart`). It picks the right VM for the active `SettingsLevelController` (your factory at company scope, the shared `ClientSettingsDraftViewModel` at client scope), delegates VM lifecycle (build, load, dispose, company-switch rebuild) to `SettingsCompanyScopedHost`, and hands the result to `SettingsPageScaffold`. Caller supplies just `titleKey`, `companyVmFactory`, and `body`. Reference: `lib/ui/features/settings/views/basic/localization/localization_screen.dart`.

@@ -135,6 +135,65 @@ void main() {
       },
     );
 
+    test('drops the masked SMTP credentials from the outbox payload but keeps '
+        'them in the local row', () async {
+      // The server masks stored credentials as `********` on every read, and
+      // the login/refresh envelope seeds that mask into the local row — so an
+      // unrelated settings save would otherwise echo the mask back. The server
+      // discards it (`UpdateCompanyRequest::prepareForValidation` unsets
+      // anything under two chars once `*` is stripped), but we shouldn't be
+      // relying on that, and must never write the literal mask as a password.
+      const companyId = 'co';
+      await seedCompany(companyId);
+      final repo = makeRepo();
+
+      final current = await repo.get(companyId);
+      final draft = current!.copyWith(
+        smtpHost: 'smtp.example.com',
+        smtpUsername: '********',
+        smtpPassword: '********',
+      );
+      await repo.updateCompany(draft: draft);
+
+      final pending = await db.outboxDao.nextReady(
+        companyId: companyId,
+        now: 1 << 60,
+      );
+      final payload =
+          jsonDecode(pending.single.payload) as Map<String, dynamic>;
+      expect(payload['smtp_host'], 'smtp.example.com');
+      expect(payload.containsKey('smtp_username'), isFalse);
+      expect(payload.containsKey('smtp_password'), isFalse);
+
+      // The local row still mirrors what the server holds, so the fields keep
+      // rendering as masked rather than looking unset.
+      final row = await db.companiesDao.byId(companyId);
+      expect(row!.smtpUsername, '********');
+      expect(row.smtpPassword, '********');
+    });
+
+    test('sends the SMTP credentials the user actually typed', () async {
+      const companyId = 'co';
+      await seedCompany(companyId);
+      final repo = makeRepo();
+
+      final current = await repo.get(companyId);
+      final draft = current!.copyWith(
+        smtpUsername: 'postmaster@example.com',
+        smtpPassword: 'hunter2',
+      );
+      await repo.updateCompany(draft: draft);
+
+      final pending = await db.outboxDao.nextReady(
+        companyId: companyId,
+        now: 1 << 60,
+      );
+      final payload =
+          jsonDecode(pending.single.payload) as Map<String, dynamic>;
+      expect(payload['smtp_username'], 'postmaster@example.com');
+      expect(payload['smtp_password'], 'hunter2');
+    });
+
     test('preserves unknown settings keys across the round-trip', () async {
       // An "unknown" field is one the typed `CompanySettingsApi` doesn't
       // model. The original implementation silently dropped these on every

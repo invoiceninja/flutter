@@ -2100,6 +2100,263 @@ void main() {
         expect(q['include_static'], 'true');
       });
 
+      // ── Full sync must not blank the companies row (issue #29) ──────────
+      //
+      // `_persistAndActivate` re-writes the companies row from
+      // `CompanyEnvelopeApi` on every full sync, and `restore()` forces one on
+      // every launch. It used to DELETE the row first, so any top-level column
+      // the envelope didn't model came back at its Drift default — which is
+      // how users' SMTP credentials vanished on each restart. Two guarantees
+      // now: the envelope carries every column the server returns, and the
+      // full sync prunes instead of wiping.
+
+      /// A refresh envelope where the server reports real SMTP config plus a
+      /// sample of the other formerly-omitted top-level columns.
+      LoginResponseApi refreshWithServerColumns() => _envelope(
+        companyOverrideById: {
+          'co_a': const CompanyEnvelopeApi(
+            id: 'co_a',
+            name: 'Acme',
+            smtpHost: 'smtp.example.com',
+            smtpPort: 587,
+            smtpEncryption: 'tls',
+            // The server masks stored credentials on every read.
+            smtpUsername: '********',
+            smtpPassword: '********',
+            smtpLocalDomain: 'mail.example.com',
+            smtpVerifyPeer: false,
+            expenseMailbox: 'expenses@example.com',
+            inboundMailboxAllowVendors: true,
+            invoiceTaskTimelog: true,
+            enableApplyingPayments: true,
+            hasEInvoiceCertificate: true,
+          ),
+        },
+      );
+
+      /// Wire a cold-start repo whose `/refresh` returns [body].
+      AuthRepository freshRepoServing(LoginResponseApi body) {
+        final fakeHttp = MockClient((req) async {
+          if (req.url.path == '/api/v1/refresh') {
+            return http.Response(jsonEncode(body.toJson()), 200);
+          }
+          return http.Response('not found', 404);
+        });
+        final fresh = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: storage,
+          passwordCache: passwordCache,
+        );
+        fresh.apiClient = ApiClient(
+          credentials: fresh.credentials,
+          passwordCache: PasswordCache(),
+          onUnauthorized: () async {},
+          httpClient: fakeHttp,
+        );
+        return fresh;
+      }
+
+      /// Poll until [test] holds on the single companies row, so we don't have
+      /// to guess how many microtasks the background refresh needs.
+      Future<CompanyRow> awaitRow(bool Function(CompanyRow) test) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 2));
+        while (DateTime.now().isBefore(deadline)) {
+          final row = (await db.companiesDao.all()).singleOrNull;
+          if (row != null && test(row)) return row;
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        fail('companies row never reached the expected state');
+      }
+
+      test('a FULL refresh keeps the SMTP credentials the server reports '
+          '(issue #29)', () async {
+        authService.queueLogin(_envelope());
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        // Force the restore heal to be a FULL sync (the launch-time default
+        // anyway — `_refreshSessionQuietly` passes fullSync: true).
+        await db.customStatement('UPDATE companies SET last_sync_at = 0');
+
+        final fresh = freshRepoServing(refreshWithServerColumns());
+        await fresh.restore();
+
+        final row = await awaitRow((r) => r.smtpHost.isNotEmpty);
+        expect(row.smtpHost, 'smtp.example.com');
+        expect(row.smtpPort, 587);
+        expect(row.smtpEncryption, 'tls');
+        expect(row.smtpUsername, '********');
+        expect(row.smtpPassword, '********');
+        expect(row.smtpLocalDomain, 'mail.example.com');
+        expect(
+          row.smtpVerifyPeer,
+          isFalse,
+          reason: 'a false the server sent must beat the column default (true)',
+        );
+      });
+
+      test('a FULL refresh persists the other formerly-omitted top-level '
+          'columns', () async {
+        authService.queueLogin(_envelope());
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        await db.customStatement('UPDATE companies SET last_sync_at = 0');
+
+        final fresh = freshRepoServing(refreshWithServerColumns());
+        await fresh.restore();
+
+        final row = await awaitRow((r) => r.expenseMailbox.isNotEmpty);
+        expect(row.expenseMailbox, 'expenses@example.com');
+        expect(row.inboundMailboxAllowVendors, isTrue);
+        expect(row.invoiceTaskTimelog, isTrue);
+        expect(row.enableApplyingPayments, isTrue);
+        expect(row.hasEInvoiceCertificate, isTrue);
+      });
+
+      test('a FULL refresh updates the company row in place instead of '
+          'deleting it', () async {
+        authService.queueLogin(_envelope());
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        // `e_invoice_certificate_passphrase` is the one top-level column the
+        // envelope deliberately never carries (write-only — the server returns
+        // only the `has_…` flag). That makes it the canary for the prune: if
+        // it comes back blank, the full sync is deleting and re-inserting the
+        // row again, and every envelope gap is silent data loss.
+        await db.customStatement(
+          "UPDATE companies SET e_invoice_certificate_passphrase = 'hunter2', "
+          'last_sync_at = 0',
+        );
+
+        final fresh = freshRepoServing(refreshWithServerColumns());
+        await fresh.restore();
+
+        final row = await awaitRow((r) => r.smtpHost.isNotEmpty);
+        expect(row.eInvoiceCertificatePassphrase, 'hunter2');
+      });
+
+      test('a FULL refresh still deletes the Drift row for a company the '
+          'server no longer returns', () async {
+        authService.queueLogin(
+          _envelope(
+            companies: [
+              (
+                id: 'co_a',
+                name: 'Acme',
+                token: 'tok_a',
+                isAdmin: false,
+                isOwner: false,
+              ),
+              (
+                id: 'co_b',
+                name: 'Beta',
+                token: 'tok_b',
+                isAdmin: false,
+                isOwner: false,
+              ),
+            ],
+          ),
+        );
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        expect((await db.companiesDao.all()).length, 2);
+        await db.customStatement('UPDATE companies SET last_sync_at = 0');
+
+        final fresh = freshRepoServing(_envelope());
+        await fresh.restore();
+
+        final row = await awaitRow((_) => true);
+        expect(row.id, 'co_a');
+      });
+
+      test('a FULL refresh withholds only the editable columns from a company '
+          'with a queued mutation — flags and watermark still heal', () async {
+        authService.queueLogin(_envelope());
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        // The user edited settings offline: `updateCompany` wrote the row
+        // optimistically and parked a mutation. That row IS the dirty marker
+        // (this table has no is_dirty column), so a full sync must leave the
+        // edit alone rather than revert it under the queued mutation.
+        await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co_a',
+            entityType: 'company',
+            entityId: 'co_a',
+            mutationKind: 'update',
+            payload: jsonEncode({'id': 'co_a'}),
+            idempotencyKey: 'k1',
+            nextAttemptAt: 0,
+            createdAt: 0,
+          ),
+        );
+        await db.customStatement(
+          "UPDATE companies SET smtp_host = 'local.edit', last_sync_at = 0",
+        );
+
+        // Server says this user is the account owner. That heal is the entire
+        // reason restore() fires a background refresh, and a 409 can park a
+        // company mutation as `pending` for a year — so "skip the row while an
+        // edit is queued" must not mean "stop healing the server-owned flags".
+        final fresh = freshRepoServing(
+          _envelope(
+            companies: [
+              (
+                id: 'co_a',
+                name: 'Acme',
+                token: 'tok_a',
+                isAdmin: true,
+                isOwner: true,
+              ),
+            ],
+            companyOverrideById: {
+              'co_a': const CompanyEnvelopeApi(
+                id: 'co_a',
+                name: 'Acme',
+                smtpHost: 'smtp.example.com',
+              ),
+            },
+          ),
+        );
+        await fresh.restore();
+
+        final row = await awaitRow((r) => r.isOwner);
+        expect(
+          row.smtpHost,
+          'local.edit',
+          reason: 'the queued edit must survive the full sync',
+        );
+        expect(row.isOwner, isTrue);
+        expect(row.isAdmin, isTrue);
+        expect(
+          row.lastSyncAt,
+          greaterThan(0),
+          reason:
+              'the watermark still advances or every later /refresh '
+              're-requests an ever-wider delta',
+        );
+      });
+
       test('leaves the restored session intact when /refresh fails', () async {
         // Same setup as the happy-path test, but the fake throws — simulating
         // offline. restore() must still produce a usable session.

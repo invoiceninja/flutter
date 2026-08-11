@@ -708,7 +708,26 @@ entity. Client mitigation already in place: stable keys per row (so the fix
 is purely server-side) and single-flight drains minimizing concurrent
 retries.
 
-## Company write: partial envelope + full-replace PUT force a fetch-gate — **O (would simplify the client)**
+## Company write: partial envelope + full-replace PUT force a fetch-gate — **WITHDRAWN (was a client bug)**
+
+> **STATUS 2026-08-12 — nothing for the backend to do; ask (a) was already
+> satisfied.** The premise below — "the `/login` + `/refresh` company envelope
+> omits ~29 server-only columns" — was **wrong**. `/login` and `/refresh`
+> build the company through the same `CompanyUserTransformer` →
+> `CompanyTransformer` as `GET /companies/{id}`, so every one of those columns
+> was always on the wire. Live probe against `demo.invoiceninja.com`
+> (`POST /api/v1/login?first_load=true`) returns `smtp_host`,
+> `enable_applying_payments`, `auto_start_tasks`, `convert_expense_currency`
+> and 33 others on `data[0].company`. It was the **client model** that dropped
+> them: `CompanyEnvelopeApi` didn't declare the fields, so
+> `_persistAndActivate` wrote table defaults into the row on every full sync —
+> which is how issue #29 (users losing their SMTP settings on each app launch)
+> happened. Fixed client-side 2026-08-12: the envelope now declares all 37,
+> and the full-sync re-seed prunes instead of wiping. Point 2 below
+> (full-replace PUT) still stands as a description of server behavior, but
+> with a correct cached row it's no longer a footgun. Kept as the record, and
+> as a caution: check the client model before filing a "the API doesn't
+> return X" gap.
 
 **Provenance** — 2026-06-11, pre-beta deep-review finding #40 + source-read
 of `lib/data/models/api/login_response_api_model.dart` (`CompanyEnvelopeApi`)
@@ -720,7 +739,9 @@ via `PUT /api/v1/companies/{id}` (`draft.toApiJson()`). Two server behaviors
 combine into a data-loss footgun the client now has to work around:
 
 1. **The `/login` + `/refresh` company envelope omits ~29 server-only
-   columns** that the full `GET /api/v1/companies/{id}` returns: the SMTP
+   columns** that the full `GET /api/v1/companies/{id}` returns *(corrected
+   2026-08-12: the **response** carries them; only the client's
+   `CompanyEnvelopeApi` model didn't declare them)*: the SMTP
    block (`smtp_host`/`smtp_port`/`smtp_encryption`/…), the expense block
    (`mark_expenses_*`/`convert_expense_currency`/`expense_mailbox*`/…), the
    task-invoicing block (`auto_start_tasks`/`invoice_task_*`/…), and

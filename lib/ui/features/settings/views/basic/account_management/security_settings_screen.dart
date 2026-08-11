@@ -175,8 +175,10 @@ class _AccountManagementSecuritySettingsScreenState
       sections: [
         // Gated until the canonical company is fetched (see
         // CompanySettingsGate): these controls PUT the whole company, so
-        // saving before the server-only columns are backfilled would
-        // clobber them.
+        // saving before the local row holds real server state would clobber
+        // it. The login/refresh envelope now carries every top-level column,
+        // so this is a backstop for a row that was never fetched at all (a
+        // company first seen offline), not the routine case it once was.
         if (!ready) const CompanySettingsLockedBanner(),
         FormSection(
           title: context.tr('security_settings'),

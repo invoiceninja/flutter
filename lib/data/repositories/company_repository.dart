@@ -66,12 +66,16 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
 
   /// Company ids whose canonical `GET /companies/{id}` succeeded this session.
   /// The Account-Management tabs (Enabled Modules / Security / Overview) and
-  /// the Analytics page PUT the WHOLE company row, but the login envelope omits
-  /// ~29 server-only columns (SMTP / expense / task-invoicing / payment
-  /// conversion) so the cached row holds table defaults for them. They gate
-  /// their controls on this set so a toggle can't ship those defaults and
-  /// clobber the server's real values before [refresh] has backfilled them
-  /// (and stay disabled offline, where [refresh] can't succeed).
+  /// the Analytics page PUT the WHOLE company row, so they gate their controls
+  /// on this set: a toggle shouldn't ship table defaults for a row the server
+  /// has never filled in.
+  ///
+  /// This used to be load-bearing — the login/refresh envelope omitted ~29
+  /// top-level columns (SMTP / expense / task-invoicing / payment conversion),
+  /// so the cached row held defaults for them until [refresh] backfilled it
+  /// (issue #29). The envelope now carries all of them and the full-sync path
+  /// prunes instead of wiping, so this is a backstop for a company row that
+  /// genuinely predates any server read, not the routine case.
   final ValueNotifier<Set<String>> _canonicalFetched = ValueNotifier(
     const <String>{},
   );
@@ -86,11 +90,11 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
 
   /// Drop [companyId] from the canonical-fetched set so the Account-Management
   /// / Analytics controls re-lock. Called after a FULL-sync re-seed (force
-  /// resync, danger-zone refresh) wipes + re-inserts the companies row from the
-  /// login/refresh envelope, which omits the ~29 server-only columns — they
-  /// fall back to table defaults. Without re-locking, a toggle made before the
-  /// next [refresh] would PUT those defaults and clobber the server's real
-  /// SMTP / expense / task-invoicing / payment-conversion values.
+  /// resync, danger-zone refresh) re-writes the companies row from the
+  /// login/refresh envelope. That envelope now carries every top-level column,
+  /// so the row is no longer degraded by the re-seed — this is kept as a
+  /// conservative re-lock, matching the fresh-session state where nothing has
+  /// been canonically fetched yet.
   void markCanonicalStale(String companyId) {
     if (!_canonicalFetched.value.contains(companyId)) return;
     _canonicalFetched.value = {..._canonicalFetched.value}..remove(companyId);
@@ -150,7 +154,7 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
     required Company draft,
     Map<String, dynamic>? extraOutboxPayload,
   }) async {
-    final body = draft.toApiJson();
+    final body = draft.toApiJson()..removeWhere(_isMaskedSmtpCredential);
     final outboxPayload = extraOutboxPayload == null
         ? body
         : <String, dynamic>{...body, ...extraOutboxPayload};
@@ -998,3 +1002,13 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
 
   int _nowSeconds() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
 }
+
+/// The server masks the stored SMTP credentials as `********` on every read
+/// (`CompanyTransformer`), and the login/refresh envelope seeds that mask
+/// straight into the local row — so a plain settings save would echo it back.
+/// `UpdateCompanyRequest::prepareForValidation` unsets anything shorter than
+/// two characters once `*` is stripped, so the echo is discarded server-side
+/// today; dropping the keys here means we never rely on that, and never risk
+/// writing the literal mask as someone's password.
+bool _isMaskedSmtpCredential(String key, Object? value) =>
+    (key == 'smtp_username' || key == 'smtp_password') && value == '********';

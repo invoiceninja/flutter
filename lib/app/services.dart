@@ -791,11 +791,12 @@ class Services implements SidebarBadgeContext {
     bool Function()? isCancelled,
   }) async {
     await auth.refresh(fullSync: true);
-    // The full refresh re-seeded the companies row from the envelope (omitting
-    // the server-only columns) and re-locked the Account-Management gate. Pull
-    // the canonical company back so those columns are restored and the gate
-    // re-opens — otherwise the Overview toggles stay disabled until the user
-    // navigates away and back. Best-effort: `company.refresh` swallows errors.
+    // The full refresh re-locked the Account-Management gate. Pull the
+    // canonical company back so it re-opens — otherwise the Overview toggles
+    // stay disabled until the user navigates away and back. (This also used to
+    // be how the ~29 envelope-omitted columns got restored; the envelope now
+    // carries them, so it's the gate alone.) Best-effort: `company.refresh`
+    // swallows errors.
     await company.refresh(companyId);
     final enabledModules =
         (await db.companiesDao.byId(companyId))?.enabledModules ?? 0;
@@ -1240,10 +1241,11 @@ class Services implements SidebarBadgeContext {
     // applier to [entities.bundleAppliers]; this loop runs them in order.
     auth.onPersistBundles =
         ({required companyId, required company, required fullSync}) async {
-          // A full sync wipes + re-inserts the companies row from the envelope,
-          // which omits the ~29 server-only columns (they reset to defaults).
-          // Re-lock the Account-Management gate so a toggle can't PUT those
-          // defaults before the next canonical GET /companies backfills them.
+          // A full sync re-writes the companies row from the envelope. Re-lock
+          // the Account-Management gate so it matches the fresh-session state
+          // (nothing canonically fetched yet) — conservative rather than
+          // load-bearing now that the envelope carries every top-level column
+          // and the re-seed prunes instead of wiping (issue #29).
           if (fullSync) companyRepo.markCanonicalStale(companyId);
           // Seed the full company roster so assigned-user ids resolve to names
           // in list tables / detail / pickers. Upsert-only, cursor-neutral —

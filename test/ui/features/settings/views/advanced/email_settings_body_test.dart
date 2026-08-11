@@ -168,19 +168,21 @@ void main() {
 
   // ── Provider dropdown (Fix 2: self-hosted default; Fix 7: free-tier lock) ──
   group('EmailSettingsBody provider dropdown', () {
-    Future<void> pumpBody(
+    Future<_FakeHost> pumpBody(
       WidgetTester tester, {
       required AuthSession session,
       String method = 'default',
+      Company company = const Company(id: 'co-A'),
+      Size viewport = const Size(900, 2600),
     }) async {
-      tester.view.physicalSize = const Size(900, 2600);
+      tester.view.physicalSize = viewport;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
       final host = _FakeHost(
         settings: CompanySettings(emailSendingMethod: method),
-        company: const Company(id: 'co-A'),
+        company: company,
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -207,6 +209,7 @@ void main() {
       // settles. Two frames are enough to build the provider section.
       await tester.pump();
       await tester.pump();
+      return host;
     }
 
     // The provider dropdown is the first String-typed dropdown in the tree
@@ -285,6 +288,52 @@ void main() {
       for (final item in items.where((i) => i.value != 'smtp')) {
         expect(item.child, isA<Text>(), reason: 'provider ${item.value}');
       }
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
+
+    // Issue #29: switching the provider away and back must not blank the SMTP
+    // card. The card unmounts while another provider is selected and re-seeds
+    // its controllers from `host.draft` on remount, so nothing in this flow may
+    // drop the seven top-level Company.smtp* fields. (The real data loss was a
+    // layer down — a full sync used to re-seed the companies row from an
+    // envelope that didn't carry them — but this guards the UI half.)
+    testWidgets('SMTP fields survive a provider round-trip', (tester) async {
+      const configured = Company(
+        id: 'co-A',
+        smtpHost: 'smtp.example.com',
+        smtpPort: 587,
+        smtpUsername: 'postmaster@example.com',
+        smtpLocalDomain: 'mail.example.com',
+      );
+      final host = await pumpBody(
+        tester,
+        session: _session(isHosted: true, plan: 'pro'),
+        method: 'smtp',
+        company: configured,
+        viewport: const Size(900, 4200),
+      );
+      expect(find.text('smtp.example.com'), findsOneWidget);
+      expect(find.text('postmaster@example.com'), findsOneWidget);
+
+      // Away…
+      host.updateSettings(
+        (s) => s.copyWith(emailSendingMethod: 'client_postmark'),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(SmtpMailDriverCard), findsNothing);
+
+      // …and back.
+      host.updateSettings((s) => s.copyWith(emailSendingMethod: 'smtp'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(SmtpMailDriverCard), findsOneWidget);
+      expect(find.text('smtp.example.com'), findsOneWidget);
+      expect(find.text('postmaster@example.com'), findsOneWidget);
+      expect(find.text('mail.example.com'), findsOneWidget);
+      expect(find.text('587'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

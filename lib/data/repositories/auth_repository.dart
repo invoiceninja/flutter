@@ -1052,10 +1052,11 @@ class AuthRepository {
     required String baseUrl,
     required bool isHosted,
     String? preserveActiveCompanyId,
-    // Login / OAuth and a forced/first refresh are full snapshots: wipe and
-    // re-seed. A delta refresh (`current_company=true`) returns only the
-    // active company + changed rows — skip the wipe so other companies'
-    // rows, tokens, and `lastSyncAt` survive (PK upsert handles the rest).
+    // Login / OAuth and a forced/first refresh are full snapshots: the
+    // response is the authoritative company set, so prune the rest. A delta
+    // refresh (`current_company=true`) returns only the active company +
+    // changed rows — prune nothing there, or other companies' rows, tokens
+    // and `lastSyncAt` would be destroyed (PK upsert handles the rest).
     bool isFullSync = true,
     // Wall-clock at the start of the refresh request, stored as each
     // company's `lastSyncAt` so the next refresh asks for the delta since
@@ -1174,19 +1175,31 @@ class AuthRepository {
     }
 
     // A logout landed between the network return and here. Bail before the
-    // wipe/re-seed so we don't repopulate Drift that `logout()` just cleared.
+    // prune/re-seed so we don't repopulate Drift that `logout()` just cleared.
     if (expectedGeneration != null &&
         expectedGeneration != _sessionGeneration) {
       return;
     }
     await _db.transaction(() async {
-      // Full snapshot: wipe + re-seed (drops companies the account no longer
-      // has). Delta: keep every existing row — the response carries only the
-      // active company, and `upsertAll` updates it in place by PK. Wiping on
-      // a delta would destroy other companies' tokens + `lastSyncAt` and
-      // trip a 401→logout on the next company switch.
+      // Full snapshot: the response is the authoritative company set, so prune
+      // the ones the account no longer has (plus a stale account row). Delta:
+      // prune nothing — the response carries only the active company, so it
+      // would destroy every other company's token + `lastSyncAt` and trip a
+      // 401→logout on the next company switch. Either way `upsertAll` below
+      // updates the survivors in place by PK.
+      //
+      // Prune, never wipe. `upsertAll` only writes the columns present on the
+      // companion, so a surviving row keeps the ~37 top-level columns
+      // `CompanyEnvelopeApi` used to omit; deleting it first reset them to
+      // table defaults, blanking the user's SMTP credentials (and the expense
+      // / task-invoicing / payment-conversion flags) on every launch — issue
+      // #29. Those columns now ride the envelope, but the prune is what keeps
+      // any future envelope gap from being silently destructive.
       if (isFullSync) {
-        await _db.companiesDao.wipe();
+        await _db.companiesDao.pruneExcept(
+          companyIds: liveIds,
+          accountId: firstAccount.id,
+        );
       }
       await _db.companiesDao.upsertAccount(
         AccountsCompanion.insert(
@@ -1200,33 +1213,47 @@ class AuthRepository {
           updatedAt: nowMs,
         ),
       );
-      // Don't clobber a pending local edit on a DELTA refresh. `updateCompany`
-      // writes the companies row optimistically inside its enqueue
-      // transaction, so the local row IS the user's not-yet-synced state;
-      // overwriting it with the server's stale copy visibly reverts their
-      // settings edit while the mutation is still queued — and the next save,
-      // seeded from the reverted row, would then overwrite edit #1 on the
-      // server too. This table has no `is_dirty` column, so the queued outbox
-      // row is the dirty marker (same contract as the `user_settings` loop
-      // below). A FULL sync is exempt: it wiped the table above, so skipping
-      // the insert would leave no company row at all — there the queued
-      // mutation still carries the user's payload and applies on drain.
+      // Don't clobber a pending local edit. `updateCompany` writes the
+      // companies row optimistically inside its enqueue transaction, so the
+      // local row IS the user's not-yet-synced state; overwriting it with the
+      // server's stale copy visibly reverts their settings edit while the
+      // mutation is still queued — and the next save, seeded from the reverted
+      // row, would then overwrite edit #1 on the server too. This table has no
+      // `is_dirty` column, so the queued outbox row is the dirty marker (same
+      // contract as the `user_settings` loop below).
+      //
+      // Applies to FULL syncs too, now that the branch above prunes instead of
+      // wiping: the row survives, so skipping its write no longer leaves the
+      // company row-less. Requiring the row to actually exist keeps that true
+      // even if the two ever diverge — a company with no row must fall through
+      // to the insert, or it silently vanishes from the picker on the next
+      // cold start (`restore()` sources the list from this table, while a full
+      // sync sources it from `response.data`).
       final skipCompanyIds = <String>{};
-      if (!isFullSync) {
-        for (final uc in response.data) {
-          if (await _db.outboxDao.hasActiveRowsFor(
-            companyId: uc.company.id,
-            entityType: kCompanyWireName,
-          )) {
-            skipCompanyIds.add(uc.company.id);
-          }
+      for (final uc in response.data) {
+        if (await _db.outboxDao.hasActiveRowsFor(
+              companyId: uc.company.id,
+              entityType: kCompanyWireName,
+            ) &&
+            await _db.companiesDao.byId(uc.company.id) != null) {
+          skipCompanyIds.add(uc.company.id);
         }
       }
-      // A skipped company still needs its delta watermark advanced, or every
-      // later /refresh re-requests an ever-wider window for as long as the
-      // edit stays parked (a 409 parks a year out).
-      for (final id in skipCompanyIds) {
-        await _db.companiesDao.touchLastSyncAt(companyId: id, at: syncMark);
+      // A skipped company still gets the columns the server owns outright:
+      // the delta watermark (or every later /refresh re-requests an ever-wider
+      // window for as long as the edit stays parked — a 409 parks a year out)
+      // and the per-(user, company) flags this background refresh exists to
+      // heal. Only the user-editable columns are actually withheld.
+      for (final uc in response.data) {
+        if (!skipCompanyIds.contains(uc.company.id)) continue;
+        await _db.companiesDao.touchSessionColumns(
+          companyId: uc.company.id,
+          at: syncMark,
+          permissions: uc.permissions,
+          accountId: uc.account.id,
+          isAdmin: uc.isAdmin,
+          isOwner: uc.isOwner,
+        );
       }
       await _db.companiesDao.upsertAll([
         for (final uc in response.data)
@@ -1245,7 +1272,7 @@ class AuthRepository {
               settings: jsonEncode(uc.company.settings),
               customFields: Value(jsonEncode(uc.company.customFields)),
               // Persist envelope-carried company documents so the Documents tab
-              // survives the wipe+upsert and renders offline (mirrors how
+              // survives the re-seed and renders offline (mirrors how
               // `applyUpdateResponse` writes this column on a settings save).
               documents: Value(
                 jsonEncode(
@@ -1310,6 +1337,67 @@ class AuthRepository {
               stopOnUnpaidRecurring: Value(uc.company.stopOnUnpaidRecurring),
               useQuoteTermsOnConversion: Value(
                 uc.company.useQuoteTermsOnConversion,
+              ),
+              smtpHost: Value(uc.company.smtpHost),
+              smtpPort: Value(uc.company.smtpPort),
+              smtpEncryption: Value(uc.company.smtpEncryption),
+              smtpUsername: Value(uc.company.smtpUsername),
+              smtpPassword: Value(uc.company.smtpPassword),
+              smtpLocalDomain: Value(uc.company.smtpLocalDomain),
+              smtpVerifyPeer: Value(uc.company.smtpVerifyPeer),
+              expenseMailbox: Value(uc.company.expenseMailbox),
+              expenseMailboxActive: Value(uc.company.expenseMailboxActive),
+              inboundMailboxAllowCompanyUsers: Value(
+                uc.company.inboundMailboxAllowCompanyUsers,
+              ),
+              inboundMailboxAllowVendors: Value(
+                uc.company.inboundMailboxAllowVendors,
+              ),
+              inboundMailboxAllowClients: Value(
+                uc.company.inboundMailboxAllowClients,
+              ),
+              inboundMailboxAllowUnknown: Value(
+                uc.company.inboundMailboxAllowUnknown,
+              ),
+              inboundMailboxWhitelist: Value(
+                uc.company.inboundMailboxWhitelist,
+              ),
+              inboundMailboxBlacklist: Value(
+                uc.company.inboundMailboxBlacklist,
+              ),
+              expenseInclusiveTaxes: Value(uc.company.expenseInclusiveTaxes),
+              calculateExpenseTaxByAmount: Value(
+                uc.company.calculateExpenseTaxByAmount,
+              ),
+              autoStartTasks: Value(uc.company.autoStartTasks),
+              showTaskEndDate: Value(uc.company.showTaskEndDate),
+              showTasksTable: Value(uc.company.showTasksTable),
+              invoiceTaskDatelog: Value(uc.company.invoiceTaskDatelog),
+              invoiceTaskTimelog: Value(uc.company.invoiceTaskTimelog),
+              invoiceTaskHours: Value(uc.company.invoiceTaskHours),
+              invoiceTaskItemDescription: Value(
+                uc.company.invoiceTaskItemDescription,
+              ),
+              invoiceTaskProject: Value(uc.company.invoiceTaskProject),
+              invoiceTaskProjectHeader: Value(
+                uc.company.invoiceTaskProjectHeader,
+              ),
+              invoiceTaskLock: Value(uc.company.invoiceTaskLock),
+              invoiceTaskDocuments: Value(uc.company.invoiceTaskDocuments),
+              markExpensesInvoiceable: Value(
+                uc.company.markExpensesInvoiceable,
+              ),
+              markExpensesPaid: Value(uc.company.markExpensesPaid),
+              invoiceExpenseDocuments: Value(
+                uc.company.invoiceExpenseDocuments,
+              ),
+              notifyVendorWhenPaid: Value(uc.company.notifyVendorWhenPaid),
+              enableApplyingPayments: Value(uc.company.enableApplyingPayments),
+              convertPaymentCurrency: Value(uc.company.convertPaymentCurrency),
+              convertExpenseCurrency: Value(uc.company.convertExpenseCurrency),
+              hasEInvoiceCertificate: Value(uc.company.hasEInvoiceCertificate),
+              hasEInvoiceCertificatePassphrase: Value(
+                uc.company.hasEInvoiceCertificatePassphrase,
               ),
               subdomain: Value(uc.company.subdomain),
               portalDomain: Value(uc.company.portalDomain),
@@ -1539,8 +1627,8 @@ class AuthRepository {
     final firstUser = response.data.first.user;
     // A full snapshot's `data` is the authoritative company set. A delta is
     // scoped to the active company, so its `data` omits the others — source
-    // the picker list from the Drift table instead (still complete: the
-    // wipe was skipped and only the active row was upserted).
+    // the picker list from the Drift table instead (still complete: a delta
+    // prunes nothing and only upserts the active row).
     final List<AuthCompany> companiesList;
     if (isFullSync) {
       companiesList = response.data
@@ -1659,9 +1747,9 @@ class AuthRepository {
     final s = _session.value;
     if (s == null) return;
     // Keep only rows that match an id already in the session — guards against
-    // the brief mid-transaction state in `_persistAndActivate` (wipe + upsert)
-    // and any future writer that touches the table before the session is
-    // re-assigned.
+    // the brief mid-transaction state in `_persistAndActivate` (prune +
+    // upsert) and any future writer that touches the table before the session
+    // is re-assigned.
     final knownIds = {for (final c in s.companies) c.id};
     final byId = {
       for (final r in rows)

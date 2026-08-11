@@ -170,6 +170,20 @@ Map<String, int> _referralMetaFromJson(Object? value) {
   return out;
 }
 
+/// The `data[N].company` object on `/login` and `/refresh`. The server builds
+/// it with the same `CompanyTransformer` as `GET /companies/{id}`, so it
+/// carries the full top-level column set.
+///
+/// **Every top-level `companies` column belongs here.** `_persistAndActivate`
+/// re-writes the companies row from this envelope on each login/refresh, so a
+/// column modelled on `CompanyApi` but missing here reverts to its Drift table
+/// default — silently, and on every app launch. That's what lost users' SMTP
+/// credentials in issue #29. Sole exception:
+/// `e_invoice_certificate_passphrase`, a write-only secret the server never
+/// returns (only the `has_…` flag comes back).
+///
+/// The bundled sub-lists (`users`, `designs`, `tax_rates`, …) are a separate
+/// concern — see CLAUDE.md § Data loading — bundled vs per-entity.
 @freezed
 abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
   const factory CompanyEnvelopeApi({
@@ -402,6 +416,103 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     // QuickBooks integration envelope — see CompanyApi.quickbooks. Null
     // when not connected.
     @JsonKey(name: 'quickbooks') Map<String, dynamic>? quickbooks,
+    // ── SMTP transport (Settings → Email Settings, `smtp` provider) ──────
+    // The server returns these on every login/refresh (same CompanyTransformer
+    // as GET /companies/{id}) with `smtp_username` / `smtp_password` masked as
+    // `********`. They MUST be carried here: a full sync re-seeds the
+    // companies row from this envelope, so a field missing here lands its
+    // Drift default instead of the user's value — that's issue #29.
+    @JsonKey(name: 'smtp_host') @Default('') String smtpHost,
+    @JsonKey(name: 'smtp_port') @Default(0) int smtpPort,
+    @JsonKey(name: 'smtp_encryption') @Default('TLS') String smtpEncryption,
+    @JsonKey(name: 'smtp_username') @Default('') String smtpUsername,
+    @JsonKey(name: 'smtp_password') @Default('') String smtpPassword,
+    @JsonKey(name: 'smtp_local_domain') @Default('') String smtpLocalDomain,
+    @JsonKey(name: 'smtp_verify_peer') @Default(true) bool smtpVerifyPeer,
+    // ── Expense settings + inbound mailbox ───────────────────────────────
+    @JsonKey(name: 'expense_mailbox') @Default('') String expenseMailbox,
+    @JsonKey(name: 'expense_mailbox_active')
+    @Default(false)
+    bool expenseMailboxActive,
+    @JsonKey(name: 'inbound_mailbox_allow_company_users')
+    @Default(false)
+    bool inboundMailboxAllowCompanyUsers,
+    @JsonKey(name: 'inbound_mailbox_allow_vendors')
+    @Default(false)
+    bool inboundMailboxAllowVendors,
+    @JsonKey(name: 'inbound_mailbox_allow_clients')
+    @Default(false)
+    bool inboundMailboxAllowClients,
+    @JsonKey(name: 'inbound_mailbox_allow_unknown')
+    @Default(false)
+    bool inboundMailboxAllowUnknown,
+    @JsonKey(name: 'inbound_mailbox_whitelist')
+    @Default('')
+    String inboundMailboxWhitelist,
+    @JsonKey(name: 'inbound_mailbox_blacklist')
+    @Default('')
+    String inboundMailboxBlacklist,
+    @JsonKey(name: 'expense_inclusive_taxes')
+    @Default(false)
+    bool expenseInclusiveTaxes,
+    @JsonKey(name: 'calculate_expense_tax_by_amount')
+    @Default(false)
+    bool calculateExpenseTaxByAmount,
+    // ── Task settings + task/expense invoicing ───────────────────────────
+    @JsonKey(name: 'auto_start_tasks') @Default(false) bool autoStartTasks,
+    @JsonKey(name: 'show_task_end_date') @Default(false) bool showTaskEndDate,
+    @JsonKey(name: 'show_tasks_table') @Default(false) bool showTasksTable,
+    @JsonKey(name: 'invoice_task_datelog')
+    @Default(false)
+    bool invoiceTaskDatelog,
+    @JsonKey(name: 'invoice_task_timelog')
+    @Default(false)
+    bool invoiceTaskTimelog,
+    @JsonKey(name: 'invoice_task_hours') @Default(false) bool invoiceTaskHours,
+    @JsonKey(name: 'invoice_task_item_description')
+    @Default(false)
+    bool invoiceTaskItemDescription,
+    @JsonKey(name: 'invoice_task_project')
+    @Default(false)
+    bool invoiceTaskProject,
+    @JsonKey(name: 'invoice_task_project_header')
+    @Default(false)
+    bool invoiceTaskProjectHeader,
+    @JsonKey(name: 'invoice_task_lock') @Default(false) bool invoiceTaskLock,
+    @JsonKey(name: 'invoice_task_documents')
+    @Default(false)
+    bool invoiceTaskDocuments,
+    @JsonKey(name: 'mark_expenses_invoiceable')
+    @Default(false)
+    bool markExpensesInvoiceable,
+    @JsonKey(name: 'mark_expenses_paid') @Default(false) bool markExpensesPaid,
+    @JsonKey(name: 'invoice_expense_documents')
+    @Default(false)
+    bool invoiceExpenseDocuments,
+    @JsonKey(name: 'notify_vendor_when_paid')
+    @Default(false)
+    bool notifyVendorWhenPaid,
+    // ── Online payments + expense currency conversion ────────────────────
+    @JsonKey(name: 'enable_applying_payments')
+    @Default(false)
+    bool enableApplyingPayments,
+    @JsonKey(name: 'convert_payment_currency')
+    @Default(false)
+    bool convertPaymentCurrency,
+    @JsonKey(name: 'convert_expense_currency')
+    @Default(false)
+    bool convertExpenseCurrency,
+    // ── E-invoice certificate presence flags ─────────────────────────────
+    // Read-only "is one uploaded?" booleans. The passphrase itself
+    // (`e_invoice_certificate_passphrase`) is write-only — the server never
+    // returns it, so it deliberately stays off the envelope and keeps being
+    // blanked locally by `applyUpdateResponse`.
+    @JsonKey(name: 'has_e_invoice_certificate')
+    @Default(false)
+    bool hasEInvoiceCertificate,
+    @JsonKey(name: 'has_e_invoice_certificate_passphrase')
+    @Default(false)
+    bool hasEInvoiceCertificatePassphrase,
   }) = _CompanyEnvelopeApi;
 
   factory CompanyEnvelopeApi.fromJson(Map<String, dynamic> json) =>

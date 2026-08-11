@@ -17,20 +17,6 @@ import 'package:admin/ui/features/settings/widgets/overridable_switch_field.dart
 import 'package:admin/ui/features/settings/widgets/overridable_text_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 
-/// Brand colors for the provider dropdown's leading dot. Not theme-aware —
-/// vendor-owned brand marks should not shift between light and dark mode.
-/// Kept here (rather than on `InTheme`) so the design-token surface stays
-/// limited to theme-responsive colors.
-const _kBrandDotColors = <String, Color>{
-  'postmark': Color(0xFFFFE067),
-  'mailgun': Color(0xFFE32A6F),
-  'ses': Color(0xFFFF9900),
-  'gmail': Color(0xFFEA4335),
-  'microsoft': Color(0xFF0078D4),
-  'brevo': Color(0xFF0B996E),
-  'smtp': Color(0xFF6B7280),
-};
-
 /// Field labels exposed by the in-app settings search for the Email Settings
 /// page. Keep in sync with `kSettingsSearchCatalog['email_settings']` —
 /// `search_catalog_consistency_test` asserts every entry is actually
@@ -289,85 +275,26 @@ class EmailSettingsBody extends StatelessWidget {
     final items = <DropdownMenuItem<String>>[];
     if (isHosted) {
       items.add(
-        _brandItem(
-          context,
-          value: 'default',
-          label: 'Postmark (invoicing.co)',
-          brandKey: 'postmark',
-        ),
+        _providerItem(value: 'default', label: 'Postmark (invoicing.co)'),
       );
       items.add(
-        _brandItem(
-          context,
-          value: 'mailgun',
-          label: 'Mailgun (invoicing.co)',
-          brandKey: 'mailgun',
-        ),
+        _providerItem(value: 'mailgun', label: 'Mailgun (invoicing.co)'),
       );
       items.add(
-        _brandItem(
-          context,
-          value: 'ses',
-          label: 'Amazon SES (invoicing.co)',
-          brandKey: 'ses',
-        ),
+        _providerItem(value: 'ses', label: 'Amazon SES (invoicing.co)'),
       );
-      items.add(
-        _brandItem(context, value: 'gmail', label: 'Gmail', brandKey: 'gmail'),
-      );
+      items.add(_providerItem(value: 'gmail', label: 'Gmail'));
     } else {
       // Self-hosted: the server's configured default mailer. v1 and React both
       // expose this; without it a self-hosted instance (whose method *is*
       // `default`) renders a blank provider dropdown.
-      items.add(
-        _brandItem(
-          context,
-          value: 'default',
-          label: context.tr('default'),
-          brandKey: 'smtp',
-        ),
-      );
+      items.add(_providerItem(value: 'default', label: context.tr('default')));
     }
-    items.add(
-      _brandItem(
-        context,
-        value: 'office365',
-        label: 'Microsoft',
-        brandKey: 'microsoft',
-      ),
-    );
-    items.add(
-      _brandItem(
-        context,
-        value: 'client_postmark',
-        label: 'Postmark',
-        brandKey: 'postmark',
-      ),
-    );
-    items.add(
-      _brandItem(
-        context,
-        value: 'client_mailgun',
-        label: 'Mailgun',
-        brandKey: 'mailgun',
-      ),
-    );
-    items.add(
-      _brandItem(
-        context,
-        value: 'client_ses',
-        label: 'Amazon SES',
-        brandKey: 'ses',
-      ),
-    );
-    items.add(
-      _brandItem(
-        context,
-        value: 'client_brevo',
-        label: 'Brevo',
-        brandKey: 'brevo',
-      ),
-    );
+    items.add(_providerItem(value: 'office365', label: 'Microsoft'));
+    items.add(_providerItem(value: 'client_postmark', label: 'Postmark'));
+    items.add(_providerItem(value: 'client_mailgun', label: 'Mailgun'));
+    items.add(_providerItem(value: 'client_ses', label: 'Amazon SES'));
+    items.add(_providerItem(value: 'client_brevo', label: 'Brevo'));
     // SMTP is always offered; disabled when out of plan, demo, or off-scope.
     final smtpEnabled = isCompanyScope && isProOrEnterprise && !Env.demoMode;
     items.add(
@@ -376,12 +303,11 @@ class EmailSettingsBody extends StatelessWidget {
         enabled: smtpEnabled,
         child: Row(
           children: [
-            _BrandDot(color: _kBrandDotColors['smtp']!),
-            const SizedBox(width: 8),
             // Not wrapped in Flexible: "SMTP" can't overflow, and the trailing
             // _ProChip should sit adjacent — a Flexible would expand the text
-            // and right-align the chip. The long brand labels (which can
-            // overflow) get the Flexible treatment in _brandItem instead.
+            // and right-align the chip. The long labels (which can overflow)
+            // are plain Texts in _providerItem, so `isExpanded: true` on the
+            // dropdown bounds them and their ellipsis does the truncating.
             Text(
               'SMTP',
               style: TextStyle(
@@ -396,21 +322,20 @@ class EmailSettingsBody extends StatelessWidget {
     return items;
   }
 
-  static DropdownMenuItem<String> _brandItem(
-    BuildContext context, {
+  /// Provider options render as plain text. Each row used to lead with a
+  /// coloured brand dot; it was removed because users read it as a
+  /// connection-status indicator — the grey "no vendor colour" fallback on
+  /// SMTP / Default looked like "offline", right above the Send Test Email
+  /// button (issue #28). Elsewhere in this app a coloured dot means real
+  /// state (`StatusPill`, tag / task-status / expense-category swatches), so
+  /// don't reintroduce a decorative one here.
+  static DropdownMenuItem<String> _providerItem({
     required String value,
     required String label,
-    required String brandKey,
   }) {
     return DropdownMenuItem(
       value: value,
-      child: Row(
-        children: [
-          _BrandDot(color: _kBrandDotColors[brandKey]!),
-          const SizedBox(width: 8),
-          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-        ],
-      ),
+      child: Text(label, overflow: TextOverflow.ellipsis),
     );
   }
 
@@ -533,21 +458,6 @@ class EmailSettingsBody extends StatelessWidget {
       return const [SmtpMailDriverCard()];
     }
     return const <Widget>[];
-  }
-}
-
-class _BrandDot extends StatelessWidget {
-  const _BrandDot({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 10,
-      height: 10,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
   }
 }
 

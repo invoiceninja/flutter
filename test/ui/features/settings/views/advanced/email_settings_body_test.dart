@@ -271,5 +271,23 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
     });
+
+    // Issue #28: the leading coloured dot read as a connection-status light
+    // (the grey SMTP/Default fallback looked like "offline", right above the
+    // Send Test Email button). Every branded option must stay a bare Text;
+    // SMTP is the one Row, because it carries the Pro chip.
+    testWidgets('provider options carry no decorative colour swatch', (
+      tester,
+    ) async {
+      await pumpBody(tester, session: _session(isHosted: true, plan: 'pro'));
+      final items = providerDropdown(tester).items!;
+      expect(items, isNotEmpty);
+      for (final item in items.where((i) => i.value != 'smtp')) {
+        expect(item.child, isA<Text>(), reason: 'provider ${item.value}');
+      }
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
   });
 }

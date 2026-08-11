@@ -44,7 +44,16 @@ class DateRangePickerButton extends StatelessWidget {
         ),
       ),
       icon: const Icon(Icons.filter_alt_outlined, size: 14),
-      label: Text(label, style: const TextStyle(fontSize: 13)),
+      // A custom range renders a long two-date string, and the top bar's
+      // action Wrap is now width-bounded (it can break to a second run), so
+      // this label is the one that can actually get squeezed. Without a cap it
+      // soft-wraps to two lines and grows the button; ellipsise instead.
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13),
+      ),
       onPressed: () => _open(context),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -17,7 +19,6 @@ import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/settings_popover.dart';
-import 'package:admin/ui/features/dashboard/widgets/freshness_label.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
@@ -239,6 +240,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Notify.info(context, msg);
   }
 
+  /// User-initiated refresh — the top bar's button and pull-to-refresh.
+  ///
+  /// `DashboardRepository.refreshAll` swallows each section's exception into a
+  /// map instead of throwing, so without this a failed pass looks identical to
+  /// a clean one apart from the freshness stamp quietly continuing to age.
+  /// Deliberately not used for the VM's boot refresh in `_init()` — a toast on
+  /// app start would be noise.
+  Future<void> _refreshWithFeedback() async {
+    // Capture the VM as well as the toast queue and the string before the
+    // await. `_onSessionChanged` swaps `_vm` and disposes the old one, so a
+    // company switch landing mid-pass would otherwise read the *new* company's
+    // (null) error here. Same reason `entity_list_screen_scaffold` pins its VM
+    // before a post-await callback.
+    final vm = _vm;
+    final toasts = Notify.capture(context);
+    final failure = context.tr('refresh_failed');
+    if (await vm.refresh()) return;
+    final error = vm.globalError;
+    toasts?.error(
+      failure,
+      detail: error == null ? null : formatNotifyError(error),
+    );
+  }
+
   /// Tap on a configured dashboard card → open its entity list, best-effort
   /// pre-filtered to match the metric (see `card_deep_link.dart`). Mirrors
   /// the KPI date-window behaviour for `current`-period cards.
@@ -266,8 +291,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // No tree-wide ListenableBuilder here: the Scaffold / AppBar / Drawer /
     // LayoutBuilder / SafeArea chrome doesn't depend on dashboard data and
     // must not rebuild on every one of the ~9+ Drift stream emissions.
-    // The VM-dependent chrome (top bar, freshness label) and the data
-    // body listen via their own narrowly-scoped ListenableBuilders below.
+    // The VM-dependent chrome (the top bar, which carries the freshness stamp
+    // and refresh button) and the data body listen via their own
+    // narrowly-scoped ListenableBuilders below.
     return ListenableProvider<DashboardViewModel>.value(
       value: _vm,
       child: _buildContent(context),
@@ -304,6 +330,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         builder: (context, _) => DashboardTopBar(
                           vm: _vm,
                           companyName: _resolveCompanyName(context),
+                          onRefresh: () => unawaited(_refreshWithFeedback()),
                           onNewInvoice: _moduleOn(EntityType.invoice)
                               ? () => _safeNavigate('/invoices/new')
                               : null,
@@ -312,7 +339,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     Expanded(
                       child: RefreshIndicator(
-                        onRefresh: _vm.refresh,
+                        // Pull-to-refresh is mobile's only refresh affordance,
+                        // so it gets the same failure feedback as the button.
+                        onRefresh: _refreshWithFeedback,
                         // The data body is the only part that consumes
                         // section state. RepaintBoundary keeps a body
                         // rebuild from repainting the sibling chrome.
@@ -469,15 +498,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _chartAndActivity(context, width, formatter),
       SizedBox(height: InSpacing.lg(context)),
       _bottomGrid(context, width, formatter),
-      SizedBox(height: InSpacing.lg(context)),
-      Align(
-        alignment: Alignment.centerRight,
-        child: FreshnessLabel(
-          lastRefreshed: _vm.lastRefreshed,
-          isRefreshing: _vm.isAnyRefreshing,
-          onRefresh: _vm.refresh,
-        ),
-      ),
+      // The freshness stamp + Refresh used to live here, at the very bottom of
+      // the scroll; both now sit in the always-visible top bar (issue #26).
       const SizedBox(height: InSpacing.xl),
     ];
 

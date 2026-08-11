@@ -21,7 +21,7 @@ import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
-import 'package:admin/ui/features/dashboard/widgets/freshness_label.dart';
+import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile/dashboard_mobile_rows.dart';
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
@@ -165,17 +165,11 @@ class MobileDashboardBody extends StatelessWidget {
         SizedBox(height: InSpacing.lg(context)),
         // Trailing list panels in the user's saved order (past-due excluded —
         // it's pinned above). Each visible, module-enabled panel emits its card
-        // + a trailing spacer, so hiding one never orphans a gap.
+        // + a trailing spacer, so hiding one never orphans a gap — which is
+        // also why nothing replaces the freshness stamp that used to close the
+        // page here; it rides the eyebrow at the top now (issue #26), and the
+        // ListView's own padding closes the bottom when every panel is hidden.
         ..._trailingPanels(context, tokens, trailingEnabled),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FreshnessLabel(
-            lastRefreshed: vm.lastRefreshed,
-            isRefreshing: vm.isAnyRefreshing,
-            onRefresh: vm.refresh,
-          ),
-        ),
-        SizedBox(height: InSpacing.lg(context)),
       ],
     );
   }
@@ -220,14 +214,28 @@ class MobileDashboardBody extends StatelessWidget {
   // ---------------------------------------------------------------------------
   // Eyebrow
 
+  /// `ACME CORPORATION · DASHBOARD · UPDATED 12 MIN AGO`.
+  ///
+  /// One run in one voice, not a two-column row: the company line (~202 px) and
+  /// the freshness stamp (~158 px) together need ~360 px of a 336 px content
+  /// line on a 360 dp phone, so side-by-side would truncate the company name on
+  /// every handset at or below 375 dp. As a single string the ellipsis eats the
+  /// freshness first, which is the right priority, and it degrades to today's
+  /// exact appearance. No tappable Refresh here — `RefreshIndicator` already
+  /// wraps the body and the AppBar has no room for a fifth action.
   Widget _eyebrow(BuildContext context, InTheme tokens) {
-    return Text(
-      '${companyName.toUpperCase()} · ${context.tr('dashboard').toUpperCase()}',
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.6,
-        color: tokens.ink3,
+    return FreshnessTicker(
+      builder: (context) => Text(
+        '${companyName.toUpperCase()} · ${context.tr('dashboard').toUpperCase()} · '
+        '${freshnessText(context, lastRefreshed: vm.lastRefreshed, isRefreshing: vm.isAnyRefreshing).toUpperCase()}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.6,
+          color: tokens.ink3,
+        ),
       ),
     );
   }

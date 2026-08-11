@@ -85,6 +85,16 @@ class FakeDashboardRepo extends DashboardRepository {
   final List<String> refreshedCardKeys = [];
   final List<String> droppedCardKeys = [];
 
+  /// When set, `refreshAll` blocks on this until completed — lets a test hold
+  /// a pass in flight and assert the header's spinner / disabled state. Set it
+  /// inside the test body, not `setUp`: the VM's `_init()` refresh would
+  /// otherwise never finish.
+  Completer<void>? refreshAllGate;
+
+  /// Errors `refreshAll` should report. Non-empty makes the VM take its
+  /// partial-failure path (no `lastRefreshed` stamp).
+  Map<String, Object> refreshAllErrors = const {};
+
   @override
   Future<Map<String, Object>> refreshAll(
     String c,
@@ -94,7 +104,9 @@ class FakeDashboardRepo extends DashboardRepository {
     refreshedCardKeys
       ..clear()
       ..addAll(cards.map((e) => e.key));
-    return const {};
+    final gate = refreshAllGate;
+    if (gate != null) await gate.future;
+    return refreshAllErrors;
   }
 
   @override

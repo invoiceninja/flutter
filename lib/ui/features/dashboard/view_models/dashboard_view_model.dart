@@ -368,10 +368,17 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   /// Full refetch: every kind, parallel under the repo's concurrency cap.
-  Future<void> refresh() async {
+  ///
+  /// Returns true only when every section landed cleanly. `refreshAll` folds
+  /// each job's exception into a map and never throws, so a partial failure is
+  /// otherwise indistinguishable from success except that [lastRefreshed] goes
+  /// unstamped — which reads as "the Refresh button did nothing". Callers that
+  /// represent a *user-initiated* refresh use the result to surface a toast.
+  Future<bool> refresh() async {
     isAnyRefreshing = true;
     globalError = null;
     notifyListeners();
+    var clean = false;
     try {
       final errors = await repo.refreshAll(
         companyId,
@@ -382,8 +389,13 @@ class DashboardViewModel extends ChangeNotifier {
         // Streams will emit the latest cached value (possibly null/stale);
         // mark the failing sections as error so the per-card retry surfaces.
         _foldPerSectionErrors(errors);
+        // This — not the catch below — is the path a failed pass actually
+        // takes. Leaving globalError null here made it look like a safety net
+        // while being permanently unset.
+        globalError = errors.values.first;
       } else {
         lastRefreshed = _now();
+        clean = true;
       }
     } catch (e, st) {
       _log.warning('Dashboard refresh failed', e, st);
@@ -392,6 +404,7 @@ class DashboardViewModel extends ChangeNotifier {
       isAnyRefreshing = false;
       notifyListeners();
     }
+    return clean;
   }
 
   /// Per-section retry (used by ErrorView's retry button).
@@ -436,6 +449,12 @@ class DashboardViewModel extends ChangeNotifier {
   // ─── Init / streams ───────────────────────────────────────────────────
 
   Future<void> _init() async {
+    // Raised before the Drift read, not inside refresh(): otherwise the frames
+    // spent hydrating are `lastRefreshed == null && !isAnyRefreshing`, which
+    // the freshness stamp renders as "Not yet loaded". Harmless at the bottom
+    // of a scroll; a visible flash beside the company name in the top bar, at
+    // boot and on every company switch (which builds a fresh VM).
+    isAnyRefreshing = true;
     await _hydrate();
     _subscribeAll();
     await refresh();

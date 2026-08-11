@@ -26,6 +26,42 @@ export 'package:admin/data/repositories/auth/auth_session.dart'
 
 final _log = Logger('AuthRepository');
 
+/// Outcome of [AuthRepository.switchCompany]. Callers surface anything that
+/// isn't [ok] — a switch that quietly does nothing reads to the user as the
+/// app ignoring them (issue #16).
+enum SwitchCompanyResult {
+  ok,
+
+  /// No active session — nothing to switch. Only reachable if a logout raced
+  /// the tap.
+  noSession,
+
+  /// The target company has no usable token, even after a healing refresh.
+  /// Either the server has no `is_system` token for this (company, user) pair
+  /// or we're offline with a roster that's ahead of the token map.
+  noToken,
+}
+
+/// [AuthRepository.addCompany] created the company on the server but could not
+/// activate it locally.
+///
+/// Distinct from a failed create, and the distinction is the whole point: the
+/// company **exists**. Reporting this as "failed to add company" invites the
+/// user to create a second one. The UI should say so and point them at the
+/// company list instead.
+class CompanyCreatedNotActivatedException implements Exception {
+  const CompanyCreatedNotActivatedException(this.companyId, this.reason);
+
+  /// Empty when `/refresh` never returned the new company at all, so we never
+  /// learned its id.
+  final String companyId;
+  final String reason;
+
+  @override
+  String toString() =>
+      'CompanyCreatedNotActivatedException($companyId, $reason)';
+}
+
 /// Owns the user's session: who they are, what company is active, what
 /// `ApiCredentials` the network layer should use right now. Persists the
 /// token in [FlutterSecureStorage] and the company/account metadata in Drift.
@@ -354,17 +390,52 @@ class AuthRepository {
   /// Switch the active company. Updates [credentials] so the next API call
   /// uses that company's token. Caller is responsible for any pending-outbox
   /// confirmation prompt before invoking this.
-  Future<void> switchCompany(String companyId) async {
+  ///
+  /// Returns what actually happened — callers must not assume success. A
+  /// company can be listed in the picker with no cached token (the roster is
+  /// rebuilt from Drift, the token map from the login/refresh envelope), and
+  /// this used to return silently in that case: the picker closed, the route
+  /// reset, and the user stayed put with no error (issue #16).
+  Future<SwitchCompanyResult> switchCompany(String companyId) async {
     final s = _session.value;
-    if (s == null) return;
-    final token = _tokensByCompany[companyId];
+    if (s == null) return SwitchCompanyResult.noSession;
+    var token = _tokensByCompany[companyId];
     // Empty strings slip past a `== null` check but produce a blank
     // `X-API-Token` header, which the server treats as unauthorized and
     // cascades into a forced logout. Treat empty as missing.
     if (token == null || token.isEmpty) {
-      _log.warning('switchCompany($companyId): no token cached');
-      return;
+      // One self-heal attempt before giving up. A *full* refresh re-pulls every
+      // company-user in the envelope — the only call that can hand us a token
+      // we don't already hold (a delta is scoped to the active company). Offline
+      // or a still-token-less server response just falls through to `noToken`.
+      _log.warning('switchCompany($companyId): no token cached; refreshing');
+      try {
+        await _refreshSession(
+          preserveActiveCompanyId: s.currentCompanyId,
+          fullSync: true,
+        );
+      } catch (e, st) {
+        _log.warning('switchCompany($companyId): heal refresh failed', e, st);
+      }
+      // The refresh may have logged us out (401) or landed a fresh session —
+      // re-read rather than reusing the pre-refresh snapshot.
+      final healed = _session.value;
+      if (healed == null) return SwitchCompanyResult.noSession;
+      token = _tokensByCompany[companyId];
+      if (token == null || token.isEmpty) {
+        _log.warning('switchCompany($companyId): still no token after refresh');
+        return SwitchCompanyResult.noToken;
+      }
+      return _activateCompany(healed, companyId, token);
     }
+    return _activateCompany(s, companyId, token);
+  }
+
+  Future<SwitchCompanyResult> _activateCompany(
+    AuthSession s,
+    String companyId,
+    String token,
+  ) async {
     _session.value = s.copyWith(currentCompanyId: companyId);
     _credentials.value = ApiCredentials(
       baseUrl: s.baseUrl,
@@ -373,7 +444,16 @@ class AuthRepository {
       isHosted: s.isHosted,
     );
     await _secure.write(kAuthCurrentCompanyIdKey, companyId);
-    _fireActiveCompanyChanged(companyId);
+    // Session + credentials have already flipped, so a throw out of the
+    // activation fan-out (its synchronous prologue — settings reset, scheduler
+    // start, sync resume, drain kick — is unguarded) would report a failed
+    // switch that in fact half-happened. Log it and let the caller navigate.
+    try {
+      _fireActiveCompanyChanged(companyId);
+    } catch (e, st) {
+      _log.warning('onActiveCompanyChanged($companyId) threw', e, st);
+    }
+    return SwitchCompanyResult.ok;
   }
 
   /// Create a new company under the current account. Mirrors admin-portal's
@@ -417,14 +497,24 @@ class AuthRepository {
     //    guaranteed across the two calls; this is the only safe way.
     final after = _session.value!.companies.map((c) => c.id).toSet();
     final added = after.difference(before);
+    // Both failure paths below are POST-succeeded-but-activation-failed: the
+    // company is on the server either way, so they must NOT surface as "failed
+    // to add company" or the user creates a duplicate.
     if (added.isEmpty) {
-      throw StateError(
-        '/refresh did not return the newly-created company; aborting switch',
+      throw const CompanyCreatedNotActivatedException(
+        '',
+        '/refresh did not return the newly-created company',
       );
     }
     // If multiple companies were added (e.g. another device created one
     // concurrently), pick any — the user can still switch via the picker.
-    await switchCompany(added.first);
+    final result = await switchCompany(added.first);
+    if (result != SwitchCompanyResult.ok) {
+      // `_handleNewCompany` routes to Company Details on a clean return, which
+      // would render the OLD company's settings under a "new company" banner —
+      // throw so it surfaces the error path instead.
+      throw CompanyCreatedNotActivatedException(added.first, result.name);
+    }
   }
 
   /// Mark a company as the account's default — what new logins land on
@@ -788,9 +878,19 @@ class AuthRepository {
     // user cannot do) and the topbar identity rendered blank. The
     // `user_settings` row (written per company on every login/refresh)
     // carries the auth user's id; the matching `users` row has the profile.
+    // With no persisted active company, land on one we hold a usable token for.
+    // A bare `companies.first.id` could pick a token-less row, and the guard
+    // further down force-logs-out on a missing token — wiping local data even
+    // though a sibling company would have restored fine. Same "present AND
+    // non-empty" rule as `_persistAndActivate`.
     final restoredCompanyId = currentId.isNotEmpty
         ? currentId
-        : companies.first.id;
+        : companies
+              .map((c) => c.id)
+              .firstWhere(
+                (id) => (tokensMap[id] ?? '').isNotEmpty,
+                orElse: () => companies.first.id,
+              );
     var userId = '';
     var userEmail = '';
     var userFirstName = '';
@@ -1005,6 +1105,31 @@ class AuthRepository {
         'response had empty tokens for companies: ${missingTokenIds.join(', ')}',
       );
     }
+    // "Usable" is present AND non-empty. `_tokensByCompany` is rehydrated from
+    // secure storage, so a map written by an older build can carry an empty
+    // string — a bare `containsKey` would call that usable and prime
+    // `ApiCredentials` with a blank `X-API-Token`, which the server 401s into a
+    // forced logout.
+    bool hasUsableToken(String id) => (tokens[id] ?? '').isNotEmpty;
+    // First company in response order we can actually authenticate as. Both
+    // fallbacks below used to take `response.data.first.company.id` unchecked,
+    // so a token-less company at the head of `data` was activated with an empty
+    // token: signed in, then immediately bounced to /login. The server omits
+    // the `is_system` token for a (company, user) pair it holds no row for
+    // (BACKEND.md), which is the condition behind issue #16.
+    final firstTokenedId = response.data
+        .map((uc) => uc.company.id)
+        .firstWhere(hasUsableToken, orElse: () => '');
+    if (firstTokenedId.isEmpty) {
+      // Nothing in this response can authenticate. Left as-is rather than
+      // thrown: 401 -> logout is at least a defined path, and this is the most
+      // safety-critical code in the app. Logged loudly so the diagnostics show
+      // why the session dies instead of a bare 401.
+      _log.severe(
+        'no company in the login/refresh response has a usable token '
+        '(${response.data.map((uc) => uc.company.id).join(', ')})',
+      );
+    }
     final nowMs = _now().millisecondsSinceEpoch;
     final syncMark = syncWatermarkMs ?? nowMs;
     final firstAccount = response.data.first.account;
@@ -1016,11 +1141,11 @@ class AuthRepository {
     String currentId;
     if (preserveActiveCompanyId != null &&
         preserveActiveCompanyId.isNotEmpty &&
-        tokens.containsKey(preserveActiveCompanyId)) {
+        hasUsableToken(preserveActiveCompanyId)) {
       currentId = preserveActiveCompanyId;
     } else if (isFullSync &&
         firstAccount.defaultCompanyId.isNotEmpty &&
-        tokens.containsKey(firstAccount.defaultCompanyId)) {
+        hasUsableToken(firstAccount.defaultCompanyId)) {
       // Only honor the account's default company when we actually hold a token
       // for it. The default can be stale (company deleted / user removed) or
       // carry an empty token in the response (see the `missingTokenIds` warning
@@ -1030,15 +1155,22 @@ class AuthRepository {
       // data / 401. The sibling delta branch below guards the same way.
       currentId = firstAccount.defaultCompanyId;
     } else if (isFullSync) {
-      currentId = response.data.first.company.id;
+      // `data.first` only as a last resort — see [firstTokenedId].
+      currentId = firstTokenedId.isNotEmpty
+          ? firstTokenedId
+          : response.data.first.company.id;
     } else {
       // Delta: `response.data` holds only the active company and
       // `defaultCompanyId` may point at a company the delta omitted —
       // landing there would activate a possibly-untokened company and 401.
-      // Stay on the company the refresh was scoped to.
-      currentId = (preserveActiveCompanyId?.isNotEmpty ?? false)
-          ? preserveActiveCompanyId!
-          : response.data.first.company.id;
+      // Stay on the company the refresh was scoped to, but still prefer one we
+      // can authenticate as (the branch above already took the preserved id
+      // when it was usable, so reaching here means it wasn't).
+      currentId = firstTokenedId.isNotEmpty
+          ? firstTokenedId
+          : ((preserveActiveCompanyId?.isNotEmpty ?? false)
+                ? preserveActiveCompanyId!
+                : response.data.first.company.id);
     }
 
     // A logout landed between the network return and here. Bail before the

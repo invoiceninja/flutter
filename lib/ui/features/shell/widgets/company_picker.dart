@@ -34,7 +34,17 @@ class CompanyPicker extends StatefulWidget {
 
 class _CompanyPickerState extends State<CompanyPicker> {
   final _activeRowKey = GlobalKey();
-  bool _switching = false;
+
+  /// Company id currently being switched into, or null when idle. Held as an id
+  /// rather than a bool so the row the user tapped can show a spinner: the
+  /// switch can pause on a healing `/refresh` (see `AuthRepository.switchCompany`),
+  /// and a picker that just sits there reads as a hang.
+  String? _switchingId;
+
+  /// True while any picker action is in flight — switching, adding, or signing
+  /// out. Gates every row so a second tap can't race the first.
+  bool get _switching => _switchingId != null || _busy;
+  bool _busy = false;
 
   @override
   void initState() {
@@ -70,12 +80,9 @@ class _CompanyPickerState extends State<CompanyPicker> {
       companyId: session.currentCompanyId,
     );
     if (result == OutboxConfirmResult.cancelled || !mounted) return;
-    // Capture the router + current location + route paths *before* dismissing,
-    // then hide the dropdown *immediately*: the switch (network + Drift wipe +
-    // refresh) runs after the picker is gone instead of holding it open until
-    // it completes. Nothing past the pop touches `context`, so it's safe once
-    // the route disposes (and avoids `use_build_context_synchronously`).
-    // `maybeOf` because widget tests pump the picker without a router;
+    // Capture everything context-derived *before* the await, so nothing past it
+    // touches `context` (also what keeps `use_build_context_synchronously`
+    // quiet). `maybeOf` because widget tests pump the picker without a router;
     // `companySafeLocation` strips an entity-id path back to its list root
     // (`/clients/<old-id>/edit` → `/clients`) and passes every other route
     // through unchanged, so the user stays on the same logical page in the new
@@ -85,10 +92,49 @@ class _CompanyPickerState extends State<CompanyPicker> {
         router?.routerDelegate.currentConfiguration.uri.toString() ??
         '/clients';
     final routePaths = services.entityRegistry.uiRoutePaths;
-    setState(() => _switching = true);
-    unawaited(Navigator.of(context).maybePop());
-    await services.auth.switchCompany(c.id);
-    router?.go(companySafeLocation(currentLocation, routePaths));
+    // `Notify.capture` is the documented seam for raising a toast after an
+    // await; the queue is global and outlives any context.
+    final toasts = Notify.capture(context);
+    final loc = Localization.of(context);
+    final nav = Navigator.of(context);
+    setState(() => _switchingId = c.id);
+    // Hold the picker open until the switch resolves, rather than dismissing
+    // first. The happy path is local — session + credentials + one keychain
+    // write — so the dismiss still looks immediate. But a switch into a company
+    // whose token is missing pauses on a healing `/refresh`, and dismissing up
+    // front left the user staring at an unchanged shell for the length of a
+    // full sync before an error toast finally arrived. The tapped row shows a
+    // spinner for that window.
+    SwitchCompanyResult outcome;
+    try {
+      outcome = await services.auth.switchCompany(c.id);
+    } finally {
+      // Clear before popping so a picker that can't pop (pumped inline rather
+      // than routed) doesn't latch every row, New company and Sign out disabled
+      // with no way back.
+      if (mounted) setState(() => _switchingId = null);
+    }
+    // Only pop what is still ours. Deferring the dismiss means the route can
+    // disappear underneath us — a 401 during the healing refresh logs out and
+    // the router replaces the stack — and popping a captured NavigatorState
+    // then would take a route off the /login stack instead. The toast below
+    // still fires either way.
+    if (mounted) unawaited(nav.maybePop());
+    if (outcome == SwitchCompanyResult.ok) {
+      router?.go(companySafeLocation(currentLocation, routePaths));
+      return;
+    }
+    // A logout raced the tap; the router is already heading to /login and the
+    // "no token for that company" explanation below would be a lie.
+    if (outcome == SwitchCompanyResult.noSession) return;
+    // Navigating on a failed switch would reset the route while leaving the
+    // user in the old company — indistinguishable from the app ignoring the
+    // tap, which is how issue #16 presented. Stay put and say so.
+    toasts?.error(
+      loc?.lookup('failed_to_switch_company', {'company': c.displayName}) ??
+          'failed_to_switch_company',
+      detail: loc?.lookup('failed_to_switch_company_help'),
+    );
   }
 
   Future<void> _handleNewCompany(AuthSession session) async {
@@ -102,7 +148,12 @@ class _CompanyPickerState extends State<CompanyPicker> {
     final loc = Localization.of(context);
     String tr(String key) => loc?.lookup(key) ?? key;
     final navState = Navigator.of(context, rootNavigator: true);
-    final messenger = ScaffoldMessenger.maybeOf(context);
+    // The picker pops itself at step 3 below, so whether this State outlives
+    // the `addCompany` round-trip is a race between the pop animation and the
+    // network. Don't depend on it: capture the toast queue up front (the
+    // documented `Notify.capture` seam — the queue is global and outlives any
+    // context) so the error can't go unreported on the slow-network ordering.
+    final toasts = Notify.capture(context);
     final router = GoRouter.maybeOf(context);
 
     // 1. Confirm the action in-place. The picker stays open — cancelling
@@ -142,7 +193,7 @@ class _CompanyPickerState extends State<CompanyPicker> {
     // 3. Pop the picker and show a barrier-locked busy dialog. A snackbar
     //    would auto-dismiss before the POST + refresh + Drift wipe complete
     //    and would be hidden by the company switch anyway.
-    setState(() => _switching = true);
+    setState(() => _busy = true);
     unawaited(Navigator.of(context).maybePop());
     unawaited(
       showDialog<void>(
@@ -184,24 +235,22 @@ class _CompanyPickerState extends State<CompanyPicker> {
       // dashboard. The shell's top bar already reflects the new company,
       // so no success snackbar is necessary.
       router?.go('/settings/company_details');
-    } else if (messenger != null) {
-      final message = _addCompanyErrorMessage(error, tr);
-      // The picker has already been popped — use the pre-captured messenger.
-      // `context` here is intentionally the picker's State context, which
-      // Notify only consults if `messenger` is null. The analyzer can't see
-      // that, hence the ignore.
-      Notify.error(
-        // ignore: use_build_context_synchronously
-        context,
-        message,
-        messenger: messenger,
-        action: NotifyAction(tr('retry'), () {
-          if (mounted) _handleNewCompany(session);
-        }),
+    } else {
+      toasts?.error(
+        _addCompanyErrorMessage(error, tr),
+        // Retry re-enters a flow that opens dialogs on this State's context,
+        // so it only works while the picker is still mounted — which, after the
+        // pop above, it usually isn't. Decide now rather than offering a button
+        // that does nothing when pressed.
+        action: mounted
+            ? NotifyAction(tr('retry'), () {
+                if (mounted) _handleNewCompany(session);
+              })
+            : null,
       );
     }
 
-    if (mounted) setState(() => _switching = false);
+    if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _signOut(AuthSession session) async {
@@ -216,12 +265,12 @@ class _CompanyPickerState extends State<CompanyPicker> {
       checkAllCompanies: true,
     );
     if (result == OutboxConfirmResult.cancelled || !mounted) return;
-    setState(() => _switching = true);
+    setState(() => _busy = true);
     await context.read<Services>().auth.logout();
     // Router redirects to /login. Close the picker overlay first so it
     // doesn't sit over the login screen.
     if (mounted) {
-      setState(() => _switching = false);
+      setState(() => _busy = false);
       unawaited(Navigator.of(context).maybePop());
     }
   }
@@ -264,6 +313,7 @@ class _CompanyPickerState extends State<CompanyPicker> {
                               key: isActive ? _activeRowKey : null,
                               company: c,
                               isActive: isActive,
+                              isSwitching: _switchingId == c.id,
                               onTap: _switching
                                   ? null
                                   : () => _pick(c, session),
@@ -333,6 +383,12 @@ String? _reasonText(BuildContext context, CanAddCompanyResult reason) {
 /// Translate the various API exception types into a single user-facing
 /// snackbar string. Avoids leaking `DioException`/`ServerException` types.
 String _addCompanyErrorMessage(Object error, String Function(String) tr) {
+  // Not a failed create — the company exists on the server, we just couldn't
+  // activate it. Saying "failed" here would push the user into creating a
+  // duplicate.
+  if (error is CompanyCreatedNotActivatedException) {
+    return tr('company_created_switch_failed');
+  }
   if (error is DemoModeException) return tr('demo_mode_disabled');
   if (error is ValidationException) {
     return '${tr('failed_to_add_company')}: ${error.message}';
@@ -351,11 +407,18 @@ class _CompanyRow extends StatelessWidget {
     required this.company,
     required this.isActive,
     required this.onTap,
+    this.isSwitching = false,
     super.key,
   });
 
   final AuthCompany company;
   final bool isActive;
+
+  /// The switch into this company is in flight. Swaps the trailing slot for a
+  /// spinner — the switch can pause on a healing `/refresh`, and without it the
+  /// picker looks frozen.
+  final bool isSwitching;
+
   final VoidCallback? onTap;
 
   @override
@@ -406,7 +469,17 @@ class _CompanyRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isActive) Icon(Icons.check, size: 16, color: tokens.accent),
+              if (isSwitching)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: tokens.accent,
+                  ),
+                )
+              else if (isActive)
+                Icon(Icons.check, size: 16, color: tokens.accent),
             ],
           ),
         ),

@@ -1264,3 +1264,73 @@ server action/endpoint.
 
 ### Dashboard `totals_v2` exposes no overdue count/amount (review U7)
 `ChartQueries::getOutstandingQuery` / `getAggregateOutstandingQuery` return only an `outstanding` bucket — `SUM(balance)` + `COUNT(*)` over `status_id IN (2,3)` (sent + partial) with the invoice **issue** `date` in the dashboard window. There is **no** overdue dimension (`due_date < today`), so `/api/v1/charts/totals_v2` gives the dashboard no genuine overdue count/amount to bind to. **Client mitigation:** the KPI tile that reused `outstanding_count` under an "Overdue" label (whose number and drill-through disagreed) is relabeled **"Unpaid"** (a count of unpaid invoices) and drills through to the same windowed-unpaid list as the sibling "Outstanding" amount tile. If a true Overdue KPI is wanted, `totals_v2` should add an overdue `{amount, count}` bucket (`due_date < today AND status_id IN (2,3)`), after which the client can restore an "Overdue" tile bound to it.
+
+---
+
+## `/refresh` mints the `is_system` token per **company**, not per (company, user) — **R (drops a company from multi-company clients)**
+
+**Provenance** — 2026-08-11, tracing
+[flutter#16](https://github.com/invoiceninja/flutter/issues/16) ("Couldn't switch
+companies") through `~/Code/invoiceninja` (`v5-develop`).
+
+`CompanyUserTransformer::includeToken` resolves the session token for the
+**(company_id, user_id)** pair:
+
+```php
+// app/Transformers/CompanyUserTransformer.php:82-93
+$token = $company_user->tokens()
+                      ->where('company_id', $company_user->company_id)
+                      ->where('user_id', $company_user->user_id)
+                      ->where('is_system', 1)
+                      ->first();
+```
+
+`/api/v1/login` backfills on exactly that pair before transforming, so a login
+response always carries a token for every company the user belongs to:
+
+```php
+// app/Http/Controllers/Auth/LoginController.php:690-695  (hydrateCompanyUser)
+$cu->each(function ($cu) {
+    if (CompanyToken::query()->where('company_id', $cu->company_id)
+                             ->where('user_id', $cu->user_id)
+                             ->where('is_system', true)->doesntExist()) {
+        (new CreateCompanyToken($cu->company, $cu->user, ...))->handle();
+    }
+});
+```
+
+`/api/v1/refresh` (and `refreshReact`) backfills on the **company alone**:
+
+```php
+// app/Http/Controllers/Auth/LoginController.php:484-488  (also :444-448)
+$cu->first()->account->companies->each(function ($company) use ($cu, $request) {
+    if ($company->tokens()->where('is_system', true)->count() == 0) {
+        (new CreateCompanyToken($company, $cu->first()->user, ...))->handle();
+    }
+});
+```
+
+So when a company already has an `is_system` token belonging to a **different**
+user in the account, the check short-circuits, no token is minted for the
+requesting user, and `includeToken` transforms `null` → the response carries
+`"token": null` for that `data[N]` entry. Reproduces on any multi-user account
+where user A signed in before user B.
+
+**Client symptom (now defended, but the data is still wrong).** `token` was a
+required field, so a null dropped the whole company entry during deserialization;
+a full `/refresh` then wiped it from the local cache and pruned its cached token.
+The company disappeared from the switcher entirely and the user could not switch
+into it. The client is now tolerant (`UserCompanyApi.token` defaults to an empty
+token, and the cached token from login survives), but a client that has never
+seen a login-issued token for that company still has no way to authenticate into
+it.
+
+**Requested change.** Make the `/refresh` backfill match `/login` — key the
+`doesntExist()` check on `(company_id, user_id)` rather than `company_id` alone,
+in both `refresh()` and `refreshReact()`. Cheap and strictly additive: it can
+only mint tokens that `/login` would already have minted on the next sign-in.
+
+**Acceptance.** On a multi-user account where user A holds the only `is_system`
+token for company X, `POST /api/v1/refresh?current_company=false` as user B
+returns a non-null `data[N].token.token` for company X, and that token
+authenticates a subsequent `GET /api/v1/clients` scoped to company X.

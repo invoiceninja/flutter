@@ -285,6 +285,62 @@ void main() {
       expect(repo.credentials.value!.token, 'tok_a');
     });
 
+    test('skips a token-less company at the head of data[] instead of '
+        'activating it with a blank token', () async {
+      // The fallback used to be a bare `response.data.first.company.id` with no
+      // token check, and the credential line resolves
+      // `tokens[currentId] ?? data.first.token.token` — so a token-less company
+      // first in `data` produced an EMPTY `X-API-Token`, which the server 401s,
+      // forcing a logout. The user signs in and is immediately kicked back to
+      // /login. Reachable whenever the account default is also unusable: the
+      // server omits the `is_system` token for a (company, user) pair it has no
+      // row for (see BACKEND.md), which is the same condition behind #16.
+      authService.queueLogin(
+        _envelope(
+          companies: [
+            (
+              id: 'co_a',
+              name: 'Acme',
+              token: '', // server withheld it
+              isAdmin: false,
+              isOwner: false,
+            ),
+            (
+              id: 'co_b',
+              name: 'Beta',
+              token: 'tok_b',
+              isAdmin: false,
+              isOwner: false,
+            ),
+          ],
+          defaultCompanyId: 'co_a', // also unusable → falls through
+        ),
+      );
+
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+
+      expect(
+        repo.credentials.value!.token,
+        'tok_b',
+        reason: 'must never prime credentials with an empty token',
+      );
+      expect(
+        repo.session.value!.currentCompanyId,
+        'co_b',
+        reason: 'the activated company must be the one the token belongs to',
+      );
+      expect(
+        repo.session.value!.companies.map((c) => c.id),
+        containsAll(<String>['co_a', 'co_b']),
+        reason: 'the token-less company still belongs in the picker roster',
+      );
+    });
+
     test('refuses an empty response (no companies)', () async {
       authService.queueLogin(const LoginResponseApi());
       await expectLater(
@@ -674,7 +730,7 @@ void main() {
       );
       expect(repo.credentials.value!.token, 'tok_a');
 
-      await repo.switchCompany('co_b');
+      expect(await repo.switchCompany('co_b'), SwitchCompanyResult.ok);
 
       expect(repo.credentials.value!.token, 'tok_b');
       expect(repo.session.value!.currentCompanyId, 'co_b');
@@ -716,7 +772,9 @@ void main() {
       );
       expect(repo.credentials.value!.token, 'tok_a');
 
-      await repo.switchCompany('co_b');
+      // No ApiClient is wired here, so the healing refresh throws and is
+      // swallowed — the guard is what has to hold.
+      expect(await repo.switchCompany('co_b'), SwitchCompanyResult.noToken);
 
       expect(
         repo.credentials.value!.token,
@@ -729,6 +787,176 @@ void main() {
         reason: 'session stays on the previously-active company',
       );
     });
+
+    test('heals a missing token with one full /refresh, then switches', () async {
+      // Issue #16. The picker lists companies from the session roster while the
+      // token map is fed by the login/refresh envelope, so a company can be
+      // tappable with no token behind it (the server sends `token: null` when
+      // it holds no `is_system` row for this (company, user) — see BACKEND.md).
+      // That used to be a silent dead end. Now one full refresh is attempted,
+      // and when the server supplies the token the switch goes through.
+      authService.queueLogin(
+        _envelope(
+          companies: [
+            (
+              id: 'co_a',
+              name: 'Acme',
+              token: 'tok_a',
+              isAdmin: false,
+              isOwner: false,
+            ),
+            (
+              id: 'co_b',
+              name: 'Beta',
+              token: '', // server withheld it at login
+              isAdmin: false,
+              isOwner: false,
+            ),
+          ],
+          defaultCompanyId: 'co_a',
+        ),
+      );
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a',
+        password: 'b',
+      );
+
+      var refreshCalls = 0;
+      repo.apiClient = ApiClient(
+        credentials: repo.credentials,
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: MockClient((req) async {
+          if (req.url.path == '/api/v1/refresh') {
+            refreshCalls++;
+            // This time the server hands back co_b's token.
+            return http.Response(
+              jsonEncode(
+                _envelope(
+                  companies: [
+                    (
+                      id: 'co_a',
+                      name: 'Acme',
+                      token: 'tok_a',
+                      isAdmin: false,
+                      isOwner: false,
+                    ),
+                    (
+                      id: 'co_b',
+                      name: 'Beta',
+                      token: 'tok_b',
+                      isAdmin: false,
+                      isOwner: false,
+                    ),
+                  ],
+                  defaultCompanyId: 'co_a',
+                ).toJson(),
+              ),
+              200,
+            );
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      expect(await repo.switchCompany('co_b'), SwitchCompanyResult.ok);
+
+      expect(refreshCalls, 1, reason: 'one heal attempt, not a retry loop');
+      expect(repo.credentials.value!.token, 'tok_b');
+      expect(repo.session.value!.currentCompanyId, 'co_b');
+      expect(await storage.read('invoiceninja.current_company.v1'), 'co_b');
+    });
+
+    test(
+      'reports noToken and stays put when the heal cannot supply a token',
+      () async {
+        authService.queueLogin(
+          _envelope(
+            companies: [
+              (
+                id: 'co_a',
+                name: 'Acme',
+                token: 'tok_a',
+                isAdmin: false,
+                isOwner: false,
+              ),
+              (
+                id: 'co_b',
+                name: 'Beta',
+                token: '',
+                isAdmin: false,
+                isOwner: false,
+              ),
+            ],
+            defaultCompanyId: 'co_a',
+          ),
+        );
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        var activated = <String>[];
+        repo.onActiveCompanyChanged = activated.add;
+
+        var refreshCalls = 0;
+        repo.apiClient = ApiClient(
+          credentials: repo.credentials,
+          passwordCache: PasswordCache(),
+          onUnauthorized: () async {},
+          httpClient: MockClient((req) async {
+            if (req.url.path == '/api/v1/refresh') {
+              refreshCalls++;
+              // Server still has no token for co_b.
+              return http.Response(
+                jsonEncode(
+                  _envelope(
+                    companies: [
+                      (
+                        id: 'co_a',
+                        name: 'Acme',
+                        token: 'tok_a',
+                        isAdmin: false,
+                        isOwner: false,
+                      ),
+                      (
+                        id: 'co_b',
+                        name: 'Beta',
+                        token: '',
+                        isAdmin: false,
+                        isOwner: false,
+                      ),
+                    ],
+                    defaultCompanyId: 'co_a',
+                  ).toJson(),
+                ),
+                200,
+              );
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+
+        expect(await repo.switchCompany('co_b'), SwitchCompanyResult.noToken);
+
+        expect(refreshCalls, 1);
+        expect(repo.credentials.value!.token, 'tok_a');
+        expect(repo.session.value!.currentCompanyId, 'co_a');
+        expect(
+          activated,
+          isEmpty,
+          reason: 'a failed switch must not fire the activation fan-out',
+        );
+        expect(
+          repo.session.value!.companies.map((c) => c.id),
+          containsAll(<String>['co_a', 'co_b']),
+          reason: 'the token-less company stays in the picker roster',
+        );
+      },
+    );
   });
 
   group('logout', () {
@@ -1300,6 +1528,61 @@ void main() {
       expect(fresh.credentials.value!.token, 'tok_a');
       expect(fresh.session.value!.currentCompanyId, 'co_a');
     });
+
+    test(
+      'with no persisted active company, lands on one we hold a token for',
+      () async {
+        // `companies.first.id` was the fallback, and the token guard below it
+        // force-logs-out (wiping local data) when that row has no token — even
+        // though a sibling company would have restored fine.
+        authService.queueLogin(
+          _envelope(
+            companies: [
+              (
+                id: 'co_a',
+                name: 'Acme',
+                token: '', // server withheld it
+                isAdmin: false,
+                isOwner: false,
+              ),
+              (
+                id: 'co_b',
+                name: 'Beta',
+                token: 'tok_b',
+                isAdmin: false,
+                isOwner: false,
+              ),
+            ],
+            defaultCompanyId: 'co_b',
+          ),
+        );
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        // Drop the persisted selection so restore has to choose (a partial write
+        // from a killed process leaves exactly this state).
+        await storage.delete('invoiceninja.current_company.v1');
+
+        final fresh = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: storage,
+          passwordCache: passwordCache,
+        );
+        await fresh.restore();
+
+        expect(
+          fresh.session.value,
+          isNotNull,
+          reason: 'a token-less first row must not force a logout',
+        );
+        expect(fresh.session.value!.currentCompanyId, 'co_b');
+        expect(fresh.credentials.value!.token, 'tok_b');
+      },
+    );
 
     test('detects stale token (DB wiped) and falls back to logout', () async {
       await storage.write(

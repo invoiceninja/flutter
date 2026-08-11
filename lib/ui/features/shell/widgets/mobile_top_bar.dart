@@ -29,7 +29,6 @@ class MobileTopBar extends StatelessWidget implements PreferredSizeWidget {
         builder: (context, session, _) {
           if (session == null) return const SizedBox.shrink();
           final current = session.currentCompany;
-          final multi = session.companies.length > 1;
           return SafeArea(
             bottom: false,
             child: SizedBox(
@@ -39,7 +38,9 @@ class MobileTopBar extends StatelessWidget implements PreferredSizeWidget {
                   border: Border(bottom: BorderSide(color: tokens.border)),
                 ),
                 child: InkWell(
-                  onTap: multi ? () => showCompanyPicker(context) : null,
+                  // Always tappable, single company included — see the class doc
+                  // on `CompanySwitcherButton`.
+                  onTap: () => showCompanyPicker(context),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
@@ -63,10 +64,8 @@ class MobileTopBar extends StatelessWidget implements PreferredSizeWidget {
                             ),
                           ),
                         ),
-                        if (multi) ...[
-                          const SizedBox(width: 4),
-                          Icon(Icons.unfold_more, size: 16, color: tokens.ink3),
-                        ],
+                        const SizedBox(width: 4),
+                        Icon(Icons.unfold_more, size: 16, color: tokens.ink3),
                       ],
                     ),
                   ),

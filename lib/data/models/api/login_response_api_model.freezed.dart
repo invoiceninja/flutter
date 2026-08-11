@@ -293,7 +293,19 @@ as Map<String, dynamic>,
 /// @nodoc
 mixin _$UserCompanyApi {
 
-@JsonKey(name: 'is_admin') bool get isAdmin;@JsonKey(name: 'is_owner') bool get isOwner; String get permissions;@JsonKey(name: 'permissions_updated_at') int get permissionsUpdatedAt; CompanyEnvelopeApi get company; SessionTokenApi get token; AccountEnvelopeApi get account; Map<String, dynamic> get settings;@JsonKey(name: 'user') UserSummaryApi get user;// Pre-signed hosted-billing URL for this `(user, company)`. Surfaced by
+@JsonKey(name: 'is_admin') bool get isAdmin;@JsonKey(name: 'is_owner') bool get isOwner; String get permissions;@JsonKey(name: 'permissions_updated_at') int get permissionsUpdatedAt; CompanyEnvelopeApi get company;// NOT `required`: the server sends `"token": null` for a company that has
+// no `is_system` token for THIS user — `CompanyUserTransformer::includeToken`
+// filters on (company_id, user_id), while `/refresh`'s token backfill only
+// checks whether the *company* has one (see BACKEND.md § Session token
+// backfill). A required field made that a `TypeError`, which `tolerantList`
+// turned into a silently dropped company: gone from the picker, wiped from
+// Drift by the next full sync, and its cached token pruned with it — the
+// user simply could no longer switch to it (issue #16). Defaulting to an
+// empty token keeps the company in the roster and lets the cached token
+// (merged at `_persistAndActivate`, which only overrides on non-empty) keep
+// working. `company` and `account` stay required — an entry missing either
+// is unusable, and `data.first.account` sources every account-level field.
+ SessionTokenApi get token; AccountEnvelopeApi get account; Map<String, dynamic> get settings;@JsonKey(name: 'user') UserSummaryApi get user;// Pre-signed hosted-billing URL for this `(user, company)`. Surfaced by
 // Settings → Account Management → Plan as the "Manage Plan" CTA target;
 // the server bakes `account_key` and `product_id` into the URL so we
 // don't have to know them on the client.
@@ -536,7 +548,7 @@ return $default(_that.isAdmin,_that.isOwner,_that.permissions,_that.permissionsU
 @JsonSerializable()
 
 class _UserCompanyApi implements UserCompanyApi {
-  const _UserCompanyApi({@JsonKey(name: 'is_admin') this.isAdmin = false, @JsonKey(name: 'is_owner') this.isOwner = false, this.permissions = '', @JsonKey(name: 'permissions_updated_at') this.permissionsUpdatedAt = 0, required this.company, required this.token, required this.account, final  Map<String, dynamic> settings = const <String, dynamic>{}, @JsonKey(name: 'user') this.user = const UserSummaryApi(), @JsonKey(name: 'ninja_portal_url') this.ninjaPortalUrl = ''}): _settings = settings;
+  const _UserCompanyApi({@JsonKey(name: 'is_admin') this.isAdmin = false, @JsonKey(name: 'is_owner') this.isOwner = false, this.permissions = '', @JsonKey(name: 'permissions_updated_at') this.permissionsUpdatedAt = 0, required this.company, this.token = const SessionTokenApi(), required this.account, final  Map<String, dynamic> settings = const <String, dynamic>{}, @JsonKey(name: 'user') this.user = const UserSummaryApi(), @JsonKey(name: 'ninja_portal_url') this.ninjaPortalUrl = ''}): _settings = settings;
   factory _UserCompanyApi.fromJson(Map<String, dynamic> json) => _$UserCompanyApiFromJson(json);
 
 @override@JsonKey(name: 'is_admin') final  bool isAdmin;
@@ -544,7 +556,19 @@ class _UserCompanyApi implements UserCompanyApi {
 @override@JsonKey() final  String permissions;
 @override@JsonKey(name: 'permissions_updated_at') final  int permissionsUpdatedAt;
 @override final  CompanyEnvelopeApi company;
-@override final  SessionTokenApi token;
+// NOT `required`: the server sends `"token": null` for a company that has
+// no `is_system` token for THIS user — `CompanyUserTransformer::includeToken`
+// filters on (company_id, user_id), while `/refresh`'s token backfill only
+// checks whether the *company* has one (see BACKEND.md § Session token
+// backfill). A required field made that a `TypeError`, which `tolerantList`
+// turned into a silently dropped company: gone from the picker, wiped from
+// Drift by the next full sync, and its cached token pruned with it — the
+// user simply could no longer switch to it (issue #16). Defaulting to an
+// empty token keeps the company in the roster and lets the cached token
+// (merged at `_persistAndActivate`, which only overrides on non-empty) keep
+// working. `company` and `account` stay required — an entry missing either
+// is unusable, and `data.first.account` sources every account-level field.
+@override@JsonKey() final  SessionTokenApi token;
 @override final  AccountEnvelopeApi account;
  final  Map<String, dynamic> _settings;
 @override@JsonKey() Map<String, dynamic> get settings {

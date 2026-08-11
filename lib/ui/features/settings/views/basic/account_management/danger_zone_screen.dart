@@ -8,6 +8,8 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/repositories/auth_repository.dart'
+    show SwitchCompanyResult;
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -472,8 +474,14 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
       } catch (_) {
         /* non-fatal */
       }
-      if (remaining.isNotEmpty) {
-        await services.auth.switchCompany(remaining.first.id);
+      // A failed switch leaves the session pointed at the company we just
+      // deleted and wiped, with no way back — fall through to the sign-out
+      // branch so the user lands somewhere coherent instead of a dead shell.
+      final switched =
+          remaining.isNotEmpty &&
+          (await services.auth.switchCompany(remaining.first.id)) ==
+              SwitchCompanyResult.ok;
+      if (switched) {
         try {
           // A company was just deleted + wiped locally; force a full
           // snapshot so the switched-to company's state is authoritative.

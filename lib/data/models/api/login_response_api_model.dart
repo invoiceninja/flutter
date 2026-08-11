@@ -39,6 +39,10 @@ part 'login_response_api_model.g.dart';
 /// sync, from the local cache) until the server sends it well-formed again —
 /// its unsynced outbox rows still block logout/idle-wipe, because those
 /// guards read `companiesWithActiveRows()` from the outbox, not the session.
+/// That degradation is a genuine loss of function for the user, so keep the
+/// per-row required-field surface as small as the data allows — every
+/// `required` on [UserCompanyApi] is one more server-side null that silently
+/// removes a company from the switcher (see the note on its `token` field).
 @freezed
 abstract class LoginResponseApi with _$LoginResponseApi {
   const factory LoginResponseApi({
@@ -65,7 +69,20 @@ abstract class UserCompanyApi with _$UserCompanyApi {
     @Default(0)
     int permissionsUpdatedAt,
     required CompanyEnvelopeApi company,
-    required SessionTokenApi token,
+    // NOT `required`: the server sends `"token": null` for a company that has
+    // no `is_system` token for THIS user — `CompanyUserTransformer::includeToken`
+    // filters on (company_id, user_id), while `/refresh`'s token backfill only
+    // checks whether the *company* has one (BACKEND.md § `/refresh` mints the
+    // `is_system` token per company). A required field made that a `TypeError`,
+    // which `tolerantList` turned into a silently dropped company: gone from
+    // the picker, wiped from Drift by the next full sync, and its token pruned
+    // with it — the
+    // user simply could no longer switch to it (issue #16). Defaulting to an
+    // empty token keeps the company in the roster and lets the cached token
+    // (merged at `_persistAndActivate`, which only overrides on non-empty) keep
+    // working. `company` and `account` stay required — an entry missing either
+    // is unusable, and `data.first.account` sources every account-level field.
+    @Default(SessionTokenApi()) SessionTokenApi token,
     required AccountEnvelopeApi account,
     @Default(<String, dynamic>{}) Map<String, dynamic> settings,
     @JsonKey(name: 'user') @Default(UserSummaryApi()) UserSummaryApi user,

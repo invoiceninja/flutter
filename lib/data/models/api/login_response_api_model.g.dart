@@ -26,7 +26,9 @@ _UserCompanyApi _$UserCompanyApiFromJson(
   permissions: json['permissions'] as String? ?? '',
   permissionsUpdatedAt: (json['permissions_updated_at'] as num?)?.toInt() ?? 0,
   company: CompanyEnvelopeApi.fromJson(json['company'] as Map<String, dynamic>),
-  token: SessionTokenApi.fromJson(json['token'] as Map<String, dynamic>),
+  token: json['token'] == null
+      ? const SessionTokenApi()
+      : SessionTokenApi.fromJson(json['token'] as Map<String, dynamic>),
   account: AccountEnvelopeApi.fromJson(json['account'] as Map<String, dynamic>),
   settings:
       json['settings'] as Map<String, dynamic>? ?? const <String, dynamic>{},

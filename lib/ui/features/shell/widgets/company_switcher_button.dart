@@ -13,10 +13,16 @@ import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
 const int kCompanyNameTooltipThreshold = 22;
 
 /// Header button at the top of the sidebar showing the active company and
-/// (when more than one workspace is available) opening the [CompanyPicker]
-/// on tap.
+/// opening the [CompanyPicker] on tap.
 ///
-/// Single-company case: chevron is hidden and the button is inert.
+/// **Always tappable, including with a single company.** It used to go inert at
+/// `companies.length <= 1`, which turned a wrong roster into a dead end: when a
+/// company is missing from the session (issue #16 — a null `token` in the
+/// login/refresh envelope used to drop the whole entry), the user was left with
+/// an unresponsive button and no way to see what the app thought it knew. The
+/// picker is also the sidebar's only Sign-out entry, and the ⌘K path
+/// (`scaffold_with_nav.dart`) never had the gate — so this is the consistent
+/// behavior, not a new affordance.
 class CompanySwitcherButton extends StatefulWidget {
   const CompanySwitcherButton({
     required this.session,
@@ -63,7 +69,6 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
     final tokens = context.inTheme;
     final session = widget.session;
     final current = session.currentCompany;
-    final multi = session.companies.length > 1;
     final name = current?.displayName ?? '—';
     final seed = current?.id ?? '';
     final avatar = CompanyAvatar(
@@ -87,12 +92,10 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
       color: tokens.surfaceAlt,
       borderRadius: BorderRadius.circular(InRadii.r2),
       child: InkWell(
-        onTap: multi
-            ? () {
-                widget.onBeforeOpen?.call();
-                showCompanyPicker(context, anchorKey: _anchorKey);
-              }
-            : null,
+        onTap: () {
+          widget.onBeforeOpen?.call();
+          showCompanyPicker(context, anchorKey: _anchorKey);
+        },
         borderRadius: BorderRadius.circular(InRadii.r2),
         child: Container(
           decoration: BoxDecoration(
@@ -114,19 +117,14 @@ class _CompanySwitcherButtonState extends State<CompanySwitcherButton> {
                           ? Tooltip(message: name, child: nameText)
                           : nameText,
                     ),
-                    if (multi) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.unfold_more, size: 14, color: tokens.ink3),
-                    ],
+                    const SizedBox(width: 4),
+                    Icon(Icons.unfold_more, size: 14, color: tokens.ink3),
                   ],
                 ),
         ),
       ),
     );
 
-    // Only advertise ⌘K when the button is interactive (more than one
-    // workspace) — matching when the picker actually opens.
-    if (!multi) return button;
     return ShortcutTooltip(
       label: context.tr('switch_company'),
       keys: [platformModifierLabel(), 'K'],

@@ -51,6 +51,35 @@ void main() {
     expect(parsed.data.single.company.taxRates.single.id, 'tr_ok');
   });
 
+  // Issue #16: `/refresh` can legitimately return `"token": null` for a company
+  // (the server's token backfill checks per-company, not per-(company,user) —
+  // see BACKEND.md). While `token` was a required field that null threw, so
+  // `tolerantList` dropped the ENTIRE company — it vanished from the switcher,
+  // the next full sync wiped its local row, and the user could no longer switch
+  // into it. The company must survive; the empty token is handled downstream
+  // (the cached login-issued token wins, and `switchCompany` heals + reports).
+  test('a company with a null token still parses', () {
+    final withNullToken = company('b')..['token'] = null;
+    final parsed = LoginResponseApi.fromJson({
+      'data': [company('a'), withNullToken],
+    });
+
+    expect(parsed.data, hasLength(2));
+    expect(parsed.data.map((c) => c.company.id), ['co_a', 'co_b']);
+    expect(parsed.data[1].token.token, '');
+  });
+
+  test('a company with no token key at all still parses', () {
+    final noTokenKey = company('b')..remove('token');
+    final parsed = LoginResponseApi.fromJson({
+      'data': [company('a'), noTokenKey],
+    });
+
+    expect(parsed.data, hasLength(2));
+    expect(parsed.data[1].company.id, 'co_b');
+    expect(parsed.data[1].token.token, '');
+  });
+
   test('an all-garbage data list parses to empty (the repository layer then '
       'fails loudly on the empty company list)', () {
     final parsed = LoginResponseApi.fromJson({

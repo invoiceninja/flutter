@@ -221,8 +221,6 @@ void main() {
   testWidgets('single-company workspaces still get the Sync button', (
     tester,
   ) async {
-    // The switcher goes inert with one company (no picker to open); Sync must
-    // not inherit that.
     await tester.pumpWidget(
       wrap(railWidth: 232, session: _session(companies: 1)),
     );
@@ -230,5 +228,27 @@ void main() {
 
     await tester.tap(find.byType(SidebarSyncButton));
     expect(taps, 1);
+  });
+
+  testWidgets('the switcher stays interactive with a single company', (
+    tester,
+  ) async {
+    // Issue #16: the button used to go inert below two companies, so a roster
+    // that had wrongly shrunk to one left the user with a dead control (and no
+    // route to the picker's Sign out). It is now always tappable — assert the
+    // chevron renders and the InkWell has a live callback.
+    await tester.pumpWidget(
+      wrap(railWidth: 232, session: _session(companies: 1)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.unfold_more), findsOneWidget);
+    final inkWell = tester.widget<InkWell>(
+      find.descendant(
+        of: find.byType(CompanySwitcherButton),
+        matching: find.byType(InkWell),
+      ),
+    );
+    expect(inkWell.onTap, isNotNull);
   });
 }

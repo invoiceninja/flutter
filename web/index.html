@@ -20,13 +20,16 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Invoice Ninja — admin client.">
 
-  <!-- Open Graph / social-share preview -->
+  <!-- Open Graph / social-share preview. Deliberately the MASKABLE icon: it's
+       the only opaque 512 we ship, and a share card composites a transparent
+       PNG onto its own background — on a dark card that would put a black disc
+       on near-black. Icon-512.png stays transparent for the PWA install. -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Invoice Ninja">
   <meta property="og:title" content="Invoice Ninja">
   <meta property="og:description" content="Invoice Ninja — admin client.">
   <meta property="og:url" content="https://invoiceninja.com">
-  <meta property="og:image" content="https://hillelcoren.github.io/admin/icons/Icon-512.png">
+  <meta property="og:image" content="https://hillelcoren.github.io/admin/icons/Icon-maskable-512.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="512">
   <meta property="og:image:height" content="512">
@@ -34,7 +37,7 @@
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Invoice Ninja">
   <meta name="twitter:description" content="Invoice Ninja — admin client.">
-  <meta name="twitter:image" content="https://hillelcoren.github.io/admin/icons/Icon-512.png">
+  <meta name="twitter:image" content="https://hillelcoren.github.io/admin/icons/Icon-maskable-512.png">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -45,6 +48,12 @@
   <!-- Favicon -->
   <link rel="icon" type="image/x-icon" href="favicon.ico"/>
   <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <!-- Installed-window title bar / Android status bar. manifest.json can only
+       carry one theme_color, so these override it per system theme with the
+       design system's own bg / deep ink (lib/app/design_tokens.dart). -->
+  <meta name="theme-color" content="#F6F4EF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15140F" media="(prefers-color-scheme: dark)">
 
   <title>Invoice Ninja</title>
   <link rel="manifest" href="manifest.json">

@@ -86,7 +86,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   freezed: ^3.2.5
-  # Used by tools/gen_windows_icon.dart to build the multi-size Windows .ico.
+  # Used by tools/gen_app_icons.dart to build the multi-size Windows .ico, and
+  # by test/lint/app_icons_test.dart to inspect the committed icon rasters.
   # Already resolved transitively (via flutter_launcher_icons); pinned direct so
   # the script's import is explicit. No lock change — stays 4.8.0.
   image: ^4.8.0
@@ -159,10 +160,12 @@ flutter:
 # bump `version:` for each new submission.
 # `logo_path` is REQUIRED for branding: without it msix copies its bundled
 # FLUTTER-logo assets into the AppxManifest visual tree (Start tile, taskbar,
-# Search) — app_icon.ico only covers the exe/window icon. The PNG is the baked
-# 1024² raster emitted by `dart run tools/gen_windows_icon.dart` (the macOS
-# source is an alpha matte, unusable raw); `trim_logo: false` keeps the
-# full-bleed tile instead of msix auto-cropping the transparent border.
+# Search) — app_icon.ico only covers the exe/window icon. That shipped once and
+# is what invoiceninja/flutter#25 reported, so test/lint/app_icons_test.dart now
+# fails the build if this key goes missing. The PNG is the baked 1024² raster
+# emitted by `dart run tools/gen_app_icons.dart` (the macOS source is an alpha
+# matte, unusable raw); `trim_logo: false` keeps msix from re-cropping art whose
+# framing is already deliberate.
 # `protocol_activation` registers the invoiceninja:// scheme for the calendar
 # OAuth callback (paired with the app_links second-instance forward in
 # windows/runner/main.cpp).

@@ -32,6 +32,7 @@ Plus two non-negotiables carried from admin-portal:
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
 | Building a release app / injecting the Sentry DSN | `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
 | Writing release notes for a new version | § Release Notes |
+| Regenerating app icons (Windows / web / Snap) | `dart run tools/gen_app_icons.dart` · `docs/setup.md` § App icons |
 | Probing the demo API for live response shapes | `docs/probing-the-demo-api.md` |
 | Server-side filter gaps / required API changes | `BACKEND.md` |
 | Running integration tests | `docs/integration-tests.md` |

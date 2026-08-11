@@ -23,6 +23,27 @@ const kAccountManagementPlanSearchKeys = <String>[
   'days_left',
 ];
 
+/// Localization key for the plan headline. Shared by this tab's status card
+/// and the Overview tab's plan card, which sit two tabs apart and must not
+/// disagree about the same account.
+///
+/// Hosted reads the plan slug. Self-hosted has no hosted plan, so it reports
+/// *license* state instead — the bare "Free" this used to render read as a
+/// downgrade on an install where every feature is in fact unlocked, and said
+/// nothing about the white-label license the user may have bought (issue #27).
+/// React does the same in its `Plan.tsx`, labelling a live license `licensed`;
+/// we use the more explicit `plan_white_label` ("Self Hosted (White labeled)")
+/// against `plan_free_self_hosted` ("Self Hosted (Free)"). Both keys already
+/// ship in every bundled locale.
+String planHeadlineKey(AuthSession session) {
+  if (session.isSelfHosted) {
+    return session.isWhiteLabeled
+        ? 'plan_white_label'
+        : 'plan_free_self_hosted';
+  }
+  return session.plan.isEmpty ? 'free' : session.plan;
+}
+
 /// Account Management → Plan. Read-mostly surface. The server pre-computes
 /// `ninja_portal_url` (per-user hosted-billing URL); the screen displays the
 /// current plan state and routes hosted users to that URL for upgrades /
@@ -31,8 +52,9 @@ const kAccountManagementPlanSearchKeys = <String>[
 /// pulling them client-side requires `account_key` plumbing that's not worth
 /// the round-trip.
 ///
-/// Self-hosted users see a "Licensed" state and route to the existing
-/// Purchase / Apply License flow on Overview (Phase 2 work).
+/// Self-hosted users see their license state (see [planHeadlineKey]) plus the
+/// license expiry when one is applied; the Purchase / Apply License actions
+/// live on the Overview tab's license card.
 class AccountManagementPlanScreen extends StatelessWidget {
   const AccountManagementPlanScreen({super.key});
 
@@ -80,12 +102,31 @@ class _PlanStatusCard extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
 
-    final planLabel = session.plan.isEmpty
-        ? context.tr('free')
-        : context.tr(session.plan);
-    final headline = session.isTrial
+    // A trial is a hosted-only concept, and `session.isTrial` must NOT be
+    // trusted on self-hosted. The server sends
+    // `trial_days_left = isSelfHost() ? getTrialDays() : 0`
+    // (`AccountTransformer`), and `Account::getTrialDays()` returns the days
+    // remaining until `plan_expires` whenever that is within 14 — so on a
+    // self-hosted install the field is a *white-label license* countdown, and
+    // `isTrial` flips true for the last fortnight of a valid license. Gating
+    // the trial chrome on `isHosted` keeps a licensed self-host from being
+    // told it's on a free trial (with a bogus bar: the transformer never
+    // sends `num_trial_days`, so the progress math clamps to 0).
+    final isTrialing = session.isHosted && session.isTrial;
+    final planLabel = context.tr(planHeadlineKey(session));
+    final headline = isTrialing
         ? '$planLabel • ${context.tr('free_trial')}'
         : planLabel;
+    // Hosted: the plan's renewal date. Self-hosted: the white-label license's
+    // expiry — the one actionable date self-hosted has (renew via Overview →
+    // License). An unlicensed self-host has no `plan_expires` at all. The
+    // self-hosted branch deliberately skips the `isTrial` check above, or the
+    // date would disappear during the exact fortnight it matters most.
+    final showExpiry =
+        session.planExpires.isNotEmpty &&
+        (session.isHosted
+            ? (!session.isTrial && session.plan.isNotEmpty)
+            : session.isWhiteLabeled);
 
     return FormSection(
       title: context.tr('plan'),
@@ -98,17 +139,14 @@ class _PlanStatusCard extends StatelessWidget {
             color: tokens.ink,
           ),
         ),
-        if (session.isHosted &&
-            session.planExpires.isNotEmpty &&
-            !session.isTrial &&
-            session.plan.isNotEmpty) ...[
+        if (showExpiry) ...[
           SizedBox(height: InSpacing.sm),
           Text(
             '${context.tr('expires_on')} ${_expiryDisplay(context, session)}',
             style: theme.textTheme.bodyMedium?.copyWith(color: tokens.ink2),
           ),
         ],
-        if (session.isTrial) ...[
+        if (isTrialing) ...[
           SizedBox(height: InSpacing.md(context)),
           _TrialProgress(session: session),
         ],

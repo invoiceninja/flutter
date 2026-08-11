@@ -166,6 +166,8 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
     final isAdminOrOwner = me?.isAdmin == true || me?.isOwner == true;
     final settingsLevel = context.read<SettingsLevelController>();
     final isCascade = settingsLevel.isClient || settingsLevel.isGroup;
+    // Fail open on a not-yet-loaded session, matching AccountManagementShell.
+    final isHosted = session?.isHosted ?? true;
     // Filter at query time — not by trimming the catalog — so a module-gated
     // (or admin-only) section never surfaces as a dead link, while
     // `kSettingsSearchCatalog` stays complete (search_catalog_consistency_test
@@ -173,11 +175,16 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
     // at client/group scope, a company-only page reached through search
     // renders under the "editing client X" banner with checked override
     // boxes wired to the COMPANY draft — the user's "per-client override"
-    // edit would silently change the company-wide default.
+    // edit would silently change the company-wide default. The hosted gate is
+    // per-FIELD, not per-section: Account Management is always visible, but
+    // its Referral Program tab isn't (issue #27).
     final hits = searchSettings(_controller.text, l10n)
         .where((h) => !isCascade || h.section.clientEditable)
         .where((h) => h.section.isVisibleFor(modules))
         .where((h) => !h.section.adminOnly || isAdminOrOwner)
+        .where(
+          (h) => isHosted || !kHostedOnlySettingsFields.contains(h.fieldKey),
+        )
         .toList();
     if (hits.isEmpty) {
       return Center(

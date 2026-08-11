@@ -67,9 +67,11 @@ class AuthSession {
   /// Company" and what the Account Management → Plan card shows.
   final String plan;
 
-  /// ISO date string for when the paid plan expires (hosted only). Empty
-  /// when on a free plan or self-hosted. Decoded from
-  /// `account.plan_expires` in the login envelope.
+  /// ISO date string for when the paid plan expires. Empty on a free plan and
+  /// on an unlicensed self-hosted install; on a self-hosted install with a
+  /// white-label license it carries the *license* expiry (see
+  /// [isWhiteLabeled]). Decoded from `account.plan_expires` in the login
+  /// envelope.
   final String planExpires;
 
   /// Plan slug the user is currently trialing (e.g. `pro`). Empty when no
@@ -234,6 +236,17 @@ class AuthSession {
       isSelfHosted || (_kEnterpriseSlugs.contains(plan) && !isPlanExpired);
 
   bool get isPremiumBusinessPlusPlan => plan == 'premium_business_plus';
+
+  /// True when a white-label license is active. This is the only paid state a
+  /// self-hosted install has — the server sets `plan = 'white_label'` on a
+  /// successful `/claim_license` (`LicenseController`) and clears `plan` once
+  /// the license lapses (`Account::getPlan()`), so an expired license reads
+  /// false here. A *failed* claim leaves `plan == 'free'`, which is why this
+  /// is a slug match rather than a `plan.isNotEmpty` check.
+  ///
+  /// Display-only: self-hosted feature access is unconditional (see
+  /// [isProPlan] / [isEnterprisePlan]) whether or not a license is applied.
+  bool get isWhiteLabeled => plan == 'white_label';
 
   /// Trial-aware Pro gate — **this is what feature gating should call**, not
   /// [isProPlan]. Trialing hosted users get full Pro features for free

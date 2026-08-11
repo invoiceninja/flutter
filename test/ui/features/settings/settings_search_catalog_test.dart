@@ -114,4 +114,33 @@ void main() {
       }
     });
   });
+
+  group('hosted-only field gating', () {
+    test('every hosted-only field exists in the catalog', () {
+      // The filter is a set-membership check against `fieldKey`, so a typo (or
+      // a renamed key) makes it a silent no-op — the entry keeps surfacing for
+      // self-hosted users and nothing fails.
+      final allFields = kSettingsSearchCatalog.values.expand((v) => v).toSet();
+      for (final key in kHostedOnlySettingsFields) {
+        expect(
+          allFields,
+          contains(key),
+          reason:
+              'kHostedOnlySettingsFields lists "$key", which no catalog '
+              'section declares — the hosted filter would never match it.',
+        );
+      }
+    });
+
+    test('the referral fields stay in the catalog, gated not deleted', () {
+      // Same rule as the module/admin gates: filter at query time, keep the
+      // static catalog complete.
+      expect(
+        kSettingsSearchCatalog['account_management'],
+        containsAll(kHostedOnlySettingsFields),
+      );
+      expect(kHostedOnlySettingsFields, contains('referral_program'));
+      expect(kHostedOnlySettingsFields, contains('referral_code'));
+    });
+  });
 }

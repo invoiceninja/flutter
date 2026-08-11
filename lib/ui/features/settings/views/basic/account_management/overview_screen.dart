@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/company_settings_gate.dart';
+import 'package:admin/ui/features/settings/views/basic/account_management/plan_screen.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 
@@ -114,7 +115,12 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
-    final planLabel = _planLabel(context, session);
+    // A trial is hosted-only. `session.isTrial` reads true for the last
+    // fortnight of a valid self-hosted white-label license, because the server
+    // reuses `trial_days_left` as a license countdown there — see the longer
+    // note in `plan_screen.dart`'s `_PlanStatusCard`.
+    final isTrialing = session.isHosted && session.isTrial;
+    final planLabel = _planLabel(context, session, isTrialing: isTrialing);
     final secondary = _secondaryLine(context, session);
 
     return FormSection(
@@ -148,7 +154,7 @@ class _PlanCard extends StatelessWidget {
             ),
           ],
         ),
-        if (session.isTrial) ...[
+        if (isTrialing) ...[
           SizedBox(height: InSpacing.md(context)),
           _TrialProgress(session: session),
         ],
@@ -156,11 +162,16 @@ class _PlanCard extends StatelessWidget {
     );
   }
 
-  String _planLabel(BuildContext context, AuthSession s) {
-    final base = s.plan.isEmpty
-        ? context.tr('free')
-        : context.tr(s.plan); // matches `pro`, `enterprise`, etc.
-    if (s.isTrial) return '$base • ${context.tr('free_trial')}';
+  // Shares `planHeadlineKey` with the Plan tab so the two cards can't disagree:
+  // hosted matches the plan slug (`pro`, `enterprise`, …), self-hosted reports
+  // white-label license state.
+  String _planLabel(
+    BuildContext context,
+    AuthSession s, {
+    required bool isTrialing,
+  }) {
+    final base = context.tr(planHeadlineKey(s));
+    if (isTrialing) return '$base • ${context.tr('free_trial')}';
     return base;
   }
 

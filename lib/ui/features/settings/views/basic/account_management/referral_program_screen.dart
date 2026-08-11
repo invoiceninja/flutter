@@ -25,8 +25,12 @@ const List<String> _kReferralTierOrder = ['free', 'pro', 'enterprise'];
 /// Account Management → Referral Program. Hosted-only display screen: shows the
 /// referral value proposition, the user's referral URL (copy / open via the
 /// shared [PortalUrlDisplay]) and per-plan referral counts pulled from
-/// `AuthSession.referralCode` / `referralMeta`. Self-hosted sessions get an
-/// [EmptyState] explaining the feature is hosted-only.
+/// `AuthSession.referralCode` / `referralMeta`.
+///
+/// The shell hides this tab outright on self-hosted sessions (issue #27), so
+/// the [EmptyState] below is a fallback, not the normal self-hosted path — it
+/// covers the shell's fail-open case, where a session that hasn't loaded yet
+/// keeps the tab visible rather than risk hiding it from a hosted user.
 class AccountManagementReferralProgramScreen extends StatelessWidget {
   const AccountManagementReferralProgramScreen({super.key});
 

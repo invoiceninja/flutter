@@ -235,16 +235,20 @@ class _CommandPaletteState extends State<_CommandPalette> {
     final l10n = Localization.of(context);
     if (l10n == null) return const [];
     final services = context.read<Services>();
-    final me = services.auth.session.value?.currentCompany;
+    final session = services.auth.session.value;
+    final me = session?.currentCompany;
     final modules = me?.enabledModules ?? 0;
     final isAdminOrOwner = me?.isAdmin == true || me?.isOwner == true;
+    // Fail open on a not-yet-loaded session, matching the settings screen.
+    final isHosted = session?.isHosted ?? true;
     final level = services.settingsLevel;
     final isCascade = level.isClient || level.isGroup;
     return [
       for (final hit in searchSettings(query, l10n))
         if ((!isCascade || hit.section.clientEditable) &&
             hit.section.isVisibleFor(modules) &&
-            (!hit.section.adminOnly || isAdminOrOwner))
+            (!hit.section.adminOnly || isAdminOrOwner) &&
+            (isHosted || !kHostedOnlySettingsFields.contains(hit.fieldKey)))
           SearchResult(
             group: 'settings',
             name: l10n.lookup(hit.fieldKey),

@@ -937,6 +937,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Pro/Enterprise gating: advanced-settings banner + field disable | ✅ | ✅ | ✅ | ✅ | |
 | Pro/Enterprise gating: sidebar lock icons + search-result tier chips | ✅ | — | ✅ | ✅ | |
 | Pro/Enterprise gating: trial-aware (trialing users keep paid features) | ✅ | ✅ | ✅ | ✅ | |
+| Self-hosted license state (White labeled vs Free) | ✅ | 🟡 | ✅ | | |
 | Pro/Enterprise gating: single source of truth (`domain/plan_gate.dart`) | — | — | ✅ | ✅ | |
 | Reports gated at Pro on hosted (banner + disabled Run/Export/Email) | ✅ | ✅ | ✅ | ✅ | |
 | Document/attachment upload gated at Enterprise on hosted | ✅ | ✅ | ✅ | ✅ | |
@@ -997,6 +998,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 |---|---|---|---|---|---|
 | Referral Program (enable) | ✅ | ✅ | ✅ | ✅ | |
 | Referral Code (read / copy) | ✅ | ✅ | ✅ | ✅ | |
+| Hidden on self-hosted | ✅ | 🟡 | ✅ | | |
 
 #### Account Management — Danger Zone
 

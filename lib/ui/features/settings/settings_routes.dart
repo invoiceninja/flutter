@@ -324,6 +324,11 @@ final List<RouteBase> settingsRoutes = [
   // Program / Danger Zone). Shared page key keeps the TabController + each
   // tab's local state alive across navigations.
   //
+  // `referral_program` stays registered here even though the shell hides that
+  // tab on self-hosted sessions (issue #27) — the route table is static and
+  // session-independent, and the shell normalizes a hidden tab's URL back to
+  // the base path (see `visibleAccountManagementTabSlugs`).
+  //
   // The Integrations tab's four in-app destinations are `tabSubRoutes`
   // children (the other two tiles are external links), so
   // the shell page sits under them in the back stack and system back returns

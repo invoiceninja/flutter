@@ -37,14 +37,74 @@ String? accountManagementTabSlug(String path) {
   return segments.isEmpty ? '' : segments.first;
 }
 
-/// Settings → Account Management. Seven URL-driven tabs:
+/// Every Account Management tab, in display order. Not `const` — each entry
+/// carries a builder closure, and closures aren't const expressions.
+final List<_TabDef> _kAllTabs = <_TabDef>[
+  _TabDef(
+    slug: '',
+    labelKey: 'plan',
+    builder: () => AccountManagementPlanScreen(),
+  ),
+  _TabDef(
+    slug: 'overview',
+    labelKey: 'overview',
+    builder: () => AccountManagementOverviewScreen(),
+  ),
+  _TabDef(
+    slug: 'enabled_modules',
+    labelKey: 'enabled_modules',
+    builder: () => AccountManagementEnabledModulesScreen(),
+  ),
+  _TabDef(
+    slug: 'integrations',
+    labelKey: 'integrations',
+    builder: () => AccountManagementIntegrationsScreen(),
+  ),
+  _TabDef(
+    slug: 'security_settings',
+    labelKey: 'security_settings',
+    builder: () => AccountManagementSecuritySettingsScreen(),
+  ),
+  _TabDef(
+    slug: 'referral_program',
+    labelKey: 'referral_program',
+    builder: () => AccountManagementReferralProgramScreen(),
+    hostedOnly: true,
+  ),
+  _TabDef(
+    slug: 'danger_zone',
+    labelKey: 'danger_zone',
+    builder: () => AccountManagementDangerZoneScreen(),
+  ),
+];
+
+List<_TabDef> _visibleTabs({required bool isHosted}) => [
+  for (final tab in _kAllTabs)
+    if (isHosted || !tab.hostedOnly) tab,
+];
+
+/// Slugs of the Account Management tabs a session actually sees, in display
+/// order (`''` = Plan). Referral Program is hosted-only — a self-hosted account
+/// can't earn referrals, so the tab is hidden outright rather than rendered as
+/// an explanatory dead end (issue #27). That matches every other SaaS-only
+/// surface in the app (PEPPOL buy-credits links, Connect Calendar, the hosted
+/// upgrade card, bank "Refresh accounts") and React's own
+/// `useAccountManagementTabs`.
+@visibleForTesting
+List<String> visibleAccountManagementTabSlugs({required bool isHosted}) => [
+  for (final tab in _visibleTabs(isHosted: isHosted)) tab.slug,
+];
+
+/// Settings → Account Management. Seven URL-driven tabs (six on self-hosted —
+/// see [visibleAccountManagementTabSlugs]):
 ///
 /// * `/settings/account_management` → Plan (default).
 /// * `/settings/account_management/overview` → Overview.
 /// * `/settings/account_management/enabled_modules` → Enabled Modules.
 /// * `/settings/account_management/integrations` → Integrations.
 /// * `/settings/account_management/security_settings` → Security Settings.
-/// * `/settings/account_management/referral_program` → Referral Program.
+/// * `/settings/account_management/referral_program` → Referral Program
+///   (hosted only).
 /// * `/settings/account_management/danger_zone` → Danger Zone.
 ///
 /// Pairs with `tabbedSettingsRoutePair(...)` in `settings_routes.dart` — both
@@ -78,16 +138,7 @@ class AccountManagementShell extends StatefulWidget {
 
 class _AccountManagementShellState extends State<AccountManagementShell>
     with SingleTickerProviderStateMixin {
-  static const _tabs = <_TabDef>[
-    _TabDef(slug: '', labelKey: 'plan'),
-    _TabDef(slug: 'overview', labelKey: 'overview'),
-    _TabDef(slug: 'enabled_modules', labelKey: 'enabled_modules'),
-    _TabDef(slug: 'integrations', labelKey: 'integrations'),
-    _TabDef(slug: 'security_settings', labelKey: 'security_settings'),
-    _TabDef(slug: 'referral_program', labelKey: 'referral_program'),
-    _TabDef(slug: 'danger_zone', labelKey: 'danger_zone'),
-  ];
-
+  late final List<_TabDef> _tabs;
   late final TabController _controller;
   late final Services _services;
   String _scopedCompanyId = '';
@@ -95,12 +146,6 @@ class _AccountManagementShellState extends State<AccountManagementShell>
   @override
   void initState() {
     super.initState();
-    _controller = TabController(
-      length: _tabs.length,
-      vsync: this,
-      initialIndex: _indexForSlug(widget.initialTab),
-    );
-    _controller.addListener(_onTabSettled);
     // The Overview / Security / Enabled-Modules / Integrations tabs save the
     // WHOLE company via `services.company.updateCompany` (no SettingsDraftViewModel
     // and so no `kickRefresh`). After a full sync the login envelope omits the
@@ -110,6 +155,21 @@ class _AccountManagementShellState extends State<AccountManagementShell>
     // before the user can toggle anything, mirroring DraftStreamHost.load()'s
     // `kickRefresh()` and system_logs_screen's refresh-on-mount.
     _services = context.read<Services>();
+    // `isHosted` can't change without a re-login, which tears this shell down,
+    // so the visible set is resolved once — a TabController's length is fixed
+    // at construction. Fail OPEN on a not-yet-loaded session (`?? true`):
+    // showing the tab lets the screen's own guard explain itself, whereas
+    // failing closed would strand a hosted user with no way back short of a
+    // remount.
+    _tabs = _visibleTabs(
+      isHosted: _services.auth.session.value?.isHosted ?? true,
+    );
+    _controller = TabController(
+      length: _tabs.length,
+      vsync: this,
+      initialIndex: _indexForSlug(widget.initialTab),
+    );
+    _controller.addListener(_onTabSettled);
     _scopedCompanyId = _services.auth.session.value?.currentCompanyId ?? '';
     _services.auth.session.addListener(_onSession);
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshCompany());
@@ -175,7 +235,26 @@ class _AccountManagementShellState extends State<AccountManagementShell>
       GoRouterState.of(context).uri.path,
     );
     final urlIndex = _indexForSlug(currentTab);
-    if (currentTab != null &&
+    final knownTab =
+        currentTab != null &&
+        (currentTab.isEmpty || _tabs.any((t) => t.slug == currentTab));
+    if (currentTab != null && !knownTab) {
+      // A hidden (or stale) tab URL — e.g. restored nav state pointing at
+      // `…/referral_program` from a previous hosted login. `_indexForSlug`
+      // falls back to the Plan tab, and because the controller index never
+      // changes `_onTabSettled` won't rewrite the URL — so do it here, or the
+      // location keeps naming a tab that isn't on screen.
+      //
+      // `Router.neglect` matters on web: this is a URL *correction*, not a
+      // navigation. A plain `context.go` reports `navigate`, which go_router
+      // turns into a pushed browser history entry — so Back would return to
+      // the hidden tab's URL, which normalizes forward again, trapping the
+      // user. Neglecting reports `replace`, overwriting the entry instead.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Router.neglect(context, () => context.go(_kBasePath));
+      });
+    } else if (knownTab &&
         urlIndex != _controller.index &&
         !_controller.indexIsChanging) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -201,26 +280,30 @@ class _AccountManagementShellState extends State<AccountManagementShell>
       ),
       body: TabBarView(
         controller: _controller,
-        // Children are intentionally non-const: when external state changes
-        // (e.g. session re-emits) and the shell rebuilds, fresh widget
-        // instances let `Element.updateChild` walk into the subtree instead
-        // of short-circuiting on identity.
-        children: [
-          AccountManagementPlanScreen(),
-          AccountManagementOverviewScreen(),
-          AccountManagementEnabledModulesScreen(),
-          AccountManagementIntegrationsScreen(),
-          AccountManagementSecuritySettingsScreen(),
-          AccountManagementReferralProgramScreen(),
-          AccountManagementDangerZoneScreen(),
-        ],
+        children: [for (final tab in _tabs) tab.builder()],
       ),
     );
   }
 }
 
 class _TabDef {
-  const _TabDef({required this.slug, required this.labelKey});
+  const _TabDef({
+    required this.slug,
+    required this.labelKey,
+    required this.builder,
+    this.hostedOnly = false,
+  });
+
   final String slug;
   final String labelKey;
+
+  /// Called on every build, so each rebuild yields a FRESH instance: when
+  /// external state changes (e.g. session re-emits) and the shell rebuilds,
+  /// a new widget lets `Element.updateChild` walk into the subtree instead of
+  /// short-circuiting on identity.
+  final Widget Function() builder;
+
+  /// Hidden entirely on self-hosted sessions — see
+  /// [visibleAccountManagementTabSlugs].
+  final bool hostedOnly;
 }

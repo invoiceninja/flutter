@@ -592,6 +592,20 @@ const kSettingsSearchCatalog = <String, List<String>>{
   'system_logs': ['system_logs', ...kDebugPanelSearchKeys],
 };
 
+/// Settings *fields* that only exist on the hosted platform. Filtered out of
+/// search results for self-hosted sessions (issue #27) so a search for
+/// "referral" can't lead to a tab that isn't there — `AccountManagementShell`
+/// hides the Referral Program tab entirely on self-hosted.
+///
+/// The section-level gates (`enabledBy` / `adminOnly` / `clientEditable`)
+/// can't express this: the owning section, Account Management, is always
+/// visible. Filtering happens at query time — the static catalog stays
+/// complete, same as for `adminOnly`.
+const Set<String> kHostedOnlySettingsFields = {
+  'referral_program',
+  'referral_code',
+};
+
 /// A single field match returned by [searchSettings].
 class SettingsSearchHit {
   const SettingsSearchHit({required this.fieldKey, required this.section});

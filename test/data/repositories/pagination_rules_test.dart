@@ -146,6 +146,121 @@ void main() {
     });
   });
 
+  // The READ gate used to ignore `extraFilters` and `states` while the ADVANCE
+  // gate honoured both. A filter chip therefore fetched page 1 with the
+  // `updated_at >= W` watermark ANDed onto the filter, so the server returned
+  // only slice rows changed since the last sync — and after a full resync (W ≈
+  // now) it returned nothing at all, leaving a false "No records found" a short
+  // list has no scroll extent to page out of. flutter#32.
+  group('shouldReadCursor', () {
+    bool read({
+      bool ignoreCursor = false,
+      int page = 1,
+      bool hasParentScope = false,
+      bool isSearchScoped = false,
+      Set<EntityState> states = const {EntityState.active},
+      Map<String, Set<String>> extraFilters = const {},
+    }) => repo.shouldReadCursor(
+      ignoreCursor: ignoreCursor,
+      page: page,
+      hasParentScope: hasParentScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: extraFilters,
+    );
+
+    test('the plain page-1 list view reads the cursor — the delta fast path '
+        'every warm cold-start depends on stays intact', () {
+      expect(read(), isTrue);
+    });
+
+    test('the WIDEST fetch reads it too — that is refreshAll, which must stay '
+        'a delta pull when `full: false`', () {
+      expect(read(states: EntityState.values.toSet()), isTrue);
+      expect(read(states: const {}), isTrue);
+    });
+
+    test('any user filter blocks the read — otherwise the filter and the '
+        'watermark are ANDed and older matches are never fetched', () {
+      expect(
+        read(
+          extraFilters: {
+            'client_status': {'paid'},
+          },
+        ),
+        isFalse,
+      );
+      // An empty value set is not a filter.
+      expect(read(extraFilters: {'client_status': <String>{}}), isTrue);
+    });
+
+    test('a narrowed state slice blocks the read', () {
+      expect(read(states: const {EntityState.archived}), isFalse);
+      expect(
+        read(states: const {EntityState.active, EntityState.archived}),
+        isFalse,
+      );
+    });
+
+    test(
+      'ignoreCursor, parent scope, search and page >= 2 all block the read',
+      () {
+        expect(read(ignoreCursor: true), isFalse);
+        expect(read(hasParentScope: true), isFalse);
+        expect(read(isSearchScoped: true), isFalse);
+        expect(read(page: 2), isFalse);
+      },
+    );
+
+    // The anti-drift guard: both gates now sit on `isNarrowedFetch`, and this
+    // is what keeps them there. `page`/`ignoreCursor` are held at the one
+    // combination where the two are supposed to agree.
+    test('READ and ADVANCE agree on every narrowing combination — they drifted '
+        'apart once and that was the bug', () {
+      const stateSets = <Set<EntityState>>[
+        {EntityState.active},
+        {EntityState.archived},
+        {EntityState.active, EntityState.archived},
+        {},
+      ];
+      final filterSets = <Map<String, Set<String>>>[
+        const {},
+        {
+          'client_status': {'paid'},
+        },
+        {'client_status': <String>{}},
+      ];
+      for (final parent in [false, true]) {
+        for (final search in [false, true]) {
+          for (final states in [...stateSets, EntityState.values.toSet()]) {
+            for (final filters in filterSets) {
+              expect(
+                repo.shouldReadCursor(
+                  ignoreCursor: false,
+                  page: 1,
+                  hasParentScope: parent,
+                  isSearchScoped: search,
+                  states: states,
+                  extraFilters: filters,
+                ),
+                repo.shouldAdvanceCursor(
+                  page: 1,
+                  hasParentScope: parent,
+                  isSearchScoped: search,
+                  states: states,
+                  extraFilters: filters,
+                ),
+                reason:
+                    'parent=$parent search=$search states=$states '
+                    'filters=$filters',
+              );
+            }
+          }
+        }
+      }
+    });
+  });
+
   group('InvoiceRepository applies the shared rules (it hand-rolls its own '
       'ensurePageLoaded body)', () {
     test('an empty warm DELTA page keeps hasMore true, so the list is not '
@@ -213,6 +328,59 @@ void main() {
         entityType: 'invoice',
       );
       expect(cursor.id, 'i1');
+    });
+
+    // The flutter#32 regression assertions: with a warm watermark, a NARROWED
+    // page 1 must go out un-narrowed by the cursor, or the server ANDs the two
+    // and older matches never reach the local cache.
+    Future<void> seedWarmCursor() => db.syncStateDao.writeCursor(
+      companyId: 'co',
+      entityType: 'invoice',
+      updatedAt: 1700000000,
+      id: 'i49',
+      now: 1700000000,
+    );
+
+    test('a filtered page-1 fetch does NOT send the warm cursor', () async {
+      await seedWarmCursor();
+      build(pages: const {1: <InvoiceApi>[]});
+
+      await repo.ensurePageLoaded(
+        companyId: 'co',
+        page: 1,
+        extraFilters: {
+          'client_status': {'paid'},
+        },
+      );
+
+      expect(api.calls.single.since, isNull);
+    });
+
+    test('a narrowed state slice does NOT send the warm cursor', () async {
+      await seedWarmCursor();
+      build(pages: const {1: <InvoiceApi>[]});
+
+      await repo.ensurePageLoaded(
+        companyId: 'co',
+        page: 1,
+        states: const {EntityState.archived},
+      );
+
+      expect(api.calls.single.since, isNull);
+    });
+
+    test('the refreshAll shape (all states, no filters) still sends it — the '
+        'delta pull must not become a full scan', () async {
+      await seedWarmCursor();
+      build(pages: const {1: <InvoiceApi>[]});
+
+      await repo.ensurePageLoaded(
+        companyId: 'co',
+        page: 1,
+        states: EntityState.values.toSet(),
+      );
+
+      expect(api.calls.single.since, isNotNull);
     });
   });
 }

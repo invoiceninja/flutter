@@ -135,19 +135,22 @@ class GroupSettingRepository
     Set<EntityState> states = const {EntityState.active},
     bool ignoreCursor = false,
   }) async {
-    // The keyset cursor is a page-1, unscoped delta probe only — same gate
-    // as the other hand-rolled repos and the base template. The server
-    // applies it as an `updated_at >=` WHERE filter on top of offset paging,
-    // so reading it on page >= 2 re-returns page 1's rows (capping
-    // pagination / search / full resync at one page). (Groups are also a
-    // bundled entity, so the practical blast radius is small — but keep the
-    // gate consistent with the siblings.)
-    final cursor = (ignoreCursor || page > 1)
-        ? null
-        : await db.syncStateDao.read(
-            companyId: companyId,
-            entityType: entityTypeName,
-          );
+    // The keyset cursor is a page-1, unscoped, un-narrowed delta probe only —
+    // same gate as the other hand-rolled repos and the base template, shared
+    // with the ADVANCE below so the two can't disagree. See
+    // `BaseEntityRepository.isNarrowedFetch`. (Groups are also a bundled
+    // entity, so the practical blast radius is small — but keep the gate
+    // consistent with the siblings.)
+    final isSearchScoped = search != null && search.isNotEmpty;
+    final cursor = await readCursorIfEligible(
+      companyId: companyId,
+      ignoreCursor: ignoreCursor,
+      page: page,
+      hasParentScope: false,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: const {},
+    );
 
     // `?include=documents` so a paged refresh carries each group's
     // attachments into the local `documents` column.
@@ -187,11 +190,14 @@ class GroupSettingRepository
     // and the cursor write is last-write-wins — advancing on page >= 2 would
     // walk the watermark backward). Matches the other hand-rolled repos.
     // Shared rule (see `shouldAdvanceCursor`): only an unscoped,
-    // unfiltered page 1 may move the global watermark.
+    // unfiltered page 1 may move the global watermark. A searched page is a
+    // narrowed view like any other — `isSearchScoped` was hardcoded false
+    // here, so a searched fetch used to advance from a search-scoped
+    // `data.last`.
     if (shouldAdvanceCursor(
           page: page,
           hasParentScope: false,
-          isSearchScoped: false,
+          isSearchScoped: isSearchScoped,
           states: states,
           extraFilters: const {},
         ) &&

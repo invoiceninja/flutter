@@ -53,6 +53,11 @@ class ClientListViewModel extends GenericListViewModel<Client> {
   @override
   String get defaultSortField => ClientFieldIds.name;
 
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(clientColumnsById, field);

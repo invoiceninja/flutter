@@ -44,6 +44,16 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
   @override
   String get defaultSortField => PurchaseOrderFieldIds.number;
 
+  /// Newest first: purchase order number ascending would bury every new record at the
+  /// bottom of the list, off the first page.
+  @override
+  bool get defaultSortAscending => false;
+
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(purchaseOrderColumnsById, field) ||

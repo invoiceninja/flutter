@@ -402,6 +402,9 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // value is always set.
     _companyId = _services.auth.session.value!.currentCompanyId;
     _vm = widget.buildVm(_services, _companyId);
+    // A completed Sync re-arms the VM's pagination — see
+    // `GenericListViewModel.bindResync`.
+    _vm.bindResync(_services.resync);
     // Embedded lists don't scroll themselves (they grow with the detail
     // page); their pagination is wired to the page controller in
     // didChangeDependencies instead.
@@ -421,6 +424,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     setState(() {
       _companyId = s.currentCompanyId;
       _vm = widget.buildVm(_services, _companyId);
+      _vm.bindResync(_services.resync);
     });
     // Dispose AFTER swapping in the new VM so any in-flight rebuild keyed
     // on the old `_vm` reference has already moved on.
@@ -476,7 +480,13 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     final inBand =
         c.position.pixels >= c.position.maxScrollExtent - _loadMoreThresholdPx;
     if (inBand) {
-      if (_loadMoreArmed) {
+      // Consume the latch only when the VM will actually do something.
+      // Disarming on a call that immediately no-ops used to strand a user
+      // parked at the bottom of an exhausted list: the latch re-arms only on
+      // the way back OUT of the band, so once more rows became reachable
+      // (a Sync landing rows behind an active filter — flutter#32) no further
+      // trigger ever fired. Now any later scroll re-evaluates.
+      if (_loadMoreArmed && _vm.canLoadMore) {
         _loadMoreArmed = false;
         _vm.loadMore();
       }

@@ -6,6 +6,8 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
+import 'package:admin/data/db/dao/billing_extra_filters.dart'
+    show resolveRelativeFilterTokens;
 import 'package:admin/data/db/dao/purchase_order_dao.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/models/api/purchase_order_api_model.dart';
@@ -138,33 +140,33 @@ class PurchaseOrderRepository
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
   }) async {
+    // Rolling `rel:` tokens must be resolved to absolute values before they hit
+    // the wire — the server never sees a relative token. (Every sibling
+    // billing-doc repo did this; purchase orders alone shipped `rel:d7`
+    // verbatim, which the server can't parse.)
+    final resolvedExtra = resolveRelativeFilterTokens(extraFilters);
     // A vendor-scoped fetch (a vendor's Purchase Orders tab) is a filtered
     // view, not a canonical sync — it must neither read nor advance the
     // shared cursor (same contract as `ensurePageLoadedTemplate`).
-    final hasVendorScope = extraFilters.containsKey('vendor_id');
-    // The shared `(companyId, entityType)` cursor is a page-1, UNSCOPED
-    // delta probe only — same two gates as `ensurePageLoadedTemplate`:
-    // a parent-scoped fetch (embedded detail tab) must neither read nor
-    // advance it, and a page >= 2 fetch must not read it (the
-    // `updated_at >=` filter re-returns page 1's rows, capping pagination /
-    // search / full resync at one page) nor advance it (deeper pages carry
-    // older rows under `id DESC` — last-write-wins would walk the
-    // watermark backwards).
-    // An active text search is a filtered VIEW: skip the cursor read (search
-    // across full history) and the advance below (a search-scoped data.last
-    // is not a valid global high-water mark).
+    final hasVendorScope = resolvedExtra.containsKey('vendor_id');
+    // The shared `(companyId, entityType)` cursor is a page-1, UNSCOPED,
+    // UN-NARROWED delta probe only — same gate as `ensurePageLoadedTemplate`,
+    // shared with the ADVANCE below so the two can't disagree. See
+    // `BaseEntityRepository.isNarrowedFetch`.
     final isSearchScoped = search != null && search.isNotEmpty;
-    final cursor =
-        (ignoreCursor || hasVendorScope || isSearchScoped || page > 1)
-        ? null
-        : await db.syncStateDao.read(
-            companyId: companyId,
-            entityType: entityTypeName,
-          );
+    final cursor = await readCursorIfEligible(
+      companyId: companyId,
+      ignoreCursor: ignoreCursor,
+      page: page,
+      hasParentScope: hasVendorScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: resolvedExtra,
+    );
     final filters = <String, String>{
       ...stateQueryParams(states),
       'include': 'documents',
-      for (final entry in extraFilters.entries)
+      for (final entry in resolvedExtra.entries)
         if (entry.value.isNotEmpty)
           entry.key: (entry.value.toList()..sort()).join(','),
     };
@@ -197,7 +199,7 @@ class PurchaseOrderRepository
           hasParentScope: hasVendorScope,
           isSearchScoped: isSearchScoped,
           states: states,
-          extraFilters: extraFilters,
+          extraFilters: resolvedExtra,
         ) &&
         result.cursorUpdatedAt != null &&
         result.cursorId != null) {

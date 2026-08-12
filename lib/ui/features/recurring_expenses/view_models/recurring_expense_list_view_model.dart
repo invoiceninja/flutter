@@ -65,6 +65,11 @@ class RecurringExpenseListViewModel
   @override
   String get defaultSortField => RecurringExpenseFieldIds.nextSendDate;
 
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(recurringExpenseColumnsById, field) ||

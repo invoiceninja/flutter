@@ -169,25 +169,20 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     final hasClientScope =
         resolvedExtra.containsKey('client_id') ||
         resolvedExtra.containsKey('client_ids');
-    // The shared `(companyId, entityType)` cursor is a page-1, UNSCOPED
-    // delta probe only — same two gates as `ensurePageLoadedTemplate`:
-    // a parent-scoped fetch (embedded detail tab) must neither read nor
-    // advance it, and a page >= 2 fetch must not read it (the
-    // `updated_at >=` filter re-returns page 1's rows, capping pagination /
-    // search / full resync at one page) nor advance it (deeper pages carry
-    // older rows under `id DESC` — last-write-wins would walk the
-    // watermark backwards).
-    // An active text search is a filtered VIEW: skip the cursor read (search
-    // across full history) and the advance below (a search-scoped data.last
-    // is not a valid global high-water mark).
+    // The shared `(companyId, entityType)` cursor is a page-1, UNSCOPED,
+    // UN-NARROWED delta probe only — same gate as `ensurePageLoadedTemplate`,
+    // shared with the ADVANCE below so the two can't disagree. See
+    // `BaseEntityRepository.isNarrowedFetch`.
     final isSearchScoped = search != null && search.isNotEmpty;
-    final cursor =
-        (ignoreCursor || hasClientScope || isSearchScoped || page > 1)
-        ? null
-        : await db.syncStateDao.read(
-            companyId: companyId,
-            entityType: entityTypeName,
-          );
+    final cursor = await readCursorIfEligible(
+      companyId: companyId,
+      ignoreCursor: ignoreCursor,
+      page: page,
+      hasParentScope: hasClientScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: resolvedExtra,
+    );
     final filters = <String, String>{
       ...stateQueryParams(states),
       'include': 'documents',

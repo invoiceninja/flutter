@@ -220,29 +220,20 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     final hasClientScope =
         resolvedExtra.containsKey('client_id') ||
         resolvedExtra.containsKey('client_ids');
-    // The shared `(companyId, entityType)` cursor is a page-1, UNSCOPED
-    // delta probe only — same two gates as `ensurePageLoadedTemplate`:
-    //  * a parent-scoped fetch (a client's Invoices tab) must neither read
-    //    it (the tab would skip the client's older uncached rows) nor
-    //    advance it (the scoped page's `data.last` is not a global
-    //    high-water mark — advancing corrupts the standalone list's delta);
-    //  * a page >= 2 fetch must not read it (the `updated_at >=` filter
-    //    re-returns page 1's rows → near-empty page 2 → pagination, search
-    //    and full resync silently cap at one page) nor advance it (deeper
-    //    pages carry older rows under `id DESC` — last-write-wins would walk
-    //    the watermark backwards).
-    // An active text search is a filtered VIEW (same rationale as
-    // `ensurePageLoadedTemplate`): skip the cursor read so the search looks
-    // across full history, and skip the advance below so a search-scoped
-    // `data.last` never corrupts the standalone list's delta sync.
+    // The shared `(companyId, entityType)` cursor is a page-1, UNSCOPED,
+    // UN-NARROWED delta probe only — same gate as `ensurePageLoadedTemplate`,
+    // shared with the ADVANCE below so the two can't disagree. See
+    // `BaseEntityRepository.isNarrowedFetch`.
     final isSearchScoped = search != null && search.isNotEmpty;
-    final cursor =
-        (ignoreCursor || hasClientScope || isSearchScoped || page > 1)
-        ? null
-        : await db.syncStateDao.read(
-            companyId: companyId,
-            entityType: entityTypeName,
-          );
+    final cursor = await readCursorIfEligible(
+      companyId: companyId,
+      ignoreCursor: ignoreCursor,
+      page: page,
+      hasParentScope: hasClientScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: resolvedExtra,
+    );
     final filters = <String, String>{
       ...stateQueryParams(states),
       // `?include=documents` — same rationale as Client/Expense. Without

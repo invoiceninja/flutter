@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/nav_state_dao.dart';
 import 'package:admin/data/repositories/saved_views_repository.dart';
@@ -98,6 +99,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     // both clear it.
     isLoadingPage = true;
     _sortField = defaultSortField;
+    _sortAscending = defaultSortAscending;
     _columnIds = List<String>.from(defaultColumnIds);
     unawaited(_init());
   }
@@ -120,6 +122,19 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// Column the list sorts by when no persisted preference exists. Must be
   /// a key in [allColumns].
   String get defaultSortField;
+
+  /// Sort direction when the user has no persisted preference.
+  ///
+  /// Lists keyed on a monotonically-increasing [defaultSortField] (invoice
+  /// `number`, payment `date`) override this to `false` so the newest record is
+  /// on the FIRST page — "newest first", matching admin-portal and React.
+  /// Ascending is right for name/key-sorted lists (clients A→Z) and for
+  /// soonest-first ones (recurring expenses by next send date).
+  ///
+  /// Only affects a list the user has never sorted: a persisted `nav_state`
+  /// blob or a saved view always wins. It is also what "Clear filters" resets
+  /// to.
+  bool get defaultSortAscending => true;
 
   /// True when [field] is a column id this entity recognises. The base uses
   /// this both as a sort-allowlist check and during hydration so a stale
@@ -199,8 +214,15 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   bool get tagFilterActive => _extraFilters['tag_ids']?.isNotEmpty ?? false;
 
   /// Rows per fetched page — the auto-chain's "shorter than a page" fill
-  /// target. Repos default to 50; override only if an entity pages
-  /// differently.
+  /// target, and the multiplier behind the Drift watch window
+  /// (`LIMIT pageSize * loadedPages`).
+  ///
+  /// **Invariant: this must equal the repository's `pageSize`.** The repo sizes
+  /// the window; this VM decides whether that window came back saturated
+  /// ([canWidenLocally]) and whether an emission is "shorter than a page"
+  /// ([_maybeAutoChain]). A VM that under-reports widens one page too eagerly;
+  /// one that over-reports never widens at all. Repos default to 50 — override
+  /// with `=> repo.pageSize` rather than a fresh literal.
   @protected
   int get pageSize => 50;
 
@@ -238,9 +260,41 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   // ── State (read by the view) ────────────────────────────────────────
 
   int loadedPages = 1;
+
+  /// Whether the SERVER may have another page. Deliberately NOT the gate for
+  /// widening the Drift window — see [canWidenLocally] / [canLoadMore]
+  /// (flutter#32).
   bool hasMore = true;
   bool isLoadingPage = false;
   String? initialError;
+
+  bool _localWindowSaturated = false;
+
+  /// The last Drift emission filled the whole `pageSize * loadedPages` window,
+  /// so the LOCAL cache may hold more matching rows than are on screen —
+  /// independent of what the server last said about [hasMore].
+  ///
+  /// The two answer different questions and both are needed. [hasMore] is
+  /// "does the server have another page?"; this is "does Drift have more rows
+  /// than the window shows?". The list renders entirely from Drift, so only the
+  /// second one can decide whether widening is worthwhile. Conflating them was
+  /// flutter#32: a filtered list latches `hasMore = false` early (a filter
+  /// narrows the set, so page 2 comes back short), and from then on nothing
+  /// could widen the window — a Sync would land thousands of rows in Drift that
+  /// the list could never reach, and only clearing the filter (which resets
+  /// `loadedPages`/`hasMore`) brought them back.
+  ///
+  /// **Under-counts for post-LIMIT filters** — `tag_ids` is re-applied in Dart
+  /// after the DAO's LIMIT in the repo `watchPage`s, and products' `stock` in
+  /// the VM — so the emission is shorter than the window and this stays false.
+  /// That is correct: those converge via [_maybeAutoChain] instead. The same
+  /// applies to any future [transformPage] override that drops rows.
+  /// Assumes [pageSize] matches the repo's — see the invariant there.
+  bool get canWidenLocally => _localWindowSaturated;
+
+  /// The single question the scroll trigger asks: is there anything left to
+  /// show, from either source?
+  bool get canLoadMore => !isLoadingPage && (hasMore || _localWindowSaturated);
 
   /// Monotonic generation counter for page fetches. Every [_resetAndReload]
   /// (and the initial load) bumps it; an in-flight [loadMore] — or an older
@@ -268,7 +322,10 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   late String _sortField;
   String get sortField => _sortField;
 
-  bool _sortAscending = true;
+  /// Seeded from [defaultSortAscending] in the constructor — the initializer
+  /// here is only to satisfy definite assignment (a subclass getter can't be
+  /// called from a field initializer).
+  late bool _sortAscending;
   bool get sortAscending => _sortAscending;
 
   Map<int, Set<String>> _customFilters = const {};
@@ -471,6 +528,13 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
 
   Future<void> _init() async {
     await _hydrate();
+    // The VM can be disposed *during* the hydrate await — a mid-init
+    // navigate-away, a company switch, or a test that tears down before `_init`
+    // resumes. `_subscribe()` guards itself, but the columns / custom-values /
+    // nav-state subscriptions below did not: they would open streams that
+    // nothing ever cancels (dispose already ran), then fire `notifyListeners()`
+    // on a disposed notifier — and against a closed database, throw outright.
+    if (_disposed) return;
     // A deep-link intent that arrived before hydration finished is applied
     // here — *after* the on-disk filters, *before* the first fetch — so a
     // dashboard tap doesn't fetch twice on cold start, and the persisted
@@ -577,7 +641,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _search = '';
     _states = const {EntityState.active};
     _sortField = defaultSortField;
-    _sortAscending = true;
+    _sortAscending = defaultSortAscending;
     _customFilters = const {};
     _extraFilters = const {};
 
@@ -695,7 +759,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     'search': '',
     'states': [EntityState.active.name],
     'sortField': defaultSortField,
-    'sortAscending': true,
+    'sortAscending': defaultSortAscending,
     'customFilters': <String, List<String>>{},
     'extraFilters': <String, List<String>>{},
   };
@@ -751,7 +815,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
         (intent.sortField != null && isValidColumnId(intent.sortField!))
         ? intent.sortField!
         : defaultSortField;
-    _sortAscending = intent.sortAscending ?? true;
+    _sortAscending = intent.sortAscending ?? defaultSortAscending;
     _customFilters = const {};
     _extraFilters = Map<String, Set<String>>.unmodifiable({
       for (final e in intent.extraFilters.entries)
@@ -780,13 +844,90 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   Future<void> refresh() async {
     try {
       await refreshAll();
+      // `refreshAll` sweeps the whole entity into Drift and returns; without
+      // this the list is left with whatever `loadedPages`/`hasMore` it had, so
+      // pull-to-refresh on an exhausted filtered list dead-ends exactly like a
+      // Sync used to (flutter#32).
+      if (!_disposed) onRemoteDataResynced();
     } catch (e) {
       _flashError('refresh', e);
     }
   }
 
+  // ── Bulk re-download (Sync) ─────────────────────────────────────────
+
+  ValueListenable<ResyncProgress>? _resync;
+  bool _resyncWasRunningForMe = false;
+
+  /// Bind the app-wide "Sync" pass (`Services.resync`) so a pass that COMPLETES
+  /// for this company re-arms pagination on an already-scrolled or filtered
+  /// list.
+  ///
+  /// Bound by the host scaffold right after `buildVm` rather than taken as a
+  /// constructor argument: threading it would mean touching all ~17 concrete
+  /// subclass signatures, every `buildVm:` closure, and every test that
+  /// constructs one — and entity #18 could silently forget it. Idempotent; the
+  /// VM removes its own listener in [dispose].
+  ///
+  /// Invariant this creates: **never call `resync.run()` from a `build`** —
+  /// every bound list VM notifies on the pass's falling edge. That edge only
+  /// ever fires from `ResyncController`'s completion microtask, so a build can
+  /// never be on the stack today; the rule keeps it that way.
+  void bindResync(ValueListenable<ResyncProgress> resync) {
+    if (identical(_resync, resync)) return;
+    _resync?.removeListener(_onResyncChanged);
+    _resync = resync;
+    // Seed from the CURRENT value: the user may have started the pass from the
+    // sidebar and then navigated here, so the falling edge is still ahead of us.
+    _resyncWasRunningForMe = resync.value.isRunningFor(companyId);
+    resync.addListener(_onResyncChanged);
+  }
+
+  void _onResyncChanged() {
+    final running = _resync?.value.isRunningFor(companyId) ?? false;
+    final finished = _resyncWasRunningForMe && !running;
+    _resyncWasRunningForMe = running;
+    if (finished && !_disposed) onRemoteDataResynced();
+  }
+
+  /// Re-arm pagination after a bulk re-download landed rows behind this list.
+  ///
+  /// Re-arm ONLY — deliberately not [_resetAndReload], which would snap a
+  /// deep-scrolled user back to 50 rows, drop their multiselect, re-persist
+  /// filters, and fire a page-1 fetch immediately after the pass already
+  /// downloaded everything. No fetch is needed either: `refreshAll(full: true)`
+  /// ran per entity, so the local cache *is* the complete data set — all the
+  /// list was missing is permission to widen past its window.
+  ///
+  /// The `_resubscribe()` is load-bearing for the post-LIMIT (`tag:` / `stock:`)
+  /// lists, whose auto-chain entry point is a Drift emission: the pass's last
+  /// emission arrived *before* these flags flipped, so without a fresh one the
+  /// chain never re-drives. It also re-bakes `Date.today()` into the
+  /// `overdue`/`expired` predicates, which is a free fix for the midnight
+  /// staleness noted in CLAUDE.md.
+  @protected
+  @visibleForTesting
+  void onRemoteDataResynced() {
+    hasMore = true;
+    _autoChainBudget = _kAutoChainMaxPages;
+    _localWindowSaturated = false;
+    _resubscribe();
+    notifyListeners();
+  }
+
   Future<void> loadMore() async {
-    if (isLoadingPage || !hasMore) return;
+    // Both branches below notify, which throws on a disposed notifier. The
+    // scroll listener is detached before `_vm.dispose()` and a cancelled watch
+    // can't re-drive the auto-chain, so this is belt-and-braces — but it costs
+    // nothing and matches how `_subscribe` / `_init` guard themselves.
+    if (_disposed || isLoadingPage) return;
+    if (!hasMore) {
+      // The server is exhausted, but Drift may still hold more matching rows
+      // than the window shows (a Sync or an outbox drain landed rows behind an
+      // active filter). Widen locally — there is no request to make.
+      if (_localWindowSaturated) _widenLocalWindow();
+      return;
+    }
     final epoch = _fetchEpoch;
     isLoadingPage = true;
     notifyListeners();
@@ -802,6 +943,9 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       // was in flight — its result is authoritative, so discard ours.
       if (_fetchEpoch != epoch) return;
       loadedPages += 1;
+      // Stale against the window we're about to widen to; the emission that
+      // `_resubscribe` triggers recomputes it.
+      _localWindowSaturated = false;
       hasMore = more;
       // Re-subscribe so the Drift watch widens its `LIMIT` to the new
       // `pageSize * loadedPages` window. watchPage() captures `loadedPages`
@@ -943,7 +1087,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
         _search.isNotEmpty ||
         !statesAtDefault ||
         _sortField != defaultSortField ||
-        !_sortAscending ||
+        _sortAscending != defaultSortAscending ||
         _customFilters.isNotEmpty ||
         _extraFilters.isNotEmpty;
     _search = '';
@@ -954,7 +1098,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     // doesn't read as "a filter is still applied").
     _states = const {EntityState.active};
     _sortField = defaultSortField;
-    _sortAscending = true;
+    _sortAscending = defaultSortAscending;
     _customFilters = const {};
     _extraFilters = const {};
     if (!changed) return;
@@ -1040,6 +1184,9 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _selectionMode = false;
     loadedPages = 1;
     hasMore = true;
+    // Computed against the OLD (wider) window — a stale true would let the
+    // first scroll after a reset widen straight back out.
+    _localWindowSaturated = false;
     isLoadingPage = true;
     initialError = null;
     _resubscribe();
@@ -1105,6 +1252,21 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _subscribe();
   }
 
+  /// Widen the Drift watch by one page WITHOUT a network round-trip — for when
+  /// the server is exhausted ([hasMore] false) but the local cache still holds
+  /// more matching rows than the window shows ([canWidenLocally]).
+  ///
+  /// Synchronous on purpose: nothing awaits, so it can't interleave with
+  /// [_fetchEpoch] and needs no generation guard. Converges — each call adds
+  /// one page, and the emission `_resubscribe` triggers clears the flag as soon
+  /// as the widened window isn't saturated.
+  void _widenLocalWindow() {
+    loadedPages += 1;
+    _localWindowSaturated = false;
+    _resubscribe();
+    notifyListeners();
+  }
+
   /// Local-only filter refill: when a `stock:` / `tag:` chip filters the page
   /// down to fewer than [pageSize] visible rows AND the server has more, pull
   /// the next page so the list doesn't dead-end on a false "No records found".
@@ -1113,6 +1275,12 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// initial/reset load's post-upsert emission, which is what chains the FIRST
   /// page. `loadMore`'s own `hasMore`/`isLoadingPage` guards and the
   /// [_autoChainBudget] ceiling keep it from looping.
+  ///
+  /// Deliberately gated on [hasMore], not [canLoadMore]: a saturated window
+  /// implies `visibleCount >= pageSize * loadedPages >= pageSize`, so the
+  /// `visibleCount < pageSize` guard already excludes every case where
+  /// [canWidenLocally] could differ. Swapping in `canLoadMore` would be
+  /// equivalent, not an improvement — leave it alone.
   void _maybeAutoChain(int visibleCount) {
     if (localOnlyFilterActive &&
         hasMore &&
@@ -1125,6 +1293,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   }
 
   void _onItems(List<T> next) {
+    // FIRST, above both the auto-chain and the identity early-return below: an
+    // emission that is byte-identical to the last one still has to update this
+    // (the window may have just widened past the end of the local rows), and
+    // the scroll trigger reads it through `canLoadMore`.
+    _localWindowSaturated = next.length >= pageSize * loadedPages;
     // Local-only filter refill: BEFORE the identity early-return below — a
     // fetched page whose rows are all filtered out locally produces a
     // byte-identical emission, and returning early would stall the chain
@@ -1458,6 +1631,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _resync?.removeListener(_onResyncChanged);
     _searchTimer?.cancel();
     _persistTimer?.cancel();
     _watchSub?.cancel();

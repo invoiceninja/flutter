@@ -40,6 +40,11 @@ class ExpenseCategoryListViewModel
   @override
   String get defaultSortField => ExpenseCategoryFieldIds.name;
 
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(expenseCategoryColumnsById, field);

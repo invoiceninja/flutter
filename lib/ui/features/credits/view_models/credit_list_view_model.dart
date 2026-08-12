@@ -42,6 +42,16 @@ class CreditListViewModel extends GenericListViewModel<Credit> {
   @override
   String get defaultSortField => CreditFieldIds.number;
 
+  /// Newest first: credit number ascending would bury every new record at the
+  /// bottom of the list, off the first page.
+  @override
+  bool get defaultSortAscending => false;
+
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(creditColumnsById, field) ||

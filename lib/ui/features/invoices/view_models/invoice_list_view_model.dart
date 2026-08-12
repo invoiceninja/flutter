@@ -52,11 +52,21 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
   @override
   List<String> get defaultColumnIds => kDefaultInvoiceColumns;
 
-  /// Default sort is by invoice number descending — matches admin-portal's
-  /// "newest invoice first" convention. The generic base starts ascending;
-  /// in practice the first sort-toggle persists per saved view.
+  /// Default sort is by invoice number descending (see
+  /// [defaultSortAscending]) — matches admin-portal's "newest invoice first"
+  /// convention.
   @override
   String get defaultSortField => InvoiceFieldIds.number;
+
+  /// Newest first: invoice number ascending would bury every new record at the
+  /// bottom of the list, off the first page.
+  @override
+  bool get defaultSortAscending => false;
+
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
 
   @override
   bool isValidColumnId(String field) =>

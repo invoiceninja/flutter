@@ -163,6 +163,55 @@ void main() {
       expect(vm.loadedPages, 1, reason: 'window must not widen on error');
       vm.dispose();
     });
+
+    // flutter#32, end to end. Once the server latched `hasMore = false` the
+    // Drift window (`LIMIT pageSize * loadedPages`) was frozen forever: a Sync
+    // could land thousands of rows the list would never show, and only clearing
+    // the filter — which resets loadedPages/hasMore — brought them back.
+    test('rows that land in Drift behind an exhausted list are still reachable '
+        '— widening the window needs no server round-trip', () async {
+      String id(int i) => 'c${i.toString().padLeft(3, '0')}';
+      api.pages[1] = [for (var i = 0; i < 50; i++) _row(id(i))];
+      api.pages[2] = [_row(id(50))];
+      final vm = vmFor('co');
+      await settle();
+      await vm.loadMore();
+      await settle();
+      expect(vm.hasMore, isFalse, reason: 'server exhausted');
+      expect(vm.items, hasLength(51));
+
+      // A Sync: `refreshAll` pages the whole entity into Drift, touching no
+      // list VM at all — the rows reach the UI only via the live Drift watch,
+      // bounded by the window the VM is still holding.
+      api.pages[2] = [for (var i = 50; i < 100; i++) _row(id(i))];
+      api.pages[3] = [for (var i = 100; i < 150; i++) _row(id(i))];
+      await repo.refreshAll(companyId: 'co');
+      await settle();
+
+      expect(
+        vm.items,
+        hasLength(100),
+        reason: 'still clamped to LIMIT pageSize * loadedPages',
+      );
+      expect(
+        vm.canWidenLocally,
+        isTrue,
+        reason: 'the window is saturated, so Drift may hold more',
+      );
+
+      final callsBefore = api.calls.length;
+      await vm.loadMore();
+      await settle();
+
+      expect(vm.loadedPages, 3);
+      expect(vm.items, hasLength(150));
+      expect(
+        api.calls.length,
+        callsBefore,
+        reason: 'the rows were already local — no request to make',
+      );
+      vm.dispose();
+    });
   });
 
   group('state filter', () {
@@ -195,6 +244,39 @@ void main() {
       api.calls.clear();
 
       await vm.setStates({EntityState.active, EntityState.archived});
+      await settle();
+
+      expect(api.calls.single.sinceUpdatedAt, isNull);
+    });
+
+    // flutter#32. The cursor READ gate used to ignore `extraFilters` and a
+    // narrowed `states` set even though the ADVANCE gate honoured both, so a
+    // filter chip went out as `filter AND updated_at >= W`. The server then
+    // returned only slice rows changed since the last sync — and after a Sync
+    // (W ≈ now) essentially nothing, which a short list has no scroll extent to
+    // page out of.
+    test('a filter chip fetches WITHOUT the warm cursor, so matches older than '
+        'the last sync are still pulled', () async {
+      api.pages[1] = [_row('c1')];
+      final vm = vmFor('co');
+      await settle();
+      api.calls.clear();
+
+      await vm.setExtraFilter(serverKey: 'country_id', values: {'840'});
+      await settle();
+
+      expect(api.calls.single.sinceUpdatedAt, isNull);
+      expect(api.calls.single.filters['country_id'], '840');
+    });
+
+    test('NARROWING the state set also drops the warm cursor — an `{archived}` '
+        'slice is a view like any other', () async {
+      api.pages[1] = [_row('c1')];
+      final vm = vmFor('co');
+      await settle();
+      api.calls.clear();
+
+      await vm.setStates({EntityState.archived});
       await settle();
 
       expect(api.calls.single.sinceUpdatedAt, isNull);

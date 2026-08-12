@@ -41,6 +41,11 @@ class VendorListViewModel extends GenericListViewModel<Vendor> {
   @override
   String get defaultSortField => VendorFieldIds.name;
 
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(vendorColumnsById, field);

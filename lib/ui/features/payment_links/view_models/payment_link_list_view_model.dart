@@ -37,6 +37,11 @@ class PaymentLinkListViewModel extends GenericListViewModel<PaymentLink> {
   @override
   String get defaultSortField => PaymentLinkFieldIds.name;
 
+  /// Must match the repo's page size — the Drift watch window is
+  /// `pageSize * loadedPages` (see `GenericListViewModel.pageSize`).
+  @override
+  int get pageSize => repo.pageSize;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(paymentLinkColumnsById, field);

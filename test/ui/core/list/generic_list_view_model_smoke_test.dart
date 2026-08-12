@@ -9,6 +9,7 @@
 
 import 'dart:async';
 
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/domain/columns/column_definition.dart';
@@ -1030,6 +1031,302 @@ void main() {
       );
     });
   });
+
+  // flutter#32. `hasMore` answers "does the SERVER have another page?", but it
+  // used to gate widening the LOCAL Drift window too. A filtered list latches
+  // `hasMore = false` early (a filter narrows the set, so page 2 comes back
+  // short) and from then on nothing could widen: a Sync landed thousands of
+  // rows in Drift that the list could never reach, and only clearing the filter
+  // — which resets `loadedPages`/`hasMore` — brought them back.
+  group('local window widening (#32)', () {
+    Future<_WindowFakeVm> makeVm() async {
+      final vm = _WindowFakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      await settle();
+      addTearDown(() {
+        vm.dispose();
+        vm.controller.close();
+      });
+      return vm;
+    }
+
+    test('a saturated window re-enables paging after the server latched '
+        'hasMore=false — and does it WITHOUT a network call', () async {
+      final vm = await makeVm();
+      expect(vm.hasMore, isFalse, reason: 'fetchPage returned serverHasMore');
+
+      vm.controller.add(_WindowFakeVm.rows(_WindowFakeVm.windowPageSize));
+      await settle();
+
+      expect(vm.canWidenLocally, isTrue);
+      expect(vm.canLoadMore, isTrue);
+
+      final fetches = vm.fetchPageCalls;
+      await vm.loadMore();
+      await settle();
+
+      expect(vm.loadedPages, 2, reason: 'window widened by one page');
+      expect(
+        vm.fetchPageCalls,
+        fetches,
+        reason: 'the server is exhausted — there is no request to make',
+      );
+    });
+
+    test('a short window keeps loadMore a no-op', () async {
+      final vm = await makeVm();
+
+      vm.controller.add(_WindowFakeVm.rows(_WindowFakeVm.windowPageSize - 1));
+      await settle();
+
+      expect(vm.canWidenLocally, isFalse);
+      expect(vm.canLoadMore, isFalse);
+
+      final pages = vm.loadedPages;
+      await vm.loadMore();
+      await settle();
+
+      expect(vm.loadedPages, pages);
+    });
+
+    test(
+      'widening converges — it stops as soon as the local rows run out',
+      () async {
+        final vm = await makeVm();
+
+        // 3 rows: saturates a 2-row window, not a 4-row one.
+        for (var i = 0; i < 5; i++) {
+          vm.controller.add(_WindowFakeVm.rows(3));
+          await settle();
+          await vm.loadMore();
+          await settle();
+        }
+
+        expect(
+          vm.loadedPages,
+          2,
+          reason: 'one widen to LIMIT 4, then 3 < 4 closes the gate',
+        );
+      },
+    );
+
+    test('a real server page still takes the network path — the local flag '
+        'must not shadow a genuine fetch', () async {
+      final vm = await makeVm();
+      vm.serverHasMore = true;
+      await vm.setSort(field: 'amount', ascending: true); // re-arms hasMore
+      await settle();
+      expect(vm.hasMore, isTrue);
+
+      final fetches = vm.fetchPageCalls;
+      await vm.loadMore();
+      await settle();
+
+      expect(vm.fetchPageCalls, fetches + 1);
+      expect(vm.loadedPages, 2);
+    });
+
+    test('a filter reset clears the saturation flag — it was computed against '
+        'the OLD, wider window', () async {
+      final vm = await makeVm();
+      vm.controller.add(_WindowFakeVm.rows(_WindowFakeVm.windowPageSize));
+      await settle();
+      expect(vm.canWidenLocally, isTrue);
+
+      await vm.setSort(field: 'amount', ascending: true);
+
+      expect(vm.canWidenLocally, isFalse);
+    });
+  });
+
+  // flutter#32, second half: a Sync re-downloads everything into Drift but
+  // never touched a list VM, so an already-scrolled/filtered list kept its
+  // stale `hasMore`/budget and the new rows stayed unreachable.
+  group('bulk re-download re-arms pagination (#32)', () {
+    Future<_WindowFakeVm> makeVm() async {
+      final vm = _WindowFakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      await settle();
+      addTearDown(() {
+        vm.dispose();
+        vm.controller.close();
+      });
+      return vm;
+    }
+
+    test('a completed pass for this company re-arms hasMore without resetting '
+        'the window or refetching', () async {
+      final vm = await makeVm();
+      final resync = ValueNotifier(const ResyncProgress.idle());
+      addTearDown(resync.dispose);
+      vm.bindResync(resync);
+
+      vm.serverHasMore = true;
+      await vm.loadMore(); // loadedPages -> 2
+      vm.serverHasMore = false;
+      await vm.loadMore(); // loadedPages -> 3, hasMore -> false
+      await settle();
+      expect(vm.hasMore, isFalse);
+      final pages = vm.loadedPages;
+      final fetches = vm.fetchPageCalls;
+
+      resync.value = const ResyncProgress.preparing('co');
+      resync.value = const ResyncProgress.downloading(
+        companyId: 'co',
+        completed: 1,
+        total: 3,
+      );
+      resync.value = const ResyncProgress.idle();
+      await settle();
+
+      expect(vm.hasMore, isTrue, reason: 're-armed');
+      expect(
+        vm.loadedPages,
+        pages,
+        reason: 'a deep-scrolled user must not snap back to page 1',
+      );
+      expect(
+        vm.fetchPageCalls,
+        fetches,
+        reason: 'the pass already downloaded everything',
+      );
+    });
+
+    test('a pass for a different company is inert', () async {
+      final vm = await makeVm();
+      final resync = ValueNotifier(const ResyncProgress.idle());
+      addTearDown(resync.dispose);
+      vm.bindResync(resync);
+      expect(vm.hasMore, isFalse);
+
+      resync.value = const ResyncProgress.preparing('other');
+      resync.value = const ResyncProgress.idle();
+      await settle();
+
+      expect(vm.hasMore, isFalse);
+    });
+
+    test('binding mid-pass still catches the falling edge — the user can start '
+        'a Sync from the sidebar and then navigate to the list', () async {
+      final vm = await makeVm();
+      final resync = ValueNotifier<ResyncProgress>(
+        const ResyncProgress.preparing('co'),
+      );
+      addTearDown(resync.dispose);
+      vm.bindResync(resync);
+      expect(vm.hasMore, isFalse);
+
+      resync.value = const ResyncProgress.idle();
+      await settle();
+
+      expect(vm.hasMore, isTrue);
+    });
+
+    test('a pass completing after dispose does not throw or notify', () async {
+      // Built inline rather than via makeVm(): this test disposes the VM
+      // itself, and a second dispose from a tearDown would throw on its own.
+      final vm = _WindowFakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      addTearDown(vm.controller.close);
+      await settle();
+      final resync = ValueNotifier<ResyncProgress>(
+        const ResyncProgress.preparing('co'),
+      );
+      addTearDown(resync.dispose);
+      vm.bindResync(resync);
+      vm.dispose();
+
+      expect(() => resync.value = const ResyncProgress.idle(), returnsNormally);
+      await settle();
+    });
+
+    test(
+      'pull-to-refresh re-arms too — refreshAll has the same dead-end',
+      () async {
+        final vm = await makeVm();
+        expect(vm.hasMore, isFalse);
+
+        await vm.refresh();
+        await settle();
+
+        expect(vm.hasMore, isTrue);
+      },
+    );
+  });
+
+  group('defaultSortAscending (#32)', () {
+    test('drives the initial direction and what clearAllFilters resets to — '
+        'a number/date-keyed list puts the newest record on page 1', () async {
+      final vm = _DescendingFakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      addTearDown(vm.dispose);
+      await settle();
+
+      expect(vm.sortAscending, isFalse);
+
+      await vm.setSort(field: 'number', ascending: true);
+      expect(vm.sortAscending, isTrue);
+
+      await vm.clearAllFilters();
+      expect(vm.sortAscending, isFalse, reason: 'resets to the entity default');
+    });
+
+    test('a persisted preference still wins over the default', () async {
+      await db.navStateDao.saveFilters(
+        filtersJson:
+            '{"co":{"invoice":{"search":"","states":["active"],'
+            '"sortField":"number","sortAscending":true,"customFilters":{}}}}',
+        now: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      final vm = _DescendingFakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: const Duration(milliseconds: 1),
+        persistDebounce: const Duration(milliseconds: 1),
+      );
+      addTearDown(vm.dispose);
+      await settle();
+
+      expect(vm.sortAscending, isTrue);
+    });
+  });
+}
+
+/// Stands in for invoice/quote/payment: a monotonic default sort field, so
+/// ascending would bury every new record at the bottom of the list.
+class _DescendingFakeVm extends FakeInvoiceListViewModel {
+  _DescendingFakeVm({
+    required super.companyId,
+    required super.navStateDao,
+    required super.userSettings,
+    super.searchDebounce,
+    super.persistDebounce,
+  });
+
+  @override
+  bool get defaultSortAscending => false;
 }
 
 /// Exercises the `transformPage` hook: drops invoices with `amount < 150` so
@@ -1052,6 +1349,58 @@ class _UnpaidOnlyInvoiceListViewModel extends FakeInvoiceListViewModel {
 /// Fake for the local-only-filter auto-chain (M4): a controllable watch
 /// stream plus a fetch that reports more pages, so tests can drive the
 /// emission → loadMore chain step by step.
+/// flutter#32 fake: a small [pageSize] so "the window is saturated" is two
+/// rows, a controller so the test drives emissions by hand, and a `hasMore`
+/// the test can pin to the exhausted-server case.
+class _WindowFakeVm extends FakeInvoiceListViewModel {
+  _WindowFakeVm({
+    required super.companyId,
+    required super.navStateDao,
+    required super.userSettings,
+    super.searchDebounce,
+    super.persistDebounce,
+  });
+
+  static const int windowPageSize = 2;
+
+  bool serverHasMore = false;
+  final StreamController<List<FakeInvoice>> controller =
+      StreamController<List<FakeInvoice>>.broadcast();
+
+  /// One emission per `loadedPages` value, so a widen can be observed as a
+  /// re-subscribe rather than inferred.
+  int subscribeCalls = 0;
+
+  @override
+  int get pageSize => windowPageSize;
+
+  @override
+  Stream<List<FakeInvoice>> watchPage() {
+    subscribeCalls++;
+    return controller.stream;
+  }
+
+  @override
+  Future<bool> fetchPage({
+    required int page,
+    required String? search,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+    required bool ignoreCursor,
+  }) async {
+    fetchPageCalls++;
+    return serverHasMore;
+  }
+
+  @override
+  Future<void> refreshAll() async {}
+
+  static List<FakeInvoice> rows(int n) => [
+    for (var i = 0; i < n; i++)
+      FakeInvoice(id: 'inv_$i', number: 'INV-$i', amount: i.toDouble()),
+  ];
+}
+
 class _LocalFilterFakeVm extends FakeInvoiceListViewModel {
   _LocalFilterFakeVm({
     required super.companyId,

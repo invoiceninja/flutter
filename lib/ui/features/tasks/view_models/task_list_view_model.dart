@@ -52,6 +52,11 @@ class TaskListViewModel extends GenericListViewModel<Task> {
   @override
   String get defaultSortField => TaskFieldIds.updatedAt;
 
+  /// Newest first: last-updated ascending would bury every new record at the
+  /// bottom of the list, off the first page.
+  @override
+  bool get defaultSortAscending => false;
+
   @override
   bool isValidColumnId(String field) =>
       isSortableColumnId(taskColumnsById, field) ||

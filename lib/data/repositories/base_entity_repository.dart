@@ -439,9 +439,12 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// (the old behaviour) silently no-op'd archived/deleted views and
   /// collided with the quote/payment status filters.
   ///
-  /// Empty or all-states → no constraint (the server already returns the
-  /// active set by default, and `status=active,archived,deleted` would be
-  /// redundant). Concrete repos should not override this.
+  /// Empty or all-states → no constraint, which on the server means **every**
+  /// lifecycle state comes back, not just active: `QueryFilters::status('')`
+  /// returns the builder untouched. That is what makes `refreshAll`'s
+  /// all-states sweep pull the archived/deleted tail into the local cache.
+  /// (`status=active,archived,deleted` would be an equivalent no-op.)
+  /// Concrete repos should not override this.
   @protected
   Map<String, String> stateQueryParams(Set<EntityState> states) {
     if (states.isEmpty || states.containsAll(EntityState.values)) {
@@ -560,35 +563,128 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     return rowCount >= pageSize;
   }
 
-  /// Whether this page's `data.last` may advance the shared
-  /// `(companyId, entityType)` keyset cursor.
+  /// Whether this fetch is a NARROWED VIEW of the entity — a slice — rather
+  /// than a canonical page of the whole list.
   ///
-  /// Only an UNSCOPED, UNFILTERED page 1 may. `SyncStateDao.writeCursor` is
-  /// last-write-wins with no max guard, so advancing from a narrowed page walks
-  /// the watermark past rows that page's filter excluded, and the next
-  /// unfiltered delta never fetches them — they stay stale until a forced full
-  /// resync. The exclusions:
+  /// One predicate, two consumers, so the cursor READ gate and the cursor
+  /// ADVANCE gate can never disagree again (they did: the read gate ignored
+  /// `extraFilters` / `states` while the advance gate honoured both, which is
+  /// flutter#32):
   ///
-  ///  * **parent scope** (a client's Invoices tab): `data.last` is a scoped
-  ///    high-water mark, not the entity's global one.
-  ///  * **page >= 2**: under `id DESC` deeper pages carry OLDER rows, so
-  ///    last-write-wins would walk the watermark backwards.
-  ///  * **an active search**: a filtered view, same as any other filter.
-  ///  * **any user filter** in `extraFilters`.
+  ///  * **READ** ([shouldReadCursor]) — a narrowed page-1 fetch must NOT apply
+  ///    the `updated_at >=` keyset cursor. The server ANDs the watermark onto
+  ///    the filter, so a cursor'd filtered fetch returns only rows in the slice
+  ///    that changed since the last sync and silently misses older,
+  ///    not-recently-edited matches. Worse, after a full resync the watermark
+  ///    is ~now, so a filtered page 1 comes back empty and the list renders a
+  ///    false "No records found". This is verbatim the reasoning the SEARCH
+  ///    gate has always had — it applies to any filter.
+  ///  * **ADVANCE** ([shouldAdvanceCursor]) — a narrowed page's `data.last` is
+  ///    a high-water mark for that SLICE, not for the entity.
+  ///    `SyncStateDao.writeCursor` is last-write-wins with no max guard, so
+  ///    advancing from it walks the shared watermark past rows the filter
+  ///    excluded, and the next unfiltered delta never fetches them.
+  ///
+  /// The narrowing dimensions:
+  ///
+  ///  * **parent scope** (a client's Invoices tab, a bank account's
+  ///    Transactions tab).
+  ///  * **an active search**.
+  ///  * **any user filter** with a non-empty value set in `extraFilters`.
   ///  * **a `states` set that narrows away from the list's baseline.** Two
-  ///    shapes are baselines and DO advance: the default `{active}`
+  ///    shapes are baselines and are NOT narrowing: the default `{active}`
   ///    (long-standing behaviour — the archived/deleted tail is swept by
   ///    `refreshAll`), and any set [stateQueryParams] sends nothing for (empty,
   ///    or all of `EntityState.values` — the widest possible fetch, which is
-  ///    what stamps `lastFullSyncAt` on a forced full resync). Anything in
-  ///    between, e.g. `{archived}` from the status chip, is a slice. Deciding
-  ///    this by comparing against `{active}` alone had it backwards: it blocked
-  ///    the advance on the widest fetch and allowed it on narrow slices.
+  ///    what `refreshAll` sends and what stamps `lastFullSyncAt`). Anything in
+  ///    between, e.g. `{archived}` from the status chip, is a slice.
   ///
-  /// `staticFilters` is deliberately NOT considered here: those are per-repo
+  /// `staticFilters` is deliberately NOT considered: those are per-repo
   /// constants, and the ones that do narrow the row set (`active_banks` on bank
   /// transactions, `hideOwnerUsers` / `without` on users) are constant for that
   /// repo's list, so they can't skew the watermark relative to its own baseline.
+  @protected
+  @visibleForTesting
+  bool isNarrowedFetch({
+    required bool hasParentScope,
+    required bool isSearchScoped,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+  }) {
+    if (hasParentScope || isSearchScoped) return true;
+    if (extraFilters.values.any((v) => v.isNotEmpty)) return true;
+    if (stateQueryParams(states).isEmpty) return false;
+    return !(states.length == 1 && states.contains(EntityState.active));
+  }
+
+  /// Whether this fetch may APPLY the shared `(companyId, entityType)` keyset
+  /// cursor. Page 1 of an un-narrowed fetch only — see [isNarrowedFetch] for
+  /// why, and note the `page > 1` exclusion: the server applies the cursor as a
+  /// plain `updated_at >=` WHERE filter on top of offset paging (default order
+  /// `id DESC` — see CLAUDE.md § Sync), so letting it leak into page >= 2 turns
+  /// "browse the full list" into "browse only recently-changed rows" — page 2
+  /// is mostly the same ~50 rows page 1 already returned → near-empty →
+  /// `hasMore = false`. That silently capped pagination, search, and even a
+  /// forced full resync at roughly one page for any organically-grown account.
+  ///
+  /// Pure, so it unit-tests against [shouldAdvanceCursor] for symmetry;
+  /// [readCursorIfEligible] is the form repos actually call.
+  @protected
+  @visibleForTesting
+  bool shouldReadCursor({
+    required bool ignoreCursor,
+    required int page,
+    required bool hasParentScope,
+    required bool isSearchScoped,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+  }) {
+    if (ignoreCursor || page > 1) return false;
+    return !isNarrowedFetch(
+      hasParentScope: hasParentScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: extraFilters,
+    );
+  }
+
+  /// Read the shared keyset cursor when this fetch is entitled to it, else
+  /// null. The single call every `ensurePageLoaded` body uses — including the
+  /// six repos that hand-roll their own — so the gate expression exists in
+  /// exactly one place.
+  ///
+  /// Pass the `extraFilters` map **after** [resolveRelativeFilterTokens], the
+  /// same one handed to [shouldAdvanceCursor].
+  @protected
+  Future<SyncCursor?> readCursorIfEligible({
+    required String companyId,
+    required bool ignoreCursor,
+    required int page,
+    required bool hasParentScope,
+    required bool isSearchScoped,
+    required Set<EntityState> states,
+    required Map<String, Set<String>> extraFilters,
+  }) async {
+    if (!shouldReadCursor(
+      ignoreCursor: ignoreCursor,
+      page: page,
+      hasParentScope: hasParentScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: extraFilters,
+    )) {
+      return null;
+    }
+    return _syncState.read(companyId: companyId, entityType: entityTypeName);
+  }
+
+  /// Whether this page's `data.last` may advance the shared
+  /// `(companyId, entityType)` keyset cursor.
+  ///
+  /// Only an UNSCOPED, UNFILTERED page 1 may — see [isNarrowedFetch], which
+  /// this shares with the cursor READ gate. The `page != 1` exclusion is its
+  /// own: under `id DESC` deeper pages carry OLDER rows, so last-write-wins
+  /// would walk the watermark backwards.
   @protected
   @visibleForTesting
   bool shouldAdvanceCursor({
@@ -598,10 +694,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     required Set<EntityState> states,
     required Map<String, Set<String>> extraFilters,
   }) {
-    if (page != 1 || hasParentScope || isSearchScoped) return false;
-    if (extraFilters.values.any((v) => v.isNotEmpty)) return false;
-    if (stateQueryParams(states).isEmpty) return true;
-    return states.length == 1 && states.contains(EntityState.active);
+    if (page != 1) return false;
+    return !isNarrowedFetch(
+      hasParentScope: hasParentScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: extraFilters,
+    );
   }
 
   /// Shared shape for `ensurePageLoaded` across every paginated repo (CRUD
@@ -683,32 +782,19 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         resolvedExtra.containsKey('vendor_id') ||
         resolvedExtra.containsKey('bank_integration_ids');
 
-    // The cursor is a PAGE-1 delta probe only. The server applies it as a
-    // plain `updated_at >=` WHERE filter on top of offset paging (default
-    // order `id DESC` — see CLAUDE.md § Sync), so letting it leak into
-    // page >= 2 turns "browse the full list" into "browse only
-    // recently-changed rows": page 2 was mostly the same ~50 rows page 1
-    // already returned → near-empty → hasMore=false. That silently capped
-    // pagination, search, and even a forced full resync (whose page 1
-    // ignores the cursor but then ADVANCES it, so page 2 read what page 1
-    // just wrote) at roughly one page for any organically-grown account.
-    // An active text search is a filtered VIEW too: the server applies the
-    // search term alongside the `updated_at >=` cursor, so a cursor'd search
-    // would only return matches changed since the last sync and silently miss
-    // older, not-recently-edited rows that aren't on the prefetched first
-    // page. Skip the cursor READ for a search (look across full history) AND
-    // the ADVANCE below — a search-scoped `data.last` is not a valid global
-    // high-water mark, and advancing it (especially with `wasFullSync: true`
-    // when the search reload passes `ignoreCursor: true`) would corrupt the
-    // standalone list's delta sync and re-truncate it.
+    // The cursor is a PAGE-1, UNSCOPED, UN-NARROWED delta probe only — see
+    // `isNarrowedFetch` / `shouldReadCursor` for the full rationale, shared
+    // with the ADVANCE gate below so the two can't disagree.
     final isSearchScoped = search != null && search.isNotEmpty;
-    final cursor =
-        (ignoreCursor || hasParentScope || isSearchScoped || page > 1)
-        ? null
-        : await _syncState.read(
-            companyId: companyId,
-            entityType: entityTypeName,
-          );
+    final cursor = await readCursorIfEligible(
+      companyId: companyId,
+      ignoreCursor: ignoreCursor,
+      page: page,
+      hasParentScope: hasParentScope,
+      isSearchScoped: isSearchScoped,
+      states: states,
+      extraFilters: resolvedExtra,
+    );
 
     final filters = <String, String>{
       ...stateQueryParams(states),
@@ -742,19 +828,8 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     // so a paged refresh doesn't clobber the user's pending offline edit.
     await upsert({for (final a in apiRows) idOf(a): toCompanion(a)});
 
-    // A parent-scoped fetch must not advance the shared cursor (see above):
-    // its `data.last` is a scoped high-water mark, not the entity's global
-    // one. Neither may a page >= 2 fetch: under `id DESC` ordering deeper
-    // pages carry OLDER rows, so `writeCursor` (last-write-wins, no max
-    // guard) would walk the watermark backwards — and mid-sweep advances
-    // were what re-truncated full resyncs.
-    // …and neither may a fetch narrowed by ANY user filter. `data.last` from a
-    // `country_id=US` / `client_status=paid` / date-range page is a high-water
-    // mark for that SLICE, not for the entity: `SyncStateDao.writeCursor` is
-    // last-write-wins with no max guard, so advancing it walked the shared
-    // watermark past rows the filter excluded, and the next unfiltered delta
-    // never fetched them (they stayed stale until a forced full resync). Same
-    // reasoning as the search / parent-scope guards above.
+    // Only an unscoped, un-narrowed page 1 may move the global watermark —
+    // same `isNarrowedFetch` predicate the cursor READ above is gated on.
     if (shouldAdvanceCursor(
           page: page,
           hasParentScope: hasParentScope,

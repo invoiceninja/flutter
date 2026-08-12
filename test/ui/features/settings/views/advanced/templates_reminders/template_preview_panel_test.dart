@@ -18,6 +18,8 @@ class _FakeTemplatesApi implements TemplatesApi {
     required String template,
     required String subject,
     required String body,
+    String entity = '',
+    String entityId = '',
   }) async {
     return TemplatePreview(
       subject: subject,

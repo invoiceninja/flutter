@@ -74,13 +74,26 @@ class PreviewController extends ChangeNotifier
   /// latest [template] / [subject] / [body] wins. Use [immediate] = true
   /// from `initState` (via `addPostFrameCallback`) so the first preview
   /// fires without waiting for the debounce window.
+  ///
+  /// [entity] / [entityId] bind the render to a real document; leave them
+  /// empty (the default, used by Settings → Templates & Reminders) to let
+  /// the server pick a generic sample. See [TemplatesApi] for why a caller
+  /// that *has* a document must pass them.
   void schedule({
     required String template,
     required String subject,
     required String body,
+    String entity = '',
+    String entityId = '',
     bool immediate = false,
   }) {
-    _last = _PendingRequest(template: template, subject: subject, body: body);
+    _last = _PendingRequest(
+      template: template,
+      subject: subject,
+      body: body,
+      entity: entity,
+      entityId: entityId,
+    );
     _timer?.cancel();
     if (immediate) {
       _fire();
@@ -98,7 +111,13 @@ class PreviewController extends ChangeNotifier
     notifyListeners();
     try {
       final preview = await _api
-          .render(template: req.template, subject: req.subject, body: req.body)
+          .render(
+            template: req.template,
+            subject: req.subject,
+            body: req.body,
+            entity: req.entity,
+            entityId: req.entityId,
+          )
           .timeout(_timeout);
       if (_disposed || token != _currentToken) return; // disposed or stale
       _value = TemplatePreviewLoaded(preview);
@@ -143,9 +162,13 @@ class _PendingRequest {
     required this.template,
     required this.subject,
     required this.body,
+    required this.entity,
+    required this.entityId,
   });
 
   final String template;
   final String subject;
   final String body;
+  final String entity;
+  final String entityId;
 }

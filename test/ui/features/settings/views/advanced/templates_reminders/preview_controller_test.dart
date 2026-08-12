@@ -14,15 +14,19 @@ class _FakeTemplatesApi implements TemplatesApi {
   int callCount = 0;
   bool shouldThrow;
   final List<String> templates = [];
+  final List<(String, String)> entities = [];
 
   @override
   Future<TemplatePreview> render({
     required String template,
     required String subject,
     required String body,
+    String entity = '',
+    String entityId = '',
   }) async {
     callCount++;
     templates.add(template);
+    entities.add((entity, entityId));
     if (shouldThrow) {
       throw const FormatException('boom');
     }
@@ -114,6 +118,31 @@ void main() {
       expect(api.callCount, 2);
     });
 
+    test('forwards entity + entityId to the API, empty when omitted', () async {
+      // The send-email composer binds the render to its own document; the
+      // settings preview leaves it empty (invoiceninja/flutter#31).
+      final api = _FakeTemplatesApi();
+      final controller = PreviewController(
+        api: api,
+        debounce: const Duration(milliseconds: 10),
+      );
+      addTearDown(controller.dispose);
+
+      controller.schedule(
+        template: 'quote',
+        subject: 'S',
+        body: 'B',
+        entity: 'quote',
+        entityId: 'z3YaOpbxql',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(api.entities.single, ('quote', 'z3YaOpbxql'));
+
+      controller.schedule(template: 'invoice', subject: 'S', body: 'B');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(api.entities.last, ('', ''));
+    });
+
     test('render completing after dispose does not notify or throw', () async {
       // Repro for the diagnostics-log error "A PreviewController was used
       // after being disposed": the screen is closed (controller disposed)
@@ -188,6 +217,8 @@ class _SlowFakeApi implements TemplatesApi {
     required String template,
     required String subject,
     required String body,
+    String entity = '',
+    String entityId = '',
   }) async {
     if (!_completed) {
       await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -216,6 +247,8 @@ class _CompleterFakeApi implements TemplatesApi {
     required String template,
     required String subject,
     required String body,
+    String entity = '',
+    String entityId = '',
   }) async {
     await _gate.future;
     return TemplatePreview(

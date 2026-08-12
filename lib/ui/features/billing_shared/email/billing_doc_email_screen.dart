@@ -16,6 +16,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_sheet.dart'
     show BillingEmailTemplate;
+import 'package:admin/ui/features/billing_shared/email/email_preview_binding.dart';
 import 'package:admin/ui/features/billing_shared/email/labeled_field.dart';
 import 'package:admin/ui/features/billing_shared/email/schedule_email_picker.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
@@ -202,10 +203,20 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   // ---- preview + seeding -------------------------------------------------
 
   void _scheduleRender({bool immediate = false}) {
+    // Bind the render to the document being emailed — see
+    // [emailPreviewBinding] for why, and for the two cases that must stay
+    // on the server's generic sample.
+    final binding = emailPreviewBinding(
+      type: widget.type,
+      entityId: widget.entityId,
+      hasInvitations: widget.invitations.isNotEmpty,
+    );
     _preview.schedule(
       template: _template,
       subject: _subject.text,
       body: _body.text,
+      entity: binding.entity,
+      entityId: binding.entityId,
       immediate: immediate,
     );
   }

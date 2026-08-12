@@ -1406,7 +1406,14 @@ class _ExportButton extends StatelessWidget {
           }),
         );
       } else if (err != null) {
-        toasts?.error(err.message ?? tr('an_error_occurred'));
+        // `??` doesn't cover it: the server's message is a plain String that
+        // can arrive as `""`, and this goes through the captured controller
+        // (no context), which suppresses a blank toast rather than falling
+        // back the way `Notify.error` does.
+        final reason = err.message?.trim();
+        toasts?.error(
+          reason == null || reason.isEmpty ? tr('an_error_occurred') : reason,
+        );
       }
       return;
     }
@@ -1481,6 +1488,27 @@ class _EmailButton extends StatelessWidget {
   }
 }
 
+/// Flatten a 422's per-field messages into one block, or null when the server
+/// sent none / only blanks.
+///
+/// `join` returns `''` for an empty list, so the `?? l10n(...)` fallbacks below
+/// used to be dead code: a non-null but empty `fieldErrors` produced an empty
+/// message with no fallback.
+String? _flattenFieldErrors(Map<String, List<String>>? fieldErrors) {
+  final lines = fieldErrors?.values
+      .expand((v) => v)
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  return lines == null || lines.isEmpty ? null : lines.join('\n');
+}
+
+/// Same trap as [_flattenFieldErrors] for the server's own message field.
+String? _blankToNull(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
 String _errorMessage(BuildContext context, ReportError error) {
   final l10n = context.tr;
   switch (error.kind) {
@@ -1491,10 +1519,7 @@ String _errorMessage(BuildContext context, ReportError error) {
     case ReportErrorKind.unauthorized:
       return l10n('access_denied');
     case ReportErrorKind.validation:
-      return error.fieldErrors?.values
-              .expand((v) => v)
-              .where((s) => s.isNotEmpty)
-              .join('\n') ??
+      return _flattenFieldErrors(error.fieldErrors) ??
           l10n('an_error_occurred');
     case ReportErrorKind.network:
       return l10n('no_internet_connection');
@@ -1503,7 +1528,7 @@ String _errorMessage(BuildContext context, ReportError error) {
     case ReportErrorKind.serverError:
     case ReportErrorKind.cancelled:
     case ReportErrorKind.unknown:
-      return error.message ?? l10n('an_error_occurred');
+      return _blankToNull(error.message) ?? l10n('an_error_occurred');
   }
 }
 
@@ -1588,11 +1613,7 @@ class _ErrorState extends StatelessWidget {
         message = l10n('access_denied');
       case ReportErrorKind.validation:
         message =
-            error.fieldErrors?.values
-                .expand((v) => v)
-                .where((s) => s.isNotEmpty)
-                .join('\n') ??
-            l10n('an_error_occurred');
+            _flattenFieldErrors(error.fieldErrors) ?? l10n('an_error_occurred');
       case ReportErrorKind.network:
         message = l10n('no_internet_connection');
       case ReportErrorKind.passwordRequired:
@@ -1600,7 +1621,7 @@ class _ErrorState extends StatelessWidget {
       case ReportErrorKind.serverError:
       case ReportErrorKind.cancelled:
       case ReportErrorKind.unknown:
-        message = error.message ?? l10n('an_error_occurred');
+        message = _blankToNull(error.message) ?? l10n('an_error_occurred');
     }
     return ErrorView(message: message, onRetry: onRetry);
   }

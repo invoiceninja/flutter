@@ -1,6 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
+
+final _log = Logger('ToastController');
+
+/// How many lines of [ToastData.detail] the card actually renders. Shared with
+/// `toast_host.dart` so the trim in [ToastController.show] and the widget's
+/// `maxLines` can't drift apart.
+const int kToastDetailMaxLines = 3;
 
 /// The four toast flavors. Promoted out of `notify.dart` so the rendering
 /// host ([ToastHost]) and the public facade ([Notify]) share one enum.
@@ -129,20 +137,46 @@ class ToastController extends ChangeNotifier {
     action: action,
   );
 
-  /// Enqueue a toast. Returns its id (stable across a dedup bump).
-  int show({
+  /// Enqueue a toast. Returns its id (stable across a dedup bump), or `null`
+  /// when there was nothing to say and no toast was queued — see the
+  /// normalization note above [_normalizeMessage].
+  int? show({
     required NotifyVariant variant,
     required String message,
     String? detail,
     NotifyAction? action,
   }) {
+    var text = _normalizeMessage(message);
+    var sub = _normalizeDetail(detail);
+    // A toast with no title still carries information when it has a detail —
+    // promote it into the title rather than dropping the whole notice.
+    if (text.isEmpty && sub != null) {
+      text = _normalizeMessage(sub);
+      sub = null;
+    }
+    if (text.isEmpty) {
+      // Nothing renderable. Painting anyway gives the blank, vertically
+      // stretched card of invoiceninja/flutter#30. Name the caller in debug so
+      // the producer is identifiable from the diagnostics log.
+      if (kDebugMode) {
+        _log.warning(
+          'Suppressed a $variant toast with no message or detail',
+          null,
+          StackTrace.current,
+        );
+      }
+      return null;
+    }
+    // An empty label renders as a zero-width button that still eats padding.
+    final act = action != null && action.label.trim().isEmpty ? null : action;
+
     // Dedup against the newest still-visible toast: an identical message
     // bumps its count + restarts its timer instead of stacking a duplicate.
     if (_toasts.isNotEmpty) {
       final last = _toasts.last;
       if (last.variant == variant &&
-          last.message == message &&
-          last.detail == detail) {
+          last.message == text &&
+          last.detail == sub) {
         final bumped = last.bump();
         _toasts[_toasts.length - 1] = bumped;
         _armTimer(bumped.id, bumped.duration);
@@ -155,10 +189,10 @@ class ToastController extends ChangeNotifier {
     final data = ToastData(
       id: id,
       variant: variant,
-      message: message,
-      duration: _durationFor(variant, action),
-      detail: detail,
-      action: action,
+      message: text,
+      duration: _durationFor(variant, act),
+      detail: sub,
+      action: act,
     );
     _toasts.add(data);
     _armTimer(id, data.duration);
@@ -235,4 +269,38 @@ class ToastController extends ChangeNotifier {
     _timers.clear();
     super.dispose();
   }
+}
+
+final _whitespaceRun = RegExp(r'\s+');
+final _lineBreak = RegExp(r'\r\n|\r|\n');
+
+/// Collapse a toast title to a single trimmed line.
+///
+/// The card wraps the title across two lines by *width*, which is the intended
+/// behavior; hard line breaks only ever arrive from a string that leaked in
+/// from elsewhere — a raw server body (`ApiClient._raiseFromResponse` splices
+/// 240 bytes of a 5xx page into the message), a joined error list, a
+/// whitespace-only field error. Those paint as empty rows and stretch the card
+/// (invoiceninja/flutter#30), so flatten them here rather than at each caller.
+String _normalizeMessage(String value) =>
+    value.replaceAll(_whitespaceRun, ' ').trim();
+
+/// Trim a toast detail to the non-blank lines the card can actually show.
+///
+/// The widget renders at most [kToastDetailMaxLines]; anything past that is
+/// invisible either way, and a blank line paints as an empty row that makes
+/// the card taller with nothing in it. Keep the real content, drop the filler,
+/// and return `null` when nothing survives so the card's own guard hides the
+/// detail slot entirely.
+String? _normalizeDetail(String? value) {
+  if (value == null) return null;
+  final lines = <String>[];
+  for (final raw in value.split(_lineBreak)) {
+    // `\s+` can't match a newline here — we already split on them.
+    final line = raw.replaceAll(_whitespaceRun, ' ').trim();
+    if (line.isEmpty) continue;
+    lines.add(line);
+    if (lines.length == kToastDetailMaxLines) break;
+  }
+  return lines.isEmpty ? null : lines.join('\n');
 }

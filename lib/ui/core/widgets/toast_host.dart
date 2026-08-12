@@ -244,11 +244,19 @@ class _ToastEntryState extends State<_ToastEntry>
     duration: _kEnterExit,
     value: 0,
   );
+  // Built once, not per build: a `CurvedAnimation` registers a status listener
+  // on its parent, so re-creating one every rebuild leaks a listener each time.
+  // Assigned in `initState` rather than as a lazy field initializer so it is
+  // always constructed before `dispose` reads it — a `late final` initializer
+  // would otherwise make `dispose` build the object just to tear it down when
+  // the entry is removed before its first `build`.
+  late final CurvedAnimation _curved;
   bool _announced = false;
 
   @override
   void initState() {
     super.initState();
+    _curved = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
     _anim.addStatusListener((status) {
       if (status == AnimationStatus.dismissed && widget.exiting) {
         widget.onExited();
@@ -283,7 +291,20 @@ class _ToastEntryState extends State<_ToastEntry>
   void didUpdateWidget(_ToastEntry old) {
     super.didUpdateWidget(old);
     if (widget.exiting && !old.exiting) {
-      _anim.reverse();
+      if (_anim.status == AnimationStatus.dismissed) {
+        // The entry is being removed before its post-frame `forward()` ever
+        // ran, so the controller still reports `dismissed` — `reverse()` would
+        // resolve to a zero-length simulation and `_checkStatusChanged()` would
+        // see no change, meaning the status listener below never fires and the
+        // host keeps this entry in `_rendered` forever as an invisible ghost.
+        // Report the exit ourselves. Deferred because `onExited` calls
+        // `setState` on the host, which is illegal from `didUpdateWidget`.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onExited();
+        });
+      } else {
+        _anim.reverse();
+      }
     } else if (!widget.exiting && old.exiting) {
       _anim.forward();
     }
@@ -291,6 +312,7 @@ class _ToastEntryState extends State<_ToastEntry>
 
   @override
   void dispose() {
+    _curved.dispose();
     _anim.dispose();
     super.dispose();
   }
@@ -299,7 +321,6 @@ class _ToastEntryState extends State<_ToastEntry>
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     _anim.duration = reduceMotion ? Duration.zero : _kEnterExit;
-    final curved = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
     final slide = widget.isWide
         ? Tween<Offset>(begin: const Offset(0.12, 0), end: Offset.zero)
         : Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero);
@@ -325,11 +346,11 @@ class _ToastEntryState extends State<_ToastEntry>
     }
 
     return SizeTransition(
-      sizeFactor: curved,
+      sizeFactor: _curved,
       alignment: Alignment.topCenter,
       child: FadeTransition(
-        opacity: curved,
-        child: SlideTransition(position: slide.animate(curved), child: card),
+        opacity: _curved,
+        child: SlideTransition(position: slide.animate(_curved), child: card),
       ),
     );
   }
@@ -438,12 +459,18 @@ class _NotifyCard extends StatelessWidget {
                             ],
                           ],
                         ),
-                        if (data.detail != null && data.detail!.isNotEmpty) ...[
+                        // `trim()`, not `isNotEmpty`: a whitespace-only detail
+                        // ("\n\n", "   ") passes an emptiness check and then
+                        // paints blank rows that stretch the card
+                        // (invoiceninja/flutter#30). `ToastController` already
+                        // normalizes; this is the backstop for a `ToastData`
+                        // built directly.
+                        if (data.detail?.trim().isNotEmpty ?? false) ...[
                           const SizedBox(height: 2),
                           Text(
                             data.detail!,
                             style: detailStyle,
-                            maxLines: 3,
+                            maxLines: kToastDetailMaxLines,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],

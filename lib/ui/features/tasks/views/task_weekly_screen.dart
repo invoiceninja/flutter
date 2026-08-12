@@ -68,8 +68,10 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
   void _onVmChanged() {
     if (_vm.errorNonce == _lastErrorNonce) return;
     _lastErrorNonce = _vm.errorNonce;
-    final key = _vm.lastError;
-    if (key != null && mounted) {
+    // Blank guard as well as null: `tr('')` returns `''`, which would toast an
+    // empty card rather than an error.
+    final key = _vm.lastError?.trim();
+    if (key != null && key.isNotEmpty && mounted) {
       Notify.error(context, context.tr(key));
     }
   }

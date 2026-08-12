@@ -174,7 +174,10 @@ class _SyncEventListenerState extends State<SyncEventListener> {
     Notify.error(
       context,
       context.tr('could_not_save'),
-      detail: message.isEmpty ? null : message,
+      // No local emptiness guard: `ToastController` normalizes the detail —
+      // which matters here because this message can be a raw 5xx body preview
+      // (`ApiClient._raiseFromResponse`), newlines and all.
+      detail: message,
       action: NotifyAction(context.tr('view'), () {
         if (!mounted) return;
         // Reuse the proven `_handleConflict` routing pattern verbatim —

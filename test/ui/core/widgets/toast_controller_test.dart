@@ -91,7 +91,10 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       final c = ToastController();
 
-      final id = c.show(variant: NotifyVariant.success, message: 'Saved'); // 3s
+      final id = c.show(
+        variant: NotifyVariant.success,
+        message: 'Saved',
+      )!; // 3s
       c.pause(id);
       await tester.pump(const Duration(seconds: 5));
       expect(c.toasts, isNotEmpty, reason: 'paused — does not auto-dismiss');
@@ -110,7 +113,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       final c = ToastController();
 
-      final id = c.show(variant: NotifyVariant.info, message: 'Hi');
+      final id = c.show(variant: NotifyVariant.info, message: 'Hi')!;
       c.dismiss(99999); // unknown — no throw, no change
       expect(c.toasts.length, 1);
       c.dismiss(id);
@@ -130,6 +133,94 @@ void main() {
       expect(c.toasts, isEmpty);
       // No pending timer remains (would trip the binding's check otherwise).
       await tester.pump(const Duration(seconds: 10));
+      c.dispose();
+    });
+  });
+
+  /// invoiceninja/flutter#30 — a toast whose strings were blank or newline-laden
+  /// painted a card that was empty but stretched (the card gives the message 2
+  /// lines and the detail 3, and blank lines occupy full line boxes).
+  group('ToastController — blank / multi-line normalization', () {
+    testWidgets('a blank message with no detail queues nothing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox());
+      final c = ToastController();
+
+      expect(c.show(variant: NotifyVariant.success, message: ''), isNull);
+      expect(
+        c.show(variant: NotifyVariant.error, message: '   \n\n  '),
+        isNull,
+      );
+      expect(
+        c.show(variant: NotifyVariant.info, message: '', detail: '\n \n'),
+        isNull,
+      );
+      expect(c.toasts, isEmpty);
+      c.dispose();
+    });
+
+    testWidgets('a blank message promotes the detail into the title', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const SizedBox());
+      final c = ToastController();
+
+      c.show(variant: NotifyVariant.error, message: '', detail: 'Boom');
+      expect(c.toasts.single.message, 'Boom');
+      expect(c.toasts.single.detail, isNull);
+      c.dispose();
+    });
+
+    testWidgets('a message collapses to a single line', (tester) async {
+      await tester.pumpWidget(const SizedBox());
+      final c = ToastController();
+
+      c.show(
+        variant: NotifyVariant.error,
+        message: '  Internal Server Error\n\n\n<html>\r\n<body>  ',
+      );
+      expect(c.toasts.single.message, 'Internal Server Error <html> <body>');
+      c.dispose();
+    });
+
+    testWidgets('a detail keeps its first non-blank lines, capped at the '
+        'card maxLines', (tester) async {
+      await tester.pumpWidget(const SizedBox());
+      final c = ToastController();
+
+      c.show(
+        variant: NotifyVariant.error,
+        message: 'Could not save',
+        detail: '\n one \n\n  two  \r\nthree\n\nfour\n',
+      );
+      expect(c.toasts.single.detail, 'one\ntwo\nthree');
+      expect(kToastDetailMaxLines, 3);
+      c.dispose();
+    });
+
+    testWidgets('an action with a blank label is dropped', (tester) async {
+      await tester.pumpWidget(const SizedBox());
+      final c = ToastController();
+
+      c.show(
+        variant: NotifyVariant.info,
+        message: 'Hi',
+        action: NotifyAction('  ', () {}),
+      );
+      expect(c.toasts.single.action, isNull);
+      c.dispose();
+    });
+
+    testWidgets('dedup compares the normalized strings', (tester) async {
+      await tester.pumpWidget(const SizedBox());
+      final c = ToastController();
+
+      final id1 = c.show(variant: NotifyVariant.error, message: 'Boom');
+      final id2 = c.show(variant: NotifyVariant.error, message: '  Boom\n');
+
+      expect(id1, id2);
+      expect(c.toasts.single.count, 2);
       c.dispose();
     });
   });

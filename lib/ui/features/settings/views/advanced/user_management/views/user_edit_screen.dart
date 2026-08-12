@@ -126,7 +126,9 @@ class _UserEditScreenState extends State<UserEditScreen> {
     } catch (e) {
       // Network failure — fall back to Drift cache so the admin can at
       // least see what was last loaded. Surface the error inline.
-      if (mounted) Notify.error(context, e.toString());
+      if (mounted) {
+        Notify.error(context, context.tr('an_error_occurred'), error: e);
+      }
       existing = await services.user.get(companyId: companyId, userId: userId);
     }
     if (!mounted) return;
@@ -233,7 +235,7 @@ class _UserEditBody extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        Notify.error(context, e.toString());
+        Notify.error(context, context.tr('could_not_save'), error: e);
       }
     }
   }

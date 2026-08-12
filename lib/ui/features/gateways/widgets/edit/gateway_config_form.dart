@@ -118,13 +118,20 @@ class _GatewayConfigFormState extends State<GatewayConfigForm> {
       if (result.valid) {
         Notify.success(context, context.tr('valid_credentials'));
       } else {
+        // `??` alone doesn't cover it — the server's `message` is a plain
+        // String that can arrive as `""`, which would title the toast blank.
+        final reason = result.message?.trim();
         Notify.error(
           context,
-          result.message ?? context.tr('invalid_credentials'),
+          reason == null || reason.isEmpty
+              ? context.tr('invalid_credentials')
+              : reason,
         );
       }
     } catch (e) {
-      if (context.mounted) Notify.error(context, e.toString());
+      if (context.mounted) {
+        Notify.error(context, context.tr('an_error_occurred'), error: e);
+      }
     } finally {
       if (mounted) setState(() => _testing = false);
     }

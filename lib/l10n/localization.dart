@@ -32,9 +32,24 @@ class Localization {
   /// Lookup a key with optional `:name` placeholders.
   ///
   /// Missing keys return the raw key so a typo is immediately visible in
-  /// the UI rather than silently rendering blank.
+  /// the UI rather than silently rendering blank. An **empty** bundled value
+  /// counts as missing: Transifex ships unfinished entries as `""` (three such
+  /// keys are in every locale file today), and a plain `??` chain would return
+  /// that empty string instead of falling through to English — rendering
+  /// nothing at all, which for a toast means a blank card
+  /// (invoiceninja/flutter#30).
   String lookup(String key, [Map<String, String>? params]) {
-    final raw = _strings[key] ?? _fallback[key] ?? _pending[key] ?? key;
+    // Sequential `??` rather than iterating a list of candidates: this backs
+    // every `context.tr(...)` in the app (~4.6k call sites, nearly all inside
+    // `build`), so it runs on essentially every rebuild — a per-call list
+    // allocation here is pure waste. The common path (active-locale hit)
+    // short-circuits on the first term, and `String.trim()` returns `this`
+    // when there's nothing to trim, so a normal lookup allocates nothing.
+    final raw =
+        _nonBlank(_strings[key]) ??
+        _nonBlank(_fallback[key]) ??
+        _nonBlank(_pending[key]) ??
+        key;
     if (params == null || params.isEmpty) return raw;
     var out = raw;
     for (final entry in params.entries) {
@@ -128,6 +143,11 @@ class Localization {
     Map<String, String>? pending,
   }) => Localization._(strings, fallback: fallback, pending: pending);
 }
+
+/// The value itself, or null when it's absent or blank — so a blank bundled
+/// entry falls through the lookup chain instead of ending it.
+String? _nonBlank(String? value) =>
+    value != null && value.trim().isNotEmpty ? value : null;
 
 Map<String, String> _decodeStringMap(String raw) {
   final json = jsonDecode(raw);

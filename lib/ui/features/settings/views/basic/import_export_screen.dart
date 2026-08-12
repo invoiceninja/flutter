@@ -265,14 +265,21 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
   String _msg(BuildContext context, Object e) {
     if (e is ValidationException) {
+      // `·`, not `\n`: this is the toast *title*, which the toast controller
+      // flattens to a single line — a newline join would run the messages
+      // together with no separator. `trim()` because a whitespace-only entry
+      // passes `isNotEmpty` and contributes a blank segment.
       final flat = e.fieldErrors.values
           .expand((v) => v)
+          .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
-          .join('\n');
-      return flat.isNotEmpty ? flat : e.message;
+          .join(' · ');
+      if (flat.isNotEmpty) return flat;
     }
     if (e is DemoModeException) return context.tr('not_available');
-    if (e is ApiException) return e.message;
+    // `ApiException.message` is non-nullable but comes straight off the server
+    // body, so `{"message":""}` arrives blank.
+    if (e is ApiException && e.message.trim().isNotEmpty) return e.message;
     return context.tr('an_error_occurred');
   }
 

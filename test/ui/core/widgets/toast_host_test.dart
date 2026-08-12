@@ -145,6 +145,68 @@ void main() {
     });
   });
 
+  /// invoiceninja/flutter#30 — "floating status messages ... occasionally are
+  /// empty but vertically long". The card gives the message 2 lines and the
+  /// detail 3, and a blank line still occupies a full line box, so blank or
+  /// newline-laden strings painted an empty card up to ~2.4× the normal height.
+  group('ToastHost — blank content never paints a stretched card', () {
+    // One `IntrinsicHeight` per card, and it wraps the whole card body.
+    Size cardSize(WidgetTester tester) =>
+        tester.getSize(find.byType(IntrinsicHeight).first);
+
+    testWidgets('a toast with nothing to say paints no card', (tester) async {
+      final c = ToastController();
+      await _pumpHost(tester, c);
+
+      c.show(variant: NotifyVariant.success, message: '');
+      c.show(variant: NotifyVariant.error, message: '  \n\n ', detail: '\n');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IntrinsicHeight), findsNothing);
+      expect(find.byIcon(Icons.close), findsNothing, reason: 'no card chrome');
+      c.clearAll();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a blank detail leaves the card at its no-detail height', (
+      tester,
+    ) async {
+      final c = ToastController();
+      await _pumpHost(tester, c);
+
+      c.show(
+        variant: NotifyVariant.error,
+        message: 'Could not save',
+        detail: '\n\n\n\n',
+      );
+      await tester.pumpAndSettle();
+      final blankDetail = cardSize(tester);
+
+      c.clearAll();
+      await tester.pumpAndSettle();
+      c.show(variant: NotifyVariant.error, message: 'Could not save');
+      await tester.pumpAndSettle();
+      final noDetail = cardSize(tester);
+
+      expect(blankDetail.height, noDetail.height);
+
+      // Sanity-check the measurement: real detail lines *do* grow the card, so
+      // the equality above is meaningful rather than measuring a fixed box.
+      c.clearAll();
+      await tester.pumpAndSettle();
+      c.show(
+        variant: NotifyVariant.error,
+        message: 'Could not save',
+        detail: 'one\ntwo\nthree',
+      );
+      await tester.pumpAndSettle();
+      expect(cardSize(tester).height, greaterThan(noDetail.height));
+
+      c.clearAll();
+      await tester.pumpAndSettle();
+    });
+  });
+
   group('ToastHost — mobile (narrow)', () {
     testWidgets('shows a single toast with no close button', (tester) async {
       final c = ToastController();

@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
+import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// One row in the tasks list. Wide-mode layout matches the column header
@@ -155,12 +156,39 @@ class _TaskListTileState extends State<TaskListTile> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              if (t.clientId.isNotEmpty) ...[
+              // Status + client on one secondary line. The narrow layout has
+              // no column strip, so without this the phone list is the only
+              // surface where a task's status is invisible (v1 showed it on
+              // its mobile row too). Both children are Flexible so a long
+              // status or client name ellipsizes instead of squeezing the
+              // trailing duration / timer / ⋯ controls.
+              if (t.statusId.isNotEmpty || t.clientId.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                ClientNameLabel(
-                  clientId: t.clientId,
-                  style: TextStyle(color: tokens.ink3, fontSize: 12),
-                  link: true,
+                Row(
+                  children: [
+                    if (t.statusId.isNotEmpty) ...[
+                      Flexible(
+                        child: TaskStatusPill(
+                          statusId: t.statusId,
+                          dotSize: 6,
+                          textStyle: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: tokens.ink,
+                          ),
+                        ),
+                      ),
+                      if (t.clientId.isNotEmpty) const SizedBox(width: 6),
+                    ],
+                    if (t.clientId.isNotEmpty)
+                      Flexible(
+                        child: ClientNameLabel(
+                          clientId: t.clientId,
+                          style: TextStyle(color: tokens.ink3, fontSize: 12),
+                          link: true,
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ],

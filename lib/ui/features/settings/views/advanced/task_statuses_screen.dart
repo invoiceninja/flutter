@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/task_status_colors.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
 /// Search keys exported for the settings sidebar search. Colocated with
@@ -74,16 +75,6 @@ class _TaskStatusRow extends StatelessWidget {
   final int index;
   final bool _isArchived;
 
-  Color _parseColor(BuildContext context) {
-    final tokens = context.inTheme;
-    final raw = status.color.trim().replaceFirst('#', '');
-    if (raw.length == 6) {
-      final v = int.tryParse(raw, radix: 16);
-      if (v != null) return Color(0xFF000000 | v);
-    }
-    return tokens.ink3;
-  }
-
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
@@ -95,7 +86,11 @@ class _TaskStatusRow extends StatelessWidget {
             width: 14,
             height: 14,
             decoration: BoxDecoration(
-              color: _parseColor(context),
+              color: taskStatusColors(
+                context,
+                name: status.name,
+                color: status.color,
+              ).fg,
               shape: BoxShape.circle,
             ),
           ),

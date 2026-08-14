@@ -5,13 +5,12 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/task_status_colors.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart'
     show emptyTask;
 import 'package:admin/ui/features/tasks/widgets/kanban/kanban_board.dart'
     show kKanbanCardWidth;
 import 'package:admin/ui/features/tasks/widgets/kanban/kanban_card.dart';
-import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart'
-    show parseStatusColor;
 
 /// How long the user must hold on a drag handle before the drag begins.
 /// Down from Flutter's `kLongPressTimeout` (≈500ms) — fast enough that
@@ -64,7 +63,11 @@ class KanbanColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final dot = parseStatusColor(status.color, fallback: tokens.ink3);
+    final dot = taskStatusColors(
+      context,
+      name: status.name,
+      color: status.color,
+    ).fg;
 
     // Column header: dot · name · count · drag handle. The handle is the
     // only draggable region; the rest of the header is non-interactive

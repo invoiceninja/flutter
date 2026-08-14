@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/task_status_colors.dart';
 import 'package:admin/ui/features/settings/view_models/task_status_edit_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/accent_swatch_grid.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -113,7 +114,10 @@ class _StatusPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final parsed = parseAccentHex(color) ?? tokens.ink3;
+    // Same resolver the list row and kanban header use, so a status the
+    // server left colorless previews in its derived color rather than a
+    // neutral the user never sees anywhere else.
+    final parsed = taskStatusColors(context, name: name, color: color).fg;
     final displayName = name.trim().isEmpty ? context.tr('untitled') : name;
     return Container(
       decoration: BoxDecoration(

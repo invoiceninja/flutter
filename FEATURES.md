@@ -368,6 +368,7 @@ the honest default.
 | Task — invoice from task | ✅ | ✅ | ✅ | ✅ | |
 | Task — add to existing invoice | ✅ | ✅ | ✅ | | |
 | Task — status colors | ✅ | ✅ | ✅ | ✅ | |
+| Task — colour-coded built-in statuses (Backlog / Ready to do / In progress / Done) | ❌ | ❌ | ✅ | | |
 | Task — assignee | ✅ | ✅ | ✅ | ✅ | |
 | Task — link to project (with project rate) | ✅ | ✅ | ✅ | ✅ | |
 | Task — link to client | ✅ | ✅ | ✅ | ✅ | |

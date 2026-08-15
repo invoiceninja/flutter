@@ -5,11 +5,13 @@ import 'package:flutter/widgets.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_custom_fields.dart';
 import 'package:admin/data/models/domain/task_status.dart';
+import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/project_repository.dart';
 import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/repositories/task_status_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/list/search/client_filter_key.dart';
 import 'package:admin/ui/core/list/search/custom_field_filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_keys_common.dart';
@@ -18,16 +20,27 @@ import 'package:admin/ui/core/list/search/membership_filter_key.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 
 /// Tasks expose state (active/archived/deleted) as their built-in
-/// filter dimension plus per-project and per-status filters resolved
-/// through their respective repository name suggestions.
+/// filter dimension plus per-client, per-project and per-status filters
+/// resolved through their respective repository name suggestions.
 List<FilterKey> buildTaskFilterKeys({
+  required ClientRepository clients,
   required ProjectRepository projects,
   required TaskStatusRepository statuses,
   required TagRepository tags,
   required String companyId,
   Company? company,
+  String? Function(String id)? nameForClientId,
 }) => <FilterKey>[
   const IsFilterKey(),
+  // `client:` — the shared multi-value key every `client_id`-honouring list
+  // uses. Mirrored locally by `TaskDao.watchPage`'s `clientIds` predicate.
+  // Central to the "bill this client's work across every project" flow:
+  // narrow to the client, select all, Invoice.
+  ClientFilterKey(
+    clients: clients,
+    companyId: companyId,
+    nameForClientId: nameForClientId,
+  ),
   ProjectFilterKey(projects: projects, companyId: companyId),
   StatusFilterKey(statuses: statuses, companyId: companyId),
   TagFilterKey(tags: tags, companyId: companyId, entityType: 'task'),

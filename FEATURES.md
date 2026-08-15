@@ -170,6 +170,7 @@ the honest default.
 | Invoice — detail | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Invoice — edit (line items, dates, totals) | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — items-section FAB → tabbed multi-select picker (Products / Tasks / Expenses; tasks+expenses client-scoped to uninvoiced; exclude already-attached; Select All per tab; projectId carry-over) — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | ✅ | |
+| Billing-doc edit — picker Tasks tab grouped by project with per-project select-all | ❌ | ❌ | ✅ | | |
 | Billing-doc edit — document-level tax rates (1–3) + custom surcharges (1–4) + inclusive-taxes toggle, gated on company `enabled_tax_rates` / surcharge custom-fields — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | | |
 | Invoice — create | ✅ | ✅ | ✅ | ✅ | |
 | Edit/create screen action bar (Save & mark sent/paid/cancel/auto-bill via save query-param; email/clone/etc. after-save) — all entities | ✅ | ✅ | ✅ | | |
@@ -331,6 +332,7 @@ the honest default.
 | Project — "New task" shortcut (prefills project) | ✅ | ✅ | ✅ | ✅ | |
 | Project — view project tasks | ✅ | ✅ | ✅ | ✅ | |
 | Project — invoice project (bill all tasks) | ✅ | ✅ | ✅ | ✅ | |
+| Project — add project's tasks to an existing invoice (single + bulk) | ❌ | ❌ | ✅ | | |
 | Project — run template | ✅ | ✅ | ✅ | ✅ | |
 | Project — time summary | ✅ | ✅ | ✅ | ✅ | |
 | Project — budget / hours-worked tracking | ✅ | ✅ | ✅ | ✅ | |
@@ -367,6 +369,9 @@ the honest default.
 | Task — kanban filter by project / client / assignee | ✅ | ✅ | ✅ | ✅ | |
 | Task — invoice from task | ✅ | ✅ | ✅ | ✅ | |
 | Task — add to existing invoice | ✅ | ✅ | ✅ | | |
+| Task — bulk invoice / add to invoice from a multi-select (multi-client rejected, multi-project grouped) | ✅ | ✅ | ✅ | | |
+| Task — generated line items carry the project header + time-log details per Task Settings (`invoice_task_project` / `_project_header` / `_datelog` / `_timelog` / `_hours` / `_item_description`) | 🟡 | ✅ | ✅ | | |
+| Task — list `client:` filter | ✅ | ✅ | ✅ | | |
 | Task — status colors | ✅ | ✅ | ✅ | ✅ | |
 | Task — colour-coded built-in statuses (Backlog / Ready to do / In progress / Done) | ❌ | ❌ | ✅ | | |
 | Task — assignee | ✅ | ✅ | ✅ | ✅ | |

@@ -203,7 +203,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     if (mounted) {
       Notify.success(
         context,
-        context.tr('sent_invitation_email', {':email': user.email}),
+        // Param keys carry no leading colon — `lookup` prefixes one itself.
+        context.tr('sent_invitation_email', {'email': user.email}),
       );
     }
   }

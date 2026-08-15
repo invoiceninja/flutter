@@ -431,6 +431,29 @@ void goEntityEdit(BuildContext context, String basePath, String id) {
   ).go(isFull ? '$basePath/$id/edit?view=full' : '$basePath/$id/edit');
 }
 
+/// Navigate to an **existing** record's edit screen with [draft] as the seed,
+/// so the form opens showing changes the user hasn't saved yet.
+///
+/// This is the "Add to invoice" shape: a task / expense / project appends its
+/// line items to an invoice the user picked and hands the modified copy over
+/// for review rather than saving behind their back. The edit route reads
+/// `state.extra` as `cloneFrom` while still loading the row for `existingId`,
+/// so the VM gets `initialDraft: draft, original: existing` — Save issues an
+/// update (not a create) and the unsaved-changes guard covers the additions.
+///
+/// `?view=full` is explicit for the same reason as [goEntityCreateFullWidth]:
+/// the auto-promote redirect is dedup-suppressible across a cross-branch jump.
+/// (`MasterDetailLayout` re-attaches `state.extra` to its internal `go(...)`,
+/// so the draft survives either way — this just avoids the extra hop.)
+void goEntityEditWithDraft(
+  BuildContext context,
+  String basePath,
+  String id,
+  Object draft,
+) {
+  GoRouter.of(context).go('$basePath/$id/edit?view=full', extra: draft);
+}
+
 /// Navigate to an entity's create route with an explicit `?view=full`,
 /// passing [extra] as the seed draft. Use this for every cross-entity /
 /// clone "new \<thing\>" navigation whose destination defaults to

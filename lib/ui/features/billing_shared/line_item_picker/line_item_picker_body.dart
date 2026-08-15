@@ -46,6 +46,7 @@ class LineItemPickerBody extends StatefulWidget {
     required this.excludedTaskIds,
     required this.excludedExpenseIds,
     required this.formatter,
+    this.headedProjectIds = const {},
     this.showStockQuantity = false,
     this.maxHeight,
   });
@@ -53,6 +54,10 @@ class LineItemPickerBody extends StatefulWidget {
   final String companyId;
   final String clientId;
   final bool showTasksAndExpenses;
+
+  /// Projects the target doc already shows a task line for — they don't get a
+  /// second project header. See `InvoiceAppendContext`.
+  final Set<String> headedProjectIds;
 
   /// The target doc's `usesInclusiveTaxes` — governs whether a picked
   /// expense bills its gross (inclusive doc extracts the tax) or net
@@ -479,19 +484,27 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
         ),
       );
     }
-    for (final t in _tasks) {
-      if (_selTasks.contains(t.id)) {
-        out.add(
-          taskToLineItem(
-            t,
-            project: _projectsById[t.projectId],
-            client: _client,
-            group: _group,
-            company: _company,
-          ),
-        );
-      }
-    }
+    // Routed through the grouping builder, not per-task: it clusters the
+    // picks by project and writes a project header onto the first line of
+    // each run, which is the only way a shared invoice can say which project
+    // a line belongs to (an invoice has one `project_id`, a line item none).
+    out.addAll(
+      tasksToLineItems(
+        [
+          for (final t in _tasks)
+            if (_selTasks.contains(t.id)) t,
+        ],
+        projectsById: _projectsById,
+        company: _company,
+        formatter: widget.formatter,
+        client: _client,
+        group: _group,
+        alreadyHeadedProjectIds: widget.headedProjectIds,
+        hourLabel: context.tr('hour'),
+        hoursLabel: context.tr('hours'),
+        projectFieldLabel: context.tr('project'),
+      ),
+    );
     for (final e in _expenses) {
       if (_selExpenses.contains(e.id)) {
         out.add(
@@ -502,13 +515,64 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
     return out;
   }
 
+  /// The project to adopt onto a project-less draft — only when the picks are
+  /// unanimous. An invoice carries one `project_id`, so stamping it with the
+  /// first of several picked projects would label the document with one
+  /// project while it carries another's lines (the project headers in the
+  /// line notes are what identify those). Matches the server, which leaves
+  /// `project_id` null for a multi-project invoice.
   String _projectIdHint() {
-    for (final t in _tasks) {
-      if (_selTasks.contains(t.id) && t.projectId.isNotEmpty) {
-        return t.projectId;
-      }
+    final picked = <String>{
+      for (final t in _tasks)
+        if (_selTasks.contains(t.id)) t.projectId,
+    };
+    if (picked.length != 1) return '';
+    final only = picked.first;
+    return only.isEmpty ? '' : only;
+  }
+
+  /// The tasks tab's rows, clustered by project so a whole project can be
+  /// added in one tap. Ordered the way `tasksToLineItems` sorts (project,
+  /// then chronologically), and project-less tasks come last under their own
+  /// heading — they're the odd ones out, not the headline.
+  List<_TaskGroup> get _taskGroups {
+    final byProject = <String, List<Task>>{};
+    for (final t in _filteredTasks) {
+      byProject.putIfAbsent(t.projectId, () => <Task>[]).add(t);
     }
-    return '';
+    final withProject = byProject.keys.where((id) => id.isNotEmpty).toList()
+      ..sort((a, b) {
+        final an = _projectNames[a] ?? a;
+        final bn = _projectNames[b] ?? b;
+        return an.toLowerCase().compareTo(bn.toLowerCase());
+      });
+    return [
+      for (final id in withProject)
+        _TaskGroup(
+          projectId: id,
+          // Falls back to the raw id only while the names stream is still
+          // loading; rows render rather than disappear.
+          name: _projectNames[id] ?? id,
+          tasks: byProject[id]!,
+        ),
+      if (byProject.containsKey(''))
+        _TaskGroup(projectId: '', name: '', tasks: byProject['']!),
+    ];
+  }
+
+  /// Toggle every task in one project — the "add this project's tasks to the
+  /// invoice I'm editing" gesture. Selects all when any are unselected,
+  /// clears when they're already all selected.
+  void _toggleProject(_TaskGroup group) {
+    final ids = group.tasks.map((t) => t.id).toList();
+    final allSelected = ids.every(_selTasks.contains);
+    setState(() {
+      if (allSelected) {
+        _selTasks.removeAll(ids);
+      } else {
+        _selTasks.addAll(ids);
+      }
+    });
   }
 
   /// First non-empty `clientId` across picked tasks then expenses.
@@ -747,17 +811,18 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
         return _TasksTab(
           loading: _loadingTasksExpenses,
           failed: _failedTasksExpenses,
-          tasks: _filteredTasks,
+          groups: _taskGroups,
+          anyTasks: _filteredTasks.isNotEmpty,
           totalUnfilteredEmpty: _tasks.isEmpty,
           selected: _selTasks,
           filter: _filter,
           formatter: widget.formatter,
           maxListHeight: maxListHeight,
           clientNames: _clientNames,
-          projectNames: _projectNames,
           onToggle: (id) => setState(() {
             if (!_selTasks.add(id)) _selTasks.remove(id);
           }),
+          onToggleProject: _toggleProject,
           onSelectAll: _selectAllOnActiveTab,
           onClearAll: _clearActiveTab,
           onRetry: _retryTasksAndExpenses,
@@ -1092,19 +1157,34 @@ class _ProductsTab extends StatelessWidget {
   }
 }
 
+/// One project's worth of pickable tasks. `projectId == ''` is the
+/// no-project bucket, rendered last under its own heading.
+class _TaskGroup {
+  const _TaskGroup({
+    required this.projectId,
+    required this.name,
+    required this.tasks,
+  });
+
+  final String projectId;
+  final String name;
+  final List<Task> tasks;
+}
+
 class _TasksTab extends StatelessWidget {
   const _TasksTab({
     required this.loading,
     required this.failed,
-    required this.tasks,
+    required this.groups,
+    required this.anyTasks,
     required this.totalUnfilteredEmpty,
     required this.selected,
     required this.filter,
     required this.formatter,
     required this.maxListHeight,
     required this.clientNames,
-    required this.projectNames,
     required this.onToggle,
+    required this.onToggleProject,
     required this.onSelectAll,
     required this.onClearAll,
     required this.onRetry,
@@ -1112,15 +1192,20 @@ class _TasksTab extends StatelessWidget {
 
   final bool loading;
   final bool failed;
-  final List<Task> tasks;
+
+  /// Tasks clustered by project — the unit the user actually thinks in when
+  /// billing a period ("add the Redesign work"), and the same clustering the
+  /// generated line items use.
+  final List<_TaskGroup> groups;
+  final bool anyTasks;
   final bool totalUnfilteredEmpty;
   final Set<String> selected;
   final String filter;
   final Formatter? formatter;
   final double maxListHeight;
   final Map<String, String> clientNames;
-  final Map<String, String> projectNames;
   final void Function(String id) onToggle;
+  final void Function(_TaskGroup group) onToggleProject;
   final VoidCallback onSelectAll;
   final VoidCallback onClearAll;
   final VoidCallback onRetry;
@@ -1141,43 +1226,60 @@ class _TasksTab extends StatelessWidget {
     return f.money(hours * t.rate);
   }
 
-  /// One subtitle line: `{client} · {project} · {hours} × {rate}`. Each
-  /// part skipped when empty / unresolved. The total no longer repeats
-  /// here — it's the right-column value.
+  /// One subtitle line: `{client} · {hours} × {rate}`. Each part skipped when
+  /// empty / unresolved. The project is no longer repeated here — the section
+  /// heading above the row carries it.
   String _subtitle(Task t) {
     final f = formatter;
     final hours = taskBillableHours(t);
     final parts = <String>[
       if (t.clientId.isNotEmpty) clientNames[t.clientId] ?? '',
-      if (t.projectId.isNotEmpty) projectNames[t.projectId] ?? '',
       if (f != null && t.rate != Decimal.zero) '$hours × ${f.money(t.rate)}',
     ].where((s) => s.isNotEmpty).toList();
     return parts.join(' · ');
   }
 
+  /// Flattened `[heading, …rows]` so one `ListView.builder` covers every
+  /// group — nested scrollables inside a bounded modal don't lay out.
+  List<Object> get _rows => [
+    for (final g in groups) ...[g, ...g.tasks],
+  ];
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const _LoadingState();
     if (failed) return _FailedState(onRetry: onRetry);
-    if (tasks.isEmpty) {
+    if (!anyTasks) {
       return _EmptyState(filter: filter, unfilteredEmpty: totalUnfilteredEmpty);
     }
+    final rows = _rows;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _TabToolbar(
           onSelectAll: onSelectAll,
           onClearAll: onClearAll,
-          canSelectAll: tasks.isNotEmpty,
+          canSelectAll: anyTasks,
           canClear: selected.isNotEmpty,
         ),
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxListHeight),
           child: ListView.builder(
             shrinkWrap: true,
-            itemCount: tasks.length,
+            itemCount: rows.length,
             itemBuilder: (context, i) {
-              final t = tasks[i];
+              final row = rows[i];
+              if (row is _TaskGroup) {
+                return _ProjectHeadingRow(
+                  group: row,
+                  selected: selected,
+                  onToggleProject: onToggleProject,
+                  // Everything above the first heading is chrome, so it needs
+                  // no rule of its own.
+                  isFirst: i == 0,
+                );
+              }
+              final t = row as Task;
               final subtitle = _subtitle(t);
               // `InkWell` wrapper gives the whole row a hover/press
               // ripple on desktop and one focusable target for
@@ -1200,6 +1302,78 @@ class _TasksTab extends StatelessWidget {
                 ),
               );
             },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Section heading for one project, with a tristate checkbox that adds or
+/// clears that project's whole run in a tap — the direct answer to "put this
+/// project's tasks on the invoice I'm editing".
+class _ProjectHeadingRow extends StatelessWidget {
+  const _ProjectHeadingRow({
+    required this.group,
+    required this.selected,
+    required this.onToggleProject,
+    required this.isFirst,
+  });
+
+  final _TaskGroup group;
+  final Set<String> selected;
+  final void Function(_TaskGroup group) onToggleProject;
+  final bool isFirst;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final picked = group.tasks.where((t) => selected.contains(t.id)).length;
+    final label = group.projectId.isEmpty
+        ? context.tr('no_project')
+        : group.name;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // A rule between runs — nothing else separates one project's tasks
+        // from the next, and the type alone is too quiet to do it. Same idiom
+        // as the line-item table, where dividers carry the rhythm.
+        if (!isFirst) Divider(height: 1, color: tokens.border),
+        // The same widget as the task rows below, with the same `dense` flag,
+        // so the two checkboxes line up down the column by construction
+        // instead of by a hand-tuned inset. (The hand-rolled `SizedBox(40)` it
+        // replaces also clipped the checkbox on mobile, where
+        // `materialTapTargetSize` is `padded` and lays it out at 48.)
+        CheckboxListTile(
+          dense: true,
+          // Tristate reads as "some of this project is on the invoice", which
+          // is exactly the state a partial pick leaves.
+          tristate: true,
+          value: picked == group.tasks.length
+              ? true
+              : (picked == 0 ? false : null),
+          onChanged: (_) => onToggleProject(group),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: tokens.ink2,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${group.tasks.length}',
+                style: TextStyle(color: tokens.ink3, fontSize: 12),
+              ),
+            ],
           ),
         ),
       ],
@@ -1436,7 +1610,9 @@ class _EmptyState extends StatelessWidget {
     final tokens = context.inTheme;
     final trimmed = filter.trim();
     final message = (!unfilteredEmpty && trimmed.isNotEmpty)
-        ? context.tr('no_matches_for_filter', {':filter': trimmed})
+        // Param keys carry no leading colon — `lookup` prefixes one itself,
+        // so `':filter'` produced `::filter` and never substituted.
+        ? context.tr('no_matches_for_filter', {'filter': trimmed})
         : context.tr('no_records_found');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),

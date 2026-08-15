@@ -24,6 +24,7 @@ Future<LineItemPickerResult?> showLineItemPickerSheet(
   required bool invoiceInclusive,
   Set<String> excludedTaskIds = const {},
   Set<String> excludedExpenseIds = const {},
+  Set<String> headedProjectIds = const {},
   Formatter? formatter,
   bool showStockQuantity = false,
 }) {
@@ -55,6 +56,7 @@ Future<LineItemPickerResult?> showLineItemPickerSheet(
             invoiceInclusive: invoiceInclusive,
             excludedTaskIds: excludedTaskIds,
             excludedExpenseIds: excludedExpenseIds,
+            headedProjectIds: headedProjectIds,
             formatter: formatter,
             showStockQuantity: showStockQuantity,
             maxHeight: maxDialogHeight,
@@ -88,6 +90,7 @@ Future<LineItemPickerResult?> showLineItemPickerSheet(
             invoiceInclusive: invoiceInclusive,
             excludedTaskIds: excludedTaskIds,
             excludedExpenseIds: excludedExpenseIds,
+            headedProjectIds: headedProjectIds,
             formatter: formatter,
             showStockQuantity: showStockQuantity,
             maxHeight: maxHeight,

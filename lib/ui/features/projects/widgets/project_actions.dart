@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
@@ -11,7 +12,9 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/billing_shared/add_unbilled/invoice_append_context.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
@@ -29,6 +32,7 @@ enum ProjectAction {
   newQuote,
   newExpense,
   invoiceProject,
+  addToInvoice,
   runTemplate,
   clone,
   archive,
@@ -138,6 +142,21 @@ class ProjectActions {
           label: context.tr('invoice_project'),
           enabled: !project.id.startsWith('tmp_'),
           onTap: () => onTap(ProjectAction.invoiceProject),
+        ),
+      if (me?.moduleEnabled(EntityType.invoice) ?? false)
+        EntityActionItem(
+          kind: ProjectAction.addToInvoice,
+          icon: Icons.playlist_add,
+          label: addToInvoiceLabel(context),
+          // Same billable set as "Invoice Project", appended to one of the
+          // client's existing invoices instead of a new one — so a period's
+          // work across several projects can land on a single document.
+          // Needs a client to scope the invoice picker.
+          enabled:
+              !project.id.startsWith('tmp_') &&
+              project.clientId.isNotEmpty &&
+              !project.isDeleted,
+          onTap: () => onTap(ProjectAction.addToInvoice),
         ),
       EntityActionItem(
         kind: ProjectAction.runTemplate,
@@ -265,44 +284,17 @@ class ProjectActions {
       case ProjectAction.invoiceProject:
         if (!requireSynced(context, project.id)) return;
         // Mirrors admin-portal's "Invoice Project": pending project expenses
-        // first, then stopped + uninvoiced tasks with logged time. The pure
-        // builder reuses the shared "Invoice Expense" / "Add unbilled"
-        // converters; `watchForProject` already excludes archived/deleted rows.
-        final tasks = await services.tasks
-            .watchForProject(companyId: companyId, projectId: project.id)
-            .first;
-        final expenses = await services.expenses
-            .watchForProject(companyId: companyId, projectId: project.id)
-            .first;
-        // Load the company and client so a task at rate 0 inherits the full
-        // cascade: project.taskRate → client.settings.default_task_rate →
-        // company.settings.default_task_rate instead of invoicing at $0.
-        final company = await services.company.get(companyId);
-        final client = project.clientId.isEmpty
-            ? null
-            : await services.clients
-                  .watchByRealId(companyId: companyId, id: project.clientId)
-                  .first;
-        final group = (client == null || client.groupSettingsId.isEmpty)
-            ? null
-            : await services.groupSettings
-                  .watchByRealId(
-                    companyId: companyId,
-                    id: client.groupSettingsId,
-                  )
-                  .first;
-        final lineItems = projectInvoiceLineItems(
-          tasks: tasks,
-          expenses: expenses,
-          // Matches the seeded draft below: `emptyInvoice()` is
-          // exclusive-tax, so expense costs are billed net (tax added on
-          // top by the calculator) — the line total still lands on each
-          // expense's gross.
+        // first, then stopped + uninvoiced tasks with logged time.
+        final labels = TaskNoteLabels.of(context);
+        final lineItems = await _projectLineItems(
+          services,
+          companyId,
+          [project],
+          // Matches the seeded draft below: `emptyInvoice()` is exclusive-tax,
+          // so expense costs are billed net (tax added on top by the
+          // calculator) — the line total still lands on each expense's gross.
           invoiceInclusive: false,
-          project: project,
-          client: client,
-          group: group,
-          company: company,
+          labels: labels,
         );
         if (!context.mounted) return;
         if (lineItems.isEmpty) {
@@ -318,6 +310,13 @@ class ProjectActions {
             lineItems: lineItems,
           ),
         );
+      case ProjectAction.addToInvoice:
+        if (!requireSynced(context, project.id)) return;
+        if (project.clientId.isEmpty) {
+          Notify.error(context, context.tr('please_select_a_client'));
+          return;
+        }
+        await addProjectsToInvoice(context, services, companyId, [project]);
       case ProjectAction.runTemplate:
         if (!requireSynced(context, project.id)) return;
         final templateId = await showRunTemplateDialog(context);
@@ -332,41 +331,55 @@ class ProjectActions {
     }
   }
 
-  /// Bulk "Invoice Project(s)": aggregate every selected project's billable
-  /// tasks + pending expenses into ONE pre-filled invoice. Mirrors
-  /// admin-portal — all selected projects must share a single client, else it
-  /// errors. Reuses [projectInvoiceLineItems]; navigates to the invoice create
-  /// screen with the line items seeded.
-  static Future<void> invoiceProjects(
+  /// Projects that can be billed, or null when the selection is unusable (the
+  /// caller has already been toasted). Mirrors admin-portal's multi-select
+  /// invoice: all selected projects must share a single client.
+  static List<Project>? _billableSelection(
     BuildContext context,
-    Services services,
-    String companyId,
     List<Project> projects,
-  ) async {
+  ) {
     final usable = projects
         .where((p) => !p.id.startsWith('tmp_') && !p.isDeleted)
         .toList();
     if (usable.isEmpty) {
       Notify.info(context, context.tr('no_billable_tasks'));
-      return;
+      return null;
     }
-    // Single-client constraint (matches admin-portal's multi-select invoice).
     final clientIds = usable
         .map((p) => p.clientId)
         .where((c) => c.isNotEmpty)
         .toSet();
     if (clientIds.length > 1) {
       Notify.error(context, context.tr('multiple_client_error'));
-      return;
+      return null;
     }
-    // Load the company and the (single) client once so a task at rate 0
-    // inherits the full cascade: project.taskRate →
-    // client.settings.default_task_rate → company.settings.default_task_rate
-    // instead of invoicing at $0 — the same cascade the single-project
-    // `invoiceProject` path applies. The single-client constraint above means
-    // one client load covers every selected project.
+    return usable;
+  }
+
+  /// Every billable line across [projects] — pending expenses then billable
+  /// tasks per project, with the rate cascade resolved and a project header on
+  /// the first task of each project (so one invoice can carry several
+  /// projects' work and still say whose is whose).
+  ///
+  /// Pass [existing] when appending to an invoice: rows already on it are
+  /// skipped (re-running the action would otherwise bill the same task twice)
+  /// and projects it already shows don't get a second header.
+  ///
+  /// The single-client constraint enforced by [_billableSelection] means one
+  /// client / group / company load covers every project here.
+  static Future<List<LineItem>> _projectLineItems(
+    Services services,
+    String companyId,
+    List<Project> projects, {
+    required bool invoiceInclusive,
+    required TaskNoteLabels labels,
+    InvoiceAppendContext existing = InvoiceAppendContext.empty,
+  }) async {
     final company = await services.company.get(companyId);
-    final clientId = clientIds.isEmpty ? '' : clientIds.first;
+    final formatter = await services.formatterFor(companyId);
+    final clientId = projects
+        .map((p) => p.clientId)
+        .firstWhere((c) => c.isNotEmpty, orElse: () => '');
     final client = clientId.isEmpty
         ? null
         : await services.clients
@@ -377,23 +390,59 @@ class ProjectActions {
         : await services.groupSettings
               .watchByRealId(companyId: companyId, id: client.groupSettingsId)
               .first;
-    final lineItems = [
-      for (final p in usable)
-        ...projectInvoiceLineItems(
-          tasks: await services.tasks
-              .watchForProject(companyId: companyId, projectId: p.id)
-              .first,
-          expenses: await services.expenses
-              .watchForProject(companyId: companyId, projectId: p.id)
-              .first,
-          // Matches the seeded draft below (`emptyInvoice()` = exclusive).
-          invoiceInclusive: false,
-          project: p,
+
+    final out = <LineItem>[];
+    for (final project in projects) {
+      final tasks = await services.tasks
+          .watchForProject(companyId: companyId, projectId: project.id)
+          .first;
+      final expenses = await services.expenses
+          .watchForProject(companyId: companyId, projectId: project.id)
+          .first;
+      out.addAll(
+        projectInvoiceLineItems(
+          tasks: tasks,
+          expenses: expenses,
+          invoiceInclusive: invoiceInclusive,
+          project: project,
           client: client,
           group: group,
           company: company,
+          formatter: formatter,
+          excludedTaskIds: existing.taskIds,
+          excludedExpenseIds: existing.expenseIds,
+          alreadyHeadedProjectIds: existing.projectIds,
+          hourLabel: labels.hour,
+          hoursLabel: labels.hours,
+          projectFieldLabel: labels.project,
         ),
-    ];
+      );
+    }
+    return out;
+  }
+
+  /// Bulk "Invoice Project(s)": aggregate every selected project's billable
+  /// tasks + pending expenses into ONE pre-filled invoice. Navigates to the
+  /// invoice create screen with the line items seeded.
+  static Future<void> invoiceProjects(
+    BuildContext context,
+    Services services,
+    String companyId,
+    List<Project> projects,
+  ) async {
+    final usable = _billableSelection(context, projects);
+    if (usable == null) return;
+    final clientId = usable
+        .map((p) => p.clientId)
+        .firstWhere((c) => c.isNotEmpty, orElse: () => '');
+    final lineItems = await _projectLineItems(
+      services,
+      companyId,
+      usable,
+      // Matches the seeded draft below (`emptyInvoice()` = exclusive).
+      invoiceInclusive: false,
+      labels: TaskNoteLabels.of(context),
+    );
     if (!context.mounted) return;
     if (lineItems.isEmpty) {
       Notify.info(context, context.tr('no_billable_tasks'));
@@ -403,11 +452,78 @@ class ProjectActions {
       context,
       '/invoices',
       extra: emptyInvoice().copyWith(
-        clientId: clientIds.isEmpty ? '' : clientIds.first,
-        // Carry the project link only when invoicing a single project.
+        clientId: clientId,
+        // Carry the project link only when invoicing a single project — an
+        // invoice has one `project_id` and stamping it with the first of
+        // several would mislabel the others' lines. Matches the server
+        // (`ProjectRepository::invoice` leaves it null for multi-project).
         projectId: usable.length == 1 ? usable.first.id : '',
         lineItems: lineItems,
       ),
+    );
+  }
+
+  /// Bulk "Add to invoice": append every selected project's billable tasks +
+  /// pending expenses to ONE of the client's existing invoices. The forum
+  /// ask (#23511) — several projects' work on a single periodic invoice —
+  /// solved from the project side; the Add-items picker on the invoice solves
+  /// it from the other direction.
+  static Future<void> addProjectsToInvoice(
+    BuildContext context,
+    Services services,
+    String companyId,
+    List<Project> projects,
+  ) async {
+    final usable = _billableSelection(context, projects);
+    if (usable == null) return;
+    final clientId = usable
+        .map((p) => p.clientId)
+        .firstWhere((c) => c.isNotEmpty, orElse: () => '');
+    if (clientId.isEmpty) {
+      Notify.error(context, context.tr('please_select_a_client'));
+      return;
+    }
+    final labels = TaskNoteLabels.of(context);
+    final formatter = await services.formatterFor(companyId);
+    if (!context.mounted) return;
+    final target = await showAddToInvoiceDialog(
+      context,
+      services: services,
+      companyId: companyId,
+      clientId: clientId,
+      formatter: formatter,
+    );
+    if (target == null || !context.mounted) return;
+    final existing = await InvoiceAppendContext.of(services, companyId, target);
+    final lineItems = await _projectLineItems(
+      services,
+      companyId,
+      usable,
+      // Bill against the TARGET's tax mode, not the default — an inclusive
+      // invoice extracts tax from the line, an exclusive one adds it on top.
+      invoiceInclusive: target.usesInclusiveTaxes,
+      labels: labels,
+      existing: existing,
+    );
+    if (!context.mounted) return;
+    if (lineItems.isEmpty) {
+      Notify.info(context, context.tr('no_billable_tasks'));
+      return;
+    }
+    // Toast before navigating — see `TaskActions.addTasksToInvoice` for why
+    // the order matters (the toast host is resolved through this context, and
+    // `go` deactivates it). The lines land on a *draft*, so without this the
+    // user arrives at an edit screen with no sign anything happened and no
+    // hint that a Save is still required.
+    Notify.success(
+      context,
+      context.tr('added_invoice_items', {'count': '${lineItems.length}'}),
+    );
+    goEntityEditWithDraft(
+      context,
+      '/invoices',
+      target.id,
+      target.copyWith(lineItems: [...target.lineItems, ...lineItems]),
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -157,7 +158,16 @@ class LineItemsReadonlyTable extends StatelessWidget {
             tokens,
             strong: true,
           ),
-          _flexCell(4, it.notes, tokens, color: tokens.ink2),
+          // Task-generated notes carry the PDF's presentational markup
+          // (`<div class="project-header">`, `<br/>`); strip it for display
+          // so the column reads as text, not tags. See
+          // `lineItemNotesPlainText`.
+          _flexCell(
+            4,
+            lineItemNotesPlainText(it.notes),
+            tokens,
+            color: tokens.ink2,
+          ),
           _numCell(_kQtyW, _qty(it.quantity), tokens),
           _numCell(_kCostW, _money(it.cost), tokens),
           if (showDiscount)
@@ -190,9 +200,12 @@ class LineItemsReadonlyTable extends StatelessWidget {
         '${context.tr('discount')}: ${_discountLabel(it)}',
       if (showTax && _hasTax(it)) '${context.tr('tax')}: ${_taxLabel(it)}',
     ];
+    final notes = lineItemNotesPlainText(it.notes);
     final title = it.productKey.isNotEmpty
         ? it.productKey
-        : (it.notes.isEmpty ? '—' : it.notes);
+        // One line only for the title — the rest of the note follows in the
+        // subtitle below when there's a product key to head the row.
+        : (notes.isEmpty ? '—' : notes.split('\n').first);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: _kPadH, vertical: 12),
       decoration: isLast
@@ -227,9 +240,9 @@ class LineItemsReadonlyTable extends StatelessWidget {
               ),
             ],
           ),
-          if (it.productKey.isNotEmpty && it.notes.isNotEmpty) ...[
+          if (it.productKey.isNotEmpty && notes.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(it.notes, style: TextStyle(fontSize: 12, color: tokens.ink2)),
+            Text(notes, style: TextStyle(fontSize: 12, color: tokens.ink2)),
           ],
           const SizedBox(height: 4),
           Text(

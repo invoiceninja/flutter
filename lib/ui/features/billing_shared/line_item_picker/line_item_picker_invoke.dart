@@ -60,6 +60,17 @@ Future<void> openLineItemPicker(
       .where((s) => s.isNotEmpty)
       .toSet();
 
+  // Projects the doc already shows a task line for — they mustn't get a
+  // second project header when more of their tasks are added.
+  final headedProjectIds = <String>{
+    for (final t in await services.tasks.getByIds(
+      companyId: companyId,
+      ids: excludedTaskIds,
+    ))
+      if (t.projectId.isNotEmpty) t.projectId,
+  };
+  if (!context.mounted) return;
+
   final result = await showLineItemPickerSheet(
     context,
     companyId: companyId,
@@ -68,6 +79,7 @@ Future<void> openLineItemPicker(
     invoiceInclusive: invoiceInclusive,
     excludedTaskIds: excludedTaskIds,
     excludedExpenseIds: excludedExpenseIds,
+    headedProjectIds: headedProjectIds,
     formatter: services.formatterIfReady(companyId),
     showStockQuantity: showStockQuantity,
   );

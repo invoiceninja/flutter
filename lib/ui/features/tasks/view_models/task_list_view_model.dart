@@ -137,5 +137,26 @@ class TaskListViewModel extends GenericListViewModel<Task> {
       restore: (id) => repo.restore(companyId: companyId, id: id),
       delete: (id) => repo.delete(companyId: companyId, id: id),
     ),
+    // Selection-level actions: the per-id `apply` is a deliberate no-op — the
+    // screen's `EntityListBulkAction.onSelection` builds one invoice from the
+    // whole selection. `eligible` still drives the empty-selection guard.
+    // A running task would bill a live-timer snapshot; an invoiced one would
+    // double-bill; a `tmp_` row has no server id to reference.
+    BulkAction<Task>(
+      id: 'invoice_task',
+      labelKey: 'invoice_task',
+      eligible: _billable,
+      apply: (_) async {},
+    ),
+    BulkAction<Task>(
+      id: 'add_to_invoice',
+      labelKey: 'add_to_invoice',
+      // Plus a client — the invoice picker is client-scoped.
+      eligible: (t) => _billable(t) && t.clientId.isNotEmpty,
+      apply: (_) async {},
+    ),
   ];
+
+  static bool _billable(Task t) =>
+      !t.isDeleted && !t.id.startsWith('tmp_') && !t.isRunning && !t.isInvoiced;
 }

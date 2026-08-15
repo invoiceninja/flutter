@@ -71,6 +71,7 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
     bool sortAscending = false,
     String? clientId,
     String? projectId,
+    Set<String> clientIds = const {},
     Set<String> statusIds = const {},
     Set<String> projectIds = const {},
     Set<String> customValues1 = const {},
@@ -82,6 +83,13 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
 
     if (clientId != null && clientId.isNotEmpty) {
       q.where((t) => t.clientId.equals(clientId));
+    }
+    // `client_id` membership mirror — the standalone list's `client:` chips,
+    // distinct from the single embedded [clientId] lock above. Without it the
+    // chip narrows the server page but the local watch still returns every
+    // cached row, so the list looks unfiltered.
+    if (clientIds.isNotEmpty) {
+      q.where((t) => t.clientId.isIn(clientIds.toList()));
     }
     // Workspace list: hide rows of soft-deleted clients (offline parity with
     // the server `without_deleted_clients` filter). Suppressed under an explicit

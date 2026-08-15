@@ -63,8 +63,9 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   ///
   /// [extraFilters] mirrors the server-bound filter dimensions locally
   /// (the UI renders from this watch, so a server-only filter would look
-  /// like it did nothing — the billing_extra_filters gap): `task_status`
-  /// and `project_tasks` become SQL predicates; `tag_ids` is a post-decode
+  /// like it did nothing — the billing_extra_filters gap): `client_id`,
+  /// `task_status` and `project_tasks` become SQL predicates; `tag_ids` is a
+  /// post-decode
   /// predicate (tag ids live only in the payload JSON — the denormalized
   /// `tag_names` column holds names, for sort). Completeness of the tag
   /// filter is bounded by the loaded pages; the list VM strips `tag_ids`
@@ -97,6 +98,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
           sortAscending: sortAscending,
           clientId: clientId,
           projectId: projectId,
+          clientIds: parseClientIdFilter(extraFilters),
           statusIds: parseCsvFilter(extraFilters, 'task_status'),
           projectIds: parseCsvFilter(extraFilters, 'project_tasks'),
           customValues1: customFilters[1] ?? const {},
@@ -187,6 +189,18 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     return db.taskDao
         .watchForProject(companyId: companyId, projectId: projectId)
         .map((rows) => rows.map(_fromRow).toList(growable: false));
+  }
+
+  /// One-shot batch read by id — one query instead of N `watchByRealId`
+  /// subscriptions. Backs the "which projects does this invoice already
+  /// show?" lookup behind the Add-to-invoice paths. Ids the cache doesn't
+  /// hold are simply absent from the result.
+  Future<List<Task>> getByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    final rows = await db.taskDao.getByIds(companyId: companyId, ids: ids);
+    return rows.map(_fromRow).toList(growable: false);
   }
 
   @override

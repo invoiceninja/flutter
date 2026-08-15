@@ -58,9 +58,22 @@ Expense _expense({
 Project _project({String taskRate = '0'}) =>
     Project.fromApi(ProjectApi(id: 'p1', name: 'P', taskRate: taskRate));
 
+Project _namedProject({required String id, required String name}) =>
+    Project.fromApi(ProjectApi(id: id, name: name));
+
 Company _company({double? defaultTaskRate}) => Company(
   id: 'co',
   settings: CompanySettingsApi(defaultTaskRate: defaultTaskRate),
+);
+
+/// A company that shows the project on task lines. [header] false is the
+/// "Project Location = Service" branch (name → `product_key`).
+Company _headerCompany({bool header = true}) => Company(
+  id: 'co',
+  markdownEnabled: true,
+  invoiceTaskProject: true,
+  invoiceTaskProjectHeader: header,
+  settings: const CompanySettingsApi(),
 );
 
 GroupSetting _group({num? defaultTaskRate}) => GroupSetting(
@@ -203,7 +216,187 @@ void main() {
     });
   });
 
+  // The forum #23511 mechanism: several projects' tasks on one invoice, told
+  // apart by a header on the first line of each project's run.
+  group('tasksToLineItems', () {
+    Task at(String id, String projectId, int startEpoch) => Task.fromApi(
+      TaskApi(
+        id: id,
+        description: id,
+        projectId: projectId,
+        timeLog: '[[$startEpoch,${startEpoch + 3600},"",true]]',
+      ),
+    );
+
+    final projects = {
+      'pA': _namedProject(id: 'pA', name: 'Alpha'),
+      'pB': _namedProject(id: 'pB', name: 'Beta'),
+    };
+
+    test('clusters by project and heads each run exactly once', () {
+      final items = tasksToLineItems(
+        // Deliberately interleaved on input.
+        [
+          at('a1', 'pA', 1700000000),
+          at('b1', 'pB', 1700100000),
+          at('a2', 'pA', 1700200000),
+        ],
+        projectsById: projects,
+        company: _headerCompany(),
+      );
+      expect(items.map((i) => i.taskId), ['a1', 'a2', 'b1']);
+      expect(
+        items[0].notes,
+        startsWith('<div class="project-header">Alpha</div>\n'),
+      );
+      expect(items[1].notes, isNot(contains('project-header')));
+      expect(
+        items[2].notes,
+        startsWith('<div class="project-header">Beta</div>\n'),
+      );
+    });
+
+    test('orders the clusters by project NAME, not by hashed id — the picker '
+        'groups by name, and the two must agree', () {
+      // Ids sort Alpha *after* Beta; names sort it before.
+      final byName = {
+        'zzz': _namedProject(id: 'zzz', name: 'Alpha'),
+        'aaa': _namedProject(id: 'aaa', name: 'Beta'),
+      };
+      final items = tasksToLineItems(
+        [at('b1', 'aaa', 1700000000), at('a1', 'zzz', 1700100000)],
+        projectsById: byName,
+        company: _headerCompany(),
+      );
+      expect(items.map((i) => i.taskId), ['a1', 'b1']);
+      expect(
+        items[0].notes,
+        startsWith('<div class="project-header">Alpha</div>\n'),
+      );
+      expect(
+        items[1].notes,
+        startsWith('<div class="project-header">Beta</div>\n'),
+      );
+    });
+
+    test('project-less tasks sort last, matching the picker\'s "No project" '
+        'group', () {
+      final items = tasksToLineItems(
+        [at('none', '', 1700000000), at('a1', 'pA', 1700100000)],
+        projectsById: projects,
+        company: _headerCompany(),
+      );
+      expect(items.map((i) => i.taskId), ['a1', 'none']);
+    });
+
+    test('sorts chronologically within a project', () {
+      final items = tasksToLineItems(
+        [at('late', 'pA', 1700200000), at('early', 'pA', 1700000000)],
+        projectsById: projects,
+        company: _headerCompany(),
+      );
+      expect(items.map((i) => i.taskId), ['early', 'late']);
+      // The header rides the first line after sorting, not the first on input.
+      expect(
+        items[0].notes,
+        startsWith('<div class="project-header">Alpha</div>\n'),
+      );
+    });
+
+    test('alreadyHeadedProjectIds suppresses a repeat header — appending more '
+        'of a project already on the invoice must not print it twice', () {
+      final items = tasksToLineItems(
+        [at('a1', 'pA', 1700000000), at('b1', 'pB', 1700100000)],
+        projectsById: projects,
+        company: _headerCompany(),
+        alreadyHeadedProjectIds: const {'pA'},
+      );
+      expect(items[0].notes, isNot(contains('project-header')));
+      // Beta is new to the invoice, so it still gets its header.
+      expect(
+        items[1].notes,
+        startsWith('<div class="project-header">Beta</div>\n'),
+      );
+    });
+
+    test(
+      'no headers at all when invoice_task_project is off (the default)',
+      () {
+        final items = tasksToLineItems(
+          [at('a1', 'pA', 1700000000), at('b1', 'pB', 1700100000)],
+          projectsById: projects,
+          company: _company(),
+        );
+        expect(items.every((i) => !i.notes.contains('project-header')), isTrue);
+      },
+    );
+
+    test('Project Location = Service puts the name in product_key, not the '
+        'notes', () {
+      final items = tasksToLineItems(
+        [at('a1', 'pA', 1700000000)],
+        projectsById: projects,
+        company: _headerCompany(header: false),
+      );
+      expect(items.single.productKey, 'Alpha');
+      expect(items.single.notes, isNot(contains('Alpha')));
+    });
+
+    test('a product custom field labelled "Project" suppresses the header — it '
+        'already shows the project', () {
+      final items = tasksToLineItems(
+        [at('a1', 'pA', 1700000000)],
+        projectsById: projects,
+        company: _headerCompany().copyWith(
+          customFields: const {'product1': 'Project'},
+        ),
+        projectFieldLabel: 'Project',
+      );
+      expect(items.single.notes, isNot(contains('project-header')));
+    });
+
+    test('fallbackProject covers tasks whose own project_id is blank — the '
+        'single-project callers already know the project', () {
+      final items = tasksToLineItems(
+        [at('a1', '', 1700000000)],
+        fallbackProject: projects['pA'],
+        company: _headerCompany(),
+      );
+      expect(
+        items.single.notes,
+        startsWith('<div class="project-header">Alpha</div>\n'),
+      );
+    });
+
+    test('task custom values ride onto the line item', () {
+      final items = tasksToLineItems([
+        Task.fromApi(
+          TaskApi(id: 't1', customValue1: 'CV1', customValue4: 'CV4'),
+        ),
+      ]);
+      expect(items.single.customValue1, 'CV1');
+      expect(items.single.customValue4, 'CV4');
+    });
+  });
+
   group('projectInvoiceLineItems', () {
+    test('excluded ids are dropped so appending twice cannot double-bill', () {
+      final items = projectInvoiceLineItems(
+        tasks: [
+          _task(id: 't_new', rate: '100', timeLog: _stopped1h),
+          _task(id: 't_already', rate: '100', timeLog: _stopped1h),
+        ],
+        expenses: [
+          _expense(id: 'e_new', amount: '50', shouldBeInvoiced: true),
+          _expense(id: 'e_already', amount: '50', shouldBeInvoiced: true),
+        ],
+        invoiceInclusive: false,
+        excludedTaskIds: const {'t_already'},
+        excludedExpenseIds: const {'e_already'},
+      );
+      expect(items.map((i) => i.expenseId ?? i.taskId), ['e_new', 't_new']);
+    });
+
     test('includes pending expenses first, then stopped+uninvoiced tasks', () {
       final items = projectInvoiceLineItems(
         tasks: [

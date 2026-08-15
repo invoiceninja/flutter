@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_edit_dialog.dart';
@@ -166,10 +167,12 @@ class _ItemCard extends StatelessWidget {
         formatter?.money(d, zeroIsNull: false, currencyId: currencyId) ??
         d.toString();
     final gross = item.gross;
+    // Through the display helper, not `notes.split('\n').first`: a
+    // task-generated note opens with the PDF's `<div class="project-header">…`
+    // wrapper, so the raw first line is a tag and nothing else.
+    final summary = lineItemNotesSummary(item.notes);
     final identity = item.productKey.isEmpty
-        ? (item.notes.isEmpty
-              ? context.tr('untitled')
-              : item.notes.split('\n').first)
+        ? (summary.isEmpty ? context.tr('untitled') : summary)
         : item.productKey;
     final detail = '${fmt(item.cost)} × ${item.quantity}';
     return Container(

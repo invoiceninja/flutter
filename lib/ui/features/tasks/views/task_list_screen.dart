@@ -170,8 +170,8 @@ class TaskListScreen extends StatelessWidget {
                 ),
         );
       },
-      bulkActions: const [
-        EntityListBulkAction(
+      bulkActions: [
+        const EntityListBulkAction(
           actionId: 'start',
           icon: Icons.play_arrow_outlined,
           tooltipKey: 'start',
@@ -179,7 +179,7 @@ class TaskListScreen extends StatelessWidget {
           pluralSuccessKey: 'started_tasks',
           nothingKey: 'nothing_to_start',
         ),
-        EntityListBulkAction(
+        const EntityListBulkAction(
           actionId: 'stop',
           icon: Icons.stop_circle_outlined,
           tooltipKey: 'stop',
@@ -187,7 +187,7 @@ class TaskListScreen extends StatelessWidget {
           pluralSuccessKey: 'stopped_tasks',
           nothingKey: 'nothing_to_stop',
         ),
-        EntityListBulkAction(
+        const EntityListBulkAction(
           actionId: 'archive',
           icon: Icons.archive_outlined,
           tooltipKey: 'archive',
@@ -195,7 +195,7 @@ class TaskListScreen extends StatelessWidget {
           pluralSuccessKey: 'archived_tasks',
           nothingKey: 'nothing_to_archive',
         ),
-        EntityListBulkAction(
+        const EntityListBulkAction(
           actionId: 'restore',
           icon: Icons.unarchive_outlined,
           tooltipKey: 'restore',
@@ -203,13 +203,55 @@ class TaskListScreen extends StatelessWidget {
           pluralSuccessKey: 'restored_tasks',
           nothingKey: 'nothing_to_restore',
         ),
-        EntityListBulkAction(
+        const EntityListBulkAction(
           actionId: 'delete',
           icon: Icons.delete_outline,
           tooltipKey: 'delete',
           singleSuccessKey: 'deleted_task',
           pluralSuccessKey: 'deleted_tasks',
           nothingKey: 'nothing_to_delete',
+        ),
+        // Selection-level actions (handled by `onSelection`, not the per-id
+        // loop): one invoice from the whole selection, which may span several
+        // projects — each project's first line carries a header so the
+        // customer can tell them apart. Forum #23511.
+        EntityListBulkAction(
+          actionId: 'invoice_task',
+          icon: Icons.outbox_outlined,
+          tooltipKey: 'invoice_task',
+          // Unused: `onSelection` handlers do their own toasting.
+          singleSuccessKey: 'invoice_task',
+          pluralSuccessKey: 'invoice_task',
+          nothingKey: 'nothing_to_invoice',
+          onSelection: (ctx, sel) {
+            final services = ctx.read<Services>();
+            return TaskActions.invoiceTasks(
+              ctx,
+              services,
+              services.auth.session.value!.currentCompanyId,
+              sel.cast<Task>(),
+            );
+          },
+        ),
+        EntityListBulkAction(
+          actionId: 'add_to_invoice',
+          icon: Icons.playlist_add,
+          tooltipKey: 'add_to_invoice',
+          // The bundle's string is "Add to invoice :invoice" and no invoice is
+          // picked yet — blank the placeholder rather than show it.
+          labelParams: const {'invoice': ''},
+          singleSuccessKey: 'add_to_invoice',
+          pluralSuccessKey: 'add_to_invoice',
+          nothingKey: 'nothing_to_invoice',
+          onSelection: (ctx, sel) {
+            final services = ctx.read<Services>();
+            return TaskActions.addTasksToInvoice(
+              ctx,
+              services,
+              services.auth.session.value!.currentCompanyId,
+              sel.cast<Task>(),
+            );
+          },
         ),
       ],
     );

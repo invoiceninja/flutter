@@ -157,6 +157,27 @@ class ProjectListScreen extends StatelessWidget {
           },
         ),
         EntityListBulkAction(
+          actionId: 'add_to_invoice',
+          icon: Icons.playlist_add,
+          tooltipKey: 'add_to_invoice',
+          // The bundle's string is "Add to invoice :invoice" and no invoice is
+          // picked yet — blank the placeholder rather than show it.
+          labelParams: const {'invoice': ''},
+          // Unused: `onSelection` handlers do their own toasting.
+          singleSuccessKey: 'add_to_invoice',
+          pluralSuccessKey: 'add_to_invoice',
+          nothingKey: 'nothing_to_invoice',
+          onSelection: (ctx, sel) {
+            final services = ctx.read<Services>();
+            return ProjectActions.addProjectsToInvoice(
+              ctx,
+              services,
+              services.auth.session.value!.currentCompanyId,
+              sel.cast<Project>(),
+            );
+          },
+        ),
+        EntityListBulkAction(
           actionId: 'download_documents',
           icon: Icons.download_outlined,
           tooltipKey: 'download_documents',

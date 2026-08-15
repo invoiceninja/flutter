@@ -30,7 +30,13 @@ class TaskTokenSearchField extends StatefulWidget {
 
 class _TaskTokenSearchFieldState extends State<TaskTokenSearchField> {
   Stream<Company?>? _companyStream;
+  Stream<Map<String, String>>? _namesStream;
   String? _streamCompanyId;
+
+  /// Latest client id→name map, cached so the memoized `ClientFilterKey`'s
+  /// `nameForClientId` closure resolves current names without rebuilding the
+  /// keys. Same shape as `ProjectTokenSearchField`.
+  Map<String, String> _clientNames = const {};
 
   List<FilterKey>? _keys;
   String? _keysCompanyId;
@@ -61,11 +67,15 @@ class _TaskTokenSearchFieldState extends State<TaskTokenSearchField> {
     _keysCompanyId = widget.vm.companyId;
     _keysLabelSignature = signature;
     return _keys = buildTaskFilterKeys(
+      clients: services.clients,
       projects: services.projects,
       statuses: services.taskStatuses,
       tags: services.tags,
       companyId: widget.vm.companyId,
       company: company,
+      // Reads the live State field, so the memoized key stays correct as the
+      // names stream emits (chips re-render on the StreamBuilder rebuild).
+      nameForClientId: (id) => _clientNames[id],
     );
   }
 
@@ -84,15 +94,29 @@ class _TaskTokenSearchFieldState extends State<TaskTokenSearchField> {
     if (_companyStream == null || _streamCompanyId != widget.vm.companyId) {
       _streamCompanyId = widget.vm.companyId;
       _companyStream = services.company.watchCompany(widget.vm.companyId);
+      _namesStream = services.clients
+          .watchActiveNames(companyId: widget.vm.companyId)
+          .map(
+            (rows) => {
+              for (final r in rows)
+                if (r.name.isNotEmpty) r.id: r.name,
+            },
+          );
     }
     return StreamBuilder<Company?>(
       stream: _companyStream,
       builder: (context, companySnap) {
-        return TokenSearchField(
-          vm: widget.vm,
-          filterKeys: _keysFor(services, companySnap.data),
-          wide: widget.wide,
-          hintKey: 'search_tasks_or_filter_hint',
+        return StreamBuilder<Map<String, String>>(
+          stream: _namesStream,
+          builder: (context, namesSnap) {
+            if (namesSnap.hasData) _clientNames = namesSnap.data!;
+            return TokenSearchField(
+              vm: widget.vm,
+              filterKeys: _keysFor(services, companySnap.data),
+              wide: widget.wide,
+              hintKey: 'search_tasks_or_filter_hint',
+            );
+          },
         );
       },
     );

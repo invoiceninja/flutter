@@ -163,6 +163,7 @@ class EntityListBulkAction {
     required this.pluralSuccessKey,
     required this.nothingKey,
     String? labelKey,
+    this.labelParams,
     this.prepare,
     this.onSelection,
   }) : labelKey = labelKey ?? tooltipKey;
@@ -177,6 +178,14 @@ class EntityListBulkAction {
   /// Locale key for the overflow button / menu label. Defaults to
   /// [tooltipKey] (which is already the verb key for the legacy entries).
   final String labelKey;
+
+  /// Substitutions for [labelKey]. Needed when the only string the bundle has
+  /// carries a placeholder this surface can't fill — `add_to_invoice` is
+  /// "Add to invoice :invoice", but the bulk bar fires *before* an invoice is
+  /// picked, so it blanks the token (`{'invoice': ''}`) and keeps the label
+  /// localized. The rendered label is trimmed, so blanking a trailing
+  /// placeholder doesn't leave a dangling space.
+  final Map<String, String>? labelParams;
 
   /// One-shot prep dialog run before the per-id loop. `null` value cancels.
   final Future<Object?> Function(BuildContext context)? prepare;
@@ -554,7 +563,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         EntityActionItem<String>(
           kind: a.actionId,
           icon: a.icon,
-          label: context.tr(a.labelKey),
+          label: context.tr(a.labelKey, a.labelParams).trim(),
           enabled: !_vm.bulkInFlight,
           // In-flight is a transient busy state, not an unimplemented
           // action — suppress the `coming_soon` tooltip.

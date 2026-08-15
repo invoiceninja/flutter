@@ -1,16 +1,15 @@
-import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/models/domain/billing/line_item.dart';
-import 'package:admin/data/models/domain/billing/line_item_type.dart';
+import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/group_setting.dart';
+import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/domain/entity_type.dart';
-import 'package:admin/domain/tasks/task_rate.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
@@ -18,8 +17,10 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/billing_shared/add_unbilled/invoice_append_context.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// Action set surfaced for a task. Mirrors `ProductAction` — only the
 /// edit / archive / restore / delete / purge branches are wired through
@@ -179,7 +180,7 @@ class TaskActions {
         EntityActionItem(
           kind: TaskAction.addToInvoice,
           icon: Icons.playlist_add,
-          label: context.tr('add_to_invoice'),
+          label: addToInvoiceLabel(context),
           // Mirrors admin-portal: only an un-invoiced, non-running task
           // tied to a client can be appended to an existing invoice.
           enabled:
@@ -289,100 +290,185 @@ class TaskActions {
         );
       case TaskAction.newInvoice:
         if (!requireSynced(context, task.id)) return;
-        // Same 3-dp conversion as the "Add unbilled items" / "Invoice project"
-        // path (taskBillableHours) so a task invoiced via this menu and via the
-        // bulk path produce identical quantities; an empty task seeds a 1-hour
-        // editable default rather than a $0 ghost line, matching that path.
-        final hours = taskBillableHours(task);
-        // Apply the task → project → client → company rate cascade so a task
-        // left at rate 0 invoices at the inherited rate, not $0.
-        final rate = await _resolveRate(services, companyId, task);
-        if (!context.mounted) return;
-        final lineItem = emptyLineItem().copyWith(
-          typeId: LineItemType.task,
-          taskId: task.id,
-          notes: task.description,
-          quantity: hours,
-          cost: rate,
-        );
-        final draft = emptyInvoice().copyWith(
-          clientId: task.clientId,
-          projectId: task.projectId,
-          lineItems: [lineItem],
-        );
-        goEntityCreateFullWidth(context, '/invoices', extra: draft);
+        await invoiceTasks(context, services, companyId, [task]);
       case TaskAction.addToInvoice:
         if (!requireSynced(context, task.id)) return;
-        if (task.clientId.isEmpty) {
-          Notify.error(context, context.tr('please_select_a_client'));
-          return;
-        }
-        final formatter = await services.formatterFor(companyId);
-        if (!context.mounted) return;
-        final target = await showAddToInvoiceDialog(
-          context,
-          services: services,
-          companyId: companyId,
-          clientId: task.clientId,
-          formatter: formatter,
-        );
-        if (target == null || !context.mounted) return;
-        // Same 3-dp conversion as the "Add unbilled items" / "Invoice project"
-        // path (taskBillableHours) so a task invoiced via this menu and via the
-        // bulk path produce identical quantities; an empty task seeds a 1-hour
-        // editable default rather than a $0 ghost line, matching that path.
-        final hours = taskBillableHours(task);
-        final rate = await _resolveRate(services, companyId, task);
-        if (!context.mounted) return;
-        final lineItem = emptyLineItem().copyWith(
-          typeId: LineItemType.task,
-          taskId: task.id,
-          notes: task.description,
-          quantity: hours,
-          cost: rate,
-        );
-        context.go(
-          '/invoices/${target.id}/edit',
-          extra: target.copyWith(lineItems: [...target.lineItems, lineItem]),
-        );
+        await addTasksToInvoice(context, services, companyId, [task]);
     }
   }
 
-  /// Effective hourly rate for a task→invoice line, applying the
-  /// task → project → client → company `default_task_rate` cascade. Loads
-  /// the related entities lazily — and only when the task's own rate is 0,
-  /// the sole case where the fallback matters.
-  static Future<Decimal> _resolveRate(
+  /// "Invoice Task": one pre-filled invoice from [tasks], which may span
+  /// several projects — the tasks are clustered by project and the first line
+  /// of each run carries a project header, since an invoice has one
+  /// `project_id` and a line item has none.
+  static Future<void> invoiceTasks(
+    BuildContext context,
     Services services,
     String companyId,
-    Task task,
+    List<Task> tasks,
   ) async {
-    if (task.rate > Decimal.zero) return task.rate;
-    final company = await services.company.get(companyId);
-    final project = task.projectId.isEmpty
-        ? null
-        : await services.projects
-              .watchByRealId(companyId: companyId, id: task.projectId)
-              .first;
-    final client = task.clientId.isEmpty
-        ? null
-        : await services.clients
-              .watchByRealId(companyId: companyId, id: task.clientId)
-              .first;
-    // The rate cascade is task → project → client → GROUP → company; the
-    // client's group tier was being skipped, billing group-configured clients
-    // at the wrong (company) rate.
-    final group = (client == null || client.groupSettingsId.isEmpty)
-        ? null
-        : await services.groupSettings
-              .watchByRealId(companyId: companyId, id: client.groupSettingsId)
-              .first;
-    return resolveTaskRate(
-      task: task,
-      project: project,
-      client: client,
-      group: group,
-      company: company,
+    final billable = _billableSelection(context, tasks);
+    if (billable == null) return;
+    final labels = TaskNoteLabels.of(context);
+    // `emptyInvoice()` is exclusive-tax; nothing here depends on that yet
+    // (tasks carry no tax of their own) but the context load is shared.
+    final ctx = await _TaskInvoiceContext.load(services, companyId, billable);
+    if (!context.mounted) return;
+    final lineItems = tasksToLineItems(
+      billable,
+      projectsById: ctx.projectsById,
+      company: ctx.company,
+      formatter: ctx.formatter,
+      client: ctx.client,
+      group: ctx.group,
+      hourLabel: labels.hour,
+      hoursLabel: labels.hours,
+      projectFieldLabel: labels.project,
+    );
+    if (lineItems.isEmpty) {
+      Notify.info(context, context.tr('no_billable_tasks'));
+      return;
+    }
+    final projectIds = billable.map((t) => t.projectId).toSet();
+    // Before the navigation — see the note in [addTasksToInvoice].
+    _reportSkipped(context, billable.length, tasks.length);
+    goEntityCreateFullWidth(
+      context,
+      '/invoices',
+      extra: emptyInvoice().copyWith(
+        clientId: ctx.clientId,
+        // One `project_id` per invoice: link it only when every task agrees,
+        // else the document would be labelled with one project while carrying
+        // another's lines. Matches the server, which leaves it null for a
+        // multi-project bulk invoice (`ProjectRepository::invoice`).
+        projectId: projectIds.length == 1 ? projectIds.first : '',
+        lineItems: lineItems,
+      ),
+    );
+  }
+
+  /// "Add to invoice": append [tasks] to one of the client's existing
+  /// invoices, so a period's work across several projects lands on a single
+  /// document (forum #23511).
+  static Future<void> addTasksToInvoice(
+    BuildContext context,
+    Services services,
+    String companyId,
+    List<Task> tasks,
+  ) async {
+    final billable = _billableSelection(context, tasks);
+    if (billable == null) return;
+    final clientId = billable
+        .map((t) => t.clientId)
+        .firstWhere((c) => c.isNotEmpty, orElse: () => '');
+    if (clientId.isEmpty) {
+      Notify.error(context, context.tr('please_select_a_client'));
+      return;
+    }
+    final labels = TaskNoteLabels.of(context);
+    final formatter = await services.formatterFor(companyId);
+    if (!context.mounted) return;
+    final target = await showAddToInvoiceDialog(
+      context,
+      services: services,
+      companyId: companyId,
+      clientId: clientId,
+      formatter: formatter,
+    );
+    if (target == null || !context.mounted) return;
+    final existing = await InvoiceAppendContext.of(services, companyId, target);
+    final ctx = await _TaskInvoiceContext.load(services, companyId, billable);
+    if (!context.mounted) return;
+    final fresh = billable
+        .where((t) => !existing.taskIds.contains(t.id))
+        .toList();
+    final lineItems = tasksToLineItems(
+      fresh,
+      projectsById: ctx.projectsById,
+      company: ctx.company,
+      formatter: ctx.formatter,
+      client: ctx.client,
+      group: ctx.group,
+      alreadyHeadedProjectIds: existing.projectIds,
+      hourLabel: labels.hour,
+      hoursLabel: labels.hours,
+      projectFieldLabel: labels.project,
+    );
+    if (lineItems.isEmpty) {
+      Notify.info(context, context.tr('no_billable_tasks'));
+      return;
+    }
+    // Toast BEFORE navigating: `Notify` resolves the toast host through this
+    // context, and `go` deactivates the element it belongs to — the lookup
+    // then fails and is swallowed, so a toast queued afterwards silently never
+    // appears. The host itself is global and outlives the route, so queueing
+    // first is both safe and visible on the destination screen.
+    //
+    // Worth saying at all because the lines land on a *draft*: without it the
+    // user arrives at an edit screen with no sign anything happened and no
+    // hint that a Save is still required.
+    Notify.success(
+      context,
+      fresh.length == tasks.length
+          ? context.tr('added_invoice_items', {'count': '${lineItems.length}'})
+          : context.tr('added_invoice_items_partial', {
+              'count': '${lineItems.length}',
+              'total': '${tasks.length}',
+            }),
+    );
+    goEntityEditWithDraft(
+      context,
+      '/invoices',
+      target.id,
+      target.copyWith(lineItems: [...target.lineItems, ...lineItems]),
+    );
+  }
+
+  /// Tasks that can actually be billed, or null when the selection is
+  /// unusable (the caller has already been toasted). Mirrors admin-portal:
+  /// multiple clients abort, multiple *projects* are fine — that's the whole
+  /// point of the project headers.
+  static List<Task>? _billableSelection(
+    BuildContext context,
+    List<Task> tasks,
+  ) {
+    final clientIds = tasks
+        .map((t) => t.clientId)
+        .where((c) => c.isNotEmpty)
+        .toSet();
+    if (clientIds.length > 1) {
+      Notify.error(context, context.tr('multiple_client_error'));
+      return null;
+    }
+    // A running task would bill a live-timer snapshot; an invoiced one would
+    // double-bill and is server-immutable; a `tmp_` row has no server id for
+    // the line to reference.
+    final billable = tasks
+        .where(
+          (t) =>
+              !t.id.startsWith('tmp_') &&
+              !t.isDeleted &&
+              !t.isRunning &&
+              !t.isInvoiced,
+        )
+        .toList();
+    if (billable.isEmpty) {
+      Notify.info(context, context.tr('no_billable_tasks'));
+      return null;
+    }
+    return billable;
+  }
+
+  /// Silently dropping rows from a bulk selection reads as a bug — say how
+  /// many made it when the counts differ.
+  static void _reportSkipped(BuildContext context, int used, int selected) {
+    if (used >= selected) return;
+    Notify.info(
+      context,
+      context.tr('added_invoice_items_partial', {
+        'count': '$used',
+        'total': '$selected',
+      }),
     );
   }
 
@@ -445,5 +531,73 @@ class TaskActions {
     ];
     final next = task.copyWith(timeLog: entries);
     await services.tasks.save(companyId: companyId, task: next);
+  }
+}
+
+/// The related entities a batch of tasks needs to become invoice lines: the
+/// company (Task Settings + the tail of the rate cascade), a [Formatter] for
+/// the time-detail block, the single client + its group tier, and the projects
+/// the tasks belong to (for the headers and `project.taskRate`).
+///
+/// Loaded once per action rather than per task — the old per-task
+/// `_resolveRate` re-read the company, client and group for every row.
+class _TaskInvoiceContext {
+  const _TaskInvoiceContext({
+    required this.company,
+    required this.formatter,
+    required this.clientId,
+    required this.client,
+    required this.group,
+    required this.projectsById,
+  });
+
+  final Company? company;
+  final Formatter formatter;
+  final String clientId;
+  final Client? client;
+  final GroupSetting? group;
+  final Map<String, Project> projectsById;
+
+  static Future<_TaskInvoiceContext> load(
+    Services services,
+    String companyId,
+    List<Task> tasks,
+  ) async {
+    final company = await services.company.get(companyId);
+    final formatter = await services.formatterFor(companyId);
+    // Callers enforce the single-client rule, so one load covers the batch.
+    final clientId = tasks
+        .map((t) => t.clientId)
+        .firstWhere((c) => c.isNotEmpty, orElse: () => '');
+    final client = clientId.isEmpty
+        ? null
+        : await services.clients
+              .watchByRealId(companyId: companyId, id: clientId)
+              .first;
+    // The rate cascade is task → project → client → GROUP → company.
+    final group = (client == null || client.groupSettingsId.isEmpty)
+        ? null
+        : await services.groupSettings
+              .watchByRealId(companyId: companyId, id: client.groupSettingsId)
+              .first;
+    final projectIds = tasks
+        .map((t) => t.projectId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final projectsById = <String, Project>{};
+    for (final id in projectIds) {
+      final project = await services.projects
+          .watchByRealId(companyId: companyId, id: id)
+          .first;
+      if (project != null) projectsById[id] = project;
+    }
+    return _TaskInvoiceContext(
+      company: company,
+      formatter: formatter,
+      clientId: clientId,
+      client: client,
+      group: group,
+      projectsById: projectsById,
+    );
   }
 }

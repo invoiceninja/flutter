@@ -95,7 +95,7 @@ class ExpenseActions {
         EntityActionItem(
           kind: ExpenseAction.addToInvoice,
           icon: Icons.playlist_add_outlined,
-          label: context.tr('add_to_invoice'),
+          label: addToInvoiceLabel(context),
           // Mirrors admin-portal: an un-invoiced expense tied to a client
           // can be appended to one of that client's existing invoices.
           enabled:

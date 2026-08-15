@@ -99,6 +99,19 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: delete that `add_compile_definitions(...)` line and its comment block; rebuild `flutter build windows`.
 - Recheck trigger: when `local_auth_windows` publishes a release whose changelog cites the C++20 `<coroutine>` migration (or MSVC 14.51 / VS 18.6) — bump `local_auth`, drop the line, and rebuild `flutter build windows`.
 
+## 7. RawAutocomplete: no way to reopen the options view without changing the text
+
+- Issue / waiting on: no dedicated tracker for "show/reopen the options view on demand". Closest open issues: [flutter/flutter#140662](https://github.com/flutter/flutter/issues/140662) (let `Autocomplete`/`RawAutocomplete` distinguish focus from tap), [#99164](https://github.com/flutter/flutter/issues/99164) (missing features desktop/web users expect). What we actually need is a public `showOptions()` / controller on `RawAutocompleteState`. • Found: 2026-08-15 (invoiceninja/flutter#34) • Flutter: 3.44.1
+- Symptom: after the user picks an option, tapping the same field again reopens nothing at all — neither the text nor the focus changed, so no code path recomputes the options.
+- Root cause: `RawAutocomplete` recomputes `_options` **only** from its `TextEditingController` listener, and `_onChangedField` early-returns unless `value.text != _lastFieldText` (`packages/flutter/lib/src/widgets/autocomplete.dart`). `_canShowOptionsView` additionally requires `_options` to be non-empty, and nothing else can populate it.
+- Commit ref: _not yet committed — fill in the SHA when committed._
+- Change(s):
+  - `lib/ui/core/widgets/searchable_dropdown_field.dart` — **MUST-REVERT**: `_reopenOptions()` plus its `onTap:` wiring on the field, and the `_resetHighlight` flag with the post-frame `_highlight?.value = 0` it drives (dead code without the bounce, which is the only thing that can reopen the list on a carried-over highlight).
+  - `lib/ui/core/widgets/client_picker_field.dart` — **MUST-REVERT**: the same `_reopenOptions()` + `onTap:`.
+  - `searchable_dropdown_field.dart` — **KEEP**: `_isPristine`, the hoisted-and-checked committed option, the committed row's direct `onChanged`, `OptionsViewOpenDirection.mostSpace`, no self-`Align`, the text-scaled row extent, and the suffix arrow. **KEEP** in `client_picker_field.dart`: `_isPristine` (the only part of the #34 fix that file needed). All of it is correct regardless of what the SDK does about reopening.
+- Revert: delete `_reopenOptions()` and the `onTap: _reopenOptions` lines in both files, plus `_resetHighlight` and its post-frame callback (and the "tapping again after a pick reopens the list" test). Everything else stays — the pristine rule alone still handles first-focus and refocus.
+- Recheck trigger: when `RawAutocomplete` exposes a way to show its options view imperatively (or recomputes on focus) — drop the two hooks and confirm `test/ui/core/widgets/searchable_dropdown_field_test.dart` still passes, in particular "tapping again after a pick reopens the list".
+
 ---
 
 ## Considered but NOT tracked (permanent adaptations — do not revert)

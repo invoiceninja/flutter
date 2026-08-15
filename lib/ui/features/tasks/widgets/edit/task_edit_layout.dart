@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
+import 'package:admin/ui/core/utils/task_status_colors.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
@@ -166,8 +167,7 @@ class _CustomFieldsSection extends StatelessWidget {
         vm.setCustomValue4,
       ],
     );
-    if (!locked) return section;
-    return IgnorePointer(child: Opacity(opacity: 0.5, child: section));
+    return _Lockable(locked: locked, child: section);
   }
 }
 
@@ -359,20 +359,17 @@ class _ClientPicker extends StatelessWidget {
             break;
           }
         }
-        return IgnorePointer(
-          ignoring: locked,
-          child: Opacity(
-            opacity: locked ? 0.5 : 1,
-            child: SearchableDropdownField<Client>(
-              label: context.tr('client'),
-              items: clients,
-              initialValue: selected,
-              displayString: (c) => c.displayName.isEmpty
-                  ? (c.name.isEmpty ? c.id : c.name)
-                  : c.displayName,
-              idOf: (c) => c.id,
-              onChanged: (c) => vm.setClientId(c?.id ?? ''),
-            ),
+        return _Lockable(
+          locked: locked,
+          child: SearchableDropdownField<Client>(
+            label: context.tr('client'),
+            items: clients,
+            initialValue: selected,
+            displayString: (c) => c.displayName.isEmpty
+                ? (c.name.isEmpty ? c.id : c.name)
+                : c.displayName,
+            idOf: (c) => c.id,
+            onChanged: (c) => vm.setClientId(c?.id ?? ''),
           ),
         );
       },
@@ -416,18 +413,15 @@ class _ProjectPicker extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            IgnorePointer(
-              ignoring: locked || empty,
-              child: Opacity(
-                opacity: locked || empty ? 0.5 : 1,
-                child: SearchableDropdownField<Project>(
-                  label: context.tr('project'),
-                  items: projects,
-                  initialValue: selected,
-                  displayString: (p) => p.name.isEmpty ? p.id : p.name,
-                  idOf: (p) => p.id,
-                  onChanged: vm.selectProject,
-                ),
+            _Lockable(
+              locked: locked || empty,
+              child: SearchableDropdownField<Project>(
+                label: context.tr('project'),
+                items: projects,
+                initialValue: selected,
+                displayString: (p) => p.name.isEmpty ? p.id : p.name,
+                idOf: (p) => p.id,
+                onChanged: vm.selectProject,
               ),
             ),
             // Helper line that explains why the picker is greyed out when
@@ -470,18 +464,29 @@ class _StatusPicker extends StatelessWidget {
             break;
           }
         }
-        return IgnorePointer(
-          ignoring: locked,
-          child: Opacity(
-            opacity: locked ? 0.5 : 1,
-            child: SearchableDropdownField<TaskStatus>(
-              label: context.tr('status'),
-              items: statuses,
-              initialValue: selected,
-              displayString: (s) => s.name.isEmpty ? s.id : s.name,
-              idOf: (s) => s.id,
-              onChanged: (s) => vm.setStatusId(s?.id ?? ''),
+        return _Lockable(
+          locked: locked,
+          child: SearchableDropdownField<TaskStatus>(
+            label: context.tr('status'),
+            items: statuses,
+            initialValue: selected,
+            displayString: (s) => s.name.isEmpty ? s.id : s.name,
+            idOf: (s) => s.id,
+            // Same dot the list pill, kanban header and settings rows use, so
+            // the picker reads like the rest of the task UI.
+            optionLeadingBuilder: (context, status) => Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: taskStatusColors(
+                  context,
+                  name: status.name,
+                  color: status.color,
+                ).fg,
+                shape: BoxShape.circle,
+              ),
             ),
+            onChanged: (s) => vm.setStatusId(s?.id ?? ''),
           ),
         );
       },
@@ -512,22 +517,39 @@ class _AssignedUserPicker extends StatelessWidget {
             break;
           }
         }
-        return IgnorePointer(
-          ignoring: locked,
-          child: Opacity(
-            opacity: locked ? 0.5 : 1,
-            child: SearchableDropdownField<User>(
-              label: context.tr('assigned_user'),
-              items: users,
-              initialValue: selected,
-              displayString: (u) =>
-                  u.displayName.isEmpty ? u.id : u.displayName,
-              idOf: (u) => u.id,
-              onChanged: (u) => vm.setAssignedUserId(u?.id ?? ''),
-            ),
+        return _Lockable(
+          locked: locked,
+          child: SearchableDropdownField<User>(
+            label: context.tr('assigned_user'),
+            items: users,
+            initialValue: selected,
+            displayString: (u) => u.displayName.isEmpty ? u.id : u.displayName,
+            idOf: (u) => u.id,
+            onChanged: (u) => vm.setAssignedUserId(u?.id ?? ''),
           ),
         );
       },
+    );
+  }
+}
+
+/// Greys out and disables a field on an invoiced (or not-yet-applicable) task.
+///
+/// `IgnorePointer` alone isn't enough: it only overrides hit testing, so Tab
+/// still reaches the widget, and a picker that has focus can be driven entirely
+/// from the keyboard — arrow to another option, Enter, and the draft is edited
+/// on a record the server will reject.
+class _Lockable extends StatelessWidget {
+  const _Lockable({required this.locked, required this.child});
+
+  final bool locked;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!locked) return child;
+    return ExcludeFocus(
+      child: IgnorePointer(child: Opacity(opacity: 0.5, child: child)),
     );
   }
 }

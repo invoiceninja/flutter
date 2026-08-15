@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/escape_observer.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 
 /// Searchable client picker with an inline "create client" affordance.
@@ -279,12 +279,45 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
       .ensurePageLoaded(companyId: widget.companyId, page: 1, search: query)
       .catchError((_) => false);
 
+  /// True while the field still shows the committed client's own name — the
+  /// user has typed nothing, so there is no query.
+  bool _isPristine(String query) {
+    final committed = _committed;
+    if (committed == null) return query.isEmpty;
+    return query == clientPickerLabel(committed).trim();
+  }
+
+  /// Reopen the options on a tap that isn't editing anything.
+  ///
+  /// `RawAutocomplete` recomputes only when the field TEXT changes, so a tap
+  /// after a selection (focus never left) reopens nothing. Bounce the value
+  /// through a different string and back in the same frame — the newer build
+  /// supersedes the older and the visible text never changes. Guarded on
+  /// [_isPristine] so it can't clobber a half-typed query or an in-flight
+  /// create.
+  void _reopenOptions() {
+    if (_creating || !widget.enabled) return;
+    if (!_isPristine(_controller.text.trim())) return;
+    if (_controller.value.isComposingRangeValid) return;
+    final text = _controller.text;
+    _controller.value = TextEditingValue(text: text.isEmpty ? ' ' : '');
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection(baseOffset: 0, extentOffset: text.length),
+    );
+  }
+
   /// Options for [query]: local rows first, and when nothing matches locally
   /// ask the server before concluding the client doesn't exist. Without that
   /// round-trip a large account silently offers "create" for a client it
   /// already has, which is how duplicates get made.
-  Future<Iterable<_ClientOption>> _buildOptions(String query) async {
+  Future<Iterable<_ClientOption>> _buildOptions(String rawQuery) async {
     if (!widget.enabled) return const <_ClientOption>[];
+    // Searching for the committed client's own name would offer only that one
+    // client back — the value the user already has — so tapping a populated
+    // field would look broken (invoiceninja/flutter#34, same defect as
+    // `SearchableDropdownField`). An untouched field means "show me the list".
+    final query = _isPristine(rawQuery) ? '' : rawQuery;
     final seq = ++_searchSeq;
     var rows = await _localClients(query);
     if (!mounted || seq != _searchSeq) return const <_ClientOption>[];
@@ -443,7 +476,7 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
                   // in no Material, so hosts without one would throw.
                   return Material(
                     type: MaterialType.transparency,
-                    child: _EscapeObserver(
+                    child: EscapeObserver(
                       // `DismissIntent` hides the options overlay without
                       // touching focus, so nothing else would tell us it is
                       // gone — and a stale "visible" flag makes the next Enter
@@ -453,9 +486,19 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
                         controller: textController,
                         focusNode: focusNode,
                         enabled: widget.enabled,
+                        onTap: _reopenOptions,
                         onSubmitted: (_) {
                           if (_highlightIsCreateRow) {
-                            unawaited(_handleCreate(textController.text));
+                            // Seed with the same query the options were built
+                            // from, so Enter and a tap on the create row agree:
+                            // on an untouched field that's "" ("New Client"),
+                            // not the committed client's own name.
+                            final text = textController.text;
+                            unawaited(
+                              _handleCreate(
+                                _isPristine(text.trim()) ? '' : text,
+                              ),
+                            );
                             return; // never reaches `_select`
                           }
                           onFieldSubmitted();
@@ -599,31 +642,6 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
               : null,
         );
       },
-    );
-  }
-}
-
-/// Observes Escape without consuming it, so the parent can notice that
-/// `RawAutocomplete` hid its overlay (which it does without touching focus).
-class _EscapeObserver extends StatelessWidget {
-  const _EscapeObserver({required this.onEscape, required this.child});
-
-  final VoidCallback onEscape;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.escape) {
-          onEscape();
-        }
-        return KeyEventResult.ignored;
-      },
-      child: child,
     );
   }
 }

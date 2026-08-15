@@ -608,6 +608,30 @@ void main() {
       );
     });
 
+    // invoiceninja/flutter#34: the field's text is the committed client's own
+    // name, so searching by it used to offer that one client straight back —
+    // leaving "clear the field first" as the only way to reach the others.
+    testWidgets('tapping a populated field offers the other clients', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        rows: [
+          _client('c1', name: 'Globex'),
+          _client('c2', name: 'Initech'),
+          _client('c3', name: 'Umbrella'),
+        ],
+        selectedClientId: 'c1',
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Initech'), findsOneWidget);
+      expect(find.text('Umbrella'), findsOneWidget);
+      expect(selected, isEmpty);
+    });
+
     testWidgets('tapping a match commits it', (tester) async {
       await pump(tester, rows: [_client('c1', name: 'Globex')]);
       await type(tester, 'Glob');

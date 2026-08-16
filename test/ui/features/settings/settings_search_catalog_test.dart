@@ -4,6 +4,8 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 
+import '../../../_localization_helper.dart';
+
 void main() {
   group('settings search catalog', () {
     test('every catalog section has a matching SettingsSectionDef', () {
@@ -17,6 +19,32 @@ void main() {
               'kSettingsSections or remove the orphan catalog entry.',
         );
       }
+    });
+
+    test('no field key resolves to a string with a :placeholder', () {
+      // Settings search renders a field key raw (`l10n.lookup(hit.fieldKey)`
+      // in settings_screen.dart) — it has nothing to substitute with. A key
+      // whose bundled value carries a `:token` therefore shows the token to
+      // the user; `days_left` (":days days left") did exactly that until it
+      // was swapped for `days_left_label`. The `test/lint/` text scan can't
+      // see these because they're bare strings in a list, so assert it here.
+      final l10n = bundledLocalization();
+      final offenders = <String>[];
+      for (final entry in kSettingsSearchCatalog.entries) {
+        for (final fieldKey in entry.value) {
+          final value = l10n.lookup(fieldKey);
+          if (!kLocalePlaceholderPattern.hasMatch(value)) continue;
+          offenders.add('${entry.key}/$fieldKey -> "$value"');
+        }
+      }
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'Catalog field keys must resolve placeholder-free. Point at a '
+            'clean key (or add a *_label key to _app_pending.json). Found:\n  '
+            '${offenders.join('\n  ')}',
+      );
     });
 
     test('section routes all start with /settings/<slug>', () {

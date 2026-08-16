@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -8,7 +7,7 @@ import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/payment_links/view_models/payment_link_edit_view_model.dart';
 import 'package:admin/ui/features/payment_links/widgets/edit/multi_product_picker.dart';
@@ -252,17 +251,7 @@ class _PurchasePageReadOnly extends StatelessWidget {
           IconButton(
             tooltip: context.tr('copy'),
             icon: const Icon(Icons.copy_outlined, size: 18),
-            onPressed: url.isEmpty
-                ? null
-                : () async {
-                    await Clipboard.setData(ClipboardData(text: url));
-                    if (context.mounted) {
-                      Notify.success(
-                        context,
-                        context.tr('copied_to_clipboard'),
-                      );
-                    }
-                  },
+            onPressed: url.isEmpty ? null : () => copyToClipboard(context, url),
           ),
         ],
       ),

@@ -20,7 +20,9 @@ const kAccountManagementPlanSearchKeys = <String>[
   'free_trial',
   'change_plan',
   'expires_on',
-  'days_left',
+  // The rendered string is `days_left` (":days days left") with the count
+  // substituted; search shows a field key raw, so it indexes the plain label.
+  'days_left_label',
 ];
 
 /// Localization key for the plan headline. Shared by this tab's status card

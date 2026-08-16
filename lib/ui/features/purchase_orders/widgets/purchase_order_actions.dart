@@ -222,7 +222,9 @@ class PurchaseOrderActions {
         EntityActionItem(
           kind: PurchaseOrderAction.viewExpense,
           icon: Icons.receipt_long_outlined,
-          label: context.tr('view_expense'),
+          // `view_expense_label`, not `view_expense` — the Transifex string is
+          // "View expense # :expense" and this menu names no expense number.
+          label: context.tr('view_expense_label'),
           enabled: true,
           onTap: () => onTap(PurchaseOrderAction.viewExpense),
         ),

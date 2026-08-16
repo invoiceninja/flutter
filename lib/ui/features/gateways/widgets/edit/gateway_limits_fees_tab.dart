@@ -181,7 +181,11 @@ class _LimitsAndFeesEditor extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: InputDecoration(labelText: context.tr('min_limit')),
+                // `min_amount` / `max_amount`, not `min_limit` / `max_limit` —
+                // the latter are the display forms "Min: :min" / "Max: :max".
+                decoration: InputDecoration(
+                  labelText: context.tr('min_amount'),
+                ),
                 onChanged: (v) =>
                     vm.updateFees(typeId, fees.copyWith(minLimit: _parse(v))),
               ),
@@ -200,7 +204,9 @@ class _LimitsAndFeesEditor extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: InputDecoration(labelText: context.tr('max_limit')),
+                decoration: InputDecoration(
+                  labelText: context.tr('max_amount'),
+                ),
                 onChanged: (v) =>
                     vm.updateFees(typeId, fees.copyWith(maxLimit: _parse(v))),
               ),
@@ -388,7 +394,10 @@ class _FeePreview extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(top: InSpacing.md(context)),
           child: Text(
-            context.tr('fees_sample', {
+            // `fees_sample_detailed`, not `fees_sample` — the Transifex string
+            // is "The fee for a :amount invoice would be :total.", which names
+            // the *total* as the fee and drops `fee` entirely.
+            context.tr('fees_sample_detailed', {
               'amount': money(sample, fractionDigits: 0),
               'total': money(total),
               'fee': money(fee),

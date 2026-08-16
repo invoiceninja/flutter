@@ -104,7 +104,10 @@ _GateCopy _gateCopy(
     return (key: 'plan_expired_renew', params: null);
   }
   if (level == PlanGateLevel.enterprise) {
-    return (key: 'enterprise_plan_features', params: null);
+    // Not `enterprise_plan_features` — it ends with ":link to see the full
+    // list of features" and this banner has no link to substitute. This key
+    // is placeholder-free, translated, and matches the sibling copy's length.
+    return (key: 'requires_an_enterprise_plan', params: null);
   }
   if (s.isEligibleForTrial) {
     return (key: 'start_free_trial_message', params: null);

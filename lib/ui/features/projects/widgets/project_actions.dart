@@ -147,7 +147,9 @@ class ProjectActions {
         EntityActionItem(
           kind: ProjectAction.addToInvoice,
           icon: Icons.playlist_add,
-          label: addToInvoiceLabel(context),
+          // `action_add_to_invoice`, not `add_to_invoice` — the latter is
+          // "Add to invoice :invoice" (invoiceninja/flutter#35).
+          label: context.tr('action_add_to_invoice'),
           // Same billable set as "Invoice Project", appended to one of the
           // client's existing invoices instead of a new one — so a period's
           // work across several projects can land on a single document.

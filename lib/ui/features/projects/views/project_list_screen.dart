@@ -159,13 +159,14 @@ class ProjectListScreen extends StatelessWidget {
         EntityListBulkAction(
           actionId: 'add_to_invoice',
           icon: Icons.playlist_add,
-          tooltipKey: 'add_to_invoice',
-          // The bundle's string is "Add to invoice :invoice" and no invoice is
-          // picked yet — blank the placeholder rather than show it.
-          labelParams: const {'invoice': ''},
+          // `action_add_to_invoice` throughout: `add_to_invoice` is
+          // "Add to invoice :invoice" and the bulk bar fires before an
+          // invoice is picked (invoiceninja/flutter#35). `actionId` stays —
+          // it's the wire id matched against the VM's `BulkAction.id`.
+          tooltipKey: 'action_add_to_invoice',
           // Unused: `onSelection` handlers do their own toasting.
-          singleSuccessKey: 'add_to_invoice',
-          pluralSuccessKey: 'add_to_invoice',
+          singleSuccessKey: 'action_add_to_invoice',
+          pluralSuccessKey: 'action_add_to_invoice',
           nothingKey: 'nothing_to_invoice',
           onSelection: (ctx, sel) {
             final services = ctx.read<Services>();
@@ -180,7 +181,10 @@ class ProjectListScreen extends StatelessWidget {
         EntityListBulkAction(
           actionId: 'download_documents',
           icon: Icons.download_outlined,
-          tooltipKey: 'download_documents',
+          // `download_documents_label`, not `download_documents`: the bulk bar
+          // renders `labelKey` (which defaults to `tooltipKey`) raw, and the
+          // Transifex string is "Download Documents (:size)".
+          tooltipKey: 'download_documents_label',
           singleSuccessKey: 'documents',
           pluralSuccessKey: 'documents',
           nothingKey: 'no_documents_to_download',

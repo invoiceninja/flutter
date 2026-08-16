@@ -180,7 +180,9 @@ class TaskActions {
         EntityActionItem(
           kind: TaskAction.addToInvoice,
           icon: Icons.playlist_add,
-          label: addToInvoiceLabel(context),
+          // `action_add_to_invoice`, not `add_to_invoice` — the latter is
+          // "Add to invoice :invoice" (invoiceninja/flutter#35).
+          label: context.tr('action_add_to_invoice'),
           // Mirrors admin-portal: only an un-invoiced, non-running task
           // tied to a client can be appended to an existing invoice.
           enabled:

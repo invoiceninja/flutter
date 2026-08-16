@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -7,7 +6,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -150,15 +149,7 @@ class _WebhookRow extends StatelessWidget {
                   IconButton(
                     icon: const Icon(Icons.copy_outlined, size: 18),
                     tooltip: context.tr('copy'),
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: url));
-                      if (context.mounted) {
-                        Notify.success(
-                          context,
-                          context.tr('copied_to_clipboard'),
-                        );
-                      }
-                    },
+                    onPressed: () => copyToClipboard(context, url),
                   ),
                 ],
               ),

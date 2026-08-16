@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
@@ -12,6 +11,7 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/data/repositories/system_log_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -478,15 +478,18 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
         ..writeln(recent.join('\n'));
     }
 
+    if (!mounted) return;
     try {
-      await Clipboard.setData(ClipboardData(text: buffer.toString()));
+      // Label rather than payload: the buffer is the whole diagnostics log.
+      await copyToClipboard(
+        context,
+        buffer.toString(),
+        label: context.tr('system_logs'),
+      );
     } catch (_) {
       if (!mounted) return;
       Notify.error(context, context.tr('error'));
-      return;
     }
-    if (!mounted) return;
-    Notify.success(context, context.tr('copied_to_clipboard'));
   }
 
   Future<void> _appendSnapshot({

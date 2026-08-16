@@ -116,4 +116,19 @@ void main() {
     );
     expect(enabledOf(items, TaskAction.newInvoice), isFalse);
   });
+
+  testWidgets('addToInvoice label carries no :placeholder (flutter#35)', (
+    tester,
+  ) async {
+    final items = await resolveItems(tester, task: _task());
+    final label = items
+        .firstWhere((i) => i.kind == TaskAction.addToInvoice)
+        .label;
+    // The generic `add_to_invoice` string is "Add to invoice :invoice" and
+    // this menu fires before an invoice is picked, so it must resolve the
+    // dedicated placeholder-free `action_add_to_invoice` instead. Blanking
+    // the token is not an acceptable substitute — de/ja put it mid-string.
+    expect(label, 'Add To Invoice');
+    expect(label, isNot(contains(':')));
+  });
 }

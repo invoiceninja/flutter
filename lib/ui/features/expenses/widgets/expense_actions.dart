@@ -95,7 +95,9 @@ class ExpenseActions {
         EntityActionItem(
           kind: ExpenseAction.addToInvoice,
           icon: Icons.playlist_add_outlined,
-          label: addToInvoiceLabel(context),
+          // `action_add_to_invoice`, not `add_to_invoice` — the latter is
+          // "Add to invoice :invoice" (invoiceninja/flutter#35).
+          label: context.tr('action_add_to_invoice'),
           // Mirrors admin-portal: an un-invoiced expense tied to a client
           // can be appended to one of that client's existing invoices.
           enabled:

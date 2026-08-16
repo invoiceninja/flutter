@@ -496,7 +496,9 @@ class _ExpenseLink extends StatelessWidget {
         InkWell(
           onTap: () => context.go('/expenses/$expenseId'),
           child: Text(
-            context.tr('view_expense'),
+            // `view_expense_label`: `view_expense` is "View expense # :expense"
+            // and no number is substituted here.
+            context.tr('view_expense_label'),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,

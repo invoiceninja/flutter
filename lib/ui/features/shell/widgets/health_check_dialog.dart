@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/api/health_check_api_model.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 
 const String _kDocsUrl = 'https://invoiceninja.github.io/docs';
@@ -447,11 +447,9 @@ class _LastQueueErrorDialog extends StatelessWidget {
   }
 }
 
-Future<void> _copy(BuildContext context, String message) async {
-  await Clipboard.setData(ClipboardData(text: message));
-  if (!context.mounted) return;
-  Notify.success(context, context.tr('copied_to_clipboard', {'value': ''}));
-}
+// Label rather than payload: `message` is the whole health-check report.
+Future<void> _copy(BuildContext context, String message) =>
+    copyToClipboard(context, message, label: context.tr('health_check'));
 
 String _parseVersion(String version) {
   final match = RegExp(r'(\d+\.\d+\.\d+)').stringMatch(version);

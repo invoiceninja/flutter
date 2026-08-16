@@ -162,30 +162,25 @@ class EntityListBulkAction {
     required this.singleSuccessKey,
     required this.pluralSuccessKey,
     required this.nothingKey,
-    String? labelKey,
-    this.labelParams,
     this.prepare,
     this.onSelection,
-  }) : labelKey = labelKey ?? tooltipKey;
+  });
 
   /// Must match a `BulkAction.id` registered on `vm.bulkActions`. Stable
   /// across locales (`archive`, `restore`, `delete`, …).
   final String actionId;
 
   final IconData icon;
+
+  /// Locale key for the overflow button / menu label.
+  ///
+  /// Must resolve to a **placeholder-free** string — this surface renders it
+  /// with no substitutions. Where the obvious key carries a `:token` the bulk
+  /// bar can't fill, point at a key that doesn't (`action_add_to_invoice`
+  /// rather than `add_to_invoice`, `download_documents_label` rather than
+  /// `download_documents`); `no_unsubstituted_placeholders_test` fails the
+  /// build otherwise.
   final String tooltipKey;
-
-  /// Locale key for the overflow button / menu label. Defaults to
-  /// [tooltipKey] (which is already the verb key for the legacy entries).
-  final String labelKey;
-
-  /// Substitutions for [labelKey]. Needed when the only string the bundle has
-  /// carries a placeholder this surface can't fill — `add_to_invoice` is
-  /// "Add to invoice :invoice", but the bulk bar fires *before* an invoice is
-  /// picked, so it blanks the token (`{'invoice': ''}`) and keeps the label
-  /// localized. The rendered label is trimmed, so blanking a trailing
-  /// placeholder doesn't leave a dangling space.
-  final Map<String, String>? labelParams;
 
   /// One-shot prep dialog run before the per-id loop. `null` value cancels.
   final Future<Object?> Function(BuildContext context)? prepare;
@@ -563,7 +558,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         EntityActionItem<String>(
           kind: a.actionId,
           icon: a.icon,
-          label: context.tr(a.labelKey, a.labelParams).trim(),
+          label: context.tr(a.tooltipKey),
           enabled: !_vm.bulkInFlight,
           // In-flight is a transient busy state, not an unimplemented
           // action — suppress the `coming_soon` tooltip.

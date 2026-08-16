@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -8,7 +10,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 
 import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/design_tokens.dart';
@@ -16,6 +17,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/settings/views/advanced/debug_panel_window_controls.dart';
@@ -313,9 +315,12 @@ Future<void> _copyAll(BuildContext context, DebugCaptureStore store) async {
     buf.writeln(e.message);
     if (e.stack != null) buf.writeln(e.stack);
   }
-  await Clipboard.setData(ClipboardData(text: buf.toString()));
-  if (!context.mounted) return;
-  Notify.success(context, context.tr('copied_to_clipboard'));
+  // Label rather than payload: the buffer is a debug dump with stack traces.
+  await copyToClipboard(
+    context,
+    buf.toString(),
+    label: context.tr('recent_errors'),
+  );
 }
 
 /// Capture the whole app window to a PNG and save it via the native save dialog.
@@ -870,20 +875,17 @@ class _DetailDialog extends StatelessWidget {
       actions: [
         if (entry is NetworkCaptureEntry)
           TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: _entryAsCurl(entry)));
-              if (!context.mounted) return;
-              Notify.success(context, context.tr('copied_to_clipboard'));
-            },
+            // `curl` is a tool name, not translatable prose.
+            onPressed: () =>
+                copyToClipboard(context, _entryAsCurl(entry), label: 'curl'),
             child: Text(context.tr('copy_as_curl')),
           ),
         TextButton(
-          onPressed: () async {
-            final text = _entryAsText(entry);
-            await Clipboard.setData(ClipboardData(text: text));
-            if (!context.mounted) return;
-            Notify.success(context, context.tr('copied_to_clipboard'));
-          },
+          onPressed: () => copyToClipboard(
+            context,
+            _entryAsText(entry),
+            label: context.tr('details'),
+          ),
           child: Text(context.tr('copy')),
         ),
         FilledButton(

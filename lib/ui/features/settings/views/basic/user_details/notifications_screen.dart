@@ -16,7 +16,9 @@ const kUserDetailsNotificationsSearchKeys = <String>[
   'disable_recurring_payment_notification',
   'enable_e_invoice_received_notification',
   'invoice_created',
-  'invoice_sent',
+  // Matches the row's label key — settings search renders a field key raw and
+  // `invoice_sent` is ":count invoice sent".
+  'invoice_sent_notification_label',
   'invoice_viewed',
   'invoice_late',
   'payment_success',
@@ -68,7 +70,9 @@ class _EventDef {
 
 const List<_EventDef> _kEvents = <_EventDef>[
   _EventDef('invoice_created', 'invoice_created'),
-  _EventDef('invoice_sent', 'invoice_sent'),
+  // Label key differs from the event id: `invoice_sent` is ":count invoice
+  // sent", so the row uses the placeholder-free notification label.
+  _EventDef('invoice_sent', 'invoice_sent_notification_label'),
   _EventDef('invoice_viewed', 'invoice_viewed'),
   _EventDef('invoice_late', 'invoice_late'),
   _EventDef('payment_success', 'payment_success'),

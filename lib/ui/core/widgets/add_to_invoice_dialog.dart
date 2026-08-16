@@ -9,18 +9,6 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/utils/formatting.dart';
 
-/// Localized "Add to invoice" for a context where the target invoice isn't
-/// known yet.
-///
-/// The `add_to_invoice` string carries an `:invoice` placeholder
-/// ("Add to invoice :invoice") and every call site here is a menu label or a
-/// button that fires *before* an invoice is picked. Passing no params rendered
-/// the raw placeholder to the user; an `_app_pending.json` override can't help
-/// because the key exists in `en.json` and English outranks pending
-/// (`localization.dart` `lookup`). So substitute it away explicitly.
-String addToInvoiceLabel(BuildContext context) =>
-    context.tr('add_to_invoice', const {'invoice': ''}).trim();
-
 /// Pick an existing editable invoice for the active [clientId] so a task /
 /// expense / project's line items can be appended to it. Returns the chosen
 /// [Invoice] (the caller appends the line items and routes to its edit screen,
@@ -198,7 +186,11 @@ class _AddToInvoiceDialogState extends State<_AddToInvoiceDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final label = addToInvoiceLabel(context);
+    // `action_add_to_invoice` ("Add To Invoice"), never `add_to_invoice` —
+    // the latter is "Add to invoice :invoice" and this surface fires *before*
+    // an invoice is picked, so the token has nothing to fill it. Mirrors
+    // admin-portal (`EntityAction.toString()`) and React's expense action.
+    final label = context.tr('action_add_to_invoice');
     return AlertDialog(
       title: Text(label),
       content: ConstrainedBox(

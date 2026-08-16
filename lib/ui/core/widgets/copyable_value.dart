@@ -12,9 +12,24 @@ import 'package:admin/ui/core/widgets/notify.dart';
 /// Shared by [CopyableValue], `CellCopyHover`, and any bespoke copy button so
 /// every copy in the app gives identical feedback. The toast value is
 /// ellipsized so a long URL / address doesn't blow out the snackbar.
-Future<void> copyToClipboard(BuildContext context, String value) async {
+///
+/// [label] names the thing in the toast instead of the payload — pass it when
+/// [value] is a blob (a log dump, a design JSON, a cURL command) that reads as
+/// noise inside "Copied … to the clipboard". Every caller should still route
+/// through here rather than reaching for a placeholder-free key: the bundled
+/// `copied_to_clipboard` string is translated in every locale, whereas an
+/// app-local replacement would be English-only.
+///
+/// [messenger] is for a caller whose context may be popped before the toast
+/// lands (see `outbox_screen`); it's threaded straight to [Notify.success].
+Future<void> copyToClipboard(
+  BuildContext context,
+  String value, {
+  String? label,
+  ScaffoldMessengerState? messenger,
+}) async {
   final message = context.tr('copied_to_clipboard', {
-    'value': ellipsizeForToast(value),
+    'value': ellipsizeForToast(label ?? value),
   });
   await Clipboard.setData(ClipboardData(text: value));
   // Light confirmation buzz on touch — distinguishes an intentional copy from
@@ -23,7 +38,7 @@ Future<void> copyToClipboard(BuildContext context, String value) async {
     await HapticFeedback.selectionClick();
   }
   if (!context.mounted) return;
-  Notify.success(context, message);
+  Notify.success(context, message, messenger: messenger);
 }
 
 /// Trims an over-long value so the confirmation toast stays a single line.

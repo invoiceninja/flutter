@@ -1,12 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/system_log.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -233,11 +232,10 @@ class _LogBlock extends StatelessWidget {
     );
   }
 
-  Future<void> _copy(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: raw));
-    if (!context.mounted) return;
-    Notify.success(context, context.tr('copied_to_clipboard'));
-  }
+  // `raw` is a log blob, so name it in the toast rather than dumping the first
+  // 40 characters of JSON into "Copied … to the clipboard".
+  Future<void> _copy(BuildContext context) =>
+      copyToClipboard(context, raw, label: context.tr('log'));
 
   Object? _tryDecode(String raw) {
     final trimmed = raw.trim();

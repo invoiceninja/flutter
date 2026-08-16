@@ -266,9 +266,12 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   }) async {
     final services = context.read<Services>();
     final company = services.auth.session.value?.currentCompany;
+    // Bare names, no leading `:` — `Localization.lookup` prepends the colon
+    // itself, so `':user'` would search for `'::user'` and the dialogs would
+    // render the raw `:user` / `:company` tokens.
     final params = <String, String>{
-      ':user': user?.displayName ?? '',
-      ':company': company?.displayName ?? company?.name ?? '',
+      'user': user?.displayName ?? '',
+      'company': company?.displayName ?? company?.name ?? '',
     };
     final result = await showDialog<bool>(
       context: context,

@@ -150,7 +150,9 @@ class TaskListViewModel extends GenericListViewModel<Task> {
     ),
     BulkAction<Task>(
       id: 'add_to_invoice',
-      labelKey: 'add_to_invoice',
+      // `action_add_to_invoice`: `add_to_invoice` is "Add to invoice :invoice"
+      // and nothing here can fill the token (invoiceninja/flutter#35).
+      labelKey: 'action_add_to_invoice',
       // Plus a client — the invoice picker is client-scoped.
       eligible: (t) => _billable(t) && t.clientId.isNotEmpty,
       apply: (_) async {},

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -14,8 +13,8 @@ import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 
@@ -646,16 +645,16 @@ class _OutboxRowInspectorSheet extends StatelessWidget {
     return lines.join('\n');
   }
 
-  static Future<void> _copy(BuildContext context, String text) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!context.mounted) return;
-    Notify.success(
-      context,
-      context.tr('copied_to_clipboard', {'value': ''}),
-      messenger: messenger,
-    );
-  }
+  // Label rather than payload: `text` is a serialized outbox row. The
+  // messenger is captured up front because this dialog can pop before the
+  // toast lands.
+  static Future<void> _copy(BuildContext context, String text) =>
+      copyToClipboard(
+        context,
+        text,
+        label: context.tr('details'),
+        messenger: ScaffoldMessenger.maybeOf(context),
+      );
 }
 
 class _InspectorRow extends StatelessWidget {

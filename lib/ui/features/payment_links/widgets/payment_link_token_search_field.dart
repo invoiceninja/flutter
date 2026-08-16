@@ -21,7 +21,10 @@ class PaymentLinkTokenSearchField extends StatelessWidget {
       vm: vm,
       filterKeys: buildPaymentLinkFilterKeys(),
       wide: wide,
-      hintKey: 'search_payment_links',
+      // Matches the other entity search fields. The Transifex
+      // `search_payment_links` is "Search :count Payment Links" and this hint
+      // substitutes nothing.
+      hintKey: 'search_payment_links_or_filter_hint',
     );
   }
 }

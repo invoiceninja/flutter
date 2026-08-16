@@ -37,6 +37,26 @@ const List<LocalizationsDelegate<dynamic>> kTestLocalizationsDelegates = [
 
 final List<Locale> kTestSupportedLocales = kSupportedLocales;
 
+/// A Laravel-style placeholder: `:` followed by a lowercase identifier, not
+/// glued to a preceding word character or another colon. The lookbehind keeps
+/// `https://…` and `is:archived` out; requiring `[a-z]` keeps `9:00` out.
+/// Shared so the lint and the per-structure invariant tests can't drift.
+final kLocalePlaceholderPattern = RegExp(
+  r'(?<![A-Za-z0-9_/:]):([a-z][a-z0-9_]*)',
+);
+
+/// The bundled English strings (`assets/i18n/en.json`), read off disk.
+Map<String, String> enStrings() => _enStrings();
+
+/// The app-local strings (`assets/i18n/_app_pending.json`), read off disk.
+Map<String, String> pendingStrings() => _pendingStrings();
+
+/// A [Localization] over the real bundles — use this rather than re-deriving
+/// the en → pending precedence (and its blank-counts-as-missing rule) in a
+/// test that needs to know what a key actually renders as.
+Localization bundledLocalization() =>
+    Localization.forTesting(strings: _enStrings(), pending: _pendingStrings());
+
 Map<String, String>? _enStringsCache;
 Map<String, String> _enStrings() {
   final cached = _enStringsCache;

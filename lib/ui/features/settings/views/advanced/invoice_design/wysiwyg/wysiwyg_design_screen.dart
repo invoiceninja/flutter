@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
@@ -591,9 +592,18 @@ class _TopBar extends StatelessWidget {
     );
   }
 
-  void _exportDesignJson(BuildContext context, WysiwygDesignViewModel vm) {
-    Clipboard.setData(ClipboardData(text: _encodeDesignJson(vm)));
-    Notify.success(context, context.tr('copied_to_clipboard'));
+  Future<void> _exportDesignJson(
+    BuildContext context,
+    WysiwygDesignViewModel vm,
+  ) {
+    // Name the design rather than the JSON blob it serializes to; an unsaved
+    // draft has no name yet, so fall back to the generic noun.
+    final name = vm.draft.name;
+    return copyToClipboard(
+      context,
+      _encodeDesignJson(vm),
+      label: name.isNotEmpty ? name : context.tr('design'),
+    );
   }
 
   /// Phase 8e: write the design JSON to a file the user picks. Filename

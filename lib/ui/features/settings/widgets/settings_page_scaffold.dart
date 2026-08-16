@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/discard_changes_dialog.dart';
 import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -340,10 +340,10 @@ class _LoadErrorBanner extends StatelessWidget {
     );
   }
 
-  Future<void> _copy(BuildContext context) async {
-    final copiedText = context.tr('copied_to_clipboard');
-    await Clipboard.setData(ClipboardData(text: message));
-    if (!context.mounted) return;
-    Notify.success(context, copiedText);
-  }
+  Future<void> _copy(BuildContext context) => copyToClipboard(
+    context,
+    // No label — `message` is short, readable text, so naming it in the toast
+    // is more useful than a generic noun.
+    message,
+  );
 }

@@ -579,9 +579,13 @@ class _BodyVariableChip extends StatelessWidget {
         ? theme.colorScheme.tertiary
         : theme.colorScheme.error;
     final icon = present ? Icons.check_circle : Icons.error_outline;
+    // Both strings carry a `:body` token that stands for the literal template
+    // variable checked above — render it as `$body`, matching the `custom`
+    // field's hint.
+    const bodyVar = {'body': r'$body'};
     final label = present
-        ? context.tr('add_body_variable_message')
-        : context.tr('body_variable_missing');
+        ? context.tr('add_body_variable_message', bodyVar)
+        : context.tr('body_variable_missing', bodyVar);
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(

@@ -418,7 +418,9 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'change_plan',
     'upgrade_plan',
     'expires_on',
-    'days_left',
+    // `days_left_label`, not `days_left` — search renders a field key raw and
+    // the Transifex string is ":days days left".
+    'days_left_label',
     // Overview
     'account_id',
     'email',

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -10,8 +9,8 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/static/built_in_designs_catalog.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/import_design_json_dialog.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/design_edit_screen.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/templates.dart';
 import 'package:admin/ui/features/settings/views/settings_shell.dart'
@@ -226,13 +225,14 @@ Future<void> _promptImportJson(BuildContext context) async {
   unawaited(showDesignEditScreen(context, importJson: json));
 }
 
-Future<void> _exportDesign(BuildContext context, Design design) async {
+Future<void> _exportDesign(BuildContext context, Design design) {
   const encoder = JsonEncoder.withIndent('  ');
-  await Clipboard.setData(
-    ClipboardData(text: encoder.convert(design.toApiJson())),
+  // Name the design rather than the JSON blob it serializes to.
+  return copyToClipboard(
+    context,
+    encoder.convert(design.toApiJson()),
+    label: design.name,
   );
-  if (!context.mounted) return;
-  Notify.success(context, context.tr('copied_to_clipboard'));
 }
 
 class _DesignsListView extends StatelessWidget {

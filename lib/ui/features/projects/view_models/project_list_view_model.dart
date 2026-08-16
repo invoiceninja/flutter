@@ -128,7 +128,9 @@ class ProjectListViewModel extends GenericListViewModel<Project> {
     ),
     BulkAction<Project>(
       id: 'add_to_invoice',
-      labelKey: 'add_to_invoice',
+      // `action_add_to_invoice`: `add_to_invoice` is "Add to invoice :invoice"
+      // and nothing here can fill the token (invoiceninja/flutter#35).
+      labelKey: 'action_add_to_invoice',
       // Same set as `invoice_project` plus a client — the invoice picker is
       // client-scoped, so a client-less project has nothing to append to.
       eligible: (p) =>

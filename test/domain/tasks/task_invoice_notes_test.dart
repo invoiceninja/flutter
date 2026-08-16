@@ -62,13 +62,22 @@ Company _company({
   invoiceTaskItemDescription: itemDescription,
 );
 
-// 2023-11-14 22:13:20Z → 23:13:20Z, one billable hour.
-const _oneHour = '[[1700000000,1700003600,"",true]]';
-const _oneHourWithNote = '[[1700000000,1700003600,"Wireframes",true]]';
-const _nonBillable = '[[1700000000,1700003600,"",false]]';
-// Two entries on the same UTC day, 1h and 30m.
+// Every fixture below sits mid-day on 2023-11-14 UTC on purpose:
+// [taskInvoiceNotes] groups datelog entries by *local* calendar day (`_isoDay`
+// → `toLocal()`), so a timestamp near midnight UTC splits across two days on a
+// UTC+N machine and merges into one on a UTC-N machine. The ~11:00-13:00 UTC
+// band is the same local day from UTC-11 through UTC+10. CI runs in UTC; dev
+// machines here do not — a midnight-adjacent fixture is green locally and red
+// on CI.
+
+// 11:00 → 12:00 UTC, one billable hour.
+const _oneHour = '[[1699959600,1699963200,"",true]]';
+const _oneHourWithNote = '[[1699959600,1699963200,"Wireframes",true]]';
+const _nonBillable = '[[1699959600,1699963200,"",false]]';
+// Two entries on the same local day everywhere: 11:00-12:00 and 13:00-13:30
+// UTC, so 1h and 30m.
 const _twoEntriesSameDay =
-    '[[1700000000,1700003600,"",true],[1700007200,1700009000,"",true]]';
+    '[[1699959600,1699963200,"",true],[1699966800,1699968600,"",true]]';
 
 void main() {
   group('taskInvoiceNotes', () {
@@ -171,7 +180,7 @@ void main() {
 
     test('a 30-minute entry pluralizes and formats the fraction', () {
       final notes = taskInvoiceNotes(
-        _task(timeLog: '[[1700000000,1700001800,"",true]]'),
+        _task(timeLog: '[[1699959600,1699961400,"",true]]'),
         company: _company(timelog: true, hours: true),
       );
       expect(notes, contains(' • 0.5 hours'));
@@ -247,7 +256,7 @@ void main() {
 
     test('a running entry is skipped (no stop timestamp)', () {
       final notes = taskInvoiceNotes(
-        _task(description: 'Design work', timeLog: '[[1700000000,0,"",true]]'),
+        _task(description: 'Design work', timeLog: '[[1699959600,0,"",true]]'),
         company: _company(timelog: true, hours: true),
       );
       expect(notes, 'Design work');

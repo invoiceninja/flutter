@@ -18,8 +18,11 @@ import 'package:admin/data/models/api/contact_api_model.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/project/project_burnup.dart';
 import 'package:admin/data/models/domain/system_log.dart';
+import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_detail_cards_grid.dart';
+import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/projects/widgets/detail/analytics/project_burnup_chart.dart';
 import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
 
@@ -141,6 +144,38 @@ void main() {
             ),
           ),
           scroll: false,
+        );
+        expectNoOverflow(tester);
+      });
+    }
+  });
+
+  // The date-range popover is shared by the dashboard, client statements,
+  // reports and every list's filter / segment menus, and it gets squeezed
+  // hardest — a 320 px device leaves it 288 px to fit a preset rail, a
+  // calendar and two date fields (invoiceninja/flutter#38).
+  //
+  // A local width list rather than `kResponsiveWidths`: the phone widths below
+  // matter for this widget specifically, and adding them to the shared list
+  // would drag ClientDetailCardsGrid / SystemLogRow / ProjectBurnupChart /
+  // EmptyState into widths they were never designed against.
+  //
+  // Note what this can and can't catch: soft-wrapped text and clipped content
+  // throw nothing, so `expectNoOverflow` stays green through the original bug.
+  // It guards the parts that *do* throw — chiefly the Cancel/Apply row, which
+  // needs ~148 px and overflows a `Row` in the narrowest compact column.
+  group('DashboardDateRangePopover across breakpoints', () {
+    for (final width in const <double>[288, 328, 360, ...kResponsiveWidths]) {
+      testWidgets('@ ${width.toInt()}px', (tester) async {
+        await pumpAt(
+          tester,
+          width,
+          DashboardDateRangePopover(
+            current: DashboardCustomRange(
+              start: const Date(2026, 3, 1),
+              end: const Date(2026, 4, 20),
+            ),
+          ),
         );
         expectNoOverflow(tester);
       });

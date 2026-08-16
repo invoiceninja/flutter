@@ -294,9 +294,9 @@ class ApiClient {
   /// NOT an error. Returns [RawOrPending.pending] in that case instead of
   /// throwing, so the caller can keep polling. A 2xx with the expected
   /// binary content-type returns the bytes; any non-2xx still goes through
-  /// [_raiseFromResponse] (so a real 4xx/5xx — and the 404 → ConflictException
-  /// "still queued" mapping — behave exactly as everywhere else and are not
-  /// swallowed as "pending").
+  /// [_raiseFromResponse] (so a real 4xx/5xx — and the entity-missing →
+  /// ConflictException "still queued" mapping — behave exactly as everywhere
+  /// else and are not swallowed as "pending").
   Future<RawOrPending> postRawOrPending(
     String path, {
     Map<String, dynamic>? body,
@@ -778,6 +778,28 @@ class ApiClient {
 
     final errorType = json?['error_type']?.toString().toLowerCase();
     switch (status) {
+      case 400:
+        // Invoice Ninja overloads 400 for two conditions that are NOT generic
+        // client errors, and both are identified by the message body because
+        // the server sends no machine-readable discriminator:
+        //
+        //  * `ModelNotFoundException` — the entity is gone. The framework
+        //    default would be 404, but `app/Exceptions/Handler.php` renders it
+        //    as 400 (`"No query results for model [App\Models\Quote] <id>"`).
+        //  * `ChecksEntityStatus::disallowUpdate()` — the record is
+        //    soft-deleted (`is_deleted = true`) and must be restored first.
+        //
+        // Both strings are hardcoded English literals server-side (not
+        // `ctrans`), so they're locale-stable. If a future server build adds
+        // an `error_type`, prefer it and drop these sniffs.
+        final lower = message.toLowerCase();
+        if (lower.contains(kEntityMissingMessageFragment)) {
+          throw NotFoundException(message);
+        }
+        if (lower.contains(kRecordDeletedMessageFragment)) {
+          throw RecordDeletedException(message);
+        }
+        throw ServerException(status, message);
       case 402:
         // RFC 7231 Payment Required. The cleanest signal for plan-gated
         // endpoints — when the server flips to emitting it, no further
@@ -810,16 +832,19 @@ class ApiClient {
         // endpoint directly.
         throw const PasswordRequiredException();
       case 404:
-        // The entity doesn't exist server-side. For create/update this is a
-        // conflict (the row was deleted under us): NotFoundException is a
-        // ConflictException subtype, so the drain's ConflictException catch
-        // still routes those to ConflictResolutionSheet (delete locally /
-        // recreate). For delete/purge/archive the dispatcher catches this
-        // specific type and treats it as idempotent success — the target is
-        // already gone, which is the desired end state. Without any mapping a
-        // 404 would fall into ServerException, get retried five times, and be
-        // silently marked dead with no resolution UI.
-        throw NotFoundException(message);
+        // NOT "entity missing" on this server. Invoice Ninja emits 404 only
+        // from `NotFoundHttpException` / `MethodNotAllowedHttpException`
+        // (`{"message":"Route does not exist"}` / `"Method not supported for
+        // this route"`) — i.e. *we* built a bad URL or verb. Entity-missing
+        // arrives as a 400 (see the `case 400` sniff above).
+        //
+        // This used to map to NotFoundException, which told the user "the
+        // record was deleted on the server" and — if they took the sheet's
+        // only forward option, Discard — hard-deleted their local row via
+        // `deleteLocalRecord`. A client-side routing bug must never destroy
+        // user data, so a bare 404 is now a plain permanent 4xx: the row dies
+        // into the Outbox with the server's message intact.
+        throw ServerException(status, message);
       case 409:
         throw ConflictException(message);
       case 422:

@@ -131,8 +131,33 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
 
   String? _submitError;
 
-  /// Non-422 error message (network, 5xx). 422 errors land in [fieldErrors].
+  /// The server's own words for why the save was rejected — network, 5xx, a
+  /// permanent 4xx, **and** a 422's top-level message.
+  ///
+  /// It used to be nulled whenever [fieldErrors] was non-empty, on the theory
+  /// that the per-field text said everything. It doesn't: a 422 can name keys
+  /// no field on the form renders (`invitations.*.client_contact_id`,
+  /// `location_id`, `tags.*`, `number`), and then the banner told the user to
+  /// "fix the errors below" with nothing below and Discard as the only exit
+  /// (invoiceninja/flutter#36). Always keep the message; the banner renders it
+  /// alongside whatever field errors did map.
   String? get submitError => _submitError;
+
+  int? _failedStatusCode;
+
+  /// Wire status of the rejection currently on display, when it came from the
+  /// server. Null for a client-side [validate] block or a clean form.
+  int? get failedStatusCode => _failedStatusCode;
+
+  /// True when the server refused because the record is soft-deleted
+  /// (`ChecksEntityStatus::disallowUpdate()` — HTTP 400, *"Record is deleted
+  /// and cannot be edited. Restore the record to enable editing"*). Retrying
+  /// is futile; the failure surface offers **Restore** instead.
+  ///
+  /// Archived records never set this: the server's guard reads `is_deleted`
+  /// only, so editing an archived record succeeds.
+  bool get failedSaveIsRecordDeleted => _recordDeleted;
+  bool _recordDeleted = false;
 
   Map<String, List<String>> _fieldErrors = const {};
 
@@ -208,13 +233,25 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// next Save reuses that same tmp id. Without this, the retry mints a
   /// fresh tmp id and the (now-stale) dead row's eventual cleanup races
   /// with a second create attempt — duplicate-server-row risk.
+  /// [message] / [statusCode] — the dead row's `last_error` / `last_status_code`.
+  /// Supplying them lets the banner explain a rejection that carried **no**
+  /// field errors at all (a permanent 4xx), which previously left the reopened
+  /// form looking clean while the outbox row sat dead. Pass null to leave the
+  /// current values alone (the fresh-failure path already set them in [save]).
   void applyFailedSync({
     required int rowId,
     required Map<String, List<String>> errors,
     String? entityId,
+    String? message,
+    int? statusCode,
   }) {
     _deadOutboxRowId = rowId;
     _fieldErrors = Map.unmodifiable(errors);
+    if (message != null && message.isNotEmpty) _submitError = message;
+    if (statusCode != null) {
+      _failedStatusCode = statusCode;
+      _recordDeleted = isRecordDeletedRejection(statusCode, _submitError);
+    }
     if (entityId != null && entityId.startsWith('tmp_')) {
       _recoveryTempId = entityId;
     }
@@ -232,12 +269,16 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     if (_deadOutboxRowId == null &&
         _fieldErrors.isEmpty &&
         !_localValidationOnly &&
+        _submitError == null &&
         _recoveryTempId == null) {
       return;
     }
     _deadOutboxRowId = null;
     _fieldErrors = const {};
     _localValidationOnly = false;
+    _submitError = null;
+    _failedStatusCode = null;
+    _recordDeleted = false;
     _recoveryTempId = null;
     notifyListeners();
   }
@@ -378,6 +419,8 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     }
     _isSaving = true;
     _submitError = null;
+    _failedStatusCode = null;
+    _recordDeleted = false;
     _fieldErrors = const {};
     _localValidationOnly = false;
     _lastSaveWasOptimistic = false;
@@ -453,9 +496,12 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       // row; this fresh failure superseded it. Drop it so the screen's
       // discard / onSaveRejected hooks act on the new row instead.
       _deadOutboxRowId = null;
-      // Also stash the top-level message so a screen with no per-field
-      // mapping still has something to show.
-      _submitError = e.fieldErrors.isEmpty ? e.message : null;
+      _failedStatusCode = 422;
+      // Keep the top-level message even when per-field errors exist. Rejected
+      // keys often name no field this form renders, and nulling the message
+      // there left the banner saying "fix the errors below" with nothing below
+      // (invoiceninja/flutter#36).
+      _submitError = e.message;
       return null;
     } catch (e) {
       // Surface a clean error message: `ApiException` subclasses' default
@@ -463,6 +509,8 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       // Connection lost"), which leaks implementation detail into the toast
       // and inline submit-error UI.
       _submitError = e is ApiException ? e.message : e.toString();
+      _failedStatusCode = e is ServerException ? e.statusCode : null;
+      _recordDeleted = e is RecordDeletedException;
       return null;
     } finally {
       // Defensively drop any pending save-query that performSave did not

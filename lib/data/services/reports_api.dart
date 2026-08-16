@@ -200,8 +200,13 @@ class ReportsApi {
         }
         // Pending JSON status envelope — fall through to wait + retry.
       } on ConflictException catch (_) {
-        // 404 = the queued export job is still running. Same semantics as
-        // _pollPreview; retry. Other ApiExceptions (422/401/5xx) bubble.
+        // 409 "Still working....." = the queued export job is still running.
+        // Same semantics as _pollPreview; retry. Other ApiExceptions
+        // (422/401/5xx) bubble.
+      } on ServerException catch (e) {
+        // See _pollPreview: the 404 tolerance is kept local to polling now
+        // that a bare 404 is no longer globally a conflict.
+        if (e.statusCode != 404) rethrow;
       }
       await Future<void>.delayed(pollInterval);
     }
@@ -278,10 +283,19 @@ class ReportsApi {
               : raw.map((k, v) => MapEntry(k.toString(), v));
         }
       } on ConflictException catch (_) {
-        // ApiClient maps both 404 and 409 → ConflictException. The
-        // report-preview hash endpoint returns 409 + `{"message":"Still
-        // working..."}` while the queued job runs (verified against the live
-        // server) — exactly what we want to retry on.
+        // The report-preview hash endpoint returns 409 + `{"message":"Still
+        // working....."}` while the queued job runs — `ReportPreviewController`
+        // in the server source, verified against the live server. Exactly what
+        // we want to retry on.
+      } on ServerException catch (e) {
+        // Belt-and-braces for a 404 from the hash endpoint. `ApiClient` used to
+        // map every 404 to ConflictException, so this loop retried it for free;
+        // that mapping is gone (a bare 404 now means a bad route/verb, see
+        // `_raiseFromResponse`), and the retry is kept HERE, narrowly, rather
+        // than globally. Harmless if the server never sends it — the loop is
+        // bounded by maxRetries — and it keeps an older or proxied deployment
+        // that answers "not ready" with a 404 from failing outright.
+        if (e.statusCode != 404) rethrow;
       }
       // ValidationException, UnauthorizedException, RateLimitedException,
       // ServerException (5xx), and every other ApiException bubble up

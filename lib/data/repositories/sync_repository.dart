@@ -407,8 +407,8 @@ class SyncRepository {
     }
   }
 
-  /// Discard every `pending` outbox row for one entity — the 409/404
-  /// conflict sheet's "discard my changes" path. Scoped to the conflicted
+  /// Discard every `pending` outbox row for one entity — the conflict sheet's
+  /// "discard my changes" path (both variants). Scoped to the conflicted
   /// record: the parked row itself plus any queued follow-up mutations for
   /// the same entity. (This used to route through [discardPendingFor],
   /// which destroyed the *whole company's* pending queue — including
@@ -637,8 +637,9 @@ class SyncRepository {
       // payload/entityId (OutboxDao.rewriteTempIdInPayloads runs from
       // applyCreateResponse). Our `nextReady` snapshot predates that write, so
       // dispatching it as-is would send the stale tmp_ id — e.g. an offline
-      // create + edit drained together would `PUT /invoices/tmp_xxx` -> 404 and
-      // park the edit as a bogus conflict. byId() returns the post-remap row.
+      // create + edit drained together would `PUT /invoices/tmp_xxx` -> entity
+      // missing and park the edit as a bogus conflict. byId() returns the
+      // post-remap row.
       final row = await db.outboxDao.byId(snapshot.id);
       if (row == null) continue; // deleted / superseded mid-pass
       // No longer pending? An earlier row in THIS pass may have turned this
@@ -698,8 +699,9 @@ class SyncRepository {
         // Still references a not-yet-created entity — its parent create didn't
         // produce a real id (it failed earlier in this pass, is parked, or is
         // dead). Dispatching anyway sends the tmp_ id to the server: a
-        // PUT/DELETE on `/<entity>/tmp_x` 404s and parks this row as a bogus
-        // year-long "conflict" (with a misleading resolution dialog), and a
+        // PUT/DELETE on `/<entity>/tmp_x` comes back entity-missing and parks
+        // this row as a bogus year-long "conflict" (with a misleading
+        // resolution dialog), and a
         // create carrying e.g. `client_id: tmp_x` dies on a 422. Leave it
         // pending: when the parent create eventually lands,
         // rewriteTempIdInPayloads heals the reference and the next drain
@@ -861,18 +863,36 @@ class SyncRepository {
         }
       }
       return false;
+    } on RecordDeletedException catch (e) {
+      // The row still exists server-side but is soft-deleted (`is_deleted`),
+      // and the server says so in plain words: "Restore the record to enable
+      // editing". Retrying is futile, so mark dead like any permanent 4xx —
+      // but the failure surface reads `statusCode == 400` + this message and
+      // offers **Restore**, which is the one action that unblocks the save.
+      //
+      // NOTE: must precede the ServerException catch — RecordDeletedException
+      // is a subtype of it. Archived records never land here: the server's
+      // guard is `is_deleted` only, so an archived edit succeeds (200).
+      _log.info(
+        'Record deleted server-side on ${row.entityType}/${row.entityId}: '
+        '${e.message}',
+      );
+      await _markDead(row, e.message, e.statusCode);
+      return false;
     } on NotFoundException catch (e) {
-      // 404 on a non-delete mutation: the entity was deleted server-side while
-      // we held this pending edit, so there's nothing left to update. (A 404 on
-      // a DELETE is swallowed upstream by the dispatcher as success.) Re-sending
-      // the same request would 404 forever, so park it (1-year safety valve,
-      // same as 409) and emit a 404-flavored ConflictEvent — the sheet offers
+      // The entity is gone server-side (Invoice Ninja reports this as HTTP 400
+      // `"No query results for model …"`, not 404 — see
+      // `ApiClient._raiseFromResponse`) while we held this pending edit, so
+      // there's nothing left to update. (The same signal on a DELETE is
+      // swallowed upstream by the dispatcher as idempotent success.) Re-sending
+      // would fail forever, so park it (1-year safety valve, same as 409) and
+      // emit a deleted-server-side ConflictEvent — the sheet offers
       // discard-locally only (the only escape; "use my changes" would re-park).
       // NOTE: must precede the ConflictException catch — NotFoundException is a
       // subtype of it.
       _log.info(
-        '404 on ${row.entityType}/${row.entityId}: deleted server-side, '
-        'parking as a conflict',
+        'Entity missing on ${row.entityType}/${row.entityId}: deleted '
+        'server-side, parking as a conflict',
       );
       await db.outboxDao.scheduleRetry(
         id: row.id,
@@ -881,7 +901,7 @@ class SyncRepository {
             _now().millisecondsSinceEpoch +
             const Duration(days: 365).inMilliseconds,
         error: e.message,
-        statusCode: 404,
+        statusCode: 400,
       );
       _events.add(
         ConflictEvent(
@@ -890,8 +910,9 @@ class SyncRepository {
           companyId: row.companyId,
           message: e.message,
           wireEntityType: row.entityType,
-          statusCode: 404,
+          statusCode: 400,
           outboxRowId: row.id,
+          isDeletedServerSide: true,
         ),
       );
       return false;
@@ -999,9 +1020,12 @@ class SyncRepository {
       // failing, so don't burn the full retry budget (≈13 min of backoff)
       // before the user hears about it — mark dead immediately so a `DeadEvent`
       // fires on the first attempt. 5xx (and anything else) stays on transient
-      // backoff. The retry-worthy 4xx (401/403/412/404/409/422/429/402) are all
-      // caught above; only genuinely-permanent codes (400, 405, 410, 415, …)
-      // reach here.
+      // backoff. The 4xx with dedicated resolution UI (401/403/412/409/422/
+      // 429/402, plus the entity-missing and record-deleted flavors of 400) are
+      // all caught above; only genuinely-permanent codes reach here — including
+      // a bare **404**, which on this server means we built a bad URL/verb
+      // ("Route does not exist" / "Method not supported for this route"), not
+      // that the entity vanished.
       if (e.statusCode >= 400 && e.statusCode < 500) {
         await _markDead(row, e.message, e.statusCode);
       } else {

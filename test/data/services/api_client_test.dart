@@ -308,11 +308,18 @@ void main() {
       },
     );
 
-    test('404 also produces ConflictException — entity deleted server-side '
-        'while we held a pending mutation. Without this, the outbox row '
-        'retries five times and dies silently, never reaching the '
+    test('a 400 "No query results for model" produces NotFoundException — that '
+        'is how Invoice Ninja reports a missing entity (Handler.php renders '
+        'ModelNotFoundException as 400, not 404). Without this mapping the '
+        'outbox row dies silently instead of reaching the '
         'ConflictResolutionSheet.', () async {
-      final fake = MockClient((_) async => http.Response('{}', 404));
+      final fake = MockClient(
+        (_) async => http.Response(
+          '{"message":"No query results for model '
+          '[App\\\\Models\\\\Quote] 7Xk2"}',
+          400,
+        ),
+      );
       final client = ApiClient(
         credentials: _creds(),
         passwordCache: PasswordCache(),
@@ -321,9 +328,89 @@ void main() {
       );
       await expectLater(
         () => client.getOne('/api/v1/x'),
-        throwsA(isA<ConflictException>()),
+        throwsA(isA<NotFoundException>()),
       );
     });
+
+    test('a 400 "Record is deleted and cannot be edited" produces '
+        'RecordDeletedException — the server refuses to edit a soft-deleted '
+        'record and names the remedy (restore it), so the failure surface can '
+        'show that instead of a Retry that fails forever.', () async {
+      final fake = MockClient(
+        (_) async => http.Response(
+          '{"message":"Record is deleted and cannot be edited. Restore '
+          'the record to enable editing"}',
+          400,
+        ),
+      );
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: fake,
+      );
+      await expectLater(
+        () => client.getOne('/api/v1/x'),
+        throwsA(isA<RecordDeletedException>()),
+      );
+    });
+
+    test('a plain 400 stays a ServerException — only the two recognised bodies '
+        'get special treatment.', () async {
+      final fake = MockClient(
+        (_) async => http.Response('{"message":"Bad request"}', 400),
+      );
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: fake,
+      );
+      await expectLater(
+        () => client.getOne('/api/v1/x'),
+        throwsA(
+          isA<ServerException>()
+              .having((e) => e.statusCode, 'statusCode', 400)
+              .having(
+                (e) => e,
+                'not a conflict',
+                isNot(isA<ConflictException>()),
+              ),
+        ),
+      );
+    });
+
+    test(
+      'a bare 404 is a plain ServerException, NOT NotFoundException. Invoice '
+      'Ninja emits 404 only for "Route does not exist" / "Method not '
+      'supported for this route" — i.e. the client built a bad URL or verb. '
+      'Mapping that to "deleted server-side" told the user their record was '
+      'gone and, on the sheet\'s only forward option, hard-deleted the local '
+      'row (invoiceninja/flutter#36).',
+      () async {
+        final fake = MockClient(
+          (_) async => http.Response('{"message":"Route does not exist"}', 404),
+        );
+        final client = ApiClient(
+          credentials: _creds(),
+          passwordCache: PasswordCache(),
+          onUnauthorized: () async {},
+          httpClient: fake,
+        );
+        await expectLater(
+          () => client.getOne('/api/v1/x'),
+          throwsA(
+            isA<ServerException>()
+                .having((e) => e.statusCode, 'statusCode', 404)
+                .having(
+                  (e) => e,
+                  'not a conflict',
+                  isNot(isA<ConflictException>()),
+                ),
+          ),
+        );
+      },
+    );
 
     test(
       '3xx redirect is rejected as a server error — without this guard '

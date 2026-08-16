@@ -810,7 +810,7 @@
   "run_to_refresh": "Run to refresh",
   "sales": "Sales",
   "save_payment_means": "Save payment means",
-  "save_rejected_banner": "The server rejected this save. Fix the errors below and try again.",
+  "save_rejected_banner": "The server rejected this save.",
   "save_view": "Save view",
   "saved": "Saved",
   "saved_views": "Saved views",

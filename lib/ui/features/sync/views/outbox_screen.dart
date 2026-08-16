@@ -9,6 +9,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
@@ -428,7 +429,14 @@ class _RowMenu extends StatelessWidget {
         // backoff timer (or that, in a bygone-bug scenario, never had
         // their drain kicked). `retryDead` resets attempts/nextAttemptAt
         // for both — followed by an explicit drainOnce kick.
-        if (row.state != 'in_flight')
+        //
+        // Except when the server refused because the record is soft-deleted:
+        // that verdict can't change until the record is restored, so a Retry
+        // here is a button that promises a fix and delivers the same failure.
+        // The row's `last_error` (visible in the tile and the inspector) is
+        // the server's own instruction to restore it.
+        if (row.state != 'in_flight' &&
+            !isRecordDeletedRejection(row.lastStatusCode, row.lastError))
           PopupMenuItem<String>(
             value: 'retry',
             child: Row(

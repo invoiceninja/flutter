@@ -7,11 +7,17 @@ import 'package:admin/ui/core/widgets/conflict_resolution_sheet.dart';
 
 import '../../../_responsive_helper.dart';
 
-/// Finding #41: a 404 (entity deleted server-side) gets a distinct sheet —
+/// Finding #41: an entity-deleted-server-side conflict gets a distinct sheet —
 /// "discard locally" + "keep for later", and crucially NO "use my changes"
-/// (re-sending the update would 404 forever). A 409 keeps the open / discard /
-/// use-mine flow. Asserted structurally (button types) + by the resolution the
-/// primary action returns, so it's independent of localized button text.
+/// (re-sending the update would fail forever). A stale-data (409) conflict
+/// keeps the open / discard / use-mine flow. Asserted structurally (button
+/// types) + by the resolution the primary action returns, so it's independent
+/// of localized button text.
+///
+/// The variant is keyed on the explicit [ConflictEvent.isDeletedServerSide]
+/// flag, never on `statusCode == 404`: Invoice Ninja reports a missing entity
+/// as **400** and reserves 404 for routing mistakes, and this sheet's discard
+/// hard-deletes the local row (invoiceninja/flutter#36).
 void main() {
   Future<void> pumpSheet(WidgetTester tester, ConflictEvent event) async {
     await pumpAt(
@@ -28,7 +34,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  ConflictEvent event(int status) => ConflictEvent(
+  ConflictEvent event(int status, {bool deleted = false}) => ConflictEvent(
     entityType: EntityType.client,
     entityId: 'c1',
     companyId: 'co',
@@ -36,14 +42,17 @@ void main() {
     wireEntityType: 'client',
     statusCode: status,
     outboxRowId: 1,
+    isDeletedServerSide: deleted,
   );
 
-  testWidgets('404 shows discard + keep-for-later and no use-mine '
-      '(no OutlinedButton); the primary action discards', (tester) async {
-    await pumpSheet(tester, event(404));
+  testWidgets('deleted-server-side shows discard + keep-for-later and no '
+      'use-mine (no OutlinedButton); the primary action discards', (
+    tester,
+  ) async {
+    await pumpSheet(tester, event(400, deleted: true));
 
-    // 404 actions are [TextButton(keep), FilledButton(discard)] — no
-    // OutlinedButton (that's the 409 discard slot), and no third button.
+    // Deleted actions are [TextButton(keep), FilledButton(discard)] — no
+    // OutlinedButton (that's the stale-data discard slot), and no third button.
     expect(find.byType(OutlinedButton), findsNothing);
     expect(find.byType(FilledButton), findsOneWidget);
     expect(find.byType(TextButton), findsOneWidget);
@@ -65,5 +74,14 @@ void main() {
     expect(find.byType(TextButton), findsOneWidget);
     expect(find.byType(OutlinedButton), findsOneWidget);
     expect(find.byType(FilledButton), findsOneWidget);
+  });
+
+  testWidgets('a bare 404 does NOT get the deleted variant — without the '
+      'explicit flag a routing mistake would offer to hard-delete the local '
+      'record', (tester) async {
+    await pumpSheet(tester, event(404));
+
+    // Falls through to the stale-data shape: three buttons, use-mine present.
+    expect(find.byType(OutlinedButton), findsOneWidget);
   });
 }

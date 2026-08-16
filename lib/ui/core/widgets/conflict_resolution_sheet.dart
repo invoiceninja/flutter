@@ -29,10 +29,13 @@ enum ConflictResolution {
 
 /// Modal sheet shown when [SyncRepository] emits a [ConflictEvent]. Two
 /// variants, keyed on [ConflictEvent.isDeletedServerSide]:
-///   * **409 (stale data)** — open / discard / use-mine.
-///   * **404 (deleted server-side)** — a "record deleted on the server"
-///     message + discard-locally + keep-for-later. There is no "use my
-///     changes": re-sending the update would 404 forever (the record is gone).
+///   * **stale data (409)** — open / discard / use-mine.
+///   * **deleted server-side** — a "record deleted on the server" message +
+///     discard-locally + keep-for-later. There is no "use my changes":
+///     re-sending the update would fail forever (the record is gone).
+///     Note this variant's discard hard-deletes the local row, so it must
+///     stay reserved for a genuinely-missing entity — see
+///     [ConflictEvent.isDeletedServerSide].
 ///
 /// The sheet doesn't touch the outbox or the database — the caller wires the
 /// choice to `repo.save(...)` / `discardPendingFor(...)` / `context.go(...)`.
@@ -66,8 +69,9 @@ Future<ConflictResolution> showConflictResolutionSheet(
               ),
               style: TextStyle(color: tokens.ink2),
             ),
-            // The raw 404 body ("not found") adds nothing for the deleted
-            // case; only surface the server message for a genuine 409.
+            // The raw entity-missing body ("No query results for model …")
+            // adds nothing for the deleted case; only surface the server
+            // message for a genuine stale-data conflict.
             if (!deleted && event.message.isNotEmpty) ...[
               const SizedBox(height: InSpacing.sm),
               Text(

@@ -56,15 +56,60 @@ class ConflictException extends ApiException {
   const ConflictException([super.message = 'Conflict']);
 }
 
-/// 404 — the entity doesn't exist server-side. Subtype of [ConflictException]
+/// The entity doesn't exist server-side. Subtype of [ConflictException]
 /// so the create/update drain path (which catches `ConflictException`) keeps
 /// treating it as a conflict ("the row was deleted under us — recreate /
 /// discard"). The delete/purge/archive drain paths catch this *specific* type
 /// and treat it as idempotent success: a destructive mutation whose target is
 /// already gone has achieved its goal, so parking it as a conflict (and
 /// offering "recreate") would be wrong.
+///
+/// **Not keyed on HTTP 404.** Invoice Ninja renders `ModelNotFoundException`
+/// as **400** (`app/Exceptions/Handler.php`: `{"message":"No query results
+/// for model [App\\Models\\Quote] &lt;id&gt;"}`) and reserves 404 for routing
+/// mistakes (`"Route does not exist"` / `"Method not supported for this
+/// route"`). See `ApiClient._raiseFromResponse` for the body sniff.
 class NotFoundException extends ConflictException {
   const NotFoundException([super.message = 'Not found']);
+}
+
+/// The server refused to edit a **soft-deleted** record:
+/// `{"message":"Record is deleted and cannot be edited. Restore the record to
+/// enable editing"}` with HTTP 400, from `ChecksEntityStatus::disallowUpdate()`.
+///
+/// Distinct from [NotFoundException]: the row still exists, it's just in the
+/// deleted state, and the server tells us exactly how to proceed — restore it.
+/// Retrying the identical request fails forever, so the sync engine marks the
+/// row dead and the failure surface offers **Restore** instead of a futile
+/// Retry.
+///
+/// Note this guard fires on `is_deleted` only, never on `deleted_at`, so an
+/// **archived** record is freely editable (verified against a live server —
+/// `PUT` on an archived quote returns 200 and stays archived).
+class RecordDeletedException extends ServerException {
+  const RecordDeletedException(String message) : super(400, message);
+}
+
+/// Body fragment that identifies [RecordDeletedException] on the wire. Server
+/// side it's a hardcoded English literal in `ChecksEntityStatus::disallowUpdate()`
+/// (not `ctrans`), so it's locale-stable. Single source of truth for both the
+/// live mapping in `ApiClient._raiseFromResponse` and
+/// [isRecordDeletedRejection], which re-derives the classification from a
+/// persisted outbox row.
+const String kRecordDeletedMessageFragment = 'is deleted and cannot be edited';
+
+/// Body fragment that identifies [NotFoundException] on the wire — Laravel's
+/// `ModelNotFoundException`, which Invoice Ninja renders as HTTP 400.
+const String kEntityMissingMessageFragment = 'no query results for model';
+
+/// Whether a **persisted** failure (an outbox row's `last_status_code` +
+/// `last_error`) is the record-deleted rejection. The exception object is long
+/// gone by the time the Outbox screen or a reopened edit form renders, so both
+/// re-classify from the stored pair. Keep in step with
+/// `ApiClient._raiseFromResponse`.
+bool isRecordDeletedRejection(int? statusCode, String? message) {
+  if (statusCode != 400 || message == null) return false;
+  return message.toLowerCase().contains(kRecordDeletedMessageFragment);
 }
 
 class ClientTooOldException extends ApiException {

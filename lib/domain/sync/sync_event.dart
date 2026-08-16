@@ -22,13 +22,13 @@ class ValidationFailedEvent extends SyncEvent {
 }
 
 /// Server rejected a queued mutation as a conflict — `ConflictResolutionSheet`
-/// opens. Two flavors, distinguished by [statusCode]:
-///   * **409** — the server has newer data (a genuine concurrent-edit
-///     conflict). The sheet offers open / discard / use-mine.
-///   * **404** — the entity was deleted server-side while we held a pending
-///     edit, so there's nothing left to update. The sheet shows a
+/// opens. Two flavors, distinguished by [isDeletedServerSide]:
+///   * **stale data (409)** — the server has newer data (a genuine
+///     concurrent-edit conflict). The sheet offers open / discard / use-mine.
+///   * **entity gone** — the entity was deleted server-side while we held a
+///     pending edit, so there's nothing left to update. The sheet shows a
 ///     "deleted on the server" message and offers discard-locally only
-///     (re-submitting would 404 forever).
+///     (re-submitting would fail forever).
 class ConflictEvent extends SyncEvent {
   const ConflictEvent({
     required super.entityType,
@@ -38,6 +38,7 @@ class ConflictEvent extends SyncEvent {
     required this.wireEntityType,
     this.statusCode,
     this.outboxRowId,
+    this.isDeletedServerSide = false,
   });
 
   /// The parked row's company. The resolver MUST discard against this, not the
@@ -57,17 +58,25 @@ class ConflictEvent extends SyncEvent {
   /// those rows.
   final String wireEntityType;
 
-  /// HTTP status that parked the row — 404 (deleted server-side) or 409
-  /// (stale data). Null on legacy/unknown paths (treated as 409 by the sheet).
+  /// The **wire** status that parked the row, recorded verbatim for the Outbox
+  /// row inspector and the diagnostics log. Deliberately NOT the discriminator
+  /// between the two sheet variants: Invoice Ninja reports a missing entity as
+  /// **400** (`"No query results for model …"`) and reserves 404 for routing
+  /// mistakes, so keying the "deleted server-side" copy off `== 404` pointed it
+  /// at the wrong failure. Use [isDeletedServerSide]. Null on legacy/unknown
+  /// paths (treated as stale-data by the sheet).
   final int? statusCode;
 
   /// The parked outbox row's id, so the resolver can act on exactly that row
-  /// (e.g. drop it on a 404 discard) without re-deriving it from the entity.
+  /// (e.g. drop it on a deleted-server-side discard) without re-deriving it
+  /// from the entity.
   final int? outboxRowId;
 
   /// True when the parked mutation can never succeed by retrying the same
-  /// request — the entity is gone server-side. Drives the 404 sheet variant.
-  bool get isDeletedServerSide => statusCode == 404;
+  /// request — the entity is gone server-side. Drives the discard-only sheet
+  /// variant, and the resolver's local hard-delete on discard, so it must only
+  /// be set when the entity is genuinely gone.
+  final bool isDeletedServerSide;
 }
 
 /// 403 password-required — `ConfirmPasswordSheet` opens.

@@ -253,7 +253,7 @@ void main() {
     });
 
     test(
-      '404 (deleted server-side) parks the row + emits a 404-flavored '
+      'entity-missing parks the row + emits a deleted-server-side '
       'ConflictEvent carrying the row id, so the sheet offers discard-locally '
       '(NotFoundException is a ConflictException subtype — caught first)',
       () async {
@@ -273,17 +273,27 @@ void main() {
         expect(row.state, 'pending');
         expect(
           row.lastStatusCode,
-          404,
-          reason: '404 tagged distinctly from 409',
+          400,
+          reason:
+              'the wire status Invoice Ninja actually sends for a missing '
+              'entity (Handler.php renders ModelNotFoundException as 400) — '
+              'recorded verbatim for the Outbox inspector',
         );
         expect(
           row.nextAttemptAt - 1000,
           greaterThan(const Duration(days: 30).inMilliseconds),
-          reason: 'parked — re-sending an update to a gone entity 404s forever',
+          reason:
+              'parked — re-sending an update to a gone entity fails forever',
         );
         final event = events.single as ConflictEvent;
-        expect(event.statusCode, 404);
-        expect(event.isDeletedServerSide, isTrue);
+        expect(event.statusCode, 400);
+        expect(
+          event.isDeletedServerSide,
+          isTrue,
+          reason:
+              'an explicit flag, not a magic status code: this drives a local '
+              'hard-delete on discard, so a routing 404 must never reach it',
+        );
         expect(event.outboxRowId, id);
         expect(
           event.wireEntityType,
@@ -295,6 +305,69 @@ void main() {
         );
       },
     );
+
+    test('a bare 404 marks the row dead and emits NO ConflictEvent — on this '
+        'server a 404 means we built a bad URL/verb, not that the entity '
+        'vanished, and the deleted-server-side sheet hard-deletes the local row '
+        'when the user discards (invoiceninja/flutter#36)', () async {
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(const ServerException(404, 'Route does not exist'));
+      final engine = makeEngine(disp, nowMs: 1000);
+      final events = <SyncEvent>[];
+      engine.events.listen(events.add);
+      final id = await enqueueClient(entityId: 'c1');
+
+      await engine.drainOnce(companyId: 'co');
+      await Future<void>.delayed(Duration.zero);
+
+      final row = await (db.select(
+        db.outbox,
+      )..where((o) => o.id.equals(id))).getSingle();
+      expect(row.state, 'dead');
+      expect(row.lastStatusCode, 404);
+      expect(
+        events.whereType<ConflictEvent>(),
+        isEmpty,
+        reason: 'no resolution sheet — nothing about the entity is wrong',
+      );
+      expect(events.whereType<DeadEvent>(), hasLength(1));
+    });
+
+    test('a record-deleted 400 marks the row dead carrying the server\'s own '
+        'instruction, so the Outbox row and a reopened edit form can state the '
+        'reason and drop the futile Retry', () async {
+      const serverMessage =
+          'Record is deleted and cannot be edited. Restore the record to '
+          'enable editing';
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(const RecordDeletedException(serverMessage));
+      final engine = makeEngine(disp, nowMs: 1000);
+      final events = <SyncEvent>[];
+      engine.events.listen(events.add);
+      final id = await enqueueClient(entityId: 'c1');
+
+      await engine.drainOnce(companyId: 'co');
+      await Future<void>.delayed(Duration.zero);
+
+      final row = await (db.select(
+        db.outbox,
+      )..where((o) => o.id.equals(id))).getSingle();
+      expect(row.state, 'dead');
+      expect(row.lastStatusCode, 400);
+      expect(row.lastError, serverMessage);
+      expect(
+        isRecordDeletedRejection(row.lastStatusCode, row.lastError),
+        isTrue,
+        reason:
+            'the persisted pair must re-classify — the exception object is '
+            'gone by the time the Outbox screen renders',
+      );
+      expect(
+        events.whereType<ConflictEvent>(),
+        isEmpty,
+        reason: 'the record exists, it just needs restoring — not a conflict',
+      );
+    });
 
     test(
       'PasswordRequired keeps row + emits event so UI prompts the user',

@@ -165,21 +165,27 @@ class EntityEditScaffold<T> extends StatelessWidget {
     final result = await vm.save();
     if (!context.mounted) return null;
     if (result == null) {
-      // Non-422 errors land in submitError (422 lives on fieldErrors).
-      if (vm.submitError != null) {
+      if (vm.fieldErrors.isNotEmpty) {
+        // Server rejected validation — let the screen pick up the freshly
+        // created dead outbox row so the banner's Discard / Retry actions know
+        // which row they act on. Fire-and-await; screen handles its own
+        // mounted check. Skipped for a client-side [validate] block: no
+        // row was written, and the dead-row lookup could otherwise surface
+        // an unrelated stale row and clobber the local field errors.
+        //
+        // The inline per-field text plus the banner (which now also renders
+        // the server's top-level message and any unmapped keys) carry the
+        // detail here, so no toast — a duplicate would just cover the fields
+        // the user has to fix.
+        if (!vm.localValidationOnly) await onSaveRejected?.call();
+      } else if (vm.submitError != null) {
+        // No per-field mapping to fall back on (network, 5xx, permanent 4xx):
+        // the server's own words are all the user gets.
         Notify.error(
           context,
           context.tr('could_not_save'),
           detail: vm.submitError,
         );
-      } else if (vm.fieldErrors.isNotEmpty && !vm.localValidationOnly) {
-        // Server rejected validation — let the screen pick up the freshly
-        // created dead outbox row so the banner's Discard action knows
-        // which row to delete. Fire-and-await; screen handles its own
-        // mounted check. Skipped for a client-side [validate] block: no
-        // row was written, and the dead-row lookup could otherwise surface
-        // an unrelated stale row and clobber the local field errors.
-        await onSaveRejected?.call();
       }
       return null;
     }

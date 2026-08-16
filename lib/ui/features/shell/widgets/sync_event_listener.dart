@@ -290,11 +290,18 @@ class _SyncEventListenerState extends State<SyncEventListener> {
               entityType: event.wireEntityType,
               entityId: event.entityId,
             );
-            // 404: the record is gone server-side, so its now-orphaned local
-            // row should disappear too — `discardPendingForEntity` only drops
-            // the outbox row(s) and clears the dirty flag (right for a 409,
-            // where the next pull reconciles), but here there's nothing left
-            // on the server to pull, so the stale local copy would linger.
+            // The record is gone server-side, so its now-orphaned local row
+            // should disappear too — `discardPendingForEntity` only drops the
+            // outbox row(s) and clears the dirty flag (right for a stale-data
+            // conflict, where the next pull reconciles), but here there's
+            // nothing left on the server to pull, so the stale local copy
+            // would linger.
+            //
+            // This branch hard-deletes user data, so the flag driving it must
+            // mean "the entity is genuinely gone". It used to be `statusCode
+            // == 404`, which on this server means we built a bad URL — a
+            // client-side routing bug would have destroyed the local record.
+            // See `ConflictEvent.isDeletedServerSide`.
             if (event.isDeletedServerSide) {
               await handlers.dispatcher.deleteLocalRecord(
                 companyId: companyId,

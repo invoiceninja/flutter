@@ -60,9 +60,16 @@ void main() {
         expect(vm.fieldErrorFor('name'), 'Name is required');
         expect(vm.fieldErrorFor('email'), 'Email must be valid');
         expect(vm.fieldErrorFor('phone'), isNull);
-        // submitError stays null so the screen doesn't show a top-level
-        // SnackBar — the inline errors are the feedback.
-        expect(vm.submitError, isNull);
+        // The top-level message is RETAINED alongside the per-field errors.
+        // It used to be nulled here on the theory that the inline errors were
+        // the whole story — but a 422 can name keys no field on the form
+        // renders, and then the banner said "fix the errors below" with
+        // nothing below and Discard as the only exit (invoiceninja/flutter#36).
+        // The screen still suppresses the toast when fieldErrors is non-empty;
+        // the banner is what consumes this.
+        expect(vm.submitError, 'The given data was invalid.');
+        expect(vm.failedStatusCode, 422);
+        expect(vm.failedSaveIsRecordDeleted, isFalse);
         expect(vm.isSaving, isFalse);
       },
     );

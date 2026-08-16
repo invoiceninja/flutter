@@ -10,6 +10,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_scaffold.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
+import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/save_failed_banner.dart';
 import 'package:admin/ui/core/widgets/sync_first_banner.dart';
 
@@ -21,14 +22,15 @@ import 'package:admin/ui/core/widgets/sync_first_banner.dart';
 ///   * VM lifecycle — sync construction for `create`, async fetch + ctor
 ///     for `edit`. The "Loading…" placeholder Scaffold while the existing
 ///     row is being read.
-///   * Dead-outbox-row 422 recovery — on load, look up the newest `dead`
-///     row for this entity and hydrate its `fieldErrorsJson` onto the VM
-///     so the form opens pre-flagged. On a successful save, delete the
-///     prior dead row so the Outbox screen does not keep showing the
-///     stale failure. On a fresh 422, re-link to the new dead row so the
-///     SaveFailedBanner's Discard targets the *fresh* failure.
-///   * The SaveFailedBanner wired into `topBanner` (renders nothing when
-///     `vm.fieldErrors` is empty, so always safe to pass).
+///   * Dead-outbox-row recovery — on load, look up the newest `dead` row for
+///     this entity and hydrate its `fieldErrorsJson` + `lastError` onto the VM
+///     so the form opens pre-flagged with a stated reason. On a successful
+///     save, delete the prior dead row so the Outbox screen does not keep
+///     showing the stale failure. On a fresh rejection, re-link to the new
+///     dead row so the SaveFailedBanner's Discard / Retry target the *fresh*
+///     failure.
+///   * The SaveFailedBanner wired into `topBanner` (renders nothing when the
+///     VM holds no rejection, so always safe to pass).
 ///
 /// Per-entity screens become ~30 lines: a single
 /// `EntityEditScreenScaffold<T, VM>(...)` invocation with builders that
@@ -213,10 +215,15 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     await _hydrateFailedSync(services, companyId, existingId);
   }
 
-  /// Replay a prior 422 onto the VM. Reads the newest dead outbox row for
-  /// this entity (if any) and pushes its `field_errors_json` onto the VM
-  /// so the form opens pre-flagged. No-op when nothing on disk or when
-  /// the field-errors blob fails to decode.
+  /// Replay a prior rejection onto the VM. Reads the newest dead outbox row
+  /// for this entity (if any) and pushes its `field_errors_json` **and** its
+  /// `last_error` / `last_status_code` onto the VM so the form opens
+  /// pre-flagged with a stated reason.
+  ///
+  /// It used to bail whenever `field_errors_json` was absent, i.e. for every
+  /// non-422 rejection — so a permanent 4xx (the record-deleted 400, say) died
+  /// in the outbox while the reopened form looked perfectly clean and the only
+  /// trace was a toast the user had already dismissed.
   Future<void> _hydrateFailedSync(
     Services services,
     String companyId,
@@ -228,26 +235,34 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
       entityId: entityId,
     );
     if (row == null || _vm == null || !mounted) return;
+    var errors = const <String, List<String>>{};
     final raw = row.fieldErrorsJson;
-    if (raw == null || raw.isEmpty) return;
-    Map<String, List<String>> errors;
-    try {
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      errors = decoded.map(
-        (k, v) => MapEntry(
-          k,
-          (v as List).map((e) => e.toString()).toList(growable: false),
-        ),
-      );
-    } catch (_) {
-      return;
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        errors = decoded.map(
+          (k, v) => MapEntry(
+            k,
+            (v as List).map((e) => e.toString()).toList(growable: false),
+          ),
+        );
+      } catch (_) {
+        // Undecodable blob — fall through on the message alone.
+      }
     }
-    if (errors.isEmpty) return;
+    final message = row.lastError;
+    if (errors.isEmpty && (message == null || message.isEmpty)) return;
     // Pass the dead row's entityId so the VM can stash it as recoveryTempId
     // when it's a tmp_ id — the next Save then reuses that tmp id and
     // dedupPendingMutations replaces the prior dead/pending row instead of
     // creating a duplicate.
-    _vm!.applyFailedSync(rowId: row.id, errors: errors, entityId: row.entityId);
+    _vm!.applyFailedSync(
+      rowId: row.id,
+      errors: errors,
+      entityId: row.entityId,
+      message: message,
+      statusCode: row.lastStatusCode,
+    );
   }
 
   /// Resolve the dead row id for the current entity. Prefers the VM's
@@ -363,7 +378,18 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
           // Persistent "this record hasn't synced" strip when editing an
           // offline-created (`tmp_`) record — renders nothing otherwise.
           SyncFirstBanner(entityId: widget.existingId),
-          SaveFailedBanner(vm: vm, onDiscard: () => _discardFailedSync(vm)),
+          // Builder so the retry closure resolves the `FormSaveScope` that
+          // `EntityEditScaffold` installs *below* this method's context —
+          // re-submitting through the scope reuses the one save path (unfocus
+          // + flush hooks + dead-row relink) instead of forking a second one.
+          Builder(
+            builder: (bannerContext) => SaveFailedBanner(
+              vm: vm,
+              onDiscard: () => _discardFailedSync(vm),
+              onRetry: () async =>
+                  FormSaveScope.maybeOf(bannerContext)?.trySubmit(),
+            ),
+          ),
         ],
       ),
       resetToEmpty: () => widget.resetToEmpty(vm),

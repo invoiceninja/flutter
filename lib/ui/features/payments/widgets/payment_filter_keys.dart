@@ -50,8 +50,8 @@ List<FilterKey> buildPaymentFilterKeys({
 /// `status:pending|cancelled|failed|completed|partially_refunded|refunded|
 /// partially_unapplied` — multi-valued. Writes to
 /// `vm.extraFilters['client_status']`, the server-backed
-/// `PaymentFilters::client_status` param the dashboard's "Paid this month"
-/// KPI deep-link uses (`completed`).
+/// `PaymentFilters::client_status` param the dashboard's "Paid" KPI deep-link
+/// uses (`completed`).
 class PaymentStatusFilterKey extends FilterKey {
   const PaymentStatusFilterKey();
 

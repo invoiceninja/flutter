@@ -13,6 +13,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
+import 'package:admin/ui/features/dashboard/helpers/range_dates.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
@@ -38,7 +39,6 @@ class MobileDashboardBody extends StatelessWidget {
     super.key,
     required this.vm,
     required this.formatter,
-    required this.companyName,
     required this.onOpenCard,
     required this.onPastDueInvoiceTap,
     required this.onAllInvoices,
@@ -62,7 +62,6 @@ class MobileDashboardBody extends StatelessWidget {
 
   final DashboardViewModel vm;
   final Formatter formatter;
-  final String companyName;
 
   /// Open the entity list relevant to a tapped configured card.
   final void Function(DashboardCardConfig) onOpenCard;
@@ -214,19 +213,25 @@ class MobileDashboardBody extends StatelessWidget {
   // ---------------------------------------------------------------------------
   // Eyebrow
 
-  /// `ACME CORPORATION · DASHBOARD · UPDATED 12 MIN AGO`.
+  /// `APR 1, 2026 — JUN 30, 2026 · UPDATED 12 MIN AGO`.
   ///
-  /// One run in one voice, not a two-column row: the company line (~202 px) and
-  /// the freshness stamp (~158 px) together need ~360 px of a 336 px content
-  /// line on a 360 dp phone, so side-by-side would truncate the company name on
-  /// every handset at or below 375 dp. As a single string the ellipsis eats the
-  /// freshness first, which is the right priority, and it degrades to today's
-  /// exact appearance. No tappable Refresh here — `RefreshIndicator` already
-  /// wraps the body and the AppBar has no room for a fifth action.
+  /// The window leads because on a phone it appeared nowhere else — the AppBar
+  /// carries a bare filter *icon* — so every figure below was scoped to a range
+  /// the user couldn't see (flutter#37). It displaced `ACME CORPORATION ·
+  /// DASHBOARD`, which cost nothing: the AppBar title directly above already
+  /// names the company, and the nav already says which page this is.
+  ///
+  /// One run in one voice, not a two-column row: on a 360 dp phone the content
+  /// line is ~336 px and a full range (~186 px) plus the freshness stamp
+  /// (~158 px) overruns it, so side-by-side would truncate the window on every
+  /// handset at or below 375 dp. As a single string the ellipsis eats the
+  /// freshness first, which is the right priority. No tappable Refresh here —
+  /// `RefreshIndicator` already wraps the body and the AppBar has no room for a
+  /// fifth action.
   Widget _eyebrow(BuildContext context, InTheme tokens) {
     return FreshnessTicker(
       builder: (context) => Text(
-        '${companyName.toUpperCase()} · ${context.tr('dashboard').toUpperCase()} · '
+        '${dashboardRangeDates(context, vm.filter, formatter: formatter).toUpperCase()} · '
         '${freshnessText(context, lastRefreshed: vm.lastRefreshed, isRefreshing: vm.isAnyRefreshing).toUpperCase()}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -363,7 +368,11 @@ class MobileDashboardBody extends StatelessWidget {
                   Expanded(
                     child: _subKpi(
                       context: context,
-                      label: context.tr('paid_this_month'),
+                      // Range-agnostic, like its "Unpaid" sibling: the figure
+                      // tracks the selected window, so a fixed "this month"
+                      // heading lied for every other range (flutter#37). The
+                      // window is stated once, in the eyebrow above.
+                      label: context.tr('paid'),
                       value: paidText,
                       bg: tokens.surfaceAlt,
                       labelColor: tokens.ink3,

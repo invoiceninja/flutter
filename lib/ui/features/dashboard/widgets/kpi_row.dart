@@ -22,13 +22,13 @@ class KpiRow extends StatelessWidget {
     required this.vm,
     required this.formatter,
     this.onOutstandingTap,
-    this.onPaidThisMonthTap,
+    this.onPaidTap,
   });
 
   final DashboardViewModel vm;
   final Formatter formatter;
   final VoidCallback? onOutstandingTap;
-  final VoidCallback? onPaidThisMonthTap;
+  final VoidCallback? onPaidTap;
 
   @override
   Widget build(BuildContext context) {
@@ -64,13 +64,7 @@ class KpiRow extends StatelessWidget {
               currencyKey,
             ),
             _unpaidCard(context, current, previous),
-            _paidThisMonthCard(
-              context,
-              current,
-              previous,
-              convertedHint,
-              currencyKey,
-            ),
+            _paidCard(context, current, previous, convertedHint, currencyKey),
           ],
         );
       },
@@ -158,7 +152,13 @@ class KpiRow extends StatelessWidget {
     );
   }
 
-  KpiCard _paidThisMonthCard(
+  // Paid revenue in the selected window. The label is deliberately
+  // range-agnostic, like its "Outstanding" / "Unpaid" siblings: it used to read
+  // "Paid this month" while the figure (and the drill-through) tracked whatever
+  // range was picked, so "Last quarter" showed a quarter's revenue under a
+  // monthly heading (flutter#37). The window itself is stated once, in the page
+  // header — see `dashboardRangeDates`.
+  KpiCard _paidCard(
     BuildContext context,
     DashboardCurrencyTotals? current,
     DashboardCurrencyTotals? previous,
@@ -173,7 +173,7 @@ class KpiRow extends StatelessWidget {
       current?.revenuePaidToDate,
       previous?.revenuePaidToDate,
     );
-    final label = context.tr('paid_this_month');
+    final label = context.tr('paid');
     return KpiCard(
       label: label,
       value: value,
@@ -186,7 +186,7 @@ class KpiRow extends StatelessWidget {
         value: value,
         delta: delta,
       ),
-      onTap: onPaidThisMonthTap,
+      onTap: onPaidTap,
     );
   }
 }

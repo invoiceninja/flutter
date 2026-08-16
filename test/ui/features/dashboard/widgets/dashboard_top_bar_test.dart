@@ -7,8 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/models/value/datetime_format.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
@@ -16,9 +18,19 @@ import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dar
 import 'package:admin/ui/features/dashboard/widgets/dashboard_refresh_button.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
+import 'package:admin/utils/formatting.dart';
 
 import '../../../../_localization_helper.dart';
 import '../_fake_dashboard_repo.dart';
+
+/// Company date format so the subtitle assertions read like the real UI rather
+/// than the ISO cold-start fallback.
+Formatter _formatter() => Formatter(
+  settings: CompanyFormatSettings.fallback,
+  currencies: const {},
+  countries: const {},
+  dateFormats: const {'5': DatetimeFormat(id: '5', format: 'MMM d, yyyy')},
+);
 
 /// #26 — the freshness stamp and Refresh moved out of the bottom of the
 /// dashboard scroll and into the always-visible top bar. Both live in the
@@ -72,6 +84,7 @@ void main() {
     required double width,
     VoidCallback? onRefresh,
     DashboardDateRange? range,
+    Formatter? formatter,
   }) async {
     if (range != null) await vm.setDateRange(range);
     await tester.pumpWidget(
@@ -92,6 +105,7 @@ void main() {
                 companyName: 'Acme Corporation',
                 onRefresh: onRefresh ?? () {},
                 onNewInvoice: () {},
+                formatter: formatter,
               ),
             ),
           ),
@@ -211,6 +225,111 @@ void main() {
     await pass;
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  // ---------------------------------------------------------------------------
+  // flutter#37 — the subtitle used to read "Dashboard · {end month} {year}",
+  // naming only the *last* month of the selected window: "Last quarter"
+  // displayed as "June 2026". It now states the resolved window in full, which
+  // is also the only place the dates appear at all on a narrow layout.
+
+  String subtitleText(WidgetTester tester) => tester
+      .widget<Text>(
+        find.descendant(
+          of: find.byType(FreshnessTicker),
+          matching: find.byType(Text),
+        ),
+      )
+      .data!;
+
+  testWidgets('the subtitle states the whole window, both endpoints', (
+    tester,
+  ) async {
+    await pumpBar(
+      tester,
+      width: 1400,
+      range: const DashboardPresetRange(DashboardDatePreset.lastQuarter),
+    );
+
+    // Derived from the VM rather than hardcoded: a quarter boundary depends on
+    // today, and CI runs in UTC while the dev boxes here do not. The claim
+    // under test is that *both* endpoints render — the old code dropped the
+    // start entirely.
+    final (start, end) = vm.filter.resolveDates();
+    final subtitle = subtitleText(tester);
+    expect(subtitle, contains(start.toIso()));
+    expect(subtitle, contains(end.toIso()));
+    expect(subtitle, contains('Updated just now'));
+  });
+
+  testWidgets('the subtitle tracks the selected range', (tester) async {
+    await pumpBar(
+      tester,
+      width: 1400,
+      range: const DashboardPresetRange(DashboardDatePreset.thisMonth),
+    );
+    final monthly = subtitleText(tester);
+
+    await pumpBar(
+      tester,
+      width: 1400,
+      range: const DashboardPresetRange(DashboardDatePreset.lastQuarter),
+    );
+
+    expect(
+      subtitleText(tester),
+      isNot(monthly),
+      reason: 'a static subtitle is what made the filter invisible',
+    );
+  });
+
+  testWidgets('a custom range renders both dates the user picked', (
+    tester,
+  ) async {
+    await pumpBar(
+      tester,
+      width: 1400,
+      range: const DashboardCustomRange(
+        start: Date(2026, 3, 5),
+        end: Date(2026, 3, 12),
+      ),
+      formatter: _formatter(),
+    );
+
+    expect(subtitleText(tester), startsWith('Mar 5, 2026 — Mar 12, 2026'));
+  });
+
+  testWidgets('All Time is named, not rendered as a 50-year span', (
+    tester,
+  ) async {
+    await pumpBar(
+      tester,
+      width: 1400,
+      range: const DashboardPresetRange(DashboardDatePreset.allTime),
+      formatter: _formatter(),
+    );
+
+    expect(subtitleText(tester), startsWith('All Time'));
+  });
+
+  testWidgets('the widest subtitle still fits the capped title column', (
+    tester,
+  ) async {
+    // 600 is the minimum width that renders the wide branch, and two full dates
+    // plus the freshness stamp is the longest this line ever gets. It must
+    // ellipsise inside the 280 px cap, not overflow the header.
+    await pumpBar(
+      tester,
+      width: 600,
+      range: const DashboardCustomRange(
+        start: Date(2026, 12, 28),
+        end: Date(2027, 12, 31),
+      ),
+      formatter: _formatter(),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Acme Corporation'), findsOneWidget);
   });
 
   testWidgets('a partial failure leaves the stamp unchanged so the caller can '

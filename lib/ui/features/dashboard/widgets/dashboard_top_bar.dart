@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/features/dashboard/helpers/range_dates.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_refresh_button.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
@@ -11,10 +12,10 @@ import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 
 /// Wide-layout TopBar shown above the dashboard scroll. Matches
-/// `screens.jsx:196-201`: title = company name, subtitle = "Dashboard ·
-/// {Month YYYY} · Updated N ago", actions = refresh + combined
-/// date-range/filter popover + settings + "New invoice". Currency and
-/// include-drafts are folded into the date-range popover.
+/// `screens.jsx:196-201`: title = company name, subtitle = "{active date
+/// range} · Updated N ago", actions = refresh + combined date-range/filter
+/// popover + settings + "New invoice". Currency and include-drafts are folded
+/// into the date-range popover.
 ///
 /// The freshness stamp is metadata, so it rides the subtitle rather than the
 /// action cluster: it re-measures itself every 30 s, and a self-changing width
@@ -50,9 +51,17 @@ class DashboardTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final theme = Theme.of(context);
-    final (_, end) = vm.filter.resolveDates();
-    final subtitle =
-        '${context.tr('dashboard')} · ${_monthName(context, end.month)} ${end.year}';
+    // The active window, stated in full. This used to read
+    // "Dashboard · <end month> <year>", which named only the *last* month of a
+    // multi-month range — "Last quarter" showed as "June 2026" (flutter#37).
+    // The word "Dashboard" went with it: the subtitle is capped at 280 px with
+    // a single ellipsised line, and keeping it pushed the freshness stamp off
+    // the end. The sidebar already says which page this is.
+    final subtitle = dashboardRangeDates(
+      context,
+      vm.filter,
+      formatter: formatter,
+    );
     final newInvoiceLabel = context.tr('new_invoice');
 
     return Container(
@@ -155,22 +164,4 @@ class DashboardTopBar extends StatelessWidget {
       ),
     );
   }
-
-  static const _monthKeys = [
-    'january',
-    'february',
-    'march',
-    'april',
-    'may',
-    'june',
-    'july',
-    'august',
-    'september',
-    'october',
-    'november',
-    'december',
-  ];
-
-  String _monthName(BuildContext context, int m) =>
-      (m >= 1 && m <= 12) ? context.tr(_monthKeys[m - 1]) : '';
 }

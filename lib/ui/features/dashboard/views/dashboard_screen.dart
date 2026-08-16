@@ -223,9 +223,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// KPI "Paid this month" → payments with `client_status=completed` and the
-  /// dashboard's date window as the canonical `date,<start>,<end>` (v5
-  /// unified `QueryFilters::date_range`).
+  /// KPI "Paid" → payments with `client_status=completed` and the dashboard's
+  /// date window as the canonical `date,<start>,<end>` (v5 unified
+  /// `QueryFilters::date_range`).
   ListFilterIntent get _paidPaymentsIntent {
     final (start, end) = _vm.filter.resolveDates();
     return ListFilterIntent(
@@ -416,7 +416,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return MobileDashboardBody(
       vm: _vm,
       formatter: _formatter!,
-      companyName: _resolveCompanyName(context),
       onOpenCard: _openConfiguredCard,
       onPastDueInvoiceTap: _navInvoice,
       onAllInvoices: () => _goWithIntent('/invoices', _pastDueInvoicesIntent),
@@ -490,8 +489,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           formatter: formatter,
           onOutstandingTap: () =>
               _goWithIntent('/invoices', _invoiceKpiIntent()),
-          onPaidThisMonthTap: () =>
-              _goWithIntent('/payments', _paidPaymentsIntent),
+          onPaidTap: () => _goWithIntent('/payments', _paidPaymentsIntent),
         ),
       ),
       SizedBox(height: InSpacing.lg(context)),

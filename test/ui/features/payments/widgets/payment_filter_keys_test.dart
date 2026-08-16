@@ -14,8 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Pins `PaymentStatusFilterKey` (`client_status`) and the generic
 /// `DateColumnFilterKey(id: 'date')` `between` comparator that replaced the
 /// old `PaymentDateRangeFilterKey` — it owns the canonical 3-part
-/// `date,<start>,<end>` `date_range` wire the "Paid this month" KPI
-/// deep-link injects (legacy 2-part still parses).
+/// `date,<start>,<end>` `date_range` wire the "Paid" KPI deep-link injects
+/// (legacy 2-part still parses).
 
 class _FakeVm extends GenericListViewModel<dynamic> {
   _FakeVm({
@@ -112,8 +112,8 @@ void main() {
 
   // The payments list now uses the generic `DateColumnFilterKey(id: 'date')`
   // for date filtering — its `between` comparator owns the `date_range`
-  // window slot the "Paid this month" KPI deep-link injects, replacing the
-  // old bespoke `PaymentDateRangeFilterKey`.
+  // window slot the "Paid" KPI deep-link injects, replacing the old bespoke
+  // `PaymentDateRangeFilterKey`.
   group('DateColumnFilterKey (date) — between window', () {
     const key = DateColumnFilterKey(
       id: 'date',

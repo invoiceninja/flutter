@@ -8,6 +8,7 @@ import 'package:admin/utils/formatting.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
+import 'package:admin/ui/features/dashboard/helpers/range_dates.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
@@ -136,9 +137,11 @@ class _CardCell extends StatelessWidget {
           )
         : null;
     if (secondCaption == null && config.period == CardPeriod.current) {
-      final (start, end) = vm.filter.resolveDates();
-      secondCaption =
-          '${formatter.date(start.toIso())} — ${formatter.date(end.toIso())}';
+      secondCaption = dashboardRangeDates(
+        context,
+        vm.filter,
+        formatter: formatter,
+      );
     }
 
     final value = _valueText(context, section);

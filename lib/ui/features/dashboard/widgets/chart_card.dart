@@ -45,8 +45,8 @@ class ChartCard extends StatelessWidget {
       (id) => (pointsBySeries[id] ?? const []).isEmpty,
     );
 
-    // The hero is the *paid revenue* figure (same source as the "Paid this
-    // month" KPI), not a sum of the legend series — expenses must not leak in.
+    // The hero is the *paid revenue* figure (same source as the "Paid" KPI),
+    // not a sum of the legend series — expenses must not leak in.
     final current = selectCurrencyTotals(vm.totals.data, currencyKey);
     final previous = selectCurrencyTotals(vm.totalsPrevious.data, currencyKey);
     final heroValueText = formatter.money(

@@ -9,6 +9,8 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/ui/features/shell/widgets/sync_event_listener.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import '_shell_test_helpers.dart';
 
@@ -94,6 +96,119 @@ void main() {
       find.byType(AlertDialog),
       findsNothing,
       reason: 'offline failures must not pop a blocking modal',
+    );
+  });
+
+  // Overlapping conflict/password events are DEFERRED and replayed when the
+  // current modal closes (neither is re-emitted by the sync engine). For a
+  // password event that replay is wrong: `retryPasswordRows` re-arms every
+  // parked row in the company at once, so the deferred event is already
+  // satisfied — replaying it reopened the sheet the instant the user dismissed
+  // it, asking again for the password they had just typed.
+  /// Two destructive mutations that both 412 on their first attempt — the
+  /// ordinary shape of two offline deletes, and the case that produces a
+  /// SECOND `PasswordRequiredEvent` while the first sheet is still open.
+  Future<void> enqueueTwo412Rows(ShellFixture fixture) async {
+    for (final id in ['c1', 'c2']) {
+      await fixture.services.db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: id,
+          mutationKind: 'delete',
+          payload: '{}',
+          idempotencyKey: 'k-$id',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+    }
+    await fixture.services.sync.drainOnce(companyId: 'co');
+  }
+
+  testWidgets('a second 412 row does not re-open the password sheet', (
+    tester,
+  ) async {
+    final fixture = await buildFixture(
+      companies: const [FakeCompany(id: 'co', name: 'Co')],
+      currentCompanyId: 'co',
+      online: true,
+      httpClient: MockClient(
+        (_) async => http.Response('{"message":"Invalid Password"}', 412),
+      ),
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        const SyncEventListener(child: SizedBox.shrink()),
+      ),
+    );
+    await tester.pump();
+
+    await enqueueTwo412Rows(fixture);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(AlertDialog),
+      findsOneWidget,
+      reason: 'the first 412 must prompt',
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'hunter2');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(AlertDialog),
+      findsNothing,
+      reason: 'the deferred second password event must not re-prompt',
+    );
+  });
+
+  // The cancel twin of the above. Dropping the deferred event only on the
+  // SUCCESS path left this worse than before the deferral existed: the user
+  // declines and the sheet reopens instantly, rather than the row simply dying
+  // into the Outbox.
+  testWidgets('cancelling the password sheet does not re-prompt', (
+    tester,
+  ) async {
+    final fixture = await buildFixture(
+      companies: const [FakeCompany(id: 'co', name: 'Co')],
+      currentCompanyId: 'co',
+      online: true,
+      httpClient: MockClient(
+        (_) async => http.Response('{"message":"Invalid Password"}', 412),
+      ),
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.pumpWidget(
+      wrapWithShell(
+        fixture.services,
+        const SyncEventListener(child: SizedBox.shrink()),
+      ),
+    );
+    await tester.pump();
+
+    await enqueueTwo412Rows(fixture);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(AlertDialog),
+      findsOneWidget,
+      reason: 'the first 412 must prompt',
+    );
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(AlertDialog),
+      findsNothing,
+      reason: 'a declined prompt must not immediately re-ask',
     );
   });
 }

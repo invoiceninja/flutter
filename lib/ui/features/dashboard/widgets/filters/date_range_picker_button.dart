@@ -8,8 +8,10 @@ import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/utils/calendar_week_start.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/features/shell/widgets/in_sidebar.dart';
+import 'package:admin/utils/date_ranges.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Ghost-style button in the TopBar that opens a single popover combining the
@@ -373,8 +375,13 @@ class _DashboardDateRangePopoverState extends State<DashboardDateRangePopover> {
                               onShiftMonth: _shiftMonth,
                               canShiftLeft: _canShiftLeft,
                               canShiftRight: _canShiftRight(compact),
-                              firstDayOfWeek:
-                                  widget.formatter?.settings.firstDayOfWeek,
+                              // Resolved once here — the shared rule every
+                              // rendered calendar in the app uses, so this grid
+                              // and Tasks → Calendar/Weekly can't disagree.
+                              firstDayOfWeek: calendarFirstDayOfWeek(
+                                context,
+                                widget.formatter,
+                              ),
                             ),
                             SizedBox(height: InSpacing.md(context)),
                             _FromToDisplay(
@@ -676,12 +683,11 @@ class _CalendarPane extends StatelessWidget {
     required this.onShiftMonth,
     required this.canShiftLeft,
     required this.canShiftRight,
-    this.firstDayOfWeek,
+    required this.firstDayOfWeek,
   });
 
-  /// Company `first_day_of_week` (0=Sun..6=Sat). Null → fall back to the device
-  /// locale's `firstDayOfWeekIndex`.
-  final int? firstDayOfWeek;
+  /// Resolved start-of-week (0=Sun..6=Sat) — see `calendarFirstDayOfWeek`.
+  final int firstDayOfWeek;
 
   final bool compact;
   final DateTime leftMonth;
@@ -742,7 +748,7 @@ class _MonthGrid extends StatelessWidget {
     required this.start,
     required this.end,
     required this.onTap,
-    this.firstDayOfWeek,
+    required this.firstDayOfWeek,
   });
 
   final DateTime month;
@@ -752,47 +758,49 @@ class _MonthGrid extends StatelessWidget {
   final Date? end;
   final ValueChanged<Date> onTap;
 
-  /// Company `first_day_of_week` (0=Sun..6=Sat); null → device locale default.
-  final int? firstDayOfWeek;
+  /// Resolved start-of-week (0=Sun..6=Sat) — see `calendarFirstDayOfWeek`.
+  final int firstDayOfWeek;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final l = MaterialLocalizations.of(context);
-    // Company setting wins; fall back to the device locale's first day.
-    final firstWeekday = firstDayOfWeek ?? l.firstDayOfWeekIndex;
+    // Already resolved + normalized by `calendarFirstDayOfWeek` at the popover
+    // root — company setting when configured, device locale otherwise.
+    final firstWeekday = firstDayOfWeek;
     // Reorder narrowWeekdays so column 0 matches the first day of week.
     final headers = <String>[
       for (var i = 0; i < 7; i++) l.narrowWeekdays[(firstWeekday + i) % 7],
     ];
 
-    final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
-    final monthFirst = DateTime(month.year, month.month, 1);
-    // 0 = Sunday in Dart's DateTime.weekday convention is 7. Translate to
-    // a slot offset relative to the locale's first day of week.
-    final dartWeekday = monthFirst.weekday % 7; // 0..6, where 0 = Sunday
-    final leadingBlanks = (dartWeekday - firstWeekday + 7) % 7;
-
-    final cells = <Widget>[];
-    for (var i = 0; i < leadingBlanks; i++) {
-      cells.add(const SizedBox.shrink());
-    }
-    for (var d = 1; d <= daysInMonth; d++) {
-      final date = Date(month.year, month.month, d);
-      cells.add(
-        _DayCell(
-          date: date,
-          state: _stateFor(date),
-          enabled: !date.isBefore(firstDate) && !date.isAfter(lastDate),
-          isToday: _isToday(date),
-          onTap: () => onTap(date),
-          tokens: tokens,
-        ),
-      );
-    }
-    while (cells.length % 7 != 0) {
-      cells.add(const SizedBox.shrink());
-    }
+    // Fixed 6 rows via the shared grid helper. Deriving the row count from the
+    // month instead (`ceil((leadingBlanks + daysInMonth) / 7)`) swings between
+    // 4 and 6 depending on the month AND the first-day-of-week — Feb 2026 is 4
+    // rows and Aug 2026 is 6 — so the popover jumped ~72px as the user paged,
+    // and the two side-by-side month panes rendered at different heights.
+    // Days outside `month` stay blank; they are geometry only, not tappable
+    // cells (the neighbouring month is already on screen in the wide layout).
+    // They must still carry the cell's HEIGHT: a `Row` whose children are all
+    // `SizedBox.shrink()` measures zero, so blank-filling a trailing week would
+    // collapse it and leave the height varying exactly as before.
+    final blank = SizedBox(height: _dayCellExtent(context));
+    final cells = <Widget>[
+      for (final date in monthGridDays(
+        Date(month.year, month.month, 1),
+        firstWeekday,
+      ))
+        if (date.month != month.month || date.year != month.year)
+          blank
+        else
+          _DayCell(
+            date: date,
+            state: _stateFor(date),
+            enabled: !date.isBefore(firstDate) && !date.isAfter(lastDate),
+            isToday: _isToday(date),
+            onTap: () => onTap(date),
+            tokens: tokens,
+          ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

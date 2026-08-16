@@ -239,6 +239,21 @@ class _SyncEventListenerState extends State<SyncEventListener> {
         context,
         cache: services.passwordCache,
       );
+      // Drop deferred password events on EVERY outcome, before the `ok` check
+      // below — one prompt answers for all of them, either way:
+      //  * confirmed → `retryPasswordRows` re-arms every parked password row in
+      //    the company, so a deferred event is already satisfied and replaying
+      //    it reopens the sheet asking for the password just supplied;
+      //  * cancelled → the user was prompted once and declined. Re-prompting is
+      //    the "a cancel means ask again" behaviour #36 set out to kill, and
+      //    replaying from the `finally` makes it immediate rather than in five
+      //    minutes. The rows still terminate visibly (backoff → DeadEvent →
+      //    failure toast → Outbox), which is the documented fallback.
+      //
+      // Two rows 412-ing in one drain pass is the ordinary case (e.g. two
+      // offline deletes), so this is reachable, not theoretical. Conflicts are
+      // NOT dropped: each is per-entity and still needs its own resolution.
+      _deferredEvents.removeWhere((e) => e is PasswordRequiredEvent);
       if (!ok || !mounted) return;
       // Re-arm the parked password-required rows (the cache is now warm) and
       // kick a drain so they retry immediately instead of waiting out their

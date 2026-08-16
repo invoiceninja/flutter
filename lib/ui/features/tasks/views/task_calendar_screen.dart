@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/calendar_week_start.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/tasks/view_models/calendar_connection_view_model.dart';
 import 'package:admin/ui/features/tasks/view_models/task_calendar_view_model.dart';
@@ -48,6 +50,11 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
   String? _loadedWindowKey;
   bool _wasConnected = false;
 
+  /// Whether the locale-aware week start has been applied once — see
+  /// [_applyCalendarWeekStart] for why only the first application is
+  /// synchronous.
+  bool _weekStartApplied = false;
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +73,40 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
     _services.auth.session.addListener(_onSessionChanged);
     _resolveFormatter();
     _initCalendar();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The rendered week start needs `MaterialLocalizations`, which isn't
+    // reachable from `initState` — so the VM is seeded with the company value
+    // there and corrected here (and again on any locale change).
+    _applyCalendarWeekStart();
+  }
+
+  /// Align the grid's week start with every other rendered calendar in the app.
+  ///
+  /// The FIRST call runs synchronously: `didChangeDependencies` precedes this
+  /// widget's first `build`, so the provider hasn't subscribed to the VM yet and
+  /// there is nothing to notify — and applying it now means frame 1 already
+  /// paints the right week start instead of flashing Sunday and correcting.
+  ///
+  /// Every later call defers a frame, because by then `TaskCalendarGrid` watches
+  /// this VM and `setFirstDayOfWeek` notifies — doing that from inside the build
+  /// phase would be a setState-during-build on a mounted descendant. The VM's
+  /// own no-change guard means the steady state schedules nothing at all.
+  void _applyCalendarWeekStart() {
+    final value = calendarFirstDayOfWeek(context, _formatter);
+    if (value == _vm.firstDayOfWeek) return;
+    if (!_weekStartApplied) {
+      _weekStartApplied = true;
+      _vm.setFirstDayOfWeek(value);
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _vm.setFirstDayOfWeek(value);
+    });
   }
 
   bool get _calendarAvailable => CalendarConnectMenu.isAvailable(_services);
@@ -111,7 +152,7 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
     // company's first-day-of-week lands on the new company's VM.
     if (!mounted || forCompany != _companyId) return;
     setState(() => _formatter = f);
-    _vm.setFirstDayOfWeek(f.settings.firstDayOfWeek);
+    _applyCalendarWeekStart();
   }
 
   void _onSessionChanged() {

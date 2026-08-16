@@ -981,9 +981,15 @@ class Services implements SidebarBadgeContext {
       // overlay them from the row so the Formatter (and everything that reaches
       // date_ranges.dart through it) sees the persisted fiscal-year / week-start
       // / decimal-separator values.
-      settings = settings.copyWith(
+      settings = settings.withCompanyColumns(
         firstMonthOfYear: int.tryParse(row.firstMonthOfYear) ?? 1,
-        firstDayOfWeek: int.tryParse(row.firstDayOfWeek) ?? 0,
+        // Deliberately NOT `?? 0`: the server leaves this column blank until
+        // the user picks a value, and collapsing that onto 0 makes "never
+        // configured" indistinguishable from "explicitly Sunday" — which killed
+        // the date-range calendar's locale fallback. See
+        // `CompanyFormatSettings.configuredFirstDayOfWeek`; date MATH still
+        // reads the non-null `.firstDayOfWeek` getter and gets 0.
+        firstDayOfWeek: int.tryParse(row.firstDayOfWeek),
         useCommaAsDecimalPlace: row.useCommaAsDecimalPlace,
       );
     }

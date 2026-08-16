@@ -14,8 +14,8 @@ class CompanyFormatSettings {
     required this.enableMilitaryTime,
     required this.locale,
     this.firstMonthOfYear = 1,
-    this.firstDayOfWeek = 0,
-  });
+    int? firstDayOfWeek,
+  }) : configuredFirstDayOfWeek = firstDayOfWeek;
 
   final String currencyId;
   final String countryId;
@@ -35,10 +35,23 @@ class CompanyFormatSettings {
   /// `Services._buildFormatter`; see `lib/utils/date_ranges.dart` for the math.
   final int firstMonthOfYear;
 
-  /// `first_day_of_week` (0=Sun..6=Sat) — top-level company field. Drives the
-  /// start-of-week for dashboard charts, report week grouping, and the
-  /// date-range calendar grid. Defaults to 0 (Sunday).
-  final int firstDayOfWeek;
+  /// `first_day_of_week` (0=Sun..6=Sat) exactly as the company configured it,
+  /// or **null when it never has been** — the two must stay distinguishable.
+  ///
+  /// The server leaves this column blank until a user picks a value, so
+  /// collapsing "unset" onto 0 makes "never configured" indistinguishable from
+  /// "explicitly Sunday". A surface that wants to fall back to the device
+  /// locale (the date-range calendar does, and Flutter's own `showDatePicker`
+  /// always has) then can't: its `?? locale` is dead code and every unconfigured
+  /// company gets a Sunday-first grid regardless of locale.
+  final int? configuredFirstDayOfWeek;
+
+  /// Effective start-of-week for date MATH — dashboard chart buckets and report
+  /// week grouping — where a stable, locale-independent default is what keeps
+  /// grouped data comparable. Unset falls back to 0 (Sunday), matching the
+  /// server's own column default. UI that renders a calendar should prefer
+  /// [configuredFirstDayOfWeek] and fall back to the locale instead.
+  int get firstDayOfWeek => configuredFirstDayOfWeek ?? 0;
 
   /// Default fallback: USD, US, MM/DD/YYYY format id `5`. Matches
   /// `admin-portal/lib/constants.dart:kDefaultCurrencyId` /
@@ -53,7 +66,6 @@ class CompanyFormatSettings {
     enableMilitaryTime: false,
     locale: '',
     firstMonthOfYear: 1,
-    firstDayOfWeek: 0,
   );
 
   /// Parse from a company's stored settings JSON blob (the
@@ -78,7 +90,11 @@ class CompanyFormatSettings {
       // outer `json`. In the common path `Services._buildFormatter` overrides
       // these from the company row's dedicated columns via copyWith.
       firstMonthOfYear: _int(json, 'first_month_of_year', 1),
-      firstDayOfWeek: _int(json, 'first_day_of_week', 0),
+      // Null, not 0, when the key is absent/blank — see
+      // [configuredFirstDayOfWeek]. (These three are overlaid from the
+      // company row's own columns in `Services._buildFormatter` anyway; this
+      // keeps the settings-blob path from manufacturing a fake "Sunday".)
+      firstDayOfWeek: _intOrNull(json, 'first_day_of_week'),
       useCommaAsDecimalPlace: _bool(json, 'use_comma_as_decimal_place'),
     );
   }
@@ -92,7 +108,6 @@ class CompanyFormatSettings {
     bool? enableMilitaryTime,
     String? locale,
     int? firstMonthOfYear,
-    int? firstDayOfWeek,
   }) => CompanyFormatSettings(
     currencyId: currencyId ?? this.currencyId,
     countryId: countryId ?? this.countryId,
@@ -103,7 +118,33 @@ class CompanyFormatSettings {
     enableMilitaryTime: enableMilitaryTime ?? this.enableMilitaryTime,
     locale: locale ?? this.locale,
     firstMonthOfYear: firstMonthOfYear ?? this.firstMonthOfYear,
-    firstDayOfWeek: firstDayOfWeek ?? this.firstDayOfWeek,
+    firstDayOfWeek: configuredFirstDayOfWeek,
+  );
+
+  /// Overlay the three values that live in the company row's own COLUMNS rather
+  /// than in its settings JSON blob — the one thing `Services._buildFormatter`
+  /// does after parsing.
+  ///
+  /// Separate from [copyWith] because these have "absent" semantics that
+  /// `copyWith`'s `?? this.x` can't express: a blank `first_day_of_week` column
+  /// IS the unset state and must overwrite whatever the blob said, not be read
+  /// as "leave it alone". Doing that through `copyWith` would mean widening its
+  /// parameter to `Object?` behind a sentinel, trading a compile error for a
+  /// runtime cast on every caller of a shared API.
+  CompanyFormatSettings withCompanyColumns({
+    required int firstMonthOfYear,
+    required int? firstDayOfWeek,
+    required bool useCommaAsDecimalPlace,
+  }) => CompanyFormatSettings(
+    currencyId: currencyId,
+    countryId: countryId,
+    dateFormatId: dateFormatId,
+    useCommaAsDecimalPlace: useCommaAsDecimalPlace,
+    showCurrencyCode: showCurrencyCode,
+    enableMilitaryTime: enableMilitaryTime,
+    locale: locale,
+    firstMonthOfYear: firstMonthOfYear,
+    firstDayOfWeek: firstDayOfWeek,
   );
 }
 
@@ -123,6 +164,15 @@ int _int(Map<String, dynamic> m, String key, int fallback) {
   if (v is int) return v;
   if (v == null) return fallback;
   return int.tryParse(v.toString()) ?? fallback;
+}
+
+/// Like [_int] but keeps "absent / blank / unparseable" as null instead of
+/// folding it onto a fallback that a real configured value could also produce.
+int? _intOrNull(Map<String, dynamic> m, String key) {
+  final v = m[key];
+  if (v is int) return v;
+  if (v == null) return null;
+  return int.tryParse(v.toString());
 }
 
 /// Map server language IDs to `intl` locale strings. Mirrors the subset of

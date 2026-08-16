@@ -2,10 +2,13 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
+import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
 import 'package:admin/ui/features/shell/widgets/in_sidebar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../../../_localization_helper.dart';
@@ -544,6 +547,121 @@ void main() {
             .first,
       );
       expect(preset.height, greaterThanOrEqualTo(InSizes.touchTarget));
+    });
+  });
+
+  group('week start', () {
+    /// Pumps a single-month grid under a real `MaterialLocalizations` for
+    /// [locale] — the shared helper only wires the app's own delegate, so
+    /// `MaterialLocalizations.of` would otherwise resolve to the English
+    /// default and every locale would look Sunday-first.
+    Future<void> pumpLocalized(WidgetTester tester, Locale locale) async {
+      // Tear down first. A second `pumpWidget` of the same widget type REUSES
+      // the State, so `initState` wouldn't re-run — harmless for the week start
+      // (read in `build`) but the exact shape that made the sibling height test
+      // silently vacuous. Don't rely on which phase the value happens to be
+      // read in.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: locale,
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: const [
+            ...kTestLocalizationsDelegates,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en'), Locale('de')],
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SizedBox(
+                width: 328,
+                // A REAL formatter whose `first_day_of_week` was never
+                // configured — passing none would make `formatter?.settings…`
+                // null via the null-aware operator and the fallback would fire
+                // for the wrong reason, hiding the bug entirely.
+                child: DashboardDateRangePopover(
+                  formatter: Formatter(
+                    settings: CompanyFormatSettings.fallback,
+                    currencies: const {},
+                    countries: const {},
+                    dateFormats: const {},
+                  ),
+                  current: DashboardCustomRange(
+                    // 1 March 2026 is a Sunday, so the first cell lands in
+                    // column 0 under a Sunday-first locale and column 6 under a
+                    // Monday-first one — an unambiguous read of the week start
+                    // that doesn't depend on narrow-weekday glyphs (`M` is both
+                    // Montag and Mittwoch).
+                    start: const Date(2026, 3, 10),
+                    end: const Date(2026, 3, 12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    // `CompanyFormatSettings.firstDayOfWeek` used to be a non-nullable int
+    // defaulting to 0, so "never configured" and "explicitly Sunday" collapsed
+    // onto the same value and this fallback was dead code — every locale got a
+    // Sunday-first grid, while the `showDatePicker` behind the From/To fields
+    // right below it used the locale.
+    testWidgets('an unconfigured company follows the locale', (tester) async {
+      await pumpLocalized(tester, const Locale('en'));
+      final sundayFirst = tester.getTopLeft(find.text('1')).dx;
+
+      await pumpLocalized(tester, const Locale('de'));
+      final mondayFirst = tester.getTopLeft(find.text('1')).dx;
+
+      // de is Monday-first, so a Sunday 1st slides from the first column to the
+      // last instead of staying put.
+      expect(
+        mondayFirst,
+        greaterThan(sundayFirst),
+        reason: 'de must not render a Sunday-first grid',
+      );
+    });
+
+    // Rows used to be `ceil((leadingBlanks + daysInMonth) / 7)`, which is 4 for
+    // Feb 2026 and 6 for Aug 2026 — so the popover grew and shrank by ~72px as
+    // the user paged, and the two side-by-side panes rendered unequal.
+    testWidgets('the grid height is constant across months', (tester) async {
+      await pumpAtWidth(
+        tester,
+        328,
+        current: DashboardCustomRange(
+          start: const Date(2026, 2, 2),
+          end: const Date(2026, 2, 10),
+        ),
+      );
+      // The From/To fields sit BELOW the calendar, so their y-offset is the
+      // grid's height made observable — and it is the shift the user actually
+      // sees. (The popover's own height is pinned by the taller preset rail, so
+      // measuring that would assert nothing.)
+      final feb = tester.getTopLeft(find.byType(InDateField).first).dy;
+
+      // Tear the tree down between pumps. `pumpWidget` REUSES the State when
+      // the widget type matches, so `initState` — which seeds `_anchorMonth`
+      // from `current` — would not re-run and the second pump would still be
+      // rendering February.
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      await pumpAtWidth(
+        tester,
+        328,
+        current: DashboardCustomRange(
+          start: const Date(2026, 8, 3),
+          end: const Date(2026, 8, 10),
+        ),
+      );
+      final aug = tester.getTopLeft(find.byType(InDateField).first).dy;
+
+      expect(aug, feb);
     });
   });
 }

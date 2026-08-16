@@ -141,6 +141,11 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
   ValueNotifier<int>? _highlight;
   int _optionCount = 0;
 
+  /// Whether the rendered row 0 is the client the field already holds — set
+  /// from `optionsViewBuilder` (what is actually on screen) rather than from
+  /// `_buildOptions`, whose result the SDK may discard as stale.
+  bool _firstOptionIsCommitted = false;
+
   /// True while the options overlay is mounted. Cleared on blur, on commit,
   /// and on Escape — Flutter's `DismissIntent` hides the overlay *without*
   /// touching focus, so nothing else would notice.
@@ -148,6 +153,18 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
 
   bool get _showCreate =>
       widget.onCreateRequested != null && _canCreateClients && widget.enabled;
+
+  /// Whether Enter would land on the client the field already holds — the
+  /// hoisted row 0 of the idle list. Enter there must DISMISS rather than
+  /// re-select: `RawAutocomplete._select` early-returns on an unchanged
+  /// selection *before* hiding the overlay, and re-firing `onSelected` for a
+  /// value the document already has is noise at best. (A pointer tap on the same
+  /// row is a real command and is routed directly — see the options builder.)
+  bool get _highlightIsCommitted =>
+      _firstOptionIsCommitted &&
+      _optionsVisible &&
+      _optionCount > 0 &&
+      (_highlight?.value ?? 0) == 0;
 
   /// The create row is always last, so this is the only index it can hold.
   bool get _highlightIsCreateRow =>
@@ -226,11 +243,17 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
     if (!companyChanged && old.selectedClientId == widget.selectedClientId) {
       return;
     }
-    // We just committed this ourselves (including a `tmp_` client that hasn't
-    // synced yet) — leave the field text alone.
-    if (!companyChanged && widget.selectedClientId == (_committed?.id ?? '')) {
-      return;
-    }
+    // Re-arm unconditionally, including for a selection we just committed
+    // ourselves. Returning early here left `_selectedWatch` subscribed to the
+    // PREVIOUS client forever — and `watchById` is a plain table-grained drift
+    // watch, so the next write to `clients` re-emitted the old row and reverted
+    // `_committed` (and, once unfocused, the visible text) to a client the
+    // document no longer references.
+    //
+    // Safe for the self-commit case, which is what the early return was
+    // protecting: `_watchSelected` only clears `_committed`/the text when the
+    // incoming id DISAGREES with it, and here they match by definition. A `tmp_`
+    // id is fine too — `watch` routes it through `id_remap`.
     _watchSelected();
   }
 
@@ -307,6 +330,20 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
     );
   }
 
+  /// Flip the busy spinner, but only from the run that still owns it.
+  ///
+  /// The flag used to be set inline and cleared on a single path, so any run
+  /// that returned through a supersede guard — or that never entered the fetch
+  /// branch at all — left it stuck on. `_buildSuffix` tests it first, so a stuck
+  /// flag replaced the ✕ with a permanent spinner and the user could no longer
+  /// clear the field. Gating on `seq` keeps a superseded run from switching off a
+  /// spinner the newest run still needs, while the newest run's `finally` always
+  /// clears it.
+  void _setSearching(int seq, bool value) {
+    if (!mounted || seq != _searchSeq || _searching == value) return;
+    setState(() => _searching = value);
+  }
+
   /// Options for [query]: local rows first, and when nothing matches locally
   /// ask the server before concluding the client doesn't exist. Without that
   /// round-trip a large account silently offers "create" for a client it
@@ -319,27 +356,49 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
     // `SearchableDropdownField`). An untouched field means "show me the list".
     final query = _isPristine(rawQuery) ? '' : rawQuery;
     final seq = ++_searchSeq;
-    var rows = await _localClients(query);
-    if (!mounted || seq != _searchSeq) return const <_ClientOption>[];
+    try {
+      var rows = await _localClients(query);
+      if (!mounted || seq != _searchSeq) return const <_ClientOption>[];
 
-    if (query.isNotEmpty && rows.isEmpty) {
-      setState(() => _searching = true);
-      await _fetch(query);
-      if (!mounted || seq != _searchSeq) return const <_ClientOption>[];
-      rows = await _localClients(query);
-      if (!mounted || seq != _searchSeq) return const <_ClientOption>[];
-      setState(() => _searching = false);
-    } else if (query.isNotEmpty) {
-      _scheduleWarmFetch(query);
+      if (query.isNotEmpty && rows.isEmpty) {
+        _setSearching(seq, true);
+        await _fetch(query);
+        if (!mounted || seq != _searchSeq) return const <_ClientOption>[];
+        rows = await _localClients(query);
+        if (!mounted || seq != _searchSeq) return const <_ClientOption>[];
+      } else if (query.isNotEmpty) {
+        _scheduleWarmFetch(query);
+      }
+
+      final limit = query.isEmpty ? _idleResults : _maxResults;
+      final visible = rows.take(limit).toList();
+      // Hoist the committed client to row 0 of the IDLE list, so it stays
+      // visible in a long list AND — the load-bearing half — so the default
+      // highlight is the value the field already holds. Without it, Enter or
+      // Android's "Done" on an untouched populated field committed whatever
+      // sorted first, silently swapping the document's client. Same rule as
+      // `SearchableDropdownField._idleOptions`, including its guard: only hoist
+      // while the parent still names this client, so a cleared selection isn't
+      // re-offered. Typed queries are left in relevance order — there row 0
+      // should be the best match.
+      final committed = _committed;
+      if (query.isEmpty &&
+          committed != null &&
+          widget.selectedClientId == committed.id) {
+        visible.removeWhere((c) => c.id == committed.id);
+        visible.insert(0, committed);
+      }
+      return <_ClientOption>[
+        for (final c in visible) _ClientExisting(c),
+        // Always last, so the default highlight is the best real match and a
+        // plain Enter never hijacks into create.
+        if (_showCreate) _ClientCreate(query),
+      ];
+    } finally {
+      // Every exit of the newest run stops the spinner; a superseded run's call
+      // no-ops on the `seq` check.
+      _setSearching(seq, false);
     }
-
-    final limit = query.isEmpty ? _idleResults : _maxResults;
-    return <_ClientOption>[
-      for (final c in rows.take(limit)) _ClientExisting(c),
-      // Always last, so the default highlight is the best real match and a
-      // plain Enter never hijacks into create.
-      if (_showCreate) _ClientCreate(query),
-    ];
   }
 
   void _commit(Client client) {
@@ -456,6 +515,10 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
                 ? clientPickerLabel(o.client)
                 : (o as _ClientCreate).query,
             optionsBuilder: (value) => _buildOptions(value.text.trim()),
+            // Without this the popover only ever gets the space BELOW the
+            // field, floored at `kMinInteractiveDimension` — a Client field low
+            // on a phone renders a single-row sliver.
+            optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
             onSelected: (o) {
               if (o is _ClientCreate) {
                 // The pointer path calls `_handleCreate` from `InkWell.onTap`
@@ -501,6 +564,14 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
                             );
                             return; // never reaches `_select`
                           }
+                          if (_highlightIsCommitted) {
+                            // Enter on the value the field already holds is a
+                            // dismissal, not a re-pick — see
+                            // [_highlightIsCommitted].
+                            _optionsVisible = false;
+                            _focusNode.unfocus();
+                            return; // never reaches `_select`
+                          }
                           onFieldSubmitted();
                         },
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -536,58 +607,79 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
                   ?.notifier;
               _optionCount = options.length;
               _optionsVisible = true;
+              final first = options.isEmpty ? null : options.first;
+              _firstOptionIsCommitted =
+                  first is _ClientExisting &&
+                  _committed != null &&
+                  first.client.id == _committed!.id;
               _scrollHighlightedIntoView(highlightedIndex, options.length);
-              return Align(
-                alignment: Alignment.topLeft,
-                child: Material(
-                  elevation: 4,
-                  borderRadius: BorderRadius.circular(InRadii.r2),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: 280,
-                      maxWidth: popoverWidth,
-                    ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      controller: _optionsScroll,
-                      itemExtent: _optionExtent,
-                      itemCount: options.length,
-                      itemBuilder: (context, i) {
-                        final opt = options.elementAt(i);
-                        final isHighlighted = i == highlightedIndex;
-                        if (opt is _ClientCreate) {
-                          return _CreateRow(
-                            query: opt.query,
-                            highlighted: isHighlighted,
-                            onTap: () => _handleCreate(opt.query),
-                          );
-                        }
-                        final client = (opt as _ClientExisting).client;
-                        return Container(
-                          color: isHighlighted ? tokens.accentSoft : null,
-                          child: InkWell(
-                            onTap: () => onSelected(opt),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: InSpacing.md(context),
-                                ),
-                                child: Text(
-                                  clientPickerLabel(client),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: tokens.ink,
-                                  ),
+              // No `Align` of our own: `RawAutocomplete` already wraps this in
+              // `ConstrainedBox(tight) -> Align(topStart | bottomStart)`, and a
+              // bare `Align` shrink-wraps only under an infinite constraint — so
+              // ours would fill the whole bounding box and leave the SDK's
+              // alignment nothing to move, stranding an upward-opening popover
+              // at the top of the screen.
+              return Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(InRadii.r2),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: 280,
+                    maxWidth: popoverWidth,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    controller: _optionsScroll,
+                    itemExtent: _optionExtent,
+                    itemCount: options.length,
+                    itemBuilder: (context, i) {
+                      final opt = options.elementAt(i);
+                      final isHighlighted = i == highlightedIndex;
+                      if (opt is _ClientCreate) {
+                        return _CreateRow(
+                          query: opt.query,
+                          highlighted: isHighlighted,
+                          onTap: () => _handleCreate(opt.query),
+                        );
+                      }
+                      final client = (opt as _ClientExisting).client;
+                      final isCommitted = _committed?.id == client.id;
+                      return Container(
+                        color: isHighlighted ? tokens.accentSoft : null,
+                        child: InkWell(
+                          // Re-picking the committed row must NOT go through
+                          // `onSelected`: that is `RawAutocomplete._select`,
+                          // which early-returns on an unchanged selection
+                          // *before* hiding the overlay, leaving a dead tap
+                          // under a popover that stays open. Commit + unfocus
+                          // directly instead.
+                          onTap: isCommitted
+                              ? () {
+                                  _optionsVisible = false;
+                                  setState(() => _commit(client));
+                                  _focusNode.unfocus();
+                                }
+                              : () => onSelected(opt),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: InSpacing.md(context),
+                              ),
+                              child: Text(
+                                clientPickerLabel(client),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: tokens.ink,
                                 ),
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               );

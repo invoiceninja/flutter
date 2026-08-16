@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +45,15 @@ class _FakeClientRepo implements ClientRepository {
   final List<String?> searches = [];
   final List<String?> fetches = [];
 
+  /// Ids handed to [watch], in order — the selected-client subscription. A
+  /// commit must re-point it, or the field keeps listening to the client the
+  /// document no longer references.
+  final List<String> watched = [];
+
+  /// When set, `ensurePageLoaded` parks here until the test completes it, so a
+  /// test can start a server search and then supersede it mid-flight.
+  Completer<void>? fetchGate;
+
   /// Mirrors `ClientDao.watchPage`'s search predicate — name / number /
   /// email / id_number / custom values, where the `email` column holds the
   /// PRIMARY contact's address. Kept in step with the DAO deliberately: a fake
@@ -82,10 +93,12 @@ class _FakeClientRepo implements ClientRepository {
   }
 
   @override
-  Stream<Client?> watch({required String companyId, required String id}) =>
-      Stream<Client?>.value(
-        [...rows, ...serverOnly].where((c) => c.id == id).firstOrNull,
-      );
+  Stream<Client?> watch({required String companyId, required String id}) {
+    watched.add(id);
+    return Stream<Client?>.value(
+      [...rows, ...serverOnly].where((c) => c.id == id).firstOrNull,
+    );
+  }
 
   @override
   Future<bool> ensurePageLoaded({
@@ -97,6 +110,8 @@ class _FakeClientRepo implements ClientRepository {
     bool ignoreCursor = false,
   }) async {
     fetches.add(search);
+    final gate = fetchGate;
+    if (gate != null) await gate.future;
     if (search != null && search.isNotEmpty) {
       for (final c in serverOnly) {
         if (_matches(c, search) && !rows.contains(c)) rows.add(c);
@@ -652,6 +667,141 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(selected, [null]);
+    });
+
+    // The idle list is the whole client page in list order, so without a hoist
+    // the default highlight (row 0) is whatever sorts first — NOT the client the
+    // document holds. Enter, or Android's soft-keyboard "Done", then silently
+    // replaced the invoice's client.
+    testWidgets('the committed client is hoisted to the top of the idle list', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        rows: [
+          _client('c1', name: 'Acme'),
+          _client('c2', name: 'Globex'),
+          _client('c3', name: 'Umbrella'),
+        ],
+        selectedClientId: 'c3',
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      Offset optionAt(String name) => tester.getTopLeft(
+        find.descendant(of: find.byType(ListView), matching: find.text(name)),
+      );
+      expect(optionAt('Umbrella').dy, lessThan(optionAt('Acme').dy));
+      expect(optionAt('Acme').dy, lessThan(optionAt('Globex').dy));
+    });
+
+    testWidgets('Enter on an untouched populated field does not switch client', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        rows: [
+          _client('c1', name: 'Acme'),
+          _client('c2', name: 'Globex'),
+          _client('c3', name: 'Umbrella'),
+        ],
+        selectedClientId: 'c3',
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      // Dismisses rather than re-picking — and above all never commits 'Acme'.
+      expect(selected, isEmpty);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Umbrella',
+      );
+    });
+
+    // `_searching` used to be cleared on exactly one path, so a run that was
+    // superseded mid-fetch left it stuck on — and `_buildSuffix` tests it
+    // first, so the ✕ was replaced by a permanent spinner.
+    testWidgets('a superseded server search does not strand the spinner', (
+      tester,
+    ) async {
+      await pump(tester, rows: [_client('c1', name: 'Globex')]);
+      repo.fetchGate = Completer<void>();
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      // No local match -> the server search starts and the spinner appears.
+      // Bounded pumps from here on: `pumpAndSettle` can never settle while a
+      // `CircularProgressIndicator` is animating.
+      await tester.enterText(find.byType(TextField), 'zz');
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      // Supersede it with a query that DOES match locally: the new run never
+      // enters the fetch branch, so nothing else would clear the flag.
+      await tester.enterText(find.byType(TextField), 'Glob');
+      await tester.pump();
+      repo.fetchGate!.complete();
+      await tester.pump();
+      // Past the warm-fetch debounce, so no timer outlives the test.
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byIcon(Icons.close), findsOneWidget);
+    });
+
+    // The watch resolves the committed client by id. It used to be armed once
+    // and never re-pointed after a commit, so the next write to the clients
+    // table re-emitted the OLD client and reverted the field behind the
+    // document's back.
+    testWidgets('committing re-points the selected-client watch', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        rows: [
+          _client('c1', name: 'Globex'),
+          _client('c2', name: 'Initech'),
+        ],
+        selectedClientId: 'c1',
+      );
+      expect(repo.watched, ['c1']);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Initech'));
+      await tester.pumpAndSettle();
+      expect(selected.single?.id, 'c2');
+
+      // Re-render as the host would, with the newly committed id.
+      await tester.pumpWidget(
+        Provider<Services>.value(
+          value: services,
+          child: MaterialApp(
+            theme: buildInTheme(InTheme.light),
+            localizationsDelegates: kTestLocalizationsDelegates,
+            supportedLocales: kTestSupportedLocales,
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                child: ClientPickerField(
+                  companyId: 'co',
+                  selectedClientId: 'c2',
+                  onSelected: selected.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repo.watched, ['c1', 'c2']);
     });
   });
 }

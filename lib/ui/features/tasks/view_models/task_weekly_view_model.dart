@@ -67,6 +67,10 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
   Date get weekEnd => weekStart.addDays(6);
   List<Date> get weekDays => [for (var i = 0; i < 7; i++) weekStart.addDays(i)];
 
+  /// Current start-of-week, so the host can skip a redundant (and notifying)
+  /// [setFirstDayOfWeek] — mirrors `TaskCalendarViewModel`.
+  int get firstDayOfWeek => _firstDayOfWeek;
+
   void setFirstDayOfWeek(int value) {
     if (_firstDayOfWeek == value) return;
     _firstDayOfWeek = value;

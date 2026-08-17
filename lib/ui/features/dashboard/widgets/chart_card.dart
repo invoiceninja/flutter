@@ -340,9 +340,20 @@ class ChartCard extends StatelessWidget {
                     idx % _labelStep(axis.buckets.length) != 0) {
                   return const SizedBox.shrink();
                 }
-                return Text(
-                  formatter.date(axis.buckets[idx].toIso()),
-                  style: TextStyle(fontSize: 10, color: tokens.ink3),
+                // `SideTitleWidget` + `fitInside`, not a bare `Text`:
+                // fl_chart centres each label on its tick, so the first and
+                // last buckets sit half-outside the plot. On a phone that
+                // clipped the opening date ("01/Aug/2026" rendered as
+                // "1/Aug/2026") and pushed the closing one under the
+                // right-hand value axis. `fromTitleMeta` clamps both back
+                // inside the axis box.
+                return SideTitleWidget(
+                  meta: meta,
+                  fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
+                  child: Text(
+                    formatter.date(axis.buckets[idx].toIso()),
+                    style: TextStyle(fontSize: 10, color: tokens.ink3),
+                  ),
                 );
               },
             ),

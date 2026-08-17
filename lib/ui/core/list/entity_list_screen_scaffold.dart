@@ -1251,14 +1251,33 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   Widget _emptyState(BuildContext context) {
     final builder = widget.emptyStateBuilder;
     if (builder != null) return builder(context, _vm);
-    // Default: a generic `EmptyState` driven by the icon + title key the
-    // caller supplied. Entities with filter-aware copy supply
-    // `emptyStateBuilder` instead.
     assert(
       widget.emptyIcon != null && widget.emptyTitleKey != null,
       'EntityListScreenScaffold needs either `emptyStateBuilder` or both '
       '`emptyIcon` and `emptyTitleKey`.',
     );
+    // A filtered list that yields nothing is not the same as an empty
+    // account, and saying "No products" to someone who just filtered is a
+    // dead end — there's no hint that a filter is responsible and no way
+    // back. 13 entities supply an `emptyStateBuilder` with filter-aware copy
+    // plus a Clear-filters escape; the other 14 (Products and Tasks among
+    // them) fell through to the bare title below. This gives them the escape
+    // hatch generically — `hasActiveFilters` and `clearAllFilters` already
+    // live on `GenericListViewModel`, and both strings are existing Transifex
+    // keys, so it costs no new translations. An entity wanting warmer copy
+    // still overrides with `emptyStateBuilder`.
+    if (_vm.hasActiveFilters) {
+      return EmptyState(
+        icon: Icons.filter_alt_off_outlined,
+        title: context.tr('no_records_found'),
+        action: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          onPressed: _vm.clearAllFilters,
+          icon: const Icon(Icons.close),
+          label: Text(context.tr('clear_filters')),
+        ),
+      );
+    }
     return EmptyState(
       icon: widget.emptyIcon!,
       title: context.tr(widget.emptyTitleKey!),

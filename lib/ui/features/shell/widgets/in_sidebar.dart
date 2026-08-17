@@ -56,7 +56,7 @@ class InSidebar extends StatefulWidget {
     required this.currentBranch,
     required this.onSelectBranch,
     this.width = kInSidebarWidth,
-    this.onBeforeCompanyPicker,
+    this.onBeforeModal,
     super.key,
   });
 
@@ -71,7 +71,7 @@ class InSidebar extends StatefulWidget {
   /// Fires before the company picker opens (when the user taps the
   /// switcher header). Used by `AppDrawer` to pop itself first so the
   /// picker doesn't stack on top of an open drawer.
-  final VoidCallback? onBeforeCompanyPicker;
+  final VoidCallback? onBeforeModal;
 
   @override
   State<InSidebar> createState() => _InSidebarState();
@@ -293,10 +293,19 @@ class _InSidebarState extends State<InSidebar> {
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
                     child: SidebarHeader(
                       session: session,
-                      onBeforeCompanyPicker: widget.onBeforeCompanyPicker,
+                      onBeforeModal: widget.onBeforeModal,
                       compact: collapsed,
                       touch: touch,
                       resync: services.resync,
+                      // Touch-only (the header drops it otherwise). Unlike
+                      // Sync this *does* pop the mobile drawer first — the
+                      // palette is a modal the user then types into, and
+                      // leaving the drawer open behind it stacks two
+                      // overlays.
+                      onSearch: () {
+                        widget.onBeforeModal?.call();
+                        showCommandPalette(context);
+                      },
                       // Deliberately does not pop the mobile drawer the way
                       // the company switcher does: closing it would hide the
                       // spinner the user just started. The toast host paints

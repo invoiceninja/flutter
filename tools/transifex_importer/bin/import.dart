@@ -196,11 +196,125 @@ Map<String, String> _parsePhp(String input) {
     i += 2;
     skipWsAndComments();
     final value = readQuoted();
-    out[key] = value;
+    out[key] = _decodeHtmlEntities(value);
     skipWsAndComments();
     if (i < n && input[i] == ',') {
       i++;
     }
   }
   return out;
+}
+
+/// Mirror of `decodeHtmlEntities` in `lib/l10n/transifex_php_parser.dart`
+/// (unit-tested there). The upstream PHP is HTML-escaped, so without this a
+/// French apostrophe ships to the UI as the literal text `&#39;`.
+const Map<String, String> _kNamedEntities = {
+  'amp': '&',
+  'lt': '<',
+  'gt': '>',
+  'quot': '"',
+  'apos': "'",
+  'nbsp': ' ',
+  'ensp': ' ',
+  'emsp': ' ',
+  'aacute': 'á',
+  'agrave': 'à',
+  'acirc': 'â',
+  'atilde': 'ã',
+  'auml': 'ä',
+  'aring': 'å',
+  'aelig': 'æ',
+  'ccedil': 'ç',
+  'eacute': 'é',
+  'egrave': 'è',
+  'ecirc': 'ê',
+  'euml': 'ë',
+  'iacute': 'í',
+  'igrave': 'ì',
+  'icirc': 'î',
+  'iuml': 'ï',
+  'ntilde': 'ñ',
+  'oacute': 'ó',
+  'ograve': 'ò',
+  'ocirc': 'ô',
+  'otilde': 'õ',
+  'ouml': 'ö',
+  'oslash': 'ø',
+  'uacute': 'ú',
+  'ugrave': 'ù',
+  'ucirc': 'û',
+  'uuml': 'ü',
+  'yacute': 'ý',
+  'yuml': 'ÿ',
+  'szlig': 'ß',
+  'Aacute': 'Á',
+  'Agrave': 'À',
+  'Acirc': 'Â',
+  'Atilde': 'Ã',
+  'Auml': 'Ä',
+  'Aring': 'Å',
+  'AElig': 'Æ',
+  'Ccedil': 'Ç',
+  'Eacute': 'É',
+  'Egrave': 'È',
+  'Ecirc': 'Ê',
+  'Euml': 'Ë',
+  'Iacute': 'Í',
+  'Igrave': 'Ì',
+  'Icirc': 'Î',
+  'Iuml': 'Ï',
+  'Ntilde': 'Ñ',
+  'Oacute': 'Ó',
+  'Ograve': 'Ò',
+  'Ocirc': 'Ô',
+  'Otilde': 'Õ',
+  'Ouml': 'Ö',
+  'Oslash': 'Ø',
+  'Uacute': 'Ú',
+  'Ugrave': 'Ù',
+  'Ucirc': 'Û',
+  'Uuml': 'Ü',
+  'laquo': '«',
+  'raquo': '»',
+  'ldquo': '“',
+  'rdquo': '”',
+  'lsquo': '‘',
+  'rsquo': '’',
+  'hellip': '…',
+  'ndash': '–',
+  'mdash': '—',
+  'deg': '°',
+  'euro': '€',
+  'pound': '£',
+  'yen': '¥',
+  'cent': '¢',
+  'copy': '©',
+  'reg': '®',
+  'trade': '™',
+  'middot': '·',
+  'bull': '•',
+};
+
+final RegExp _kEntityPattern = RegExp(
+  r'&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});',
+);
+
+String _decodeHtmlEntities(String input) {
+  if (!input.contains('&')) return input;
+  return input.replaceAllMapped(_kEntityPattern, (m) {
+    final body = m[1]!;
+    if (body.startsWith('#')) {
+      final isHex = body[1] == 'x' || body[1] == 'X';
+      final digits = isHex ? body.substring(2) : body.substring(1);
+      final code = int.tryParse(digits, radix: isHex ? 16 : 10);
+      if (code == null ||
+          code < 0x20 && code != 0x09 && code != 0x0A && code != 0x0D ||
+          code > 0x10FFFF ||
+          (code >= 0xD800 && code <= 0xDFFF)) {
+        return m[0]!;
+      }
+      return String.fromCharCode(code);
+    }
+    return _kNamedEntities[body] ?? m[0]!;
+  });
 }

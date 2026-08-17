@@ -35,10 +35,15 @@ import 'package:admin/ui/features/tasks/widgets/running_timer_pill.dart';
 /// Persistent shell for the authenticated app.
 ///
 /// Hosts the active [StatefulNavigationShell] branch and renders
-/// platform-appropriate navigation: the v2 design `InSidebar` on wide
-/// layouts and a `MobileTopBar` + bottom `NavigationBar` on narrow ones.
-/// The list of bottom destinations is the subset of the sidebar that has
-/// a real route today — Clients, Dashboard, Settings.
+/// width-appropriate navigation: the v2 design `InSidebar` on wide layouts,
+/// and on narrow ones a passthrough where each top-level screen supplies its
+/// own `Scaffold` with `drawer: AppDrawer()` + a `DrawerHamburger`.
+///
+/// There is **no bottom navigation bar** — `NavigationBar` /
+/// `BottomNavigationBar` / `NavigationRail` appear nowhere in `lib/`. Mobile
+/// navigation is drawer-only. (This doc and `adaptive.dart` both used to
+/// claim a bottom bar that never shipped; the `MobileTopBar` it named was
+/// deprecated, unreferenced, and has been deleted.)
 ///
 /// Global keyboard shortcuts live here:
 /// - `⌘K` / `Ctrl+K` opens the company picker; `⌘/` / `Ctrl+/` opens the

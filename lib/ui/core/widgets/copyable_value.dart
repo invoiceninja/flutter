@@ -155,8 +155,16 @@ class _CopyableValueState extends State<CopyableValue> {
     final value = widget.value;
     if (value.isEmpty) return widget.child;
 
-    // Native mobile: tap / long-press the value to copy; no hover icon.
-    if (Env.isMobile) {
+    // Touch: tap / long-press the value to copy; no hover icon.
+    //
+    // `isTouchPrimary`, not `isMobile` — the latter is native-only (it checks
+    // `kIsWeb` first), so a phone *browser* fell through to the desktop
+    // branch, where the copy icon is revealed by `MouseRegion.onEnter` and
+    // therefore never appeared. Copy was unreachable on mobile web. The
+    // haptic below correctly stays on `isMobile`: that one needs a real
+    // platform channel. (Desktop web keeps the hover path, which preserves
+    // text selection.)
+    if (Env.isTouchPrimary) {
       final onTap = widget.enableTapToCopy
           ? () => copyToClipboard(context, value)
           : null;

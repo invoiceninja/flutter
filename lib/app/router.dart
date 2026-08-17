@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -730,9 +731,14 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
   }
 }
 
-/// Rendered for any URL go_router can't match. Sits at the root, outside the
-/// `StatefulShellRoute`, so it ships its own way home — without this the user
-/// loses the shell's nav rail / bottom nav and gets stranded.
+/// Rendered for any URL go_router can't match — a stale bookmark, a bad deep
+/// link, or a routing bug. Sits at the root, outside the `StatefulShellRoute`,
+/// so it ships its own way home; without this the user loses the shell's
+/// sidebar and gets stranded.
+///
+/// It used to say **"Coming soon"**, which read as *this feature isn't built
+/// yet* in exactly the situation where the user needs to know something
+/// broke — and it printed the raw `error.toString()` to end users.
 class _RouteErrorView extends StatelessWidget {
   const _RouteErrorView({this.error});
 
@@ -753,15 +759,26 @@ class _RouteErrorView extends StatelessWidget {
               Icon(Icons.explore_off_outlined, size: 64, color: tokens.ink3),
               const SizedBox(height: 16),
               Text(
-                context.tr('coming_soon'),
+                context.tr('error_title'),
                 style: theme.textTheme.titleMedium?.copyWith(color: tokens.ink),
+                textAlign: TextAlign.center,
               ),
-              if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                context.tr('error_refresh_page'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: tokens.ink3),
+              ),
+              // Debug only. This is a stale bookmark, a bad deep link, or a
+              // routing bug — the raw exception helps whoever is debugging it
+              // and means nothing to a user, so it stays out of release
+              // builds. (It's still captured by the diagnostics log.)
+              if (error != null && kDebugMode) ...[
                 const SizedBox(height: 8),
                 Text(
                   error.toString(),
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: tokens.ink3),
+                  style: TextStyle(fontSize: 12, color: tokens.ink4),
                 ),
               ],
               const SizedBox(height: 24),

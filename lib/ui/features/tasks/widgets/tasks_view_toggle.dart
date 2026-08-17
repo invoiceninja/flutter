@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart'
     show TasksViewMode;
 
@@ -43,6 +44,19 @@ PreferredSizeWidget buildTasksViewAppBar(
     );
   }
   return AppBar(
+    // Without this the four custom task views are a navigation dead end on a
+    // phone. They build bare `Scaffold`s rather than going through
+    // `EntityListScreenScaffold` (which attaches the drawer itself), the
+    // routes are shell branches so there is nothing to pop, and
+    // `automaticallyImplyLeading` therefore renders no leading at all — so
+    // switching Tasks to Kanban/Calendar/Daily/Weekly removed every route to
+    // the rest of the app except toggling back to List. Gated on window width
+    // (not local constraints) exactly as the list scaffold is: above
+    // `Breakpoints.wide` the persistent sidebar is already on screen and a
+    // hamburger would open a duplicate of it.
+    leading: Breakpoints.isGlobalNavVisible(context)
+        ? null
+        : const DrawerHamburger(),
     title: Text(context.tr('tasks')),
     actions: [
       Padding(

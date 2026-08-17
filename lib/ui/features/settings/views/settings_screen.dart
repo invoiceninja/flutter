@@ -115,8 +115,12 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
           child: Row(
             children: [
               Expanded(
-                child: SizedBox(
-                  height: 40,
+                // A floor, not a fixed height. The `prefixIcon` alone gives
+                // this field a 48 px intrinsic height (icon minimums don't
+                // shrink with `contentPadding: vertical: 0`), so pinning the
+                // box to 40 clipped it silently at every text scale.
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 40),
                   child: TextField(
                     controller: _controller,
                     focusNode: _focus,

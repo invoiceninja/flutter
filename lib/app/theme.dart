@@ -38,8 +38,26 @@ ThemeData buildInTheme(InTheme baseTokens, {Color? accentOverride}) {
     onTertiary: tokens.ink,
     error: tokens.overdue,
     onError: Colors.white,
+    // Soft error surface — matches how the app renders every other error
+    // banner (`SaveFailedBanner`: `overdueSoft` ground, `overdue` accent).
+    // Left unset, `errorContainer` falls back to `error` itself, so the
+    // settings load-failure banner painted as white-on-saturated-red.
+    errorContainer: tokens.overdueSoft,
+    onErrorContainer: tokens.overdue,
     surface: tokens.surface,
     onSurface: tokens.ink,
+    // Unset, this falls back to `onSurface` — so every "muted subtitle" that
+    // asks for `onSurfaceVariant` rendered at full title brightness and the
+    // hierarchy silently collapsed (13 sites, worst on dark where `ink` is
+    // near-white).
+    onSurfaceVariant: tokens.ink2,
+    // The container ramp all falls back to `surface` when unset, which makes
+    // a raised card invisible: `_StarterCard` asks for `surfaceContainerHigh`
+    // and got #0E0E0E on the #000000 dark-Carbon background.
+    surfaceContainerLowest: tokens.bg,
+    surfaceContainerLow: tokens.surface,
+    surfaceContainer: tokens.surfaceAlt,
+    surfaceContainerHigh: tokens.surfaceAlt,
     surfaceContainerHighest: tokens.surfaceAlt,
     outline: tokens.border,
     outlineVariant: tokens.borderStrong,
@@ -92,7 +110,14 @@ ThemeData buildInTheme(InTheme baseTokens, {Color? accentOverride}) {
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       labelStyle: textTheme.bodyMedium?.copyWith(color: tokens.ink3),
       floatingLabelStyle: textTheme.bodySmall?.copyWith(color: tokens.ink2),
-      hintStyle: textTheme.bodyMedium?.copyWith(color: tokens.ink4),
+      // `ink3`, not `ink4`. A hint tells the user what the field expects, so
+      // it's content — but `ink4` measures 2.00-2.32:1 against surface across
+      // the six variants, below even the 3:1 non-text floor, and this one
+      // line styles every placeholder in the app. `ink4` stays correct for
+      // what it's used for elsewhere (disabled sidebar rows, muted cells, a
+      // drag handle) where low contrast is the intent. `ink3` lands at
+      // ~4.0-4.7:1.
+      hintStyle: textTheme.bodyMedium?.copyWith(color: tokens.ink3),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(InRadii.r2),
         borderSide: BorderSide(color: tokens.border),

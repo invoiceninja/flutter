@@ -5,6 +5,8 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/tasks/view_models/task_daily_view_model.dart';
@@ -81,6 +83,12 @@ class _TaskDailyScreenState extends State<TaskDailyScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: buildTasksViewAppBar(context, TasksViewMode.daily),
+      // The drawer itself — the AppBar's hamburger needs something to
+      // open. Mirrors `EntityListScreenScaffold`, which attaches it the
+      // same way for the list view.
+      drawer: Breakpoints.isGlobalNavVisible(context)
+          ? null
+          : const AppDrawer(),
       floatingActionButton: FloatingActionButton(
         tooltip: context.tr('new_task'),
         onPressed: () => goToCreateRoute(context, '/tasks/new'),

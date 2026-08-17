@@ -9,6 +9,14 @@ import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/utils/formatting.dart';
 
+/// Floor for an editable cell — a **minimum**, never a fixed height. The
+/// fields inside are 12–14 px `TextField`s with vertical content padding, so
+/// their intrinsic height is already 49 px at normal text size and 57 px at
+/// the app's 1.4x setting. Pinning the box to 36 px clipped them silently
+/// (a `SizedBox` gives tight constraints — nothing is thrown, the field is
+/// just sliced), which is why this shipped unnoticed.
+const double _kCellMinHeight = 36;
+
 /// Desktop time-log editor: a tabular layout with inline-editable cells
 /// per entry plus a full-width description `TextField` underneath. Lives
 /// alongside the mobile [TimeEntryRow] list — `TaskEditTimesSection`
@@ -401,8 +409,13 @@ class _DateCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
+    // A row floor, not a fixed height: `InDateField` is a 14 px `TextField`
+    // with 14 px of vertical content padding, so it wants 49 px at normal
+    // text size and 57 px at the app's 1.4x setting. `SizedBox(height: 36)`
+    // silently crushed it — no overflow is thrown, the field is just sliced.
+    // See CLAUDE.md § Design system — express floors as minHeight.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _kCellMinHeight),
       child: InDateField(
         value: entry.start,
         onChanged: _commit,
@@ -468,8 +481,8 @@ class _TimeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _kCellMinHeight),
       child: InTimeField(
         value: _valueAsTimeOfDay,
         onChanged: _commit,
@@ -594,8 +607,8 @@ class _DurationCellState extends State<_DurationCell> {
         child: RunningDurationLabel(start: widget.entry.start!),
       );
     }
-    return SizedBox(
-      height: 36,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _kCellMinHeight),
       child: TextField(
         controller: _controller,
         textAlignVertical: TextAlignVertical.center,

@@ -6,8 +6,10 @@ import 'package:flutter/widgets.dart';
 class Breakpoints {
   Breakpoints._();
 
-  /// At or above this width we show two-pane layouts and a `NavigationRail`.
-  /// Below it we collapse to single-pane and a `NavigationBar`.
+  /// At or above this width we show two-pane layouts and the persistent
+  /// `InSidebar`. Below it we collapse to single-pane, and each top-level
+  /// screen supplies its own `AppDrawer` + hamburger — there is no bottom
+  /// navigation bar (this doc used to claim one; it never shipped).
   static const double wide = 600;
 
   static bool isWide(BoxConstraints constraints) =>

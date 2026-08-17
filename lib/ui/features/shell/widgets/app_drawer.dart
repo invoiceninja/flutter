@@ -26,7 +26,7 @@ class AppDrawer extends StatelessWidget {
         // Null = stretch to fill the drawer's 280 instead of the desktop 232.
         width: null,
         currentBranch: nav.currentIndex,
-        onBeforeCompanyPicker: () => Navigator.pop(context),
+        onBeforeModal: () => Navigator.pop(context),
         onSelectBranch: (index) async {
           // Drawer's BuildContext is destroyed by `Navigator.pop`, so resolve
           // every context-dependent value *before* the pop. The dialog is

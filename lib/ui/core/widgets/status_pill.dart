@@ -17,6 +17,17 @@ import 'package:admin/ui/core/widgets/widget_preview_support.dart';
 /// When the caller doesn't have a paired soft token (e.g. task statuses
 /// store a per-company hex color), pass `bgColor: null` and the widget
 /// derives the soft tone as `fgColor` at 15 % alpha.
+///
+/// **[fgColor] tints the dot, not the label.** Status colors are chosen to
+/// read as *colors* against a pale tint of themselves, which makes them poor
+/// text: `paid` on `paidSoft` measures 3.77:1 in light and 2.88:1 in dark
+/// Espresso, against the 4.5:1 WCAG AA floor for an 11 px label — 20 of the
+/// 36 theme x status combinations failed. The label uses `ink` instead
+/// (worst case 11.35:1). Every per-entity wrapper — invoice, quote, credit,
+/// payment, expense, recurring invoice, recurring expense — had already
+/// arrived at `color: tokens.ink` independently; this just makes the
+/// default agree with them, so the un-wrapped call sites (list tiles,
+/// detail headers, system-log rows) stop being the exception.
 class StatusPill extends StatelessWidget {
   const StatusPill({
     super.key,
@@ -37,6 +48,7 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = context.inTheme;
     final bg = bgColor ?? fgColor.withValues(alpha: 0.15);
     final pill = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -63,7 +75,7 @@ class StatusPill extends StatelessWidget {
                   TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: fgColor,
+                    color: tokens.ink,
                     letterSpacing: 0.2,
                   ),
             ),

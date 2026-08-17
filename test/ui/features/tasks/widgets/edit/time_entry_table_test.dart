@@ -6,6 +6,8 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/data/services/tasks_api.dart';
+import 'package:admin/ui/core/widgets/in_date_field.dart';
+import 'package:admin/ui/core/widgets/in_time_field.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
 import 'package:admin/ui/features/tasks/widgets/edit/time_entry_table.dart';
 
@@ -84,5 +86,37 @@ void main() {
     expect(find.byType(TimeEntryTable), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
+  });
+
+  // The editable cells were pinned with `SizedBox(height: 36)` while the
+  // fields inside want 49 px at normal text size and 57 px at the app's
+  // 1.4x setting — so every time-log row shipped visibly sliced. A tight
+  // `SizedBox` throws nothing, so `expectNoOverflow` never caught it; the
+  // check has to compare rendered height against intrinsic height.
+  group('editable cells are not vertically crushed', () {
+    for (final scale in const [1.0, kTextScaleMax]) {
+      testWidgets('@ ${scale}x text scale', (tester) async {
+        await pumpAt(
+          tester,
+          900, // wide → the table layout, not the phone row fallback
+          TimeEntryTable(
+            vm: vmWith([stopped(8)]),
+            locked: false,
+            onAddEntry: () {},
+          ),
+          textScale: scale,
+        );
+
+        expectNotVerticallyCrushed(tester, find.byType(InDateField));
+        for (final f in find.byType(InTimeField).evaluate()) {
+          expectNotVerticallyCrushed(
+            tester,
+            find.byElementPredicate((e) => e == f),
+          );
+        }
+
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
   });
 }

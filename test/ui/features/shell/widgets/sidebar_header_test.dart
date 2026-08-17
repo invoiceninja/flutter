@@ -63,6 +63,7 @@ void main() {
     bool touch = false,
     AuthSession? session,
     double textScale = 1.0,
+    VoidCallback? onSearch,
   }) {
     return MaterialApp(
       theme: _theme(),
@@ -81,6 +82,7 @@ void main() {
                   session: session ?? _session(),
                   resync: progress,
                   onSync: () => taps++,
+                  onSearch: onSearch,
                   compact: compact,
                   touch: touch,
                 ),
@@ -250,5 +252,86 @@ void main() {
       ),
     );
     expect(inkWell.onTap, isNotNull);
+  });
+
+  // Global search (the command palette) had exactly two entry points — the
+  // `⌘/` shortcut and a hover-revealed icon on the Dashboard row, gated on
+  // `MouseRegion.onEnter`. Neither exists on a phone, so search across every
+  // entity type was unreachable on mobile. The header carries it on touch.
+  group('search affordance', () {
+    testWidgets('renders on touch and invokes the callback', (tester) async {
+      var searches = 0;
+      // 280 = the Drawer's width (`app_drawer.dart`), less its 28 px padding.
+      await tester.pumpWidget(
+        wrap(railWidth: 252, touch: true, onSearch: () => searches++),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.search), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+      expect(searches, 1);
+    });
+
+    testWidgets('is absent on pointer — ⌘/ and the hover icon cover it', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap(railWidth: 204, onSearch: () {}));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.search), findsNothing);
+    });
+
+    testWidgets('meets the touch-target floor', (tester) async {
+      await tester.pumpWidget(
+        wrap(railWidth: 252, touch: true, onSearch: () {}),
+      );
+      await tester.pumpAndSettle();
+
+      final size = tester.getSize(
+        find.ancestor(
+          of: find.byIcon(Icons.search),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(size.width, greaterThanOrEqualTo(InSizes.touchTarget));
+      expect(size.height, greaterThanOrEqualTo(InSizes.touchTarget));
+    });
+
+    testWidgets('does not steal width from the company switcher', (
+      tester,
+    ) async {
+      // It first shipped as a third seat in the top row, which left the name
+      // ~100 px in a 232 px rail and truncated "Walker, Jakubowski and
+      // Wilderman" to "W…". Naming the active company is the switcher's whole
+      // job, so Search gets its own row: the switcher must measure the same
+      // with and without it.
+      await tester.pumpWidget(wrap(railWidth: 204, touch: true));
+      await tester.pumpAndSettle();
+      final without = tester.getSize(find.byType(CompanySwitcherButton)).width;
+
+      await tester.pumpWidget(
+        wrap(railWidth: 204, touch: true, onSearch: () {}),
+      );
+      await tester.pumpAndSettle();
+      final with_ = tester.getSize(find.byType(CompanySwitcherButton)).width;
+
+      expect(with_, without);
+    });
+
+    testWidgets('header does not overflow the drawer at 1.4x', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          railWidth: 252,
+          touch: true,
+          onSearch: () {},
+          textScale: 1.4,
+          session: _session(name: 'A Very Long Company Name Indeed'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
   });
 }

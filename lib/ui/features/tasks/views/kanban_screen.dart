@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/tasks/view_models/kanban_view_model.dart';
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart';
@@ -64,6 +66,12 @@ class _KanbanScreenState extends State<KanbanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: buildTasksViewAppBar(context, TasksViewMode.kanban),
+      // The drawer itself — the AppBar's hamburger needs something to
+      // open. Mirrors `EntityListScreenScaffold`, which attaches it the
+      // same way for the list view.
+      drawer: Breakpoints.isGlobalNavVisible(context)
+          ? null
+          : const AppDrawer(),
       floatingActionButton: FloatingActionButton(
         tooltip: context.tr('new_task'),
         onPressed: () => goToCreateRoute(context, '/tasks/new'),

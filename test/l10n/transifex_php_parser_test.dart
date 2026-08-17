@@ -123,4 +123,64 @@ $lang = array(
       expect(map['no_trailing_comma'], 'last');
     });
   });
+
+  // The upstream PHP is HTML-escaped, so every French/Italian apostrophe
+  // arrives as `&#39;` and — with nothing to undo it — reaches the UI as the
+  // literal text `Cl&#39;e d&#39;acc&egrave;s`. 504 shipped strings across 7
+  // locales were affected; English has none, which is why it went unnoticed.
+  group('HTML entity decoding', () {
+    test('parse() decodes entities in values', () {
+      final map = parser.parse(r'''
+<?php
+$lang = array(
+    'access_key' => 'Cl&eacute; d&#39;acc&egrave;s',
+);
+''');
+      expect(map['access_key'], "Clé d'accès");
+    });
+
+    test('resolves named, decimal, and hex entities', () {
+      expect(decodeHtmlEntities('a&amp;b'), 'a&b');
+      expect(decodeHtmlEntities('d&#39;accord'), "d'accord");
+      expect(decodeHtmlEntities('&#x27;quoted&#x27;'), "'quoted'");
+      expect(decodeHtmlEntities('&eacute;&eacute;n'), 'één');
+      expect(decodeHtmlEntities('Settings &gt; Users'), 'Settings > Users');
+      expect(decodeHtmlEntities('&quot;quoted&quot;'), '"quoted"');
+    });
+
+    test('is a single pass — &amp;#39; stays literal text', () {
+      // Decoding `&amp;` first and then re-scanning would turn this into an
+      // apostrophe, silently destroying a translator's escaped example.
+      expect(decodeHtmlEntities('&amp;#39;'), '&#39;');
+      expect(decodeHtmlEntities('&amp;amp;'), '&amp;');
+    });
+
+    test('leaves unrecognized entities and bare ampersands alone', () {
+      expect(decodeHtmlEntities('&notanentity;'), '&notanentity;');
+      expect(decodeHtmlEntities('R&D'), 'R&D');
+      expect(decodeHtmlEntities('Tom & Jerry'), 'Tom & Jerry');
+    });
+
+    test('leaves markup tags alone — only entities are decoded', () {
+      // Several help strings ship real `<p>`/`<li>` markup for the rich-text
+      // renderer; decoding must not touch it.
+      expect(
+        decodeHtmlEntities('<p>Use &quot;:MONTH&quot; &gt;&gt; July</p>'),
+        '<p>Use ":MONTH" >> July</p>',
+      );
+    });
+
+    test('rejects out-of-range and surrogate code points', () {
+      // `String.fromCharCode` would emit a lone surrogate half rather than
+      // throwing, producing an unpaired UTF-16 unit in a shipped asset.
+      expect(decodeHtmlEntities('&#xD800;'), '&#xD800;');
+      expect(decodeHtmlEntities('&#99999999;'), '&#99999999;');
+      expect(decodeHtmlEntities('&#0;'), '&#0;');
+    });
+
+    test('preserves strings with no ampersand untouched', () {
+      const plain = 'Nothing to decode here';
+      expect(identical(decodeHtmlEntities(plain), plain), isTrue);
+    });
+  });
 }

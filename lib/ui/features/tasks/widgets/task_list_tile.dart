@@ -152,41 +152,56 @@ class _TaskListTileState extends State<TaskListTile> {
             children: [
               Text(
                 identity,
-                maxLines: 1,
+                // Two lines on the phone. This is the field that identifies
+                // the task, and it shares its line with the duration and two
+                // 44 px touch controls — so at a narrow width it was the
+                // *most* truncated thing on the row ("422: Unproc…"), which
+                // is exactly backwards. The row is `minHeight`-based, so a
+                // short name still occupies one line and nothing shifts.
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              // Status + client on one secondary line. The narrow layout has
-              // no column strip, so without this the phone list is the only
+              // Status + client on a secondary line. The narrow layout has no
+              // column strip, so without this the phone list is the only
               // surface where a task's status is invisible (v1 showed it on
-              // its mobile row too). Both children are Flexible so a long
-              // status or client name ellipsizes instead of squeezing the
-              // trailing duration / timer / ⋯ controls.
+              // its mobile row too).
+              //
+              // `Wrap`, not `Row`. Two `Flexible` children split the line
+              // 50/50, and at the app's 1.4x text scale that left the pill
+              // ~77 px on a 390 px phone — "Backlog" rendered as "Ba…",
+              // "Ready to do" as "Re…". Both fields were simultaneously
+              // unreadable while the fixed-width duration and the two 44 px
+              // touch controls kept every pixel they asked for. Nothing
+              // overflowed, so no test could see it.
+              //
+              // With `Wrap` the pill takes its natural width and the client
+              // name drops to its own line when they don't both fit, so each
+              // is legible on the line it lands on. Both still ellipsize
+              // against the Wrap's own max width, so a long custom status or
+              // client name can't overflow the tile.
               if (t.statusId.isNotEmpty || t.clientId.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    if (t.statusId.isNotEmpty) ...[
-                      Flexible(
-                        child: TaskStatusPill(
-                          statusId: t.statusId,
-                          dotSize: 6,
-                          textStyle: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: tokens.ink,
-                          ),
+                    if (t.statusId.isNotEmpty)
+                      TaskStatusPill(
+                        statusId: t.statusId,
+                        dotSize: 6,
+                        textStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: tokens.ink,
                         ),
                       ),
-                      if (t.clientId.isNotEmpty) const SizedBox(width: 6),
-                    ],
                     if (t.clientId.isNotEmpty)
-                      Flexible(
-                        child: ClientNameLabel(
-                          clientId: t.clientId,
-                          style: TextStyle(color: tokens.ink3, fontSize: 12),
-                          link: true,
-                        ),
+                      ClientNameLabel(
+                        clientId: t.clientId,
+                        style: TextStyle(color: tokens.ink3, fontSize: 12),
+                        link: true,
                       ),
                   ],
                 ),

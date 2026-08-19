@@ -3,7 +3,7 @@ name: invoiceninja
 # in sync with pubspec MAJOR.MINOR.PATCH by tools/bump_client_version.sh —
 # don't hand-edit. (adopt-info can't help here: the part is a `dump` of the
 # built bundle, so pubspec.yaml isn't in the part source.)
-version: '5.1.6'
+version: '5.1.7'
 summary: Create invoices, accept payments, track expenses & time tasks
 description: |
   Create. Send. Get Paid.

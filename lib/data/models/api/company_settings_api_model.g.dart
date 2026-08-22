@@ -271,6 +271,7 @@ _CompanySettingsApi _$CompanySettingsApiFromJson(
   clientManualPaymentNotification:
       json['client_manual_payment_notification'] as bool?,
   vendorPortalEnableUploads: json['vendor_portal_enable_uploads'] as bool?,
+  documentsPublicByDefault: json['documents_public_by_default'] as bool?,
   useCreditsPayment: json['use_credits_payment'] as String?,
   useUnappliedPayment: json['use_unapplied_payment'] as String?,
   paymentTerms: json['payment_terms'] as String?,
@@ -551,6 +552,7 @@ Map<String, dynamic> _$CompanySettingsApiToJson(
   'client_manual_payment_notification':
       ?instance.clientManualPaymentNotification,
   'vendor_portal_enable_uploads': ?instance.vendorPortalEnableUploads,
+  'documents_public_by_default': ?instance.documentsPublicByDefault,
   'use_credits_payment': ?instance.useCreditsPayment,
   'use_unapplied_payment': ?instance.useUnappliedPayment,
   'payment_terms': ?instance.paymentTerms,

@@ -87,6 +87,7 @@ const List<DesignToken> kDesignTokens = [
   DesignToken(r'$invoice_no', 'invoice'),
   DesignToken(r'$invoice.invoice_no', 'invoice'),
   DesignToken(r'$invoice.balance', 'invoice'),
+  DesignToken(r'$invoice.tags', 'invoice'),
 
   // Quote
   DesignToken(r'$quote.balance_due', 'quote'),
@@ -99,6 +100,7 @@ const List<DesignToken> kDesignTokens = [
   DesignToken(r'$quote_no', 'quote'),
   DesignToken(r'$quote.quote_no', 'quote'),
   DesignToken(r'$quote.valid_until', 'quote'),
+  DesignToken(r'$quote.tags', 'quote'),
 
   // Credit
   DesignToken(r'$credit.total', 'credit'),
@@ -111,6 +113,12 @@ const List<DesignToken> kDesignTokens = [
   DesignToken(r'$credit_number', 'credit'),
   DesignToken(r'$credit_no', 'credit'),
   DesignToken(r'$credit.credit_no', 'credit'),
+  DesignToken(r'$credit.tags', 'credit'),
+
+  // Vendor / Purchase Order — only the tag tokens for now; the rest of
+  // these namespaces aren't on the docs page this catalog mirrors.
+  DesignToken(r'$vendor.tags', 'vendor'),
+  DesignToken(r'$purchase_order.tags', 'purchase_order'),
 
   // Financial / Totals
   DesignToken(r'$discount', 'totals'),
@@ -173,6 +181,7 @@ const List<DesignToken> kDesignTokens = [
   DesignToken(r'$client.city_state_postal', 'client'),
   DesignToken(r'$postal_city_state', 'client'),
   DesignToken(r'$client.postal_city_state', 'client'),
+  DesignToken(r'$client.tags', 'client'),
 
   // Client Shipping Address
   DesignToken(r'$client.shipping_address', 'shipping_address'),
@@ -217,6 +226,7 @@ const List<DesignToken> kDesignTokens = [
   DesignToken(r'$company.city_state_postal', 'company'),
   DesignToken(r'$company.postal_city_state', 'company'),
   DesignToken(r'$company.logo', 'company'),
+  DesignToken(r'$company.tags', 'company'),
 
   // Logo
   DesignToken(r'$logo', 'logo'),
@@ -239,6 +249,7 @@ const List<DesignToken> kDesignTokens = [
   DesignToken(r'$product.product2', 'product'),
   DesignToken(r'$product.product3', 'product'),
   DesignToken(r'$product.product4', 'product'),
+  DesignToken(r'$product.tags', 'product'),
 
   // Task
   DesignToken(r'$task.date', 'task'),
@@ -252,6 +263,7 @@ const List<DesignToken> kDesignTokens = [
   DesignToken(r'$task.tax_name2', 'task'),
   DesignToken(r'$task.tax_name3', 'task'),
   DesignToken(r'$task.line_total', 'task'),
+  DesignToken(r'$task.tags', 'task'),
 
   // QR Code
   DesignToken(r'$spc_qr_code', 'qr_code'),
@@ -880,6 +892,7 @@ const List<DesignVariableGroup> kDesignVariableGroups = [
       r'$exchange_rate',
       r'$footer',
       r'$invoice',
+      r'$invoice.tags',
       r'$invoices',
       r'$number',
       r'$payment_button',
@@ -912,6 +925,7 @@ const List<DesignVariableGroup> kDesignVariableGroups = [
       r'$client.shipping_postal_code',
       r'$client.shipping_state',
       r'$client.state',
+      r'$client.tags',
       r'$client.vat_number',
     ],
   ),
@@ -935,6 +949,7 @@ const List<DesignVariableGroup> kDesignVariableGroups = [
       r'$company.name',
       r'$company.phone',
       r'$company.state',
+      r'$company.tags',
       r'$company.vat_number',
       r'$company.website',
     ],

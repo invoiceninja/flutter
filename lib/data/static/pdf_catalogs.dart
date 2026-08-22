@@ -136,6 +136,7 @@ class _ClientFields {
   static const custom2 = 'custom2';
   static const custom3 = 'custom3';
   static const custom4 = 'custom4';
+  static const tags = 'tags';
 }
 
 class _ContactFields {
@@ -165,6 +166,7 @@ class _CompanyFields {
   static const custom2 = 'custom2';
   static const custom3 = 'custom3';
   static const custom4 = 'custom4';
+  static const tags = 'tags';
 }
 
 class _InvoiceFields {
@@ -182,6 +184,7 @@ class _InvoiceFields {
   static const customValue2 = 'custom2';
   static const customValue3 = 'custom3';
   static const customValue4 = 'custom4';
+  static const tags = 'tags';
 }
 
 class _QuoteFields {
@@ -195,6 +198,7 @@ class _QuoteFields {
   static const customValue2 = 'custom2';
   static const customValue3 = 'custom3';
   static const customValue4 = 'custom4';
+  static const tags = 'tags';
 }
 
 class _CreditFields {
@@ -208,6 +212,7 @@ class _CreditFields {
   static const customValue2 = 'custom2';
   static const customValue3 = 'custom3';
   static const customValue4 = 'custom4';
+  static const tags = 'tags';
 }
 
 class _VendorFields {
@@ -225,6 +230,7 @@ class _VendorFields {
   static const customValue2 = 'custom2';
   static const customValue3 = 'custom3';
   static const customValue4 = 'custom4';
+  static const tags = 'tags';
 }
 
 class _PurchaseOrderFields {
@@ -238,6 +244,7 @@ class _PurchaseOrderFields {
   static const customValue2 = 'custom2';
   static const customValue3 = 'custom3';
   static const customValue4 = 'custom4';
+  static const tags = 'tags';
 }
 
 class _ProductFields {
@@ -255,6 +262,7 @@ class _ProductFields {
   static const custom2 = 'product2';
   static const custom3 = 'product3';
   static const custom4 = 'product4';
+  static const tags = 'tags';
 }
 
 class _TaskFields {
@@ -271,6 +279,7 @@ class _TaskFields {
   static const custom2 = 'task2';
   static const custom3 = 'task3';
   static const custom4 = 'task4';
+  static const tags = 'tags';
 }
 
 class _TotalFields {
@@ -317,6 +326,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
         _ClientFields.custom2,
         _ClientFields.custom3,
         _ClientFields.custom4,
+        _ClientFields.tags,
       ]),
       ..._prefix('contact', [
         _ContactFields.fullName,
@@ -364,6 +374,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
       _CompanyFields.custom2,
       _CompanyFields.custom3,
       _CompanyFields.custom4,
+      _CompanyFields.tags,
     ]),
     defaultSelected: _prefix('company', [
       _CompanyFields.name,
@@ -395,6 +406,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
       _CompanyFields.custom2,
       _CompanyFields.custom3,
       _CompanyFields.custom4,
+      _CompanyFields.tags,
     ]),
     defaultSelected: _prefix('company', [
       _CompanyFields.address1,
@@ -423,6 +435,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
         _InvoiceFields.customValue2,
         _InvoiceFields.customValue3,
         _InvoiceFields.customValue4,
+        _InvoiceFields.tags,
       ]),
       ..._prefix('client', [_ClientFields.balance]),
     ],
@@ -452,6 +465,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
         _QuoteFields.customValue2,
         _QuoteFields.customValue3,
         _QuoteFields.customValue4,
+        _QuoteFields.tags,
       ]),
       ..._prefix('client', [_ClientFields.balance]),
     ],
@@ -480,6 +494,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
         _CreditFields.customValue2,
         _CreditFields.customValue3,
         _CreditFields.customValue4,
+        _CreditFields.tags,
       ]),
       ..._prefix('client', [_ClientFields.balance]),
     ],
@@ -512,6 +527,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
         _VendorFields.customValue2,
         _VendorFields.customValue3,
         _VendorFields.customValue4,
+        _VendorFields.tags,
       ]),
       ..._prefix('contact', [_ContactFields.email]),
     ],
@@ -544,6 +560,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
       _PurchaseOrderFields.customValue2,
       _PurchaseOrderFields.customValue3,
       _PurchaseOrderFields.customValue4,
+      _PurchaseOrderFields.tags,
     ]),
     defaultSelected: _prefix('purchase_order', [
       _PurchaseOrderFields.number,
@@ -573,6 +590,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
       _ProductFields.custom4,
       _ProductFields.grossLineTotal,
       _ProductFields.netCost,
+      _ProductFields.tags,
     ]),
     defaultSelected: _prefix('product', [
       _ProductFields.item,
@@ -602,6 +620,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
       _ProductFields.custom3,
       _ProductFields.custom4,
       _ProductFields.grossLineTotal,
+      _ProductFields.tags,
     ]),
     defaultSelected: _prefix('product', [
       _ProductFields.item,
@@ -631,6 +650,7 @@ final Map<String, PdfVariableCatalog> kPdfVariableSections = {
       _TaskFields.custom3,
       _TaskFields.custom4,
       _TaskFields.grossLineTotal,
+      _TaskFields.tags,
     ]),
     defaultSelected: _prefix('task', [
       _TaskFields.service,

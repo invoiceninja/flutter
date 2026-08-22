@@ -47,7 +47,8 @@ String replaceVariables(
       .replaceAll(RegExp(r'\$company\.custom1\b'), co.customValue1)
       .replaceAll(RegExp(r'\$company\.custom2\b'), co.customValue2)
       .replaceAll(RegExp(r'\$company\.custom3\b'), co.customValue3)
-      .replaceAll(RegExp(r'\$company\.custom4\b'), co.customValue4);
+      .replaceAll(RegExp(r'\$company\.custom4\b'), co.customValue4)
+      .replaceAll(RegExp(r'\$company\.tags\b'), co.tags);
 
   // ── Client variables (longer tokens first) ───────────────────────────
   final cl = data.client;
@@ -92,7 +93,8 @@ String replaceVariables(
       .replaceAll(RegExp(r'\$client\.custom1\b'), cl.customValue1)
       .replaceAll(RegExp(r'\$client\.custom2\b'), cl.customValue2)
       .replaceAll(RegExp(r'\$client\.custom3\b'), cl.customValue3)
-      .replaceAll(RegExp(r'\$client\.custom4\b'), cl.customValue4);
+      .replaceAll(RegExp(r'\$client\.custom4\b'), cl.customValue4)
+      .replaceAll(RegExp(r'\$client\.tags\b'), cl.tags);
 
   // ── Contact variables ($contact.* → data.client.contact_*) ───────────
   r = r
@@ -114,8 +116,11 @@ String replaceVariables(
 
   // ── $entity.* / $invoice.* aliases ───────────────────────────────────
   final inv = data.invoice;
-  // Same string list — applied twice, once per prefix. Inline rather than
-  // loop because the regex literals don't interpolate cleanly.
+  // Same string list — applied twice, once per prefix — except `tags`, which
+  // is $invoice-only: it is one of the nine tag tokens the server is adding
+  // and $entity.tags is not among them, so substituting it here would make
+  // the canvas preview promise something the PDF won't render. Inline rather
+  // than loop because the regex literals don't interpolate cleanly.
   r = r
       .replaceAll(r'$entity.number', inv.number)
       .replaceAll(r'$entity.date', date(inv.date))
@@ -140,7 +145,8 @@ String replaceVariables(
       .replaceAll(RegExp(r'\$invoice\.custom1\b'), inv.customValue1)
       .replaceAll(RegExp(r'\$invoice\.custom2\b'), inv.customValue2)
       .replaceAll(RegExp(r'\$invoice\.custom3\b'), inv.customValue3)
-      .replaceAll(RegExp(r'\$invoice\.custom4\b'), inv.customValue4);
+      .replaceAll(RegExp(r'\$invoice\.custom4\b'), inv.customValue4)
+      .replaceAll(RegExp(r'\$invoice\.tags\b'), inv.tags);
 
   // $invoice.* only — money + timestamps
   r = r

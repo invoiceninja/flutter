@@ -101,5 +101,49 @@ void main() {
         containsAll(<String>['\$vendor.country', '\$vendor.phone']),
       );
     });
+
+    test('every section that can carry tags offers the tag variable', () {
+      // Tags are renderable on PDFs; each section exposes the token for the
+      // entity it describes. `companyAddress` mirrors `companyDetails` and
+      // `productQuoteColumns` mirrors `productColumns` — those pairs have
+      // always offered the same variables and differ only in defaults.
+      const expected = <String, String>{
+        PdfVariableSection.clientDetails: r'$client.tags',
+        PdfVariableSection.companyDetails: r'$company.tags',
+        PdfVariableSection.companyAddress: r'$company.tags',
+        PdfVariableSection.invoiceDetails: r'$invoice.tags',
+        PdfVariableSection.quoteDetails: r'$quote.tags',
+        PdfVariableSection.creditDetails: r'$credit.tags',
+        PdfVariableSection.vendorDetails: r'$vendor.tags',
+        PdfVariableSection.purchaseOrderDetails: r'$purchase_order.tags',
+        PdfVariableSection.productColumns: r'$product.tags',
+        PdfVariableSection.productQuoteColumns: r'$product.tags',
+        PdfVariableSection.taskColumns: r'$task.tags',
+      };
+
+      expected.forEach((section, token) {
+        expect(
+          kPdfVariableSections[section]!.available,
+          contains(token),
+          reason: 'section "$section" should offer $token',
+        );
+      });
+    });
+
+    test('no section default-selects a tag variable (tags stay opt-in)', () {
+      for (final entry in kPdfVariableSections.entries) {
+        final tagged = entry.value.defaultSelected
+            .where((v) => v.endsWith('.tags'))
+            .toList();
+        expect(
+          tagged,
+          isEmpty,
+          reason:
+              'section "${entry.key}" default-selects $tagged, but the backend '
+              'getEntityVariableDefaults() carries no tag variable — a default '
+              'here would put an unrendered token on every new company',
+        );
+      }
+    });
   });
 }

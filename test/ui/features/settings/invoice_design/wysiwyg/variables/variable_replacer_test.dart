@@ -33,6 +33,15 @@ void main() {
     test(r'substitutes $contact.full_name', () {
       expect(replaceVariables(r'$contact.full_name', data: data), 'Jane Smith');
     });
+    test('substitutes the tag tokens on all three namespaces', () {
+      expect(
+        replaceVariables(
+          r'$client.tags | $company.tags | $invoice.tags',
+          data: data,
+        ),
+        'VIP, Wholesale | Design, Consulting | Priority, Net30',
+      );
+    });
     test('shipping token is matched before bare client.address1', () {
       expect(
         replaceVariables(

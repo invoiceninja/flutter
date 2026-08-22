@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/domain/entity_type.dart';
-import 'package:admin/domain/permissions.dart' show kPermissionSpecial;
+import 'package:admin/domain/permissions.dart'
+    show kPermissionNegative, kPermissionSpecial;
 
 /// Hard cap on companies per account (matches admin-portal's UI limit).
 const int kMaxCompaniesPerAccount = 10;
@@ -436,6 +437,12 @@ class AuthCompany {
   /// checkboxes above the grid, and React deliberately excludes them from
   /// `_all` expansion, so ticking "view all" shouldn't silently unlock Reports.
   bool can(String permission) {
+    // Negative tokens are never conferred by admin status — holding one takes
+    // an ability away, so the blanket grant below would invert them.
+    if (kPermissionNegative.contains(permission)) {
+      if (isAdmin || isOwner) return false;
+      return permissions.split(',').map((p) => p.trim()).contains(permission);
+    }
     if (isAdmin || isOwner) return true;
     if (permissions.isEmpty) return false;
     final held = permissions.split(',').map((p) => p.trim()).toSet();

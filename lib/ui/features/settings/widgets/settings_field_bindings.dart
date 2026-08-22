@@ -681,6 +681,13 @@ final Map<String, SettingsBinding> _bindings = <String, SettingsBinding>{
     read: (s) => s.clientPortalEnableUploads?.toString(),
     write: (s, v) => s.copyWith(clientPortalEnableUploads: _parseBool(v)),
   ),
+  // Default document visibility for new uploads. Company-scope only in
+  // practice (the server reads it off the company), but it lives in
+  // `settings` so it binds like any other cascade key.
+  'documents_public_by_default': (
+    read: (s) => s.documentsPublicByDefault?.toString(),
+    write: (s, v) => s.copyWith(documentsPublicByDefault: _parseBool(v)),
+  ),
   'vendor_portal_enable_uploads': (
     read: (s) => s.vendorPortalEnableUploads?.toString(),
     write: (s, v) => s.copyWith(vendorPortalEnableUploads: _parseBool(v)),

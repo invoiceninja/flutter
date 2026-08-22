@@ -274,6 +274,8 @@
   "document_settings": "Document settings",
   "document_visibility_updated": "Document visibility updated",
   "documents_drop_hint": "Drop files here or click Upload",
+  "documents_public_by_default": "Documents public by default",
+  "documents_public_by_default_help": "New attachments are visible to clients in the portal unless marked private",
   "documents_with_count": "Documents (:count)",
   "download_documents_label": "Download Documents",
   "drag_to_reorder": "Drag to reorder",

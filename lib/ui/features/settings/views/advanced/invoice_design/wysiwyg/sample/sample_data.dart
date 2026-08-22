@@ -55,6 +55,7 @@ class DesignerSampleData {
       createdAt: '2025-12-01',
       updatedAt: '2025-12-09',
       partialDueDate: '2025-12-15',
+      tags: 'Priority, Net30',
     ),
     client: DesignerSampleClient(
       name: 'Acme Corporation',
@@ -95,6 +96,7 @@ class DesignerSampleData {
       locationCustomValue2: 'Custom Location Field 2',
       locationCustomValue3: 'Custom Location Field 3',
       locationCustomValue4: 'Custom Location Field 4',
+      tags: 'VIP, Wholesale',
     ),
     company: DesignerSampleCompany(
       name: 'Your Company LLC',
@@ -114,6 +116,7 @@ class DesignerSampleData {
       customValue4: 'Custom Company Field 4',
       website: 'www.yourcompany.com',
       vatNumber: 'VAT123456',
+      tags: 'Design, Consulting',
     ),
     lineItems: [
       DesignerSampleLineItem(
@@ -175,6 +178,7 @@ class DesignerSampleInvoice {
     required this.createdAt,
     required this.updatedAt,
     required this.partialDueDate,
+    required this.tags,
   });
 
   final String number;
@@ -204,6 +208,7 @@ class DesignerSampleInvoice {
   final String createdAt;
   final String updatedAt;
   final String partialDueDate;
+  final String tags;
 }
 
 class DesignerSampleClient {
@@ -246,6 +251,7 @@ class DesignerSampleClient {
     required this.locationCustomValue2,
     required this.locationCustomValue3,
     required this.locationCustomValue4,
+    required this.tags,
   });
 
   final String name;
@@ -286,6 +292,7 @@ class DesignerSampleClient {
   final String locationCustomValue2;
   final String locationCustomValue3;
   final String locationCustomValue4;
+  final String tags;
 }
 
 class DesignerSampleCompany {
@@ -307,6 +314,7 @@ class DesignerSampleCompany {
     required this.customValue4,
     required this.website,
     required this.vatNumber,
+    required this.tags,
   });
 
   final String name;
@@ -326,6 +334,7 @@ class DesignerSampleCompany {
   final String customValue4;
   final String website;
   final String vatNumber;
+  final String tags;
 }
 
 class DesignerSampleLineItem {

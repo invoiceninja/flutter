@@ -40,6 +40,27 @@ const List<String> kPermissionSpecial = <String>[
   'disable_emails',
 ];
 
+/// Localization key for each special toggle's title. `view_reports` has no
+/// string of its own in any locale bundle — React labels that row `reports` —
+/// so without this map `context.tr` falls through to the raw slug.
+const Map<String, String> kPermissionSpecialLabels = <String, String>{
+  'view_dashboard': 'view_dashboard',
+  'view_reports': 'reports',
+  'disable_emails': 'disable_emails',
+};
+
+/// Localization key for each special toggle's subtitle, mirroring React's
+/// `leftSideHelp`. `view_dashboard` has none there.
+const Map<String, String> kPermissionSpecialHelp = <String, String>{
+  'view_reports': 'view_report_permission',
+  'disable_emails': 'disable_emails_help',
+};
+
+/// Tokens whose presence *removes* an ability rather than granting one.
+/// Admins are never subject to them, so such a row reads OFF instead of
+/// inheriting the blanket admin grant.
+const Set<String> kPermissionNegative = <String>{'disable_emails'};
+
 /// Cell token for an entity-verb pair (`create_client`, `view_invoice`, …).
 String permissionToken({required String verb, required String entity}) =>
     '${verb}_$entity';

@@ -148,6 +148,7 @@ const Map<VariableCategory, List<_VariableEntry>> _kVariableCatalog = {
     _VariableEntry('custom2', r'$client.custom2'),
     _VariableEntry('custom3', r'$client.custom3'),
     _VariableEntry('custom4', r'$client.custom4'),
+    _VariableEntry('tags', r'$client.tags'),
   ],
   VariableCategory.company: [
     _VariableEntry('company_name', r'$company.name'),
@@ -160,6 +161,7 @@ const Map<VariableCategory, List<_VariableEntry>> _kVariableCatalog = {
     _VariableEntry('website', r'$company.website'),
     _VariableEntry('vat_number', r'$company.vat_number'),
     _VariableEntry('id_number', r'$company.id_number'),
+    _VariableEntry('tags', r'$company.tags'),
   ],
   VariableCategory.contact: [
     _VariableEntry('contact_full_name', r'$contact.full_name'),
@@ -181,6 +183,7 @@ const Map<VariableCategory, List<_VariableEntry>> _kVariableCatalog = {
     _VariableEntry('balance', r'$invoice.balance'),
     _VariableEntry('custom1', r'$invoice.custom1'),
     _VariableEntry('custom2', r'$invoice.custom2'),
+    _VariableEntry('tags', r'$invoice.tags'),
   ],
   VariableCategory.shipping: [
     _VariableEntry('address1', r'$client.shipping_address1'),

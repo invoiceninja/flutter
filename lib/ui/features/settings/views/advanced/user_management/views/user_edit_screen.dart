@@ -423,7 +423,12 @@ class _PermissionsTab extends StatelessWidget {
             const Divider(height: 1),
             for (final special in kPermissionSpecial)
               SwitchListTile(
-                title: Text(context.tr(special)),
+                title: Text(
+                  context.tr(kPermissionSpecialLabels[special] ?? special),
+                ),
+                subtitle: kPermissionSpecialHelp[special] == null
+                    ? null
+                    : Text(context.tr(kPermissionSpecialHelp[special]!)),
                 value: vm.hasPermission(special),
                 onChanged: vm.isAdmin
                     ? null

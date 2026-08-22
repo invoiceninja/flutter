@@ -105,9 +105,13 @@ class UserEditViewModel extends GenericEditViewModel<User> {
   }
 
   /// Returns `true` when [token] is granted — either explicitly, or
-  /// inherited from a `*_all` row covering its verb. Admin grants everything.
+  /// inherited from a `*_all` row covering its verb. Admin grants everything
+  /// except the [kPermissionNegative] tokens, which take an ability away and
+  /// so never apply to an admin.
   bool hasPermission(String token) {
-    if (isAdmin) return true;
+    // Negative tokens invert the admin grant: an admin is never blocked from
+    // sending email, so the row must read OFF, not ON.
+    if (isAdmin) return !kPermissionNegative.contains(token);
     if (_permissionDraft.contains(token)) return true;
     // Inherit from <verb>_all when this is an entity-verb token.
     for (final verb in kPermissionVerbs) {

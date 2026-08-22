@@ -18,6 +18,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` (**O**, blocks SG government onboarding).
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
 - Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
+- Company setting `documents_public_by_default` — no server-side default for a new document's `is_public` (**O**, feature request; the Flutter v2 toggle is inert without it).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -1355,3 +1356,104 @@ only mint tokens that `/login` would already have minted on the next sign-in.
 token for company X, `POST /api/v1/refresh?current_company=false` as user B
 returns a non-null `data[N].token.token` for company X, and that token
 authenticates a subsequent `GET /api/v1/clients` scoped to company X.
+
+---
+
+## Company setting `documents_public_by_default` — upload visibility default — **O (server gap; the client toggle is inert without it)**
+
+**Symptom.** Every document uploaded through any Invoice Ninja client lands
+**public** — visible to the client in the portal and eligible for email
+attachment. There is no account-level way to say "make my attachments private
+by default"; the only recourse is flipping each file after the fact via
+`PUT /api/v1/documents/{id}` with `is_public:false`.
+
+**Ask.** A new company settings prop, `documents_public_by_default` (bool,
+default `true` so behavior is unchanged for existing accounts), used as the
+fallback `is_public` whenever an upload request omits it.
+
+### Why the clients can't do this alone
+
+`CompanySettingsSaver` drops any settings key that isn't declared server-side.
+Both of its loops iterate `CompanySettings::$casts` rather than the inbound
+payload — `validateSettings()` (`app/Utils/Traits/CompanySettingsSaver.php:115`)
+does `foreach ($casts as $key => $value) { … if (!property_exists($settings,$key)) continue; }`,
+and `checkSettingType()` (:179) does the same before `saveSettings()` (:47)
+rebuilds the object from `CompanySettings::defaults()`. A key absent from
+`$casts` is never inspected, never copied, and silently vanishes on the next
+`PUT /api/v1/companies/{id}`.
+
+So until the prop exists server-side, a client can render the toggle but the
+value will not round-trip.
+
+### Required change
+
+1. **`app/DataMapper/CompanySettings.php`** — add **both**, together:
+   - the property, near the other bool defaults (~L458–488):
+     `public $documents_public_by_default = true;`
+   - the cast, in `public static $casts` (L550+):
+     `'documents_public_by_default' => 'bool',`
+
+   Both are needed: `defaults()` (L894) reflects over `get_class_vars()` and
+   then runs `setCasts($data, self::$casts)`, so a `$casts` key with no
+   matching property hits an undefined property.
+
+2. **`app/Utils/Traits/SavesDocuments.php`** — resolve the default from the
+   company instead of the literal `true`:
+   - `saveDocuments($document_array, $entity, $is_public = true)` (L21) — the
+     default param.
+   - `saveDocument()` (L58) — currently `$is_public = true;` as a hardcoded
+     local with no way to override; needs a signature change.
+
+3. **The ~20 controller call sites** that pass
+   `$request->input('is_public', true)` swap the literal fallback for the
+   company setting — `CompanyController.php:441` and `:686`,
+   `InvoiceController.php:1091` / `:1095`, `QuoteController.php:1030`,
+   `ClientController.php:312`, `ExpenseController.php:614`,
+   `PaymentController.php:779`, `ProductController.php:554`,
+   `ProjectController.php:601`, `TaskController.php:632`,
+   `VendorController.php:584`, `RecurringInvoiceController.php:622`,
+   `RecurringExpenseController.php:612`, `GroupSettingController.php:151` and
+   `:224`. The repository-side callers (`BaseRepository.php:239`/`:243`,
+   `PaymentRepository.php:131`, …) pass no third arg at all, so fixing the
+   `SavesDocuments` default covers them.
+
+4. **Decide on `CompanySettings::$free_plan_casts`** (L820). Omitting the key
+   means `UpdateCompanyRequest::filterSaveableSettings()` silently `unset()`s
+   it for free hosted accounts — the toggle would appear to save and then
+   revert.
+
+5. **No data migration.** `setProperties()` (L925) backfills the declared class
+   default into any pre-existing settings blob that lacks the key.
+
+### Acceptance
+
+```
+# 1. round-trip
+curl -X PUT ".../api/v1/companies/{id}" -d '{"settings":{"documents_public_by_default":false, ...}}'
+curl ".../api/v1/companies/{id}"      # settings.documents_public_by_default == false
+# 2. behavior
+curl -X POST ".../api/v1/clients/{id}/upload" -F '_method=PUT' -F 'documents[]=@a.pdf'
+# the created document has is_public == false
+# 3. explicit override still wins
+curl -X POST ".../api/v1/clients/{id}/upload" -F '_method=PUT' -F 'is_public=1' -F 'documents[]=@a.pdf'
+# the created document has is_public == true
+```
+
+### Client status
+
+Both Flutter clients ship the setting and its toggle (Settings → Company
+Details → Documents):
+
+- **admin-portal (v1)** sends `is_public` explicitly on every upload
+  (`'is_public': isPrivate ? '0' : '1'` in all 15 repositories), seeded from
+  the new setting in `DocumentGrid`. It therefore works **today**, without
+  step 3 — and note this means v1 would otherwise have overridden any
+  server-side default on every request.
+- **admin (v2)** sends no `is_public` on upload, deliberately: the multipart
+  body carries only `_method=PUT` + `documents[]`, so the server's fallback is
+  what applies. Its toggle **visibly reverts until this ships** — not merely
+  inert. `CompanySettingsSaver` drops the key, `CompanyRepository.applyUpdateResponse`
+  replaces the local settings blob with the server's echo, and the field's
+  `defaultValue: true` then re-renders the switch ON immediately after the
+  "Saved" toast. Nothing to fix client-side; it resolves the moment steps 1–2
+  land.

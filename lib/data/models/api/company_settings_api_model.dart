@@ -347,6 +347,12 @@ abstract class CompanySettingsApi with _$CompanySettingsApi {
     bool? clientManualPaymentNotification,
     @JsonKey(name: 'vendor_portal_enable_uploads')
     bool? vendorPortalEnableUploads,
+    // Default `is_public` for newly uploaded documents. The server applies it
+    // as the fallback when an upload request omits `is_public`; a document's
+    // visibility can still be flipped per-file afterwards (Set public /
+    // Set private). Unset means the server's historical default, `true`.
+    @JsonKey(name: 'documents_public_by_default')
+    bool? documentsPublicByDefault,
     @JsonKey(name: 'use_credits_payment') String? useCreditsPayment,
     @JsonKey(name: 'use_unapplied_payment') String? useUnappliedPayment,
 
@@ -528,6 +534,7 @@ const Set<String> _settingsBoolKeys = {
   'client_manual_payment_notification',
   'vendor_portal_enable_uploads',
   'unlock_invoice_documents_after_payment',
+  'documents_public_by_default',
   'show_task_item_description',
   'allow_billable_task_items',
   'task_round_up',

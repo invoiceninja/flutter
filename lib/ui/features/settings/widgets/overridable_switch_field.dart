@@ -27,6 +27,7 @@ class OverridableSwitchField extends StatelessWidget {
     required this.apiKey,
     this.subtitle,
     this.enabled = true,
+    this.defaultValue = false,
   });
 
   final String label;
@@ -40,12 +41,23 @@ class OverridableSwitchField extends StatelessWidget {
   /// field while keeping it visible (e.g. reminder rules on a free account).
   final bool enabled;
 
+  /// What an unset (`null`) setting renders as. Defaults to `false`, which is
+  /// right for the many keys the server also defaults off — every existing
+  /// call site is unchanged.
+  ///
+  /// Pass `true` for a key whose *server-side* default is on
+  /// (`documents_public_by_default`). Without it the switch would read OFF on
+  /// a company that has never written the key while the server keeps behaving
+  /// as if it were ON — a toggle that lies about the current behavior.
+  final bool defaultValue;
+
   @override
   Widget build(BuildContext context) {
     final binding = settingsBindingOf(apiKey);
     final host = context.watch<SettingsDraftHost>();
     final raw = binding.read(host.settings);
     final bool? value = raw == null ? null : raw == 'true';
+    final effective = value ?? defaultValue;
 
     final errors = host.fieldErrors[apiKey];
     final errorText = (errors != null && errors.isNotEmpty)
@@ -59,7 +71,7 @@ class OverridableSwitchField extends StatelessWidget {
         SwitchListTile(
           title: Text(label),
           subtitle: subtitle == null ? null : Text(subtitle!),
-          value: value ?? false,
+          value: effective,
           // Null onChanged greys out the switch (Material's disabled contract).
           onChanged: enabled
               ? (v) =>
@@ -94,7 +106,7 @@ class OverridableSwitchField extends StatelessWidget {
       label: label,
       // Seed the override with the displayed value so the switch stays in
       // place when the user toggles the checkbox on.
-      cascadedValueOnEnable: () => (value ?? false).toString(),
+      cascadedValueOnEnable: () => effective.toString(),
       child: field,
     );
   }

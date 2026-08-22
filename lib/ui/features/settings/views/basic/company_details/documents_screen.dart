@@ -11,6 +11,7 @@ import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/company_details_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
+import 'package:admin/ui/features/settings/widgets/overridable_switch_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/utils/document_upload_validation.dart';
 import 'package:admin/utils/formatting.dart';
@@ -18,13 +19,35 @@ import 'package:admin/utils/url_safety.dart';
 
 /// Searchable label keys rendered by this tab. See
 /// `kCompanyDetailsDetailsSearchKeys` for the colocation pattern.
-const kCompanyDetailsDocumentsSearchKeys = <String>['documents'];
+const kCompanyDetailsDocumentsSearchKeys = <String>[
+  'documents',
+  'documents_public_by_default',
+];
 
 /// "Documents" tab — list of file attachments on the company, plus a shared
 /// drop-or-click upload affordance. Documents arrive on the company envelope
 /// and are persisted in the `companies.documents` JSON column; the tab watches
 /// the company stream so the list rebuilds when an upload's server response
 /// lands.
+///
+/// The tab also hosts `documents_public_by_default` — the company-level
+/// default `is_public` the server applies to every new attachment (not just
+/// the company's own). It renders with `defaultValue: true` because the
+/// server's historical behavior for an unset key is public.
+///
+/// **Until the server ships the prop, saving it visibly reverts.**
+/// `CompanySettingsSaver` drops any settings key absent from
+/// `CompanySettings::$casts`, and `CompanyRepository.applyUpdateResponse`
+/// replaces the whole blob with the server's echo — so the key is gone from
+/// Drift on the next frame and `defaultValue: true` renders the switch back
+/// ON right after the "Saved" toast. Not a client bug; see `BACKEND.md`
+/// § `documents_public_by_default`.
+///
+/// The document list reads [CompanyDetailsViewModel.initialValue], not the
+/// draft: uploads and deletes land on the company row through the outbox, and
+/// `DraftStreamHost` deliberately freezes the *draft* while it's dirty. Reading
+/// the draft here meant that touching the toggle above froze the list, so an
+/// upload would toast success and never appear.
 class CompanyDetailsDocumentsScreen extends StatelessWidget {
   const CompanyDetailsDocumentsScreen({super.key});
 
@@ -33,28 +56,34 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
     final vm = context.watch<CompanyDetailsViewModel>();
     final services = context.read<Services>();
     final tokens = context.inTheme;
-    final documents = vm.draft?.documents ?? const <Document>[];
+    final documents = vm.initialValue?.documents ?? const <Document>[];
 
     return SettingsFormShell(
       sections: [
         FormSection(
           title: context.tr('documents'),
           children: [
+            OverridableSwitchField(
+              label: context.tr('documents_public_by_default'),
+              apiKey: 'documents_public_by_default',
+              subtitle: context.trIfDefined('documents_public_by_default_help'),
+              defaultValue: true,
+            ),
             FileDropZone(
               allowedExtensions: kDocumentAllowedExtensions,
               allowMultiple: true,
               onFiles: (sources) =>
                   _validateAndUpload(context, services, vm, sources),
             ),
-            if (documents.isNotEmpty) ...[
-              SizedBox(height: InSpacing.lg(context)),
+            // No SizedBox spacers here — FormSection interleaves
+            // InSpacing.lg between adjacent children already.
+            if (documents.isNotEmpty)
               _DocumentList(
                 documents: documents,
                 tokens: tokens,
                 onView: _openDocument,
                 onDelete: (doc) => _deleteDocument(context, services, vm, doc),
               ),
-            ],
           ],
         ),
       ],

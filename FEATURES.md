@@ -668,6 +668,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Document list / preview | ✅ | ✅ | ✅ | ✅ | |
 | Document download | ✅ | ✅ | ✅ | ✅ | |
 | Document delete | ✅ | ✅ | ✅ | ✅ | |
+| Documents public by default (company setting) | ❌ | ✅ | ✅ | | |
 
 #### Company Details — Custom Fields tab
 
@@ -1105,6 +1106,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Task Columns selector | ✅ | ✅ | ✅ | ✅ | |
 | Total Fields selector | ✅ | ✅ | ✅ | ✅ | |
 | Reset field list to default — per tab, restores backend `getEntityVariableDefaults` | — | — | ✅ | | |
+| Tag variables on PDFs (`$client.tags`, `$invoice.tags`, … 9 tokens across the variable tabs, custom-design editor autocomplete + Variables pane, and the WYSIWYG picker; opt-in, not default-selected) | ❌ | ❌ | ✅ | | |
 | Custom Designs (CRUD: header / body / footer / includes / product / task) | ✅ | ✅ | ✅ | ✅ | |
 | Custom design editor — live PDF preview of in-progress design | ✅ | ❌ | ✅ | ✅ | |
 | Custom design editor — syntax-highlighted code editor + line numbers | ✅ | ❌ | ✅ | ✅ | |

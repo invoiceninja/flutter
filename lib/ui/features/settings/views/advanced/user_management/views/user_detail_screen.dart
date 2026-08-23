@@ -118,12 +118,18 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   user.customValue4.isNotEmpty)
                 _UserCustomFieldsSection(user: user, companyId: companyId),
               FormSection(
-                title: context.tr('activity'),
+                // "Recent", not "Activity": the feed is the actor's slice of a
+                // bounded scan window (kUserActivityScanRows), so an empty list
+                // means "nothing recent", not "nothing ever".
+                title: context.tr('recent_activity'),
                 children: [
+                  // Keyed so a user → user navigation that reuses this
+                  // element re-runs initState and refetches, instead of
+                  // showing the previous user's feed.
                   _UserActivitySection(
+                    key: ValueKey(user.id),
                     userId: user.id,
                     companyId: companyId,
-                    userDisplayName: user.displayName,
                   ),
                 ],
               ),
@@ -296,23 +302,22 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   }
 }
 
-/// Read-only actor-scoped activity feed for this user. Fetches the flat
-/// `/api/v1/activities?user_id=` list (see `ActivitiesApi.fetchUserActivities`)
-/// and renders each row through the shared dashboard `ActivityFormatter`.
+/// Read-only actor-scoped activity feed for this user.
+///
+/// `ActivitiesApi.fetchUserActivities` does the actor scoping client-side —
+/// the server has no `user_id` filter on `/activities` (invoiceninja/flutter#45)
+/// — and returns rows carrying their own `user` label, so every row here is
+/// genuinely this user's and names the real actor. Rendered through the shared
+/// dashboard `ActivityFormatter`.
 class _UserActivitySection extends StatefulWidget {
   const _UserActivitySection({
+    super.key,
     required this.userId,
     required this.companyId,
-    this.userDisplayName = '',
   });
 
   final String userId;
   final String companyId;
-
-  /// Seed for the formatter's `:user` token — the flat `?user_id=` feed has
-  /// no label objects, but this feed is actor-scoped so the actor IS the
-  /// screen's user.
-  final String userDisplayName;
 
   @override
   State<_UserActivitySection> createState() => _UserActivitySectionState();
@@ -364,15 +369,9 @@ class _UserActivitySectionState extends State<_UserActivitySection> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final a in rows.take(50))
+            for (final a in rows)
               _ActivityRow(
-                render: formatter.format(
-                  a,
-                  seedLabels: {
-                    if (widget.userDisplayName.isNotEmpty)
-                      'user': widget.userDisplayName,
-                  },
-                ),
+                render: formatter.format(a),
                 timestamp: dateFmt?.date(
                   DateTime.fromMillisecondsSinceEpoch(
                     a.createdAt * 1000,

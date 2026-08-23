@@ -1,8 +1,14 @@
 /// One activity row, parsed from either server shape:
-///  * `GET /api/v1/activities?reactv2` (dashboard) — nested `{label, hashed_id}`
-///    objects keyed by token (`user`, `client`, `invoice`, …), no flat ids.
-///  * `GET /api/v1/activities?user_id=` (user-activity feed, via
-///    `ActivityTransformer`) — flat `<token>_id`, no labels.
+///  * `GET /api/v1/activities?reactv2` — nested `{label, hashed_id}` objects
+///    keyed by token (`user`, `client`, `invoice`, …), no flat ids. Both live
+///    callers (the dashboard card and the per-user activity log) use this.
+///  * `GET /api/v1/activities` without `reactv2` (via `ActivityTransformer`) —
+///    flat `<token>_id`, no labels. Still parsed so a server predating the
+///    `reactv2` branch degrades to unlabelled rows rather than empty ones.
+///
+/// Note `id` differs between them: the flat shape sends the hashed activity id,
+/// `reactv2` sends the raw numeric one plus a separate `hashed_id`. Neither
+/// screen renders or routes on it, so it's left as-is.
 ///
 /// The dashboard renders these via `ActivityFormatter`, which interpolates the
 /// `activity_<N>` localization key with `:user`, `:contact`, `:client`,
@@ -53,8 +59,10 @@ class DashboardActivity {
 
   /// Display labels keyed by template token (`user`, `client`, `invoice`, …),
   /// populated from the `?reactv2` nested `{label, hashed_id}` objects. Empty
-  /// for the flat `ActivityTransformer` shape (user-activity feed), where the
-  /// formatter falls back to the localized noun.
+  /// for the flat `ActivityTransformer` shape, where the formatter falls back
+  /// to the localized noun. Note the server emits an entry only for tokens the
+  /// `activity_<N>` template actually contains, so a missing key means "this
+  /// activity doesn't name that thing", not "the server didn't know it".
   final Map<String, String> labels;
 
   /// The full server JSON so a richer renderer can grab fields we don't

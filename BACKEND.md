@@ -19,6 +19,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
 - Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
 - Company setting `documents_public_by_default` — no server-side default for a new document's `is_public` (**O**, feature request; the Flutter v2 toggle is inert without it).
+- `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -279,6 +280,68 @@ public function company_gateway_id(string $v=''): Builder
   `client_gateway_tokens?company_gateway_id=` listing would also unblock the
   "clients with token billing" tile.
 
+### F3. `GET /api/v1/activities` — no filters at all — **O** (client now works around it)
+
+`ActivityController::index` takes a **bare `Illuminate\Http\Request`**, not a
+filters class — unlike every other index controller. There is no
+`app/Filters/ActivityFilters.php`, and `App\Models\Activity` (which extends
+`StaticModel`) doesn't use the `Filterable` trait, so `Activity::filter($f)`
+isn't even a callable scope. Consequently **every** param is ignored except
+`rows` (sets `take()`, and only meaningfully on the `reactv2` branch — on the
+default branch `listResponse`'s `paginate()` overrides it) and `reactv2`
+(presence flag, switches to the `activity_string()` shape).
+
+Live-probed 2026-08-23 vs `demo.invoiceninja.com`: `?user_id=<real actor>`,
+`?user_id=<bogus>`, `?client_id=<real>`, `?entity=invoice` and no param at all
+each return the **identical** 83-row company feed. Same silent-no-op as § F2.
+
+This caused **invoiceninja/flutter#45** — the v2 client's per-user activity log
+(`/settings/users/:id`) sent `?user_id=` and, trusting it, stamped every row
+with the viewed user's name. Every user's Activity section listed every action
+in the company, attributed to whoever was on screen.
+
+**O.** Add a `user_id` filter mirroring `app/Filters/TaskFilters.php:250`
+(the wire format is hashed, so `decodePrimaryKey` is required):
+```php
+public function user_id(string $user = ''): Builder
+{
+    if (strlen($user) == 0) { return $this->builder; }
+    return $this->builder->where('user_id', $this->decodePrimaryKey($user));
+}
+```
+plus `use Filterable;` on `App\Models\Activity` and
+`index(ActivityFilters $filters)` applying it on **both** branches. The
+`reactv2` non-admin self-scope clamp (`if (!$user->isAdmin())
+$activities->where('user_id', auth()->user()->id)`) must stay as the **outer**
+bound so a client-supplied `user_id` can never widen a non-admin's scope.
+The `activities` table already carries `index(['user_id','company_id'])`, so
+the lookup is covered.
+- Accept: `activities?user_id=<hashid>` narrows to that actor (today:
+  unchanged — no method). A bogus id should return an empty set, not the
+  full feed.
+
+**Fixed client-side (no PR required):** the v2 client now reads the
+denormalized `?reactv2` branch — whose nested `{label, hashed_id}` objects
+carry each row's *true* actor — and filters to the viewed user locally, over a
+fixed 250-row scan window. (The flat branch can't serve this even with the
+filter above: its `user_id` column names the *record owner* on the 34-of-120
+`activity_<N>` templates that have no `:user` token — ":contact viewed invoice
+:invoice", "System failed to email invoice :invoice" — so filtering on it
+re-attributes contact- and system-initiated rows to a person who didn't do
+them. `activity_string()` omits the `user` object for exactly those.) Correct today; the server filter would just let it
+stop over-fetching (and would fix the one residual: a rarely-active user in a
+very busy account can fall outside the window).
+
+**Adjacent bug spotted in the same path (not client-visible after the above).**
+`BaseController::listResponse` (`app/Http/Controllers/BaseController.php:1018`)
+has no special case for `Activity`, so it falls through to the generic branch
+and applies `$q->where('user_id', $user->id)->orWhere('assigned_user_id',
+$user->id)`. The `activities` table has **no `assigned_user_id` column**
+(`database/migrations/2014_10_13_000000_create_users_table.php:1075`), so any
+user lacking `view_activity` who hits the non-`reactv2` path should take an
+unknown-column SQL error. Not runtime-confirmed; the column genuinely does not
+exist. Switching to `reactv2` sidesteps it for the v2 client.
+
 ### H. `task_statuses/sort` endpoint — **O** (client now works around it)
 
 There is **no** `POST /api/v1/task_statuses/sort` route (only `tasks/sort`
@@ -496,6 +559,16 @@ consistency. `custom_value1..4` ❌ → § B.
 | vendors | `number` ⚠️ exact; `vat_number`/`id_number` substring ❌; `country_id`/`currency_id`/`assigned_user_id`/`custom_value1..4` ❌ — mirror § A |
 | products | `product_key` ✅ exact; `filter` ✅ LIKE on product_key/notes; no enum filters needed |
 | bank_transactions | `name` ✅; `client_status=unmatched\|matched\|converted\|deposits\|withdrawals` ✅; `bank_integration_ids` ✅; `date_range` ⚠️ Payment-style 3-part → standardize (G.3) |
+
+### GET /api/v1/activities — no filters class
+
+No `app/Filters/ActivityFilters.php` exists; the controller never invokes the
+filter pipeline. `user_id` ❌, `client_id` ❌, `entity`/`entity_id` ❌ (those
+belong to `POST /activities/entity`, whose `ShowActivityRequest` whitelists
+domain entities only — **`user` is not among them**, so there is no per-entity
+route to a user's log). `rows` ⚠️ (honored only on the `reactv2` branch),
+`reactv2` ✅ (presence flag → `activity_string()` shape, unpaginated),
+`per_page`/`page`/`include=user` ✅ (generic, default branch only). See § F3.
 
 ## Client-side mismatches — FIXED (not part of this PR)
 

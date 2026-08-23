@@ -33,16 +33,12 @@ class ActivityFormatter {
 
   final BuildContext context;
 
-  /// [seedLabels] — caller-known token labels consulted BEFORE the server's
-  /// `a.labels`. The flat `?user_id=` feed carries no label objects at all,
-  /// but its host screen already knows some of them (the user-activity list
-  /// is actor-scoped, so `:user` is that screen's own user) — seeding turns
-  /// "User created invoice" into the actual name without an async
-  /// resolution pass.
-  ActivityRender format(
-    DashboardActivity a, {
-    Map<String, String> seedLabels = const {},
-  }) {
+  /// Token labels come from the row itself (`a.labels`), never from the
+  /// caller. A caller-supplied seed used to fill `:user` on the user-activity
+  /// screen, on the assumption that its feed was actor-scoped — it wasn't, so
+  /// every row was stamped with the viewed user's name (invoiceninja/flutter#45).
+  /// Feed the denormalized `?reactv2` shape instead; it labels each row itself.
+  ActivityRender format(DashboardActivity a) {
     final l = Localization.of(context);
     var key = 'activity_${a.activityTypeId}';
     // Online payments (type 10) are contact-initiated when a contact is
@@ -66,9 +62,9 @@ class ActivityFormatter {
         final token = m.group(1)!;
         if (token == 'notes') return a.notes;
         // The server's denormalized label (real client / user name, invoice
-        // number, …) or a caller seed; falls back to the localized noun when
-        // neither knows the object, so a bare `:token` never leaks.
-        return a.labels[token] ?? seedLabels[token] ?? context.tr(token);
+        // number, …); falls back to the localized noun when the row doesn't
+        // name the object, so a bare `:token` never leaks.
+        return a.labels[token] ?? context.tr(token);
       });
     } else {
       resolved = context.tr('activity_unknown', {

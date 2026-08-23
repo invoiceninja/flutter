@@ -28,7 +28,7 @@ import 'package:admin/ui/features/dashboard/widgets/mobile/dashboard_mobile_rows
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
 
 /// Mobile (<600 px) dashboard body. The header follows `patterns.jsx:375-441`
-/// — eyebrow → dark hero KPI → 4 quick-action tiles → compact past-due table
+/// — eyebrow → dark hero KPI → quick-action tiles → compact past-due table
 /// — and is then followed by the same sections desktop renders (revenue
 /// chart, activity feed, upcoming invoices, recent payments, upcoming /
 /// expired quotes, upcoming recurring invoices), each laid out as a single-
@@ -43,7 +43,6 @@ class MobileDashboardBody extends StatelessWidget {
     required this.onPastDueInvoiceTap,
     required this.onAllInvoices,
     required this.onAllUpcomingInvoices,
-    required this.onNewInvoice,
     required this.onAddClient,
     required this.onLogExpense,
     required this.onReports,
@@ -73,7 +72,6 @@ class MobileDashboardBody extends StatelessWidget {
   /// "View all" on the Upcoming Invoices card — distinct from
   /// [onAllInvoices] so each lands on its own filtered list.
   final VoidCallback onAllUpcomingInvoices;
-  final VoidCallback onNewInvoice;
   final VoidCallback onAddClient;
   final VoidCallback onLogExpense;
   final VoidCallback onReports;
@@ -450,18 +448,22 @@ class MobileDashboardBody extends StatelessWidget {
   }
 
   // ---------------------------------------------------------------------------
-  // Quick-actions grid — 4 tiles in a row.
+  // Quick-actions grid — 2-3 tiles in a row.
 
+  /// **There is deliberately no New Invoice tile** (flutter#52).
+  /// `DashboardMobileAppBar` carries a pinned `+` to the same `/invoices/new`,
+  /// gated on the same `moduleEnabled(EntityType.invoice)` flag — so the two
+  /// always appeared and vanished together, and the bar's copy is the better
+  /// one: an `AppBar` action stays reachable at any scroll position, while this
+  /// row scrolls away with the page. Don't restore it without removing that
+  /// action first.
+  ///
+  /// The row is variable-length by design — New Client and Reports are always
+  /// on, expense is module-gated, so it renders 2 or 3 tiles and the
+  /// `Expanded`s rebalance whatever is left.
   Widget _quickActions(BuildContext context, InTheme tokens) {
     final me = context.read<Services>().auth.session.value?.currentCompany;
     final actions = [
-      if (me?.moduleEnabled(EntityType.invoice) ?? false)
-        _QuickAction(
-          label: context.tr('new_invoice'),
-          icon: Icons.add,
-          iconColor: tokens.accent,
-          onTap: onNewInvoice,
-        ),
       _QuickAction(
         label: context.tr('new_client'),
         icon: Icons.person_add_alt_outlined,

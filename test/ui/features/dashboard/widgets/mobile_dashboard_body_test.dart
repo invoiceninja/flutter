@@ -9,6 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
+import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -48,9 +49,9 @@ class _FakeAuth implements AuthRepository {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
-/// Only `auth.session` is reachable from `MobileDashboardBody` (it gates the
-/// trailing list cards on the company's enabled modules); everything else
-/// falls through to [noSuchMethod].
+/// Only `auth.session` is reachable from `MobileDashboardBody`. Its
+/// `enabledModules` mask gates both the quick-action tiles and the trailing
+/// list cards; everything else falls through to [noSuchMethod].
 class _FakeServices implements Services {
   _FakeServices(this.auth);
   @override
@@ -60,18 +61,23 @@ class _FakeServices implements Services {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
-AuthSession _session() => AuthSession(
+/// [enabledModules] defaults to the `AuthCompany` default of 0 — every
+/// module-gated tile and list card off — which is what most tests here want.
+/// Pass a real mask only where the assertion depends on a gated widget
+/// actually rendering, or a `findsNothing` proves nothing.
+AuthSession _session({int enabledModules = 0}) => AuthSession(
   baseUrl: 'https://example.test',
   isHosted: false,
   accountId: 'acct',
   companies: [
-    const AuthCompany(
+    AuthCompany(
       id: 'co',
       name: 'Acme Corporation',
       displayName: 'Acme Corporation',
       permissions: '',
       isAdmin: true,
       isOwner: true,
+      enabledModules: enabledModules,
     ),
   ],
   currentCompanyId: 'co',
@@ -122,6 +128,7 @@ void main() {
     DashboardDateRange? range,
     double width = 390,
     Size? surface,
+    int enabledModules = 0,
   }) async {
     if (range != null) await vm.setDateRange(range);
     if (surface != null) {
@@ -130,7 +137,9 @@ void main() {
     }
     await tester.pumpWidget(
       Provider<Services>.value(
-        value: _FakeServices(_FakeAuth(ValueNotifier(_session()))),
+        value: _FakeServices(
+          _FakeAuth(ValueNotifier(_session(enabledModules: enabledModules))),
+        ),
         child: MaterialApp(
           localizationsDelegates: kTestLocalizationsDelegates,
           supportedLocales: kTestSupportedLocales,
@@ -145,7 +154,6 @@ void main() {
                 onPastDueInvoiceTap: (_) {},
                 onAllInvoices: () {},
                 onAllUpcomingInvoices: () {},
-                onNewInvoice: () {},
                 onAddClient: () {},
                 onLogExpense: () {},
                 onReports: () {},
@@ -278,5 +286,25 @@ void main() {
             'only widget that reflows at this width',
       );
     }
+  });
+
+  // flutter#52: the quick-action row's first tile and `DashboardMobileAppBar`'s
+  // pinned `+` both navigated to `/invoices/new` off the same module flag. The
+  // tile is gone; the bar keeps the `+` (it survives scrolling, the row does
+  // not).
+  //
+  // The mask is load-bearing. Every other test here runs at the `= 0` default,
+  // where no module-gated tile renders at all — a bare `findsNothing` would
+  // pass against the pre-fix code too and prove nothing.
+  testWidgets('the quick-action row carries no New Invoice tile', (
+    tester,
+  ) async {
+    await pumpBody(tester, enabledModules: EnabledModule.invoices.bitmask);
+
+    expect(find.text('New Invoice'), findsNothing);
+    // Positive control: `client` is always-on (`moduleForEntityType` returns
+    // null for it), so this holds at any mask and proves the row itself
+    // rendered rather than the whole body coming up empty.
+    expect(find.text('New Client'), findsOneWidget);
   });
 }

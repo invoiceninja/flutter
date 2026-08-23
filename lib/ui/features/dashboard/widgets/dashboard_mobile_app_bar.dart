@@ -51,6 +51,14 @@ class DashboardMobileAppBar extends StatelessWidget
 
   /// Null when the invoices module is disabled — the "+" action is then
   /// omitted entirely. Mirrors `DashboardTopBar.onNewInvoice`.
+  ///
+  /// Since flutter#52 this is a phone's **only** New Invoice affordance. The
+  /// mobile body's quick-action row used to carry a labelled tile to the same
+  /// route, gated on the same module flag, and that duplicate was the one
+  /// removed — an `AppBar` action stays reachable at any scroll position,
+  /// whereas the row scrolls away with the page. So don't drop this action to
+  /// buy back bar width (the title arithmetic above is a standing motive to
+  /// try) without restoring that tile first.
   final VoidCallback? onNewInvoice;
 
   final Formatter? formatter;

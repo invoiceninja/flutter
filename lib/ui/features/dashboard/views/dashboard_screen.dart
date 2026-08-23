@@ -404,7 +404,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onAllInvoices: () => _goWithIntent('/invoices', _pastDueInvoicesIntent),
       onAllUpcomingInvoices: () =>
           _goWithIntent('/invoices', _upcomingInvoicesIntent),
-      onNewInvoice: () => _safeNavigate('/invoices/new'),
       onAddClient: () => _safeNavigate('/clients/new'),
       onLogExpense: () => _safeNavigate('/expenses/new'),
       onReports: () => _safeNavigate('/reports'),

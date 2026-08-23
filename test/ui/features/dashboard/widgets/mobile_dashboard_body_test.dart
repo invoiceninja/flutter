@@ -29,9 +29,12 @@ import '../_fake_dashboard_repo.dart';
 /// user could not see — "even more confusing when you start using filters like
 /// `Last Year` or `Last Quarter` and that's what the app opens on".
 ///
-/// The eyebrow now leads with the window. It displaces the company name (the
-/// AppBar title directly above already carries it) and the word "Dashboard",
-/// because one ellipsised 11 px line has no room for all three.
+/// The eyebrow now leads with the window. It displaces the company name and
+/// the word "Dashboard", because one ellipsised 11 px line has no room for all
+/// three. (It used to be justified by the AppBar title carrying the company;
+/// flutter#50 retitled that bar to the page name, so the company now lives
+/// only in the drawer's switcher. The assertion below is unchanged — the
+/// eyebrow should not carry it either way.)
 class _FakeAuth implements AuthRepository {
   _FakeAuth(this._session);
   final ValueNotifier<AuthSession?> _session;
@@ -198,9 +201,7 @@ void main() {
     );
   });
 
-  testWidgets('the eyebrow no longer duplicates the AppBar company name', (
-    tester,
-  ) async {
+  testWidgets('the eyebrow does not carry the company name', (tester) async {
     await pumpBody(tester);
 
     expect(eyebrowText(tester), isNot(contains('ACME CORPORATION')));

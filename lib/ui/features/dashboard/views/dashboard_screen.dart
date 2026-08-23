@@ -16,9 +16,8 @@ import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_mobile_app_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
-import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
-import 'package:admin/ui/features/dashboard/widgets/filters/settings_popover.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
@@ -49,9 +48,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late Services _services;
   late DashboardViewModel _vm;
   late String _companyId;
-  // Empty when the active company has neither a `displayName` nor a `name`;
-  // `_resolveCompanyName(context)` falls back to the localized 'Dashboard'
-  // string at render time so the fallback follows the active locale.
+  // Empty when the active company has neither a `displayName` nor a `name`.
+  // Wide-layout only since flutter#50 — the mobile bar titles with the page
+  // name now, so this feeds `DashboardTopBar` alone. `_resolveCompanyName`
+  // still falls back to the localized 'Dashboard' string at render time, so
+  // an unnamed company degrades to a sensible header in the active locale.
   late String _rawCompanyName;
   Formatter? _formatter;
 
@@ -318,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // actions). Wide layouts keep the bespoke `DashboardTopBar`
               // inside the body so the company name + subtitle + full-label
               // buttons render the way `screens.jsx:196-201` calls for.
-              appBar: wide ? null : _buildMobileAppBar(context),
+              appBar: wide ? null : _buildMobileAppBar(globalNav: globalNav),
               body: SafeArea(
                 child: Column(
                   children: [
@@ -370,45 +371,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  PreferredSizeWidget _buildMobileAppBar(BuildContext context) {
-    return AppBar(
-      leading: const DrawerHamburger(),
-      title: Text(
-        _resolveCompanyName(context),
-        overflow: TextOverflow.ellipsis,
-      ),
-      actions: [
-        Builder(
-          builder: (iconContext) => IconButton(
-            tooltip: context.tr('date_range'),
-            icon: const Icon(Icons.filter_alt_outlined),
-            onPressed: () => openDateRangePicker(
-              iconContext,
-              current: _vm.filter.range,
-              onChange: _vm.setDateRange,
-              formatter: _formatter,
-            ),
-          ),
-        ),
-        Builder(
-          builder: (iconContext) => IconButton(
-            tooltip: context.tr('settings'),
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => openDashboardSettingsPopover(iconContext, vm: _vm),
-          ),
-        ),
-        IconButton(
-          tooltip: context.tr('customize'),
-          icon: const Icon(Icons.dashboard_customize_outlined),
-          onPressed: () => openManageDashboardCards(context, vm: _vm),
-        ),
-        if (_moduleOn(EntityType.invoice))
-          IconButton(
-            tooltip: context.tr('new_invoice'),
-            icon: const Icon(Icons.add),
-            onPressed: () => _safeNavigate('/invoices/new'),
-          ),
-      ],
+  PreferredSizeWidget _buildMobileAppBar({required bool globalNav}) {
+    return DashboardMobileAppBar(
+      vm: _vm,
+      // Suppressed once the persistent rail is up: the drawer is attached on
+      // the same condition (see `drawer:` above), so an unguarded hamburger
+      // would open nothing. This bar is picked from the *local* constraints
+      // while the drawer follows *window* width, so the two disagree for a
+      // window between 600 and ~832 px.
+      showHamburger: !globalNav,
+      onNewInvoice: _moduleOn(EntityType.invoice)
+          ? () => _safeNavigate('/invoices/new')
+          : null,
+      formatter: _formatter,
     );
   }
 

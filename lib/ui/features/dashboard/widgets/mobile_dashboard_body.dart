@@ -218,8 +218,10 @@ class MobileDashboardBody extends StatelessWidget {
   /// The window leads because on a phone it appeared nowhere else — the AppBar
   /// carries a bare filter *icon* — so every figure below was scoped to a range
   /// the user couldn't see (flutter#37). It displaced `ACME CORPORATION ·
-  /// DASHBOARD`, which cost nothing: the AppBar title directly above already
-  /// names the company, and the nav already says which page this is.
+  /// DASHBOARD`, which cost nothing: the nav already says which page this is,
+  /// and the company is one tap away in the drawer's `CompanySwitcherButton`.
+  /// (This used to point at the AppBar title for the company name; flutter#50
+  /// retitled that bar to the page name, so the drawer is the sole surface.)
   ///
   /// One run in one voice, not a two-column row: on a 360 dp phone the content
   /// line is ~336 px and a full range (~186 px) plus the freshness stamp

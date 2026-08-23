@@ -50,7 +50,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late String _companyId;
   // Empty when the active company has neither a `displayName` nor a `name`.
   // Wide-layout only since flutter#50 — the mobile bar titles with the page
-  // name now, so this feeds `DashboardTopBar` alone. `_resolveCompanyName`
+  // name now, so this feeds `DashboardTopBar` alone, and since flutter#51 a
+  // phone never reaches that bar in either orientation. `_resolveCompanyName`
   // still falls back to the localized 'Dashboard' string at render time, so
   // an unnamed company degrades to a sensible header in the active locale.
   late String _rawCompanyName;
@@ -304,7 +305,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildContent(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 600;
+        // Pane width alone hands a landscape phone the desktop chrome: the
+        // window is ~890 px there, so the persistent rail comes up and its 232
+        // still leaves ~660 here — a company name this truncates plus five
+        // full-label buttons that wrap onto two runs of a ~412 px-tall viewport
+        // (flutter#51). A phone takes the narrow branch in either orientation,
+        // so flutter#50's portrait fix applies in landscape too.
+        final wide =
+            Breakpoints.isWide(constraints) && !Breakpoints.isPhone(context);
         final globalNav = Breakpoints.isGlobalNavVisible(context);
         final scaffold = Builder(
           builder: (context) {
@@ -453,7 +461,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ConfiguredCardsGrid(
         vm: _vm,
         formatter: formatter,
-        onManage: () => openManageDashboardCards(context, vm: _vm),
+        onManage: () =>
+            openManageDashboardCards(context, vm: _vm, mobileLayout: false),
         onOpenCard: _openConfiguredCard,
       ),
       SizedBox(height: InSpacing.lg(context)),
@@ -629,6 +638,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onTap: () => openManageDashboardCards(
             context,
             vm: _vm,
+            mobileLayout: false,
             initialTab: ManagePane.panels,
           ),
           style: const TextStyle(fontSize: 12.5),

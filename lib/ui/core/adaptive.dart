@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'package:admin/app/env.dart';
+
 /// App-wide responsive breakpoints. Use [Breakpoints.isWide] inside a
 /// [LayoutBuilder] so layout decisions reflect the parent's allocated width,
 /// not the device or window size.
@@ -39,6 +41,32 @@ class Breakpoints {
   /// that opens a duplicate of the global nav.
   static bool isGlobalNavVisible(BuildContext context) =>
       MediaQuery.sizeOf(context).width >= wide;
+
+  /// True on a **phone** — a touch-primary platform (iOS / Android, native or
+  /// mobile browser) whose window is narrower than [wide] on its *short* edge.
+  /// Orientation-independent by construction: a handset reports the same
+  /// `shortestSide` held either way. A tablet reports under 600 only when the
+  /// OS hands the app a small multi-window slice (Android split-screen, iPad
+  /// Slide Over) — which wants the phone layout anyway, so the rule is right
+  /// there too.
+  ///
+  /// The only gate here that reads the device rather than the box it was handed,
+  /// and the app's second platform-gated rule after `InSizes.touchTarget`. Width
+  /// is normally the right question and has no answer for a phone in landscape:
+  /// the window is then ~890 px, so the persistent rail comes up and its 232
+  /// still leaves the content pane ~660 — which reads as "desktop" on a viewport
+  /// only ~412 px tall, and a wide layout spends that width on full-label chrome
+  /// the handset can't carry (flutter#51).
+  ///
+  /// [Env.isTouchPrimary], not `isMobile`, for the same reason touch sizing uses
+  /// it: a phone browser is still a phone, and `defaultTargetPlatform` is
+  /// derived from the browser's OS there. Without it a short desktop window
+  /// (890x412) would match on `shortestSide` alone.
+  ///
+  /// Wire this in **per screen, deliberately**. It is not applied app-wide;
+  /// [isWide] stays the default gate and `DashboardScreen` is the only caller.
+  static bool isPhone(BuildContext context) =>
+      Env.isTouchPrimary && MediaQuery.sizeOf(context).shortestSide < wide;
 
   /// At or above this **window** width the entity routes render as a
   /// slide-over panel: the list stays at full width and the detail /

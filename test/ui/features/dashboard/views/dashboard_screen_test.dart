@@ -46,11 +46,14 @@ import '../_fake_dashboard_repo.dart';
 /// subscribes to those streams — is never built. Only the chrome under test
 /// renders.
 ///
-/// **Two independent widths.** `wide` reads the screen's own `LayoutBuilder`
-/// constraints while `globalNav` reads `MediaQuery` (the window), so the
-/// harness sets them separately: `setSurfaceSize` for the window, a `SizedBox`
-/// for the pane. That is exactly how the shell drives it — content is inset by
-/// the rail via `Positioned.fill(left: railWidth)`.
+/// **Two independent widths and a platform.** `wide` reads the screen's own
+/// `LayoutBuilder` constraints while `globalNav` reads `MediaQuery` (the
+/// window), so the harness sets them separately: `setSurfaceSize` for the
+/// window, a `SizedBox` for the pane. That is exactly how the shell drives it —
+/// content is inset by the rail via `Positioned.fill(left: railWidth)`. Since
+/// flutter#51 there is a third input: `wide` also asks `Breakpoints.isPhone`,
+/// which reads the window's `shortestSide` *and* `Env.isTouchPrimary` — hence
+/// the `height` parameter below and the one platform override at the bottom.
 class _FakeAuth implements AuthRepository {
   _FakeAuth(this._session);
   final ValueNotifier<AuthSession?> _session;
@@ -131,12 +134,17 @@ void main() {
   /// [window] drives `globalNav` (MediaQuery); [pane] drives `wide` (the
   /// screen's LayoutBuilder). The shell makes them differ by insetting content
   /// behind the 232 px rail, so `pane` defaults to the full window.
+  ///
+  /// [height] is load-bearing since flutter#51: `Breakpoints.isPhone` reads
+  /// `shortestSide`, so a 890x412 window is a phone and a 890x820 one is not,
+  /// at the same width and the same pane.
   Future<void> pumpScreen(
     WidgetTester tester, {
     required double window,
     double? pane,
+    double height = 900,
   }) async {
-    await tester.binding.setSurfaceSize(Size(window, 900));
+    await tester.binding.setSurfaceSize(Size(window, height));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
@@ -155,7 +163,7 @@ void main() {
           // Same reason `_responsive_helper.dart` uses `builder:` for text
           // scale.
           builder: (context, inner) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(size: Size(window, 900)),
+            data: MediaQuery.of(context).copyWith(size: Size(window, height)),
             child: inner!,
           ),
           home: Align(
@@ -225,5 +233,66 @@ void main() {
       findsOneWidget,
       reason: 'flutter#50 changed the mobile bar only',
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // flutter#51 — a phone in landscape is a ~890 px *window*, so the rail is up
+  // and its 232 px still leaves a ~658 px pane: wide by width alone, and the
+  // desktop bar that earned it truncated the company name and wrapped its five
+  // full-label buttons onto two runs of a 412 px-tall viewport. The branch now
+  // also asks `Breakpoints.isPhone`, and both halves of that are pinned here:
+  // the tablet case holds the pane byte-identical and moves only
+  // `shortestSide`; the desktop case holds the whole geometry and moves only
+  // the platform.
+
+  testWidgets('landscape phone: narrow chrome even though the pane is wide', (
+    tester,
+  ) async {
+    await pumpScreen(tester, window: 890, height: 412, pane: 658);
+
+    expect(find.byType(DashboardMobileAppBar), findsOneWidget);
+    expect(find.byType(DashboardTopBar), findsNothing);
+    expect(
+      find.text('Acme Corporation'),
+      findsNothing,
+      reason: 'the truncated company name is what flutter#51 was filed about',
+    );
+    // Same shape as the rail band above, reached by a different route: the
+    // window is ≥ 600, so the global rail is already on screen and a drawer
+    // would duplicate it.
+    expect(find.byType(DrawerHamburger), findsNothing);
+    expect(scaffold(tester).hasDrawer, isFalse);
+  });
+
+  testWidgets('a tablet at the same pane width keeps the wide bar', (
+    tester,
+  ) async {
+    // Still the default android platform, so `Env.isTouchPrimary` is true and
+    // only `shortestSide` (412 → 820) separates this from the case above. Drop
+    // that half of the check and every tablet loses the rich layout while this
+    // file stays green on the phone case alone.
+    await pumpScreen(tester, window: 890, height: 820, pane: 658);
+
+    expect(find.byType(DashboardTopBar), findsOneWidget);
+    expect(find.byType(DashboardMobileAppBar), findsNothing);
+  });
+
+  testWidgets('a phone-shaped desktop window keeps the wide bar', (
+    tester,
+  ) async {
+    // `flutter test` reports android, so without the `Env.isTouchPrimary` half
+    // of the check every short desktop window — and 890x412 is an ordinary one
+    // — would drop to the mobile chrome. Reset inside the body rather than via
+    // addTearDown: the foundation-vars invariant check runs before teardowns,
+    // so a lingering override fails the test (see copyable_value_test.dart).
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await pumpScreen(tester, window: 890, height: 412, pane: 658);
+
+      expect(find.byType(DashboardTopBar), findsOneWidget);
+      expect(find.byType(DashboardMobileAppBar), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }

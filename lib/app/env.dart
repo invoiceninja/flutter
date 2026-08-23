@@ -166,9 +166,10 @@ class Env {
   /// browser reports `macOS` / `linux` / `windows` — exactly the split touch
   /// sizing wants.
   ///
-  /// Drives touch-target sizing only (see `InSizes.touchTarget`). For "is this
-  /// a native mobile build" — platform channels, haptics, biometrics — use
-  /// [isMobile] instead.
+  /// Drives touch-target sizing (see `InSizes.touchTarget`) and, paired with a
+  /// `shortestSide` test, the one layout gate that reads the device rather than
+  /// the viewport (`Breakpoints.isPhone`). For "is this a native mobile build" —
+  /// platform channels, haptics, biometrics — use [isMobile] instead.
   static bool get isTouchPrimary {
     switch (defaultTargetPlatform) {
       case TargetPlatform.iOS:

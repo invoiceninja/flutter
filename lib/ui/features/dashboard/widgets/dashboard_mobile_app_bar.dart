@@ -10,7 +10,10 @@ import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 
 /// Narrow-layout `AppBar` for the dashboard: hamburger + title + icon actions.
 /// Wide layouts use the bespoke `DashboardTopBar` inside the body instead — see
-/// `DashboardScreen`.
+/// `DashboardScreen`. Since flutter#51 a phone renders this bar in *either*
+/// orientation, so the landscape case arrives here through `Breakpoints.isPhone`
+/// rather than through a narrow pane — and with the rail up (window ≥ 600) it
+/// arrives in the no-hamburger shape below.
 ///
 /// **The title is the page name, not the company name** (flutter#50). It used
 /// to be the active company, which truncated on most real company names and
@@ -120,7 +123,8 @@ class DashboardMobileAppBar extends StatelessWidget
         IconButton(
           tooltip: context.tr('customize'),
           icon: const Icon(Icons.dashboard_customize_outlined),
-          onPressed: () => openManageDashboardCards(context, vm: vm),
+          onPressed: () =>
+              openManageDashboardCards(context, vm: vm, mobileLayout: true),
         ),
         if (onNewInvoice != null)
           IconButton(

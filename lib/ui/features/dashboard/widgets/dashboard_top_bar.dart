@@ -23,7 +23,9 @@ import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet
 /// page while the user is reading it. Pull-to-refresh still works.
 ///
 /// Mobile uses a standard `AppBar` instead — see `DashboardScreen` for the
-/// narrow-width path.
+/// narrow path, which since flutter#51 is "narrow pane **or** phone": a handset
+/// in landscape leaves a ~660 px pane, wide enough by width alone but nowhere
+/// near enough for this bar's title column plus five full-label buttons.
 class DashboardTopBar extends StatelessWidget {
   const DashboardTopBar({
     super.key,
@@ -146,7 +148,7 @@ class DashboardTopBar extends StatelessWidget {
                     formatter: formatter,
                   ),
                   DashboardSettingsButton(vm: vm),
-                  DashboardCardsButton(vm: vm),
+                  DashboardCardsButton(vm: vm, mobileLayout: false),
                   if (onNewInvoice != null)
                     FilledButton.icon(
                       onPressed: onNewInvoice,

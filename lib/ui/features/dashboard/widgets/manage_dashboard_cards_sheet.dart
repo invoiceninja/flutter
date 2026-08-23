@@ -24,9 +24,18 @@ enum ManagePane { cards, panels }
 /// (metric cards + list panels). Styled identically to `DashboardSettingsButton`
 /// so the dashboard chrome reads as one family.
 class DashboardCardsButton extends StatelessWidget {
-  const DashboardCardsButton({super.key, required this.vm});
+  const DashboardCardsButton({
+    super.key,
+    required this.vm,
+    required this.mobileLayout,
+  });
 
   final DashboardViewModel vm;
+
+  /// See [openManageDashboardCards]. Required rather than defaulted: this
+  /// button is a wide-bar control today, but a default is exactly how the
+  /// Panels tab came to disagree with the dashboard behind it.
+  final bool mobileLayout;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +55,8 @@ class DashboardCardsButton extends StatelessWidget {
         context.tr('customize'),
         style: const TextStyle(fontSize: 13),
       ),
-      onPressed: () => openManageDashboardCards(context, vm: vm),
+      onPressed: () =>
+          openManageDashboardCards(context, vm: vm, mobileLayout: mobileLayout),
     );
   }
 }
@@ -55,9 +65,21 @@ class DashboardCardsButton extends StatelessWidget {
 /// two columns (compose | current). Narrow → full-height scroll-controlled
 /// bottom sheet, single column. Both host the same live editor; mutations
 /// apply instantly (no Save gate).
+///
+/// [mobileLayout] says which dashboard body this surface is editing, and is
+/// **not** the same question as the presentation above. The presentation
+/// follows the *window*, which is the right input for "dialog or sheet"; the
+/// Panels tab needs the *pane* (plus the phone test), because that is what
+/// decides whether past-due is a reorderable panel or pinned to the mobile
+/// hero zone. The two disagree for a 600–832 px desktop window (the rail
+/// leaves the pane under 600) and, since flutter#51, for every phone in
+/// landscape. Only the caller knows the answer, so it is passed rather than
+/// re-derived here — and it is required, because the default it used to have
+/// silently made past-due draggable in a layout that ignores the order.
 Future<void> openManageDashboardCards(
   BuildContext context, {
   required DashboardViewModel vm,
+  required bool mobileLayout,
   ManagePane initialTab = ManagePane.cards,
 }) {
   final wide = MediaQuery.sizeOf(context).width >= 600;
@@ -68,7 +90,12 @@ Future<void> openManageDashboardCards(
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
-          child: _ManageBody(vm: vm, twoColumn: true, initialTab: initialTab),
+          child: _ManageBody(
+            vm: vm,
+            twoColumn: true,
+            initialTab: initialTab,
+            mobileLayout: mobileLayout,
+          ),
         ),
       ),
     );
@@ -78,7 +105,12 @@ Future<void> openManageDashboardCards(
     isScrollControlled: true,
     builder: (_) => FractionallySizedBox(
       heightFactor: 0.92,
-      child: _ManageBody(vm: vm, twoColumn: false, initialTab: initialTab),
+      child: _ManageBody(
+        vm: vm,
+        twoColumn: false,
+        initialTab: initialTab,
+        mobileLayout: mobileLayout,
+      ),
     ),
   );
 }
@@ -88,10 +120,17 @@ class _ManageBody extends StatefulWidget {
     required this.vm,
     required this.twoColumn,
     required this.initialTab,
+    required this.mobileLayout,
   });
   final DashboardViewModel vm;
+
+  /// Presentation only (dialog vs sheet) — see [mobileLayout] for why these
+  /// are two separate flags.
   final bool twoColumn;
   final ManagePane initialTab;
+
+  /// True when the dashboard behind this surface is `MobileDashboardBody`.
+  final bool mobileLayout;
 
   @override
   State<_ManageBody> createState() => _ManageBodyState();
@@ -238,7 +277,9 @@ class _ManageBodyState extends State<_ManageBody> {
   // One bounded-height pane (Expanded works under the bounded Dialog/sheet in
   // both layouts) + a reset-to-defaults footer.
   List<Widget> _panelsBody(BuildContext context) => [
-    Expanded(child: _PanelsPane(vm: vm)),
+    Expanded(
+      child: _PanelsPane(vm: vm, mobileLayout: widget.mobileLayout),
+    ),
     SizedBox(height: InSpacing.sm),
     ListenableBuilder(
       listenable: vm,
@@ -669,8 +710,14 @@ class _CardRow extends StatelessWidget {
 /// `vm.panelPrefs`; module-disabled panels are kept (their saved state survives)
 /// but flagged so toggling them isn't a silent dead control.
 class _PanelsPane extends StatefulWidget {
-  const _PanelsPane({required this.vm});
+  const _PanelsPane({required this.vm, required this.mobileLayout});
   final DashboardViewModel vm;
+
+  /// True when the dashboard behind this pane is `MobileDashboardBody`, which
+  /// pins past-due to its hero zone and drops it from the ordered trailing
+  /// panels — so the row is presented as pinned, and the remaining five
+  /// reorder through `reorderTrailingPanels`.
+  final bool mobileLayout;
 
   @override
   State<_PanelsPane> createState() => _PanelsPaneState();
@@ -704,10 +751,6 @@ class _PanelsPaneState extends State<_PanelsPane> {
       if (moduleOn(EntityType.recurringInvoice))
         DashboardKind.upcomingRecurring,
     };
-    // A phone only ever sees the mobile layout, where past-due is pinned to the
-    // hero zone and its order slot is ignored — so present it as non-draggable.
-    final narrow = MediaQuery.sizeOf(context).width < 600;
-
     return _PaneCard(
       title: context.tr('panels'),
       fill: true,
@@ -736,7 +779,15 @@ class _PanelsPaneState extends State<_PanelsPane> {
           );
 
           // Wide: a single list, 1:1 with panelPrefs.
-          if (!narrow) {
+          //
+          // Which arm this takes is passed in, never measured here. The mobile
+          // body pins past-due to the hero zone and ignores its order slot, and
+          // this surface floats on the root navigator where the only thing it
+          // can measure is the *window* — which reads "wide" both for a
+          // 600–832 px desktop window and for every phone in landscape, in each
+          // of which the dashboard is rendering the mobile body. Measuring it
+          // here made the past-due drag handle a dead control there.
+          if (!widget.mobileLayout) {
             return ReorderableListView.builder(
               scrollController: _scroll,
               padding: listPadding,

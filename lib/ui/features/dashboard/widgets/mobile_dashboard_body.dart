@@ -126,7 +126,11 @@ class MobileDashboardBody extends StatelessWidget {
                     ConfiguredCardsGrid(
                       vm: vm,
                       formatter: formatter,
-                      onManage: () => openManageDashboardCards(context, vm: vm),
+                      onManage: () => openManageDashboardCards(
+                        context,
+                        vm: vm,
+                        mobileLayout: true,
+                      ),
                       onOpenCard: onOpenCard,
                     ),
                   ],

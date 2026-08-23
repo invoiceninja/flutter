@@ -514,4 +514,82 @@ void _permissionTests() {
       );
     });
   });
+
+  group('AuthSession.isWhiteLabelLapsed', () {
+    // Offsets from `now`, never literal calendar days: CI runs UTC and the dev
+    // machines don't, so a fixed date would flip across the boundary.
+    String daysFromNow(int days) =>
+        DateTime.now().add(Duration(days: days)).toIso8601String();
+
+    test('blanked slug + a past expiry reads as lapsed', () {
+      // Exactly what the server sends once a license runs out: `getPlan()`
+      // returns '' while `plan_expires` is still transmitted raw, which is the
+      // only way to tell "renew" from "never bought one".
+      final s = _session(isHosted: false, planExpires: daysFromNow(-30));
+      expect(s.isWhiteLabeled, isFalse);
+      expect(s.isWhiteLabelLapsed, isTrue);
+    });
+
+    test('a live license is not lapsed', () {
+      final s = _session(
+        isHosted: false,
+        plan: 'white_label',
+        planExpires: daysFromNow(30),
+      );
+      expect(s.isWhiteLabelLapsed, isFalse);
+    });
+
+    test('the slug wins over a stale date — it is server-authoritative', () {
+      final s = _session(
+        isHosted: false,
+        plan: 'white_label',
+        planExpires: daysFromNow(-1),
+      );
+      expect(s.isWhiteLabelLapsed, isFalse);
+    });
+
+    test('never licensed (no date at all) is not lapsed', () {
+      expect(_session(isHosted: false).isWhiteLabelLapsed, isFalse);
+    });
+
+    test('an unparseable date is not lapsed', () {
+      final s = _session(isHosted: false, planExpires: 'not-a-date');
+      expect(s.isWhiteLabelLapsed, isFalse);
+    });
+
+    test('a MySQL zero-date is never-licensed, not lapsed', () {
+      // The trap: `DateTime.tryParse('0000-00-00')` returns year -1, NOT
+      // null, so a bare parse tells someone who never bought a license that
+      // theirs expired. React guards the same way (`year() > 2000`).
+      final s = _session(isHosted: false, planExpires: '0000-00-00');
+      expect(s.planExpiresDate, isNull);
+      expect(s.isWhiteLabelLapsed, isFalse);
+    });
+
+    test('a migrated-v4 epoch sentinel is not lapsed either', () {
+      final s = _session(isHosted: false, planExpires: '1970-01-01');
+      expect(s.isWhiteLabelLapsed, isFalse);
+    });
+
+    test('the sentinel boundary is year 2000 inclusive', () {
+      expect(
+        _session(isHosted: false, planExpires: '2000-12-31').planExpiresDate,
+        isNull,
+      );
+      expect(
+        _session(isHosted: false, planExpires: '2001-01-01').planExpiresDate,
+        isNotNull,
+      );
+    });
+
+    test('hosted never reports lapsed — that is isPlanExpired\'s job', () {
+      final s = _session(
+        isHosted: true,
+        plan: 'pro',
+        planExpires: daysFromNow(-30),
+      );
+      expect(s.isWhiteLabelLapsed, isFalse);
+      expect(s.isPlanExpired, isTrue);
+    });
+  });
 }

@@ -31,7 +31,22 @@ class TrialFooter extends StatelessWidget {
     return ValueListenableBuilder<AuthSession?>(
       valueListenable: session,
       builder: (context, value, _) {
-        if (value == null || !value.isTrial) {
+        // `isHosted &&`, not a bare `isTrial`: a trial is a hosted-only
+        // concept, but the server reuses `trial_days_left` on self-hosted as a
+        // *white-label license* countdown (`AccountTransformer`:
+        // `isSelfHost() ? getTrialDays() : 0`), so `isTrial` flips true for the
+        // last fortnight of a perfectly valid license. Without this guard a
+        // licensed self-hosted user is told their free trial expires in 7 days
+        // — escalating to the red urgent card at <=3. `_PlanStatusCard` and
+        // `_PlanCard` already carry the same guard.
+        //
+        // Caveat worth knowing before "fixing" this: hosted sends a literal 0
+        // for `trial_days_left` and never sends `num_trial_days`, so
+        // `AuthSession.isTrial` is currently unreachable on hosted too and this
+        // card renders nowhere. That is a separate defect in `isTrial` (it also
+        // costs trialing users their Pro feature access) — do not paper over it
+        // by reverting the guard here.
+        if (value == null || !value.isHosted || !value.isTrial) {
           return const SizedBox.shrink();
         }
         final tokens = context.inTheme;

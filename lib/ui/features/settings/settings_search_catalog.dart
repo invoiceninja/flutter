@@ -9,6 +9,7 @@ export 'package:admin/domain/plan_gate.dart'
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart';
+import 'package:admin/ui/features/settings/views/basic/account_management/plan_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/address_screen.dart';
 import 'package:admin/ui/features/transaction_rules/views/transaction_rule_list_screen.dart';
 import 'package:admin/ui/features/settings/views/basic/company_details/company_details_screen.dart';
@@ -409,18 +410,10 @@ const kSettingsSearchCatalog = <String, List<String>>{
     ...kWorkflowSettingsQuotesSearchKeys,
   ],
   'account_management': [
-    // Plan
-    'plan',
-    'free',
-    'pro',
-    'enterprise',
-    'free_trial',
-    'change_plan',
-    'upgrade_plan',
-    'expires_on',
-    // `days_left_label`, not `days_left` — search renders a field key raw and
-    // the Transifex string is ":days days left".
-    'days_left_label',
+    // Plan — spread from the screen's own constant rather than duplicated by
+    // hand, so `search_catalog_consistency_test` can hold the two ends
+    // together. (The remaining tabs below have no co-located list yet.)
+    ...kAccountManagementPlanSearchKeys,
     // Overview
     'account_id',
     'email',
@@ -431,8 +424,6 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'include_drafts',
     'include_deleted',
     'force_full_sync',
-    'purchase_license',
-    'apply_license',
     // Enabled modules
     'enabled_modules',
     // Integrations hub tiles + the Analytics screen's GA / Matomo fields, now

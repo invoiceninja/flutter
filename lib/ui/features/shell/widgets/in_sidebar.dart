@@ -26,6 +26,7 @@ import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_header.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
+import 'package:admin/ui/features/shell/widgets/white_label_footer.dart';
 import 'package:admin/ui/features/shell/widgets/window_caption_strip.dart';
 
 /// Width of the persistent sidebar used by `ScaffoldWithNav` on wide
@@ -355,6 +356,7 @@ class _InSidebarState extends State<InSidebar> {
                     touch: touch,
                   ),
                   TrialFooter(compact: collapsed),
+                  WhiteLabelFooter(compact: collapsed),
                 ],
               ),
             );

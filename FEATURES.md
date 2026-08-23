@@ -953,6 +953,10 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Hosted upgrade via App Store / Play IAP (web/desktop → portal) | — | ✅ | 🟡 | ✅ | |
 | `premium_business_plus` / `white_label` treated as full paid tiers | — | — | ✅ | ✅ | |
 | Trial-expires-soon urgent footer (≤3 days) | ✅ | ✅ | ✅ | ✅ | |
+| Purchase License (self-hosted white label) | ✅ | ✅ | ✅ | ✅ | |
+| Apply License (redeem key) | ✅ | ✅ | ✅ | ✅ | |
+| Renew a lapsed white-label license | — | — | ✅ | | |
+| Purchase White Label CTA in shell chrome (self-hosted, unlicensed, admin) | ✅ | ✅ | ✅ | | |
 
 #### Account Management — Overview
 
@@ -967,8 +971,6 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Include Drafts in lists | ✅ | ✅ | ✅ | ✅ | |
 | Include Deleted in lists | ✅ | ✅ | ✅ | ✅ | |
 | Force Full Sync | ✅ | ✅ | ✅ | ✅ | |
-| Purchase License | ✅ | ✅ | ✅ | ✅ | |
-| Apply License | ✅ | ✅ | ✅ | ✅ | |
 
 #### Account Management — Enabled Modules
 

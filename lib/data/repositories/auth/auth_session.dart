@@ -249,6 +249,46 @@ class AuthSession {
   /// [isProPlan] / [isEnterprisePlan]) whether or not a license is applied.
   bool get isWhiteLabeled => plan == 'white_label';
 
+  /// Self-hosted white-label license whose expiry has passed — the counterpart
+  /// to [isPlanExpired], which stays hosted-only on purpose (self-hosted
+  /// feature access must never be gated on a plan date).
+  ///
+  /// The server blanks the slug once the date passes (`Account::getPlan()`
+  /// returns `''` when `plan_expires` is in the past) but still transmits the
+  /// raw `plan_expires`, so a lapsed license arrives as `plan: ''` **plus** a
+  /// past date — distinguishable from never-licensed, which carries no date at
+  /// all. That lets the Plan tab say "renew" instead of "buy".
+  ///
+  /// Deliberately transient: the nightly `VersionCheck` sweep eventually nulls
+  /// `plan_expires` too, after which this reads false and the UI falls back to
+  /// the purchase copy. Best-effort nicety, never a gate.
+  bool get isWhiteLabelLapsed {
+    if (isHosted || isWhiteLabeled) return false;
+    final expires = planExpiresDate;
+    return expires != null && expires.isBefore(DateTime.now());
+  }
+
+  /// [planExpires] parsed, but only when the server meant it as a real date.
+  ///
+  /// `accounts.plan_expires` is a nullable DATE that can also hold a MySQL
+  /// zero-date or a migrated-v4 sentinel, and `DateTime.tryParse('0000-00-00')`
+  /// yields **year -1 rather than null** — so a bare parse reads "never
+  /// licensed" as "expired", and [isWhiteLabelLapsed] would tell a user who
+  /// never bought a license that theirs ran out. React applies the same
+  /// `year() > 2000` test before rendering the date (`Plan.tsx:56`), which is
+  /// what tipped us off that the server really does emit such values.
+  ///
+  /// Only [isWhiteLabelLapsed] routes through this today. [isPlanExpired] and
+  /// the Plan / Overview expiry rows deliberately still parse raw: a licensed
+  /// account always receives a real date from the claim, so their exposure is
+  /// theoretical, and widening the guard would change hosted behaviour for no
+  /// observed defect. If display parity with React is ever wanted, the
+  /// `forever_free` string already ships for the sub-2000 case.
+  DateTime? get planExpiresDate {
+    final parsed = DateTime.tryParse(planExpires);
+    return (parsed == null || parsed.year <= 2000) ? null : parsed;
+  }
+
   /// Trial-aware Pro gate — **this is what feature gating should call**, not
   /// [isProPlan]. Trialing hosted users get full Pro features for free
   /// (parity with admin-portal's `!isProPlan && !isTrial` gate predicates),

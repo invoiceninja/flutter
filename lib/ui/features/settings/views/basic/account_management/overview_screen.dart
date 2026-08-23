@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/resync_controller.dart';
@@ -9,17 +8,12 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
-import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/company_settings_gate.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/plan_screen.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
-
-const String _kWhiteLabelUrl =
-    'https://invoiceninja.com/self-host-white-label/';
 
 /// Account Management → Overview. Five cards:
 ///   1. Plan info (plan name, trial countdown OR expiry, hosted client cap).
@@ -27,6 +21,10 @@ const String _kWhiteLabelUrl =
 ///   3. Default company (Set as default button when not already default).
 ///   4. Company toggles (activate, PDF/email markdown, include drafts/deleted).
 ///   5. Data (Force full sync — pre-existing).
+///
+/// The self-hosted White Label card (Purchase / Renew / Apply License) used to
+/// live here; it moved to the Plan tab in issue #41, which left that tab with
+/// nothing actionable on a self-hosted install. React groups it the same way.
 class AccountManagementOverviewScreen extends StatefulWidget {
   const AccountManagementOverviewScreen({super.key});
 
@@ -65,7 +63,6 @@ class _AccountManagementOverviewScreenState
                 sections: [
                   if (!ready) const CompanySettingsLockedBanner(),
                   _PlanCard(session: value),
-                  if (!value.isHosted) const _SelfHostedLicenseCard(),
                   _AccountInfoCard(session: value),
                   if (value.defaultCompanyId != value.currentCompanyId)
                     _DefaultCompanySection(
@@ -423,152 +420,6 @@ class _ToggleRow extends StatelessWidget {
       onChanged: onChanged,
     );
   }
-}
-
-class _SelfHostedLicenseCard extends StatefulWidget {
-  const _SelfHostedLicenseCard();
-
-  @override
-  State<_SelfHostedLicenseCard> createState() => _SelfHostedLicenseCardState();
-}
-
-class _SelfHostedLicenseCardState extends State<_SelfHostedLicenseCard> {
-  bool _busy = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return FormSection(
-      title: context.tr('license'),
-      children: [
-        Wrap(
-          spacing: InSpacing.md(context),
-          runSpacing: InSpacing.sm,
-          children: [
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(minimumSize: const Size(160, 44)),
-              icon: const Icon(Icons.shopping_cart_outlined),
-              label: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(context.tr('purchase_license')),
-                  SizedBox(width: InSpacing.sm),
-                  Icon(Icons.open_in_new, size: 16, color: tokens.ink3),
-                ],
-              ),
-              onPressed: _busy ? null : () => _purchase(context),
-            ),
-            FilledButton.tonal(
-              style: FilledButton.styleFrom(minimumSize: const Size(160, 44)),
-              onPressed: _busy ? null : () => _onApply(context),
-              child: _busy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(context.tr('apply_license')),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _purchase(BuildContext context) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final errorMsg =
-        Localization.of(context)?.lookup('failed_to_open_url') ??
-        'failed_to_open_url';
-    final uri = Uri.parse(_kWhiteLabelUrl);
-    try {
-      if (await canLaunchUrl(uri)) {
-        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (ok) return;
-      }
-    } catch (_) {
-      /* fall through */
-    }
-    if (messenger == null) return;
-    // ignore: use_build_context_synchronously
-    Notify.error(messenger.context, errorMsg, messenger: messenger);
-  }
-
-  Future<void> _onApply(BuildContext context) async {
-    final licenseKey = await _promptLicenseKey(context);
-    if (licenseKey == null || licenseKey.isEmpty) return;
-    if (!context.mounted) return;
-    final services = context.read<Services>();
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final successMsg = context.tr('bought_white_label');
-    final errorMsg = context.tr('error_refresh_page');
-    setState(() => _busy = true);
-    try {
-      await services.auth.applyLicense(licenseKey);
-      if (!mounted) return;
-      // The messenger is captured pre-await and Notify uses it directly;
-      // the context arg is only consulted as a fallback.
-      // ignore: use_build_context_synchronously
-      Notify.success(context, successMsg, messenger: messenger);
-    } catch (e) {
-      if (!mounted) return;
-      // ignore: use_build_context_synchronously
-      Notify.error(context, errorMsg, error: e, messenger: messenger);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-}
-
-/// Inline single-field input dialog. Returns the trimmed entered value, or
-/// null when the user cancels. Kept private to this screen — if a third
-/// place ever needs it, lift to `lib/ui/core/widgets/`.
-Future<String?> _promptLicenseKey(BuildContext context) async {
-  final controller = TextEditingController();
-  final result = await showDialog<String>(
-    context: context,
-    builder: (ctx) {
-      void submit() {
-        final v = controller.text.trim();
-        if (v.isEmpty) return;
-        Navigator.of(ctx).pop(v);
-      }
-
-      return AlertDialog(
-        title: Text(ctx.tr('apply_license')),
-        content: SizedBox(
-          width: 360,
-          child: FormSaveScope(
-            enabled: true,
-            onSubmit: submit,
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: ctx.tr('license'),
-                border: const OutlineInputBorder(),
-              ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => submit(),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(ctx.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: ctx.tr('submit'),
-            autofocus: false,
-            onPressed: submit,
-          ),
-        ],
-      );
-    },
-  );
-  controller.dispose();
-  return result;
 }
 
 class _DataCard extends StatelessWidget {

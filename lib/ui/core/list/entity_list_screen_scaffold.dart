@@ -5,7 +5,8 @@ import 'package:admin/app/router.dart'
         entityRecordPath,
         goEntityRecord,
         highlightSelectedIdFromRoute,
-        selectedIdFromRoute;
+        selectedIdFromRoute,
+        settingsIndexRedirect;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +39,7 @@ import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/settings/widgets/settings_two_pane_scope.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -1002,13 +1004,42 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                 ],
               );
             }
+
+            // Settings destinations that happen to be entity lists — Credit
+            // Cards & Banks, Payment Links, Expense Categories — take the same
+            // back arrow as every other settings page instead of a hamburger
+            // (issue #40). Computed here, *below* the embedded branch: an
+            // embedded list has no AppBar to put it in, and this is the app's
+            // most-reused widget.
+            //
+            // Both inputs are deliberately static-ish. The entity's registry
+            // route (not the live URL) survives a master-detail pane floating
+            // over the list, and keeps this off the router's rebuild path —
+            // `GoRouterState.of` registers an InheritedNotifier dependency, so
+            // reading it here would relayout every list on every row click.
+            // `settingsIndexRedirect` is the router's own predicate for
+            // whether `/settings` renders the menu at this width; above it the
+            // index redirects to Company Details, so "back to Settings" would
+            // land somewhere the user has never been.
+            final settingsBackTarget = settingsBackTargetFor(
+              routePath:
+                  _services.entityRegistry[_vm.entityType]?.routePath ?? '',
+              menuVisible:
+                  settingsIndexRedirect(
+                    screenWidth: MediaQuery.sizeOf(context).width,
+                    sidebarCollapsed: _services.sidebar.value,
+                  ) ==
+                  null,
+            );
             return Scaffold(
               // The shell's company switcher + branch nav live in this
               // drawer when the global persistent rail isn't shown. Keying
               // off the *window* width (via [globalNav]) — not the local
               // [wide] — avoids a redundant hamburger at medium widths
               // where the rail is visible but our pane is < 600 px.
-              drawer: globalNav ? null : const AppDrawer(),
+              drawer: (globalNav || settingsBackTarget != null)
+                  ? null
+                  : const AppDrawer(),
               // Wide hosts an inline "New X" button inside the top row, so
               // the FAB is mobile-only. Selection mode hides it either way.
               // When `canCreate` is false (plan-gated), the FAB is also
@@ -1034,6 +1065,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                       vm: _vm,
                       wide: wide,
                       showHamburger: !globalNav,
+                      settingsBackTarget: settingsBackTarget,
                       titleKey: widget.titleKey,
                       newRoute: widget.newRoute,
                       newLabelKey: widget.newLabelKey,

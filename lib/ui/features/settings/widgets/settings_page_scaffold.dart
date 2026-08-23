@@ -149,7 +149,14 @@ class _SettingsPageBody extends StatelessWidget {
               if (!discard) return;
               viewModel.reset();
               if (!context.mounted) return;
-              await Navigator.of(context).maybePop();
+              // `pop`, not `maybePop`: `PopScope.canPop` is a build-time value
+              // and its notifier hasn't caught up with the `reset()` above, so
+              // the route still reports `doNotPop` — `maybePop` would re-enter
+              // this very callback, hit the `!isDirty` early-return above, and
+              // silently leave the user on the page they just discarded.
+              // Guarded because `pop` has no floor of its own: it pops whatever
+              // is on top, even the last route.
+              if (Navigator.of(context).canPop()) Navigator.of(context).pop();
             },
             child: SettingsScreenScaffold(
               titleKey: titleKey,

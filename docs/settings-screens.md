@@ -197,6 +197,38 @@ The anti-pattern: a top-level `ListView(padding: EdgeInsets.all(InSpacing.lg), c
 
 The TabBar above an entity's edit tabs stays full-width — TabBars conventionally span the full bottom of the AppBar (matches `CascadeTabbedSettingsShell` for Localization). Only the per-tab body gets capped.
 
+## AppBar chrome: back arrow vs hamburger
+
+`SettingsScreenScaffold` picks the leading widget; ~40 screens funnel through it,
+so don't hand-roll one. The rule is **not** width alone (that was issue #40 —
+the hamburger owned the slot at every narrow width, so the arrow could never
+appear, and the screen offered no way back to the Settings menu):
+
+- **Section list beside you** (`SettingsTwoPaneScope.of(context)`, published by
+  `SettingsShell` from the `LayoutBuilder` that decides the split) → no leading.
+  An arrow would be actively wrong there: `/settings` redirects straight back
+  out to Company Details at that width.
+- **Otherwise, a sub-page** (`Navigator.canPop()`) → `const BackButton()`. It
+  pops, which runs the page's `PopScope` discard guard and matches what the
+  Android back gesture does. Settings routes carry no `GoRoute.onExit`, so a
+  `go()`-based back would skip the guard silently.
+- **Otherwise, narrow** → `DrawerHamburger()` + the `AppDrawer`. This is the
+  `/settings` index, a nav root. Sub-pages deliberately drop `drawer:` so the
+  Scaffold's edge-drag can't fight the back gesture.
+- An explicit `leading:` still wins at every width, for drill-ins that want an
+  arrow even on two-pane.
+
+`automaticallyImplyLeading` is **always false** here. Leave it inferred and
+`AppBar` synthesizes its own back button from `impliesAppBarDismissal` — true on
+every nested settings page — putting an arrow on the two-pane layout.
+
+Settings destinations that are *entity lists* (Credit Cards & Banks, Payment
+Links, Expense Categories) don't reach this scaffold; `settingsBackTargetFor`
+(`settings_two_pane_scope.dart`) gives `EntityListScreenScaffold` the same
+affordance. Note the arrow is structural **Up**, not history Back: landing on
+the URL-parent makes `NavHistoryController` *replace* the entry rather than
+append (CLAUDE.md § Strict rules).
+
 ## Anti-pattern: User Details ListView+ListTile shape (full version)
 
 Do not introduce raw `ListView` + `ListTile` layouts (icon-leading row tiles, dividers between rows) for new settings panels. Even simple toggles or single actions belong inside a `FormSection` so the whole settings sidebar reads as one design system. The User Details and Preferences screens use FormSection cards now too — they're the right precedent, not the old pre-conversion shape.

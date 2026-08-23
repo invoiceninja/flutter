@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -32,6 +33,7 @@ class EntityListNormalAppBar<T> extends StatelessWidget
     required this.searchField,
     this.extraActions = const [],
     this.showHamburger = true,
+    this.settingsBackTarget,
     this.canCreate = true,
   });
 
@@ -51,6 +53,16 @@ class EntityListNormalAppBar<T> extends StatelessWidget
   /// width) — otherwise the hamburger opens a Drawer that just renders the
   /// same nav again.
   final bool showHamburger;
+
+  /// Set on the entity lists that are **Settings destinations**
+  /// (`/settings/company_gateways`, `/settings/payment_links`,
+  /// `/settings/expense_categories`): the leading slot becomes a back arrow to
+  /// the Settings menu instead of the hamburger, so they match every other
+  /// settings page (issue #40). `null` on a normal entity list, which keeps
+  /// today's hamburger. The value is where to `go()` when the route can't pop
+  /// — Expense Categories is a sibling branch outside the settings shell, so a
+  /// pop has nothing to land on.
+  final String? settingsBackTarget;
 
   /// Localization key for the narrow-mode title (e.g. `clients`, `products`).
   final String titleKey;
@@ -118,7 +130,17 @@ class EntityListNormalAppBar<T> extends StatelessWidget
       // mode swaps to a different AppBar (Cancel-X leading), so this only
       // shows when neither selecting nor wide. Suppressed via
       // [showHamburger] when the host shell already shows a persistent nav.
-      leading: showHamburger ? const DrawerHamburger() : null,
+      // A Settings destination takes a back arrow in that slot instead — see
+      // [settingsBackTarget]. Gateways and Payment Links are nested settings
+      // routes and can pop (which is also what the system back gesture does);
+      // Expense Categories is its own branch, so it navigates.
+      leading: settingsBackTarget != null
+          ? BackButton(
+              onPressed: () => Navigator.of(context).canPop()
+                  ? Navigator.of(context).pop()
+                  : GoRouter.of(context).go(settingsBackTarget!),
+            )
+          : (showHamburger ? const DrawerHamburger() : null),
       automaticallyImplyLeading: false,
       title: Text(context.tr(titleKey)),
       actions: [

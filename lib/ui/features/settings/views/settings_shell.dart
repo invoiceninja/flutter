@@ -6,6 +6,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/settings/views/settings_screen.dart';
 import 'package:admin/ui/features/settings/widgets/settings_scope_banner.dart';
+import 'package:admin/ui/features/settings/widgets/settings_two_pane_scope.dart';
 
 /// Phase 12: transient flag flipped by design-edit entry helpers
 /// (`showWysiwygDesignScreen` / `showDesignEditScreen` in
@@ -41,7 +42,14 @@ class SettingsShell extends StatelessWidget {
         // tablets, so gate the split at [Breakpoints.settingsTwoPane]. Below
         // it we pass through to single-pane full-screen navigation.
         final wide = constraints.maxWidth >= Breakpoints.settingsTwoPane;
-        if (!wide) return child;
+        // Both branches publish, even though the narrow one's value matches
+        // the absent-default: a page reading `false` because nothing published
+        // and a page reading `false` because the shell said so are the same
+        // answer today, but only the second stays true if the default ever
+        // changes.
+        if (!wide) {
+          return SettingsTwoPaneScope(isTwoPane: false, child: child);
+        }
 
         final atIndex = GoRouterState.of(context).uri.path == '/settings';
         // The scope banner is rendered by `SettingsScreenScaffold`
@@ -69,45 +77,48 @@ class SettingsShell extends StatelessWidget {
                 ],
               )
             : child;
-        return Scaffold(
-          body: ValueListenableBuilder<bool>(
-            valueListenable: hideSettingsListSidebar,
-            builder: (context, hidden, _) {
-              // Phase 13: slide the sidebar off the left edge instead
-              // of popping it out — mirrors MaterialPageRoute's
-              // 300 ms slide-in on the right pane so both halves of
-              // the transition feel coordinated. Mirrors the same
-              // AnimatedContainer + ClipRect + OverflowBox recipe
-              // `in_sidebar.dart` uses for its rail collapse, but
-              // pins to `centerRight` so contents drift LEFT as the
-              // box shrinks (vs the rail's `centerLeft` accordion
-              // close).
-              return Row(
-                children: [
-                  RepaintBoundary(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOutCubic,
-                      width: hidden ? 0 : 280,
-                      color: Theme.of(context).colorScheme.surface,
-                      child: ClipRect(
-                        child: OverflowBox(
-                          alignment: Alignment.centerRight,
-                          minWidth: 280,
-                          maxWidth: 280,
-                          child: Material(
-                            color: Theme.of(context).colorScheme.surface,
-                            child: const SettingsListSidebar(),
+        return SettingsTwoPaneScope(
+          isTwoPane: true,
+          child: Scaffold(
+            body: ValueListenableBuilder<bool>(
+              valueListenable: hideSettingsListSidebar,
+              builder: (context, hidden, _) {
+                // Phase 13: slide the sidebar off the left edge instead
+                // of popping it out — mirrors MaterialPageRoute's
+                // 300 ms slide-in on the right pane so both halves of
+                // the transition feel coordinated. Mirrors the same
+                // AnimatedContainer + ClipRect + OverflowBox recipe
+                // `in_sidebar.dart` uses for its rail collapse, but
+                // pins to `centerRight` so contents drift LEFT as the
+                // box shrinks (vs the rail's `centerLeft` accordion
+                // close).
+                return Row(
+                  children: [
+                    RepaintBoundary(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOutCubic,
+                        width: hidden ? 0 : 280,
+                        color: Theme.of(context).colorScheme.surface,
+                        child: ClipRect(
+                          child: OverflowBox(
+                            alignment: Alignment.centerRight,
+                            minWidth: 280,
+                            maxWidth: 280,
+                            child: Material(
+                              color: Theme.of(context).colorScheme.surface,
+                              child: const SettingsListSidebar(),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  if (!hidden) const VerticalDivider(width: 1, thickness: 1),
-                  Expanded(child: rightPane),
-                ],
-              );
-            },
+                    if (!hidden) const VerticalDivider(width: 1, thickness: 1),
+                    Expanded(child: rightPane),
+                  ],
+                );
+              },
+            ),
           ),
         );
       },

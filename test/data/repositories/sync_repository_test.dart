@@ -1211,6 +1211,73 @@ void main() {
       );
     });
 
+    test('a ghost create whose local delete throws still drops its outbox '
+        'rows — a stranded row surfaces as a tile that never goes away '
+        '(invoiceninja/flutter#44)', () async {
+      final repo = _TestRepo(db: db)..throwOnLocalDelete = true;
+      final engine = engineWith(repo);
+      final createId = await enqueueClient(
+        entityId: 'tmp_g',
+        kind: MutationKind.create,
+      );
+
+      final removed = await engine.discardOutboxRow(createId);
+
+      expect(await rawRow(createId), isNull, reason: 'the discard still lands');
+      expect(repo.localDeletes, [('co', 'tmp_g')], reason: 'it was attempted');
+      expect(
+        removed,
+        isFalse,
+        reason:
+            'false means the local record survived — a caller showing it '
+            'must NOT navigate away',
+      );
+    });
+
+    test('a ghost dependent whose local delete throws cannot reject a discard '
+        'that already succeeded', () async {
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      final parentId = await enqueueClient(
+        entityId: 'tmp_parent',
+        kind: MutationKind.create,
+      );
+      // A second ghost create whose payload references the parent — the
+      // cascade in `_failTmpDependents` hard-deletes this one too, and that
+      // runs AFTER the parent's own outbox rows are gone.
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'tmp_child',
+          mutationKind: 'create',
+          payload: jsonEncode({'id': 'tmp_child', 'parent': 'tmp_parent'}),
+          idempotencyKey: 'k-child',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+      // Throw only once the cascade reaches the child.
+      repo.throwOnLocalDeleteOf = 'tmp_child';
+
+      final removed = await engine.discardOutboxRow(parentId);
+
+      expect(
+        repo.localDeletes,
+        [('co', 'tmp_parent'), ('co', 'tmp_child')],
+        reason: 'the cascade really did reach the throwing child',
+      );
+      expect(removed, isTrue, reason: 'the parent record went');
+      expect(await rawRow(parentId), isNull);
+      expect(
+        await (db.select(
+          db.outbox,
+        )..where((o) => o.entityId.equals('tmp_child'))).get(),
+        isEmpty,
+        reason: "the child's rows go too, throw or no throw",
+      );
+    });
+
     test('discardOutboxRow on an in_flight ghost create only drops the '
         'outbox row — the network attempt may still be landing', () async {
       final repo = _TestRepo(db: db);
@@ -1873,12 +1940,23 @@ class _TestRepo extends BaseEntityRepository<Object, Object> {
   /// the local record's dirty flag (only when no other active row remained).
   final List<(String, String)> dirtyCleared = [];
 
+  /// Makes `deleteLocalById` throw — a DAO/DB failure, or a repo that hasn't
+  /// overridden the base's throwing default.
+  bool throwOnLocalDelete = false;
+
+  /// Throw for one specific entity id only — lets a test fail the cascade's
+  /// delete while the primary row's delete succeeds.
+  String? throwOnLocalDeleteOf;
+
   @override
   Future<void> deleteLocalById({
     required String companyId,
     required String id,
   }) async {
     localDeletes.add((companyId, id));
+    if (throwOnLocalDelete || id == throwOnLocalDeleteOf) {
+      throw UnsupportedError('no deleteLocalById');
+    }
   }
 
   @override

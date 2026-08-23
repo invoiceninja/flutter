@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -16,16 +15,19 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
+import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
+import 'package:admin/ui/features/sync/view_models/outbox_view_model.dart';
 
 /// Lists every outbox row for the current company so the user can inspect
 /// queued mutations, retry dead ones, or discard them.
 ///
-/// Driven by [OutboxDao.watchAll]. Rows render the entity icon (from
-/// [EntityRegistry]), a state pill, the mutation kind, retry count, the
-/// last server error, and — for 422s — the per-field validation messages
-/// the dead row carries in `field_errors_json`.
+/// Driven by [OutboxViewModel] over [OutboxDao.watchAll]. Rows render the
+/// entity icon (from [EntityRegistry]), a state pill, the mutation kind,
+/// retry count, the last server error, and — for 422s — the per-field
+/// validation messages the dead row carries in `field_errors_json`.
 class OutboxScreen extends StatelessWidget {
   const OutboxScreen({super.key});
 
@@ -45,28 +47,120 @@ class OutboxScreen extends StatelessWidget {
             leading: globalNav ? null : const DrawerHamburger(),
             title: Text(context.tr('outbox')),
           ),
-          body: StreamBuilder<List<OutboxRow>>(
-            stream: services.db.outboxDao.watchAll(companyId),
-            builder: (context, snap) {
-              final rows = snap.data ?? const <OutboxRow>[];
-              if (rows.isEmpty) {
-                return EmptyState(
-                  icon: Icons.outbox_outlined,
-                  title: context.tr('sync_queue_empty'),
-                  subtitle: context.tr('sync_queue_empty_subtitle'),
-                );
-              }
-              return ListView.separated(
-                padding: EdgeInsets.symmetric(
-                  horizontal: InSpacing.lg(context),
-                  vertical: InSpacing.md(context),
-                ),
-                itemCount: rows.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(height: InSpacing.sm),
-                itemBuilder: (context, i) => _OutboxTile(row: rows[i]),
-              );
-            },
+          body: _OutboxBody(companyId: companyId),
+        );
+      },
+    );
+  }
+}
+
+/// Owns the [OutboxViewModel] and renders the queue.
+///
+/// The row actions are handled *here*, not on the tile: a discarded tile is
+/// removed from the list the moment the action starts, so its own
+/// `BuildContext` is already unmounted by the time the call fails and could
+/// never show the error toast.
+class _OutboxBody extends StatefulWidget {
+  const _OutboxBody({required this.companyId});
+
+  final String companyId;
+
+  @override
+  State<_OutboxBody> createState() => _OutboxBodyState();
+}
+
+class _OutboxBodyState extends State<_OutboxBody> {
+  late OutboxViewModel _vm;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm = _buildVm();
+  }
+
+  @override
+  void didUpdateWidget(_OutboxBody old) {
+    super.didUpdateWidget(old);
+    // A company switch must rebind the watch — otherwise this screen keeps
+    // rendering the previous tenant's queue, and acts on it.
+    if (old.companyId != widget.companyId) {
+      _vm.dispose();
+      _vm = _buildVm();
+    }
+  }
+
+  OutboxViewModel _buildVm() {
+    final services = context.read<Services>();
+    return OutboxViewModel(
+      dao: services.db.outboxDao,
+      sync: services.sync,
+      companyId: widget.companyId,
+    );
+  }
+
+  @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
+  }
+
+  /// The row is already gone from the list by the time this resolves — a
+  /// toast only fires when the discard didn't take and the row came back.
+  Future<void> _discard(OutboxRow row) async {
+    if (await _vm.discard(row.id) || !mounted) return;
+    Notify.error(context, context.tr('an_error_occurred'));
+  }
+
+  /// Retry leaves the row in place (its state pill flips once the queue
+  /// moves), so say something either way — otherwise the tap looks inert.
+  Future<void> _retry(OutboxRow row) async {
+    final ok = await _vm.retry(row);
+    if (!mounted) return;
+    if (ok) {
+      Notify.success(context, context.tr('sync_started'));
+    } else {
+      Notify.error(context, context.tr('an_error_occurred'));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _vm,
+      builder: (context, _) {
+        // Nothing has been read yet — don't claim the queue is empty.
+        if (_vm.isLoading) return const SizedBox.shrink();
+        final rows = _vm.rows;
+        final error = _vm.error;
+        if (error != null && rows.isEmpty) {
+          return ErrorView(
+            message: context.tr('failed_to_load_with_error', {'error': error}),
+            onRetry: _vm.rebind,
+          );
+        }
+        if (rows.isEmpty) {
+          return EmptyState(
+            icon: Icons.outbox_outlined,
+            title: context.tr('sync_queue_empty'),
+            subtitle: context.tr('sync_queue_empty_subtitle'),
+          );
+        }
+        return ListView.separated(
+          padding: EdgeInsets.symmetric(
+            horizontal: InSpacing.lg(context),
+            vertical: InSpacing.md(context),
+          ),
+          itemCount: rows.length,
+          separatorBuilder: (_, _) => const SizedBox(height: InSpacing.sm),
+          // Key by row identity, not list position, so removing one row
+          // doesn't rebind every tile below it to a new row.
+          itemBuilder: (context, i) => KeyedSubtree(
+            key: ValueKey(rows[i].id),
+            child: _OutboxTile(
+              row: rows[i],
+              onDiscard: () => _discard(rows[i]),
+              onRetry: () => _retry(rows[i]),
+            ),
           ),
         );
       },
@@ -75,9 +169,15 @@ class OutboxScreen extends StatelessWidget {
 }
 
 class _OutboxTile extends StatelessWidget {
-  const _OutboxTile({required this.row});
+  const _OutboxTile({
+    required this.row,
+    required this.onDiscard,
+    required this.onRetry,
+  });
 
   final OutboxRow row;
+  final Future<void> Function() onDiscard;
+  final Future<void> Function() onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +252,12 @@ class _OutboxTile extends StatelessWidget {
                     ),
                   ],
                   const Spacer(),
-                  _RowMenu(row: row, handlers: handlers),
+                  _RowMenu(
+                    row: row,
+                    handlers: handlers,
+                    onDiscard: onDiscard,
+                    onRetry: onRetry,
+                  ),
                 ],
               ),
               if (row.lastError != null && row.lastError!.isNotEmpty) ...[
@@ -389,26 +494,32 @@ class _FieldErrors extends StatelessWidget {
 }
 
 class _RowMenu extends StatelessWidget {
-  const _RowMenu({required this.row, required this.handlers});
+  const _RowMenu({
+    required this.row,
+    required this.handlers,
+    required this.onDiscard,
+    required this.onRetry,
+  });
   final OutboxRow row;
   final EntityHandlers? handlers;
 
+  // Retry / Discard are owned by `_OutboxBodyState`: a discarded tile is
+  // pulled from the list as soon as the action starts, so this widget's
+  // context can't be the one that reports a failure.
+  final Future<void> Function() onDiscard;
+  final Future<void> Function() onRetry;
+
   @override
   Widget build(BuildContext context) {
-    final services = context.read<Services>();
     return PopupMenuButton<String>(
       tooltip: '',
       iconSize: 18,
       onSelected: (action) async {
         switch (action) {
           case 'retry':
-            await services.db.outboxDao.retryDead(
-              id: row.id,
-              now: DateTime.now().millisecondsSinceEpoch,
-            );
-            unawaited(services.sync.drainOnce(companyId: row.companyId));
+            await onRetry();
           case 'discard':
-            await services.sync.discardOutboxRow(row.id);
+            await onDiscard();
           case 'open':
             if (handlers != null && context.mounted) {
               context.go(_destinationFor(handlers!, row));

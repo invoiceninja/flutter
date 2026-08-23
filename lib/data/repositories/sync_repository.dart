@@ -205,8 +205,10 @@ class SyncRepository {
   /// attempt may be landing concurrently and would re-create the local row
   /// + write an `id_remap`, so ghost-deleting it would race that (TOCTOU).
   ///
-  /// Returns `true` when the ghost path was taken (the local record was
-  /// hard-deleted), so a caller showing that entity can navigate away.
+  /// Returns `true` when the ghost path was taken **and** the local record is
+  /// confirmed gone, so a caller showing that entity can navigate away. A
+  /// ghost discard whose local delete failed still drops the outbox rows but
+  /// returns `false` — the record is still on screen, so don't pop it.
   Future<bool> discardOutboxRow(int id) async {
     final row = await db.outboxDao.byId(id);
     if (row == null) return false;
@@ -241,10 +243,14 @@ class SyncRepository {
     // Never synced: drop the ghost local row, then every outbox row for
     // that tmp entity (queued follow-up update/delete rows are meaningless
     // once the entity is gone). `deleteAllForEntity` also removes `row`.
-    await registry
-        .byWireName(row.entityType)
-        ?.dispatcher
-        .deleteLocalRecord(companyId: row.companyId, id: row.entityId);
+    // The local delete stays FIRST — an orphaned local record with no outbox
+    // row could never reach the server (see this method's doc) — but it can
+    // no longer veto the discard; see [_deleteGhostRecord].
+    final localDeleted = await _deleteGhostRecord(
+      companyId: row.companyId,
+      entityType: row.entityType,
+      entityId: row.entityId,
+    );
     await db.outboxDao.deleteAllForEntity(
       companyId: row.companyId,
       entityType: row.entityType,
@@ -257,7 +263,41 @@ class SyncRepository {
     // logout/switch "Sync first" pending check). Recursively resolve the
     // whole offline subtree.
     await _failTmpDependents(row.companyId, row.entityId, discard: true);
-    return true;
+    return localDeleted;
+  }
+
+  /// Hard-delete a never-synced ghost's local record, best effort.
+  ///
+  /// Returns whether the record is actually gone. A failure is logged and
+  /// swallowed **on purpose**: the caller must still drop the outbox rows,
+  /// because a discard the user asked for can't be vetoed by cleanup — a
+  /// throw here used to abandon the whole discard, leaving the row queued
+  /// with no feedback at all (the symptom reported in
+  /// invoiceninja/flutter#44, though never confirmed as that report's cause).
+  /// It can fail on a DAO/DB error, or on a repo that hasn't overridden
+  /// `BaseEntityRepository.deleteLocalById`, which throws by default.
+  /// WARNING lands in the diagnostics log, so the next report names the
+  /// entity instead of leaving us guessing.
+  Future<bool> _deleteGhostRecord({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) async {
+    try {
+      await registry
+          .byWireName(entityType)
+          ?.dispatcher
+          .deleteLocalRecord(companyId: companyId, id: entityId);
+      return true;
+    } catch (e, st) {
+      _log.warning(
+        'discardOutboxRow: local ghost delete failed for '
+        '$entityType/$entityId — dropping the outbox row anyway',
+        e,
+        st,
+      );
+      return false;
+    }
   }
 
   /// Resolve outbox rows that reference an unsynced (`tmp_`) entity that has
@@ -304,10 +344,14 @@ class SyncRepository {
               ) ==
               null;
       if (discard && isGhostDep) {
-        await registry
-            .byWireName(dep.entityType)
-            ?.dispatcher
-            .deleteLocalRecord(companyId: companyId, id: dep.entityId);
+        // Same best-effort rule as the primary row — and it matters more
+        // here: this cleanup runs *after* the user's row was deleted, so a
+        // throw would reject a discard that already succeeded.
+        await _deleteGhostRecord(
+          companyId: companyId,
+          entityType: dep.entityType,
+          entityId: dep.entityId,
+        );
         await db.outboxDao.deleteAllForEntity(
           companyId: companyId,
           entityType: dep.entityType,

@@ -8,6 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
+import 'package:admin/ui/core/widgets/hidden_shell_navigator.dart';
 
 /// Lightweight shared state between `MasterDetailLayout` and the list
 /// scaffold mounted inside it. The list scaffold writes the visible
@@ -113,6 +114,7 @@ class MasterDetailLayout extends StatefulWidget {
     required this.basePath,
     required this.list,
     required this.rightPane,
+    required this.hasPane,
     this.viewMode,
   });
 
@@ -125,8 +127,19 @@ class MasterDetailLayout extends StatefulWidget {
   /// entity's branch.
   final Widget list;
 
-  /// The active right-pane widget, or `null` for the bare list URL.
-  final Widget? rightPane;
+  /// The right-pane host — go_router's `ShellRoute` `child`, i.e. the
+  /// **Navigator** that renders `/x/:id`, `/x/:id/edit` and `/x/new`.
+  ///
+  /// Always supplied, even on the bare list URL where there is nothing to
+  /// show. [hasPane] — not a null check — decides whether it is visible; see
+  /// [_hiddenPaneHost] for why it must stay mounted regardless.
+  final Widget rightPane;
+
+  /// Whether the URL has navigated past the bare list path, i.e. whether
+  /// [rightPane] currently has something to render. Derived from
+  /// `state.matchedLocation` by `buildEntityRouteBlock` — the same signal
+  /// that used to be encoded as a null [rightPane].
+  final bool hasPane;
 
   /// `?view=full` flag from the URL. Null = slide-over. `'full'` =
   /// list hidden, pane fills window.
@@ -183,6 +196,25 @@ String entityCloseTargetPath({
   return basePath;
 }
 
+/// The entity base path an editor URL sits under: `/quotes/new` → `/quotes`,
+/// `/quotes/q_1/edit` → `/quotes`. Companion to [entityCloseTargetPath] for
+/// callers that only hold the current URL — notably `EntityEditScaffold`,
+/// which lives inside the pane and never receives `basePath`. Pure for
+/// unit testing.
+String entityBasePathFromEditorPath(String path) {
+  const editSuffix = '/edit';
+  const newSuffix = '/new';
+  if (path.endsWith(newSuffix)) {
+    return path.substring(0, path.length - newSuffix.length);
+  }
+  if (path.endsWith(editSuffix)) {
+    final detail = path.substring(0, path.length - editSuffix.length);
+    final slash = detail.lastIndexOf('/');
+    return slash <= 0 ? detail : detail.substring(0, slash);
+  }
+  return path;
+}
+
 class _MasterDetailLayoutState extends State<MasterDetailLayout>
     with TickerProviderStateMixin {
   final MasterDetailNavController _navController = MasterDetailNavController();
@@ -213,7 +245,7 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
   /// feel unmotivated. Subsequent opens animate.
   bool _didFirstSync = false;
 
-  bool get _hasPane => widget.rightPane != null;
+  bool get _hasPane => widget.hasPane;
   bool get _isFullScreen => widget.viewMode == 'full';
 
   /// Whether the pane should be **docked** (`_slide` at 1) vs
@@ -362,8 +394,8 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
     final target = _isFullScreen ? 1.0 : 0.0;
     final modeFlip =
         oldWidget != null &&
-        oldWidget.rightPane != null &&
-        widget.rightPane != null &&
+        oldWidget.hasPane &&
+        widget.hasPane &&
         oldWidget.viewMode != widget.viewMode;
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     if (modeFlip && !reduceMotion) {
@@ -449,6 +481,17 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
     );
   }
 
+  /// The shell's Navigator on the bare list URL, mounted but invisible.
+  /// [HiddenShellNavigator] carries the full rationale; the short version is
+  /// that dropping it strands `navigatorKey.currentState` and makes every
+  /// platform back press throw inside go_router (issue #39).
+  ///
+  /// Both mount points below hand it the **same constraints the visible pane
+  /// would get** — `Offstage` lays its child out, and the pane subtree holds
+  /// real routes mid-transition while a pane closes, so a 0×0 box would run
+  /// their `LayoutBuilder`s and scroll positions at zero width on the way out.
+  Widget _hiddenPaneHost() => HiddenShellNavigator(child: widget.rightPane);
+
   Widget _buildTree(BuildContext context) {
     final isWide = Breakpoints.isSlideOver(context);
 
@@ -489,7 +532,9 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
     // The list is wrapped in `Offstage` so its State survives a
     // resize back to wide.
     if (!isWide) {
-      if (!_hasPane) return widget.list;
+      if (!_hasPane) {
+        return Stack(children: [widget.list, _hiddenPaneHost()]);
+      }
       return Stack(
         children: [
           Offstage(offstage: true, child: widget.list),
@@ -512,7 +557,7 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
                 isFullScreen: true,
                 isNarrow: true,
                 navController: _navController,
-                child: widget.rightPane!,
+                child: widget.rightPane,
               ),
             ),
           ),
@@ -549,6 +594,10 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
                 Positioned.fill(
                   child: Offstage(offstage: listHidden, child: widget.list),
                 ),
+                // *Positioned*, so this Stack keeps sizing itself from
+                // `constraints.biggest`: a non-positioned child would flip it
+                // to sizing from its children and collapse the layout.
+                if (!_hasPane) Positioned.fill(child: _hiddenPaneHost()),
                 if (_hasPane)
                   Positioned(
                     left: _lerp(
@@ -573,7 +622,7 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
                           isNarrow: false,
                           navController: _navController,
                           onClose: () => _closePaneAnimated(toParent: true),
-                          child: widget.rightPane!,
+                          child: widget.rightPane,
                         ),
                       ),
                     ),

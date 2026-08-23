@@ -142,7 +142,8 @@ void main() {
                 return MasterDetailLayout(
                   basePath: '/products',
                   list: const _Stub('LIST'),
-                  rightPane: hasPane ? child : null,
+                  rightPane: child,
+                  hasPane: hasPane,
                   viewMode: state.uri.queryParameters['view'],
                 );
               },

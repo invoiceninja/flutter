@@ -64,6 +64,29 @@ class _MaterialProbeBody extends StatelessWidget {
   }
 }
 
+/// Pane body that reports when its State is disposed. Guards the rule that a
+/// closed pane's route must actually go away: the hidden host keeps the shell
+/// Navigator mounted, so the exit transition has to be allowed to finish or the
+/// route sits there forever holding its view-model and subscriptions.
+class _DisposeProbe extends StatefulWidget {
+  const _DisposeProbe(this.onDispose);
+  final VoidCallback onDispose;
+  @override
+  State<_DisposeProbe> createState() => _DisposeProbeState();
+}
+
+class _DisposeProbeState extends State<_DisposeProbe> {
+  @override
+  void dispose() {
+    widget.onDispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('DETAIL')));
+}
+
 void main() {
   String currentUri(GoRouter router) =>
       router.routerDelegate.currentConfiguration.uri.toString();
@@ -90,7 +113,8 @@ void main() {
                 return MasterDetailLayout(
                   basePath: '/products',
                   list: const Scaffold(body: Center(child: Text('LIST'))),
-                  rightPane: hasPane ? child : null,
+                  rightPane: child,
+                  hasPane: hasPane,
                   viewMode: state.uri.queryParameters['view'],
                 );
               },
@@ -99,7 +123,10 @@ void main() {
           routes: [
             GoRoute(
               path: '/products',
-              builder: (_, _) => const SizedBox.shrink(),
+              // Keyed so a test can assert the shell's Navigator is still
+              // mounted (just hidden) on the bare list URL.
+              builder: (_, _) =>
+                  const SizedBox.shrink(key: ValueKey('pane_probe')),
             ),
             GoRoute(path: '/products/:id', builder: (_, _) => detail),
           ],
@@ -142,6 +169,88 @@ void main() {
     expect(currentUri(router), '/products');
     expect(find.text('DETAIL'), findsNothing);
   });
+
+  testWidgets(
+    'the shell pane host stays mounted on the bare list URL (issue #39 — '
+    'go_router dereferences its navigatorKey when the platform asks to pop)',
+    (tester) async {
+      final router = await pumpApp(tester, size: const Size(800, 900));
+      expect(currentUri(router), '/products');
+      expect(find.text('LIST'), findsOneWidget);
+      expect(find.text('DETAIL'), findsNothing);
+
+      // `rightPane` IS this ShellRoute's Navigator. Dropping it when there is
+      // nothing to show left `navigatorKey.currentState` null, and go_router
+      // resolves that key with a bang while walking for something to pop — so
+      // an Android system back on any list screen threw instead of popping
+      // (which is why back could not dismiss a filter sheet or the drawer).
+      expect(
+        find.byKey(const ValueKey('pane_probe'), skipOffstage: false),
+        findsOneWidget,
+        reason: 'the pane host must stay in the tree',
+      );
+      expect(
+        find.byKey(const ValueKey('pane_probe')),
+        findsNothing,
+        reason: '…but hidden — it must not paint, hit-test, or take focus',
+      );
+    },
+  );
+
+  testWidgets(
+    'the shell pane host stays mounted on the bare list URL at WIDE too — the '
+    'wide branch mounts it through a different code path',
+    (tester) async {
+      final router = await pumpApp(tester, size: const Size(1600, 900));
+      expect(currentUri(router), '/products');
+      expect(find.text('LIST'), findsOneWidget);
+
+      expect(
+        find.byKey(const ValueKey('pane_probe'), skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('pane_probe')), findsNothing);
+      // The hidden host must not disturb the list it shares a Stack with.
+      expect(
+        tester.getSize(find.text('LIST')).width,
+        greaterThan(0),
+        reason: 'a mis-sized hidden host would collapse the Stack',
+      );
+    },
+  );
+
+  for (final (label, size) in <(String, Size)>[
+    ('narrow', Size(800, 900)),
+    ('wide', Size(1600, 900)),
+  ]) {
+    testWidgets('closing the pane disposes the route it was showing ($label)', (
+      tester,
+    ) async {
+      var disposed = false;
+      final router = await pumpApp(
+        tester,
+        size: size,
+        detail: _DisposeProbe(() => disposed = true),
+      );
+
+      router.go('/products/1');
+      await tester.pumpAndSettle();
+      expect(disposed, isFalse);
+
+      router.go('/products');
+      await tester.pumpAndSettle();
+
+      // The shell Navigator stays mounted now, so the closing route exits via
+      // an ordinary (invisible) transition. Anything that stops that animation
+      // — a muted `TickerMode`, say — leaves it frozen mid-pop and its State,
+      // view-model and stream subscriptions alive for the whole session.
+      expect(
+        disposed,
+        isTrue,
+        reason: 'the closed pane route must still be disposed',
+      );
+    });
+  }
 
   testWidgets(
     'narrow viewport: the full-page pane starts below the status-bar inset '

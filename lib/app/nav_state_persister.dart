@@ -15,6 +15,48 @@ import 'package:admin/data/db/app_database.dart';
 ///
 /// Writes are debounced — rapid navigation (tapping through a list) produces
 /// one write at the trailing edge. The `/login` route is filtered out so we
+/// Drops query params that must never survive into a restored route — or
+/// into the back/forward history ([NavHistoryController], which records the
+/// same locations and must not treat a display-mode rewrite as a new place):
+///
+/// - `module_off`: the router appends it when it bounces a
+///   deep-link/restored route off a now-disabled module so the shell can
+///   show a one-time notice; persisting it would replay that stale notice
+///   (and pollute "resume where you left off") on the next cold start.
+/// - `view=full`: the master-detail full-screen pane choice is deliberately
+///   *never* remembered across a restart — a cold launch always lands in the
+///   sidebar preview. Stripping it covers routes `companySafeLocation`
+///   passes through verbatim (arbitrary settings sub-routes — note it does
+///   strip `/foo/new` back to `/foo`, query string and all).
+///
+/// NOTE: only `view=full` is transient. The Tasks screen reuses the same
+/// `view=` key for its LAYOUT mode (`calendar`/`daily`/`weekly`/`kanban`),
+/// which lives only in the URL and MUST persist — otherwise leaving Tasks on
+/// the calendar and restarting silently dumps the user back on the plain
+/// list. So a non-`full` `view` value is preserved.
+///
+/// Every other query param (e.g. `client_id`) is preserved.
+String stripTransientQuery(String uri) {
+  final hasModuleOff = uri.contains('module_off');
+  final hasFullView = uri.contains('view=full');
+  if (!hasModuleOff && !hasFullView) return uri;
+  final parsed = Uri.tryParse(uri);
+  if (parsed == null) return uri;
+  final q = Map<String, String>.from(parsed.queryParameters);
+  var changed = false;
+  if (q.remove('module_off') != null) changed = true;
+  if (q['view'] == 'full') {
+    q.remove('view'); // only the pane flag, never a task layout mode
+    changed = true;
+  }
+  if (!changed) return uri;
+  // Uri.replace(queryParameters: null) keeps the original query, so when
+  // nothing else remains fall back to the bare path.
+  return q.isEmpty
+      ? parsed.path
+      : parsed.replace(queryParameters: q).toString();
+}
+
 /// don't overwrite a previously-stored deep link during logout transitions.
 class NavStatePersister {
   NavStatePersister({
@@ -56,48 +98,8 @@ class NavStatePersister {
   Timer? _timer;
   String? _lastPersisted;
 
-  /// Drops query params that must never survive into a restored route:
-  ///
-  /// - `module_off`: the router appends it when it bounces a
-  ///   deep-link/restored route off a now-disabled module so the shell can
-  ///   show a one-time notice; persisting it would replay that stale notice
-  ///   (and pollute "resume where you left off") on the next cold start.
-  /// - `view=full`: the master-detail full-screen pane choice is deliberately
-  ///   *never* remembered across a restart — a cold launch always lands in the
-  ///   sidebar preview. Stripping it covers routes `companySafeLocation`
-  ///   passes through verbatim (arbitrary settings sub-routes — note it does
-  ///   strip `/foo/new` back to `/foo`, query string and all).
-  ///
-  /// NOTE: only `view=full` is transient. The Tasks screen reuses the same
-  /// `view=` key for its LAYOUT mode (`calendar`/`daily`/`weekly`/`kanban`),
-  /// which lives only in the URL and MUST persist — otherwise leaving Tasks on
-  /// the calendar and restarting silently dumps the user back on the plain
-  /// list. So a non-`full` `view` value is preserved.
-  ///
-  /// Every other query param (e.g. `client_id`) is preserved.
-  static String _stripTransient(String uri) {
-    final hasModuleOff = uri.contains('module_off');
-    final hasFullView = uri.contains('view=full');
-    if (!hasModuleOff && !hasFullView) return uri;
-    final parsed = Uri.tryParse(uri);
-    if (parsed == null) return uri;
-    final q = Map<String, String>.from(parsed.queryParameters);
-    var changed = false;
-    if (q.remove('module_off') != null) changed = true;
-    if (q['view'] == 'full') {
-      q.remove('view'); // only the pane flag, never a task layout mode
-      changed = true;
-    }
-    if (!changed) return uri;
-    // Uri.replace(queryParameters: null) keeps the original query, so when
-    // nothing else remains fall back to the bare path.
-    return q.isEmpty
-        ? parsed.path
-        : parsed.replace(queryParameters: q).toString();
-  }
-
   void _onChange() {
-    final uri = _stripTransient(_currentPath());
+    final uri = stripTransientQuery(_currentPath());
     if (uri == _lastPersisted) return;
     if (uri == '/login') return; // never overwrite a deep link with /login
     // /lock is transient — a cold launch that hits the biometric gate will

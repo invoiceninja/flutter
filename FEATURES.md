@@ -1485,7 +1485,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Keyboard shortcuts | ✅ | ✅ | ✅ | ✅ | |
 | Customizable keyboard shortcuts (Settings → Keyboard Shortcuts; rebind/clear/reset globals, assign 14 create actions, conflict detection, device-local persist) — feeds live handlers + hint bar + `?` dialog | ✅ | — | ✅ | | |
 | Keyboard-shortcut discoverability — hold ⌘/Ctrl hint bar · Enter hint on dialog primaries · hover shortcut tooltips | — | — | ✅ | | |
-| Browser-style back/forward history (Cmd/Alt+←/→ · sidebar arrow buttons · mouse back/forward thumb buttons) | — | — | ✅ | ✅ | |
+| Browser-style back/forward history (Cmd/Alt+←/→ · sidebar arrow buttons · mouse back/forward thumb buttons · Android system back gesture) | — | — | ✅ | ✅ | |
 | Recently-viewed entities (command palette "Recent" group, persisted, company-scoped) | ❌ | ✅ | ✅ | ✅ | |
 | Real-time WebSocket / Pusher notifications | ✅ | ✅ | ❌ |  | |
 | Live UI refresh on server-side change | ✅ | ✅ | ❌ |  | |

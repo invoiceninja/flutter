@@ -121,6 +121,9 @@ void main() {
     await tester.pumpWidget(wrap(const NavHistoryButtons()));
 
     router.go('/invoices/i_1');
+    // An in-cell client link navigates with `?view=full`. History records it
+    // normalized (`stripTransientQuery`) — the full-screen pane flag is a
+    // display mode, never a place — so walking forward lands on the bare path.
     router.go('/clients/c_1?view=full');
     await tester.pump();
 
@@ -135,7 +138,7 @@ void main() {
 
     await tester.tap(find.widgetWithIcon(IconButton, Icons.arrow_forward));
     await tester.pump();
-    expect(router.path, '/clients/c_1?view=full');
+    expect(router.path, '/clients/c_1');
   });
 
   testWidgets('popDrawerFirst dismisses the drawer, then navigates', (

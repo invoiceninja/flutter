@@ -45,7 +45,8 @@ void main() {
             return MasterDetailLayout(
               basePath: basePath,
               list: stub('${basePath}_LIST'),
-              rightPane: hasPane ? child : null,
+              rightPane: child,
+              hasPane: hasPane,
               viewMode: state.uri.queryParameters['view'],
             );
           },

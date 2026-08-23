@@ -33,6 +33,41 @@ Scope note: this rule covers `Navigator.push`. `Navigator.pop` and
 `Navigator.of(context, rootNavigator: true)` (drawer dismissal, root-scoped
 dialogs) are out of scope and may stay inline.
 
+**Back is *history* back, and the platform back event is bound to it.** Because
+everything is `go()`, go_router holds no back stack — `NavHistoryController`
+(`lib/app/nav_history_controller.dart`) is the app's back model, and
+`SystemBackGate` (`lib/ui/features/shell/widgets/system_back_gate.dart`) wires
+Android's back gesture to it alongside the sidebar arrows, `Cmd/Alt+←/→`, and
+the mouse thumb buttons. The gate sits on the `StatefulShellRoute` page — the
+root navigator's route — so go_router's innermost-first walk lets dialogs,
+bottom sheets, pushed modal sub-flows, an open drawer, `/settings/**` and
+`/x/:id/edit` consume back first; it only runs when nothing else did. The pane's
+leading `←` keeps performing structural *up* (`entityCloseTargetPath`); the two
+are Android's Back / Up pair and must not be conflated.
+
+Three invariants hold that together, each of which fails silently:
+
+1. **A `ShellRoute`'s Navigator must stay mounted**, even where the layout
+   renders something else instead — the bare list URL in `MasterDetailLayout`,
+   the wide `/settings` index in `SettingsShell`. Both wrap it in
+   `HiddenShellNavigator`, which also documents why muting its `TickerMode` is
+   not an option (the route the user just closed would never finish its pop, so
+   it would never be disposed). go_router resolves every shell's `navigatorKey`
+   with a bang while looking for something to pop, so an unmounted one throws
+   instead — which is why back could not dismiss a filter sheet or the drawer
+   from a list screen.
+2. **`SystemBackGate`'s `NavigationNotification` listener must stay.** Flutter
+   applies whichever notification reaches `WidgetsApp` last, and an inner
+   navigator swapping its single page announces `canHandlePop: false`; without
+   the upgrade Android goes back to killing the Activity after one navigation.
+3. **A new "close / back" affordance must navigate to the current location's
+   URL-parent** (or call `navHistory.back()`). `NavHistoryController` treats an
+   up-navigation as a replace, which is what keeps the pane `←` from leaving the
+   screen the user just closed one step *forward* of the cursor. It records
+   locations through `stripTransientQuery`, so a display-mode rewrite
+   (`?view=full`) is not a new place; leaving a `/x/new` create form replaces
+   its entry too, since a blank form is never a back destination.
+
 ## Offline-first write pipeline
 
 Every write goes through this pipeline:

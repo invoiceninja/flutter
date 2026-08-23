@@ -29,6 +29,7 @@ import 'package:admin/ui/features/shell/widgets/keyboard_shortcuts_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/window_caption_strip.dart';
 import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
+import 'package:admin/ui/features/shell/widgets/system_back_gate.dart';
 import 'package:admin/ui/features/shell/widgets/sync_event_listener.dart';
 import 'package:admin/ui/features/tasks/widgets/running_timer_pill.dart';
 
@@ -365,6 +366,15 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
 
   @override
   Widget build(BuildContext context) {
+    // Outermost, and outside `_buildShell`'s LayoutBuilder so it covers the
+    // wide and narrow branches alike: binds Android's back gesture to the same
+    // history the sidebar arrows walk. `ScaffoldWithNav` is the
+    // `StatefulShellRoute` page — the root navigator's route — which is exactly
+    // where a last-resort back handler belongs (issue #39).
+    return SystemBackGate(child: _buildShell(context));
+  }
+
+  Widget _buildShell(BuildContext context) {
     _maybeNotifyModuleDisabled(context);
     // Remappable global shortcuts come from the keyboard-shortcuts controller
     // (user override → catalog default); the map rebuilds only when a binding

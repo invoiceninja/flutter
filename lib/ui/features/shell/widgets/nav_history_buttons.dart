@@ -16,7 +16,9 @@ import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 ///
 /// This is *history* back (return to the exact previous location), not the
 /// structural "up" the master-detail pane arrows perform (detail → its own
-/// list, `entityCloseTargetPath`) — the two must not be conflated.
+/// list, `entityCloseTargetPath`) — the two must not be conflated. On Android
+/// the system back gesture walks this same history (`SystemBackGate`), so these
+/// arrows and the gesture agree; the pane arrow is the "up" of the pair.
 class NavHistoryButtons extends StatelessWidget {
   const NavHistoryButtons({
     this.compact = false,

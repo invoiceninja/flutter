@@ -204,13 +204,21 @@ Future<bool> _confirmExitIfDirty(BuildContext context, GoRouterState state) {
 /// Built around go_router's [ShellRoute]: the shell's `pageBuilder`
 /// constructs the list once and reuses its Element across child route
 /// changes, so list state (selection, scroll, multi-select, filters)
-/// survives every row click. The right-pane child changes per
-/// navigation; bare URL routes a const sentinel widget that
-/// [MasterDetailLayout] reads as "no right pane".
+/// survives every row click. The right-pane child changes per navigation;
+/// the bare URL routes a const sentinel widget, and [MasterDetailLayout]
+/// takes "is there a pane" from `hasPane` (the matched location) rather than
+/// from the child, which it must keep mounted either way.
 ///
 /// `extraChildRoutes` (e.g. `/invoices/:id/pdf`) live as siblings to
 /// the ShellRoute, so they take the full screen and don't inherit the
 /// split chrome.
+///
+/// **The list and `:id` routes are siblings, not parent/child**, so `/x/:id`
+/// matches a *single* page and no navigator in the app can pop it — unlike
+/// `/x/:id/edit` (nested under `:id`) or the settings tree (`settings_routes
+/// .dart`, which nests and therefore pops natively). System back is handled for
+/// them by `SystemBackGate`, which walks `NavHistoryController` instead; see
+/// CLAUDE.md § Strict rules for the invariants that keeps alive.
 ShellRoute buildEntityRouteBlock({
   required String basePath,
   required GoRouterWidgetBuilder list,
@@ -256,7 +264,13 @@ ShellRoute buildEntityRouteBlock({
               editorCoversList: editorCoversList,
               child: list(ctx, state),
             ),
-            rightPane: hasPane ? child : null,
+            // `child` is this ShellRoute's Navigator and is handed over
+            // unconditionally — `hasPane` decides visibility. Keeping it
+            // mounted on the bare list URL is what lets go_router resolve its
+            // navigatorKey when the platform asks us to pop (see
+            // `MasterDetailLayout._hiddenPaneHost`).
+            rightPane: child,
+            hasPane: hasPane,
             viewMode: viewMode,
           );
         },
@@ -314,11 +328,12 @@ ShellRoute buildEntityRouteBlock({
 
 /// Empty placeholder rendered by the Navigator at the bare list URL.
 /// The slide-over pane is gated on `state.matchedLocation != basePath`
-/// (see `buildEntityRouteBlock`'s pageBuilder), so this widget never
-/// actually paints anything user-visible — `MasterDetailLayout`
-/// suppresses its host pane on the bare URL. Kept as a named class so
-/// the route definition reads `builder: ... const _NoPaneSentinel()`
-/// rather than a bare `SizedBox.shrink`.
+/// (see `buildEntityRouteBlock`'s pageBuilder), so this widget never paints
+/// anything user-visible: `MasterDetailLayout` keeps the host Navigator
+/// mounted but hidden there (`HiddenShellNavigator` — go_router needs the
+/// `navigatorKey` resolvable), and this is what that Navigator renders. Kept
+/// as a named class so the route definition reads
+/// `builder: ... const _NoPaneSentinel()` rather than a bare `SizedBox.shrink`.
 class _NoPaneSentinel extends StatelessWidget {
   const _NoPaneSentinel();
 

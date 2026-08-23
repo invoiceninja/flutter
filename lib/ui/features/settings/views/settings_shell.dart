@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:admin/ui/core/widgets/hidden_shell_navigator.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/settings/views/settings_screen.dart';
@@ -48,11 +49,23 @@ class SettingsShell extends StatelessWidget {
         // and narrow layouts. The select-a-hint pane gets its own
         // banner because the section scaffold path doesn't apply
         // when no section is chosen.
+        // `child` is this ShellRoute's Navigator, so the select-a-hint branch
+        // must keep it mounted rather than swap it out — see
+        // [HiddenShellNavigator]. `settingsIndexRedirect` normally bounces the
+        // user off `/settings` while wide, but it only runs on *navigation*:
+        // resizing narrow → wide while sitting on the index (foldable,
+        // split-screen, desktop mode) lands here, and a dropped Navigator makes
+        // the next platform back press throw inside go_router.
         final rightPane = atIndex
-            ? const Column(
+            ? Stack(
                 children: [
-                  SettingsScopeBanner(),
-                  Expanded(child: _SelectAHint()),
+                  const Column(
+                    children: [
+                      SettingsScopeBanner(),
+                      Expanded(child: _SelectAHint()),
+                    ],
+                  ),
+                  Positioned.fill(child: HiddenShellNavigator(child: child)),
                 ],
               )
             : child;

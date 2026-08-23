@@ -287,14 +287,31 @@ class EntityEditScaffold<T> extends StatelessWidget {
           if (didPop) return;
           final shouldPop = await _confirmDiscard(context);
           if (!shouldPop) return;
-          // Leave the VM clean before popping: `context.pop()` re-enters the
-          // route's `onExit` discard guard, which would otherwise see this
+          // Leave the VM clean before leaving: the navigation below re-enters
+          // the route's `onExit` discard guard, which would otherwise see this
           // editor still-dirty and prompt a second time (the system-back /
           // Android twin of the chained-guard bug). Mirrors what
           // `_closePaneAnimated`'s up-front `confirmIfDirty` relies on.
           if (vm.isDirty) resetToEmpty();
           if (!context.mounted) return;
-          context.pop();
+          final router = GoRouter.of(context);
+          if (router.canPop()) {
+            router.pop();
+            return;
+          }
+          // Create routes (`/x/new`) are *siblings* of the list inside the
+          // entity `ShellRoute`, so nothing anywhere holds a second page and
+          // `pop()` throws `GoError('There is nothing to pop')` — Discard
+          // silently did nothing on Android. Navigate to the same close target
+          // the pane's leading arrow uses instead.
+          final uri = GoRouterState.of(context).uri;
+          router.go(
+            entityCloseTargetPath(
+              basePath: entityBasePathFromEditorPath(uri.path),
+              currentPath: uri.path,
+              isFullView: uri.queryParameters['view'] == 'full',
+            ),
+          );
         },
         child: ListenableBuilder(
           listenable: vm,

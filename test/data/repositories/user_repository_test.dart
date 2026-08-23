@@ -237,6 +237,35 @@ void main() {
     );
 
     test(
+      'a repeat resendEmail collapses onto the pending row — two taps are one '
+      'email (invoiceninja/flutter#48)',
+      () async {
+        // Resend moved onto the unconfirmed-email notice, where it is the most
+        // prominent control on the screen, so a double-tap stopped being
+        // hypothetical. Without the dedup each tap is its own POST and its own
+        // email.
+        final repo = makeRepo();
+        await repo.resendEmail(companyId: 'co_1', userId: 'u_2');
+        await repo.resendEmail(companyId: 'co_1', userId: 'u_2');
+        final rows = await db.outboxDao.watchAll('co_1').first;
+        expect(rows.length, 1);
+        expect(rows.first.mutationKind, MutationKind.inviteUser.wireName);
+        expect(rows.first.requiresPassword, isTrue);
+      },
+    );
+
+    test('a resend for a different user is not collapsed away', () async {
+      // The dedup is keyed by entity — one noisy row must not swallow a
+      // genuine invite for someone else.
+      final repo = makeRepo();
+      await repo.resendEmail(companyId: 'co_1', userId: 'u_2');
+      await repo.resendEmail(companyId: 'co_1', userId: 'u_3');
+      final rows = await db.outboxDao.watchAll('co_1').first;
+      expect(rows.length, 2);
+      expect(rows.map((r) => r.entityId), containsAll(['u_2', 'u_3']));
+    });
+
+    test(
       'detachFromCompany enqueues a detach outbox row with requiresPassword=true',
       () async {
         final repo = makeRepo();

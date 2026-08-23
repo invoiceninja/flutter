@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
+import 'package:admin/ui/features/settings/views/advanced/user_management/widgets/unconfirmed_email_banner.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
@@ -21,12 +22,25 @@ import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart
 /// Read-only User detail screen. Reached from `/settings/users/:id`.
 ///
 /// Action chips: edit, resend email, detach, archive/restore, delete, purge.
+/// Resend also hangs off the unconfirmed-email notice at the top of the page
+/// (invoiceninja/flutter#48) — the notice states a problem, so its fix should
+/// not be a full page-scroll away. Both routes call `_resendEmail`.
 ///
 /// Owner-protection: `canModify = !isOwner && !isSelf` greys out every action
 /// when the target is the account owner or you. This screen is now reachable
 /// for those users — the list stopped hiding them in invoiceninja/flutter#46 —
 /// so the tiles carry `enabled: canModify` and not just a null `onTap`, which
 /// would still paint them as tappable.
+///
+/// **Resend email is exempt** (invoiceninja/flutter#48). The gate exists
+/// because `UserController::destroy` and `::detach` both answer
+/// `401 "Cannot detach owner."`, and a 401 here means forced logout plus a
+/// local DB wipe — a hazard `POST /users/{id}/invite` does not have: it has no
+/// owner or self check, its `ReconfirmUserRequest::authorize()` explicitly
+/// permits `auth()->user()->id == $this->user->id`, and a rejection is a 403.
+/// Gating it would also put a dead button under the unconfirmed-email notice,
+/// which shows for exactly those users (an owner who never clicked verify, or
+/// anyone who changed their address).
 class UserDetailScreen extends StatefulWidget {
   const UserDetailScreen({super.key, required this.id});
 
@@ -77,9 +91,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                 FormSection(
                   title: context.tr('email'),
                   children: [
-                    _Banner(
-                      icon: Icons.email_outlined,
-                      message: context.tr('email_sent_to_confirm_email'),
+                    UnconfirmedEmailBanner(
+                      onResend: () => _resendEmail(services, companyId, user),
                     ),
                   ],
                 ),
@@ -154,13 +167,13 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                         ? () => context.go('/settings/users/${user.id}/edit')
                         : null,
                   ),
+                  // Not `canModify` — see the class doc: resending is the one
+                  // action with no 401 hazard, and the server authorizes a
+                  // user to re-send to themselves.
                   ListTile(
                     leading: const Icon(Icons.email_outlined),
                     title: Text(context.tr('resend_email')),
-                    enabled: canModify,
-                    onTap: canModify
-                        ? () => _resendEmail(services, companyId, user)
-                        : null,
+                    onTap: () => _resendEmail(services, companyId, user),
                   ),
                   ListTile(
                     leading: const Icon(Icons.person_remove_outlined),
@@ -548,40 +561,6 @@ class _UserCustomFieldsSection extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _Banner extends StatelessWidget {
-  const _Banner({required this.icon, required this.message});
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.all(8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tokens.overdueSoft,
-        borderRadius: BorderRadius.circular(InRadii.r2),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: tokens.overdue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: tokens.overdue,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

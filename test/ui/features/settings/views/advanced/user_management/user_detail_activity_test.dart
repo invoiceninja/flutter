@@ -26,15 +26,29 @@ import 'package:admin/data/services/activities_api.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/views/advanced/user_management/views/user_detail_screen.dart';
+import 'package:admin/ui/features/settings/views/advanced/user_management/widgets/unconfirmed_email_banner.dart';
 
 import '../../../../../../_localization_helper.dart';
 
 class _FakeUserRepo implements UserRepository {
   _FakeUserRepo(this.byId);
   final Map<String, User> byId;
+
+  /// Every `(companyId, userId)` the screen asked to re-send. `resendEmail`
+  /// only writes an outbox row, so this is the whole observable surface — and
+  /// the length is the double-send assertion.
+  final resent = <(String, String)>[];
+
   @override
   Stream<User?> watch({required String companyId, required String id}) =>
       Stream<User?>.value(byId[id]);
+
+  @override
+  Future<void> resendEmail({
+    required String companyId,
+    required String userId,
+  }) async => resent.add((companyId, userId));
+
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
@@ -336,6 +350,105 @@ void main() {
       expect(
         find.text('An email has been sent to confirm the email address'),
         findsNothing,
+      );
+    });
+  });
+
+  // invoiceninja/flutter#48 — the notice announced that a confirmation email
+  // had been sent, while the only way to send another was a ListTile at the
+  // bottom of the page, behind Details, Custom Fields and Recent Activity.
+  group('resend from the notice (flutter#48)', () {
+    User unconfirmed(User u) => u.copyWith(emailVerifiedAt: 0);
+
+    Finder noticeAction() => find.descendant(
+      of: find.byType(UnconfirmedEmailBanner),
+      matching: find.widgetWithText(TextButton, 'Resend Email'),
+    );
+    Finder actionsTile() => find.widgetWithText(ListTile, 'Resend Email');
+
+    testWidgets('the notice carries the action, and the Actions section keeps '
+        'its own', (tester) async {
+      services = servicesFor(
+        users: {'u1': unconfirmed(_user('u1', 'Ivy', 'Invited'))},
+        api: _FakeActivitiesApi(const {}),
+      );
+
+      await pump(tester, 'u1');
+
+      expect(noticeAction(), findsOneWidget);
+      // The Actions entry is the repeat path, and it is what the settings
+      // search catalog advertises as `resend_email` — it must survive.
+      expect(actionsTile(), findsOneWidget);
+    });
+
+    testWidgets('tapping it asks for exactly one resend, for the viewed user', (
+      tester,
+    ) async {
+      services = servicesFor(
+        users: {'u1': unconfirmed(_user('u1', 'Ivy', 'Invited'))},
+        api: _FakeActivitiesApi(const {}),
+      );
+
+      await pump(tester, 'u1');
+      await tester.tap(noticeAction());
+      await tester.pumpAndSettle();
+
+      // 'u1', not the session's 'admin': the screen has both ids in scope.
+      expect((services.user as _FakeUserRepo).resent, [('co', 'u1')]);
+    });
+
+    testWidgets('a confirmed user gets neither the notice nor the action', (
+      tester,
+    ) async {
+      services = servicesFor(
+        users: {
+          'u1': _user(
+            'u1',
+            'Ivy',
+            'Invited',
+          ).copyWith(emailVerifiedAt: 1787472002),
+        },
+        api: _FakeActivitiesApi(const {}),
+      );
+
+      await pump(tester, 'u1');
+
+      expect(find.byType(UnconfirmedEmailBanner), findsNothing);
+      expect(noticeAction(), findsNothing);
+      // Still reachable deliberately — an address can be confirmed and the
+      // admin may still want to re-send the invitation mail.
+      expect(actionsTile(), findsOneWidget);
+    });
+
+    testWidgets('the owner and yourself can resend — the owner gate covers the '
+        'destructive actions only', (tester) async {
+      // `canModify` is false for both, because `UserController::destroy` and
+      // `::detach` answer 401 "Cannot detach owner." and a 401 here forces a
+      // logout plus a local DB wipe. `POST /users/{id}/invite` has no such
+      // guard — its request class explicitly authorizes a user to re-send to
+      // themselves — so gating resend would leave a dead button under the very
+      // notice that asks for it.
+      services = servicesFor(
+        // id 'admin' == the session userId, so `isSelf` is true.
+        users: {'admin': unconfirmed(_user('admin', 'Sam', 'Self'))},
+        api: _FakeActivitiesApi(const {}),
+      );
+
+      await pump(tester, 'admin');
+
+      expect(noticeAction(), findsOneWidget);
+      expect(tester.widget<ListTile>(actionsTile()).enabled, isTrue);
+
+      await tester.tap(noticeAction());
+      await tester.pumpAndSettle();
+      expect((services.user as _FakeUserRepo).resent, [('co', 'admin')]);
+
+      // The gate itself must still hold for everything that can 401.
+      expect(
+        tester
+            .widget<ListTile>(find.widgetWithText(ListTile, 'Remove user'))
+            .enabled,
+        isFalse,
       );
     });
   });

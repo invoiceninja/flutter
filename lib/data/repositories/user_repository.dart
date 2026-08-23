@@ -361,15 +361,32 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
   }
 
   /// `POST /api/v1/users/{id}/invite` — resend the invitation email.
+  ///
+  /// Dedups first: two taps before the outbox drains would otherwise be two
+  /// POSTs and two emails. The invite is idempotent by intent ("make sure they
+  /// get the mail"), so collapsing the pending rows loses nothing.
+  /// `dedupPendingMutations` only deletes rows whose state is still `pending`
+  /// (`OutboxDao.deletePendingForEntity`), so an `in_flight` or `dead` row is
+  /// untouched and a genuine second resend after the first has drained still
+  /// sends. Matters more since invoiceninja/flutter#48 put Resend on the
+  /// unconfirmed-email notice, where it is the most prominent control on the
+  /// screen.
   Future<void> resendEmail({
     required String companyId,
     required String userId,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: userId,
-    kind: MutationKind.inviteUser,
-    payload: {'id': userId},
-  );
+  }) => db.transaction(() async {
+    await dedupPendingMutations(
+      companyId: companyId,
+      entityId: userId,
+      kind: MutationKind.inviteUser,
+    );
+    await enqueueMutation(
+      companyId: companyId,
+      entityId: userId,
+      kind: MutationKind.inviteUser,
+      payload: {'id': userId},
+    );
+  });
 
   /// `DELETE /api/v1/users/{id}/detach_from_company` — remove the user
   /// from this company. Password-gated.

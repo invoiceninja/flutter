@@ -17,6 +17,7 @@ import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/views/advanced/user_management/view_models/user_edit_view_model.dart';
 import 'package:admin/ui/features/settings/views/advanced/user_management/widgets/permission_grid.dart';
+import 'package:admin/ui/features/settings/views/advanced/user_management/widgets/unconfirmed_email_banner.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
@@ -257,7 +258,9 @@ class _DetailsTab extends StatelessWidget {
         if (showUnconfirmed)
           FormSection(
             title: context.tr('email'),
-            children: [_UnconfirmedEmailBanner()],
+            // No `onResend`: the draft may hold a typed-but-unsaved email
+            // change, and the server would mail the address it still has.
+            children: [const UnconfirmedEmailBanner()],
           ),
         FormSection(
           title: context.tr('details'),
@@ -452,39 +455,6 @@ class _PermissionsTab extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _UnconfirmedEmailBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final theme = Theme.of(context);
-    return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: InSpacing.lg(context),
-        vertical: 6,
-      ),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tokens.overdueSoft,
-        borderRadius: BorderRadius.circular(InRadii.r2),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.email_outlined, size: 20, color: tokens.overdue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              context.tr('email_sent_to_confirm_email'),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: tokens.overdue,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

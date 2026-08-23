@@ -229,6 +229,44 @@ affordance. Note the arrow is structural **Up**, not history Back: landing on
 the URL-parent makes `NavHistoryController` *replace* the entry rather than
 append (CLAUDE.md § Strict rules).
 
+## The `/settings` index: search lives in the AppBar
+
+The index is the one settings screen that does **not** go through
+`SettingsScreenScaffold` — it's a nav root and owns its own `Scaffold`. It also
+owns the search chrome, and that placement is load-bearing:
+
+- The trigger goes in `AppBar.actions`, the field in a 56 px
+  `bottom: PreferredSize(...)` — the same recipe `EntityListNormalAppBar` uses
+  on narrow. **Neither may live in the scrolling body.** The magnifying glass
+  used to be the `trailing:` of the in-list "Basic Settings" header, so it
+  scrolled away and the user had to fling back to the top (issue #42).
+- The 56 isn't arbitrary: minus the 8 px bottom pad it's the 48 px intrinsic
+  height a `prefixIcon` forces. The `title:` slot clamps to `kToolbarHeight`
+  and re-creates the clipping `SettingsSearchField`'s comment describes.
+- Keep the `AppBar` inline. It derives `preferredSize` from `bottom` itself;
+  wrapping it in a custom `PreferredSizeWidget` is exactly what forces
+  `EntityListNormalAppBar` to hand-maintain `kToolbarHeight + 56` twice.
+
+`SettingsSearchController` (`state/`) holds the open/closed flag, query and
+focus node, because the trigger and the results no longer share a parent. The
+invariant is **whoever creates the controller renders the trigger**: pass one to
+`SettingsListSidebar` and it renders only list-or-results; pass none — the wide
+280 px pane, which has no AppBar — and it owns the state *and* pins a slim strip
+carrying the icon above its scroll area. One nullable param, not a second bool:
+a flag would allow two triggers, or none.
+
+That pinned strip is deliberately **icon-only**. Lifting the "Basic Settings"
+group header up into it was the obvious move and it's wrong: the strip doesn't
+scroll, so the label goes on claiming Basic once the user reaches Advanced.
+Both group headers stay in the list, identical at both widths.
+
+`SettingsScreen`'s `PopScope` makes Android back collapse an open search before
+leaving, gated on `!SettingsTwoPaneScope.of(context)` — a resize past
+`Breakpoints.settingsTwoPane` leaves the screen mounted but `Offstage` inside
+`HiddenShellNavigator` (`settingsIndexRedirect` runs on *navigation* only), and
+an invisible open search must not swallow the press. When `canPop` is true the
+route bubbles to `SystemBackGate` exactly as before.
+
 ## Anti-pattern: User Details ListView+ListTile shape (full version)
 
 Do not introduce raw `ListView` + `ListTile` layouts (icon-leading row tiles, dividers between rows) for new settings panels. Even simple toggles or single actions belong inside a `FormSection` so the whole settings sidebar reads as one design system. The User Details and Preferences screens use FormSection cards now too — they're the right precedent, not the old pre-conversion shape.

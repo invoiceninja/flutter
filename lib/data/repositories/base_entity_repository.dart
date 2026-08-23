@@ -600,9 +600,9 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   ///    between, e.g. `{archived}` from the status chip, is a slice.
   ///
   /// `staticFilters` is deliberately NOT considered: those are per-repo
-  /// constants, and the ones that do narrow the row set (`active_banks` on bank
-  /// transactions, `hideOwnerUsers` / `without` on users) are constant for that
-  /// repo's list, so they can't skew the watermark relative to its own baseline.
+  /// constants, and the ones that do narrow the row set (e.g. `active_banks` on
+  /// bank transactions) are constant for that repo's list, so they can't skew
+  /// the watermark relative to its own baseline.
   @protected
   @visibleForTesting
   bool isNarrowedFetch({

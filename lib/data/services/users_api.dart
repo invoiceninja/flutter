@@ -7,9 +7,11 @@ import 'package:admin/data/services/base_entity_api.dart';
 ///
 /// All list/get/create/update/delete calls send `?include=company_user` so
 /// the per-(user, company) permissions + notifications round-trip on every
-/// response. The list call also sends `hideOwnerUsers=true&without=<authId>`
-/// to mirror React's filter (excludes the owner and the auth user from
-/// the management list).
+/// response. The list call sends nothing else — it used to mirror React's
+/// `hideOwnerUsers=true&without=<authId>`, which hid the account owner and the
+/// caller from User Management (invoiceninja/flutter#46). Note those params
+/// were never set here; they came from `UserRepository.ensurePageLoaded`'s
+/// `staticFilters`.
 ///
 /// Distinct from [UserSettingsApi] which hits `/api/v1/company_users/{id}`
 /// for the table-columns-only flow.

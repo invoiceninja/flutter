@@ -21,8 +21,12 @@ import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart
 /// Read-only User detail screen. Reached from `/settings/users/:id`.
 ///
 /// Action chips: edit, resend email, detach, archive/restore, delete, purge.
-/// Owner-protection: every action no-ops with a toast when the target is the
-/// owner or the currently-authenticated user.
+///
+/// Owner-protection: `canModify = !isOwner && !isSelf` greys out every action
+/// when the target is the account owner or you. This screen is now reachable
+/// for those users — the list stopped hiding them in invoiceninja/flutter#46 —
+/// so the tiles carry `enabled: canModify` and not just a null `onTap`, which
+/// would still paint them as tappable.
 class UserDetailScreen extends StatefulWidget {
   const UserDetailScreen({super.key, required this.id});
 
@@ -139,6 +143,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   ListTile(
                     leading: const Icon(MdiIcons.circleEditOutline),
                     title: Text(context.tr('edit_user')),
+                    enabled: canModify,
                     onTap: canModify
                         ? () => context.go('/settings/users/${user.id}/edit')
                         : null,
@@ -146,6 +151,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   ListTile(
                     leading: const Icon(Icons.email_outlined),
                     title: Text(context.tr('resend_email')),
+                    enabled: canModify,
                     onTap: canModify
                         ? () => _resendEmail(services, companyId, user)
                         : null,
@@ -153,6 +159,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   ListTile(
                     leading: const Icon(Icons.person_remove_outlined),
                     title: Text(context.tr('remove_user')),
+                    enabled: canModify,
                     onTap: canModify
                         ? () => _detach(services, companyId, user)
                         : null,
@@ -162,6 +169,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                       ListTile(
                         leading: const Icon(Icons.archive_outlined),
                         title: Text(context.tr('archive')),
+                        enabled: canModify,
                         onTap: canModify
                             ? () => _archive(services, companyId, user)
                             : null,
@@ -170,6 +178,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                       ListTile(
                         leading: const Icon(Icons.unarchive_outlined),
                         title: Text(context.tr('restore')),
+                        enabled: canModify,
                         onTap: canModify
                             ? () => _restore(services, companyId, user)
                             : null,
@@ -178,6 +187,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                       ListTile(
                         leading: const Icon(Icons.delete_outline),
                         title: Text(context.tr('delete')),
+                        enabled: canModify,
                         onTap: canModify
                             ? () => _delete(services, companyId, user)
                             : null,
@@ -186,6 +196,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                       ListTile(
                         leading: const Icon(Icons.delete_forever_outlined),
                         title: Text(context.tr('purge')),
+                        enabled: canModify,
                         onTap: canModify
                             ? () => _purge(services, companyId, user)
                             : null,

@@ -415,6 +415,46 @@ void main() {
       expect(companyUser['permissions'], 'view_client,edit_client');
     });
 
+    test('writes the indexed role columns, not just the payload blob', () async {
+      // `UserRepository._fromRow` overlays these COLUMNS over the payload, so
+      // omitting them made a fresh INSERT read back `isOwner == false` for the
+      // account owner. Latent while the auth user's row was filtered out of
+      // User Management; once it renders (invoiceninja/flutter#46) it both
+      // mislabels the owner's role badge and — worse — lets their row pass the
+      // screen's bulk-action guard. `applyBundle` fixes it up, but only on a
+      // full sync; the delta path carries no `company.users`.
+      authService.queueLogin(
+        _envelope(
+          companies: const [
+            (
+              id: 'co_a',
+              name: 'Acme',
+              token: 'tok_a',
+              isAdmin: true,
+              isOwner: true,
+            ),
+          ],
+          user: const UserSummaryApi(id: 'user_owner', firstName: 'Olivia'),
+        ),
+      );
+
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a@b',
+        password: 'pw',
+      );
+
+      final row = await db.userDao.getByCompanyAndId(
+        companyId: 'co_a',
+        id: 'user_owner',
+      );
+      expect(row, isNotNull);
+      expect(row!.isOwner, isTrue);
+      expect(row.isAdmin, isTrue);
+      expect(row.permissions, 'view_client,edit_client');
+    });
+
     test('skips users-row upsert when user.id is empty', () async {
       // Belt-and-suspenders — a legacy envelope without the user block
       // shouldn't crash the login flow or pollute the table with a

@@ -56,11 +56,17 @@ class UserDao extends BaseEntityDao<$UsersTable, UserRow> with _$UserDaoMixin {
     return q.watch().distinctRows();
   }
 
-  /// Paged + filtered fetch for the User Management list screen.
+  /// Paged + filtered fetch for the User Management list screen and every
+  /// assigned-user picker.
   ///
-  /// `excludeIds` lets the list strip the auth user (self) — the server-side
-  /// query also passes `without=<authId>` so the result set matches. The
-  /// owner is filtered out by `excludeOwner` (defaults true).
+  /// Returns the **whole** company roster — the account owner and the
+  /// logged-in user included. This used to strip both (`excludeOwner` /
+  /// `excludeIds`, mirroring the `hideOwnerUsers` + `without=<authId>` server
+  /// filters the fetch sent), which was invoiceninja/flutter#46: the owner was
+  /// absent from User Management *and* unselectable in every assignee picker,
+  /// since all of them read this one query. Restricting what may be *done* to
+  /// the owner is the screen's job (see `user_management_screen.dart`), not
+  /// this query's.
   ///
   /// `search` is a name-or-email LIKE filter applied in addition to whatever
   /// the server returned, so the local watch stream narrows in lockstep
@@ -71,8 +77,6 @@ class UserDao extends BaseEntityDao<$UsersTable, UserRow> with _$UserDaoMixin {
     required int limit,
     String? search,
     Set<EntityState> states = const {EntityState.active},
-    bool excludeOwner = true,
-    Set<String> excludeIds = const {},
     String sortField = 'first_name',
     bool sortAscending = true,
   }) {
@@ -93,13 +97,6 @@ class UserDao extends BaseEntityDao<$UsersTable, UserRow> with _$UserDaoMixin {
         predicate = predicate == null ? term : predicate | term;
       }
       if (predicate != null) q.where((_) => predicate!);
-    }
-
-    if (excludeOwner) {
-      q.where((u) => u.isOwner.equals(false));
-    }
-    if (excludeIds.isNotEmpty) {
-      q.where((u) => u.id.isIn(excludeIds.toList()).not());
     }
 
     if (search != null && search.isNotEmpty) {

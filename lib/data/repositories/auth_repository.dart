@@ -1515,6 +1515,18 @@ class AuthRepository {
             phone: Value(uc.user.phone),
             languageId: Value(uc.user.languageId),
             signature: Value(uc.user.signature),
+            // Indexed role columns, not just the payload blob above.
+            // `UserRepository._fromRow` overlays these columns *over* the
+            // payload, so omitting them made a fresh INSERT read back
+            // `isOwner == false` for the account owner. Harmless while the
+            // auth user's row was filtered out of User Management; once it
+            // renders (invoiceninja/flutter#46) that mislabels the owner and,
+            // worse, makes their row pass the screen's bulk-action guard.
+            // `applyBundle` corrects it, but only on a full sync —
+            // `first_load=true` isn't sent on the delta path.
+            isOwner: Value(uc.isOwner),
+            isAdmin: Value(uc.isAdmin),
+            permissions: Value(uc.permissions),
             updatedAt: Value(nowMs),
             isDirty: const Value(false),
             payload: Value(jsonEncode(userPayload)),

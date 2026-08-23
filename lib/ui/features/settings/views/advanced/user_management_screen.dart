@@ -17,11 +17,17 @@ import 'package:admin/domain/entity_state.dart';
 
 /// Settings → User Management.
 ///
-/// Lists every company user except the owner and the currently-authenticated
-/// user (the latter manages themselves via `/settings/user_details`). Renders
-/// inside [SettingsFormShell] so the layout matches the rest of the settings
-/// area; pagination caps at 5 pages (≈ 250 users — beyond that, a future
-/// scroll-edge fetch can extend the cap).
+/// Lists the **whole** company roster, account owner and yourself included.
+/// Both used to be filtered out (invoiceninja/flutter#46) — on an account
+/// where every user is an owner that left the screen completely empty.
+/// Visibility and mutability are separate concerns here: those two rows render
+/// like any other but are **not selectable**, so a bulk Archive / Delete can
+/// never reach them. See `_UserManagementScreenState._canModify` for why that
+/// guard is load-bearing rather than cosmetic.
+///
+/// Renders inside [SettingsFormShell] so the layout matches the rest of the
+/// settings area; pagination caps at 5 pages (≈ 250 users — beyond that, a
+/// future scroll-edge fetch can extend the cap).
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
 
@@ -32,11 +38,30 @@ class UserManagementScreen extends StatefulWidget {
 class _UserManagementScreenState extends State<UserManagementScreen> {
   bool _showArchived = false;
   bool _hasKickedFetch = false;
-  final Set<String> _selected = <String>{};
+  final Map<String, User> _selected = <String, User>{};
 
-  void _toggle(String id) => setState(() {
-    if (!_selected.remove(id)) _selected.add(id);
-  });
+  /// Whether bulk actions may target [user]. Mirrors `UserDetailScreen`'s
+  /// `canModify = !isOwner && !isSelf` (user_detail_screen.dart), which greys
+  /// out the same operations one user at a time.
+  ///
+  /// This is a real guard, not decoration. The server authorizes
+  /// `DELETE /api/v1/users/{id}` on the **caller** being an owner and never
+  /// checks the target (`DestroyUserRequest::authorize()` is just
+  /// `auth()->user()->isOwner()`), so an owner-admin who could select these
+  /// rows could delete the account owner — or themselves. Protection exists
+  /// only in the clients.
+  bool _canModify(User user, String authUserId) =>
+      !user.companyUser.isOwner && user.id != authUserId;
+
+  /// Sole writer to [_selected]. Guarded rows pass `onToggle: null`, so this
+  /// is already unreachable for them; the re-check makes the invariant local
+  /// rather than something a future call site could quietly break.
+  void _toggle(User user, String authUserId) {
+    if (!_canModify(user, authUserId)) return;
+    setState(() {
+      if (_selected.remove(user.id) == null) _selected[user.id] = user;
+    });
+  }
 
   void _clearSelection() => setState(_selected.clear);
 
@@ -46,7 +71,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     bool destructive = false,
   }) async {
     if (_selected.isEmpty) return;
-    final ids = _selected.toList(growable: false);
+    // Re-check at execution time rather than trusting what was selectable
+    // when the row was tapped. A `/refresh` can promote a selected user to
+    // owner; the stream builder re-reads the fresh object into `_selected`,
+    // so this filter sees the promotion and drops them. The session is re-read
+    // here for the same reason — a re-login can change who "self" is.
+    final authUserId =
+        context.read<Services>().auth.session.value?.userId ?? '';
+    final ids = _selected.values
+        .where((u) => _canModify(u, authUserId))
+        .map((u) => u.id)
+        .toList(growable: false);
+    if (ids.isEmpty) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
     final tr = context.tr;
     if (destructive) {
@@ -81,7 +117,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (!mounted) return;
     _clearSelection();
     if (failed == 0) {
-      Notify.success(context, tr(successKey), messenger: messenger);
+      // `archived_users` / `deleted_users` / `restored_users` all carry a
+      // `:value` count. The CI placeholder lint can't see this call (the key
+      // arrives as a parameter), so it shipped rendering a literal ":value".
+      // Count `ids`, not `_selected` — the two differ when the guard above
+      // drops a row.
+      Notify.success(
+        context,
+        tr(successKey, {'value': '${ids.length}'}),
+        messenger: messenger,
+      );
     } else {
       Notify.error(context, tr('error_title'), messenger: messenger);
     }
@@ -114,7 +159,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           final hasMore = await services.user.ensurePageLoaded(
             companyId: companyId,
             page: page,
-            authUserId: authUserId,
             // Load every lifecycle state so the "Show archived" toggle can
             // surface server-archived users from Drift (an all-states set
             // sends no `status` filter; the server returns withTrashed()).
@@ -181,7 +225,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 companyId: companyId,
                 loadedPages: 5,
                 states: states,
-                excludeAuthUserId: authUserId,
               ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting &&
@@ -189,6 +232,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final all = snapshot.data ?? const <User>[];
+                // Keep the selected objects in step with the stream. They are
+                // captured at tap time and `User` is immutable, so without
+                // this a `/refresh` that promotes a selected staff member to
+                // owner leaves a stale `isOwner == false` copy in `_selected`
+                // — and `_runBulk`'s guard, which reads exactly that copy,
+                // waves them through to a delete the server answers with 401
+                // (forced logout + local DB wipe). A plain map write, never
+                // `setState`, so it can't notify during build.
+                for (final u in all) {
+                  if (_selected.containsKey(u.id)) _selected[u.id] = u;
+                }
                 final active = all
                     .where((u) => u.archivedAt == 0 && !u.isDeleted)
                     .toList(growable: false);
@@ -224,9 +278,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           for (final user in active)
                             _UserRow(
                               user: user,
-                              selected: _selected.contains(user.id),
+                              isSelf: user.id == authUserId,
+                              selected: _selected.containsKey(user.id),
                               selectionActive: _selected.isNotEmpty,
-                              onToggle: () => _toggle(user.id),
+                              onToggle: _canModify(user, authUserId)
+                                  ? () => _toggle(user, authUserId)
+                                  : null,
                             ),
                         const Divider(height: 1),
                         ListTile(
@@ -248,9 +305,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             _UserRow(
                               user: user,
                               isArchived: true,
-                              selected: _selected.contains(user.id),
+                              isSelf: user.id == authUserId,
+                              selected: _selected.containsKey(user.id),
                               selectionActive: _selected.isNotEmpty,
-                              onToggle: () => _toggle(user.id),
+                              onToggle: _canModify(user, authUserId)
+                                  ? () => _toggle(user, authUserId)
+                                  : null,
                             ),
                         ],
                       ),
@@ -359,10 +419,19 @@ class _BulkBar extends StatelessWidget {
   }
 }
 
+/// One row in the roster.
+///
+/// A null [onToggle] is how the owner and your own row are protected: the same
+/// callback backs `onLongPress` (which is how selection *starts*), the
+/// tap-to-toggle once selection is active, and the checkbox's `onChanged`, so
+/// nulling it closes every path into the selection at once. The row still
+/// opens the detail screen on tap — viewing the owner is fine; bulk-deleting
+/// them is not.
 class _UserRow extends StatelessWidget {
   const _UserRow({
     required this.user,
     this.isArchived = false,
+    this.isSelf = false,
     this.selected = false,
     this.selectionActive = false,
     this.onToggle,
@@ -370,6 +439,9 @@ class _UserRow extends StatelessWidget {
 
   final User user;
   final bool isArchived;
+
+  /// Marks the row as the logged-in user, for the `current_user` badge.
+  final bool isSelf;
   final bool selected;
   final bool selectionActive;
   final VoidCallback? onToggle;
@@ -386,6 +458,8 @@ class _UserRow extends StatelessWidget {
     final subtitle = user.email.isNotEmpty ? user.email : user.phone;
     final badges = <Widget>[
       _Badge(labelKey: roleKey),
+      // Context, not a warning — explains why this row's actions are limited.
+      if (isSelf) _Badge(labelKey: 'current_user', tone: _BadgeTone.muted),
       if (user.isPending)
         _Badge(labelKey: 'pending_invite', tone: _BadgeTone.warning),
       if (isArchived) _Badge(labelKey: 'archived', tone: _BadgeTone.muted),
@@ -415,6 +489,9 @@ class _UserRow extends StatelessWidget {
           leading: selectionActive
               ? Checkbox(
                   value: selected,
+                  // Null for the owner and for your own row — keeps the column
+                  // aligned while reading as "not selectable" rather than as a
+                  // missing control.
                   onChanged: onToggle == null ? null : (_) => onToggle!(),
                 )
               : CircleAvatar(
@@ -451,7 +528,10 @@ class _UserRow extends StatelessWidget {
               : null,
           trailing: trailing,
           onLongPress: onToggle,
-          onTap: selectionActive
+          // A guarded row (null [onToggle]) has nothing to toggle, so it keeps
+          // navigating even while a selection is active — otherwise it would
+          // be entirely inert: no tap, no long-press, disabled checkbox.
+          onTap: selectionActive && onToggle != null
               ? onToggle
               : () => context.go('/settings/users/${user.id}'),
         );

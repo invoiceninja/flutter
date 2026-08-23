@@ -1378,6 +1378,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Edit user details (Enterprise) | ✅ | ✅ | ✅ | ✅ | |
 | Bulk user management | ✅ | ✅ | ✅ | ✅ | |
 | User activity log | ✅ | ✅ | ✅ | ✅ | |
+| Owner + current user shown in roster (badged, not selectable) | ❌ | ❌ | ✅ | | |
 | Remove / revoke user | ✅ | ✅ | ✅ | ✅ | |
 
 ### Payment Terms

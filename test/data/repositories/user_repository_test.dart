@@ -92,6 +92,104 @@ void main() {
 
     UserRepository makeRepo() => UserRepository(db: db, api: _FakeUsersApi());
 
+    // ── invoiceninja/flutter#46 ──────────────────────────────────────────
+    //
+    // The roster used to be stripped of the account owner and the caller, at
+    // the wire (`hideOwnerUsers=true&without=<authId>`) and again in the local
+    // Drift query. Both are gone; these pin that they stay gone. Note the same
+    // `watchPage` backs every assigned-user picker, so the owner being absent
+    // here also meant they could not be assigned anything, anywhere.
+
+    test(
+      'watchPage returns the owner and the auth user, not just staff',
+      () async {
+        final repo = makeRepo();
+        Future<void> seed(String id, String name, {required bool isOwner}) =>
+            repo.applyApiResponse(
+              companyId: 'co_1',
+              api: UserApi(
+                id: id,
+                firstName: name,
+                lastName: 'User',
+                email: '$id@example.com',
+                updatedAt: 1700000000,
+                companyUser: CompanyUserApi(isOwner: isOwner, isAdmin: true),
+              ),
+            );
+        await seed('u_owner', 'Olivia', isOwner: true);
+        await seed('u_self', 'Sam', isOwner: false);
+        await seed('u_staff', 'Riley', isOwner: false);
+
+        final rows = await repo.watchPage(companyId: 'co_1').first;
+
+        expect(rows.map((u) => u.id).toSet(), {'u_owner', 'u_self', 'u_staff'});
+      },
+    );
+
+    test(
+      'a payload with no company_user pivot preserves the role columns',
+      () async {
+        // The pivot rides along on every path we use, but if it ever stopped,
+        // writing `false` would clear `is_owner` for the whole roster — and that
+        // column is what keeps bulk Archive/Delete off the account owner.
+        final repo = makeRepo();
+        const owner = UserApi(
+          id: 'u_owner',
+          firstName: 'Olivia',
+          lastName: 'Owner',
+          updatedAt: 1700000000,
+          companyUser: CompanyUserApi(isOwner: true, isAdmin: true),
+        );
+        await repo.applyApiResponse(companyId: 'co_1', api: owner);
+        expect(
+          (await repo.get(
+            companyId: 'co_1',
+            userId: 'u_owner',
+          ))!.companyUser.isOwner,
+          isTrue,
+        );
+
+        // Same user, same id, no pivot — e.g. a roster bundle that lost it.
+        await repo.applyBundle(
+          companyId: 'co_1',
+          bundle: const [
+            UserApi(
+              id: 'u_owner',
+              firstName: 'Olivia',
+              lastName: 'Owner',
+              updatedAt: 1700000001,
+            ),
+          ],
+        );
+
+        final after = await repo.get(companyId: 'co_1', userId: 'u_owner');
+        expect(
+          after!.companyUser.isOwner,
+          isTrue,
+          reason: 'must not be zeroed',
+        );
+        expect(after.companyUser.isAdmin, isTrue);
+      },
+    );
+
+    test(
+      'ensurePageLoaded sends no owner/self exclusion on the wire',
+      () async {
+        final api = _CapturingUsersApi();
+        final repo = UserRepository(db: db, api: api);
+
+        await repo.ensurePageLoaded(companyId: 'co_1', page: 1);
+
+        // `status` comes from the state set, so assert on the static filters:
+        // the include stays, and neither exclusion may come back. Both are
+        // honoured server-side, so either one empties the owner out of the
+        // roster — and out of every assigned-user picker with it.
+        expect(api.filters!['include'], 'company_user');
+        expect(api.filters, isNot(contains('hideOwnerUsers')));
+        expect(api.filters, isNot(contains('without')));
+      },
+    );
+
     test('admin permissions round-trip via Drift overlay', () async {
       final repo = makeRepo();
       const api = UserApi(
@@ -450,6 +548,32 @@ void main() {
 }
 
 class _FakeUsersApi implements UsersApi {
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Records the query filters `ensurePageLoaded` puts on the wire and returns
+/// an empty page.
+class _CapturingUsersApi implements UsersApi {
+  Map<String, String>? filters;
+
+  @override
+  Future<({UserListApi data, int? cursorUpdatedAt, String? cursorId})> list({
+    required int page,
+    int perPage = 50,
+    String? search,
+    int? sinceUpdatedAt,
+    String? sinceId,
+    Map<String, String> filters = const {},
+  }) async {
+    this.filters = filters;
+    return (
+      data: const UserListApi(data: <UserApi>[]),
+      cursorUpdatedAt: null,
+      cursorId: null,
+    );
+  }
+
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

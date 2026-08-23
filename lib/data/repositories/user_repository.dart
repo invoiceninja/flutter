@@ -124,9 +124,8 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
   /// Plain upsert-preserving-dirty: a row with a pending local profile edit
   /// (`is_dirty = true`) keeps its outbox-bound payload. Deliberately does NOT
   /// advance the keyset cursor — the User Management list owns its own
-  /// paginated `GET /users` sync (server-side owner/auth filtering), and the
-  /// embedded roster may be partial for large teams, so it must not
-  /// short-circuit that fetch.
+  /// paginated `GET /users` sync, and the embedded roster may be partial for
+  /// large teams, so it must not short-circuit that fetch.
   Future<void> applyBundle({
     required String companyId,
     required List<UserApi> bundle,
@@ -187,10 +186,13 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
 
   // ── Management-list reads ───────────────────────────────────────────
 
-  /// Watch the first [loadedPages] pages of company users for the
-  /// management list. Excludes the owner and (optionally) the
-  /// currently-logged-in user — mirrors React's
-  /// `?hideOwnerUsers=true&without=<authId>` filter.
+  /// Watch the first [loadedPages] pages of company users — the management
+  /// list and every assigned-user picker read this.
+  ///
+  /// Returns the full roster, owner and logged-in user included. It used to
+  /// mirror React's `?hideOwnerUsers=true&without=<authId>` exclusion, which
+  /// meant the owner could be neither managed nor assigned anything
+  /// (invoiceninja/flutter#46).
   Stream<List<User>> watchPage({
     required String companyId,
     int loadedPages = 1,
@@ -198,7 +200,6 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
     Set<EntityState> states = const {EntityState.active},
     String sortField = 'first_name',
     bool sortAscending = true,
-    String? excludeAuthUserId,
   }) {
     assert(loadedPages >= 1);
     return db.userDao
@@ -210,10 +211,6 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
           states: states,
           sortField: sortField,
           sortAscending: sortAscending,
-          excludeOwner: true,
-          excludeIds: excludeAuthUserId == null
-              ? const {}
-              : <String>{excludeAuthUserId},
         )
         .map(
           (rows) =>
@@ -221,8 +218,10 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
         );
   }
 
-  /// Live count of non-deleted company users (excluding owner + auth user)
-  /// for the sidebar badge / empty-state hint.
+  /// Live count of non-deleted company users — the whole roster, matching
+  /// what [watchPage] renders. Currently unused: the management screen's
+  /// empty state reads the `watchPage` snapshot directly. (The previous doc
+  /// claimed this excluded the owner and auth user; it never did.)
   Stream<int> watchCount({required String companyId}) =>
       db.userDao.watchCount(companyId: companyId);
 
@@ -235,11 +234,19 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
       .map(_fromRow);
 
   /// Fetch one page of `/api/v1/users` and upsert into Drift.
+  ///
+  /// Sends `include=company_user` and nothing else. It used to add
+  /// `hideOwnerUsers=true&without=<authId>`; both are honoured server-side, so
+  /// the owner and the caller never reached Drift from this sync at all
+  /// (invoiceninja/flutter#46). Company scoping does not depend on them —
+  /// `UserFilters::entityFilter()` is applied unconditionally by
+  /// `QueryFilters::apply()`. Never send `showAccountUsers=true`: for an owner
+  /// that makes `entityFilter()` return the builder unscoped, leaking every
+  /// company on the account.
   Future<bool> ensurePageLoaded({
     required String companyId,
     required int page,
     String? search,
-    String? authUserId,
     Set<EntityState> states = const {EntityState.active},
     bool ignoreCursor = false,
   }) {
@@ -250,11 +257,7 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
       search: search,
       states: states,
       ignoreCursor: ignoreCursor,
-      staticFilters: <String, String>{
-        'include': 'company_user',
-        'hideOwnerUsers': 'true',
-        if (authUserId != null && authUserId.isNotEmpty) 'without': authUserId,
-      },
+      staticFilters: const <String, String>{'include': 'company_user'},
       listCall: api.list,
       itemsOf: (l) => l.data,
       idOf: (a) => a.id,
@@ -483,7 +486,19 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
     String companyId, {
     required bool isDirty,
   }) {
-    final cu = a.companyUser ?? const CompanyUserApi();
+    final cu = a.companyUser;
+    // No `company_user` pivot on this payload ⇒ we know nothing about the
+    // roles, which is NOT the same as "no roles". Leave the columns absent so
+    // Drift omits them from the upsert's `DO UPDATE SET` and an existing row
+    // keeps what it had. Writing `false` here would silently clear `is_owner`
+    // for the whole roster, and that column is what
+    // `user_management_screen._canModify` uses to keep bulk Archive/Delete off
+    // the account owner. The server does send the pivot on every path we use
+    // (`GET /users?include=company_user`, and `company.users.company_user` is
+    // in the login/refresh include set — `BaseController.php:147`), so this is
+    // a guard against that changing, not a live bug.
+    Value<T> pivot<T extends Object>(T Function(CompanyUserApi cu) get) =>
+        cu == null ? const Value.absent() : Value(get(cu));
     return UsersCompanion.insert(
       id: a.id,
       companyId: companyId,
@@ -503,10 +518,10 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
       customValue2: Value(a.customValue2),
       customValue3: Value(a.customValue3),
       customValue4: Value(a.customValue4),
-      permissions: Value(cu.permissions),
-      isOwner: Value(cu.isOwner),
-      isAdmin: Value(cu.isAdmin),
-      isLocked: Value(cu.isLocked),
+      permissions: pivot((c) => c.permissions),
+      isOwner: pivot((c) => c.isOwner),
+      isAdmin: pivot((c) => c.isAdmin),
+      isLocked: pivot((c) => c.isLocked),
       isDirty: Value(isDirty),
       isDeleted: Value(a.isDeleted),
       payload: jsonEncode(a.toJson()),

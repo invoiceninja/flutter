@@ -226,6 +226,29 @@ void main() {
       expect(rows.map((r) => r.id), ['0', '1', '2']);
     });
 
+    // invoiceninja/flutter#47 — "a user who is `Pending invite` should not
+    // have any `Activity` displayed". Someone who has never acted owns no rows
+    // in the company feed, so the actor filter alone empties their log; there
+    // is deliberately no `isEmailUnconfirmed` short-circuit above it: that flag
+    // also covers hosted owners who never clicked the verify email and anyone
+    // who has changed their address — people with real history to show.
+    test('an actor with no rows in a busy feed gets an empty log', () async {
+      final fake = _clientReturning({
+        'data': [
+          for (var i = 0; i < 40; i++)
+            _reactRow(id: '$i', userId: i.isEven ? 'admin' : 'colleague'),
+        ],
+      });
+
+      final rows = await ActivitiesApi(
+        fake.client,
+      ).fetchUserActivities('never_signed_in');
+
+      expect(rows, isEmpty);
+      // The request still goes out — "no rows" is a finding, not an assumption.
+      expect(fake.requests, hasLength(1));
+    });
+
     test(
       'short-circuits without a request when the user id is blank',
       () async {

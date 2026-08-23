@@ -16,6 +16,20 @@ part 'user.freezed.dart';
 ///  * [rawCompanyUserSettings] — the original server JSON for the per-user
 ///    settings blob; everything the new app doesn't model round-trips
 ///    untouched on save.
+///
+/// **`lastLogin` never means "last login"** — it is parsed and stored but
+/// deliberately rendered nowhere. `UserTransformer` sends
+/// `Carbon::parse($user->last_login)->timestamp`, and `Carbon::parse(null)` is
+/// *now*, so a seeded or migrated row reports the moment you asked
+/// (live-confirmed against demo, where the value tracks request time); a row
+/// created through `POST /users` reports its creation time instead, because
+/// `UserFactory::create()` seeds the column. Don't build a "last seen" row on
+/// it, and don't use it to infer that someone has never acted. BACKEND.md § F5.
+///
+/// (Field-level note lives here rather than beside the parameter because
+/// freezed copies *any* comment in the factory's parameter list into the
+/// generated getters, which turns a comment edit into a build_runner
+/// round-trip and a CI generated-code diff.)
 @freezed
 abstract class User with _$User {
   const User._();
@@ -100,12 +114,30 @@ abstract class User with _$User {
     return name.isNotEmpty ? name : email;
   }
 
-  /// `true` when the user has been invited but hasn't confirmed the email.
-  /// Drives the "Pending invite" status pill on the User Management list.
-  /// `email_verified_at` is the canonical signal — `!hasPassword` would
-  /// false-positive on OAuth users; `lastLogin == 0` would false-positive
-  /// on freshly created users who simply haven't logged in yet.
-  bool get isPending => emailVerifiedAt == 0;
+  /// `true` when this user's email address has not been confirmed.
+  ///
+  /// **Not** "pending invite", though it was rendered as one until
+  /// invoiceninja/flutter#47. Nothing on the wire expresses a pending invite;
+  /// `email_verified_at` is null for four different situations:
+  ///
+  ///  * an invited user who never accepted — the only one the old label fit;
+  ///  * an account owner who never clicked the verification email. `CreateUser`
+  ///    back-dates the column at signup **only** on self-host, so on hosted an
+  ///    owner can work forever with it still null;
+  ///  * **anyone who has ever changed their email address** — `UserController`
+  ///    nulls it on an email change and mails a fresh confirmation;
+  ///  * self-hosted *owners* created before that 2021-03 auto-verify, which
+  ///    shipped without a backfill migration.
+  ///
+  /// So this must never gate anything that assumes the user has done nothing —
+  /// in particular the Recent Activity feed, which the users above legitimately
+  /// fill. Nor is it worth suppressing per-platform: the invite path
+  /// (`POST /users` → `UserFactory::create`) leaves the column null on hosted
+  /// *and* self-hosted, so self-hosted is if anything where a null is most
+  /// likely to mean a real un-accepted invite. Render it as "verification
+  /// pending" — what the flag actually supports — and let the row's Resend
+  /// action be the answer either way. See BACKEND.md § F4.
+  bool get isEmailUnconfirmed => emailVerifiedAt == 0;
 
   /// Parsed permission tokens (`view_client`, `edit_invoice`, `create_all`, …).
   /// Empty when `is_admin = true` — administrators implicitly have all perms.

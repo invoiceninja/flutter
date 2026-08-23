@@ -128,6 +128,26 @@ void main() {
   late _FakeActivitiesApi api;
   late _FakeServices services;
 
+  _FakeServices servicesFor({
+    required Map<String, User> users,
+    required _FakeActivitiesApi api,
+  }) => _FakeServices(
+    auth: _FakeAuth(
+      ValueNotifier<AuthSession?>(
+        const AuthSession(
+          baseUrl: '',
+          isHosted: false,
+          accountId: '',
+          companies: [],
+          currentCompanyId: 'co',
+          userId: 'admin',
+        ),
+      ),
+    ),
+    user: _FakeUserRepo(users),
+    activities: api,
+  );
+
   setUp(() {
     api = _FakeActivitiesApi({
       'u1': [
@@ -148,24 +168,12 @@ void main() {
         ),
       ],
     });
-    services = _FakeServices(
-      auth: _FakeAuth(
-        ValueNotifier<AuthSession?>(
-          const AuthSession(
-            baseUrl: '',
-            isHosted: false,
-            accountId: '',
-            companies: [],
-            currentCompanyId: 'co',
-            userId: 'admin',
-          ),
-        ),
-      ),
-      user: _FakeUserRepo({
+    services = servicesFor(
+      users: {
         'u1': _user('u1', 'Zoe', 'Viewer'),
         'u2': _user('u2', 'Grace', 'Hopper'),
-      }),
-      activities: api,
+      },
+      api: api,
     );
   });
 
@@ -244,5 +252,91 @@ void main() {
     await pump(tester, 'u1');
 
     expect(find.text('No records found'), findsOneWidget);
+  });
+
+  // invoiceninja/flutter#47 — "a user who is `Pending invite` should not have
+  // any `Activity` displayed in `User Management`".
+  //
+  // Two halves, and they pull in opposite directions on purpose. A user who
+  // has genuinely never acted must show nothing; a user flagged *unconfirmed*
+  // must still be fetched, because `email_verified_at == null` also describes
+  // an owner who never clicked the verify email and anyone who has ever
+  // changed their address. Gating the feed on that flag — the tempting reading
+  // of this issue — would erase those people's real audit trail.
+  group('unconfirmed-email users (flutter#47)', () {
+    User unconfirmed(User u) => u.copyWith(emailVerifiedAt: 0);
+    User confirmed(User u) => u.copyWith(emailVerifiedAt: 1787472002);
+
+    testWidgets('a user who has never acted shows no activity at all', (
+      tester,
+    ) async {
+      // Empty from the API (its actor filter found nothing for them), even
+      // though the company itself is busy — which is what u2 stands in for.
+      services = servicesFor(
+        users: {'u1': unconfirmed(_user('u1', 'Ivy', 'Invited'))},
+        api: _FakeActivitiesApi({
+          'u2': [_row(id: '2', userId: 'u2', userLabel: 'Grace Hopper')],
+        }),
+      );
+
+      await pump(tester, 'u1');
+
+      expect(find.text('No records found'), findsOneWidget);
+      expect(find.textContaining('Grace Hopper'), findsNothing);
+    });
+
+    testWidgets('an unconfirmed user still gets their feed fetched', (
+      tester,
+    ) async {
+      // The regression guard on over-correcting. Ivy's email is unconfirmed
+      // but she has been working — an email change resets the flag without
+      // touching history. Suppressing the request here would hide all of it.
+      final busy = _FakeActivitiesApi({
+        'u1': [_row(id: '1', userId: 'u1', userLabel: 'Ivy Invited')],
+      });
+      services = servicesFor(
+        users: {'u1': unconfirmed(_user('u1', 'Ivy', 'Invited'))},
+        api: busy,
+      );
+
+      await pump(tester, 'u1');
+
+      expect(busy.requested, ['u1']);
+      expect(find.textContaining('Ivy Invited created'), findsOneWidget);
+      expect(find.text('No records found'), findsNothing);
+    });
+
+    testWidgets('an unconfirmed user gets a banner that explains itself', (
+      tester,
+    ) async {
+      services = servicesFor(
+        users: {'u1': unconfirmed(_user('u1', 'Ivy', 'Invited'))},
+        api: _FakeActivitiesApi(const {}),
+      );
+
+      await pump(tester, 'u1');
+
+      expect(
+        find.text('An email has been sent to confirm the email address'),
+        findsOneWidget,
+      );
+      // The section is titled for what it is. "Invitation" was the old claim,
+      // and it is wrong for everyone but a genuine never-accepted invite.
+      expect(find.text('Invitation'), findsNothing);
+    });
+
+    testWidgets('a confirmed user gets no banner', (tester) async {
+      services = servicesFor(
+        users: {'u1': confirmed(_user('u1', 'Ivy', 'Invited'))},
+        api: _FakeActivitiesApi(const {}),
+      );
+
+      await pump(tester, 'u1');
+
+      expect(
+        find.text('An email has been sent to confirm the email address'),
+        findsNothing,
+      );
+    });
   });
 }

@@ -247,16 +247,17 @@ class _DetailsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Only an existing, server-confirmed-unverified user is "pending". A
-    // brand-new draft has emailVerifiedAt == 0 (isPending == true) but hasn't
-    // been invited yet, so the invitation banner must not show in create mode.
-    final isPending = !vm.isCreate && vm.draft.isPending;
+    // A brand-new draft has emailVerifiedAt == 0 too, but hasn't been mailed
+    // anything yet, so the banner must not show in create mode. Beyond that
+    // the flag only means "email unconfirmed" — see `User.isEmailUnconfirmed`,
+    // and invoiceninja/flutter#47 for what reading it as "pending invite" cost.
+    final showUnconfirmed = !vm.isCreate && vm.draft.isEmailUnconfirmed;
     return SettingsFormShell(
       sections: [
-        if (isPending)
+        if (showUnconfirmed)
           FormSection(
-            title: context.tr('invitation'),
-            children: [_PendingInviteBanner()],
+            title: context.tr('email'),
+            children: [_UnconfirmedEmailBanner()],
           ),
         FormSection(
           title: context.tr('details'),
@@ -455,7 +456,7 @@ class _PermissionsTab extends StatelessWidget {
   }
 }
 
-class _PendingInviteBanner extends StatelessWidget {
+class _UnconfirmedEmailBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;

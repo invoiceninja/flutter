@@ -67,9 +67,15 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           final canModify = !isOwner && !isSelf;
           return SettingsFormShell(
             sections: [
-              if (user.isPending)
+              // Titled "Email", not "Invitation": `email_verified_at` is also
+              // null for an owner who never clicked the verify link and for
+              // anyone who has changed their address, so this section must not
+              // imply the user never accepted an invite
+              // (invoiceninja/flutter#47). Note it deliberately does NOT gate
+              // the activity feed below — those users are active.
+              if (user.isEmailUnconfirmed)
                 FormSection(
-                  title: context.tr('invitation'),
+                  title: context.tr('email'),
                   children: [
                     _Banner(
                       icon: Icons.email_outlined,

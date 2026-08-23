@@ -20,6 +20,9 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
 - Company setting `documents_public_by_default` — no server-side default for a new document's `is_public` (**O**, feature request; the Flutter v2 toggle is inert without it).
 - `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it).
+- `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
+- `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**R**, § F5; the field is unusable until both are fixed).
+- Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -342,6 +345,146 @@ user lacking `view_activity` who hits the non-`reactv2` path should take an
 unknown-column SQL error. Not runtime-confirmed; the column genuinely does not
 exist. Switching to `reactv2` sidesteps it for the v2 client.
 
+### F4. No wire field expresses a "pending invite" — **O** (client now under-claims)
+
+`UserTransformer` (`app/Transformers/UserTransformer.php:64`) exposes
+`email_verified_at` via `User::getEmailVerifiedAt()`
+(`app/Models/User.php:814-821`) — an integer Unix timestamp, or literal `null`.
+That is the **only** per-user verification signal on the wire, and null on it
+means four different things:
+
+1. an invited user who never accepted;
+2. a **hosted** account owner who never clicked the verification email —
+   `CreateUser` back-dates the column only `if (Ninja::isSelfHost())`
+   (`app/Jobs/User/CreateUser.php:70-72`);
+3. **anyone who has ever changed their email address** — `UserController::update`
+   nulls it and mails a fresh confirmation (`:174-176`);
+4. self-hosted **account owners** created before that self-host branch landed
+   (`9c2e5c2de4`, 2021-03-08) — there is no backfill migration. Only owners go
+   through `CreateUser`; see the table below.
+
+Note the asymmetry, because it is not the one you would guess. `POST
+/api/v1/users` — the invite path — reaches `app/Factory/UserFactory.php:21-36`
+via `StoreUserRequest::fetchUser()`, and that factory never touches
+`email_verified_at`. So the *only* creation-time setter is `CreateUser`, which
+runs at **account signup** and not for teammates:
+
+| | account owner | invited teammate |
+|---|---|---|
+| **hosted** | null until they click — often forever | null until they click |
+| **self-hosted** | back-dated at signup | null until they click |
+
+Self-hosted is therefore where a null is *most* likely to mean a real
+un-accepted invite, and hosted is where it is noisiest.
+
+Cases 2-4 are active, working users. The v2 client badged all of them
+"Pending invite" on the roster, which put an alarming label next to a live
+audit trail — **invoiceninja/flutter#47**, reported as "this looks like the
+account was compromised".
+
+`confirmation_code` can't rescue it either: `UserRepository::save()` mints one
+for *every* saved user (`app/Repositories/UserRepository.php:89-91`),
+`VerifiesUserEmail::confirm()` sets `email_verified_at` **without** clearing it
+(`app/Http/Controllers/Traits/VerifiesUserEmail.php:57` — only the
+password-setting sibling at `:103-104` clears it), and it is not in the
+transformer at all.
+
+**O.** Expose a derived boolean the clients can trust — either
+`'is_invite_pending' => $user->email_verified_at === null && $user->confirmation_code !== null`
+(after making `confirm()` clear the code, so it stops meaning "was ever
+invited"), or simply `'is_verified' => $user->isVerified()` plus honest client
+wording. `last_confirmed_email_address` (`UserTransformer.php:71`) already
+distinguishes case 3 and could stay as-is.
+- Accept: two users, one invited-never-accepted and one who just changed their
+  email, are distinguishable from the payload alone. Today they are identical.
+
+**Fixed client-side (no PR required):** the roster badge now says only what the
+flag supports — verification pending — on every platform. It deliberately does
+**not** gate the per-user activity feed, since cases 2-4 legitimately have
+history, and it is deliberately not suppressed per-platform either: per the
+table above, the invite path leaves the column null on hosted and self-hosted
+alike, so there is nowhere it would be safe to hide.
+
+### F5. `last_login` never means "last login" — **R**
+
+Two independent defects, and both must be fixed or the field stays unusable.
+
+**(a) `Carbon::parse(null)` returns *now*.** `app/Transformers/UserTransformer.php:58`:
+
+```php
+'last_login' => Carbon::parse($user->last_login)->timestamp,
+```
+
+`users.last_login` is `datetime` `nullable` with no default
+(`database/migrations/2014_10_13_000000_create_users_table.php:272`), so a row
+whose column is null silently reports the moment of the request. Live-probed
+2026-08-23 vs `demo.invoiceninja.com`, whose users have a null column:
+`GET /users` returned `1787485663`, then `1787485667` four seconds later —
+tracking request time. The adjacent `getEmailVerifiedAt()`
+(`app/Models/User.php:814-821`) already models this correctly by returning
+`null` for a falsy column.
+
+**(b) `UserFactory` seeds the column at creation.**
+`app/Factory/UserFactory.php:29` sets `$user->last_login = now();` on a brand
+new user, so a teammate created through `POST /api/v1/users` reports their
+*creation* time from the very first request. Fixing (a) alone does not make
+"never signed in" representable — it just swaps one wrong timestamp for
+another.
+
+**R.** Both:
+```php
+// UserTransformer.php:58
+'last_login' => $user->last_login ? Carbon::parse($user->last_login)->timestamp : null,
+```
+```php
+// UserFactory.php:29 — drop the seed
+- $user->last_login = now();
+```
+`app/Listeners/User/UpdateUserLastLogin.php:58` already owns the column on a
+real sign-in, so dropping the seed loses nothing. Precedent for (a) is in the
+same directory: `app/Transformers/VendorTransformer.php:100` emits
+`(int) $vendor->last_login` with no `Carbon::parse`, and does not have this bug.
+- Accept 1: a seeded or migrated row with a null column reports `null`, and the
+  value stops changing between two identical GETs. (This is what the demo probe
+  above measures — run it before and after.)
+- Accept 2: a user created via `POST /api/v1/users` who has never signed in
+  reports `null`, not their creation timestamp.
+
+Until then the field is unusable and the v2 client renders it nowhere — which
+also rules it out as a "has never acted, so the empty activity log is real"
+signal for § F4.
+
+### F6. Activity types 48–52 discard the acted-upon user — **O** (client now works around it)
+
+`texts.activity_48..52` (`lang/en/texts.php:770-774`) are
+`":user created user :user"`, `":user updated user :user"`, … — two different
+people. The wire carries one. `Activity::activity_string()` resolves `:user`
+through `matchVar()` to `$this->user`, the **actor**, and nothing else
+(`app/Models/Activity.php:549`); `array_merge` collapses the duplicate token to
+a single `user` object, so any renderer substitutes the actor into both slots
+and prints "Alice created user Alice".
+
+The target's identity is dropped before it reaches the DB. The six listeners in
+`app/Listeners/User/` pass the acted-upon user only as the `$entity` argument
+(e.g. `CreatedUserActivity.php:52-59`), and `ActivityRepository::save()` uses
+`$entity` for just `account_id` and `createBackup()` — which returns
+immediately for a `User` (`app/Repositories/ActivityRepository.php:82`). The
+`activities` table has one user column, `user_id`
+(`database/migrations/2014_10_13_000000_create_users_table.php:1053`).
+
+**O.** `PurgedUserActivity.php:47-53` already solves this for `PURGE_USER`: it
+stores the actor in `user_id` and the target's *name* in `notes`, which is why
+`activity_166` (`"User :notes was purged by :user"`) renders correctly. Do the
+same for 48–52 — set `$fields->notes = $event->user->present()->name();` in
+each listener and retemplate to `":user created user :notes"`.
+- Accept: an admin creating a user produces a row naming both people. Today it
+  names the admin twice.
+
+**Fixed client-side (no PR required):** `ActivityFormatter` falls back to an
+actor-only sentence ("Alice created a user") when the template still carries
+two `:user` tokens. The check counts tokens rather than hardcoding the types,
+so the translated template comes back on its own once this ships.
+
 ### H. `task_statuses/sort` endpoint — **O** (client now works around it)
 
 There is **no** `POST /api/v1/task_statuses/sort` route (only `tasks/sort`
@@ -569,6 +712,16 @@ domain entities only — **`user` is not among them**, so there is no per-entity
 route to a user's log). `rows` ⚠️ (honored only on the `reactv2` branch),
 `reactv2` ✅ (presence flag → `activity_string()` shape, unpaginated),
 `per_page`/`page`/`include=user` ✅ (generic, default branch only). See § F3.
+
+### GET /api/v1/users — verification & last-login fields
+
+`email_verified_at` `int|null` — the only verification signal, and it conflates
+"never accepted an invite" with three flavours of active-but-unconfirmed user
+(§ F4). `last_login` ⚠️ **always populated, often wrong** — `Carbon::parse(null)`
+returns now, so a user who has never signed in reports the request time
+(§ F5). `last_confirmed_email_address` `string` — non-empty means the user
+changed their address and hasn't re-confirmed. `confirmation_code` ❌ not
+exposed.
 
 ## Client-side mismatches — FIXED (not part of this PR)
 

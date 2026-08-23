@@ -460,21 +460,37 @@ class _UserRow extends StatelessWidget {
       _Badge(labelKey: roleKey),
       // Context, not a warning — explains why this row's actions are limited.
       if (isSelf) _Badge(labelKey: 'current_user', tone: _BadgeTone.muted),
-      if (user.isPending)
-        _Badge(labelKey: 'pending_invite', tone: _BadgeTone.warning),
+      // "Verification pending", never "Pending invite": an unconfirmed email
+      // does not mean the invite was never accepted, and claiming it did made
+      // long-active accounts look compromised (invoiceninja/flutter#47). Shown
+      // on every platform — the invite path leaves the column null on hosted
+      // and self-hosted alike, so there is nowhere it is safe to suppress.
+      if (user.isEmailUnconfirmed)
+        _Badge(labelKey: 'verification_pending', tone: _BadgeTone.warning),
       if (isArchived) _Badge(labelKey: 'archived', tone: _BadgeTone.muted),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Below ~480 px the role + pending badges in `trailing` crush the name
+        // Below ~480 px the role + status badges in `trailing` crush the name
         // into ellipsis, so move them onto a second line under the subtitle and
-        // leave only the chevron in `trailing`. Wide layout keeps badges inline.
+        // leave only the chevron in `trailing`.
         final narrow = constraints.maxWidth < 480;
+        // More than one badge goes to the second line at any width. `ListTile`
+        // lays `trailing` out under the width left over by the avatar, title
+        // and subtitle, so a Wrap there breaks onto its own runs and drags the
+        // whole row's height with it — and a long label wraps *inside* its own
+        // chip on top of that. Measured at 800 px: a row carrying
+        // Administrator + Current User + Verification Pending grew from 72 px
+        // to ~410 and pushed the rest of the roster off-screen. Deliberately
+        // count-based rather than width-based: badge text is translated
+        // ("Verificatie in afwachting" is 25 characters), so any px threshold
+        // tuned on English breaks in another locale.
+        final stackBadges = narrow || badges.length > 1;
         final chevron = !selectionActive
             ? const Icon(Icons.chevron_right, size: 18)
             : null;
-        final trailing = narrow
+        final trailing = stackBadges
             ? chevron
             : Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -508,13 +524,13 @@ class _UserRow extends StatelessWidget {
             user.displayName.isNotEmpty ? user.displayName : user.email,
             style: theme.textTheme.bodyLarge,
           ),
-          subtitle: (subtitle.isNotEmpty || narrow)
+          subtitle: (subtitle.isNotEmpty || stackBadges)
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (subtitle.isNotEmpty)
                       Text(subtitle, style: theme.textTheme.bodySmall),
-                    if (narrow)
+                    if (stackBadges)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Wrap(

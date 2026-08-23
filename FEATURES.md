@@ -1377,7 +1377,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Per-module permission grid | ✅ | ✅ | ✅ | ✅ | |
 | Edit user details (Enterprise) | ✅ | ✅ | ✅ | ✅ | |
 | Bulk user management | ✅ | ✅ | ✅ | ✅ | |
-| User activity log | ✅ | ✅ | ✅ | ✅ | |
+| User activity log | — | — | ✅ | ✅ | |
 | Owner + current user shown in roster (badged, not selectable) | ❌ | ❌ | ✅ | | |
 | Remove / revoke user | ✅ | ✅ | ✅ | ✅ | |
 

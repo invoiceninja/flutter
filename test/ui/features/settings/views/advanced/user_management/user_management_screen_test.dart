@@ -118,8 +118,8 @@ void main() {
   final self = _user('u_self', 'Sam', 'Self');
   final staff = _user('u_staff', 'Riley', 'Staff');
 
-  setUp(() {
-    repo = _FakeUserRepo([owner, self, staff]);
+  void wire(List<User> rows) {
+    repo = _FakeUserRepo(rows);
     addTearDown(repo.dispose);
     services = _FakeServices(
       auth: _FakeAuth(
@@ -138,7 +138,9 @@ void main() {
       ),
       user: repo,
     );
-  });
+  }
+
+  setUp(() => wire([owner, self, staff]));
 
   /// Records detail-screen navigations. A guarded row keeps its plain tap
   /// (viewing the owner is fine — bulk-deleting them is not), and with
@@ -289,4 +291,82 @@ void main() {
       expect(boxes.where((c) => c.onChanged != null), hasLength(1));
     },
   );
+
+  // Regression tests for invoiceninja/flutter#47 — "a user who is `Pending
+  // invite` should not have any `Activity` displayed".
+  //
+  // The reported symptom was #45 (every user's Activity section listed the
+  // whole company feed), already fixed. What survived it was the label: the
+  // roster badged anyone with a null `email_verified_at` as "Pending invite",
+  // and that flag is *also* null for an owner who never clicked the verify
+  // email — which on hosted can be forever, since `CreateUser` back-dates the
+  // column only on self-host — for anyone who has ever changed their email
+  // address, and for pre-2021 self-hosted owners. Those people are active, so
+  // the badge sat next to a live audit trail and read as a breach.
+  //
+  // The row now says only what the flag supports: verification is pending.
+  // It is deliberately NOT suppressed per-platform — the invite path
+  // (`POST /users` → `UserFactory::create`) leaves the column null on hosted
+  // and self-hosted alike, so hiding it anywhere would drop a real signal.
+  group('unconfirmed-email badge (flutter#47)', () {
+    User verified(User u) => u.copyWith(emailVerifiedAt: 1787472002);
+
+    testWidgets('an unconfirmed row says verification is pending', (
+      tester,
+    ) async {
+      await pump(tester);
+
+      expect(find.text('Verification Pending'), findsNWidgets(3));
+      // Never the old claim: nobody here was necessarily invited at all.
+      expect(find.text('Pending invite'), findsNothing);
+    });
+
+    testWidgets('a confirmed row gets no badge', (tester) async {
+      wire([verified(owner), verified(self), verified(staff)]);
+
+      await pump(tester);
+
+      expect(find.text('Verification Pending'), findsNothing);
+    });
+
+    testWidgets('a multi-badge row does not balloon the roster', (
+      tester,
+    ) async {
+      // Adding a second badge to every row is what surfaced this: `ListTile`
+      // lays `trailing` out in whatever width the avatar, title and subtitle
+      // leave, so a Wrap of badges there breaks onto its own runs and drags
+      // the row's height along — and a long translated label wraps inside its
+      // own chip on top of that. Sam's three-badge row measured ~410 px and
+      // pushed Riley clean off an 800x600 screen. Latent before #47 too:
+      // a hosted user viewing their own unconfirmed row already had three.
+      await pump(tester);
+
+      final heights = [
+        for (var i = 0; i < 3; i++)
+          tester.getSize(find.byType(ListTile).at(i)).height,
+      ];
+      expect(
+        heights.every((h) => h < 140),
+        isTrue,
+        reason: 'a row grew out of proportion — heights: $heights',
+      );
+      // The load-bearing consequence: the last row is still on screen, so it
+      // can still be tapped, long-pressed and bulk-selected.
+      expect(tester.getCenter(find.text('Riley Staff')).dy, lessThan(600));
+    });
+
+    testWidgets('badges only the rows that are actually unconfirmed', (
+      tester,
+    ) async {
+      wire([verified(owner), self, verified(staff)]);
+
+      await pump(tester);
+
+      expect(find.text('Verification Pending'), findsOneWidget);
+      // Sanity: all three rows rendered, so the single badge is selectivity
+      // and not a truncated list.
+      expect(find.text('Olivia Owner'), findsOneWidget);
+      expect(find.text('Riley Staff'), findsOneWidget);
+    });
+  });
 }

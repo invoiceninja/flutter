@@ -28,6 +28,16 @@ class ActivityRender {
 /// Status colors map for activity circles. Indexed by [ActivityTone].
 enum ActivityTone { paid, sent, viewed, draft, expense, neutral }
 
+/// `activity_type_id`s whose template names both an actor and a target user
+/// (`CREATE_USER` 48 … `RESTORE_USER` 52). Only the actor survives the wire —
+/// see the fallback in [ActivityFormatter.format].
+const Set<int> kUserLifecycleActivityTypes = {48, 49, 50, 51, 52};
+
+/// Deliberately a plain `RegExp` and not a `const {':user': …}` rename map:
+/// `no_unsubstituted_placeholders_test`'s check C false-fails on a map literal
+/// keyed `':name':`, and its doc names this file as the tempting refactor.
+final RegExp _userToken = RegExp(':user');
+
 class ActivityFormatter {
   ActivityFormatter(this.context);
 
@@ -57,6 +67,23 @@ class ActivityFormatter {
       // Type 54 with a contact is contact-initiated → swap `:user`→`:contact`.
       if (a.activityTypeId == 54 && a.labels.containsKey('contact')) {
         raw = raw.replaceAll(':user', ':contact');
+      }
+      // The user-lifecycle templates name two different people
+      // (":user created user :user") but the server persists only the actor:
+      // `ActivityRepository::save()` returns early for a User entity, and the
+      // `activities` table has no second user column, so `activity_string()`
+      // emits a single `user` object. The substitution below would stamp the
+      // actor into both slots — "Alice created user Alice". Fall back to an
+      // actor-only phrasing while the template still carries the duplicate
+      // token; if the server ever moves the target into `:notes` (BACKEND.md
+      // § F6) the count drops to one and the translated template is used
+      // again, with no change here.
+      if (kUserLifecycleActivityTypes.contains(a.activityTypeId) &&
+          _userToken.allMatches(raw).length > 1) {
+        final actorOnly = l?.lookup('${key}_actor_only') ?? '';
+        if (actorOnly.isNotEmpty && actorOnly != '${key}_actor_only') {
+          raw = actorOnly;
+        }
       }
       resolved = raw.replaceAllMapped(RegExp(r':([a-z_]+)'), (m) {
         final token = m.group(1)!;

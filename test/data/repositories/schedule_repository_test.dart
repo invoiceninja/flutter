@@ -369,6 +369,42 @@ void main() {
       },
     );
 
+    test('email_report drops blank start_date/end_date — the server validates '
+        'them with `date:Y-m-d` and 422s on an empty string', () {
+      final json = Schedule.empty()
+          .withTemplate(kScheduleTemplateEmailReport)
+          .toApiJson();
+      final params = json['parameters'] as Map;
+      // Verified live against demo.invoiceninja.com: posting these as ''
+      // returns 422 "The parameters.start date is not a valid date.",
+      // while omitting both keys succeeds. Every non-custom email_report
+      // create was rejected because of it (invoiceninja/flutter#43).
+      expect(params.containsKey('start_date'), isFalse);
+      expect(params.containsKey('end_date'), isFalse);
+      // Other blank strings are `nullable`/`sometimes` server-side and must
+      // still go out — only the date-typed keys are stripped.
+      expect(params['status'], '');
+      expect(params['product_key'], '');
+      expect(params['report_name'], 'activity');
+    });
+
+    test('email_report keeps real custom-range dates on the wire', () {
+      final draft = Schedule.empty().withTemplate(kScheduleTemplateEmailReport);
+      final json = draft
+          .copyWith(
+            parameters: <String, dynamic>{
+              ...draft.parameters,
+              'date_range': 'custom',
+              'start_date': '2026-06-01',
+              'end_date': '2026-06-30',
+            },
+          )
+          .toApiJson();
+      final params = json['parameters'] as Map;
+      expect(params['start_date'], '2026-06-01');
+      expect(params['end_date'], '2026-06-30');
+    });
+
     test('withNextRunNotBefore clamps a past date, keeps a future one', () {
       final floor = Date(2026, 6, 1);
       expect(

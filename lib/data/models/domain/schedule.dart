@@ -84,7 +84,7 @@ extension SchedulePayload on Schedule {
       'next_run': nextRun?.toIso() ?? '',
       'is_paused': isPaused,
       if (supportsRemainingCycles) 'remaining_cycles': remainingCycles,
-      'parameters': parameters,
+      'parameters': _wireParameters(parameters),
     };
   }
 }
@@ -309,6 +309,45 @@ class ScheduleParamsRow {
 }
 
 // ---------- private helpers ----------
+
+/// Parameter keys the server validates with Laravel's `date:Y-m-d` rule.
+const _kDateParameterKeys = <String>{'start_date', 'end_date'};
+
+/// [parameters] with any blank date key dropped.
+///
+/// An empty string is **not** skipped the way a `nullable` rule would skip
+/// it. `StoreSchedulerRequest` declares
+/// `'parameters.start_date' => ['bail', 'date:Y-m-d', 'required_if:parameters.date_range,custom']`,
+/// and posting `email_report` with `start_date: ''` / `end_date: ''` is
+/// rejected live with **422** *"The parameters.start date is not a valid
+/// date."* — verified against demo.invoiceninja.com; omitting both keys
+/// succeeds. Since `_defaultParametersFor` seeds both as `''` and the form
+/// only renders them when `date_range == 'custom'`, every non-custom
+/// `email_report` create 422'd: the row landed in Drift, the outbox POST was
+/// rejected, and the list showed a schedule that was never saved
+/// (invoiceninja/flutter#43).
+///
+/// Scoped deliberately to these two keys: they are the only date params in
+/// the API surface declared without `sometimes`/`nullable`. Every other date
+/// this app sends as `''` (invoice/quote/credit `due_date`, `partial_due_date`,
+/// expense `payment_date`, …) is `'bail|sometimes|nullable|date'` server-side,
+/// where Laravel skips a blank — so there is nothing to sweep elsewhere.
+///
+/// Dropping beats defaulting — inventing a date the user never picked would
+/// silently narrow the report's range. `canSave` separately blocks the
+/// `custom` case until both dates are filled, so a blank here always means
+/// "this template has no date range", never "the user hasn't typed it yet".
+Map<String, dynamic> _wireParameters(Map<String, dynamic> parameters) {
+  final out = <String, dynamic>{};
+  for (final entry in parameters.entries) {
+    final isBlankDate =
+        _kDateParameterKeys.contains(entry.key) &&
+        entry.value is String &&
+        (entry.value as String).isEmpty;
+    if (!isBlankDate) out[entry.key] = entry.value;
+  }
+  return out;
+}
 
 Map<String, dynamic> _defaultParametersFor(String template) {
   switch (template) {

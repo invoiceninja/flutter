@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment_term.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
 /// Search keys exported for the settings sidebar search. Colocated with the
@@ -96,6 +97,10 @@ class _PaymentTermRow extends StatelessWidget {
                     ),
                   ),
                 )
+              // An unsynced row takes the state slot rather than sitting
+              // beside the chevron — see UnsyncedPill on the width budget.
+              : term.isDirty
+              ? const UnsyncedPill()
               : const Icon(Icons.chevron_right),
           onTap: () => context.go('/settings/payment_terms/${term.id}'),
         ),

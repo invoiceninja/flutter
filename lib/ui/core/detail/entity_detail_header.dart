@@ -5,6 +5,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/avatar_tint.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Top-of-page identity row shared by every entity detail screen.
@@ -203,14 +204,7 @@ class _HeaderPills extends StatelessWidget {
       );
     }
     if (isDirty) {
-      pills.add(
-        StatusPill(
-          label: context.tr('unsynced'),
-          fgColor: tokens.sent,
-          bgColor: tokens.sentSoft,
-          tooltip: context.tr('unsynced_pending_outbox_tooltip'),
-        ),
-      );
+      pills.add(const UnsyncedPill());
     }
     if (pills.isEmpty) return const SizedBox.shrink();
     return Wrap(spacing: 6, runSpacing: 4, children: pills);

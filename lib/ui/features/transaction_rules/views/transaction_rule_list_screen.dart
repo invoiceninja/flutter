@@ -8,6 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/transaction_rule.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
@@ -114,6 +115,10 @@ class _TransactionRuleRow extends StatelessWidget {
                     ),
                   ),
                 )
+              // An unsynced row takes the state slot rather than sitting
+              // beside the chevron — see UnsyncedPill on the width budget.
+              : rule.isDirty
+              ? const UnsyncedPill()
               : const Icon(Icons.chevron_right),
           onTap: isUrlSelected
               ? () => MasterDetailNavScope.requestClose(

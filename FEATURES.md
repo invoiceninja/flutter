@@ -1468,6 +1468,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Company-switch sync parity (prompt for pending) | — | ✅ | ✅ | ✅ | |
 | Per-company FIFO outbox ordering | — | 🟡 | ✅ | ✅ | |
 | Offline editing (full CRUD without network) | — | 🟡 | ✅ | ✅ | |
+| "Unsynced" indicator on rows with a pending/rejected outbox edit | — | — | ✅ | | |
 | Encrypted local database (SQLCipher) | — | ❌ | ✅ | ✅ | |
 | One-tap Sync in the sidebar header (push + download, shared progress) | — | — | ✅ | | |
 

@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/token.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
@@ -132,6 +133,10 @@ class _TokenRow extends StatelessWidget {
                 )
               : token.isSystem
               ? Icon(Icons.lock_outline, color: tokens.ink3)
+              // An unsynced row takes the state slot rather than sitting
+              // beside the chevron — see UnsyncedPill on the width budget.
+              : token.isDirty
+              ? const UnsyncedPill()
               : const Icon(Icons.chevron_right),
           onTap: token.isSystem
               ? null

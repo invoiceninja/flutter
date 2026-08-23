@@ -9,6 +9,7 @@ import 'package:admin/data/models/domain/tag.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/core/widgets/tag_pill.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
 /// Search keys for the settings sidebar search. Colocated with the screen so
@@ -164,6 +165,10 @@ class _TagRow extends StatelessWidget {
                     ),
                   ),
                 )
+              // An unsynced row takes the state slot rather than sitting
+              // beside the chevron — see UnsyncedPill on the width budget.
+              : tag.isDirty
+              ? const UnsyncedPill()
               : const Icon(Icons.chevron_right),
           onTap: () => context.go('/settings/tags/${tag.id}'),
         ),

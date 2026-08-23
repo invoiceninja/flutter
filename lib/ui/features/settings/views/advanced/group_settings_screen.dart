@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
@@ -96,6 +97,10 @@ class _GroupRow extends StatelessWidget {
                     ),
                   ),
                 )
+              // An unsynced row takes the state slot rather than sitting
+              // beside the chevron — see UnsyncedPill on the width budget.
+              : group.isDirty
+              ? const UnsyncedPill()
               : const Icon(Icons.chevron_right),
           onTap: () => context.go('/settings/group_settings/${group.id}'),
         ),

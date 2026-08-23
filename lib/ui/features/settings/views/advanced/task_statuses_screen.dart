@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/task_status_colors.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
 /// Search keys exported for the settings sidebar search. Colocated with
@@ -116,12 +117,24 @@ class _TaskStatusRow extends StatelessWidget {
                     ),
                   ),
                 )
-              : ReorderableDragStartListener(
-                  index: index,
-                  child: Tooltip(
-                    message: context.tr('drag_to_reorder'),
-                    child: const Icon(Icons.drag_handle),
-                  ),
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // The drag handle is the only way to reorder
+                    // (`buildDefaultDragHandles: false`), so it stays put and
+                    // the pill sits beside it rather than replacing it.
+                    if (status.isDirty) ...[
+                      const UnsyncedPill(),
+                      const SizedBox(width: 8),
+                    ],
+                    ReorderableDragStartListener(
+                      index: index,
+                      child: Tooltip(
+                        message: context.tr('drag_to_reorder'),
+                        child: const Icon(Icons.drag_handle),
+                      ),
+                    ),
+                  ],
                 ),
           onTap: () => context.go('/settings/task_statuses/${status.id}'),
         ),

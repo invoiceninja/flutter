@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/tax_rate.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -71,7 +72,9 @@ class _TaxRateRow extends StatelessWidget {
           subtitle: Text(
             '${rateInputText(rate.rate, useCommaAsDecimalPlace: useComma, blankZero: false)}%',
           ),
-          trailing: const Icon(Icons.chevron_right),
+          trailing: rate.isDirty
+              ? const UnsyncedPill()
+              : const Icon(Icons.chevron_right),
           onTap: () => context.go('/settings/tax_rates/${rate.id}'),
         ),
         const Divider(height: 1),

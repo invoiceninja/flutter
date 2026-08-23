@@ -10,6 +10,7 @@ import 'package:admin/data/models/domain/bank_account.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/utils/formatting.dart';
@@ -156,6 +157,8 @@ class _BankAccountRow extends StatelessWidget {
                   background: tokens.draftSoft,
                   foreground: tokens.draft,
                 )
+              : account.isDirty
+              ? const UnsyncedPill()
               : Text(
                   balanceLabel,
                   style: TextStyle(

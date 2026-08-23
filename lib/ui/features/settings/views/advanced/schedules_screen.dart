@@ -9,6 +9,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/domain/schedule_constants.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/utils/formatting.dart';
@@ -187,7 +188,16 @@ class _ScheduleRow extends StatelessWidget {
     }
 
     final pieces = <Widget>[];
-    if (schedule.isPaused) {
+    // One state cue only. The trailing Row already carries the overflow menu,
+    // and on a 360 dp phone a third child leaves the summary sentence zero
+    // width — `ListTile` clamps that to 0 silently instead of raising an
+    // overflow, so the title would just vanish. Unsynced outranks paused and
+    // the relative next-run: a schedule the server never accepted isn't going
+    // to run at all, which makes "in 3 days" actively misleading. The absolute
+    // date stays in the subtitle either way.
+    if (schedule.isDirty) {
+      pieces.add(const UnsyncedPill());
+    } else if (schedule.isPaused) {
       pieces.add(
         _Pill(
           text: context.tr('paused'),

@@ -33,6 +33,7 @@ import 'package:admin/ui/core/list/master_detail_layout.dart'
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
@@ -577,9 +578,25 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
 
     // Nothing in the selection is actionable — say so up front instead of
     // walking the user through a compose/picker dialog only to no-op after.
-    if (_vm.countEligibleSelected(bulk) == 0) {
+    final eligibleCount = _vm.countEligibleSelected(bulk);
+    if (eligibleCount == 0) {
       Notify.info(context, context.tr(action.nothingKey));
       return;
+    }
+
+    // "Are you sure?" for the risky verbs, when the user has Confirm actions
+    // on. Only reachable for a `bulk.confirm` action, which by construction
+    // never also has a password sheet or a prep dialog — see
+    // `standardCrudBulkActions` — so this can't stack a second modal.
+    if (bulk.confirm && _services.confirmActions.value) {
+      final ok = await showConfirmActionDialog(
+        context,
+        title: context.tr(action.tooltipKey),
+        subject: context.tr('count_records_selected', {
+          'count': '$eligibleCount',
+        }),
+      );
+      if (!ok || !mounted) return;
     }
 
     // Selection-level action (aggregate / navigate / download): hand the whole

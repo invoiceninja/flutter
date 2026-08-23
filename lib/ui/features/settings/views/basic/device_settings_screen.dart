@@ -11,6 +11,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/widgets/biometric_toggle_tile.dart';
+import 'package:admin/ui/features/settings/widgets/confirm_actions_tile.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -28,14 +29,16 @@ const kDeviceSettingsSearchKeys = <String>[
   'customize_colors',
   'sync',
   'security',
+  'confirm_actions',
+  'confirm_actions_help',
   'biometric_authentication',
   ...kSidebarCountersSearchKeys,
   ...kSidebarBadgeModeSearchKeys,
 ];
 
 /// Top-level "Device Settings" page. Holds the device-local, no-save controls:
-/// theme (mode + palette), the per-preset colour overrides, biometric
-/// security, and the Sync action. Unlike most settings screens this has no
+/// theme (mode + palette), the per-preset colour overrides, the action-confirm
+/// + biometric guards, and the Sync action. Unlike most settings screens this has no
 /// cascade and no save bar — every control writes immediately to a
 /// device-local store (`nav_state`). Only the accent colour is server-synced;
 /// it lives on User Details → Preferences with the save bar.
@@ -47,9 +50,11 @@ class DeviceSettingsScreen extends StatefulWidget {
 }
 
 class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
-  // Resolved once on mount so the Security section either renders or is
-  // omitted entirely — without this gate, devices without biometrics (most
-  // desktops) would see an empty labeled "Security" card.
+  // Resolved once on mount so the Security section shows the biometric row
+  // only where it means something. The section itself always renders now that
+  // "Confirm actions" lives in it — both are guard rails (one against
+  // unintended access, one against unintended changes), and on desktop, where
+  // biometrics are unavailable, the card would otherwise vanish entirely.
   late final Future<bool> _biometricAvailable;
 
   @override
@@ -66,7 +71,7 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
       body: FutureBuilder<bool>(
         future: _biometricAvailable,
         builder: (context, snap) {
-          final showSecurity = snap.data == true;
+          final showBiometric = snap.data == true;
           return SettingsFormShell(
             sections: [
               FormSection(
@@ -79,11 +84,13 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
                   CustomizeColorsSection(controller: services.theme),
                 ],
               ),
-              if (showSecurity)
-                FormSection(
-                  title: context.tr('security'),
-                  children: const [BiometricToggleTile()],
-                ),
+              FormSection(
+                title: context.tr('security'),
+                children: [
+                  const ConfirmActionsTile(),
+                  if (showBiometric) const BiometricToggleTile(),
+                ],
+              ),
               const SidebarCountersSection(),
               const _DataSection(),
             ],

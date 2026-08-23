@@ -104,6 +104,7 @@ import 'package:admin/app/recently_viewed_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
+import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme_controller.dart';
@@ -268,6 +269,7 @@ class Services implements SidebarBadgeContext {
     required this.textScale,
     required this.keyboardShortcuts,
     required this.appLocale,
+    required this.confirmActions,
     required this.sidebar,
     required this.sidebarBadgeModes,
     required this.resync,
@@ -567,6 +569,12 @@ class Services implements SidebarBadgeContext {
   /// The locale `MaterialApp.locale` actually binds to — resolves the device
   /// override over the active company's `settings.language_id` (React parity).
   final AppLocaleResolver appLocale;
+
+  /// Device-local "Confirm actions" preference — when on, risky entity actions
+  /// (Approve, Mark Sent, Cancel, Archive, Delete, …) prompt "Are you sure?"
+  /// first. Read it at tap time via `guardedOnTap` /
+  /// `showConfirmActionDialog`, never cached into a built widget.
+  final ConfirmActionsController confirmActions;
 
   final SidebarController sidebar;
 
@@ -1295,6 +1303,7 @@ class Services implements SidebarBadgeContext {
       statics: statics,
       db: db,
     );
+    final confirmActions = ConfirmActionsController(db: db);
     final sidebar = SidebarController(db: db);
     final sidebarBadgeModes = SidebarBadgeModeController(db: db);
     // Captures the deferred `late final Services services` declared above —
@@ -1451,6 +1460,7 @@ class Services implements SidebarBadgeContext {
       textScale: textScale,
       keyboardShortcuts: keyboardShortcuts,
       appLocale: appLocale,
+      confirmActions: confirmActions,
       sidebar: sidebar,
       sidebarBadgeModes: sidebarBadgeModes,
       resync: resync,

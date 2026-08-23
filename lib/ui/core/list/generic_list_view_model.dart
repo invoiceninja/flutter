@@ -31,6 +31,7 @@ class BulkAction<T> {
     this.apply,
     this.applyArg,
     this.requiresPassword = false,
+    this.confirm = false,
   }) : assert(
          apply != null || applyArg != null,
          'BulkAction needs either apply or applyArg',
@@ -69,6 +70,16 @@ class BulkAction<T> {
   /// cancelling the prompt aborts the whole bulk op. The base VM just
   /// carries the flag.
   final bool requiresPassword;
+
+  /// Gate this bulk verb behind an "Are you sure?" dialog when the user has
+  /// **Confirm actions** on (Settings → Device Settings → Security).
+  /// `EntityListScreenScaffold._onBulk` owns the prompt.
+  ///
+  /// Leave it `false` when the action already stops for input — a
+  /// [requiresPassword] verb shows `ConfirmPasswordSheet` (the password *is*
+  /// the confirmation) and a prep-dialog verb opens its own compose/picker
+  /// sheet. Stacking a second modal in front of either is worse than none.
+  final bool confirm;
 }
 
 /// Generic list-screen ViewModel. Owns pagination, search, sort, filter,

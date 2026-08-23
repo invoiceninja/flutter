@@ -112,6 +112,12 @@ class PurchaseOrderActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(PurchaseOrder po) =>
+      po.number.isEmpty ? '' : '#${po.number}';
+
   static List<EntityActionItem<PurchaseOrderAction>> itemsFor(
     BuildContext context,
     PurchaseOrder po,
@@ -198,6 +204,8 @@ class PurchaseOrderActions {
       ),
       EntityActionItem(
         kind: PurchaseOrderAction.markSent,
+        confirm: true,
+        confirmSubject: _confirmSubject(po),
         icon: Icons.send_outlined,
         label: context.tr('mark_sent'),
         enabled: canMarkSent,
@@ -205,6 +213,8 @@ class PurchaseOrderActions {
       ),
       EntityActionItem(
         kind: PurchaseOrderAction.addToInventory,
+        confirm: true,
+        confirmSubject: _confirmSubject(po),
         icon: Icons.inventory_2_outlined,
         label: context.tr('add_to_inventory'),
         enabled: canAddToInventory,
@@ -213,6 +223,8 @@ class PurchaseOrderActions {
       if (expenseModuleEnabled && !hasExpense)
         EntityActionItem(
           kind: PurchaseOrderAction.convertToExpense,
+          confirm: true,
+          confirmSubject: _confirmSubject(po),
           icon: Icons.receipt_outlined,
           label: context.tr('convert_to_expense'),
           enabled: canEdit,
@@ -230,6 +242,8 @@ class PurchaseOrderActions {
         ),
       EntityActionItem(
         kind: PurchaseOrderAction.cancel,
+        confirm: true,
+        confirmSubject: _confirmSubject(po),
         icon: Icons.cancel_outlined,
         label: context.tr('cancel_purchase_order'),
         enabled: canCancel,
@@ -300,6 +314,7 @@ class PurchaseOrderActions {
       if (canEdit)
         ?archiveActionItem(
           context: context,
+          subject: _confirmSubject(po),
           kind: PurchaseOrderAction.archive,
           canArchive: canArchive,
           onTap: () => onTap(PurchaseOrderAction.archive),
@@ -314,6 +329,7 @@ class PurchaseOrderActions {
       if (canDelete)
         ?deleteActionItem(
           context: context,
+          subject: _confirmSubject(po),
           kind: PurchaseOrderAction.delete,
           canDelete: !po.isDeleted,
           onTap: () => onTap(PurchaseOrderAction.delete),

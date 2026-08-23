@@ -33,6 +33,11 @@ class PaymentLinkActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(PaymentLink paymentLink) => paymentLink.name;
+
   static List<EntityActionItem<PaymentLinkAction>> itemsFor(
     BuildContext context,
     PaymentLink paymentLink,
@@ -49,6 +54,7 @@ class PaymentLinkActions {
       ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(paymentLink),
         kind: PaymentLinkAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(PaymentLinkAction.archive),
@@ -61,6 +67,7 @@ class PaymentLinkActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(paymentLink),
         kind: PaymentLinkAction.delete,
         canDelete: !paymentLink.isDeleted,
         onTap: () => onTap(PaymentLinkAction.delete),

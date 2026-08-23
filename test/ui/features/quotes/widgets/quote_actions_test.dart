@@ -250,4 +250,77 @@ void main() {
     expect(enabled(items, QuoteAction.downloadPdf), isTrue);
     expect(enabled(items, QuoteAction.printPdf), isTrue);
   });
+
+  group('confirm gating (invoiceninja/flutter#49)', () {
+    // Approve is the action the issue names. The rule: gate a verb that fires
+    // immediately and is outward-facing or hard to reverse; leave alone
+    // anything that navigates to a screen with its own action button.
+    const gated = {
+      QuoteAction.approve,
+      QuoteAction.markSent,
+      QuoteAction.convertToInvoice,
+      QuoteAction.convertToProject,
+      QuoteAction.archive,
+      QuoteAction.delete,
+    };
+    const ungated = {
+      QuoteAction.edit,
+      QuoteAction.clone,
+      QuoteAction.viewPdf,
+      QuoteAction.downloadPdf,
+      QuoteAction.printPdf,
+      // Opens the full Send Email screen, which has its own Send button.
+      QuoteAction.sendEmail,
+      QuoteAction.scheduleEmail,
+      QuoteAction.addComment,
+      QuoteAction.restore,
+    };
+
+    testWidgets('gates the immediate, outward-facing verbs', (tester) async {
+      final items = await resolveItems(tester, _quote());
+      final all = flattenActionItems(items);
+      for (final kind in gated) {
+        final match = all.where((i) => i.kind == kind);
+        expect(match, isNotEmpty, reason: '$kind should be present on a draft');
+        expect(match.first.confirm, isTrue, reason: '$kind should be gated');
+      }
+    });
+
+    testWidgets('leaves navigation and reversible verbs alone', (tester) async {
+      // Archived so `restore` is in the list too.
+      final items = await resolveItems(
+        tester,
+        _quote(status: QuoteStatus.sent, archivedAt: 1700000000),
+      );
+      final all = flattenActionItems(items);
+      for (final kind in ungated) {
+        for (final item in all.where((i) => i.kind == kind)) {
+          expect(item.confirm, isFalse, reason: '$kind should not be gated');
+        }
+      }
+    });
+
+    testWidgets('a gated item names the quote in the prompt', (tester) async {
+      // The subject is what tells the user *which* row they hit — the whole
+      // reason the prompt is worth an extra tap on a phone.
+      final numbered = Quote.fromApi(
+        const QuoteApi(id: 'q1', statusId: '1', number: '0012'),
+      );
+      final items = await resolveItems(tester, numbered);
+      final approve = flattenActionItems(
+        items,
+      ).firstWhere((i) => i.kind == QuoteAction.approve);
+      expect(approve.confirmSubject, '#0012');
+    });
+
+    testWidgets('an unnumbered quote yields a blank subject, not a bare #', (
+      tester,
+    ) async {
+      final items = await resolveItems(tester, _quote());
+      final approve = flattenActionItems(
+        items,
+      ).firstWhere((i) => i.kind == QuoteAction.approve);
+      expect(approve.confirmSubject, isEmpty);
+    });
+  });
 }

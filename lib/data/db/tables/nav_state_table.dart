@@ -40,6 +40,15 @@ class NavState extends Table {
   TextColumn get sidebarBadgeModesJson =>
       text().named('sidebar_badge_modes_json').nullable()();
 
+  /// Device-local "prompt before running a risky action" preference (Settings
+  /// → Device Settings → Security). When true, outward-facing / irreversible
+  /// actions (Approve, Mark Sent, Cancel, Archive, Delete, …) open an "Are you
+  /// sure?" dialog first. Defaults to **on** — see invoiceninja/flutter#49,
+  /// where users reported fat-fingering Approve / Archive on a phone in the
+  /// field. Added in schema v4.
+  BoolColumn get confirmActions =>
+      boolean().named('confirm_actions').withDefault(const Constant(true))();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

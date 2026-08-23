@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:provider/provider.dart';
+
+import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 
 /// Archive / Restore / Delete `PopupMenuButton` for the AppBar of a settings
 /// edit screen (payment terms, task statuses, group settings, tax rates, …).
-/// Delete is gated by a confirm `AlertDialog` whose button sizing matches the
-/// design-system convention for side-by-side dialog actions (CLAUDE.md
-/// § Design system v2).
+/// Delete always confirms; Archive confirms when the user has **Confirm
+/// actions** on (Settings → Device Settings → Security). Both go through the
+/// shared [showConfirmActionDialog].
 ///
 /// On success the route pops if the navigator can — that's the right behavior
 /// for settings flows where archive/delete naturally returns the user to the
@@ -52,6 +55,13 @@ class SettingsEntityOverflowMenu extends StatelessWidget {
       onSelected: (action) async {
         switch (action) {
           case 'archive':
+            if (context.read<Services>().confirmActions.value) {
+              final ok = await showConfirmActionDialog(
+                context,
+                title: context.tr('archive'),
+              );
+              if (!ok || !context.mounted) return;
+            }
             await StandardEntityActions.archive(
               context: context,
               wireName: wireName,
@@ -67,27 +77,14 @@ class SettingsEntityOverflowMenu extends StatelessWidget {
             );
             if (context.mounted && context.canPop()) context.pop();
           case 'delete':
-            final confirmed = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text(ctx.tr('delete')),
-                content: Text(ctx.tr('are_you_sure')),
-                actions: [
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(64, 40),
-                    ),
-                    onPressed: () => Navigator.of(ctx).pop(false),
-                    child: Text(ctx.tr('cancel')),
-                  ),
-                  PrimaryDialogAction(
-                    label: ctx.tr('delete'),
-                    onPressed: () => Navigator.of(ctx).pop(true),
-                  ),
-                ],
-              ),
+            // Unconditional: deleting a settings record is destructive and
+            // has no Undo here, so it prompts even with the preference off.
+            final confirmed = await showConfirmActionDialog(
+              context,
+              title: context.tr('delete'),
+              destructive: true,
             );
-            if (confirmed != true || !context.mounted) return;
+            if (!confirmed || !context.mounted) return;
             await StandardEntityActions.delete(
               context: context,
               wireName: wireName,

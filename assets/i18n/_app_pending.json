@@ -160,6 +160,8 @@
   "config_not_cached_help": "Run `php artisan optimize` to improve performance",
   "configuration": "Configuration",
   "configure_tax_rates": "Configure tax rates",
+  "confirm_actions": "Confirm actions",
+  "confirm_actions_help": "Ask before actions that email a client or can't easily be undone.",
   "confirm_delete_user_body": "Soft-delete :user's account. They can be restored from the archived list.",
   "confirm_delete_view": "Delete this saved view? This can't be undone.",
   "confirm_detach_user_body": "Revoke :user's access to :company? Their account stays intact and can be invited back.",

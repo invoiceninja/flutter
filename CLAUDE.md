@@ -243,6 +243,14 @@ Contract tests live in `test/data/repositories/_base_entity_repository_contract.
 
 Full step-by-step shapes, "Standard action helpers" factories, the "Non-standard actions" pattern (e.g. Invoice `markPaid` via `customActions:`), and the bundled-entity alternative live in `docs/adding-an-entity.md`. Clients and Products are the reference invocations to mirror.
 
+### Action confirmations
+
+A risky new action sets `confirm: true` on its `EntityActionItem` (plus `confirmSubject: _confirmSubject(x)` so the prompt names the record, `isDestructive: true` if it destroys data, and `confirmMessageKey:` when Transifex already has more precise copy than `are_you_sure`). The user-facing switch is Settings → Device Settings → Security → **Confirm actions**, device-local in `nav_state.confirm_actions` and **on by default** (invoiceninja/flutter#49).
+
+Tag a verb iff it (a) fires a mutation immediately with no further UI step and (b) is outward-facing, financially significant, or hard to reverse — `approve`, `markSent`, `cancel`, `sendNow`, `autoBill`, and the shared `archive` / `delete` / `purge` factories. **Don't** tag one that already opens its own dialog (invoice `markPaid`, client `merge`/`purge`) or navigates to a screen with its own action button (`sendEmail` → the Send Email screen, `refund` → the refund screen) — a second prompt in front of those is worse than none. Bulk-toolbar items are `EntityActionItem`s too but stay untagged: `EntityListScreenScaffold._onBulk` owns that gate via `BulkAction.confirm`, and only for verbs that don't already stop for a password sheet or a prep dialog.
+
+Every render surface must wire `guardedOnTap(context, item)` rather than `item.onTap` — it reads the preference at *tap* time, so a flipped switch reaches menus that are already built, and an untagged action never touches `Services` at all. Surfaces outside the item model (the Documents tab, Outbox → Discard, User → Archive) call `showConfirmActionDialog` (`lib/ui/core/dialogs/confirm_action_dialog.dart`) behind `services.confirmActions.value` themselves. That dialog autofocuses **Cancel**, never the confirm — a stray Enter must not complete the action it exists to guard.
+
 ## Sync — non-obvious rules
 
 - Outbox FIFO is **per company, strict global id order** in M1 (only one entity type exists). The stronger "per (company, entity_type)" guarantee is needed once M2+ introduces cross-entity references with retry-driven head-of-line blocking — revisit `OutboxDao.nextReady` then.

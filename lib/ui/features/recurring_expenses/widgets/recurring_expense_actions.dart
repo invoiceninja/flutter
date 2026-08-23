@@ -54,6 +54,12 @@ class RecurringExpenseActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(RecurringExpense recurringExpense) =>
+      recurringExpense.number.isEmpty ? '' : '#${recurringExpense.number}';
+
   static List<EntityActionItem<RecurringExpenseAction>> itemsFor(
     BuildContext context,
     RecurringExpense recurringExpense,
@@ -74,6 +80,8 @@ class RecurringExpenseActions {
       if (recurringExpense.canBeStarted)
         EntityActionItem(
           kind: RecurringExpenseAction.start,
+          confirm: true,
+          confirmSubject: _confirmSubject(recurringExpense),
           icon: Icons.play_arrow_outlined,
           label: context.tr('start'),
           enabled: true,
@@ -82,6 +90,8 @@ class RecurringExpenseActions {
       if (recurringExpense.canBeStopped)
         EntityActionItem(
           kind: RecurringExpenseAction.stop,
+          confirm: true,
+          confirmSubject: _confirmSubject(recurringExpense),
           icon: Icons.stop_outlined,
           label: context.tr('stop'),
           enabled: true,
@@ -111,6 +121,7 @@ class RecurringExpenseActions {
       ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(recurringExpense),
         kind: RecurringExpenseAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(RecurringExpenseAction.archive),
@@ -123,6 +134,7 @@ class RecurringExpenseActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(recurringExpense),
         kind: RecurringExpenseAction.delete,
         canDelete: !recurringExpense.isDeleted,
         onTap: () => onTap(RecurringExpenseAction.delete),

@@ -37,6 +37,12 @@ class TransactionActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(BankTransaction transaction) =>
+      transaction.description;
+
   static List<EntityActionItem<TransactionAction>> itemsFor(
     BuildContext context,
     BankTransaction transaction,
@@ -64,6 +70,8 @@ class TransactionActions {
       if (canUnlink)
         EntityActionItem(
           kind: TransactionAction.unlink,
+          confirm: true,
+          confirmSubject: _confirmSubject(transaction),
           icon: Icons.link_off,
           label: context.tr('unlink'),
           enabled: true,
@@ -71,6 +79,7 @@ class TransactionActions {
         ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(transaction),
         kind: TransactionAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(TransactionAction.archive),
@@ -83,6 +92,7 @@ class TransactionActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(transaction),
         kind: TransactionAction.delete,
         canDelete: !transaction.isDeleted,
         onTap: () => onTap(TransactionAction.delete),

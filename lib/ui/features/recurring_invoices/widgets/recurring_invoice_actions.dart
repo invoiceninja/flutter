@@ -104,6 +104,12 @@ class RecurringInvoiceActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(RecurringInvoice ri) =>
+      ri.number.isEmpty ? '' : '#${ri.number}';
+
   static List<EntityActionItem<RecurringInvoiceAction>> itemsFor(
     BuildContext context,
     RecurringInvoice ri,
@@ -164,6 +170,9 @@ class RecurringInvoiceActions {
       ),
       EntityActionItem(
         kind: RecurringInvoiceAction.sendNow,
+        confirm: true,
+        confirmSubject: _confirmSubject(ri),
+        confirmMessageKey: 'confirm_recurring_email_invoice',
         icon: Icons.outgoing_mail,
         label: context.tr('send_now'),
         enabled: canSendNow,
@@ -171,6 +180,9 @@ class RecurringInvoiceActions {
       ),
       EntityActionItem(
         kind: RecurringInvoiceAction.start,
+        confirm: true,
+        confirmSubject: _confirmSubject(ri),
+        confirmMessageKey: 'confirm_recurring_email_invoice_not_sent',
         icon: Icons.play_arrow_outlined,
         label: context.tr('start'),
         enabled: canStart,
@@ -178,6 +190,8 @@ class RecurringInvoiceActions {
       ),
       EntityActionItem(
         kind: RecurringInvoiceAction.stop,
+        confirm: true,
+        confirmSubject: _confirmSubject(ri),
         icon: Icons.stop_outlined,
         label: context.tr('stop'),
         enabled: canStop,
@@ -246,6 +260,7 @@ class RecurringInvoiceActions {
       if (canEdit)
         ?archiveActionItem(
           context: context,
+          subject: _confirmSubject(ri),
           kind: RecurringInvoiceAction.archive,
           canArchive: canArchive,
           onTap: () => onTap(RecurringInvoiceAction.archive),
@@ -260,6 +275,7 @@ class RecurringInvoiceActions {
       if (canDelete)
         ?deleteActionItem(
           context: context,
+          subject: _confirmSubject(ri),
           kind: RecurringInvoiceAction.delete,
           canDelete: !ri.isDeleted,
           onTap: () => onTap(RecurringInvoiceAction.delete),

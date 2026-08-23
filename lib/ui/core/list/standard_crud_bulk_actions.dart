@@ -18,7 +18,9 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 /// ```
 ///
 /// Delete is flagged [BulkAction.requiresPassword] because the server
-/// requires `X-API-PASSWORD-BASE64` for destructive ops.
+/// requires `X-API-PASSWORD-BASE64` for destructive ops — and that password
+/// sheet *is* its confirmation, which is why only Archive carries
+/// [BulkAction.confirm]. Restore is the reversal, so it isn't gated at all.
 List<BulkAction<T>> standardCrudBulkActions<T>({
   required bool Function(T) isArchived,
   required bool Function(T) isDeleted,
@@ -31,6 +33,7 @@ List<BulkAction<T>> standardCrudBulkActions<T>({
     labelKey: 'archive',
     eligible: (t) => !isArchived(t) && !isDeleted(t),
     apply: archive,
+    confirm: true,
   ),
   BulkAction<T>(
     id: 'restore',

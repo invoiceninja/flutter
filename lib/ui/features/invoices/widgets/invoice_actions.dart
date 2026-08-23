@@ -151,6 +151,12 @@ class InvoiceActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(Invoice invoice) =>
+      invoice.number.isEmpty ? '' : '#${invoice.number}';
+
   static List<EntityActionItem<InvoiceAction>> itemsFor(
     BuildContext context,
     Invoice invoice,
@@ -283,6 +289,8 @@ class InvoiceActions {
       ),
       EntityActionItem(
         kind: InvoiceAction.markSent,
+        confirm: true,
+        confirmSubject: _confirmSubject(invoice),
         icon: Icons.send_outlined,
         label: context.tr('mark_sent'),
         enabled: canMarkSent,
@@ -310,6 +318,8 @@ class InvoiceActions {
       ),
       EntityActionItem(
         kind: InvoiceAction.autoBill,
+        confirm: true,
+        confirmSubject: _confirmSubject(invoice),
         icon: Icons.credit_card_outlined,
         label: context.tr('auto_bill'),
         enabled: canAutoBill,
@@ -317,6 +327,8 @@ class InvoiceActions {
       ),
       EntityActionItem(
         kind: InvoiceAction.cancel,
+        confirm: true,
+        confirmSubject: _confirmSubject(invoice),
         icon: Icons.cancel_outlined,
         label: context.tr('cancel_invoice'),
         enabled: canCancel,
@@ -337,6 +349,8 @@ class InvoiceActions {
       if (canSend)
         EntityActionItem(
           kind: InvoiceAction.sendEInvoice,
+          confirm: true,
+          confirmSubject: _confirmSubject(invoice),
           icon: Icons.send_outlined,
           label: context.tr('send_einvoice'),
           enabled: true,
@@ -415,6 +429,7 @@ class InvoiceActions {
       if (canEditInvoice)
         ?archiveActionItem(
           context: context,
+          subject: _confirmSubject(invoice),
           kind: InvoiceAction.archive,
           canArchive: canArchive,
           onTap: () => onTap(InvoiceAction.archive),
@@ -429,6 +444,7 @@ class InvoiceActions {
       if (canDeleteInvoice)
         ?deleteActionItem(
           context: context,
+          subject: _confirmSubject(invoice),
           kind: InvoiceAction.delete,
           canDelete: !invoice.isDeleted,
           onTap: () => onTap(InvoiceAction.delete),

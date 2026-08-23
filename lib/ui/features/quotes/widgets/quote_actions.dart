@@ -108,6 +108,12 @@ class QuoteActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(Quote quote) =>
+      quote.number.isEmpty ? '' : '#${quote.number}';
+
   static List<EntityActionItem<QuoteAction>> itemsFor(
     BuildContext context,
     Quote quote,
@@ -174,6 +180,8 @@ class QuoteActions {
       ),
       EntityActionItem(
         kind: QuoteAction.markSent,
+        confirm: true,
+        confirmSubject: _confirmSubject(quote),
         icon: Icons.send_outlined,
         label: context.tr('mark_sent'),
         enabled: canMarkSent,
@@ -181,6 +189,8 @@ class QuoteActions {
       ),
       EntityActionItem(
         kind: QuoteAction.approve,
+        confirm: true,
+        confirmSubject: _confirmSubject(quote),
         icon: Icons.thumb_up_alt_outlined,
         label: context.tr('approve'),
         enabled: canApprove,
@@ -189,6 +199,8 @@ class QuoteActions {
       if (me?.moduleEnabled(EntityType.invoice) ?? false)
         EntityActionItem(
           kind: QuoteAction.convertToInvoice,
+          confirm: true,
+          confirmSubject: _confirmSubject(quote),
           icon: Icons.receipt_long_outlined,
           label: context.tr('convert_to_invoice'),
           enabled: canConvert,
@@ -197,6 +209,8 @@ class QuoteActions {
       if (me?.moduleEnabled(EntityType.project) ?? false)
         EntityActionItem(
           kind: QuoteAction.convertToProject,
+          confirm: true,
+          confirmSubject: _confirmSubject(quote),
           icon: Icons.work_outline,
           label: context.tr('convert_to_project'),
           // Hidden once a project is linked — mirrors admin-portal's
@@ -273,6 +287,7 @@ class QuoteActions {
       if (canEdit)
         ?archiveActionItem(
           context: context,
+          subject: _confirmSubject(quote),
           kind: QuoteAction.archive,
           canArchive: canArchive,
           onTap: () => onTap(QuoteAction.archive),
@@ -287,6 +302,7 @@ class QuoteActions {
       if (canDelete)
         ?deleteActionItem(
           context: context,
+          subject: _confirmSubject(quote),
           kind: QuoteAction.delete,
           canDelete: !quote.isDeleted,
           onTap: () => onTap(QuoteAction.delete),

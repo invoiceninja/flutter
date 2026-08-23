@@ -97,6 +97,11 @@ class ClientActions {
   /// Item list shown by both the detail header row and the list-row popup.
   /// [onTap] receives the action; the caller wires it to [dispatch] (or
   /// any other handler).
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(Client client) => client.displayName;
+
   static List<EntityActionItem<ClientAction>> itemsFor(
     BuildContext context,
     Client client,
@@ -260,6 +265,7 @@ class ClientActions {
         ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(client),
         kind: ClientAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(ClientAction.archive),
@@ -272,12 +278,17 @@ class ClientActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(client),
         kind: ClientAction.delete,
         canDelete: !client.isDeleted,
         onTap: () => onTap(ClientAction.delete),
       ),
       ?purgeActionItem(
         context: context,
+        subject: _confirmSubject(client),
+        // `dispatch` opens the stronger bespoke `showPurgeClientDialog`
+        // warning, so the generic gate would be a second prompt in front of it.
+        confirm: false,
         kind: ClientAction.purge,
         canPurge: isAdminOrOwner,
         onTap: () => onTap(ClientAction.purge),

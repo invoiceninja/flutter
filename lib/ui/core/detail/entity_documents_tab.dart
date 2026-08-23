@@ -518,6 +518,12 @@ class _ActionsMenu extends StatelessWidget {
           case _RowAction.toggleVisibility:
             await onToggleVisibility(doc);
           case _RowAction.delete:
+            // Deliberately NOT behind the "Confirm actions" gate
+            // (invoiceninja/flutter#49): `MutationKind.documentDelete` is in
+            // every document-bearing entity's `requiresPasswordFor`, so the
+            // sync engine already raises `ConfirmPasswordSheet` — and a
+            // password prompt *is* the confirmation. Same reasoning keeps bulk
+            // delete untagged in `standardCrudBulkActions`.
             await onDelete(doc);
         }
       },

@@ -13,6 +13,7 @@ import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
@@ -519,6 +520,17 @@ class _RowMenu extends StatelessWidget {
           case 'retry':
             await onRetry();
           case 'discard':
+            // Discard throws away a local edit the server has never seen —
+            // the one action in the app with no recovery path at all — so it
+            // prompts when Confirm actions is on (invoiceninja/flutter#49).
+            if (context.read<Services>().confirmActions.value) {
+              final ok = await showConfirmActionDialog(
+                context,
+                title: context.tr('discard'),
+                destructive: true,
+              );
+              if (!ok || !context.mounted) return;
+            }
             await onDiscard();
           case 'open':
             if (handlers != null && context.mounted) {

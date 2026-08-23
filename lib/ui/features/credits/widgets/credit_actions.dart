@@ -106,6 +106,12 @@ class CreditActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(Credit credit) =>
+      credit.number.isEmpty ? '' : '#${credit.number}';
+
   static List<EntityActionItem<CreditAction>> itemsFor(
     BuildContext context,
     Credit credit,
@@ -168,6 +174,8 @@ class CreditActions {
       ),
       EntityActionItem(
         kind: CreditAction.markSent,
+        confirm: true,
+        confirmSubject: _confirmSubject(credit),
         icon: Icons.send_outlined,
         label: context.tr('mark_sent'),
         enabled: canMarkSent,
@@ -176,6 +184,8 @@ class CreditActions {
       if (canMarkPaid)
         EntityActionItem(
           kind: CreditAction.markPaid,
+          confirm: true,
+          confirmSubject: _confirmSubject(credit),
           icon: Icons.payments_outlined,
           label: context.tr('mark_paid'),
           enabled: true,
@@ -246,6 +256,7 @@ class CreditActions {
       if (canEdit)
         ?archiveActionItem(
           context: context,
+          subject: _confirmSubject(credit),
           kind: CreditAction.archive,
           canArchive: canArchive,
           onTap: () => onTap(CreditAction.archive),
@@ -260,6 +271,7 @@ class CreditActions {
       if (canDelete)
         ?deleteActionItem(
           context: context,
+          subject: _confirmSubject(credit),
           kind: CreditAction.delete,
           canDelete: !credit.isDeleted,
           onTap: () => onTap(CreditAction.delete),

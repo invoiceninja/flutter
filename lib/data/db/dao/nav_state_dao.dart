@@ -136,5 +136,21 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Confirm-actions-only update — [ConfirmActionsController] calls this when
+  /// the user flips the "Confirm actions" switch. Leaves the other fields
+  /// untouched, same partial-write pattern as [saveFilters].
+  Future<void> saveConfirmActions({
+    required bool enabled,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        confirmActions: Value(enabled),
+        updatedAt: now,
+      ),
+    );
+  }
+
   Future<void> clear() => (delete(navState)..where((n) => n.id.equals(0))).go();
 }

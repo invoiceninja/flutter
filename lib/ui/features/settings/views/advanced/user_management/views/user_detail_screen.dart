@@ -9,6 +9,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -261,6 +262,16 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   }
 
   Future<void> _archive(Services services, String companyId, User user) async {
+    // Its siblings (_detach / _delete / _purge) all confirm; archive gets the
+    // generic gate, on when the user has Confirm actions enabled.
+    if (services.confirmActions.value) {
+      final ok = await showConfirmActionDialog(
+        context,
+        title: context.tr('archive'),
+        subject: user.displayName,
+      );
+      if (!ok || !mounted) return;
+    }
     await services.user.archive(companyId: companyId, id: user.id);
     if (mounted) Notify.success(context, context.tr('archived_user'));
   }

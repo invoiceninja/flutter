@@ -54,6 +54,12 @@ class ExpenseActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(Expense expense) =>
+      expense.number.isEmpty ? '' : '#${expense.number}';
+
   static List<EntityActionItem<ExpenseAction>> itemsFor(
     BuildContext context,
     Expense expense,
@@ -122,6 +128,7 @@ class ExpenseActions {
       ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(expense),
         kind: ExpenseAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(ExpenseAction.archive),
@@ -134,6 +141,7 @@ class ExpenseActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(expense),
         kind: ExpenseAction.delete,
         canDelete: !expense.isDeleted,
         onTap: () => onTap(ExpenseAction.delete),

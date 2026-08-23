@@ -46,6 +46,11 @@ class CompanyGatewayActions {
     }
   }
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(CompanyGateway gateway) => gateway.label;
+
   static List<EntityActionItem<CompanyGatewayAction>> itemsFor(
     BuildContext context,
     CompanyGateway gateway,
@@ -67,6 +72,8 @@ class CompanyGatewayActions {
       if (isStripeConnect)
         EntityActionItem(
           kind: CompanyGatewayAction.disconnect,
+          confirm: true,
+          confirmSubject: _confirmSubject(gateway),
           icon: Icons.link_off_outlined,
           label: context.tr('disconnect'),
           enabled: true,
@@ -75,6 +82,8 @@ class CompanyGatewayActions {
       if (isAnyStripe) ...[
         EntityActionItem(
           kind: CompanyGatewayAction.importCustomers,
+          confirm: true,
+          confirmSubject: _confirmSubject(gateway),
           icon: Icons.cloud_download_outlined,
           label: context.tr('import_customers'),
           enabled: true,
@@ -97,6 +106,7 @@ class CompanyGatewayActions {
       ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(gateway),
         kind: CompanyGatewayAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(CompanyGatewayAction.archive),
@@ -109,6 +119,7 @@ class CompanyGatewayActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(gateway),
         kind: CompanyGatewayAction.delete,
         canDelete: !gateway.isDeleted,
         onTap: () => onTap(CompanyGatewayAction.delete),

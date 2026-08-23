@@ -13,6 +13,11 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 /// `archive` and `restore` return null when the entity isn't in the right
 /// state — the caller spreads the conditional with `?...` rather than
 /// repeating an `if (canArchive)` per entity.
+///
+/// Archive / Delete / Purge are tagged `confirm: true` here, so every entity
+/// inherits the "Are you sure?" gate (see `EntityActionItem.confirm`) without
+/// restating it. Pass `subject:` — the record's display label — so the prompt
+/// can say which row it's about.
 
 /// Primary "Edit" action. Renders as the `FilledButton` in the row.
 EntityActionItem<A> editActionItem<A>({
@@ -36,6 +41,7 @@ EntityActionItem<A>? archiveActionItem<A>({
   required A kind,
   required bool canArchive,
   required VoidCallback onTap,
+  String? subject,
 }) {
   if (!canArchive) return null;
   return EntityActionItem(
@@ -44,6 +50,10 @@ EntityActionItem<A>? archiveActionItem<A>({
     label: context.tr('archive'),
     enabled: true,
     isLifecycle: true,
+    // Reversible (the toast offers Undo), so not `isDestructive` — but still
+    // confirmed: archiving by accident is the exact complaint in #49.
+    confirm: true,
+    confirmSubject: subject,
     onTap: onTap,
   );
 }
@@ -73,6 +83,7 @@ EntityActionItem<A>? deleteActionItem<A>({
   required A kind,
   required bool canDelete,
   required VoidCallback onTap,
+  String? subject,
 }) {
   if (!canDelete) return null;
   return EntityActionItem(
@@ -81,6 +92,9 @@ EntityActionItem<A>? deleteActionItem<A>({
     label: context.tr('delete'),
     enabled: true,
     isLifecycle: true,
+    confirm: true,
+    isDestructive: true,
+    confirmSubject: subject,
     onTap: onTap,
   );
 }
@@ -94,6 +108,8 @@ EntityActionItem<A>? purgeActionItem<A>({
   required A kind,
   required bool canPurge,
   required VoidCallback onTap,
+  String? subject,
+  bool confirm = true,
 }) {
   if (!canPurge) return null;
   return EntityActionItem(
@@ -102,6 +118,11 @@ EntityActionItem<A>? purgeActionItem<A>({
     label: context.tr('purge'),
     enabled: true,
     isLifecycle: true,
+    // `confirm: false` for the one caller (Client) whose dispatch already
+    // opens a stronger bespoke warning — two prompts is worse than one.
+    confirm: confirm,
+    isDestructive: true,
+    confirmSubject: subject,
     onTap: onTap,
   );
 }

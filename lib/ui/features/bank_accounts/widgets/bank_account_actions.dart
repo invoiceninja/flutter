@@ -20,6 +20,11 @@ enum BankAccountAction { edit, archive, restore, delete }
 class BankAccountActions {
   BankAccountActions._();
 
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(BankAccount account) => account.name;
+
   static List<EntityActionItem<BankAccountAction>> itemsFor(
     BuildContext context,
     BankAccount account,
@@ -36,6 +41,7 @@ class BankAccountActions {
       ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(account),
         kind: BankAccountAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(BankAccountAction.archive),
@@ -48,6 +54,7 @@ class BankAccountActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(account),
         kind: BankAccountAction.delete,
         canDelete: !account.isDeleted,
         onTap: () => onTap(BankAccountAction.delete),

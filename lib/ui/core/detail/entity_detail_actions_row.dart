@@ -4,6 +4,11 @@ import 'package:overflow_view/overflow_view.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+// Deliberate import cycle: the dialog needs [EntityActionItem] to read its
+// `confirm*` fields, and this file needs `guardedOnTap`. Legal Dart, and
+// breaking it would mean extracting the model to its own file plus rewriting
+// the import line in ~20 call sites — more churn than the smell is worth.
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 
 /// One row item in an [EntityDetailActionsRow].
 ///
@@ -29,6 +34,10 @@ class EntityActionItem<A> {
     this.children,
     this.disabledTooltipKey = 'coming_soon',
     this.isLifecycle = false,
+    this.confirm = false,
+    this.isDestructive = false,
+    this.confirmMessageKey,
+    this.confirmSubject,
   });
 
   final A kind;
@@ -45,6 +54,37 @@ class EntityActionItem<A> {
   /// destructive group reads as separate from the entity-specific actions
   /// above it.
   final bool isLifecycle;
+
+  /// Gate this action behind an "Are you sure?" dialog when the user has
+  /// **Confirm actions** on (Settings → Device Settings → Security; on by
+  /// default — invoiceninja/flutter#49).
+  ///
+  /// Set it for a verb that (a) fires a mutation immediately with no further
+  /// UI step and (b) is outward-facing, financially significant, or hard to
+  /// reverse: Approve, Mark Sent, Cancel, Send Now, Auto Bill, Archive,
+  /// Delete, Purge… Do **not** set it for an action that already opens its own
+  /// dialog (invoice Mark Paid, client Merge) or navigates to a screen with
+  /// its own action button (Send Email, Refund) — a second prompt in front of
+  /// those is worse than none. Bulk-toolbar items stay untagged too;
+  /// `EntityListScreenScaffold._onBulk` owns that gate.
+  ///
+  /// The dialog is wired by `guardedOnTap`, not here.
+  final bool confirm;
+
+  /// Renders the confirm button in the error colour. Only for verbs that
+  /// destroy data (Delete / Purge), not for reversible ones like Archive.
+  final bool isDestructive;
+
+  /// Localization key for a message more precise than the default
+  /// `are_you_sure` — e.g. `confirm_recurring_email_invoice` ("Are you sure
+  /// you want this invoice emailed?") on recurring Send Now. Prefer an
+  /// existing Transifex key over inventing app-local copy.
+  final String? confirmMessageKey;
+
+  /// The record the action will hit, as a display label ("Acme Corp",
+  /// "#0012"). Rendered under the message so a prompt fired from a long list
+  /// says *which* row it's about.
+  final String? confirmSubject;
 
   /// Controls how a disabled (`enabled: false`) item is treated.
   ///
@@ -110,7 +150,7 @@ class EntityActionItem<A> {
         children.add(
           MenuItemButton(
             leadingIcon: Icon(item.icon, size: 18),
-            onPressed: item.onTap,
+            onPressed: guardedOnTap<A>(context, item),
             child: Text(item.label),
           ),
         );
@@ -363,7 +403,7 @@ class _ActionButton<A> extends StatelessWidget {
             ),
             icon: Icon(item.icon, size: 18),
             label: Text(item.label),
-            onPressed: item.enabled ? item.onTap : null,
+            onPressed: item.enabled ? guardedOnTap<A>(context, item) : null,
           )
         : OutlinedButton.icon(
             // CLAUDE.md: OutlinedButton inside a Row must override the
@@ -372,7 +412,7 @@ class _ActionButton<A> extends StatelessWidget {
             style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
             icon: Icon(item.icon, size: 18),
             label: Text(item.label),
-            onPressed: item.enabled ? item.onTap : null,
+            onPressed: item.enabled ? guardedOnTap<A>(context, item) : null,
           );
     if (item.enabled || item.disabledTooltipKey == null) return button;
     return Tooltip(

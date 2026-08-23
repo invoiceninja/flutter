@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
@@ -63,7 +64,12 @@ class _FakeSync implements SyncRepository {
 }
 
 class _FakeServices implements Services {
-  _FakeServices({required this.auth, required this.db, required this.sync});
+  _FakeServices({
+    required this.auth,
+    required this.db,
+    required this.sync,
+    required this.confirmActions,
+  });
 
   @override
   final AuthRepository auth;
@@ -71,6 +77,11 @@ class _FakeServices implements Services {
   final AppDatabase db;
   @override
   final SyncRepository sync;
+
+  /// Discard drops a local edit the server has never seen, so it sits behind
+  /// the "Confirm actions" gate (invoiceninja/flutter#49).
+  @override
+  final ConfirmActionsController confirmActions;
 
   // No handlers: `byWireName` returns null, so the tile falls back to the
   // generic icon and the menu simply omits "Open".
@@ -136,20 +147,29 @@ void main() {
     ),
   );
 
-  Widget host(SyncRepository sync) => MaterialApp(
-    theme: buildInTheme(InTheme.light),
-    localizationsDelegates: kTestLocalizationsDelegates,
-    supportedLocales: kTestSupportedLocales,
-    home: MultiProvider(
-      providers: [
-        Provider<Services>.value(
-          value: _FakeServices(auth: _FakeAuth(session), db: db, sync: sync),
+  Widget host(SyncRepository sync, {bool confirmActions = false}) =>
+      MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: MultiProvider(
+          providers: [
+            Provider<Services>.value(
+              value: _FakeServices(
+                auth: _FakeAuth(session),
+                db: db,
+                sync: sync,
+                confirmActions: ConfirmActionsController(
+                  db: db,
+                  initial: confirmActions,
+                ),
+              ),
+            ),
+            ChangeNotifierProvider<ToastController>.value(value: toasts),
+          ],
+          child: const OutboxScreen(),
         ),
-        ChangeNotifierProvider<ToastController>.value(value: toasts),
-      ],
-      child: const OutboxScreen(),
-    ),
-  );
+      );
 
   /// Opens a row's menu and picks [label]. Deliberately explicit pumps rather
   /// than `pumpAndSettle`: `PopupMenuButton` only fires `onSelected` once the
@@ -216,6 +236,52 @@ void main() {
     expect(find.text('tmp_b'), findsNothing, reason: 'stays gone');
     expect(await db.outboxDao.byId(target), isNull);
     await teardownTree(tester);
+  });
+
+  group('confirm gate (invoiceninja/flutter#49)', () {
+    // Discard is the one action in the app that destroys a local edit the
+    // server has never seen, and unlike document/bulk delete it has no
+    // password sheet standing in for a confirmation.
+    testWidgets('cancelling the prompt keeps the row queued', (tester) async {
+      final id = await seed(entityId: 'tmp_a', idempotencyKey: 'k1');
+      await tester.pumpWidget(host(_FakeSync(db), confirmActions: true));
+      await tester.pumpAndSettle();
+
+      await pickFromMenu(
+        tester,
+        find.byType(PopupMenuButton<String>).first,
+        'Discard',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Are you sure?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(await db.outboxDao.byId(id), isNotNull, reason: 'still queued');
+      expect(find.text('tmp_a'), findsOneWidget);
+      await teardownTree(tester);
+    });
+
+    testWidgets('confirming the prompt discards the row', (tester) async {
+      final id = await seed(entityId: 'tmp_a', idempotencyKey: 'k1');
+      await tester.pumpWidget(host(_FakeSync(db), confirmActions: true));
+      await tester.pumpAndSettle();
+
+      await pickFromMenu(
+        tester,
+        find.byType(PopupMenuButton<String>).first,
+        'Discard',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+
+      expect(await db.outboxDao.byId(id), isNull);
+      expect(find.text('tmp_a'), findsNothing);
+      await teardownTree(tester);
+    });
   });
 
   testWidgets('a discard that fails puts the tile back and says so', (

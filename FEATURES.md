@@ -1052,6 +1052,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Theme (light / dark / system, local) | — | ✅ | ✅ | ✅ | |
 | Font Size (text scale, local) | — | ✅ | ✅ | ✅ | |
 | Biometric Authentication toggle | — | ✅ | ✅ | ✅ | |
+| Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
 
 ---

@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/mdi_icons.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/list/embedded_list_scope.dart';
 
 /// List-row trailing popup that consumes the same [EntityActionItem] list
@@ -97,7 +98,9 @@ class EntityActionsPopupButton<A> extends StatelessWidget {
           constraints: _tightConstraints,
           // Null onPressed gives the standard greyed disabled state for
           // soft-deleted rows.
-          onPressed: (editEnabled && primary.enabled) ? primary.onTap : null,
+          onPressed: (editEnabled && primary.enabled)
+              ? guardedOnTap<A>(context, primary)
+              : null,
         ),
         const SizedBox(width: InSpacing.sm),
         popup,

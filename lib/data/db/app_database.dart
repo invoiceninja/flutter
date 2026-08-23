@@ -182,7 +182,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -211,12 +211,20 @@ class AppDatabase extends _$AppDatabase {
     //
     // v2 → v3: add `nav_state.sidebar_badge_modes_json` (device-local sidebar
     // counter choices). Same shape — nullable, null = "every row on total".
+    //
+    // v3 → v4: add `nav_state.confirm_actions` (device-local "Confirm actions"
+    // preference). Non-nullable with a `true` default, so SQLite's
+    // `ADD COLUMN ... DEFAULT 1` backfills installed databases — existing users
+    // get the guard switched on, matching a fresh install.
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
       }
       if (from < 3) {
         await m.addColumn(navState, navState.sidebarBadgeModesJson);
+      }
+      if (from < 4) {
+        await m.addColumn(navState, navState.confirmActions);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

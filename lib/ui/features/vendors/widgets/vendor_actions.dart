@@ -60,6 +60,11 @@ class VendorActions {
   /// Item list shown by both the detail header row and the list-row popup.
   /// [onTap] receives the action; the caller wires it to [dispatch] (or
   /// any other handler).
+  /// Display label for the "Are you sure?" prompt, so a confirm fired
+  /// from a long list says which record it's about. Blank is fine — the
+  /// dialog just omits the line.
+  static String _confirmSubject(Vendor vendor) => vendor.name;
+
   static List<EntityActionItem<VendorAction>> itemsFor(
     BuildContext context,
     Vendor vendor,
@@ -146,6 +151,7 @@ class VendorActions {
         ),
       ?archiveActionItem(
         context: context,
+        subject: _confirmSubject(vendor),
         kind: VendorAction.archive,
         canArchive: canArchive,
         onTap: () => onTap(VendorAction.archive),
@@ -158,6 +164,7 @@ class VendorActions {
       ),
       ?deleteActionItem(
         context: context,
+        subject: _confirmSubject(vendor),
         kind: VendorAction.delete,
         canDelete: !vendor.isDeleted,
         onTap: () => onTap(VendorAction.delete),

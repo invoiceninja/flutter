@@ -170,6 +170,7 @@
   "confirm_to_enable_biometric": "Confirm to enable biometric login",
   "connect_calendar": "Connect Calendar",
   "connect_google_account": "Connect your Google account to sign in with Google.",
+  "connect_hosted_only_hint": "Connecting a Google or Microsoft account is available on Invoice Ninja hosted accounts.",
   "connect_microsoft_web_hint": "To connect Microsoft, use the Invoice Ninja web app.",
   "connect_oauth_coming_soon": "Sign in with Google or Microsoft will be enabled in a follow-up update.",
   "connected_to": "Connected to",

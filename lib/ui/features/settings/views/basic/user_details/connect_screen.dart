@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -29,11 +30,48 @@ class UserDetailsConnectScreen extends StatelessWidget {
     final user = vm.user;
     if (user == null) return const SizedBox.shrink();
 
-    final connected = user.oauthProviderId.isNotEmpty;
+    if (user.oauthProviderId.isNotEmpty) {
+      // Deliberately *not* host-gated: a self-hosted instance with its own
+      // OAuth credentials can have a connected account, and taking the
+      // Disconnect button away would strand it. Same split React makes.
+      return SettingsFormShell(
+        sections: [_ConnectedSection(provider: user.oauthProviderId)],
+      );
+    }
+    // Connecting is hosted-only — the client ids the app ships belong to the
+    // hosted Google/Microsoft projects, and React gates the same buttons on
+    // `isHosted()` (`Connect.tsx`). Offering "Connect Google" on a
+    // self-hosted instance advertised something that could not work
+    // (invoiceninja/flutter#79); say why instead.
+    final isHosted =
+        context.read<Services>().auth.session.value?.isHosted ?? true;
     return SettingsFormShell(
-      sections: connected
-          ? [_ConnectedSection(provider: user.oauthProviderId)]
-          : const [_ConnectSection()],
+      sections: isHosted
+          ? const [_ConnectSection()]
+          : const [_SelfHostedNotice()],
+    );
+  }
+}
+
+/// Stands in for [_ConnectSection] on a self-hosted instance: the tab still
+/// exists (a connected account has to stay disconnectable, and a vanishing
+/// tab is its own confusion) but says plainly that there is nothing to do here.
+class _SelfHostedNotice extends StatelessWidget {
+  const _SelfHostedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return FormSection(
+      title: context.tr('oauth_mail'),
+      children: [
+        Text(
+          context.tr('connect_hosted_only_hint'),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: tokens.ink2),
+        ),
+      ],
     );
   }
 }

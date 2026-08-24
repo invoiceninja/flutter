@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/bank_account.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart'
-    show connectBankUrl;
+import 'package:admin/ui/features/bank_accounts/widgets/bank_connect.dart';
 
 /// The connect-flow context + (Nordigen-only) institution id derived from
 /// a stale account's integration type.
@@ -65,8 +61,6 @@ class _ReconnectBannerState extends State<ReconnectBanner> {
   Future<void> _reconnect() async {
     if (_busy) return;
     final account = widget.account;
-    final services = context.read<Services>();
-    final baseUrl = services.auth.session.value?.baseUrl ?? '';
     final messenger = ScaffoldMessenger.maybeOf(context);
     final ReconnectArgs args;
     try {
@@ -81,36 +75,10 @@ class _ReconnectBannerState extends State<ReconnectBanner> {
     }
     setState(() => _busy = true);
     try {
-      final hash = await services.bankAccounts.api.oneTimeToken(
-        context: args.ctx,
-        institutionId: args.institutionId,
-      );
-      final url = connectBankUrl(args.ctx, hash, baseUrl);
-      final ok = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!mounted) return;
-      if (ok) {
-        Notify.success(
-          context,
-          context.tr('complete_in_browser'),
-          messenger: messenger,
-        );
-      } else {
-        Notify.error(
-          context,
-          context.tr('an_error_occurred'),
-          messenger: messenger,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Notify.error(
+      await startBankConnect(
         context,
-        context.tr('an_error_occurred'),
-        error: e,
-        messenger: messenger,
+        provider: args.ctx,
+        institutionId: args.institutionId,
       );
     } finally {
       if (mounted) setState(() => _busy = false);

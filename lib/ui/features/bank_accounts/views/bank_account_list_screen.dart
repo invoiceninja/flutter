@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart' show selectedIdFromRoute;
@@ -11,6 +10,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/unsynced_pill.dart';
+import 'package:admin/ui/features/bank_accounts/widgets/bank_connect.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 import 'package:admin/utils/formatting.dart';
@@ -147,6 +147,13 @@ class _BankAccountRow extends StatelessWidget {
                   background: tokens.overdueSoft,
                   foreground: tokens.overdue,
                 ),
+              // An account that was *added* is not an account that is
+              // *connected*: with no integration type it will never produce a
+              // transaction on its own. Say so on the row, and make the fix
+              // one tap away instead of buried in the ⋮ menu
+              // (invoiceninja/flutter#70).
+              if (!_isArchived && bankAccountNeedsConnecting(account))
+                const _ConnectChip(),
             ],
           ),
           trailing: _isArchived
@@ -235,75 +242,6 @@ String connectBankUrl(String context, String hash, String baseUrl) {
 class _BankAccountsActions extends StatelessWidget {
   const _BankAccountsActions();
 
-  /// Mint a one-time token and open the aggregator's hosted connect page.
-  /// The aggregator + server own the OAuth/credential exchange; the app just
-  /// opens the URL, then Refresh / pull-to-refresh pulls the linked accounts.
-  Future<void> _connect(BuildContext context, String ctx) async {
-    final services = context.read<Services>();
-    final baseUrl = services.auth.session.value?.baseUrl ?? '';
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    try {
-      final hash = await services.bankAccounts.api.oneTimeToken(context: ctx);
-      final url = connectBankUrl(ctx, hash, baseUrl);
-      final ok = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!context.mounted) return;
-      if (ok) {
-        Notify.success(
-          context,
-          context.tr('complete_in_browser'),
-          messenger: messenger,
-        );
-      } else {
-        Notify.error(
-          context,
-          context.tr('an_error_occurred'),
-          messenger: messenger,
-        );
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      Notify.error(
-        context,
-        context.tr('an_error_occurred'),
-        error: e,
-        messenger: messenger,
-      );
-    }
-  }
-
-  /// Self-hosted connects via Nordigen directly (React parity — no provider
-  /// modal); hosted enterprise picks a provider first.
-  Future<void> _onConnect(BuildContext context) async {
-    final s = context.read<Services>().auth.session.value;
-    if (s?.isSelfHosted ?? false) {
-      await _connect(context, 'nordigen');
-      return;
-    }
-    final ctx = await showDialog<String>(
-      context: context,
-      builder: (d) => SimpleDialog(
-        title: Text(d.tr('connect_accounts')),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.of(d).pop('yodlee'),
-            // i18n-exempt: brand name
-            child: const Text('Yodlee'),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.of(d).pop('nordigen'),
-            // i18n-exempt: brand name
-            child: const Text('Nordigen (GoCardless)'),
-          ),
-        ],
-      ),
-    );
-    if (ctx == null || !context.mounted) return;
-    await _connect(context, ctx);
-  }
-
   /// Ask the server to poll the upstream provider for fresh balances /
   /// transactions. Routed through the outbox (queued + retried), so we toast a
   /// transient "Processing" rather than awaiting React's synchronous message.
@@ -343,7 +281,7 @@ class _BankAccountsActions extends StatelessWidget {
       itemBuilder: (menuContext) => [
         PopupMenuItem<void>(
           enabled: enterprise,
-          onTap: () => _onConnect(context),
+          onTap: () => startBankConnect(context),
           child: _ActionMenuRow(
             icon: Icons.add_link,
             label: context.tr('connect_accounts'),
@@ -366,6 +304,34 @@ class _BankAccountsActions extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Tappable "Connect" affordance on an unlinked account's row. Enterprise-
+/// gated exactly like the ⋮ menu item it shortcuts (self-hosted always
+/// qualifies), and hidden rather than disabled — a dead chip on every manual
+/// account would be pure noise on a plan that can't use bank feeds.
+class _ConnectChip extends StatelessWidget {
+  const _ConnectChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final session = context.read<Services>().auth.session.value;
+    if (!(session?.hasEnterpriseAccess ?? false)) {
+      return const SizedBox.shrink();
+    }
+    return TextButton.icon(
+      onPressed: () => startBankConnect(context),
+      icon: const Icon(Icons.add_link, size: 14),
+      label: Text(context.tr('connect')),
+      style: TextButton.styleFrom(
+        minimumSize: const Size(0, 24),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 }

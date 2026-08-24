@@ -42,7 +42,15 @@ class BankAccountsApi
       '/api/v1/one_time_token',
       body: {
         'context': context,
-        'platform': 'flutter',
+        // No `platform` key. `OneTimeTokenRequest` validates it
+        // `sometimes|nullable|string|in:flutter_native,react`, so the
+        // `'flutter'` this used to send failed *every* Connect Accounts
+        // attempt with a bare 422 "The given data was invalid."
+        // (invoiceninja/flutter#69, reproduced against the live demo server).
+        // Omitting it is right rather than merely safe: only the calendar
+        // OAuth callback reads `platform`, and the bank-connect route never
+        // looks at the value — while an older self-hosted server whose `in:`
+        // list predates `flutter_native` would 422 all over again.
         if (institutionId != null && institutionId.isNotEmpty)
           'institution_id': institutionId,
       },

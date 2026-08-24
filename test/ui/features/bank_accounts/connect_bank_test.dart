@@ -7,15 +7,19 @@ import 'package:http/testing.dart';
 
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/bank_accounts_api.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart';
+import 'package:admin/ui/features/bank_accounts/widgets/bank_connect.dart';
 
 ValueListenable<ApiCredentials?> _creds() => ValueNotifier<ApiCredentials?>(
   const ApiCredentials(baseUrl: 'https://co.example.com/', token: 't'),
 );
 
 void main() {
+  _bankConnectErrorMessageTests();
+
   group('connectBankUrl (admin-portal parity)', () {
     test('yodlee → server-relative base (NOT a hardcoded domain)', () {
       expect(
@@ -53,7 +57,7 @@ void main() {
 
   group('BankAccountsApi.oneTimeToken', () {
     test(
-      'POSTs {context,platform} and returns the hash (data or flat)',
+      'POSTs {context} — and never a platform — returning the hash',
       () async {
         Uri? captured;
         Map<String, dynamic>? body;
@@ -81,7 +85,11 @@ void main() {
 
         expect(captured!.path, '/api/v1/one_time_token');
         expect(body!['context'], 'yodlee');
-        expect(body!['platform'], 'flutter');
+        // `OneTimeTokenRequest` allows only `flutter_native` / `react`, so the
+        // `'flutter'` this used to send 422'd every connect attempt
+        // (invoiceninja/flutter#69). Nothing on the bank-connect route reads
+        // the key, so the fix is to omit it.
+        expect(body!.containsKey('platform'), isFalse);
         expect(hash, 'H123');
       },
     );
@@ -111,6 +119,68 @@ void main() {
           mk({'nope': true}),
         ).oneTimeToken(context: 'nordigen'),
         throwsA(isA<FormatException>()),
+      );
+    });
+  });
+}
+
+/// "An error occurred: The given data was invalid." named nothing the user
+/// could act on (invoiceninja/flutter#69); the useful text was in the 422's
+/// per-field messages.
+void _bankConnectErrorMessageTests() {
+  String tr(String key) =>
+      key == 'an_error_occurred' ? 'An error occurred' : key;
+
+  group('bankConnectErrorMessage', () {
+    test('flattens a 422 into its per-field messages', () {
+      expect(
+        bankConnectErrorMessage(
+          const ValidationException('The given data was invalid.', {
+            'platform': ['The selected platform is invalid.'],
+            'context': ['The context field is required.'],
+          }),
+          tr,
+        ),
+        'The selected platform is invalid. · The context field is required.',
+      );
+    });
+
+    test('falls back when a 422 carries no field messages', () {
+      expect(
+        bankConnectErrorMessage(
+          const ValidationException('The given data was invalid.', {
+            'platform': ['   '],
+          }),
+          tr,
+        ),
+        'The given data was invalid.',
+      );
+    });
+
+    test('never surfaces a 5xx body — it can be raw HTML', () {
+      expect(
+        bankConnectErrorMessage(
+          const ServerException(500, '<!DOCTYPE html><html><head><title>50'),
+          tr,
+        ),
+        'An error occurred',
+      );
+    });
+
+    test('uses a non-5xx ApiException message verbatim', () {
+      expect(
+        bankConnectErrorMessage(
+          const NetworkException('No internet connection'),
+          tr,
+        ),
+        'No internet connection',
+      );
+    });
+
+    test('a non-API error gets the generic message', () {
+      expect(
+        bankConnectErrorMessage(StateError('boom'), tr),
+        'An error occurred',
       );
     });
   });

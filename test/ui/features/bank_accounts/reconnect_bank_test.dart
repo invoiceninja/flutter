@@ -83,7 +83,7 @@ void main() {
       ).oneTimeToken(context: 'nordigen', institutionId: 'INST_42');
       expect(hash, 'H');
       expect(c.bodies.single['context'], 'nordigen');
-      expect(c.bodies.single['platform'], 'flutter');
+      expect(c.bodies.single.containsKey('platform'), isFalse);
       expect(c.bodies.single['institution_id'], 'INST_42');
     });
 
@@ -100,11 +100,12 @@ void main() {
     test(
       'the existing connect call is unchanged (no institution_id)',
       () async {
-        // Regression guard: the connect flow still sends exactly
-        // {context, platform} — adding the optional param must not alter it.
+        // Regression guard: the connect flow still sends exactly {context} —
+        // adding the optional param must not alter it, and `platform` must
+        // stay gone (invoiceninja/flutter#69).
         final c = _capture();
         await BankAccountsApi(c.client).oneTimeToken(context: 'yodlee');
-        expect(c.bodies.single.keys.toSet(), {'context', 'platform'});
+        expect(c.bodies.single.keys.toSet(), {'context'});
       },
     );
 

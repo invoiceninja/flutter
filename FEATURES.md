@@ -171,6 +171,8 @@ the honest default.
 | Invoice — list | ✅ | ✅ | ✅ | ✅ | 🟡 |
 | Invoice — detail | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Invoice — edit (line items, dates, totals) | ✅ | ✅ | ✅ | ✅ | |
+| Line item — free-text row on phone (not only picked Products / Tasks / Expenses) | ✅ | ✅ | ✅ | ✅ | |
+| Line item — tax columns follow `enabled_item_tax_rates` instead of always showing one | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — items-section FAB → tabbed multi-select picker (Products / Tasks / Expenses; tasks+expenses client-scoped to uninvoiced; exclude already-attached; Select All per tab; projectId carry-over) — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — picker Tasks tab grouped by project with per-project select-all | ❌ | ❌ | ✅ | | |
 | Billing-doc edit — document-level tax rates (1–3) + custom surcharges (1–4) + inclusive-taxes toggle, gated on company `enabled_tax_rates` / surcharge custom-fields — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | | |
@@ -370,6 +372,7 @@ the honest default.
 | Task — kanban drag-to-reorder within status | ✅ | ✅ | ✅ | ✅ | |
 | Task — kanban filter by project / client / assignee | ✅ | ✅ | ✅ | ✅ | |
 | Task — invoice from task | ✅ | ✅ | ✅ | ✅ | |
+| Task — create/convert a quote or invoice line item into a dated task | ❌ | ❌ | ❌ | | |
 | Task — add to existing invoice | ✅ | ✅ | ✅ | | |
 | Task — bulk invoice / add to invoice from a multi-select (multi-client rejected, multi-project grouped) | ✅ | ✅ | ✅ | | |
 | Task — generated line items carry the project header + time-log details per Task Settings (`invoice_task_project` / `_project_header` / `_datelog` / `_timelog` / `_hours` / `_item_description`) | 🟡 | ✅ | ✅ | | |
@@ -537,6 +540,7 @@ the honest default.
 | Product — tax category | ✅ | ✅ | ✅ | ✅ | |
 | Product — stock / inventory tracking | ✅ | 🟡 | ✅ | ✅ | |
 | Product — stock shown when selecting products (invoice line items) | ✅ | ✅ | ✅ | | |
+| Product — description date keywords (`[MONTHYEAR\|MONTHYEAR+12]`, `:MONTH`) rendered as dates when browsing lists | ❌ | ❌ | ✅ | ✅ | |
 | Product — low-stock / out-of-stock list filter + row highlight | — | — | ✅ | | |
 | Product — stock value (qty × price) column + detail row | — | — | ✅ | | |
 | Product — custom fields | ✅ | ✅ | ✅ | ✅ | |

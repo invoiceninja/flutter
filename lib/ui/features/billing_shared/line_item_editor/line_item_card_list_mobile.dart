@@ -103,19 +103,62 @@ class LineItemCardListMobile extends StatelessWidget {
               style: TextStyle(color: tokens.ink3),
             ),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              icon: const Icon(Icons.add),
-              label: Text(context.tr('add_item')),
-              onPressed: onPickItems ?? _add,
+            // Two doors, because they do different things: the picker only
+            // offers rows that already exist as a Product / Task / Expense,
+            // so with it as the sole affordance there was no way to type a
+            // one-off line item at all on a phone — the desktop table has
+            // always allowed it (invoiceninja/flutter#87).
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: InSpacing.md(context),
+              runSpacing: InSpacing.sm,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: Text(context.tr('add_item')),
+                  onPressed: _add,
+                ),
+                if (onPickItems != null)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(64, 40),
+                    ),
+                    icon: const Icon(Icons.list_alt_outlined),
+                    label: Text(context.tr('add_items')),
+                    onPressed: onPickItems,
+                  ),
+              ],
             ),
           ],
         ),
       );
     }
-    // The trailing "+ Add item" button below the cards was removed — it
-    // duplicated the items-section FAB. Reordering and per-card editing
-    // remain the same; bulk adds funnel through the picker.
+    // A trailing "+ Add item" below the cards. It was dropped once as a
+    // duplicate of the items-section FAB, but the FAB opens the *picker* —
+    // this adds an empty row to type into, which the picker cannot do
+    // (invoiceninja/flutter#87). Reordering and per-card editing are
+    // unchanged; bulk adds still funnel through the picker.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCards(context),
+        Padding(
+          padding: EdgeInsets.only(top: InSpacing.sm),
+          child: TextButton.icon(
+            icon: const Icon(Icons.add, size: 18),
+            label: Text(context.tr('add_item')),
+            onPressed: _add,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCards(BuildContext context) {
     return ReorderableListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),

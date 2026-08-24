@@ -54,8 +54,7 @@ void main() {
     'sync_in_progress', // another company's pass holds the lock
     'sync_complete', // shared success toast
     'sync_failed', // shared failure toast
-    'force_full_sync', // Account Management tile title
-    'force_sync_description', // Account Management tile subtitle
+    'force_full_sync', // Device Settings action title
   };
 
   // Retired by issue #15. `download` / `download_data` are not in this list:
@@ -110,9 +109,9 @@ void main() {
     final saysSync = RegExp(r'\bsync', caseSensitive: false);
     final offenders = <String>[];
     for (final key in syncKeys) {
-      // `sync_data_help` / `force_sync_description` legitimately describe the
-      // mechanics ("…then download a fresh copy…"); only the labels and the
-      // toasts are held to the vocabulary.
+      // `sync_data_help` legitimately describes the mechanics ("…then
+      // download a fresh copy…"); only the labels and the toasts are held to
+      // the vocabulary.
       if (key.endsWith('_help') || key.endsWith('_description')) continue;
       final value = resolved[key];
       if (value == null) continue; // reported by the test above
@@ -147,7 +146,7 @@ void main() {
         'sync_data_help', // device_settings_screen.dart
         'sync_now', // sidebar_sync_button.dart (ternary argument)
         'sync_complete', // settings_actions.dart
-        'force_full_sync', // account_management/overview_screen.dart
+        'force_full_sync', // device_settings_screen.dart
       ]),
       reason:
           'tr() scan returned ${rendered.length} keys but missed a known Sync '

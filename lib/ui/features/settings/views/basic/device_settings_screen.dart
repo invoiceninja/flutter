@@ -29,6 +29,10 @@ const kDeviceSettingsSearchKeys = <String>[
   'font_size',
   'customize_colors',
   'sync',
+  // Absorbed from Account Management → Overview, which used to carry its own
+  // Data card firing the same action (invoiceninja/flutter#71). Kept
+  // searchable under the old name so "force full sync" still finds it.
+  'force_full_sync',
   'security',
   'confirm_actions',
   'confirm_actions_help',
@@ -225,6 +229,17 @@ class _DataSectionState extends State<_DataSection> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Names the action the button performs. Absorbed from the
+            // duplicate Data card on Account Management → Overview, which
+            // fired the same `forceResync` from a second place
+            // (invoiceninja/flutter#71).
+            Text(
+              context.tr('force_full_sync'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: InSpacing.xs),
             Text(
               // App-local key, not Transifex's `download_data` ("Press button
               // below to download the data."): en.json can't be overridden

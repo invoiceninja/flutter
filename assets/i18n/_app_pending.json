@@ -364,7 +364,6 @@
   "financial": "Financial",
   "focus_search": "Focus the search field",
   "force_full_sync": "Force full sync",
-  "force_sync_description": "Upload any pending changes, then re-download all data from the server. Use this if the local cache feels out of date.",
   "foreign_amount": "Foreign amount",
   "france_reporting_enabled": "Reporting Enabled",
   "france_reporting_monthly": "Monthly Reporting",

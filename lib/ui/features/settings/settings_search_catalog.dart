@@ -423,7 +423,6 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'enable_email_markdown',
     'include_drafts',
     'include_deleted',
-    'force_full_sync',
     // Enabled modules
     'enabled_modules',
     // Integrations hub tiles + the Analytics screen's GA / Matomo fields, now

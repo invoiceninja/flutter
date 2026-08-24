@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/company_settings_gate.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/plan_screen.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -70,7 +68,6 @@ class _AccountManagementOverviewScreenState
                       onPressed: _onSetDefaultCompany,
                     ),
                   _CompanyTogglesCard(company: company, ready: ready),
-                  _DataCard(onResync: _onForceResync),
                 ],
               ),
             );
@@ -79,10 +76,6 @@ class _AccountManagementOverviewScreenState
       },
     );
   }
-
-  /// In-flight state lives on `services.resync` (shared with the sidebar Sync
-  /// button and Device Settings), so this is just the trigger.
-  Future<void> _onForceResync() => SettingsActions.forceResync(context);
 
   Future<void> _onSetDefaultCompany() async {
     final services = context.read<Services>();
@@ -418,54 +411,6 @@ class _ToggleRow extends StatelessWidget {
       subtitle: Text(context.tr(subtitleKey)),
       value: value,
       onChanged: onChanged,
-    );
-  }
-}
-
-class _DataCard extends StatelessWidget {
-  const _DataCard({required this.onResync});
-
-  final VoidCallback onResync;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    return FormSection(
-      title: context.tr('data'),
-      spacing: 0,
-      children: [
-        // Owns its own listener rather than taking a `resyncing` flag from the
-        // screen: the ~14 progress ticks would otherwise re-run the parent's
-        // ValueListenableBuilder → StreamBuilder → CompanySettingsGate chain.
-        ValueListenableBuilder<ResyncProgress>(
-          valueListenable: services.resync,
-          builder: (context, p, _) {
-            final resyncing = p.isRunningFor(companyId);
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.sync),
-              title: Text(context.tr('force_full_sync')),
-              subtitle: Text(
-                resyncing && p.total > 0
-                    ? context.tr('syncing_progress', {
-                        'count': '${p.completed}',
-                        'total': '${p.total}',
-                      })
-                    : context.tr('force_sync_description'),
-              ),
-              trailing: resyncing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
-              onTap: resyncing ? null : onResync,
-            );
-          },
-        ),
-      ],
     );
   }
 }

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/payment_link.dart';
+import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/recurring_frequency.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
@@ -11,9 +14,10 @@ import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/features/payment_links/widgets/payment_link_actions.dart';
 
 /// One row in the Payment Links list. Wide-mode renders the configured
-/// columns side-by-side; narrow mode collapses to the identity (name).
-/// Same anatomy as [ExpenseCategoryListTile] so the column-slot math
-/// stays consistent across settings entities.
+/// columns side-by-side; narrow mode collapses to the identity (name over
+/// billing frequency) plus a trailing price. Same column-slot math as
+/// [ExpenseCategoryListTile] so wide mode stays consistent across settings
+/// entities.
 class PaymentLinkListTile extends StatelessWidget {
   const PaymentLinkListTile({
     super.key,
@@ -107,20 +111,46 @@ class PaymentLinkListTile extends StatelessWidget {
     );
   }
 
+  /// Name over billing frequency, with the price trailing — the same anatomy
+  /// as the Products tile. A phone row had nothing but the name in it, so
+  /// quoting a client on a call meant opening every link in turn
+  /// (invoiceninja/flutter#72, #73). `cellMoney` rather than a local format
+  /// call so the figure matches the wide table's Price column exactly, dash-
+  /// for-zero included.
   Widget _narrow(BuildContext context, InTheme tokens) {
+    final freqKey = kRecurringFrequencyLabelKey[paymentLink.frequencyId];
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _leading(),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            paymentLink.name.isEmpty ? '—' : paymentLink.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                paymentLink.name.isEmpty ? '—' : paymentLink.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              // A one-off link carries no frequency id, and the map returns
+              // null for it — same guard the detail screen's overview uses.
+              if (freqKey != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  context.tr(freqKey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: tokens.ink3, fontSize: 12),
+                ),
+              ],
+            ],
           ),
         ),
+        const SizedBox(width: 12),
+        cellMoney(paymentLink.price, context),
         if (onAction != null && !selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<PaymentLinkAction>(

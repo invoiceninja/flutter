@@ -105,6 +105,7 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     String sortField = ProductFieldIds.productKey,
     bool sortAscending = true,
     Map<int, Set<String>> customFilters = const {},
+    String? groupField,
   }) {
     assert(
       loadedPages >= 1,
@@ -123,9 +124,21 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
           customValues2: customFilters[2] ?? const {},
           customValues3: customFilters[3] ?? const {},
           customValues4: customFilters[4] ?? const {},
+          groupField: groupField,
         )
         .map((rows) => rows.map(_fromRow).toList(growable: false));
   }
+
+  /// Distinct non-empty values populated by products in `companyId` for the
+  /// given custom column (1..4). Drives the `custom1:`…`custom4:` filter
+  /// tokens' value suggestions and the list's "group by" menu.
+  Stream<List<String>> watchDistinctCustomValues({
+    required String companyId,
+    required int columnIndex,
+  }) => db.productDao.watchDistinctCustomValues(
+    companyId: companyId,
+    columnIndex: columnIndex,
+  );
 
   Stream<int> watchCount({required String companyId}) =>
       db.productDao.watchCount(companyId: companyId);

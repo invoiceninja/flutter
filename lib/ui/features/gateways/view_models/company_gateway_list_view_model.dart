@@ -9,6 +9,7 @@ import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/company_gateway_columns.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/list/combine_latest.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
 import 'package:admin/ui/features/gateways/gateway_order_writer.dart';
@@ -87,7 +88,7 @@ class CompanyGatewayListViewModel extends GenericListViewModel<CompanyGateway> {
     // sort choice from the menu wins. Either way we stamp the default id for
     // the per-row badge. Combining streams keeps it reactive to a reorder even
     // when the gateway rows themselves don't change.
-    return _combineLatest<List<CompanyGateway>, Company?, List<CompanyGateway>>(
+    return combineLatest2<List<CompanyGateway>, Company?, List<CompanyGateway>>(
       base,
       companyRepo.watchCompany(companyId),
       (gateways, company) {
@@ -97,45 +98,6 @@ class CompanyGatewayListViewModel extends GenericListViewModel<CompanyGateway> {
         return orderGatewaysByCsv(gateways, csv);
       },
     );
-  }
-
-  /// Minimal combine-latest (no rxdart in the project). Emits once both
-  /// sources have produced a value, then on every subsequent event.
-  Stream<R> _combineLatest<A, B, R>(
-    Stream<A> a,
-    Stream<B> b,
-    R Function(A, B) combine,
-  ) {
-    late StreamController<R> controller;
-    StreamSubscription<A>? subA;
-    StreamSubscription<B>? subB;
-    A? latestA;
-    B? latestB;
-    var hasA = false;
-    var hasB = false;
-    void emit() {
-      if (hasA && hasB) controller.add(combine(latestA as A, latestB as B));
-    }
-
-    controller = StreamController<R>(
-      onListen: () {
-        subA = a.listen((v) {
-          latestA = v;
-          hasA = true;
-          emit();
-        }, onError: controller.addError);
-        subB = b.listen((v) {
-          latestB = v;
-          hasB = true;
-          emit();
-        }, onError: controller.addError);
-      },
-      onCancel: () async {
-        await subA?.cancel();
-        await subB?.cancel();
-      },
-    );
-    return controller.stream;
   }
 
   @override

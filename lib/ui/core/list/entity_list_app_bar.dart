@@ -30,6 +30,7 @@ class EntityListNormalAppBar<T> extends StatelessWidget
     required this.newRoute,
     required this.newLabelKey,
     required this.sortOptions,
+    this.groupOptions = const [],
     required this.searchField,
     this.extraActions = const [],
     this.showHamburger = true,
@@ -80,6 +81,12 @@ class EntityListNormalAppBar<T> extends StatelessWidget
 
   /// Options shown in the narrow-mode sort sheet.
   final List<SortOption> sortOptions;
+
+  /// Grouping dimensions offered inside the narrow sort sheet. Empty hides
+  /// the section; wide screens use the entity's own `extraAppBarActions`
+  /// control instead (this sheet is mobile-only — desktop sorts by clicking
+  /// column headers).
+  final List<GroupOption> groupOptions;
 
   /// Feature-built token search field. Sized the same in both modes — the
   /// caller decides whether to pass a wide or narrow flavor.
@@ -186,6 +193,9 @@ class EntityListNormalAppBar<T> extends StatelessWidget
         options: sortOptions,
         onApply: ({required field, required ascending}) =>
             vm.setSort(field: field, ascending: ascending),
+        groupOptions: groupOptions,
+        initialGroup: vm.groupField,
+        onApplyGroup: vm.setGroupField,
       ),
     );
   }

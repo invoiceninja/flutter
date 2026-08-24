@@ -18,6 +18,20 @@ final _log = Logger('SavedViewsRepository');
 /// the `v == null` legacy lane.
 const int kSavedViewSnapshotVersion = 1;
 
+/// Snapshot keys that are a **display preference, not a filter**.
+///
+/// `GenericListViewModel.currentSnapshot` writes grouping (and its collapsed
+/// set) into the same `nav_state` slot as the filters, because that is where
+/// per-entity list state lives. They must not take part in Saved View
+/// identity though: otherwise grouping a list — or just folding one group —
+/// would make the live slot stop matching the view the user applied, silently
+/// dropping the sidebar's active-view highlight and turning
+/// [SavedViewsRepository.clearAppliedViewFilters] into a no-op.
+///
+/// Declared here rather than beside the ViewModel so the data layer doesn't
+/// have to import UI code.
+const Set<String> kDisplayOnlySnapshotKeys = {'groupField', 'collapsedGroups'};
+
 /// Local-only saved views: named snapshots of a list screen's
 /// filter+sort+search state plus the user's current column selection. The
 /// repository owns serialization and the "apply" path that splices the
@@ -103,17 +117,26 @@ class SavedViewsRepository {
     );
   }
 
-  /// The saved view whose six-field snapshot deeply equals [slot], or
-  /// `null`. `apply` strips `columnIds` before splicing into nav_state, so
-  /// strip it here too — otherwise a column-customized view could never
-  /// match its own applied slot. Single source of truth for the active-view
-  /// equality, shared by [watchActiveView] and [clearAppliedViewFilters].
+  /// The saved view whose filter snapshot deeply equals [slot], or `null`.
+  /// `apply` strips `columnIds` before splicing into nav_state, so strip it
+  /// here too — otherwise a column-customized view could never match its own
+  /// applied slot. Single source of truth for the active-view equality, shared
+  /// by [watchActiveView] and [clearAppliedViewFilters].
+  ///
+  /// [kDisplayOnlySnapshotKeys] comes off **both** sides
+  /// for the same reason: grouping and its collapsed set ride in the same
+  /// nav_state slot but are a display preference, not a filter. Leaving them
+  /// in would mean grouping a list — or just folding one group — silently
+  /// dropped the active-view highlight and disabled [clearAppliedViewFilters].
   SavedView? _matchSlot(List<SavedView> views, Map<String, dynamic> slot) {
     const eq = DeepCollectionEquality();
+    final liveSlot = Map<String, dynamic>.from(slot)
+      ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
     for (final v in views) {
       final viewSlot = Map<String, dynamic>.from(v.snapshot)
-        ..remove('columnIds');
-      if (eq.equals(viewSlot, slot)) return v;
+        ..remove('columnIds')
+        ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
+      if (eq.equals(viewSlot, liveSlot)) return v;
     }
     return null;
   }

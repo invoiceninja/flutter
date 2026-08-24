@@ -458,6 +458,47 @@ void main() {
       expect(active?.id, view.id);
     });
 
+    test('stays active after the user groups or folds a group', () async {
+      final view = await repo.create(
+        companyId: 'co',
+        entityType: EntityType.client,
+        name: 'Acme',
+        snapshot: {'search': 'acme'},
+      );
+      await repo.apply(view.id);
+
+      // Grouping and its collapsed set ride in the same nav_state slot as the
+      // filters, but they are a display preference — including them in view
+      // identity would silently drop the sidebar highlight (and disable
+      // clearAppliedViewFilters) the moment a user folded a group.
+      final nav = await db.navStateDao.current();
+      final doc = jsonDecode(nav!.filtersJson!) as Map<String, dynamic>;
+      final company = Map<String, dynamic>.from(doc['co'] as Map);
+      final slot = Map<String, dynamic>.from(
+        company[EntityType.client.name] as Map,
+      );
+      slot['groupField'] = 'custom1';
+      slot['collapsedGroups'] = ['Hardware'];
+      company[EntityType.client.name] = slot;
+      doc['co'] = company;
+      await db.navStateDao.saveFilters(filtersJson: jsonEncode(doc), now: 1);
+
+      final active = await repo
+          .watchActiveView(companyId: 'co', entityType: EntityType.client)
+          .first;
+      expect(active?.id, view.id);
+
+      // ...and the sidebar's "clear" affordance still works.
+      await repo.clearAppliedViewFilters(
+        companyId: 'co',
+        entityType: EntityType.client,
+      );
+      final after = await repo
+          .watchActiveView(companyId: 'co', entityType: EntityType.client)
+          .first;
+      expect(after, isNull);
+    });
+
     test(
       'scoped to the entity — a different entity slot is not a match',
       () async {

@@ -142,6 +142,7 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
     Set<String> customValues2 = const {},
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
+    String? groupField,
   }) {
     final q = select(products)..where((p) => p.companyId.equals(companyId));
 
@@ -184,6 +185,23 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
     }
 
     q.orderBy([
+      // Grouping leads the ORDER BY so each group's rows are contiguous and
+      // the screen can print a header on every value change; the user's sort
+      // then applies *within* a group. Two terms, not one:
+      //   1. empty-last, so `Uncategorized` sorts to the bottom (SQLite ranks
+      //      false(0) before true(1), so ascending on `col = ''` does it);
+      //   2. `.lower()`, because SQLite's default TEXT collation is BINARY —
+      //      without it `Zebra` would sort ahead of `apple`;
+      //   3. the raw column, because the SCREEN groups on the raw value. With
+      //      only the lowercased term, `Retail` and `retail` tie and the
+      //      user's sort interleaves them — rendering a header per run and
+      //      making one collapse hide non-adjacent rows.
+      if (_groupColumn(products, groupField) != null) ...[
+        (p) =>
+            OrderingTerm(expression: _groupColumn(p, groupField)!.equals('')),
+        (p) => OrderingTerm(expression: _groupColumn(p, groupField)!.lower()),
+        (p) => OrderingTerm(expression: _groupColumn(p, groupField)!),
+      ],
       (p) => OrderingTerm(
         expression: _sortExpression(p, sortField),
         mode: sortAscending ? OrderingMode.asc : OrderingMode.desc,
@@ -285,5 +303,46 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
               'the column sortable: false',
         );
     }
+  }
+
+  /// The custom-value column a grouping id names, or null for "no grouping"
+  /// and for any id this DAO can't group by in SQL (`tags` lives in the
+  /// payload and is grouped in Dart by the ViewModel).
+  ///
+  /// Returns null rather than throwing, unlike [_sortExpression]: a grouping
+  /// id can go stale in persisted list state when a company un-configures a
+  /// custom field, and that must degrade to an ungrouped list, not a crash.
+  Expression<String>? _groupColumn(Products p, String? groupField) =>
+      switch (groupField) {
+        ProductFieldIds.custom1 => p.customValue1,
+        ProductFieldIds.custom2 => p.customValue2,
+        ProductFieldIds.custom3 => p.customValue3,
+        ProductFieldIds.custom4 => p.customValue4,
+        _ => null,
+      };
+
+  /// Distinct non-empty values of `custom_value{columnIndex}` for the given
+  /// company, ordered ascending. Feeds the `custom1:`…`custom4:` filter
+  /// tokens' value suggestions and the products list's "group by" menu (a
+  /// slot with no values isn't worth offering as a grouping dimension).
+  /// Mirrors [ClientDao.watchDistinctCustomValues].
+  Stream<List<String>> watchDistinctCustomValues({
+    required String companyId,
+    required int columnIndex,
+  }) {
+    final column = switch (columnIndex) {
+      1 => products.customValue1,
+      2 => products.customValue2,
+      3 => products.customValue3,
+      4 => products.customValue4,
+      _ => throw ArgumentError('columnIndex must be 1..4 (got $columnIndex)'),
+    };
+    final q = selectOnly(products, distinct: true)
+      ..addColumns([column])
+      ..where(products.companyId.equals(companyId) & column.equals('').not())
+      // `.lower()` to match the grouped list's own ordering — BINARY
+      // collation would otherwise list `Zebra` ahead of `apple`.
+      ..orderBy([OrderingTerm(expression: column.lower())]);
+    return q.map((row) => row.read(column)!).watch().distinctRows();
   }
 }

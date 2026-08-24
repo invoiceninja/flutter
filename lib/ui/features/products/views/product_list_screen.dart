@@ -7,11 +7,13 @@ import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
+import 'package:admin/ui/core/list/entity_list_section_header.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/products/view_models/product_list_view_model.dart';
 import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 import 'package:admin/ui/features/products/widgets/product_actions.dart';
+import 'package:admin/ui/features/products/widgets/product_group_by_button.dart';
 import 'package:admin/ui/features/products/widgets/product_list_tile.dart';
 import 'package:admin/ui/features/products/widgets/product_token_search_field.dart';
 
@@ -44,6 +46,15 @@ class ProductListScreen extends StatelessWidget {
         navStateDao: services.db.navStateDao,
         userSettings: services.userSettings,
         savedViews: services.savedViews,
+        // Names the tag groups. A factory, not a stream: the VM folds it into
+        // its page stream and rebuilds that on every re-subscribe. Archived
+        // included so a row carrying one still lands in a named group rather
+        // than Uncategorized.
+        tagStream: () => services.tags.watchAll(
+          companyId: companyId,
+          entityType: 'product',
+          includeArchived: true,
+        ),
       ),
       sortOptions: (context) => [
         SortOption(
@@ -58,6 +69,37 @@ class ProductListScreen extends StatelessWidget {
           label: context.tr('last_updated'),
         ),
       ],
+      // Phones pick the grouping inside the sort sheet (see
+      // `EntitySortFilterSheet`); wide screens get the labelled button below.
+      // Both read the same `vm.groupField`.
+      groupOptions: (context, vm) => [
+        for (final id in vm.availableGroupFieldIds)
+          GroupOption(
+            id: id,
+            label: id == kProductGroupTags
+                ? context.tr('tags')
+                : vm.groupFieldLabel(id),
+          ),
+      ],
+      // Wide only: narrow would be a third AppBar glyph on top of the sheet
+      // entry that already offers the same choice.
+      extraAppBarActions: (context, vm, wide) =>
+          wide ? [ProductGroupByButton(vm: vm)] : const <Widget>[],
+      sectionHeaderBuilder: (context, vm, index) {
+        if (vm.effectiveGroupField == null || !vm.isGroupStart(index)) {
+          return null;
+        }
+        final label = vm.groupLabelAt(index);
+        return EntityListSectionHeader(
+          // `''` is the stored "no value" key — localize only for display, so
+          // a folded group survives a language change.
+          label: label.isEmpty ? context.tr('uncategorized') : label,
+          count: vm.groupCount(label),
+          collapsed: vm.isGroupCollapsed(label),
+          onToggle: () => vm.toggleGroupCollapsed(label),
+          isFirst: index == 0,
+        );
+      },
       searchFieldBuilder: (context, vm, wide) =>
           ProductTokenSearchField(vm: vm, wide: wide),
       tileBuilder: (context, vm, product, index, options) {

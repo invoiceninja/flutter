@@ -94,6 +94,24 @@ typedef EntityWideColumnHeadersBuilder<VM> =
 typedef EntityExtraAppBarActionsBuilder<VM> =
     List<Widget> Function(BuildContext context, VM vm, bool wide);
 
+/// Builds the group separator rendered directly above row [index], or null
+/// when that row doesn't start a new group. Called for every row, so keep it
+/// O(1) — resolve group boundaries once per emission in the ViewModel rather
+/// than rescanning the list here.
+///
+/// Deliberately a *prefix* on the row rather than a flattened
+/// header-or-row union: `vm.items` stays a flat list of entities, so
+/// multiselect, keyboard stepping and the auto-scroll estimate keep indexing
+/// it directly.
+typedef EntitySectionHeaderBuilder<VM> =
+    Widget? Function(BuildContext context, VM vm, int index);
+
+/// Builds the grouping dimensions offered in the narrow sort sheet. Takes the
+/// VM because the useful set is data-dependent (Products only offers a custom
+/// field the company has both configured and populated).
+typedef EntityGroupOptionsBuilder<VM> =
+    List<GroupOption> Function(BuildContext context, VM vm);
+
 // ─── Config records ──────────────────────────────────────────────────────
 
 /// Per-row state supplied to the [EntityTileBuilder] every build.
@@ -243,6 +261,8 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
     this.wantsFormatter = true,
     this.embedded = false,
     this.headerBanner,
+    this.sectionHeaderBuilder,
+    this.groupOptions,
     this.canCreate = true,
     this.embeddedNewOverride,
     this.selectionShortcuts,
@@ -339,6 +359,16 @@ class EntityListScreenScaffold<T, VM extends GenericListViewModel<T>>
   /// AppBar). Used by plan-gated settings list screens (payment_links,
   /// transaction_rules, user_management) to render a `PlanGateBanner`.
   final Widget? headerBanner;
+
+  /// Optional group separators for a grouped list. Pairs with
+  /// `GenericListViewModel.isRowHidden`, which folds a group's rows away
+  /// while leaving them in `items`.
+  final EntitySectionHeaderBuilder<VM>? sectionHeaderBuilder;
+
+  /// Grouping dimensions offered in the narrow sort sheet. Null / empty
+  /// leaves that sheet exactly as it was. Wide screens supply their own
+  /// control through [extraAppBarActions] (the sheet is mobile-only).
+  final EntityGroupOptionsBuilder<VM>? groupOptions;
 
   /// When `false`, the wide-mode "New X" inline button and the narrow-mode
   /// FAB are hidden / inert. Used by plan-gated screens so a free-plan user
@@ -453,7 +483,17 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     if (!_vScroll.hasClients) return;
     const estimatedRowPx = kEntityListRowHeight;
     final pos = _vScroll.position;
-    final target = (index * estimatedRowPx).clamp(
+    // Count only the rows that actually occupy space — a collapsed group
+    // leaves its members in `items` at zero height, so multiplying the raw
+    // index would overshoot by a whole folded group.
+    var rowsAbove = index;
+    if (_vm.hasHiddenRows) {
+      rowsAbove = 0;
+      for (var i = 0; i < index && i < _vm.items.length; i++) {
+        if (!_vm.isRowHidden(i)) rowsAbove++;
+      }
+    }
+    final target = (rowsAbove * estimatedRowPx).clamp(
       pos.minScrollExtent,
       pos.maxScrollExtent,
     );
@@ -825,7 +865,12 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // Don't fight checkbox bulk-select mode.
     if (_vm.isInMultiselect) return const Object();
 
-    final ids = [for (final item in _vm.items) _vm.idOf(item)];
+    // Skip rows inside a collapsed group — arrowing into a record the user
+    // can't see would look like the selection vanishing.
+    final ids = [
+      for (var i = 0; i < _vm.items.length; i++)
+        if (!_vm.isRowHidden(i)) _vm.idOf(_vm.items[i]),
+    ];
     if (ids.isEmpty) return const Object();
     final cur = selectedIdFromRoute(context);
     final String? target;
@@ -833,10 +878,17 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
       target = forward ? ids.first : ids.last;
     } else {
       final i = ids.indexOf(cur);
-      if (forward) {
-        target = (i < 0 || i >= ids.length - 1) ? null : ids[i + 1];
+      if (i < 0) {
+        // The selected row is loaded but hidden inside a collapsed group, so
+        // it has no neighbours in `ids` — step from the nearest end rather
+        // than consuming the keystroke and doing nothing. A selection that
+        // isn't loaded at all keeps the previous no-op.
+        final loaded = _vm.items.any((e) => _vm.idOf(e) == cur);
+        target = loaded ? (forward ? ids.first : ids.last) : null;
+      } else if (forward) {
+        target = i >= ids.length - 1 ? null : ids[i + 1];
       } else {
-        target = (i <= 0) ? null : ids[i - 1];
+        target = i == 0 ? null : ids[i - 1];
       }
     }
     if (target == null) return const Object();
@@ -917,7 +969,10 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         if (navController != null) {
           navController.update(
             selectedId: selectedId,
-            itemIds: [for (final item in _vm.items) _vm.idOf(item)],
+            itemIds: [
+              for (var i = 0; i < _vm.items.length; i++)
+                if (!_vm.isRowHidden(i)) _vm.idOf(_vm.items[i]),
+            ],
           );
         }
         // Auto-scroll the list to keep the URL-active row in view (slide-
@@ -1087,6 +1142,9 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                       newRoute: widget.newRoute,
                       newLabelKey: widget.newLabelKey,
                       sortOptions: widget.sortOptions(context),
+                      groupOptions:
+                          widget.groupOptions?.call(context, _vm) ??
+                          const <GroupOption>[],
                       // See the embedded-list searchField above: key by
                       // company so the token-search State is recreated (and
                       // its controller rebound to the new VM) on a company
@@ -1216,6 +1274,51 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
             _vm.idOf(item) == selId ||
             (index + 1 < _vm.items.length &&
                 _vm.idOf(_vm.items[index + 1]) == selId);
+        final headerBuilder = widget.sectionHeaderBuilder;
+        final header = headerBuilder?.call(context, _vm, index);
+        // The next row's header draws its own top rule, so the divider under
+        // this row would stack against it into a 2 px line.
+        final nextStartsGroup =
+            headerBuilder != null &&
+            index + 1 < _vm.items.length &&
+            headerBuilder(context, _vm, index + 1) != null;
+        // A row inside a collapsed group contributes nothing but its
+        // group's header (if it happens to be the group's first row). The
+        // ConstrainedBox is skipped entirely — leaving it would give every
+        // folded row 72 px of blank space.
+        final hidden = _vm.isRowHidden(index);
+        final Widget row = hidden
+            ? const SizedBox.shrink()
+            // minHeight (not a fixed height) gives every row a stable
+            // taller floor so toggling the leading avatar↔checkbox never
+            // reflows the list, while tall tiles (2-line identity + money
+            // column) are never clipped.
+            : ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: kEntityListRowHeight,
+                ),
+                child: widget.tileBuilder(
+                  context,
+                  _vm,
+                  item,
+                  index,
+                  EntityListTileOptions(
+                    wide: wide,
+                    isLast: isLast,
+                    selecting: selecting,
+                    formatter: widget.wantsFormatter ? formatter : null,
+                    // Archived entities stay editable (matches legacy
+                    // Invoice Ninja: `isEditable => !isDeleted`); only
+                    // soft-deleted rows grey out the edit pencil.
+                    editable: !_vm.isDeleted(item),
+                    // Highlight variant: null while navigating to a
+                    // full-width editor so the row doesn't flash selected
+                    // before the editor covers the list.
+                    selectedId: selId,
+                    bottomDividerHidden: bottomDividerHidden || nextStartsGroup,
+                  ),
+                ),
+              );
         // Key by entity identity (not list position) so a full-page
         // re-emit from the Drift watch reuses unchanged tile elements
         // instead of rebinding state by index. RepaintBoundary keeps a
@@ -1223,36 +1326,13 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         return KeyedSubtree(
           key: ValueKey(_vm.idOf(item)),
           child: RepaintBoundary(
-            // minHeight (not a fixed height) gives every row a stable
-            // taller floor so toggling the leading avatar↔checkbox never
-            // reflows the list, while tall tiles (2-line identity + money
-            // column) are never clipped.
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                minHeight: kEntityListRowHeight,
-              ),
-              child: widget.tileBuilder(
-                context,
-                _vm,
-                item,
-                index,
-                EntityListTileOptions(
-                  wide: wide,
-                  isLast: isLast,
-                  selecting: selecting,
-                  formatter: widget.wantsFormatter ? formatter : null,
-                  // Archived entities stay editable (matches legacy
-                  // Invoice Ninja: `isEditable => !isDeleted`); only
-                  // soft-deleted rows grey out the edit pencil.
-                  editable: !_vm.isDeleted(item),
-                  // Highlight variant: null while navigating to a
-                  // full-width editor so the row doesn't flash selected
-                  // before the editor covers the list.
-                  selectedId: selId,
-                  bottomDividerHidden: bottomDividerHidden,
-                ),
-              ),
-            ),
+            child: header == null
+                ? row
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [header, row],
+                  ),
           ),
         );
       },

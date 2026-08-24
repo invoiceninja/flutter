@@ -19,10 +19,12 @@ void main() {
         'latch', () {
       final check = scaffold.indexOf('void _checkLoadMore(ScrollController c)');
       expect(check, isNot(-1), reason: '_checkLoadMore not found');
-      final body = scaffold.substring(
-        check,
-        (check + 900).clamp(0, scaffold.length),
-      );
+      // Slice to the next method rather than a fixed character budget — a
+      // window that merely *happens* to be long enough turns any added
+      // comment into a spurious failure.
+      final end = scaffold.indexOf('void _onScroll()', check);
+      expect(end, isNot(-1), reason: 'end of _checkLoadMore not found');
+      final body = scaffold.substring(check, end);
       expect(
         body.contains('_vm.canLoadMore'),
         isTrue,

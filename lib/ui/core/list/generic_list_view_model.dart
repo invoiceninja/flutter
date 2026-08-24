@@ -369,6 +369,24 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   Map<String, Set<String>> _extraFilters = const {};
   Map<String, Set<String>> get extraFilters => _extraFilters;
 
+  /// Optional grouping dimension for the list body — an entity-defined id
+  /// (Products uses `custom1`..`custom4` / `tags`). Null means "no grouping",
+  /// which is every list's default.
+  ///
+  /// Deliberately NOT part of [extraFilters]: grouping is display-only, and
+  /// `BaseEntityRepository.isNarrowedFetch` treats any non-empty extra filter
+  /// as a narrowed fetch — which would stop the keyset cursor advancing.
+  String? _groupField;
+  String? get groupField => _groupField;
+
+  /// Group labels the user has folded away. Purely presentational: the rows
+  /// stay in [items] (so pagination math is untouched) and the view skips
+  /// them via [isRowHidden].
+  Set<String> _collapsedGroups = const {};
+  Set<String> get collapsedGroups => _collapsedGroups;
+
+  bool isGroupCollapsed(String label) => _collapsedGroups.contains(label);
+
   /// Filter-key ids ([FilterKey.id]) suppressed because this list is
   /// already scoped to a parent record (embedded on a detail page) —
   /// every row matches that dimension, so offering it as a filter is
@@ -391,6 +409,16 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   List<T> _items = const [];
   List<T> get items => _items;
 
+  /// Rows that stay in [items] — so paging, multiselect and index math are
+  /// all unchanged — but render nothing, because they belong to a collapsed
+  /// group. False for every list that doesn't group.
+  bool isRowHidden(int index) => false;
+
+  /// Whether [isRowHidden] can currently return true. The scaffold reads it
+  /// to suppress scroll-edge paging when the visible content is too short to
+  /// scroll (otherwise a fully-collapsed list pages forever to render nothing).
+  bool get hasHiddenRows => false;
+
   /// Number of items currently loaded (the visible / paged-in slice).
   /// Drives the "Showing N of M" footer text.
   int get count => _items.length;
@@ -412,6 +440,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     final i = _items.indexWhere((e) => idOf(e) == currentId);
     if (i < 0) return null;
     for (var j = i + 1; j < _items.length; j++) {
+      if (isRowHidden(j)) continue; // inside a collapsed group
       final cand = _items[j];
       if (where == null || where(cand)) return idOf(cand);
     }
@@ -426,6 +455,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     final i = _items.indexWhere((e) => idOf(e) == currentId);
     if (i <= 0) return null;
     for (var j = i - 1; j >= 0; j--) {
+      if (isRowHidden(j)) continue; // inside a collapsed group
       final cand = _items[j];
       if (where == null || where(cand)) return idOf(cand);
     }
@@ -655,6 +685,8 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _sortAscending = defaultSortAscending;
     _customFilters = const {};
     _extraFilters = const {};
+    _groupField = null;
+    _collapsedGroups = const {};
 
     final search = entity['search'];
     if (search is String) _search = search;
@@ -708,6 +740,17 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       _migrateLegacyUpdatedBetween(next);
       _extraFilters = next;
     }
+
+    // Missing keys mean "written before grouping existed" (or simply at the
+    // default) and hydrate to the reset values above — same backward-compatible
+    // read as `extraFilters`, no version discriminator needed.
+    final group = entity['groupField'];
+    if (group is String && group.isNotEmpty) _groupField = group;
+
+    final collapsed = entity['collapsedGroups'];
+    if (_groupField != null && collapsed is List) {
+      _collapsedGroups = Set.unmodifiable(collapsed.whereType<String>());
+    }
   }
 
   /// One-time migration of a persisted legacy `updated_between` filter into
@@ -760,6 +803,16 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       for (final entry in _extraFilters.entries)
         entry.key: entry.value.toList(),
     },
+    // Grouping keys are omitted at their defaults, which keeps an ungrouped
+    // snapshot byte-identical to the pre-grouping shape. That matters twice:
+    // `SavedViewsRepository.matchingView` deep-compares a stored snapshot
+    // against this map (an unconditional `'groupField': null` would stop
+    // every pre-existing saved view from matching), and `_lastSeenSlot` uses
+    // the same equality to dedupe the nav_state watch. Same reason
+    // [savedViewSnapshot] only writes `columnIds` when customized.
+    if (_groupField != null) 'groupField': _groupField,
+    if (_collapsedGroups.isNotEmpty)
+      'collapsedGroups': _collapsedGroups.toList()..sort(),
   };
 
   /// [currentSnapshot]'s shape at the constructor defaults. The `nav_state`
@@ -781,7 +834,10 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// filter change) — they already live in [UserSettings]. Saved views are
   /// the one place that needs both, so the column list is added here.
   Map<String, dynamic> savedViewSnapshot() => <String, dynamic>{
-    ...currentSnapshot(),
+    // Grouping is a display preference and stays out of view identity —
+    // see [kDisplayOnlySnapshotKeys].
+    ...currentSnapshot()
+      ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k)),
     // Only persist a column override when the user actually has one. On the
     // default layout, omitting the key makes `apply()` leave columns
     // untouched (its legacy no-`columnIds` path) instead of forcing the
@@ -813,10 +869,15 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   ListFilterIntent? _pendingIntent;
 
   /// Overwrite filter+sort+search state from a dashboard [ListFilterIntent].
-  /// Like [_applyDecoded] this resets every dimension to its default first,
-  /// then applies the intent — a "show me exactly the panel's records"
-  /// directive must not inherit the user's leftover client/status filter,
-  /// so this is a replace, not a merge.
+  /// Like [_applyDecoded] this resets every *filter* dimension to its default
+  /// first, then applies the intent — a "show me exactly the panel's records"
+  /// directive must not inherit the user's leftover client/status filter, so
+  /// this is a replace, not a merge.
+  ///
+  /// [groupField] / [collapsedGroups] are deliberately left untouched: they're
+  /// a display preference, not a filter, and an intent that silently ungrouped
+  /// the list would be a surprise. (This is the one place the "reset every
+  /// dimension" rule doesn't apply.)
   void _applyIntentState(ListFilterIntent intent) {
     _search = '';
     _states = intent.states != null
@@ -1019,6 +1080,40 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _sortField = field;
     _sortAscending = ascending;
     await _resetAndReload(ignoreCursor: false);
+  }
+
+  /// Switch the grouping dimension (null = no grouping). Reloads page 1
+  /// because grouping leads the ORDER BY, so it changes which rows fall
+  /// inside the loaded window — same as changing the sort column.
+  ///
+  /// Always clears [collapsedGroups]: a folded label from one dimension
+  /// ("Hardware" under Category) means nothing under another (Tags).
+  Future<void> setGroupField(String? field) async {
+    if (field == _groupField) return;
+    _groupField = field;
+    _collapsedGroups = const {};
+    await _resetAndReload(ignoreCursor: false);
+  }
+
+  /// Fold / unfold one group. No refetch — collapse only changes what the
+  /// view paints, so a plain notify is enough. Persisted with the rest of
+  /// the list state so a folded catalogue survives a restart.
+  void toggleGroupCollapsed(String label) {
+    final next = Set<String>.from(_collapsedGroups);
+    if (!next.remove(label)) next.add(label);
+    _collapsedGroups = Set.unmodifiable(next);
+    // Drop rows the fold just hid from the selection. [selectAllVisible]
+    // already refuses to add them; without this, rows selected *before* the
+    // fold stay selected and a bulk delete sweeps records the user can no
+    // longer see (the AppBar count being the only trace).
+    if (_selectedIds.isNotEmpty) {
+      for (var i = 0; i < _items.length; i++) {
+        if (isRowHidden(i)) _selectedIds.remove(idOf(_items[i]));
+      }
+      if (_selectedIds.isEmpty) _selectionMode = false;
+    }
+    notifyListeners();
+    _schedulePersist();
   }
 
   Future<void> setCustomFilter({
@@ -1496,10 +1591,14 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Select every row the user can actually see. Rows inside a collapsed
+  /// group are skipped — otherwise folding a group away and tapping
+  /// select-all would sweep invisible records into a bulk delete.
   void selectAllVisible() {
     var changed = false;
-    for (final item in _items) {
-      if (_selectedIds.add(idOf(item))) changed = true;
+    for (var i = 0; i < _items.length; i++) {
+      if (isRowHidden(i)) continue;
+      if (_selectedIds.add(idOf(_items[i]))) changed = true;
     }
     if (changed) notifyListeners();
   }

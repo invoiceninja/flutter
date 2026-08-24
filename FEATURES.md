@@ -541,6 +541,8 @@ the honest default.
 | Product — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Product — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Product — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
+| Product — group list by custom field / tags (collapsible sections + counts) | — | — | ✅ | | |
+| Product — filter by custom field value (pick from list) | ❌ | ✅ | ✅ | | |
 
 ---
 

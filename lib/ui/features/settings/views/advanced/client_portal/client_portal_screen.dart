@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/portal_constants.dart';
@@ -8,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -337,12 +337,6 @@ class _PortalConfigurationSectionState
 }
 
 Future<void> _openDocs(BuildContext context) async {
-  final uri = Uri.parse(kDocsCustomDomainUrl);
-  try {
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  } catch (_) {
-    /* swallow — best-effort link */
-  }
+  /* best-effort link — nothing to say if it doesn't open */
+  await launchExternalUri(Uri.parse(kDocsCustomDomainUrl));
 }

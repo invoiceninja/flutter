@@ -1,6 +1,5 @@
-import 'package:url_launcher/url_launcher.dart';
-
 import 'package:admin/domain/gateway_constants.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 
 /// Build the per-provider external OAuth setup URL. The server mints a
 /// short-lived hash via `POST /one_time_token`; the user then visits one
@@ -35,10 +34,7 @@ Uri? buildOAuthSetupUrl({
 /// Open [url] in the system browser. Matches the legacy
 /// `launchUrl(Uri.parse(...))` call site — the user completes setup outside
 /// the app and the result lands on the next gateway-list refresh.
-Future<bool> openExternal(Uri url) async {
-  if (!await canLaunchUrl(url)) return false;
-  return launchUrl(url, mode: LaunchMode.externalApplication);
-}
+Future<bool> openExternal(Uri url) => launchExternalUri(url);
 
 /// The legacy admin-portal strips a trailing `/api/v1` segment when
 /// composing the setup URL so the redirect lands on the bare host (the

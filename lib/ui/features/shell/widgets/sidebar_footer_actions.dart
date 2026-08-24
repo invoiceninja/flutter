@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/features/shell/widgets/about_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/contact_us_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/show_theme_menu.dart';
@@ -201,25 +200,7 @@ String userGuideUrl(String location) {
 Future<void> _openExternal(BuildContext context, String url) async {
   // Capture the messenger + localized string pre-await so the error toast
   // survives any context disposal (e.g. drawer pop) during the launch handshake.
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  final loc = Localization.of(context);
-  final errorMessage =
-      loc?.lookup('failed_to_open_url') ?? 'failed_to_open_url';
-  final uri = Uri.parse(url);
-  try {
-    if (await canLaunchUrl(uri)) {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (ok) return;
-    }
-  } catch (_) {
-    /* fall through to error toast */
-  }
-  if (messenger == null) return;
-  // messenger.context is the ScaffoldMessengerState's element context — it's
-  // still mounted (we'd have early-returned otherwise) and Notify only
-  // consults `context` as a fallback when `messenger` is null.
-  // ignore: use_build_context_synchronously
-  Notify.error(messenger.context, errorMessage, messenger: messenger);
+  await openExternalUrl(context, url);
 }
 
 class _FooterAction extends StatelessWidget {

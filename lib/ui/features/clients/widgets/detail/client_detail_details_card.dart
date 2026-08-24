@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 
@@ -184,20 +183,5 @@ Uri? _parseWebsite(String raw) {
   return uri;
 }
 
-Future<void> _openWebsite(BuildContext context, Uri uri) async {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  final errorMessage =
-      Localization.of(context)?.lookup('failed_to_open_url') ??
-      'failed_to_open_url';
-  try {
-    if (await canLaunchUrl(uri)) {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (ok) return;
-    }
-  } catch (_) {
-    /* fall through to error toast */
-  }
-  if (messenger == null) return;
-  // ignore: use_build_context_synchronously
-  Notify.error(messenger.context, errorMessage, messenger: messenger);
-}
+Future<void> _openWebsite(BuildContext context, Uri uri) =>
+    openExternalUrl(context, uri.toString());

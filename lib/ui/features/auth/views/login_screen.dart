@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/auth/view_models/login_view_model.dart';
 import 'package:admin/ui/features/auth/widgets/auth_fields.dart';
@@ -110,12 +110,7 @@ class _LoginBody extends StatelessWidget {
     }
   }
 
-  Future<void> _openExternal(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
+  Future<void> _openExternal(String url) => launchExternalUri(Uri.parse(url));
 
   /// Hosted → in-app signup screen. Self-hosted → external web page
   /// (in-app signup isn't a validated self-hosted path; mirrors React's

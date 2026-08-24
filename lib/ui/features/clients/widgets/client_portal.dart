@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/utils/url_safety.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 
 /// Build the client-portal silent auto-login URL for a contact's portal
 /// [contactLink]. Mirrors admin-portal (`ClientContactEntity.silentLink`)
@@ -25,23 +22,5 @@ String clientPortalUrl({
 /// launch [url] in the external browser, surfacing a toast on failure. Shared
 /// by the contacts-card *View Portal* button and the top-level Client Portal
 /// action so both build + open the portal the same way.
-Future<void> launchClientPortal(BuildContext context, String url) async {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  final errorMessage =
-      Localization.of(context)?.lookup('failed_to_open_url') ??
-      'failed_to_open_url';
-  if (isSafeWebUrl(url)) {
-    final uri = Uri.parse(url);
-    try {
-      if (await canLaunchUrl(uri)) {
-        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (ok) return;
-      }
-    } catch (_) {
-      /* fall through to error toast */
-    }
-  }
-  if (messenger == null) return;
-  // ignore: use_build_context_synchronously
-  Notify.error(messenger.context, errorMessage, messenger: messenger);
-}
+Future<void> launchClientPortal(BuildContext context, String url) =>
+    openExternalUrl(context, url);

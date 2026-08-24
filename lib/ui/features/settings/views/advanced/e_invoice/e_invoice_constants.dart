@@ -15,7 +15,7 @@ library;
 
 // ignore_for_file: constant_identifier_names
 
-import 'package:url_launcher/url_launcher.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 
 /// Wire values for `company.settings.e_invoice_type`. Order matches
 /// admin-portal so the dropdown reads identically.
@@ -150,14 +150,8 @@ const String kPeppolBuy1000Url =
 /// help link in [_HelpLinkRow] and the "Read the setup guide" link inside
 /// the VERIFACTU info card.
 Future<void> launchEInvoiceHelpUrl() async {
-  try {
-    final uri = Uri.parse(kEInvoiceHelpUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  } catch (_) {
-    // Silent — failing to open a help link is non-blocking.
-  }
+  // Silent — failing to open a help link is non-blocking.
+  await launchExternalUri(Uri.parse(kEInvoiceHelpUrl));
 }
 
 /// Country ids (`company.settings.country_id`) supported by the PEPPOL

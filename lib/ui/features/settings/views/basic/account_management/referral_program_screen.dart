@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/views/advanced/client_portal/widgets/portal_url_display.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -204,20 +203,5 @@ class _ReferralStatTile extends StatelessWidget {
 /// Opens [url] in an external browser, surfacing a toast on failure. Shared by
 /// the self-hosted empty-state action and the hosted "Learn more" button.
 Future<void> _openUrl(BuildContext context, String url) async {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  final loc = Localization.of(context);
-  final errorMessage =
-      loc?.lookup('failed_to_open_url') ?? 'failed_to_open_url';
-  final uri = Uri.parse(url);
-  try {
-    if (await canLaunchUrl(uri)) {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (ok) return;
-    }
-  } catch (_) {
-    /* fall through */
-  }
-  if (messenger == null) return;
-  // ignore: use_build_context_synchronously
-  Notify.error(messenger.context, errorMessage, messenger: messenger);
+  await openExternalUrl(context, url);
 }

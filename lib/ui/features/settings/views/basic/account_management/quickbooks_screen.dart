@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -104,9 +104,7 @@ class _QuickbooksScreenState extends State<QuickbooksScreen> {
     setState(() => _connecting = true);
     try {
       final uri = await services.quickbooks.buildAuthorizeUrl();
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (mounted) {
+      if (!await launchExternalUri(uri) && mounted) {
         Notify.error(
           context,
           context.tr('failed_to_open_url'),
@@ -131,9 +129,7 @@ class _QuickbooksScreenState extends State<QuickbooksScreen> {
     setState(() => _reconnecting = true);
     try {
       final uri = await services.quickbooks.reconnectUrl();
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (mounted) {
+      if (!await launchExternalUri(uri) && mounted) {
         Notify.error(
           context,
           context.tr('failed_to_open_url'),

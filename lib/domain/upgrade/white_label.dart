@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
-import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 
 /// Hosted-billing checkout for the self-hosted white-label license.
 ///
@@ -73,15 +71,6 @@ bool shouldNagForWhiteLabel(AuthSession? session) {
 /// import `ui/core/widgets/notify.dart`; shared core widgets are fair game,
 /// feature internals are not.)
 Future<void> launchWhiteLabelPurchase(BuildContext context) async {
-  final uri = Uri.parse(kWhiteLabelPurchaseUrl);
-  try {
-    if (await canLaunchUrl(uri)) {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (ok) return;
-    }
-  } catch (_) {
-    // Fall through to the toast — no browser, or a sandbox restriction.
-  }
-  if (!context.mounted) return;
-  Notify.error(context, context.tr('failed_to_open_url'));
+  // Toasts on failure — no browser, or a sandbox restriction.
+  await openExternalUrl(context, kWhiteLabelPurchaseUrl);
 }

@@ -4,12 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/domain/upgrade/purchase_service.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 
 /// The single platform-conditional upgrade entry point. **Every** upgrade
 /// surface (the `PlanGateBanner` CTA, the Plan screen's "Upgrade / Change
@@ -56,15 +56,9 @@ Future<void> launchUpgrade(BuildContext context) async {
 
 Future<void> _openPortalOrPlanScreen(BuildContext context, String url) async {
   if (url.isNotEmpty) {
-    final uri = Uri.parse(url);
-    try {
-      if (await canLaunchUrl(uri)) {
-        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (ok) return;
-      }
-    } catch (_) {
-      // fall through to the in-app destination
-    }
+    final uri = Uri.tryParse(url);
+    // Falls through to the in-app destination when it doesn't open.
+    if (uri != null && await launchExternalUri(uri)) return;
   }
   if (!context.mounted) return;
   // Plan is the Account Management shell's bare-URL default tab; `/plan` is not
@@ -77,9 +71,7 @@ Future<void> _openStoreSubscriptions() async {
       ? Uri.parse('https://play.google.com/store/account/subscriptions')
       // Apple's own subscription management page — not payment steering.
       : Uri.parse('https://apps.apple.com/account/subscriptions');
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
+  await launchExternalUri(uri);
 }
 
 /// Bottom sheet listing the store products. Owns a [PurchaseService] for its

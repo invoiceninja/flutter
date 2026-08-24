@@ -7,14 +7,18 @@ import 'package:flutter_test/flutter_test.dart';
 /// A regression here is silent in every way that matters: the build succeeds,
 /// `flutter analyze` is clean, every test still passes, and the app only breaks
 /// on a real device running API 30 or newer. Package visibility hides
-/// undeclared apps from `PackageManager`, so `canLaunchUrl` returns false for
-/// web URLs and the ~18 call sites that gate on it report "failed to open URL"
-/// without ever attempting the launch — the User Guide and Support Forum links
-/// in the sidebar footer, client and vendor portals, payment links, the upgrade
+/// undeclared apps from `PackageManager`, so any `canLaunchUrl` on a web URL
+/// answers false — which is how issue #12 broke every external link in the
+/// Android build at once: the User Guide and Support Forum links in the
+/// sidebar footer, client and vendor portals, payment links, the upgrade
 /// flow, gateway and QuickBooks OAuth, and bank reconnect.
 ///
-/// That was issue #12: the reporter tapped User Guide, but every external link
-/// in the Android build was broken the same way.
+/// `lib/` no longer *gates* on that query — `canLaunchUrl` refused launches
+/// that would have worked, which is invoiceninja/flutter#80, and
+/// `no_can_launch_url_test` now forbids it — so these intents are a belt to
+/// that fix's braces rather than the load-bearing part. They stay because the
+/// declaration is free, plugins and any future `canLaunch` still read it, and
+/// removing it is a silent-on-CI regression by construction.
 ///
 /// Only `http` / `https` are required — `isSafeWebUrl` (lib/utils/url_safety.dart)
 /// rejects every other scheme before it reaches `launchUrl`, so there is

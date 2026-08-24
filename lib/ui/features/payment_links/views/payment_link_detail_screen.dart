@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -11,9 +10,9 @@ import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/payment_links/view_models/payment_link_detail_view_model.dart';
 import 'package:admin/ui/features/payment_links/widgets/detail/payment_link_detail_actions_row.dart';
@@ -213,22 +212,7 @@ class _PurchasePageRow extends StatelessWidget {
     );
   }
 
-  Future<void> _open(BuildContext context) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final errorMessage = context.tr('failed_to_open_url');
-    final uri = Uri.parse(url);
-    try {
-      if (await canLaunchUrl(uri)) {
-        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (ok) return;
-      }
-    } catch (_) {
-      /* fall through to the error toast */
-    }
-    if (messenger == null) return;
-    // ignore: use_build_context_synchronously
-    Notify.error(messenger.context, errorMessage, messenger: messenger);
-  }
+  Future<void> _open(BuildContext context) => openExternalUrl(context, url);
 }
 
 /// Embedded "Invoices" card — invoices this payment link generated, filtered

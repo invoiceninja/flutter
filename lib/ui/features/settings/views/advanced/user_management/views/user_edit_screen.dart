@@ -63,6 +63,9 @@ class _UserEditScreenState extends State<UserEditScreen> {
       _vm = UserEditViewModel(
         repo: services.user,
         companyId: companyId,
+        firstNameRequiredMessage: context.tr('please_enter_a_first_name'),
+        lastNameRequiredMessage: context.tr('please_enter_a_last_name'),
+        emailRequiredMessage: context.tr('please_enter_your_email'),
         sync: services.sync,
         connectivity: services.connectivity,
       );
@@ -180,10 +183,10 @@ class _UserEditBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<UserEditViewModel>();
-    final canSave =
-        !vm.isSaving &&
-        vm.draft.firstName.isNotEmpty &&
-        vm.draft.email.isNotEmpty;
+    // Deliberately not gated on the required fields being filled: a disabled
+    // Save button can't say *why*, and `validate()` names the missing field
+    // inline instead (invoiceninja/flutter#66).
+    final canSave = !vm.isSaving;
     return DefaultTabController(
       length: 3,
       child: SettingsScreenScaffold(
@@ -226,14 +229,23 @@ class _UserEditBody extends StatelessWidget {
 
   Future<void> _save(BuildContext context, UserEditViewModel vm) async {
     try {
-      await vm.save();
-      if (context.mounted) {
-        Notify.success(
-          context,
-          context.tr(isCreate ? 'created_user' : 'updated_user'),
-        );
-        context.go('/settings/users');
+      final saved = await vm.save();
+      if (!context.mounted) return;
+      // Null means the save never left the form — client-side validation, or a
+      // 422 the VM has already attached to the offending fields. Stay put so
+      // the inline errors are readable, but never end on silence: a 5xx or a
+      // dropped connection has no field to hang itself on.
+      if (saved == null) {
+        if (vm.fieldErrors.isEmpty) {
+          Notify.error(context, vm.submitError ?? context.tr('could_not_save'));
+        }
+        return;
       }
+      Notify.success(
+        context,
+        context.tr(isCreate ? 'created_user' : 'updated_user'),
+      );
+      context.go('/settings/users');
     } catch (e) {
       if (context.mounted) {
         Notify.error(context, context.tr('could_not_save'), error: e);
@@ -270,17 +282,23 @@ class _DetailsTab extends StatelessWidget {
               initial: vm.draft.firstName,
               onChanged: vm.setFirstName,
               required: true,
+              errorText: vm.fieldErrorFor('first_name'),
             ),
+            // Required by `StoreUserRequest` just like the other two — the
+            // star and the inline error say so now (flutter#66).
             _LabeledField(
               labelKey: 'last_name',
               initial: vm.draft.lastName,
               onChanged: vm.setLastName,
+              required: vm.isCreate,
+              errorText: vm.fieldErrorFor('last_name'),
             ),
             _LabeledField(
               labelKey: 'email',
               initial: vm.draft.email,
               onChanged: vm.setEmail,
               required: true,
+              errorText: vm.fieldErrorFor('email'),
               keyboardType: TextInputType.emailAddress,
             ),
             _LabeledField(
@@ -467,6 +485,7 @@ class _LabeledField extends StatefulWidget {
     required this.initial,
     required this.onChanged,
     this.required = false,
+    this.errorText,
     this.keyboardType = TextInputType.text,
   });
 
@@ -474,6 +493,10 @@ class _LabeledField extends StatefulWidget {
   final String initial;
   final ValueChanged<String> onChanged;
   final bool required;
+
+  /// Inline rejection message from `vm.fieldErrorFor(<api key>)` — client-side
+  /// validation or a server 422 for this field.
+  final String? errorText;
   final TextInputType keyboardType;
 
   @override
@@ -504,6 +527,7 @@ class _LabeledFieldState extends State<_LabeledField> {
         decoration: InputDecoration(
           labelText:
               context.tr(widget.labelKey) + (widget.required ? ' *' : ''),
+          errorText: widget.errorText,
           border: const OutlineInputBorder(),
         ),
         keyboardType: widget.keyboardType,

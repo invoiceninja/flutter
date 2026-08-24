@@ -25,6 +25,9 @@ class UserEditViewModel extends GenericEditViewModel<User> {
     required this.repo,
     required this.companyId,
     User? existing,
+    this.firstNameRequiredMessage,
+    this.lastNameRequiredMessage,
+    this.emailRequiredMessage,
     super.sync,
     super.connectivity,
   }) : super(
@@ -56,6 +59,13 @@ class UserEditViewModel extends GenericEditViewModel<User> {
 
   final UserRepository repo;
   final String companyId;
+
+  /// Localized "Please enter a …" copy for [validate]. Null in a unit test
+  /// that isn't exercising validation; a null message switches that check
+  /// off rather than blocking a save with a blank error.
+  final String? firstNameRequiredMessage;
+  final String? lastNameRequiredMessage;
+  final String? emailRequiredMessage;
 
   // ── Permissions ─────────────────────────────────────────────────────
 
@@ -208,6 +218,28 @@ class UserEditViewModel extends GenericEditViewModel<User> {
         d.lastName.isNotEmpty ||
         d.email.isNotEmpty ||
         d.phone.isNotEmpty;
+  }
+
+  /// `StoreUserRequest` requires first name, last name and email — all three
+  /// `required|bail`. Only the first two were gated client-side (and last name
+  /// not at all), so saving without one toasted "Successfully created user"
+  /// and left a dead 422 row in the outbox (invoiceninja/flutter#66).
+  ///
+  /// Create-only: `UpdateUserRequest` marks email `sometimes` and does not
+  /// mention the names, so an existing record with a blank one stays editable.
+  @override
+  Map<String, List<String>> validate() {
+    if (!isCreate) return const {};
+    final firstName = firstNameRequiredMessage;
+    final lastName = lastNameRequiredMessage;
+    final email = emailRequiredMessage;
+    return {
+      if (firstName != null && draft.firstName.trim().isEmpty)
+        'first_name': [firstName],
+      if (lastName != null && draft.lastName.trim().isEmpty)
+        'last_name': [lastName],
+      if (email != null && draft.email.trim().isEmpty) 'email': [email],
+    };
   }
 
   @override

@@ -228,6 +228,20 @@ class _UserEditBody extends StatelessWidget {
   }
 
   Future<void> _save(BuildContext context, UserEditViewModel vm) async {
+    final services = context.read<Services>();
+    // Every user mutation is password-gated server-side (412). Prime the cache
+    // *before* the row is enqueued: otherwise the drain parks it, the sheet
+    // pops after the form has already claimed success, and cancelling leaves a
+    // dead row in the outbox behind a "Successfully created user" toast
+    // (invoiceninja/flutter#64). Edit mode primes at load, but the cache holds
+    // for 5 minutes and a long edit can outlive it.
+    if (services.passwordCache.read() == null) {
+      final ok = await showConfirmPasswordSheet(
+        context,
+        cache: services.passwordCache,
+      );
+      if (!ok || !context.mounted) return;
+    }
     try {
       final saved = await vm.save();
       if (!context.mounted) return;

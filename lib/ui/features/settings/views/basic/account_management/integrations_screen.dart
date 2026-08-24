@@ -16,10 +16,11 @@ const String _kApiDocsUrl =
 const String _kZapierUrl = 'https://zapier.com/apps/invoice-ninja/integrations';
 
 /// Account Management → Integrations. A pure hub of link tiles — API Tokens /
-/// API Webhooks / API Docs / Zapier / Analytics / QuickBooks. Mirrors React's
-/// Integrations hub; the Google Analytics / Matomo editor lives on its own
-/// page at `/settings/account_management/integrations/analytics` (reached via the Analytics
-/// tile), so there's a single source of truth for those fields.
+/// API Webhooks / Zapier / Analytics / QuickBooks — with the API Docs link
+/// beneath the list rather than in it. Mirrors React's Integrations hub; the
+/// Google Analytics / Matomo editor lives on its own page at
+/// `/settings/account_management/integrations/analytics` (reached via the
+/// Analytics tile), so there's a single source of truth for those fields.
 class AccountManagementIntegrationsScreen extends StatelessWidget {
   const AccountManagementIntegrationsScreen({super.key});
 
@@ -49,12 +50,6 @@ class AccountManagementIntegrationsScreen extends StatelessWidget {
               ),
             ),
             _IntegrationTile(
-              icon: Icons.menu_book_outlined,
-              labelKey: 'api_docs',
-              external: true,
-              onTap: () => _openExternal(context, _kApiDocsUrl),
-            ),
-            _IntegrationTile(
               icon: Icons.electrical_services_outlined,
               label: 'Zapier',
               external: true,
@@ -75,6 +70,18 @@ class AccountManagementIntegrationsScreen extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        // "Further reading" sits beneath the list of actionable integrations,
+        // matching the View Docs button on Templates & Reminders
+        // (invoiceninja/flutter#76).
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            onPressed: () => _openExternal(context, _kApiDocsUrl),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: Text(context.tr('api_docs')),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          ),
         ),
       ],
     );

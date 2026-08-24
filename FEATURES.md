@@ -377,6 +377,9 @@ the honest default.
 | Task — status colors | ✅ | ✅ | ✅ | ✅ | |
 | Task — colour-coded built-in statuses (Backlog / Ready to do / In progress / Done) | ❌ | ❌ | ✅ | | |
 | Task — assignee | ✅ | ✅ | ✅ | ✅ | |
+| Task — assigned user on the detail screen | ✅ | ✅ | ✅ | | |
+| Task — assigned-user initials avatar on list rows | ❌ | ❌ | ✅ | | |
+| Task — list `assigned_user` column | ✅ | ❌ | ✅ | | |
 | Task — link to project (with project rate) | ✅ | ✅ | ✅ | ✅ | |
 | Task — link to client | ✅ | ✅ | ✅ | ✅ | |
 | Task — documents / attachments | ✅ | ✅ | ✅ | ✅ | |

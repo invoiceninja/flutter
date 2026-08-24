@@ -9,6 +9,7 @@ import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
+import 'package:admin/ui/core/widgets/user_avatar.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
@@ -248,7 +249,16 @@ class _TaskListTileState extends State<TaskListTile> {
       selecting: w.selecting,
       selected: w.selected,
       onSelectTap: w.onSelectTap,
-      defaultChild: const SizedBox.shrink(),
+      // Who the task is assigned to, as a tinted initials badge — the slot is
+      // reserved on every row anyway, and it makes assigned vs unassigned
+      // scannable without opening a task (invoiceninja/flutter#57). The name
+      // itself lives in the opt-in `assigned_user` column and on the detail
+      // screen; a tooltip here can't work, since hovering the slot swaps this
+      // out for the selection checkbox.
+      defaultChild: UserAvatar(
+        userId: w.task.assignedUserId,
+        companyId: w.companyId,
+      ),
     );
   }
 }

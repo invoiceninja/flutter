@@ -9,8 +9,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
-import 'package:admin/ui/core/widgets/avatar_tint.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
+import 'package:admin/ui/core/widgets/initials_avatar.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_actions.dart';
@@ -191,7 +191,10 @@ class _VendorListTileState extends State<VendorListTile> {
       selecting: w.selecting,
       selected: w.selected,
       onSelectTap: w.onSelectTap,
-      defaultChild: _Avatar(seed: w.vendor.id, label: _initials(displayName)),
+      defaultChild: InitialsAvatar(
+        seed: w.vendor.id,
+        label: initialsFor(displayName) ?? '?',
+      ),
     );
   }
 
@@ -285,35 +288,6 @@ class _SubtitleLine extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.seed, required this.label});
-  final String seed;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 32,
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: avatarTintFor(seed),
-        borderRadius: BorderRadius.circular(InRadii.r1),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
 enum _RowState { deleted, archived, unsynced }
 
 _RowState? _stateFor(Vendor v) {
@@ -363,19 +337,6 @@ String _displayName(Vendor v) {
     if (c.email.isNotEmpty) return c.email;
   }
   return '(no name)';
-}
-
-String _initials(String name) {
-  final nonLetter = RegExp(r'\P{L}', unicode: true);
-  final words = name
-      .split(RegExp(r'\s+'))
-      .map((w) => w.replaceAll(nonLetter, ''))
-      .where((w) => w.isNotEmpty)
-      .toList();
-  if (words.isEmpty) return '?';
-  if (words.length == 1) return words.first.characters.first.toUpperCase();
-  return (words.first.characters.first + words.last.characters.first)
-      .toUpperCase();
 }
 
 VendorContact? _firstContact(Vendor v) {

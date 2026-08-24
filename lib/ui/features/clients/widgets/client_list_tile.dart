@@ -10,8 +10,8 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
-import 'package:admin/ui/core/widgets/avatar_tint.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
+import 'package:admin/ui/core/widgets/initials_avatar.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/clients/widgets/client_actions.dart';
@@ -278,7 +278,10 @@ class _ClientListTileState extends State<ClientListTile> {
       selecting: w.selecting,
       selected: w.selected,
       onSelectTap: w.onSelectTap,
-      defaultChild: _Avatar(seed: w.client.id, label: _initials(displayName)),
+      defaultChild: InitialsAvatar(
+        seed: w.client.id,
+        label: initialsFor(displayName) ?? '?',
+      ),
     );
   }
 
@@ -399,37 +402,6 @@ class _SubtitleLine extends StatelessWidget {
   }
 }
 
-// ─── Avatar ────────────────────────────────────────────────────────────
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.seed, required this.label});
-  final String seed;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 32,
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: avatarTintFor(seed),
-        borderRadius: BorderRadius.circular(InRadii.r1),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
 // ─── State pill ────────────────────────────────────────────────────────
 
 enum _RowState { deleted, archived, unsynced }
@@ -478,21 +450,6 @@ String _displayName(Client c) {
   if (c.displayName.isNotEmpty) return c.displayName;
   if (c.name.isNotEmpty) return c.name;
   return '(no name)';
-}
-
-String _initials(String name) {
-  // Strip non-letter characters (Unicode-aware so Cyrillic / CJK / Arabic /
-  // etc. names get sensible initials, not '?'). `\P{L}` = "not a Letter".
-  final nonLetter = RegExp(r'\P{L}', unicode: true);
-  final words = name
-      .split(RegExp(r'\s+'))
-      .map((w) => w.replaceAll(nonLetter, ''))
-      .where((w) => w.isNotEmpty)
-      .toList();
-  if (words.isEmpty) return '?';
-  if (words.length == 1) return words.first.characters.first.toUpperCase();
-  return (words.first.characters.first + words.last.characters.first)
-      .toUpperCase();
 }
 
 Contact? _primaryContact(Client c) {

@@ -15,6 +15,7 @@ import 'package:admin/ui/core/detail/entity_link_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -256,6 +257,11 @@ class _DetailsCard extends StatelessWidget {
               label: context.tr('description'),
               value: Text(task.description),
               copyValue: task.description,
+            ),
+          if (task.assignedUserId.isNotEmpty)
+            _Row(
+              label: context.tr('assigned_user'),
+              value: UserNameLabel(userId: task.assignedUserId),
             ),
           if (task.isInvoiced)
             _Row(

@@ -23,6 +23,11 @@ class TaskFieldIds {
   static const String statusOrder = 'status_order';
   static const String updatedAt = 'updated_at';
 
+  /// Column id only — the `tasks` table has no `assigned_user_id` column (the
+  /// value lives in the payload JSON), so this is never a valid *sort* field.
+  /// See the `assigned_user` column in `task_columns.dart`.
+  static const String assignedUserId = 'assigned_user_id';
+
   /// Local approximation of the server's `task_tag_ids|asc` sort — orders by
   /// the denormalized, comma-joined tag names (`tasks.tag_names`).
   static const String tagIds = 'task_tag_ids';

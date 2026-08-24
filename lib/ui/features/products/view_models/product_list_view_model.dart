@@ -224,8 +224,9 @@ class ProductListViewModel extends GenericListViewModel<Product> {
             (i: i, label: _tagGroupLabel(rows[i]), p: rows[i]),
         ]..sort((a, b) {
           // Untagged sorts last, matching the SQL grouping's empty-last rule.
-          if (a.label.isEmpty != b.label.isEmpty)
+          if (a.label.isEmpty != b.label.isEmpty) {
             return a.label.isEmpty ? 1 : -1;
+          }
           final byName = a.label.toLowerCase().compareTo(b.label.toLowerCase());
           if (byName != 0) return byName;
           // Exact-label tiebreak BEFORE the index one. Without it "Alpha" vs

@@ -11,6 +11,9 @@ import '../shell/_shell_test_helpers.dart';
 /// The inline 1-tap timer toggle on task list rows: it renders play/stop by
 /// state, and hides for tasks that can't be toggled (invoiced / unsynced /
 /// deleted) or while multi-selecting. Verified in both wide + narrow layouts.
+/// The leading assigned-user badge is covered separately, in
+/// `task_list_tile_assignee_test.dart` — it resolves over a repo watch, which
+/// this fixture's real Drift database can't serve inside a widget test.
 final _epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 
 Task _task({

@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/avatar_tint.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/initials_avatar.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/utils/formatting.dart';
@@ -64,7 +65,7 @@ class EntityDetailHeader extends StatelessWidget {
       children: [
         _Avatar(
           seed: seedForAvatar,
-          initials: _initials(displayName),
+          initials: initialsFor(displayName),
           fallbackIcon: fallbackIcon,
         ),
         SizedBox(width: InSpacing.lg(context)),
@@ -259,20 +260,4 @@ class _Avatar extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Initials for the avatar, or null when [name] carries no letters (a
-/// number-only identity like `#0009`) — the caller then shows the entity
-/// icon instead.
-String? _initials(String name) {
-  final nonLetter = RegExp(r'\P{L}', unicode: true);
-  final words = name
-      .split(RegExp(r'\s+'))
-      .map((w) => w.replaceAll(nonLetter, ''))
-      .where((w) => w.isNotEmpty)
-      .toList();
-  if (words.isEmpty) return null;
-  if (words.length == 1) return words.first.characters.first.toUpperCase();
-  return (words.first.characters.first + words.last.characters.first)
-      .toUpperCase();
 }

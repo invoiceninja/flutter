@@ -8,6 +8,7 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
@@ -119,6 +120,26 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
     cellBuilder: (t, _) =>
         t.statusId.isEmpty ? cellEmpty() : TaskStatusPill(statusId: t.statusId),
     valueBuilder: (t) => cellNonZeroString(t.statusId),
+  ),
+  // Default-off — the row's leading avatar already carries the at-a-glance
+  // signal; this column is for when the user wants the name spelled out.
+  TaskColumn(
+    id: TaskFieldIds.assignedUserId,
+    labelKey: 'assigned_user',
+    width: 160,
+    // Unlike Projects / Invoices / Quotes, the `tasks` table has no
+    // `assigned_user_id` column — the value is read out of the payload JSON
+    // (`BaseEntityDao.assignedToUserFilter`), so `TaskDao._sortExpression` has
+    // no case for it and would throw the moment the header was clicked. A real
+    // column would cost a schema bump + forward migration to buy ordering by
+    // hashed id, which nobody wants. Same reasoning as `duration` above.
+    sortable: false,
+    // Resolves the id against the local roster (seeded by
+    // `UserRepository.applyBundle`); muted em-dash for an id it can't resolve.
+    cellBuilder: (t, _) => t.assignedUserId.isEmpty
+        ? cellEmpty()
+        : UserNameLabel(userId: t.assignedUserId),
+    valueBuilder: (t) => cellNonZeroString(t.assignedUserId),
   ),
   TaskColumn(
     id: TaskFieldIds.updatedAt,

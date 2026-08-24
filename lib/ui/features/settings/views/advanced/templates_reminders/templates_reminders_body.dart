@@ -209,6 +209,9 @@ class _TemplatesRemindersBodyState extends State<TemplatesRemindersBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TemplateVariablesCard(templateKey: selected.key),
+        // Actionable Preview sits above the "further reading" docs link
+        // (invoiceninja/flutter#77).
+        if (!showInlinePreview) _ShowPreviewButton(controller: _preview),
         _ViewDocsButton(),
       ],
     );
@@ -262,10 +265,7 @@ class _TemplatesRemindersBodyState extends State<TemplatesRemindersBody> {
             ),
           ),
         auxiliary,
-        if (!showInlinePreview) ...[
-          _ShowPreviewButton(controller: _preview),
-          SizedBox(height: InSpacing.lg(context)),
-        ],
+        if (!showInlinePreview) SizedBox(height: InSpacing.lg(context)),
       ],
     );
 

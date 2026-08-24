@@ -146,6 +146,13 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
       oldWidget.controller?._detach(_flushAll);
       widget.controller?._attach(_flushAll);
     }
+    // Only re-point on an actual company switch — re-creating it on any other
+    // rebuild is exactly the churn the cached stream exists to avoid.
+    if (oldWidget.companyId != widget.companyId) {
+      _companyStream = context.read<Services>().company.watchCompany(
+        widget.companyId,
+      );
+    }
     if (_suppressSync) return;
     // Fast-path: skip the full row-state reconciliation when the items
     // list reference is identical to the previous build (e.g. parent
@@ -398,12 +405,21 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     );
   }
 
+  /// Cached, not built in `build`: `watchCompany` returns a fresh stream per
+  /// call, and this table rebuilds on every VM notification — so a per-build
+  /// stream restarted the Drift query each time. Same fix as
+  /// `InvoiceDesignPreviewPane`, which documents the trap.
+  late Stream<Company?> _companyStream = context
+      .read<Services>()
+      .company
+      .watchCompany(widget.companyId);
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final services = context.read<Services>();
     return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(widget.companyId),
+      stream: _companyStream,
       builder: (context, snapshot) {
         final company = snapshot.data;
         // Flat, title-less card matching the React / old-Flutter

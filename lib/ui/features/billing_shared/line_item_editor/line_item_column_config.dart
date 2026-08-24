@@ -1,3 +1,5 @@
+import 'package:admin/data/models/domain/company.dart';
+
 /// Which optional columns the [LineItemEditor] shows. Driven from the
 /// active company's settings; built once per edit-screen mount.
 ///
@@ -43,21 +45,21 @@ class LineItemColumnConfig {
     showDiscount: false,
   );
 
-  /// The config a billing-doc editor should show for [enabledItemTaxRates] —
-  /// the company's `enabled_item_tax_rates` (0..3).
+  /// This config narrowed by what [company] actually enables — the host
+  /// declares what it *wants* to show, the company decides what it *may*.
   ///
-  /// The tax count used to be hard-coded to 1 in all five edit layouts, so
-  /// Tax Name 1 / Tax Rate 1 sat on every line item even for a company with
-  /// line-item taxes switched off (invoiceninja/flutter#85). Null — the frames
-  /// before the company row loads — means "unknown", and shows nothing rather
-  /// than guessing a tax field into existence.
-  factory LineItemColumnConfig.forCompany({
-    required int? enabledItemTaxRates,
-    bool showDiscount = true,
-  }) => LineItemColumnConfig(
-    taxColumnCount: (enabledItemTaxRates ?? 0).clamp(0, 3),
-    showDiscount: showDiscount,
-  );
+  /// A null company means "not loaded yet", and keeps the host's config
+  /// rather than guessing: a first frame that guessed would reflow the table
+  /// the moment the row landed. The tax count was hard-coded to 1 by all five
+  /// edit layouts before this existed, so a company with line-item taxes off
+  /// still got Tax Name 1 / Tax Rate 1 on every row
+  /// (invoiceninja/flutter#85). Clamped to the three slots the editor renders.
+  LineItemColumnConfig forCompany(Company? company) => company == null
+      ? this
+      : copyWith(
+          showDiscount: showDiscount && company.enableProductDiscount,
+          taxColumnCount: company.enabledItemTaxRates.clamp(0, 3),
+        );
 
   LineItemColumnConfig copyWith({
     bool? showCustom1,

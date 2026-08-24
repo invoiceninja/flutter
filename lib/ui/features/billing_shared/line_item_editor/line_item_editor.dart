@@ -25,7 +25,7 @@ import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_tabl
 /// `LayoutBuilder`. Both delegate to `showLineItemEditDialog` for actual
 /// row editing (M3 first cut) — M3.5 / M4 introduces inline-editable
 /// cells with product autocomplete on desktop.
-class LineItemEditor extends StatelessWidget {
+class LineItemEditor extends StatefulWidget {
   const LineItemEditor({
     super.key,
     required this.companyId,
@@ -103,24 +103,52 @@ class LineItemEditor extends StatelessWidget {
   final bool showStockQuantity;
 
   @override
+  State<LineItemEditor> createState() => _LineItemEditorState();
+}
+
+class _LineItemEditorState extends State<LineItemEditor> {
+  /// Cached, not built in `build`: `watchCompany` returns a fresh stream per
+  /// call and this editor rebuilds on every VM notification, so a per-build
+  /// stream restarted the Drift query each time. Same trap, and the same fix,
+  /// as `InvoiceDesignPreviewPane`, which documents it.
+  late Stream<Company?> _companyStream = _watchCompany();
+
+  Stream<Company?> _watchCompany() =>
+      context.read<Services>().company.watchCompany(widget.companyId);
+
+  @override
+  void didUpdateWidget(LineItemEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only on an actual company switch — anything looser reintroduces the
+    // churn this exists to avoid.
+    if (oldWidget.companyId != widget.companyId) {
+      _companyStream = _watchCompany();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (disabledReasonKey != null) {
-      return _DisabledItemsPlaceholder(reasonKey: disabledReasonKey!);
+    if (widget.disabledReasonKey != null) {
+      return _DisabledItemsPlaceholder(reasonKey: widget.disabledReasonKey!);
     }
     final services = context.read<Services>();
     return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+      stream: _companyStream,
       builder: (context, snap) {
         final company = snap.data;
         // Gate the discount column on the company's `enable_product_discount`
         // (Settings → Product Settings). Hiding the column only suppresses the
         // input — any existing per-line discount stays on the model and is
-        // still submitted. Until the company loads we keep the host's config
+        // still submitted. Until the company loads we keep the host's widget.config
         // so the common (enabled) case doesn't flash the column away.
-        final effectiveConfig =
-            (company != null && !company.enableProductDiscount)
-            ? config.copyWith(showDiscount: false)
-            : config;
+        //
+        // The tax columns ride along on the same read: `enabled_item_tax_rates`
+        // used to be hard-coded to 1 by all five edit layouts, so a company
+        // with line-item taxes off still got Tax Name 1 / Tax Rate 1 on every
+        // row (invoiceninja/flutter#85). Same null-means-keep-the-host's-widget.config
+        // rule as the discount column, and for the same reason — a first frame
+        // that guesses 0 would reflow the table once the company lands.
+        final effectiveConfig = widget.config.forCompany(company);
         // Convert a filled product's price to the client's currency only when
         // the company opts in and a client is set (purchase orders have none →
         // no conversion). The StreamBuilder<Client?> stays in the tree
@@ -131,12 +159,12 @@ class LineItemEditor extends StatelessWidget {
         final convert =
             company != null &&
             company.convertProducts &&
-            (clientId?.isNotEmpty ?? false);
+            (widget.clientId?.isNotEmpty ?? false);
         return StreamBuilder<Client?>(
           stream: convert
               ? services.clients.watchByRealId(
-                  companyId: companyId,
-                  id: clientId!,
+                  companyId: widget.companyId,
+                  id: widget.clientId!,
                 )
               : const Stream<Client?>.empty(),
           builder: (context, clientSnap) {
@@ -162,8 +190,8 @@ class LineItemEditor extends StatelessWidget {
             // detail screen + totals block). The builder is always in the tree
             // (constant shape) so the desktop table's row controllers survive.
             return PartyCurrencyBuilder(
-              clientId: clientId,
-              vendorId: vendorId,
+              clientId: widget.clientId,
+              vendorId: widget.vendorId,
               builder: (context, currencyId) =>
                   _buildLayout(effectiveConfig, rate, currencyId),
             );
@@ -184,36 +212,36 @@ class LineItemEditor extends StatelessWidget {
             Breakpoints.isWide(constraints) && constraints.maxWidth >= 700;
         if (wide) {
           return LineItemTableDesktop(
-            companyId: companyId,
-            items: items,
-            onChanged: onChanged,
-            newItemFactory: newItemFactory,
+            companyId: widget.companyId,
+            items: widget.items,
+            onChanged: widget.onChanged,
+            newItemFactory: widget.newItemFactory,
             config: effectiveConfig,
             currencyId: currencyId,
             productConversionRate: productConversionRate,
-            controller: controller,
-            rowErrors: rowErrors,
-            showStockQuantity: showStockQuantity,
+            controller: widget.controller,
+            rowErrors: widget.rowErrors,
+            showStockQuantity: widget.showStockQuantity,
           );
         }
         return LineItemCardListMobile(
-          companyId: companyId,
-          items: items,
-          onChanged: onChanged,
-          newItemFactory: newItemFactory,
+          companyId: widget.companyId,
+          items: widget.items,
+          onChanged: widget.onChanged,
+          newItemFactory: widget.newItemFactory,
           config: effectiveConfig,
           currencyId: currencyId,
-          onPickItems: onPickItems,
+          onPickItems: widget.onPickItems,
         );
       },
     );
   }
 }
 
-/// Placeholder rendered in place of the line-items table when the
+/// Placeholder rendered in place of the line-widget.items table when the
 /// host indicates the section isn't ready yet (typically: no client
 /// picked). Matches the table's outer chrome so the layout doesn't
-/// shift when items become editable.
+/// shift when widget.items become editable.
 class _DisabledItemsPlaceholder extends StatelessWidget {
   const _DisabledItemsPlaceholder({required this.reasonKey});
   final String reasonKey;

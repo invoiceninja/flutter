@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
-import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_editor.dart';
@@ -255,14 +252,23 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     }
   }
 
-  Widget _editor(_LineKind kind, LineItemColumnConfig config) {
+  Widget _editor(_LineKind kind) {
     return LineItemEditor(
       companyId: widget.companyId,
       clientId: widget.vm.clientIdOf(widget.vm.draft),
       items: _subset(kind),
       onChanged: (next) => _onSubsetChanged(kind, next),
       newItemFactory: widget.newItemFactory,
-      config: config,
+      // What this host *wants* to show. `LineItemEditor` narrows it to what
+      // the company actually enables — it already watches the company row for
+      // the discount column, so the tax count rides that read rather than
+      // opening a second subscription (invoiceninja/flutter#85).
+      //
+      // One tax column, not zero: this is also what renders for the frame
+      // before the company arrives, and starting at zero would pop the column
+      // in a beat later. Same "keep the host's config until we know better"
+      // rule the discount column has always used.
+      config: const LineItemColumnConfig(showDiscount: true, taxColumnCount: 1),
       controller: _controllerFor(kind),
       // Stock count is a product-selection affordance — only the products
       // tab's typeahead surfaces it (and only on invoices, via the host).
@@ -277,26 +283,10 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
 
   @override
   Widget build(BuildContext context) {
-    // The visible columns follow the company, not a constant: the tax count
-    // was hard-coded to 1 in all five edit layouts, so a company with
-    // line-item taxes off still got Tax Name 1 / Tax Rate 1 on every row
-    // (invoiceninja/flutter#85).
-    return StreamBuilder<Company?>(
-      stream: context.read<Services>().company.watchCompany(widget.companyId),
-      builder: (context, snap) => _build(
-        context,
-        LineItemColumnConfig.forCompany(
-          enabledItemTaxRates: snap.data?.enabledItemTaxRates,
-        ),
-      ),
-    );
-  }
-
-  Widget _build(BuildContext context, LineItemColumnConfig config) {
     final visible = _visibleTabs();
     if (visible.length == 1) {
       // No tasks AND no expenses present — pass-through, no tab chrome.
-      return _editor(_LineKind.products, config);
+      return _editor(_LineKind.products);
     }
 
     final tokens = context.inTheme;
@@ -316,9 +306,9 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
         IndexedStack(
           index: _stackIndexOf(activeKind),
           children: [
-            _editor(_LineKind.products, config),
-            _editor(_LineKind.tasks, config),
-            _editor(_LineKind.expenses, config),
+            _editor(_LineKind.products),
+            _editor(_LineKind.tasks),
+            _editor(_LineKind.expenses),
           ],
         ),
       ],

@@ -618,7 +618,16 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
 
     // Nothing in the selection is actionable — say so up front instead of
     // walking the user through a compose/picker dialog only to no-op after.
-    final eligibleCount = _vm.countEligibleSelected(bulk);
+    //
+    // Captured here, and used for the apply and the Undo below, because every
+    // branch between this line and the apply can await a dialog — and the
+    // selection does not survive that reliably (the password sheet in
+    // particular primes the cache, which drains the outbox, whose sync edge
+    // re-arms the list and clears it). Re-reading afterwards is what made a
+    // bulk delete answer "Nothing to delete" and leave the row in place
+    // (invoiceninja/flutter#89).
+    final eligibleIds = _vm.eligibleSelectedIds(bulk);
+    final eligibleCount = eligibleIds.length;
     if (eligibleCount == 0) {
       Notify.info(context, context.tr(action.nothingKey));
       return;
@@ -675,14 +684,13 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
       if (!mounted || prepared == null) return;
     }
 
-    // Capture the eligible ids before applying — `applyBulkAction` clears the
-    // selection, and a possible Undo needs them.
-    final affectedIds = _vm.selectedItems
-        .where(bulk.eligible)
-        .map(_vm.idOf)
-        .toList();
+    final affectedIds = eligibleIds.toList(growable: false);
 
-    final result = await _vm.applyBulkAction(bulk, arg: prepared);
+    final result = await _vm.applyBulkAction(
+      bulk,
+      arg: prepared,
+      ids: eligibleIds,
+    );
     if (!mounted) return;
 
     // Offer Undo for reversible bulk verbs (archive / delete) when the entity

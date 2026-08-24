@@ -150,4 +150,77 @@ void main() {
     expect(vm.isInMultiselect, isFalse, reason: 'selection cleared on exit');
     vm.dispose();
   });
+
+  // A bulk delete answered "Nothing to delete" and left the row in place: the
+  // password sheet the destructive verbs stop for is awaited *between* the
+  // eligibility check and the apply, and the selection does not survive that
+  // gap (priming the cache drains the outbox, whose sync edge re-arms the
+  // list). Re-reading `_selectedIds` afterwards therefore found nothing
+  // (invoiceninja/flutter#89).
+  group('a selection cleared mid-dialog', () {
+    test('still applies when the caller captured the ids first', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('a');
+      vm.toggleSelected('b');
+
+      final captured = vm.eligibleSelectedIds(vm.bulkActionById('plain')!);
+      expect(captured, {'a', 'b'});
+
+      // Whatever the dialog did, the user's selection is gone by now.
+      vm.clearSelection();
+
+      final r = await vm.applyBulkAction(
+        vm.bulkActionById('plain')!,
+        ids: captured,
+      );
+      expect(r.ok, 2);
+      expect(vm.applyIds.toSet(), {'a', 'b'});
+      vm.dispose();
+    });
+
+    test('is what the un-captured path gets wrong', () async {
+      // Pins the mechanism rather than the symptom: the same sequence without
+      // `ids` is the bug, and it must stay visible if anyone reverts the fix.
+      final vm = build();
+      await settle();
+      vm.toggleSelected('a');
+      vm.clearSelection();
+
+      final r = await vm.applyBulkAction(vm.bulkActionById('plain')!);
+      expect(r.ok, 0);
+      expect(vm.applyIds, isEmpty);
+      vm.dispose();
+    });
+
+    test('eligibleSelectedIds filters the same way the counter did', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('a');
+      vm.toggleSelected('c'); // deleted → ineligible
+      vm.toggleSelected('zz'); // outside the loaded window
+
+      final action = vm.bulkActionById('plain')!;
+      expect(vm.eligibleSelectedIds(action), {'a'});
+      expect(vm.countEligibleSelected(action), 1);
+      vm.dispose();
+    });
+
+    test(
+      'an empty captured set is a no-op, not a full-selection apply',
+      () async {
+        final vm = build();
+        await settle();
+        vm.toggleSelected('a');
+
+        final r = await vm.applyBulkAction(
+          vm.bulkActionById('plain')!,
+          ids: const <String>{},
+        );
+        expect(r.ok, 0);
+        expect(vm.applyIds, isEmpty);
+        vm.dispose();
+      },
+    );
+  });
 }

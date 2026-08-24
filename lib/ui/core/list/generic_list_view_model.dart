@@ -1616,36 +1616,57 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// the user with the dialog when nothing in the selection is actionable.
   /// Rows outside the loaded window are not counted (they'd be `skipped` by
   /// [applyBulkAction] anyway).
-  int countEligibleSelected(BulkAction<T> action) {
-    if (_selectedIds.isEmpty) return 0;
+  int countEligibleSelected(BulkAction<T> action) =>
+      eligibleSelectedIds(action).length;
+
+  /// The selected, still-loaded ids [action] can actually be applied to.
+  ///
+  /// Callers must capture this **before** opening any dialog — a confirm
+  /// prompt, a password sheet, a compose/picker step — and hand it back to
+  /// [applyBulkAction] as `ids`. The selection does not reliably survive that
+  /// gap: priming the password cache lets parked outbox rows drain, and the
+  /// resulting sync edge re-arms the list, which clears it. Re-reading
+  /// afterwards therefore found nothing and the op reported "Nothing to
+  /// delete" over a row that was still sitting there (invoiceninja/flutter#89
+  /// — recurring invoices, but the same for every password-gated bulk verb).
+  Set<String> eligibleSelectedIds(BulkAction<T> action) {
+    if (_selectedIds.isEmpty) return const <String>{};
     final byId = <String, T>{for (final item in _items) idOf(item): item};
-    var n = 0;
-    for (final id in _selectedIds) {
-      final item = byId[id];
-      if (item != null && action.eligible(item)) n++;
-    }
-    return n;
+    return {
+      for (final id in _selectedIds)
+        if (byId[id] case final item? when action.eligible(item)) id,
+    };
   }
 
-  /// Apply a [BulkAction] to every currently-selected entity that satisfies
-  /// its predicate. Rows that are out of the visible window are counted as
-  /// `skipped`; per-id failures bump `failed`. Selection is cleared on exit.
+  /// Apply a [BulkAction] to the rows in [ids] — or, when that is null, to
+  /// every currently-selected entity satisfying its predicate. In the latter
+  /// case rows out of the visible window are counted as `skipped`; per-id
+  /// failures bump `failed` either way. Selection is cleared on exit.
+  ///
+  /// Prefer passing [ids] from [eligibleSelectedIds] whenever anything
+  /// awaitable sits between the user's tap and this call; see that method for
+  /// why the live selection can't be trusted across a dialog.
   Future<({int ok, int skipped, int failed})> applyBulkAction(
     BulkAction<T> action, {
     Object? arg,
+    Set<String>? ids,
   }) async {
-    if (_bulkInFlight || _selectedIds.isEmpty) {
-      return (ok: 0, skipped: 0, failed: 0);
-    }
-    _bulkInFlight = true;
-    notifyListeners();
+    if (_bulkInFlight) return (ok: 0, skipped: 0, failed: 0);
 
-    try {
+    // A caller-supplied set was already filtered by [eligibleSelectedIds] and
+    // is authoritative: it is what the user asked for, taken before whatever
+    // dialog stood between the tap and here. Only the no-`ids` path re-reads
+    // the live selection.
+    final List<String> eligible;
+    var skipped = 0;
+    if (ids != null) {
+      if (ids.isEmpty) return (ok: 0, skipped: 0, failed: 0);
+      eligible = ids.toList(growable: false);
+    } else {
+      if (_selectedIds.isEmpty) return (ok: 0, skipped: 0, failed: 0);
       final selectedIds = Set<String>.from(_selectedIds);
       final byId = <String, T>{for (final item in _items) idOf(item): item};
-
-      final eligible = <String>[];
-      var skipped = 0;
+      final resolved = <String>[];
       for (final id in selectedIds) {
         final item = byId[id];
         if (item == null) {
@@ -1653,12 +1674,17 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
           continue;
         }
         if (action.eligible(item)) {
-          eligible.add(id);
+          resolved.add(id);
         } else {
           skipped++;
         }
       }
+      eligible = resolved;
+    }
+    _bulkInFlight = true;
+    notifyListeners();
 
+    try {
       var ok = 0;
       var failed = 0;
       final results = await Future.wait(

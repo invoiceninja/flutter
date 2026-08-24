@@ -32,6 +32,15 @@ class ProductEditDetailsSection extends StatelessWidget {
       builder: (context, snap) {
         final showCost = snap.data?.enableProductCost ?? false;
         final showQuantity = snap.data?.enableProductQuantity ?? false;
+        // The eye lands on the currency mark before the digits, which is what
+        // stops Price / Cost reading as just two more numbers next to Quantity
+        // and Stock Quantity (invoiceninja/flutter#90). Empty until the
+        // statics resolve, so the field simply has no prefix for a frame
+        // rather than flashing a placeholder.
+        final symbol = services.formatterIfReady(vm.companyId)?.currencySymbol;
+        final moneyPrefix = (symbol == null || symbol.isEmpty)
+            ? null
+            : '$symbol ';
         return DashboardCardShell(
           title: context.tr('details'),
           child: Column(
@@ -47,6 +56,7 @@ class ProductEditDetailsSection extends StatelessWidget {
               ),
               EntityEditField(
                 label: context.tr('price'),
+                prefixText: moneyPrefix,
                 initial: decimalInputText(vm.draft.price),
                 onChanged: vm.setPrice,
                 keyboardType: const TextInputType.numberWithOptions(
@@ -57,6 +67,7 @@ class ProductEditDetailsSection extends StatelessWidget {
               if (showCost)
                 EntityEditField(
                   label: context.tr('cost'),
+                  prefixText: moneyPrefix,
                   initial: decimalInputText(vm.draft.cost),
                   onChanged: vm.setCost,
                   keyboardType: const TextInputType.numberWithOptions(

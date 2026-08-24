@@ -26,6 +26,7 @@ class EntityEditField extends StatefulWidget {
     this.keyboardType,
     this.errorText,
     this.readOnly = false,
+    this.prefixText,
   });
 
   final String label;
@@ -45,6 +46,11 @@ class EntityEditField extends StatefulWidget {
   /// Use for server-assigned values (e.g. project number) that the user
   /// shouldn't change but should be able to see + copy.
   final bool readOnly;
+
+  /// Static text pinned inside the field, before the value — the company
+  /// currency symbol on a money field. Not part of the value: `onChanged`
+  /// still receives only what the user typed.
+  final String? prefixText;
 
   @override
   State<EntityEditField> createState() => _EntityEditFieldState();
@@ -101,6 +107,8 @@ class _EntityEditFieldState extends State<EntityEditField> {
         controller: _controller,
         decoration: InputDecoration(
           labelText: widget.label,
+          prefixText: widget.prefixText,
+          prefixStyle: theme.textTheme.bodyMedium?.copyWith(color: tokens.ink3),
           labelStyle: theme.textTheme.bodyMedium?.copyWith(color: tokens.ink3),
           floatingLabelStyle: theme.textTheme.bodySmall?.copyWith(
             color: tokens.ink2,

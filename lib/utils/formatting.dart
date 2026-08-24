@@ -835,6 +835,16 @@ class Formatter {
 
   /// Decimal number with thousand separators. Defaults to natural precision
   /// (0–5 fraction digits); pass [minDecimals]/[maxDecimals] for a fixed
+  /// The company currency's display symbol (`$`, `€`, `CHF`), or `''` when the
+  /// statics haven't resolved one. For chrome that sits *beside* a number
+  /// rather than formatting it — a money field's `prefixText`, say — where
+  /// [money] would fight the user's own typing.
+  String get currencySymbol {
+    final currency = currencies[settings.currencyId];
+    final symbol = currency?.symbol.trim() ?? '';
+    return symbol.isNotEmpty ? symbol : (currency?.code ?? '');
+  }
+
   /// money-style rendering without a currency symbol (e.g. 2/2 on the
   /// product detail figures, so a 10.00 price doesn't render as "10").
   String decimal(num value, {int minDecimals = 0, int maxDecimals = 5}) {

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_editor.dart';
@@ -46,7 +49,6 @@ class BillingDocItemsTabs extends StatefulWidget {
     required this.lineItems,
     required this.onChanged,
     required this.newItemFactory,
-    required this.config,
     required this.rowErrors,
     required this.onPickItems,
     this.showStockQuantity = false,
@@ -59,7 +61,6 @@ class BillingDocItemsTabs extends StatefulWidget {
   final List<LineItem> lineItems;
   final ValueChanged<List<LineItem>> onChanged;
   final LineItem Function() newItemFactory;
-  final LineItemColumnConfig config;
   final Map<int, Map<String, String>>? rowErrors;
   final VoidCallback onPickItems;
 
@@ -254,14 +255,14 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     }
   }
 
-  Widget _editor(_LineKind kind) {
+  Widget _editor(_LineKind kind, LineItemColumnConfig config) {
     return LineItemEditor(
       companyId: widget.companyId,
       clientId: widget.vm.clientIdOf(widget.vm.draft),
       items: _subset(kind),
       onChanged: (next) => _onSubsetChanged(kind, next),
       newItemFactory: widget.newItemFactory,
-      config: widget.config,
+      config: config,
       controller: _controllerFor(kind),
       // Stock count is a product-selection affordance — only the products
       // tab's typeahead surfaces it (and only on invoices, via the host).
@@ -276,10 +277,26 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
 
   @override
   Widget build(BuildContext context) {
+    // The visible columns follow the company, not a constant: the tax count
+    // was hard-coded to 1 in all five edit layouts, so a company with
+    // line-item taxes off still got Tax Name 1 / Tax Rate 1 on every row
+    // (invoiceninja/flutter#85).
+    return StreamBuilder<Company?>(
+      stream: context.read<Services>().company.watchCompany(widget.companyId),
+      builder: (context, snap) => _build(
+        context,
+        LineItemColumnConfig.forCompany(
+          enabledItemTaxRates: snap.data?.enabledItemTaxRates,
+        ),
+      ),
+    );
+  }
+
+  Widget _build(BuildContext context, LineItemColumnConfig config) {
     final visible = _visibleTabs();
     if (visible.length == 1) {
       // No tasks AND no expenses present — pass-through, no tab chrome.
-      return _editor(_LineKind.products);
+      return _editor(_LineKind.products, config);
     }
 
     final tokens = context.inTheme;
@@ -299,9 +316,9 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
         IndexedStack(
           index: _stackIndexOf(activeKind),
           children: [
-            _editor(_LineKind.products),
-            _editor(_LineKind.tasks),
-            _editor(_LineKind.expenses),
+            _editor(_LineKind.products, config),
+            _editor(_LineKind.tasks, config),
+            _editor(_LineKind.expenses, config),
           ],
         ),
       ],

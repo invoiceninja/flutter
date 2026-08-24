@@ -24,7 +24,6 @@ import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart'
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
-import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/items/billing_doc_items_tabs.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_invoke.dart';
 import 'package:admin/ui/features/billing_shared/markdown_notes_section.dart';
@@ -556,7 +555,6 @@ class _ItemsSectionDesktop extends StatelessWidget {
       lineItems: vm.draft.lineItems,
       onChanged: vm.replaceLineItems,
       newItemFactory: emptyLineItem,
-      config: const LineItemColumnConfig(showDiscount: true, taxColumnCount: 1),
       rowErrors: vm.lineItemRowErrors,
       onPickItems: onPickItems,
     );
@@ -1199,10 +1197,6 @@ class _ItemsTab extends StatelessWidget {
               lineItems: vm.draft.lineItems,
               onChanged: vm.replaceLineItems,
               newItemFactory: emptyLineItem,
-              config: const LineItemColumnConfig(
-                showDiscount: true,
-                taxColumnCount: 1,
-              ),
               rowErrors: vm.lineItemRowErrors,
               onPickItems: onPickItems,
             ),

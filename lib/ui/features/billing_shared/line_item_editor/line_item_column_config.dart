@@ -43,6 +43,22 @@ class LineItemColumnConfig {
     showDiscount: false,
   );
 
+  /// The config a billing-doc editor should show for [enabledItemTaxRates] —
+  /// the company's `enabled_item_tax_rates` (0..3).
+  ///
+  /// The tax count used to be hard-coded to 1 in all five edit layouts, so
+  /// Tax Name 1 / Tax Rate 1 sat on every line item even for a company with
+  /// line-item taxes switched off (invoiceninja/flutter#85). Null — the frames
+  /// before the company row loads — means "unknown", and shows nothing rather
+  /// than guessing a tax field into existence.
+  factory LineItemColumnConfig.forCompany({
+    required int? enabledItemTaxRates,
+    bool showDiscount = true,
+  }) => LineItemColumnConfig(
+    taxColumnCount: (enabledItemTaxRates ?? 0).clamp(0, 3),
+    showDiscount: showDiscount,
+  );
+
   LineItemColumnConfig copyWith({
     bool? showCustom1,
     bool? showCustom2,

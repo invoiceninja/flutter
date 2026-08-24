@@ -13,6 +13,7 @@ import 'package:admin/app/theme.dart';
 // the `SystemLogRow` widget under test.
 import 'package:admin/data/db/app_database.dart' hide SystemLogRow;
 import 'package:admin/data/models/api/system_log_api_model.dart';
+import 'package:admin/data/models/domain/system_log.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/system_log_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -97,14 +98,20 @@ AuthSession _session({required bool admin}) => AuthSession(
   currentCompanyId: 'co-A',
 );
 
-SystemLogApi _row(String id, {int createdAt = 1700000000}) => SystemLogApi(
+SystemLogApi _row(
+  String id, {
+  int createdAt = 1700000000,
+  int categoryId = 2, // CATEGORY_MAIL
+  int eventId = 30, // EVENT_MAIL_SEND
+  int typeId = 303, // TYPE_FAILURE
+}) => SystemLogApi(
   id: id,
   companyId: 'co-A',
   userId: 'u1',
   clientId: '',
-  eventId: 30,
-  categoryId: 2,
-  typeId: 303,
+  eventId: eventId,
+  categoryId: categoryId,
+  typeId: typeId,
   log: '{"foo":"bar"}',
   createdAt: createdAt,
   updatedAt: createdAt,
@@ -218,6 +225,109 @@ void main() {
     expect(find.text("Couldn't load system logs"), findsOneWidget);
 
     await teardownTree(tester);
+  });
+
+  group('feed filters (invoiceninja/flutter#60)', () {
+    // A quiet account gets no filter chrome at all: with one category and one
+    // outcome there is nothing to narrow.
+    testWidgets('stay hidden when there is nothing to narrow', (tester) async {
+      final services = makeServices(
+        session: _session(admin: true),
+        api: _FakeApi([
+          SystemLogListApi(data: [_row('a'), _row('b')]),
+        ]),
+      );
+      await tester.pumpWidget(host(services));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SystemLogRow), findsNWidgets(2));
+      expect(find.byType(DropdownButtonFormField<int?>), findsNothing);
+      await teardownTree(tester);
+    });
+
+    testWidgets('category narrows the feed and Clear brings it back', (
+      tester,
+    ) async {
+      final services = makeServices(
+        session: _session(admin: true),
+        api: _FakeApi([
+          SystemLogListApi(
+            data: [
+              _row('mail', createdAt: 3000),
+              // Gateway success: a second category *and* a second outcome.
+              _row(
+                'gw',
+                createdAt: 2000,
+                categoryId: 1,
+                eventId: 21,
+                typeId: 301,
+              ),
+            ],
+          ),
+        ]),
+      );
+      await tester.pumpWidget(host(services));
+      await tester.pumpAndSettle();
+      expect(find.byType(SystemLogRow), findsNWidgets(2));
+
+      await tester.tap(find.byType(DropdownButtonFormField<int?>));
+      await tester.pumpAndSettle();
+      // 'Email' — the label `SystemLog.categoryKey` resolves for category 2.
+      await tester.tap(find.text('Email').last);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SystemLogRow), findsOneWidget);
+      await teardownTree(tester);
+    });
+
+    testWidgets('an outcome filter that matches nothing offers a way out', (
+      tester,
+    ) async {
+      final services = makeServices(
+        session: _session(admin: true),
+        api: _FakeApi([
+          SystemLogListApi(
+            data: [
+              _row('mail', createdAt: 3000),
+              _row(
+                'gw',
+                createdAt: 2000,
+                categoryId: 1,
+                eventId: 21,
+                typeId: 301,
+              ),
+            ],
+          ),
+        ]),
+      );
+      await tester.pumpWidget(host(services));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(DropdownButtonFormField<SystemLogTone?>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Success').last);
+      await tester.pumpAndSettle();
+      // Only the gateway row is a success — and the mail row proves the
+      // type-derived tone reaches the filter, since its event is neutral.
+      expect(find.byType(SystemLogRow), findsOneWidget);
+
+      // Success + Email is a real combination that matches nothing, and a
+      // filtered-to-empty feed must not look like a load failure.
+      await tester.tap(find.byType(DropdownButtonFormField<int?>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Email').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(SystemLogRow), findsNothing);
+      expect(find.text('No records found'), findsOneWidget);
+
+      await tester.tap(find.text('Clear Filters'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SystemLogRow), findsNWidgets(2));
+      // Both controls must actually read "All" again — a FormField keeps its
+      // own state, so clearing has to rebuild them.
+      expect(find.text('All'), findsNWidgets(2));
+      await teardownTree(tester);
+    });
   });
 
   testWidgets('non-admin → restricted; page gated, no server fetch', (

@@ -52,6 +52,12 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
   // active company changes — mirroring SettingsCompanyScopedHost.
   String _scopedCompanyId = '';
 
+  /// System Logs filters (invoiceninja/flutter#60). Null = "All". Both are
+  /// view-only — the feed is a cached read model, so filtering is a local
+  /// `where` over what `watch` already emitted, with no refetch.
+  int? _categoryFilter;
+  SystemLogTone? _toneFilter;
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +88,10 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
       _lastRefresh = null;
       _lastFetchedAt = null;
       _refreshing = false;
+      // The other company's categories may not exist here; a stale filter
+      // would render an empty feed that looks like a load failure.
+      _categoryFilter = null;
+      _toneFilter = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoRefresh());
   }
@@ -361,6 +371,19 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
     );
   }
 
+  void _clearFilters() => setState(() {
+    _categoryFilter = null;
+    _toneFilter = null;
+  });
+
+  List<SystemLog> _applyFilters(List<SystemLog> rows) => rows
+      .where(
+        (l) =>
+            (_categoryFilter == null || l.categoryId == _categoryFilter) &&
+            (_toneFilter == null || l.tone == _toneFilter),
+      )
+      .toList(growable: false);
+
   Widget _buildSectionBody({
     required List<SystemLog> rows,
     required InTheme tokens,
@@ -397,6 +420,7 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
         title: context.tr('no_system_logs'),
       );
     }
+    final visible = _applyFilters(rows);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = Breakpoints.isWide(constraints);
@@ -421,9 +445,29 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            for (var i = 0; i < rows.length; i++) ...[
+            _SystemLogFilterBar(
+              rows: rows,
+              category: _categoryFilter,
+              tone: _toneFilter,
+              onCategory: (v) => setState(() => _categoryFilter = v),
+              onTone: (v) => setState(() => _toneFilter = v),
+            ),
+            if (visible.isEmpty)
+              EmptyState(
+                icon: Icons.filter_alt_off_outlined,
+                title: context.tr('no_records_found'),
+                action: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                  ),
+                  onPressed: _clearFilters,
+                  icon: const Icon(Icons.close),
+                  label: Text(context.tr('clear_filters')),
+                ),
+              ),
+            for (var i = 0; i < visible.length; i++) ...[
               if (i > 0) Divider(height: 1, thickness: 1, color: tokens.border),
-              SystemLogRow(log: rows[i], isWide: isWide),
+              SystemLogRow(log: visible[i], isWide: isWide),
             ],
           ],
         );
@@ -512,6 +556,147 @@ class _SystemLogsScreenState extends State<SystemLogsScreen> {
     Notify.success(
       context,
       context.tr('wrote_stale_rows', {'count': '$count'}),
+    );
+  }
+}
+
+/// Category + outcome filters for the System Logs feed
+/// (invoiceninja/flutter#60).
+///
+/// Both dropdowns are built from the rows actually loaded, so the account
+/// never gets to pick a filter that can only return nothing — and the bar
+/// hides itself entirely when neither axis has more than one value, which is
+/// the common case on a quiet account.
+class _SystemLogFilterBar extends StatelessWidget {
+  const _SystemLogFilterBar({
+    required this.rows,
+    required this.category,
+    required this.tone,
+    required this.onCategory,
+    required this.onTone,
+  });
+
+  final List<SystemLog> rows;
+  final int? category;
+  final SystemLogTone? tone;
+  final ValueChanged<int?> onCategory;
+  final ValueChanged<SystemLogTone?> onTone;
+
+  @override
+  Widget build(BuildContext context) {
+    // Sorted so the order can't shuffle between refreshes.
+    final categories = rows.map((l) => l.categoryId).toSet().toList()..sort();
+    final tones = SystemLogTone.values
+        .where((t) => rows.any((l) => l.tone == t))
+        .toList();
+
+    final showCategory = categories.length > 1;
+    // `neutral` is not a user-facing outcome, so a feed that is only
+    // success + neutral has just one thing worth filtering on.
+    final toneOptions = tones.where((t) => t != SystemLogTone.neutral).toList();
+    final showTone = toneOptions.length > 1;
+    if (!showCategory && !showTone) return const SizedBox.shrink();
+
+    final all = context.tr('all');
+    return Padding(
+      padding: EdgeInsets.only(bottom: InSpacing.md(context)),
+      child: Wrap(
+        spacing: InSpacing.md(context),
+        runSpacing: InSpacing.sm,
+        children: [
+          if (showCategory)
+            _FilterDropdown<int?>(
+              labelKey: 'category',
+              value: category,
+              onChanged: onCategory,
+              items: [
+                DropdownMenuItem<int?>(child: Text(all)),
+                for (final id in categories)
+                  DropdownMenuItem<int?>(
+                    value: id,
+                    child: Text(
+                      context.tr(_categoryKeyFor(rows, id)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
+          if (showTone)
+            _FilterDropdown<SystemLogTone?>(
+              labelKey: 'status',
+              value: tone,
+              onChanged: onTone,
+              items: [
+                DropdownMenuItem<SystemLogTone?>(child: Text(all)),
+                for (final t in toneOptions)
+                  DropdownMenuItem<SystemLogTone?>(
+                    value: t,
+                    child: Text(context.tr(_toneKey(t))),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// The category label comes off a row rather than a second copy of the
+  /// id → key table, so `SystemLog.categoryKey` stays the single source.
+  static String _categoryKeyFor(List<SystemLog> rows, int id) =>
+      rows.firstWhere((l) => l.categoryId == id).categoryKey;
+
+  static String _toneKey(SystemLogTone tone) => switch (tone) {
+    SystemLogTone.success => 'success',
+    SystemLogTone.failure => 'failure',
+    SystemLogTone.warning => 'warning',
+    SystemLogTone.neutral => 'other',
+  };
+}
+
+/// Compact bordered dropdown sized to its content — a plain
+/// `DropdownButtonFormField` would stretch to the section width and stack the
+/// two filters into a full-width column. Short fixed enums, so a searchable
+/// picker would be overkill (CLAUDE.md § Searchable pickers).
+class _FilterDropdown<T> extends StatelessWidget {
+  const _FilterDropdown({
+    required this.labelKey,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final String labelKey;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: IntrinsicWidth(
+        child: DropdownButtonFormField<T>(
+          // `FormField` seeds its state from `initialValue` once and never
+          // re-reads it (`didUpdateWidget` only tracks `forceErrorText`), so
+          // without a value-derived key the Clear Filters button would empty
+          // the feed's filter while both dropdowns still displayed the old
+          // selection.
+          key: ValueKey<T>(value),
+          initialValue: value,
+          isDense: true,
+          decoration: InputDecoration(
+            labelText: context.tr(labelKey),
+            isDense: true,
+            border: const OutlineInputBorder(),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+          ),
+          items: items,
+          onChanged: (v) => onChanged(v as T),
+        ),
+      ),
     );
   }
 }

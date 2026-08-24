@@ -581,7 +581,13 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'resend_email',
     'remove_user',
   ],
-  'system_logs': ['system_logs', ...kDebugPanelSearchKeys],
+  'system_logs': [
+    'system_logs',
+    // Feed filters (invoiceninja/flutter#60).
+    'category',
+    'status',
+    ...kDebugPanelSearchKeys,
+  ],
 };
 
 /// Settings *fields* that only exist on the hosted platform. Filtered out of

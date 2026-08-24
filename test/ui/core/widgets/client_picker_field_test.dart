@@ -95,9 +95,31 @@ class _FakeClientRepo implements ClientRepository {
   @override
   Stream<Client?> watch({required String companyId, required String id}) {
     watched.add(id);
-    return Stream<Client?>.value(
+    // Controller-backed, not `Stream.value`: `ClientDao.watchById` is a plain
+    // table-grained drift watch, so it re-emits on *any* write to `clients`.
+    // A single-shot fake cannot express that, and the reverting-selection bug
+    // (invoiceninja/flutter#94) only appears on the second emission of a
+    // subscription that should already have been re-pointed. Idle controllers
+    // schedule no frames, so `pumpAndSettle` still settles.
+    final controller = StreamController<Client?>();
+    watchControllers.putIfAbsent(id, () => []).add(controller);
+    controller.add(
       [...rows, ...serverOnly].where((c) => c.id == id).firstOrNull,
     );
+    return controller.stream;
+  }
+
+  /// Every stream handed out by [watch], keyed by id, so a test can re-emit.
+  final Map<String, List<StreamController<Client?>>> watchControllers = {};
+
+  /// Re-emit [client] on the stream(s) opened for its id, standing in for the
+  /// next unrelated write to the `clients` table.
+  void reemit(Client client) {
+    final controllers =
+        watchControllers[client.id] ?? const <StreamController<Client?>>[];
+    for (final c in controllers) {
+      if (!c.isClosed && c.hasListener) c.add(client);
+    }
   }
 
   @override
@@ -802,6 +824,70 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repo.watched, ['c1', 'c2']);
+    });
+
+    // The user-visible half of the same defect: pick a client, then move on to
+    // another field without confirming anything. The field must still read the
+    // client that was picked. It used to revert on blur — the stale watch
+    // re-emitted the PREVIOUS client — so the only way forward was to reopen
+    // the field, clear it with the ✕, and pick again (invoiceninja/flutter#94).
+    testWidgets('a committed client survives blurring onto another field', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        rows: [
+          _client('c1', name: 'Globex'),
+          _client('c2', name: 'Initech'),
+        ],
+        selectedClientId: 'c1',
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Initech'));
+      await tester.pumpAndSettle();
+      expect(selected.single?.id, 'c2');
+
+      // Re-render with the id the host now holds, then blur — which is all
+      // "tap another field" amounts to as far as this widget is concerned.
+      await tester.pumpWidget(
+        Provider<Services>.value(
+          value: services,
+          child: MaterialApp(
+            theme: buildInTheme(InTheme.light),
+            localizationsDelegates: kTestLocalizationsDelegates,
+            supportedLocales: kTestSupportedLocales,
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                child: ClientPickerField(
+                  companyId: 'co',
+                  selectedClientId: 'c2',
+                  onSelected: selected.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+
+      // Any later write to `clients` re-emits every watched row. If the
+      // selected-client subscription is still pointed at the old client, that
+      // emission is what silently put "Globex" back in the field.
+      repo.reemit(_client('c1', name: 'Globex'));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, 'Initech');
+      expect(
+        selected,
+        hasLength(1),
+        reason: 'blurring is not a selection — it must not re-fire onSelected',
+      );
     });
   });
 }

@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/payment_link.dart';
 import 'package:admin/data/repositories/payment_link_repository.dart';
 import 'package:admin/data/services/subscriptions_api.dart';
 import 'package:admin/ui/features/payment_links/view_models/payment_link_edit_view_model.dart';
+import 'package:admin/ui/features/payment_links/widgets/payment_link_actions.dart';
 
 void main() {
   group('PaymentLinkEditViewModel — side effects', () {
@@ -168,6 +169,47 @@ void main() {
       ]);
       expect(vm.missingDependencyAt(0), isNull);
       expect(vm.missingDependencyAt(1), isNull);
+    });
+  });
+
+  // invoiceninja/flutter#62 — the Clone action navigates to the create route
+  // with `PaymentLinkActions.cloneDraftFor(...)` as `state.extra`, which both
+  // route registrations hand to the VM as `cloneFrom`. The draft must be
+  // seeded from it while the VM stays in *create* mode, so Save issues a
+  // `repo.create` rather than a `repo.save` against the source's id.
+  group('PaymentLinkEditViewModel — clone seeding', () {
+    late AppDatabase db;
+
+    setUp(() {
+      db = AppDatabase(NativeDatabase.memory());
+    });
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('cloneFrom seeds the draft but still saves as a create', () {
+      final seed = PaymentLinkActions.cloneDraftFor(
+        emptyPaymentLink().copyWith(
+          id: 'real_1',
+          name: 'Pro Monthly',
+          steps: 'cart,auth.login-or-register',
+          trialEnabled: true,
+          trialDuration: 86400,
+        ),
+      );
+
+      final vm = PaymentLinkEditViewModel(
+        repo: PaymentLinkRepository(db: db, api: _FakeSubscriptionsApi()),
+        companyId: 'co',
+        cloneFrom: seed,
+      );
+
+      expect(vm.isCreate, isTrue);
+      expect(vm.draft.id, isEmpty);
+      expect(vm.draft.name, 'Pro Monthly (copy)');
+      expect(vm.draft.steps, 'cart,auth.login-or-register');
+      expect(vm.draft.trialEnabled, isTrue);
+      expect(vm.draft.trialDuration, 86400);
     });
   });
 }

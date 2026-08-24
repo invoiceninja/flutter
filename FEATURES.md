@@ -1356,6 +1356,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Create recurring payment link | ✅ | ✅ | ✅ | ✅ | |
 | Subscription pricing / frequency | ✅ | ✅ | ✅ | ✅ | |
 | Edit / cancel subscription | ✅ | ✅ | ✅ | ✅ | |
+| Clone payment link | ❌ | ❌ | ✅ | | |
 | Configurable checkout flow (Steps) | ✅ | — | ✅ | ✅ | |
 | Webhook configuration (URL + headers) | ✅ | ✅ | ✅ | ✅ | |
 

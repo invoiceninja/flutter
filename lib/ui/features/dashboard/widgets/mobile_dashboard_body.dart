@@ -79,8 +79,9 @@ class MobileDashboardBody extends StatelessWidget {
   final VoidCallback onPaidTap;
   final void Function(DashboardActivity) onActivityTap;
 
-  /// Null hides the activity feed's "View all" link — there is no
-  /// activities screen to route to (see [ActivityCard.onViewAll]).
+  /// Opens the full company activity feed at `/activity`. Nullable only so a
+  /// test can omit it — null still hides the "View all" link
+  /// (see [ActivityCard.onViewAll]).
   final VoidCallback? onAllActivities;
   final void Function(DashboardInvoiceRow) onUpcomingInvoiceTap;
   final void Function(DashboardPaymentRow) onPaymentTap;

@@ -478,8 +478,32 @@ class _InSidebarState extends State<InSidebar> {
                 )
               : null,
         ),
+      // Activity — the company-wide feed at `/activity` (invoiceninja/flutter#53).
+      // Deliberately *navigation*, not a feed embedded in this sidebar: the
+      // whitespace above the footer only exists on a tall device with few
+      // modules (every touch row is floored at `InSizes.touchTarget`, so a
+      // full module set already overflows the scroll view on a normal phone),
+      // the drawer closes on the first tap, and the 64 px collapsed rail has
+      // no room at all.
+      //
+      // Ungated. There is no `view_activity` in our permission set, and the
+      // server already scopes the feed for us — `ActivityController::index`
+      // narrows the `?reactv2` branch to `user_id = auth()->user()->id` for a
+      // non-admin, so a staff user simply sees their own rows.
+      _fixedNav(
+        context,
+        services,
+        compact: compact,
+        touch: touch,
+        labelKey: 'activity',
+        // No `history_outlined` exists in Material, and `Icons.history` is
+        // already this app's Activity glyph (the client detail tab uses it) —
+        // matching that beats matching the other rows' outlined style.
+        icon: Icons.history,
+        kind: FixedBranchKind.activity,
+      ),
       // Saved views — reactive section that disappears when empty. Owns its
-      // own trailing spacer so the Reports→Settings gap stays uniform with
+      // own trailing spacer so the Activity→Settings gap stays uniform with
       // the rest of the sidebar when there are no saved views.
       _SavedViewsSection(
         companyId: companyId,

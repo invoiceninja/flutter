@@ -211,7 +211,7 @@ class FixedBranch extends BranchSpec {
 // independent from `kBranchOrder`'s branch indices. The sidebar's visual
 // order and the router's branch positions don't need to align with the
 // enum order; the registry resolves them via the `FixedBranch(kind)` spec.
-enum FixedBranchKind { dashboard, settings, outbox, reports }
+enum FixedBranchKind { dashboard, settings, outbox, reports, activity }
 
 /// In-memory map populated at app start (DI). The map drives the entire
 /// per-entity machinery — sync engine, outbox screen, router branches,

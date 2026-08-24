@@ -5,6 +5,8 @@ import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/features/activity/activity_deep_link.dart';
+import 'package:admin/ui/features/activity/widgets/activity_feed_row.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
@@ -22,17 +24,17 @@ class ActivityCard extends StatelessWidget {
 
   final AsyncSection<List<DashboardActivity>> section;
 
-  /// "View all" footer link tap. **Null hides the link entirely** — used
-  /// when there is no destination screen (there is no activities list
-  /// route today), so the dashboard shows no dead affordance rather than
-  /// a "coming soon" snackbar.
+  /// "View all" footer link tap — the `/activity` screen. **Null hides the
+  /// link entirely**, so a host with no destination shows no dead affordance
+  /// rather than a "coming soon" snackbar.
   final VoidCallback? onViewAll;
   final VoidCallback onRetry;
 
   /// Fired when an activity row is tapped. The dashboard resolves the most
   /// specific entity referenced (invoice > quote > payment > recurring >
-  /// expense > client) and navigates there; rows that reference no entity
-  /// are reported as a no-op (the screen ignores the callback).
+  /// expense > client) and navigates there. Rows that reference no entity
+  /// never fire it — they render inert (no ripple, no chevron) rather than as
+  /// a dead tap.
   final void Function(DashboardActivity) onActivityTap;
 
   @override
@@ -62,7 +64,7 @@ class ActivityCard extends StatelessWidget {
     }
     final items = section.data;
     if (items == null) {
-      return _ActivitySkeleton();
+      return const ActivityFeedSkeleton();
     }
     if (items.isEmpty) {
       return _Constrained(
@@ -78,136 +80,23 @@ class ActivityCard extends StatelessWidget {
     return Column(
       children: [
         for (var i = 0; i < visible.length; i++) ...[
-          _ActivityRow(
-            render: formatter.format(visible[i]),
-            onTap: () => onActivityTap(visible[i]),
-          ),
+          _row(formatter, visible[i]),
           if (i != visible.length - 1)
             Divider(height: 1, thickness: 1, color: tokens.border),
         ],
       ],
     );
   }
-}
 
-class _ActivityRow extends StatelessWidget {
-  const _ActivityRow({required this.render, required this.onTap});
-
-  final ActivityRender render;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final (bg, fg) = activityToneColors(tokens, render.tone);
-    final row = Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(InRadii.r1),
-        overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
-          if (states.contains(WidgetState.pressed)) return tokens.border;
-          if (states.contains(WidgetState.hovered) ||
-              states.contains(WidgetState.focused)) {
-            return tokens.surfaceAlt;
-          }
-          return null;
-        }),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Icon(render.icon, size: 14, color: fg),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      render.title,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: tokens.ink,
-                        height: 1.35,
-                      ),
-                    ),
-                    Text(
-                      render.meta,
-                      style: TextStyle(fontSize: 11, color: tokens.ink3),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 14, color: tokens.ink3),
-            ],
-          ),
-        ),
-      ),
-    );
-    return Semantics(
-      button: true,
-      label: '${render.title} ${render.meta}',
-      child: ExcludeSemantics(child: row),
-    );
-  }
-}
-
-class _ActivitySkeleton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Column(
-      children: List.generate(5, (i) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: tokens.surfaceAlt,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 180,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: tokens.surfaceAlt,
-                        borderRadius: BorderRadius.circular(InRadii.r1),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 80,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: tokens.surfaceAlt,
-                        borderRadius: BorderRadius.circular(InRadii.r1),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
+  /// A row is only a navigation target when the activity references an entity;
+  /// [ActivityFeedRow] renders the rest inert rather than as a dead tap.
+  Widget _row(ActivityFormatter formatter, DashboardActivity a) {
+    final render = formatter.format(a);
+    return ActivityFeedRow(
+      render: render,
+      meta: render.meta,
+      density: ActivityRowDensity.card,
+      onTap: activityDeepLinkTarget(a) == null ? null : () => onActivityTap(a),
     );
   }
 }

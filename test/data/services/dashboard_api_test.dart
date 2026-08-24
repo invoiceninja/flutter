@@ -144,10 +144,18 @@ void main() {
     });
   });
 
-  test('activities — reactv2 flag', () async {
+  test('activities — reactv2 flag + explicit rows window', () async {
     await api.fetchActivities();
     expect(client.gets.single.path, '/api/v1/activities');
-    expect(client.gets.single.query, {'reactv2': ''});
+    // `rows` is load-bearing, not cosmetic: the `?reactv2` branch is
+    // unpaginated, so this single number is the entire window the dashboard
+    // card *and* the `/activity` screen can ever see. Dropping it silently
+    // reverts both to the server's default of 75.
+    expect(client.gets.single.query, {
+      'reactv2': '',
+      'rows': '$kActivityFeedRows',
+    });
+    expect(kActivityFeedRows, greaterThan(75));
   });
 
   test('totals — period body + include_drafts query', () async {

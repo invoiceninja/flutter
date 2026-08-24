@@ -12,6 +12,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/features/activity/views/activity_screen.dart';
 import 'package:admin/ui/features/auth/views/client_too_old_screen.dart';
 import 'package:admin/ui/features/auth/views/lock_screen.dart';
 import 'package:admin/ui/features/auth/views/login_screen.dart';
@@ -740,6 +741,15 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
           GoRoute(
             path: '/reports',
             builder: (context, state) => const ReportsScreen(),
+          ),
+        ],
+      );
+    case FixedBranchKind.activity:
+      return StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: '/activity',
+            builder: (context, state) => const ActivityScreen(),
           ),
         ],
       );

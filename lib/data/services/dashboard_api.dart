@@ -3,6 +3,15 @@ import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/services/api_client.dart';
 
+/// How many of the most-recent company activity rows one fetch pulls down.
+///
+/// `GET /api/v1/activities?reactv2` is **unpaginated** — the server does
+/// `->take($rows)` and defaults to 75 (`ActivityController::index`) — so this
+/// is the whole window the app ever sees, and every filter on the `/activity`
+/// screen narrows *within* it. Sibling of `kUserActivityScanRows` in
+/// `activities_api.dart`, which scans the same endpoint for one actor.
+const int kActivityFeedRows = 250;
+
 /// Thin service for the read-only dashboard endpoints. Does **not** extend
 /// `BaseEntityApi` — these aren't CRUD resources, there's no keyset cursor,
 /// and the responses don't fit the standard list/item envelope shape.
@@ -73,11 +82,16 @@ class DashboardApi {
     return _unwrap(raw);
   }
 
-  /// `GET /api/v1/activities?reactv2`. Returns a list of activity objects.
+  /// `GET /api/v1/activities?reactv2&rows=$kActivityFeedRows`. Returns a list
+  /// of activity objects.
+  ///
+  /// One cache row (`dashboard_cache`, kind `activities`) serves **both** the
+  /// dashboard's 5-row card and the full `/activity` screen, so there is a
+  /// single window size — see [kActivityFeedRows].
   Future<Object?> fetchActivities() async {
     final raw = await client.getOneWithQuery(
       '/api/v1/activities',
-      query: const {'reactv2': ''},
+      query: const {'reactv2': '', 'rows': '$kActivityFeedRows'},
     );
     return _unwrap(raw);
   }

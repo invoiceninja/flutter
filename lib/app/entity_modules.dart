@@ -1043,7 +1043,9 @@ const kBranchOrder = <BranchSpec>[
   //     transactionRule) are reached via the Settings router, so they
   //     don't get a branch entry here.
   EntityBranch(EntityType.payment), // 20
-  // Future enabled entities append here (21, 22, …) so existing branch
+  FixedBranch(FixedBranchKind.activity), // 21 — company activity feed at
+  //     `/activity`; the dashboard card's "View All" target.
+  // Future enabled entities append here (22, 23, …) so existing branch
   // indices keep their meaning.
 ];
 

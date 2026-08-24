@@ -6,6 +6,9 @@ import 'package:admin/data/services/api_client.dart';
 /// load pulls down before filtering to a single actor. The `?reactv2` branch is
 /// unpaginated (`->take($rows)`), so this is the whole scan window — see
 /// [ActivitiesApi.fetchUserActivities].
+///
+/// Sibling of `kActivityFeedRows` in `dashboard_api.dart`, which sizes the
+/// company-wide feed behind the dashboard card and the `/activity` screen.
 const int kUserActivityScanRows = 250;
 
 /// API for the `/api/v1/activities/*` family. Two endpoints, neither

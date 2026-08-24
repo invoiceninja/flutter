@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
+import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
@@ -135,6 +136,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     '/settings',
     '/sync/outbox',
     '/reports',
+    '/activity',
   };
 
   /// True when [type]'s module is enabled for the active company. Gates the
@@ -410,9 +412,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onOutstandingTap: () => _goWithIntent('/invoices', _invoiceKpiIntent()),
       onPaidTap: () => _goWithIntent('/payments', _paidPaymentsIntent),
       onActivityTap: _navActivity,
-      // No activities list screen exists — hide the "View all" link
-      // rather than route to a dead end.
-      onAllActivities: null,
+      onAllActivities: () => _safeNavigate('/activity'),
       onUpcomingInvoiceTap: _navInvoice,
       onPaymentTap: _navPayment,
       onAllPayments: () => _safeNavigate('/payments'),
@@ -503,8 +503,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _vm.listenableFor(DashboardKind.activities),
       () => ActivityCard(
         section: _vm.activities,
-        // No activities list screen exists — hide the "View all" link.
-        onViewAll: null,
+        onViewAll: () => _safeNavigate('/activity'),
         onRetry: () => _vm.retry(DashboardKind.activities),
         onActivityTap: _navActivity,
       ),
@@ -741,32 +740,4 @@ ListFilterIntent buildInvoiceKpiIntent({
         'date_range': {'date,${start.toIso()},${end.toIso()}'},
     },
   );
-}
-
-/// Most-specific deep-link for an activity row, or null for system-only
-/// activities with no entity reference. Top-level (not a screen method) so the
-/// route mapping is directly testable. Document refs precede the party
-/// (client/vendor) fallbacks — an "invoice created" row should open the
-/// invoice, not the client.
-String? activityDeepLinkTarget(DashboardActivity a) {
-  if (a.invoiceId != null) return '/invoices/${a.invoiceId}';
-  if (a.quoteId != null) return '/quotes/${a.quoteId}';
-  if (a.creditId != null) return '/credits/${a.creditId}';
-  if (a.paymentId != null) return '/payments/${a.paymentId}';
-  if (a.recurringInvoiceId != null) {
-    return '/recurring_invoices/${a.recurringInvoiceId}';
-  }
-  if (a.expenseId != null) return '/expenses/${a.expenseId}';
-  if (a.recurringExpenseId != null) {
-    return '/recurring_expenses/${a.recurringExpenseId}';
-  }
-  if (a.taskId != null) return '/tasks/${a.taskId}';
-  if (a.purchaseOrderId != null) return '/purchase_orders/${a.purchaseOrderId}';
-  // Payment links live under settings but have a real detail screen.
-  if (a.subscriptionId != null) {
-    return '/settings/payment_links/${a.subscriptionId}';
-  }
-  if (a.vendorId != null) return '/vendors/${a.vendorId}';
-  if (a.clientId != null) return '/clients/${a.clientId}';
-  return null;
 }

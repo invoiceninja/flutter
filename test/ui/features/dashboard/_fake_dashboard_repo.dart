@@ -80,6 +80,16 @@ class FakeDashboardRepo extends DashboardRepository {
   Stream<DashboardChartSeries?> watchChart(String c, DashboardFilter f) =>
       chart.stream;
 
+  /// Counts of, and a forced failure for, the activity-only refresh
+  /// (`ActivityViewModel` calls it on mount and from the screen's Refresh /
+  /// pull-to-refresh). See the [refreshActivities] override below.
+  int refreshActivitiesCalls = 0;
+  Object? refreshActivitiesError;
+
+  /// When set, [refreshActivities] blocks on it — lets a test hold a refresh in
+  /// flight and dispose the ViewModel underneath it. Mirrors [refreshAllGate].
+  Completer<void>? refreshActivitiesGate;
+
   /// Cards the VM asked us to fetch (asserted by tests). The last refresh
   /// wins; reset by reading then clearing.
   final List<String> refreshedCardKeys = [];
@@ -153,7 +163,14 @@ class FakeDashboardRepo extends DashboardRepository {
   @override
   Future<void> refreshChart(String c, DashboardFilter f) async {}
   @override
-  Future<void> refreshActivities(String c) async {}
+  Future<void> refreshActivities(String c) async {
+    refreshActivitiesCalls++;
+    final gate = refreshActivitiesGate;
+    if (gate != null) await gate.future;
+    final err = refreshActivitiesError;
+    if (err != null) throw err;
+  }
+
   @override
   Future<void> refreshPastDue(String c) async {}
   @override

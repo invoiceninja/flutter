@@ -106,6 +106,7 @@ the honest default.
 | Past-due invoices card | ✅ | ✅ | ✅ | ✅ | |
 | Needs-attention auto-detected items | ✅ | ✅ | ✅ | ✅ | |
 | Activity feed (recent entity changes) | ✅ | ✅ | ✅ | ✅ | |
+| Global activity feed screen (day-grouped, filterable) | ❌ | 🟡 | ✅ | | |
 | Dashboard date range filter | ✅ | ✅ | ✅ | ✅ | |
 | Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |

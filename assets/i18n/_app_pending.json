@@ -13,6 +13,7 @@
   "activity_50_actor_only": ":user archived a user",
   "activity_51_actor_only": ":user deleted a user",
   "activity_52_actor_only": ":user restored a user",
+  "activity_feed_window": "This feed covers the :count most recent activities",
   "activity_unknown": "Activity #:id",
   "add_an_item": "Add an item…",
   "add_block": "Add block",

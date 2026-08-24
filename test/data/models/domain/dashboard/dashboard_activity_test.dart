@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
-import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
+import 'package:admin/ui/features/activity/activity_deep_link.dart';
 
 void main() {
   group('DashboardActivity.fromJson', () {

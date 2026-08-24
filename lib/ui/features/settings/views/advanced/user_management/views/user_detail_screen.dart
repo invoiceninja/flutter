@@ -14,11 +14,13 @@ import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/features/activity/widgets/activity_feed_row.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 import 'package:admin/ui/features/settings/views/advanced/user_management/widgets/unconfirmed_email_banner.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// Read-only User detail screen. Reached from `/settings/users/:id`.
 ///
@@ -409,79 +411,23 @@ class _UserActivitySectionState extends State<_UserActivitySection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final a in rows)
-              _ActivityRow(
-                render: formatter.format(a),
-                timestamp: dateFmt?.date(
-                  DateTime.fromMillisecondsSinceEpoch(
-                    a.createdAt * 1000,
-                    isUtc: true,
-                  ).toIso8601String(),
-                  showTime: true,
-                  showSeconds: false,
-                ),
-                ip: (a.raw['ip'] ?? '').toString(),
-              ),
-          ],
+          children: [for (final a in rows) _row(a, formatter, dateFmt)],
         );
       },
     );
   }
-}
 
-class _ActivityRow extends StatelessWidget {
-  const _ActivityRow({
-    required this.render,
-    required this.timestamp,
-    required this.ip,
-  });
-
-  final ActivityRender render;
-
-  /// Absolute, company-formatted timestamp for the audit lens. Null until the
-  /// company `Formatter` is ready — fall back to the relative `render.meta`.
-  final String? timestamp;
-  final String ip;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    final theme = Theme.of(context);
-    final (bg, fg) = activityToneColors(tokens, render.tone);
-    final when = timestamp ?? render.meta;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(InRadii.r2),
-            ),
-            child: Icon(render.icon, size: 16, color: fg),
-          ),
-          SizedBox(width: InSpacing.md(context)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(render.title, style: theme.textTheme.bodyMedium),
-                const SizedBox(height: 2),
-                Text(
-                  ip.isNotEmpty ? '$when · $ip' : when,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.ink3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  /// Rows here are never navigation targets — this is a read-only audit lens,
+  /// so no `onTap` and (per [ActivityFeedRow]) no ripple or chevron either.
+  Widget _row(
+    DashboardActivity a,
+    ActivityFormatter formatter,
+    Formatter? dateFmt,
+  ) {
+    final render = formatter.format(a);
+    return ActivityFeedRow(
+      render: render,
+      meta: activityAuditMeta(a, render: render, formatter: dateFmt),
     );
   }
 }

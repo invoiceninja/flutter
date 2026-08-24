@@ -634,6 +634,7 @@
   "no_tax_rates_yet": "No tax rates yet",
   "no_tax_rates_yet_hint": "Use Configure Tax Rates below to add rates for this picker.",
   "no_time_logged_cta": "No time logged yet",
+  "no_transactions_connected_hint": "Your bank feed hasn't sent any transactions through yet — they'll appear here as they arrive.",
   "no_unapplied_payments": "No unapplied payments",
   "no_unpaid_invoices": "No unpaid invoices",
   "no_upcoming_quotes": "No upcoming quotes",

@@ -8,8 +8,10 @@ import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/product_tax_categories.dart';
+import 'package:admin/domain/products/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 
 typedef ProductColumn = ColumnDefinition<Product>;
@@ -39,7 +41,18 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     id: ProductFieldIds.description,
     labelKey: 'description',
     width: 220,
-    cellBuilder: (p, _) => cellText(p.notes),
+    // Reserved date keywords render as the dates they will become on the
+    // invoice — `[MONTHYEAR|MONTHYEAR+12]` in a list cell is noise to anyone
+    // who didn't write it (invoiceninja/flutter#93). `valueBuilder` keeps the
+    // raw text: it backs sorting, copy-to-clipboard and export, all of which
+    // want the stored value.
+    cellBuilder: (p, context) => cellText(
+      expandDatePlaceholders(
+        p.notes,
+        rangeSeparator: context.tr('to'),
+        locale: FormatterScope.maybeOf(context)?.settings.locale,
+      ),
+    ),
     valueBuilder: (p) => cellNonZeroString(p.notes),
   ),
   ProductColumn(

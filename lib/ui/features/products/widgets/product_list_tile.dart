@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/products/date_placeholders.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
@@ -221,7 +223,13 @@ class _ProductListTileState extends State<ProductListTile> {
         if (p.notes.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(
-            p.notes,
+            // Same reasoning as the Description column — a reserved date
+            // keyword reads as the date it becomes (invoiceninja/flutter#93).
+            expandDatePlaceholders(
+              p.notes,
+              rangeSeparator: context.tr('to'),
+              locale: FormatterScope.maybeOf(context)?.settings.locale,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: tokens.ink3, fontSize: 12),

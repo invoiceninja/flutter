@@ -18,6 +18,7 @@ import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/domain/entity_state.dart';
+import 'package:admin/domain/products/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
@@ -1123,8 +1124,14 @@ class _ProductsTab extends StatelessWidget {
             itemCount: products.length,
             itemBuilder: (context, i) {
               final p = products[i];
+              // Reserved date keywords read as the dates they become, same as
+              // the Products list (invoiceninja/flutter#93).
               final notesLine = p.notes.trim().isNotEmpty
-                  ? p.notes.trim().split('\n').first
+                  ? expandDatePlaceholders(
+                      p.notes.trim(),
+                      rangeSeparator: context.tr('to'),
+                      locale: formatter?.settings.locale,
+                    ).split('\n').first
                   : '';
               return InkWell(
                 onTap: () => onToggle(p.id),

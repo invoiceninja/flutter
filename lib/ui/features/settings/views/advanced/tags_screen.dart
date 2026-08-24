@@ -57,10 +57,10 @@ class _TagsScreenState extends State<TagsScreen> {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
-      stream: ({required includeArchived}) => repo.watchAll(
+      stream: () => repo.watchAll(
         companyId: companyId,
         entityType: _entityType,
-        includeArchived: includeArchived,
+        includeArchived: true,
         // Management list: show exactly the picked scope. Everywhere a tag is
         // *attached to an entity* the global ones ride along (that's the
         // server's rule), but folding them into every type here would show the

@@ -44,9 +44,7 @@ class GroupSettingsScreen extends StatelessWidget {
         await repo.refreshAll(companyId: companyId);
       },
       supportsArchive: true,
-      stream: ({required includeArchived}) => includeArchived
-          ? repo.watchAllIncludingArchived(companyId: companyId)
-          : repo.watchAll(companyId: companyId),
+      stream: () => repo.watchAllIncludingArchived(companyId: companyId),
       isArchivedOf: (g) => g.archivedAt != null,
       isDeletedOf: (g) => g.isDeleted,
       rowBuilder: (g) => _GroupRow(key: ValueKey(g.id), group: g),

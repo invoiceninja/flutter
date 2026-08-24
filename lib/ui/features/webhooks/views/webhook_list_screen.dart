@@ -52,12 +52,10 @@ class WebhookListScreen extends StatelessWidget {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
-      stream: ({required includeArchived}) => repo.watchPage(
+      stream: () => repo.watchPage(
         companyId: companyId,
         loadedPages: 4,
-        states: includeArchived
-            ? const {EntityState.active, EntityState.archived}
-            : const {EntityState.active},
+        states: const {EntityState.active, EntityState.archived},
       ),
       isArchivedOf: (w) => w.archivedAt != null,
       isDeletedOf: (w) => w.isDeleted,

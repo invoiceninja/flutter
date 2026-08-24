@@ -12,6 +12,9 @@ import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart
 /// `StreamBuilder`, empty state, `FormSection` container, "+ New" tile,
 /// optional Show Archived toggle, and optional drag-to-reorder.
 ///
+/// [stream] always yields active **and** archived rows; the scaffold splits
+/// them locally and the toggle only chooses what to draw.
+///
 /// Per-screen callers supply just the row layout and the stream/refresh
 /// hooks bound to their repo — list screens drop from ~120–260 lines to
 /// ~30–60.
@@ -74,12 +77,12 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
   /// `initState`.
   final Future<void> Function() refreshAll;
 
-  /// Repo watch. The scaffold flips between active-only and
-  /// active+archived based on the toggle state. Callers wire as
-  /// `({includeArchived}) => includeArchived
-  ///     ? services.[repo].watchAllIncludingArchived(companyId: ...)
-  ///     : services.[repo].watchAll(companyId: ...)`.
-  final Stream<List<T>> Function({required bool includeArchived}) stream;
+  /// Repo watch. **Must include archived rows** — the scaffold splits them
+  /// out locally via [isArchivedOf] and needs to know whether any exist
+  /// before it can decide to render the Show Archived toggle at all
+  /// (invoiceninja/flutter#63). Callers wire as
+  /// `() => services.[repo].watchAllIncludingArchived(companyId: ...)`.
+  final Stream<List<T>> Function() stream;
 
   /// Predicates used to split the stream into active vs archived sections.
   final bool Function(T) isArchivedOf;
@@ -101,8 +104,10 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
   /// trailing chevron / drag handle in favor of an "Archived" pill.
   final Widget Function(T item)? archivedRowBuilder;
 
-  /// When true, the AppBar carries a Show Archived / Show Active toggle
-  /// and the body renders a second FormSection for archived rows.
+  /// When true, the body can render a second FormSection for archived rows
+  /// and the AppBar carries a Show Archived / Show Active toggle — but only
+  /// once an archived row actually exists, so a brand-new company isn't
+  /// offered a filter over nothing (invoiceninja/flutter#63).
   final bool supportsArchive;
 
   /// Optional reorder hook. When non-null, the active section becomes a
@@ -179,140 +184,164 @@ class _SettingsEntityListScaffoldState<T>
 
   @override
   Widget build(BuildContext context) {
-    return SettingsScreenScaffold(
-      titleKey: widget.titleKey,
-      actions: [
-        ...widget.extraAppBarActions,
-        if (widget.supportsArchive)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: TextButton.icon(
-              icon: Icon(
-                _showArchived
-                    ? Icons.visibility_off_outlined
-                    : Icons.archive_outlined,
-                size: 18,
-              ),
-              label: Text(
-                context.tr(_showArchived ? 'show_active' : 'show_archived'),
-              ),
-              onPressed: () => setState(() => _showArchived = !_showArchived),
-            ),
-          ),
-      ],
-      body: StreamBuilder<List<T>>(
-        stream: widget.stream(includeArchived: _showArchived),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              snapshot.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final fromDrift = snapshot.data ?? <T>[];
-          // Optimistic snapshot only applies to the active section — the
-          // user can't drag-reorder archived rows.
-          final activeSource = _optimistic ?? fromDrift;
-          final active = activeSource
-              .where((t) => !widget.isArchivedOf(t) && !widget.isDeletedOf(t))
-              .toList(growable: false);
-          final archived = fromDrift
-              .where((t) => widget.isArchivedOf(t) && !widget.isDeletedOf(t))
-              .toList(growable: false);
+    // `_showArchived` is a pure *display* toggle: the stream is always the
+    // archived-inclusive one. The AppBar has to know whether an archived row
+    // exists before it can decide whether the toggle is worth rendering, and
+    // an active-only stream can't answer that — so a company with nothing at
+    // all still got a "Show archived" button that revealed nothing
+    // (invoiceninja/flutter#63). Reading the superset costs nothing here:
+    // every caller is a bundled settings entity with a handful of rows, and
+    // the split below was already local.
+    return StreamBuilder<List<T>>(
+      stream: widget.stream(),
+      builder: (context, snapshot) {
+        final loading =
+            snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null;
+        final fromDrift = snapshot.data ?? <T>[];
+        // Optimistic snapshot only applies to the active section — the
+        // user can't drag-reorder archived rows.
+        final activeSource = _optimistic ?? fromDrift;
+        final active = activeSource
+            .where((t) => !widget.isArchivedOf(t) && !widget.isDeletedOf(t))
+            .toList(growable: false);
+        final archived = fromDrift
+            .where((t) => widget.isArchivedOf(t) && !widget.isDeletedOf(t))
+            .toList(growable: false);
 
-          final canCreate = widget.canCreate;
-          VoidCallback? newAction() =>
-              canCreate ? () => context.go(widget.newRoute) : null;
+        // Nothing to toggle between until an archived row exists. The
+        // `_showArchived` half keeps the control mounted while it is on, so
+        // restoring the last archived row can't strand the user in a mode
+        // they have no button to leave.
+        final showArchiveToggle =
+            widget.supportsArchive && (archived.isNotEmpty || _showArchived);
 
-          if (active.isEmpty && archived.isEmpty) {
-            final starters = widget.starters;
-            final Widget emptyBody;
-            if (starters != null && starters.isNotEmpty) {
-              emptyBody = SettingsFormShell(
-                sections: [
-                  FormSection(
-                    title: context.tr(widget.sectionTitleKey),
-                    children: [
-                      EmptyState(
-                        icon: widget.emptyIcon,
-                        title: context.tr(widget.emptyTitleKey),
-                        subtitle: context.tr(widget.emptyHintKey),
-                        action: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(64, 44),
-                          ),
-                          icon: const Icon(Icons.add),
-                          label: Text(context.tr(widget.newLabelKey)),
-                          onPressed: newAction(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _StarterCards(starters: starters),
-                    ],
+        return SettingsScreenScaffold(
+          titleKey: widget.titleKey,
+          actions: [
+            ...widget.extraAppBarActions,
+            if (showArchiveToggle)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: TextButton.icon(
+                  icon: Icon(
+                    _showArchived
+                        ? Icons.visibility_off_outlined
+                        : Icons.archive_outlined,
+                    size: 18,
                   ),
-                ],
-              );
-            } else {
-              emptyBody = EmptyState(
-                icon: widget.emptyIcon,
-                title: context.tr(widget.emptyTitleKey),
-                subtitle: context.tr(widget.emptyHintKey),
-                action: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(64, 44),
+                  label: Text(
+                    context.tr(_showArchived ? 'show_active' : 'show_archived'),
                   ),
-                  icon: const Icon(Icons.add),
-                  label: Text(context.tr(widget.newLabelKey)),
-                  onPressed: newAction(),
+                  onPressed: () =>
+                      setState(() => _showArchived = !_showArchived),
                 ),
-              );
-            }
-            return _withBanner(widget.banner, emptyBody);
-          }
+              ),
+          ],
+          body: loading
+              ? const Center(child: CircularProgressIndicator())
+              : _buildBody(context, active: active, archived: archived),
+        );
+      },
+    );
+  }
 
-          // `onReorder == null` implies `rowBuilder != null` (constructor
-          // assert). When reorder is on, `reorderableRowBuilder!` is the
-          // active section's builder and the static `rowBuilder` is
-          // unused — `archivedRowBuilder` (or a fallback) covers archived.
-          final activeSection = widget.onReorder == null
-              ? _StaticRows<T>(items: active, rowBuilder: widget.rowBuilder!)
-              : _ReorderableRows<T>(
-                  items: active,
-                  rowBuilder: widget.reorderableRowBuilder!,
-                  onReorder: (o, n) => _handleReorder(active, o, n),
-                );
+  Widget _buildBody(
+    BuildContext context, {
+    required List<T> active,
+    required List<T> archived,
+  }) {
+    final canCreate = widget.canCreate;
+    VoidCallback? newAction() =>
+        canCreate ? () => context.go(widget.newRoute) : null;
 
-          return _withBanner(
-            widget.banner,
-            SettingsFormShell(
-              sections: [
-                FormSection(
-                  title: context.tr(widget.sectionTitleKey),
-                  spacing: 0,
-                  children: [
-                    if (active.isNotEmpty) activeSection,
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.add),
-                      title: Text(context.tr(widget.newLabelKey)),
-                      enabled: canCreate,
-                      onTap: canCreate
-                          ? () => context.go(widget.newRoute)
-                          : null,
+    // Emptiness is judged on what is *visible*, not what exists: with the
+    // toggle off, a company whose only rows are archived still gets the
+    // empty state (and, now, a Show archived button to go find them).
+    if (active.isEmpty && (!_showArchived || archived.isEmpty)) {
+      final starters = widget.starters;
+      final Widget emptyBody;
+      if (starters != null && starters.isNotEmpty) {
+        emptyBody = SettingsFormShell(
+          sections: [
+            FormSection(
+              title: context.tr(widget.sectionTitleKey),
+              children: [
+                EmptyState(
+                  icon: widget.emptyIcon,
+                  title: context.tr(widget.emptyTitleKey),
+                  subtitle: context.tr(widget.emptyHintKey),
+                  action: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(64, 44),
                     ),
-                  ],
-                ),
-                if (_showArchived && archived.isNotEmpty)
-                  FormSection(
-                    title: context.tr('archived'),
-                    spacing: 0,
-                    children: [
-                      for (final item in archived)
-                        (widget.archivedRowBuilder ?? widget.rowBuilder!)(item),
-                    ],
+                    icon: const Icon(Icons.add),
+                    label: Text(context.tr(widget.newLabelKey)),
+                    onPressed: newAction(),
                   ),
+                ),
+                const SizedBox(height: 16),
+                _StarterCards(starters: starters),
               ],
             ),
+          ],
+        );
+      } else {
+        emptyBody = EmptyState(
+          icon: widget.emptyIcon,
+          title: context.tr(widget.emptyTitleKey),
+          subtitle: context.tr(widget.emptyHintKey),
+          action: FilledButton.icon(
+            style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+            icon: const Icon(Icons.add),
+            label: Text(context.tr(widget.newLabelKey)),
+            onPressed: newAction(),
+          ),
+        );
+      }
+      return _withBanner(widget.banner, emptyBody);
+    }
+
+    // `onReorder == null` implies `rowBuilder != null` (constructor
+    // assert). When reorder is on, `reorderableRowBuilder!` is the
+    // active section's builder and the static `rowBuilder` is
+    // unused — `archivedRowBuilder` (or a fallback) covers archived.
+    final activeSection = widget.onReorder == null
+        ? _StaticRows<T>(items: active, rowBuilder: widget.rowBuilder!)
+        : _ReorderableRows<T>(
+            items: active,
+            rowBuilder: widget.reorderableRowBuilder!,
+            onReorder: (o, n) => _handleReorder(active, o, n),
           );
-        },
+
+    return _withBanner(
+      widget.banner,
+      SettingsFormShell(
+        sections: [
+          FormSection(
+            title: context.tr(widget.sectionTitleKey),
+            spacing: 0,
+            children: [
+              if (active.isNotEmpty) activeSection,
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.add),
+                title: Text(context.tr(widget.newLabelKey)),
+                enabled: canCreate,
+                onTap: canCreate ? () => context.go(widget.newRoute) : null,
+              ),
+            ],
+          ),
+          if (_showArchived && archived.isNotEmpty)
+            FormSection(
+              title: context.tr('archived'),
+              spacing: 0,
+              children: [
+                for (final item in archived)
+                  (widget.archivedRowBuilder ?? widget.rowBuilder!)(item),
+              ],
+            ),
+        ],
       ),
     );
   }

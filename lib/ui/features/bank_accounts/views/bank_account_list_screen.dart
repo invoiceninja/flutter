@@ -69,9 +69,7 @@ class BankAccountListScreen extends StatelessWidget {
             if (companyId.isEmpty) return;
             await repo.refreshAll(companyId: companyId);
           },
-          stream: ({required includeArchived}) => includeArchived
-              ? repo.watchAllIncludingArchived(companyId: companyId)
-              : repo.watchAll(companyId: companyId),
+          stream: () => repo.watchAllIncludingArchived(companyId: companyId),
           isArchivedOf: (a) => a.archivedAt != null,
           isDeletedOf: (a) => a.isDeleted,
           rowBuilder: (a) => _BankAccountRow(

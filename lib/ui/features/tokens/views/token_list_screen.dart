@@ -59,13 +59,11 @@ class TokenListScreen extends StatelessWidget {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
-      stream: ({required includeArchived}) => repo
+      stream: () => repo
           .watchPage(
             companyId: companyId,
             loadedPages: 4,
-            states: includeArchived
-                ? const {EntityState.active, EntityState.archived}
-                : const {EntityState.active},
+            states: const {EntityState.active, EntityState.archived},
           )
           .map(
             (list) => list.where((t) => !t.isSystem).toList(growable: false),

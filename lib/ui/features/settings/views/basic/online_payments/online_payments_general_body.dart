@@ -137,6 +137,9 @@ class OnlinePaymentsGeneralBody extends StatelessWidget {
             OverridableSwitchField(
               label: context.tr('unlock_invoice_documents_after_payment'),
               apiKey: 'unlock_invoice_documents_after_payment',
+              subtitle: context.tr(
+                'unlock_invoice_documents_after_payment_help',
+              ),
             ),
           ],
         ),

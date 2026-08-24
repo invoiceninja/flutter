@@ -128,9 +128,43 @@ abstract class SystemLog with _$SystemLog {
     }
   }
 
-  /// Tone for the event badge color. Tones map to `success/warning/danger
-  /// /accentSoft` color tokens in the screen.
+  /// Tone for the event badge colour, read from the event **and** the type.
+  ///
+  /// The outcome is not always on the event: an email that failed to send is
+  /// `event = EVENT_MAIL_SEND (30)` — neutral — with `type = TYPE_FAILURE
+  /// (303)`. Reading only the event painted that row grey and buried the word
+  /// "Failure" in the muted type/time caption, so a failure looked like every
+  /// other line and the success/failure cue moved column depending on
+  /// category (invoiceninja/flutter#58, #59). The event wins when it says
+  /// something; otherwise the type does.
   SystemLogTone get tone {
+    final fromEvent = _eventTone;
+    return fromEvent == SystemLogTone.neutral ? _typeTone : fromEvent;
+  }
+
+  /// Outcome carried by `type_id`, for the types that encode one. Everything
+  /// else — a gateway name, "Webhook response", "Peppol Send" — is neutral.
+  SystemLogTone get _typeTone {
+    switch (typeId) {
+      case 601: // TYPE_PDF_SUCCESS
+      case 800: // TYPE_LOGIN_SUCCESS
+        return SystemLogTone.success;
+      case 303: // TYPE_FAILURE
+      case 401: // TYPE_UPSTREAM_FAILURE
+      case 600: // TYPE_PDF_FAILURE
+      case 801: // TYPE_LOGIN_FAILURE
+        return SystemLogTone.failure;
+      // A quota block is recoverable — the server queues the mail for retry
+      // (`EVENT_MAIL_RETRY_QUEUE`, itself warning-toned), so it reads amber
+      // rather than red.
+      case 400: // TYPE_QUOTA_EXCEEDED
+        return SystemLogTone.warning;
+      default:
+        return SystemLogTone.neutral;
+    }
+  }
+
+  SystemLogTone get _eventTone {
     switch (eventId) {
       case 11:
       case 21:

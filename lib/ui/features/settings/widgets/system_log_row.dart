@@ -113,9 +113,26 @@ class _SystemLogRowState extends State<SystemLogRow> {
             ],
           );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+    // Colour-code the row itself, not just the badge dot — a failure buried in
+    // a long feed needs to be findable by scanning (invoiceninja/flutter#58).
+    // Success stays flat on purpose: tinting everything green is the "a lot of
+    // green 'everything is fine'" the issue objects to, and it would leave a
+    // failure no louder than its neighbours.
+    final alarm =
+        widget.log.tone == SystemLogTone.failure ||
+        widget.log.tone == SystemLogTone.warning;
+    final padded = Padding(
+      padding: EdgeInsets.fromLTRB(alarm ? 12 : 0, 12, 0, 12),
       child: body,
+    );
+    if (!alarm) return padded;
+    return Container(
+      decoration: BoxDecoration(
+        color: eventBg,
+        border: BorderDirectional(start: BorderSide(color: eventFg, width: 3)),
+        borderRadius: BorderRadius.circular(InRadii.r2),
+      ),
+      child: padded,
     );
   }
 

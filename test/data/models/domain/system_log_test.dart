@@ -117,6 +117,39 @@ void main() {
         expect(toneOf(id), SystemLogTone.neutral, reason: 'event $id');
       }
     });
+
+    test('a neutral event falls back to the outcome on the type', () {
+      // The email that made this a bug: EVENT_MAIL_SEND (30) is neutral, and
+      // the "Failure" lived on TYPE_FAILURE (303) — so the row painted grey
+      // and the outcome hid in the muted type caption
+      // (invoiceninja/flutter#58, #59).
+      SystemLogTone toneOf(int typeId) =>
+          _log(categoryId: 2, eventId: 30, typeId: typeId).tone;
+
+      expect(toneOf(303), SystemLogTone.failure); // TYPE_FAILURE
+      expect(toneOf(401), SystemLogTone.failure); // TYPE_UPSTREAM_FAILURE
+      expect(toneOf(600), SystemLogTone.failure); // TYPE_PDF_FAILURE
+      expect(toneOf(801), SystemLogTone.failure); // TYPE_LOGIN_FAILURE
+      expect(toneOf(601), SystemLogTone.success); // TYPE_PDF_SUCCESS
+      expect(toneOf(800), SystemLogTone.success); // TYPE_LOGIN_SUCCESS
+      // Recoverable — the server queues the mail for retry.
+      expect(toneOf(400), SystemLogTone.warning); // TYPE_QUOTA_EXCEEDED
+      // A gateway name carries no outcome.
+      expect(toneOf(301), SystemLogTone.neutral); // TYPE_STRIPE
+    });
+
+    test('the event wins over the type when it says something', () {
+      // A gateway success logged against TYPE_FAILURE would be contradictory
+      // data, but the event is the more specific statement either way.
+      expect(
+        _log(categoryId: 1, eventId: 21, typeId: 303).tone,
+        SystemLogTone.success,
+      );
+      expect(
+        _log(categoryId: 1, eventId: 22, typeId: 601).tone,
+        SystemLogTone.failure,
+      );
+    });
   });
 
   group('SystemLog.typeDisplay', () {

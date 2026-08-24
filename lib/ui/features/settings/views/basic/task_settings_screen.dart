@@ -27,11 +27,11 @@ const kTaskSettingsSearchKeys = <String>[
   'show_task_end_date',
   'show_task_item_description',
   'show_task_billable',
+  'configure_statuses',
   'round_tasks',
   'direction',
   'task_round_to_nearest',
   'round_to_seconds',
-  'configure_statuses',
   'show_tasks_table',
   'invoice_task_datelog',
   'invoice_task_timelog',
@@ -127,6 +127,27 @@ class _TaskSettingsBody extends StatelessWidget {
               apiKey: 'allow_billable_task_items',
               subtitle: context.tr('allow_billable_task_items_help'),
             ),
+            // Task statuses are a company-level list, so this nav button is
+            // company-scope only. It lives here rather than in the Rounding
+            // card (where it used to sit) because statuses belong to tasks in
+            // general, not to rounding — invoiceninja/flutter#55. Mirrors
+            // "Configure payment terms" at the foot of Online Payments →
+            // Defaults. Note `/settings/task_statuses` has no settings-sidebar
+            // row, so this is the screen's only entry point.
+            if (isCompanyScope) ...[
+              const Divider(height: 1),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go('/settings/task_statuses'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(64, 40),
+                  ),
+                  icon: const Icon(Icons.label_outlined, size: 18),
+                  label: Text(context.tr('configure_statuses')),
+                ),
+              ),
+            ],
           ],
         ),
         const _RoundingSection(),
@@ -419,18 +440,6 @@ class _RoundingSectionState extends State<_RoundingSection> {
               enabled: isOverridden,
               currentSeconds: asInt ?? 0,
             ),
-        ],
-        if (isCompanyScope) ...[
-          const Divider(height: 1),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: OutlinedButton.icon(
-              onPressed: () => context.go('/settings/task_statuses'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              icon: const Icon(Icons.label_outlined, size: 18),
-              label: Text(context.tr('configure_statuses')),
-            ),
-          ),
         ],
       ],
     );

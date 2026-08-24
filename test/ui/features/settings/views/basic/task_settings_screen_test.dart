@@ -23,6 +23,7 @@ import 'package:admin/ui/features/settings/view_models/client_settings_draft_vie
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/view_models/task_settings_view_model.dart';
 import 'package:admin/ui/features/settings/views/basic/task_settings_screen.dart';
+import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
 
@@ -58,6 +59,13 @@ class _StubCompanyRepo extends CompanyRepository {
       .stream;
   @override
   Future<void> refresh(String companyId) async {}
+
+  /// Push a company through `watchCompany`'s stream so the body renders
+  /// instead of sitting on the loading spinner. Call *after* `pumpWidget`
+  /// (the controllers are broadcast, so they don't replay to a late listener).
+  void emit(String companyId, Company? company) => _controllers
+      .putIfAbsent(companyId, StreamController<Company?>.broadcast)
+      .add(company);
 }
 
 class _FakeAuth implements AuthRepository {
@@ -276,4 +284,81 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  // invoiceninja/flutter#55: the Configure Statuses button used to hang off
+  // the bottom of the Rounding card, which has nothing to do with statuses —
+  // and since `/settings/task_statuses` has no settings-sidebar row, that
+  // button is the screen's only entry point. It belongs in the Tasks card,
+  // below Show Task Billable.
+  testWidgets('Configure Statuses lives in the Tasks card, not Rounding', (
+    tester,
+  ) async {
+    final services = _FakeServices(
+      auth: _FakeAuth(ValueNotifier(_sessionWith('co-A'))),
+      company: companyRepo,
+      clients: clientRepo,
+      db: db,
+      settingsLevel: SettingsLevelController(),
+      unsavedChangesGuard: UnsavedChangesGuard(),
+    );
+
+    await tester.pumpWidget(host(services));
+    await tester.pump();
+    companyRepo.emit('co-A', const Company(id: 'co-A', name: 'Acme'));
+    await tester.pumpAndSettle();
+
+    final l10n = bundledLocalization();
+    final button = find.widgetWithText(
+      OutlinedButton,
+      l10n.lookup('configure_statuses'),
+    );
+    expect(button, findsOneWidget);
+
+    // Its nearest FormSection ancestor must be the Tasks card. `.first` is
+    // the innermost ancestor, i.e. the section that actually holds it.
+    final section = tester.widget<FormSection>(
+      find.ancestor(of: button, matching: find.byType(FormSection)).first,
+    );
+    expect(
+      section.title,
+      l10n.lookup('tasks'),
+      reason: 'Configure Statuses must sit in the Tasks card, not Rounding',
+    );
+
+    // …and directly below Show Task Billable, with nothing else after it.
+    expect(section.children.last, isA<Align>());
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Configure Statuses is hidden at client scope', (tester) async {
+    final level = SettingsLevelController()
+      ..setLevel(
+        SettingsLevel.client,
+        targetId: 'client-1',
+        targetName: 'Client One',
+      );
+    final services = _FakeServices(
+      auth: _FakeAuth(ValueNotifier(_sessionWith('co-A'))),
+      company: companyRepo,
+      clients: clientRepo,
+      db: db,
+      settingsLevel: level,
+      unsavedChangesGuard: UnsavedChangesGuard(),
+    );
+
+    await tester.pumpWidget(host(services));
+    await tester.pumpAndSettle();
+
+    // Task statuses are a company-level list — the button is company-scope
+    // only, and moving it between cards must not change that.
+    expect(
+      find.text(bundledLocalization().lookup('configure_statuses')),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 }

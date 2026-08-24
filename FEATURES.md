@@ -518,6 +518,7 @@ the honest default.
 | Bank transaction — bulk convert / unlink | ✅ | ✅ | ✅ | ✅ | |
 | Bank account — read-only detail with embedded transactions | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
+| Bank transaction — empty state adapts to whether a bank feed is linked, with a connect CTA | — | — | ✅ | ✅ | |
 
 ---
 
@@ -1316,6 +1317,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Transaction rule — live "matches N" preview (debit, local) | — | — | ✅ | ✅ | |
 | Bank transaction — matched-rule chip on detail (deep-link) | — | — | ✅ | | |
 | Reconnect (Yodlee / Nordigen OAuth) | ✅ | 🟡 | ✅ | ✅ | |
+| Per-row Connect action on an unlinked account | — | — | ✅ | ✅ | |
 | Plan / feature gating (enterprise) | ✅ | 🟡 | ✅ | ✅ | |
 
 ### E-Invoice
@@ -1433,6 +1435,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | API call logs | ✅ | ✅ | ✅ | ✅ | |
 | User action audit trail | ✅ | ✅ | ✅ | ✅ | |
 | Outbox / diagnostics snapshot export | — | 🟡 | ✅ | ✅ | |
+| Filter the log feed by category / outcome | ❌ | ❌ | ✅ | ✅ | |
 
 ---
 

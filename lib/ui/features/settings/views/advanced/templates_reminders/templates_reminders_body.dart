@@ -209,9 +209,6 @@ class _TemplatesRemindersBodyState extends State<TemplatesRemindersBody> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TemplateVariablesCard(templateKey: selected.key),
-        // Actionable Preview sits above the "further reading" docs link
-        // (invoiceninja/flutter#77).
-        if (!showInlinePreview) _ShowPreviewButton(controller: _preview),
         _ViewDocsButton(),
       ],
     );
@@ -265,7 +262,6 @@ class _TemplatesRemindersBodyState extends State<TemplatesRemindersBody> {
             ),
           ),
         auxiliary,
-        if (!showInlinePreview) SizedBox(height: InSpacing.lg(context)),
       ],
     );
 
@@ -313,15 +309,29 @@ class _TemplatesRemindersBodyState extends State<TemplatesRemindersBody> {
       );
     }
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(
-        horizontal: InSpacing.lg(context),
-        vertical: InSpacing.lg(context),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
-        child: body,
-      ),
+    // Preview rides above the scroll area rather than sitting at the foot of
+    // it, so it is reachable without scrolling the whole template past — and
+    // so it matches Invoice Design's pinned preview bar, which is the same
+    // affordance one screen over (invoiceninja/flutter#83; this supersedes the
+    // in-body ordering fix from #77).
+    return Column(
+      children: [
+        _ShowPreviewButton(controller: _preview),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              InSpacing.lg(context),
+              0,
+              InSpacing.lg(context),
+              InSpacing.lg(context),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: body,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -425,6 +435,10 @@ class _ViewDocsButton extends StatelessWidget {
   }
 }
 
+/// Pinned preview bar. Deliberately the same shape, padding and alignment as
+/// `_PreviewBarButton` in `cascade_tabbed_settings_shell.dart`, which is what
+/// Invoice Design shows in the same position — the two screens sit next to
+/// each other in the sidebar and should not disagree about where Preview is.
 class _ShowPreviewButton extends StatelessWidget {
   const _ShowPreviewButton({required this.controller});
 
@@ -432,13 +446,21 @@ class _ShowPreviewButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: OutlinedButton.icon(
-        icon: const Icon(Icons.visibility_outlined, size: 16),
-        label: Text(context.tr('preview')),
-        style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-        onPressed: () => showTemplatePreviewScreen(context, controller),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        InSpacing.lg(context),
+        InSpacing.md(context),
+        InSpacing.lg(context),
+        InSpacing.md(context),
+      ),
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.visibility_outlined, size: 18),
+          label: Text(context.tr('preview')),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          onPressed: () => showTemplatePreviewScreen(context, controller),
+        ),
       ),
     );
   }

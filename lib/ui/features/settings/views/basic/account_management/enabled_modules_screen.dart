@@ -70,7 +70,9 @@ class _AccountManagementEnabledModulesScreenState
             sections: [
               if (!ready) const CompanySettingsLockedBanner(),
               FormSection(
-                title: context.tr('enabled_modules'),
+                // Not `enabled_modules`: the card holds every module with its
+                // switch, on or off (invoiceninja/flutter#82).
+                title: context.tr('modules'),
                 spacing: 0,
                 children: [
                   for (final module in kEnabledModulesOrder)

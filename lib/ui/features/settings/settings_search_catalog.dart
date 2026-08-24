@@ -423,8 +423,8 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'enable_email_markdown',
     'include_drafts',
     'include_deleted',
-    // Enabled modules
-    'enabled_modules',
+    // Modules tab (slug is still `enabled_modules`)
+    'modules',
     // Integrations hub tiles + the Analytics screen's GA / Matomo fields, now
     // reached via Account Management → Integrations → Analytics (the top-level
     // Integrations section was removed to match React).

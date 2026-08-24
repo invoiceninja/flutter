@@ -51,8 +51,12 @@ final List<_TabDef> _kAllTabs = <_TabDef>[
     builder: () => AccountManagementOverviewScreen(),
   ),
   _TabDef(
+    // Slug stays `enabled_modules` — it is a URL segment and a persisted
+    // `nav_state` value; only the label changed. The tab lists disabled
+    // modules too, so "Enabled Modules" misnamed half of it
+    // (invoiceninja/flutter#81).
     slug: 'enabled_modules',
-    labelKey: 'enabled_modules',
+    labelKey: 'modules',
     builder: () => AccountManagementEnabledModulesScreen(),
   ),
   _TabDef(

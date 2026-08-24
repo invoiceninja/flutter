@@ -80,6 +80,12 @@ class LocalizationSettingsBody extends StatelessWidget {
     final days = _dayOptions(context);
     final firstDay = host.draft?.firstDayOfWeek ?? '';
 
+    // `host.settings` is the resolved cascade at every scope, so this reads
+    // the currency the client/group would actually bill in.
+    final currencyCode = statics.currencies[host.settings.currencyId]?.code;
+    final showRappenRounding =
+        currencyCode == 'CHF' || (host.settings.enableRappenRounding ?? false);
+
     final isCompanyScope = scope.isCompany;
     // Demo accounts can't change the UI language — would conflict with the
     // hosted demo's tour scripting. Mirrors admin-portal's `AppState.isDemo`,
@@ -143,10 +149,19 @@ class LocalizationSettingsBody extends StatelessWidget {
               label: context.tr('military_time'),
               apiKey: 'military_time',
             ),
-            OverridableSwitchField(
-              label: context.tr('rappen_rounding'),
-              apiKey: 'enable_rappen_rounding',
-            ),
+            // Rappen is the Swiss centime and the option rounds to 5 cents, so
+            // it is noise on any other currency — the server only defaults it
+            // on for Switzerland (CountryDefaults '756'). Gated on the
+            // *resolved* cascade currency (invoiceninja/flutter#78). Stays
+            // visible while it is switched on, so a company that deliberately
+            // enabled 5-cent rounding on another currency can still find it
+            // and turn it back off rather than being stranded with an
+            // invisible setting.
+            if (showRappenRounding)
+              OverridableSwitchField(
+                label: context.tr('rappen_rounding'),
+                apiKey: 'enable_rappen_rounding',
+              ),
             if (isCompanyScope) ...[
               // Decimal Comma is a TOP-LEVEL company field (not a cascade
               // setting) — the money formatter reads it off the company row via

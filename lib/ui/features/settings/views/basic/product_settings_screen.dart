@@ -8,6 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/markup_text.dart';
 import 'package:admin/ui/features/settings/view_models/product_settings_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/plain_radio_field.dart';
@@ -160,7 +161,7 @@ class _ProductSettingsBody extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(context.tr('fill_products')),
-              subtitle: Text(context.tr('fill_products_help')),
+              subtitle: MarkupText(context.tr('fill_products_help')),
               value: draft.fillProducts,
               onChanged: (v) =>
                   vm.updateCompany((c) => c.copyWith(fillProducts: v)),
@@ -168,7 +169,7 @@ class _ProductSettingsBody extends StatelessWidget {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(context.tr('update_products')),
-              subtitle: Text(context.tr('update_products_help')),
+              subtitle: MarkupText(context.tr('update_products_help')),
               value: draft.updateProducts,
               onChanged: (v) =>
                   vm.updateCompany((c) => c.copyWith(updateProducts: v)),

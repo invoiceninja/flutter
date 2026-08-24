@@ -1479,7 +1479,10 @@ class _EmailButton extends StatelessWidget {
         final tr = context.tr;
         try {
           await vm.sendEmail();
-          toasts?.success(tr('email_sent'));
+          // Not `email_sent` — that key is a notification-preference
+          // label ("Email me when an invoice is <b>sent</b>"), tags and
+          // all. The server queues the report and mails it async.
+          toasts?.success(tr('email_queued'));
         } catch (e) {
           toasts?.error(tr('an_error_occurred'));
         }

@@ -92,6 +92,7 @@ class WorkflowSettingsInvoicesBody extends StatelessWidget {
               apiKey: 'lock_invoices',
               value: lockValue,
               items: _lockOptions(context),
+              helperText: context.tr('lock_invoices_help'),
               // Null `onChanged` greys out the dropdown — VeriFactu locks the
               // value server-side so the field becomes read-only.
               onChanged: isVerifactu

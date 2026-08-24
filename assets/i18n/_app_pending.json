@@ -479,6 +479,7 @@
   "loading_ellipsis": "Loading…",
   "loading_gateway_types": "Loading gateway types…",
   "lock": "Lock",
+  "lock_invoices_help": "Choose when an invoice becomes read-only. Status changes such as marking it sent or paid are still allowed.",
   "logged_hours": "Logged Hours",
   "login_with_email": "Login with email",
   "low_stock": "Low stock",

@@ -22,6 +22,7 @@ class OverridableDropdownField<T> extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
+    this.helperText,
   });
 
   final String label;
@@ -34,6 +35,12 @@ class OverridableDropdownField<T> extends StatelessWidget {
   /// when a server-side constraint locks the value (e.g. VeriFactu forcing
   /// `lock_invoices` to `when_sent`).
   final ValueChanged<T?>? onChanged;
+
+  /// Optional explainer rendered beneath the field, matching the `subtitle`
+  /// the switch rows on the same page carry. Material hides it while
+  /// [errorText] is showing — the validation message is the more urgent
+  /// thing to read.
+  final String? helperText;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +56,13 @@ class OverridableDropdownField<T> extends StatelessWidget {
     final field = DropdownButtonFormField<T>(
       initialValue: effective,
       isExpanded: true,
-      decoration: InputDecoration(labelText: label, errorText: errorText),
+      decoration: InputDecoration(
+        labelText: label,
+        errorText: errorText,
+        helperText: helperText,
+        // Translations run longer than English; one line silently truncates.
+        helperMaxLines: 3,
+      ),
       items: items,
       onChanged: onChanged,
     );

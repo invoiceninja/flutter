@@ -32,8 +32,15 @@ Future<bool> startBankConnect(
 
   final services = context.read<Services>();
   final baseUrl = services.auth.session.value?.baseUrl ?? '';
+  // Everything context-derived is resolved to a value *before* the network
+  // call. `context.tr` is a tear-off bound to this element, and minting the
+  // token is a round-trip the user can navigate away from — calling it
+  // afterwards reaches `Localizations.of` on a deactivated element, which
+  // throws "Looking up a deactivated widget's ancestor is unsafe" in debug.
   final toasts = Notify.capture(context);
-  final tr = context.tr;
+  final completeInBrowser = context.tr('complete_in_browser');
+  final failedToOpen = context.tr('failed_to_open_url');
+  final genericError = context.tr('an_error_occurred');
 
   try {
     final hash = await services.bankAccounts.api.oneTimeToken(
@@ -44,13 +51,13 @@ Future<bool> startBankConnect(
       Uri.parse(connectBankUrl(resolved, hash, baseUrl)),
     );
     if (opened) {
-      toasts?.success(tr('complete_in_browser'));
+      toasts?.success(completeInBrowser);
     } else {
-      toasts?.error(tr('failed_to_open_url'));
+      toasts?.error(failedToOpen);
     }
     return opened;
   } catch (e) {
-    toasts?.error(bankConnectErrorMessage(e, tr));
+    toasts?.error(bankConnectErrorMessage(e, genericError));
     return false;
   }
 }
@@ -64,7 +71,10 @@ Future<bool> startBankConnect(
 /// A 5xx deliberately does **not** get its message surfaced:
 /// `ApiClient._raiseFromResponse` splices up to 240 raw bytes of the response
 /// body into it, which for an HTML error page is gibberish in a toast.
-String bankConnectErrorMessage(Object error, String Function(String) tr) {
+/// [fallback] is a pre-resolved string, not a `tr` function: the caller
+/// invokes this after a network round-trip, by which point a context-bound
+/// lookup may be reaching through a deactivated element.
+String bankConnectErrorMessage(Object error, String fallback) {
   if (error is ValidationException) {
     final lines = error.fieldErrors.values
         .expand((v) => v)
@@ -72,12 +82,12 @@ String bankConnectErrorMessage(Object error, String Function(String) tr) {
         .where((s) => s.isNotEmpty);
     if (lines.isNotEmpty) return lines.join(' · ');
   }
-  if (error is ServerException) return tr('an_error_occurred');
+  if (error is ServerException) return fallback;
   if (error is ApiException) {
     final message = error.message.trim();
     if (message.isNotEmpty) return message;
   }
-  return tr('an_error_occurred');
+  return fallback;
 }
 
 /// Self-hosted connects via Nordigen directly (React parity — no provider

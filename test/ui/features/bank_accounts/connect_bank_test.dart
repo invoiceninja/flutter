@@ -128,8 +128,7 @@ void main() {
 /// could act on (invoiceninja/flutter#69); the useful text was in the 422's
 /// per-field messages.
 void _bankConnectErrorMessageTests() {
-  String tr(String key) =>
-      key == 'an_error_occurred' ? 'An error occurred' : key;
+  const fallback = 'An error occurred';
 
   group('bankConnectErrorMessage', () {
     test('flattens a 422 into its per-field messages', () {
@@ -139,7 +138,7 @@ void _bankConnectErrorMessageTests() {
             'platform': ['The selected platform is invalid.'],
             'context': ['The context field is required.'],
           }),
-          tr,
+          fallback,
         ),
         'The selected platform is invalid. · The context field is required.',
       );
@@ -151,7 +150,7 @@ void _bankConnectErrorMessageTests() {
           const ValidationException('The given data was invalid.', {
             'platform': ['   '],
           }),
-          tr,
+          fallback,
         ),
         'The given data was invalid.',
       );
@@ -161,7 +160,7 @@ void _bankConnectErrorMessageTests() {
       expect(
         bankConnectErrorMessage(
           const ServerException(500, '<!DOCTYPE html><html><head><title>50'),
-          tr,
+          fallback,
         ),
         'An error occurred',
       );
@@ -171,7 +170,7 @@ void _bankConnectErrorMessageTests() {
       expect(
         bankConnectErrorMessage(
           const NetworkException('No internet connection'),
-          tr,
+          fallback,
         ),
         'No internet connection',
       );
@@ -179,7 +178,7 @@ void _bankConnectErrorMessageTests() {
 
     test('a non-API error gets the generic message', () {
       expect(
-        bankConnectErrorMessage(StateError('boom'), tr),
+        bankConnectErrorMessage(StateError('boom'), fallback),
         'An error occurred',
       );
     });

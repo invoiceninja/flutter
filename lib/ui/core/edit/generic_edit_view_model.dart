@@ -191,6 +191,27 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   @protected
   Map<String, List<String>> validate() => const {};
 
+  /// Run [validate] and publish its result to [fieldErrors], without touching
+  /// the draft, the local row or the outbox. Returns true when the form is
+  /// clean.
+  ///
+  /// For a screen that opens a modal *on the user's behalf* before saving, so
+  /// it can check the form first. User Details prompts for the account
+  /// password before enqueuing (the server 412-gates every user mutation), and
+  /// asking someone to authenticate in order to save a form that was never
+  /// valid is the wrong order — that shipped briefly as the interaction of
+  /// invoiceninja/flutter#64 and #66.
+  ///
+  /// [save] re-runs [validate] itself, so calling this first is belt-and-
+  /// braces rather than a precondition; nothing downstream depends on it.
+  bool validateAndPublish() {
+    final errors = validate();
+    _fieldErrors = Map.unmodifiable(errors);
+    _localValidationOnly = errors.isNotEmpty;
+    notifyListeners();
+    return errors.isEmpty;
+  }
+
   int? _deadOutboxRowId;
 
   /// `outbox.id` of the dead row whose 422 errors this VM is currently

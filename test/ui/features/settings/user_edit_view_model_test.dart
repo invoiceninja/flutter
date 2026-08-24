@@ -79,6 +79,58 @@ void main() {
     expect(await pendingOutboxCount(), 1);
   });
 
+  group('validateAndPublish', () {
+    // The screen calls this before it opens the account-password sheet.
+    // Without it, a blank New User form answered Save with a password prompt
+    // and only then said "Please enter a first name" — authenticate first,
+    // find out it was pointless second (invoiceninja/flutter#64 + #66).
+    test('publishes the errors and reports false, without saving', () async {
+      final vm = vmFor();
+
+      expect(vm.validateAndPublish(), isFalse);
+      expect(vm.fieldErrorFor('first_name'), 'Please enter a first name');
+      expect(vm.fieldErrorFor('last_name'), 'Please enter a last name');
+      expect(vm.fieldErrorFor('email'), 'Please enter your email');
+      expect(
+        vm.localValidationOnly,
+        isTrue,
+        reason: 'these are client-side, not a server rejection',
+      );
+      // The whole point: nothing was written and nothing was enqueued.
+      expect(await pendingOutboxCount(), 0);
+    });
+
+    test('reports true and clears stale errors on a complete form', () async {
+      final vm = vmFor();
+      expect(vm.validateAndPublish(), isFalse);
+      expect(vm.fieldErrors, isNotEmpty);
+
+      vm
+        ..setFirstName('Ada')
+        ..setLastName('Lovelace')
+        ..setEmail('ada@example.com');
+
+      expect(vm.validateAndPublish(), isTrue);
+      expect(vm.fieldErrors, isEmpty);
+      expect(vm.localValidationOnly, isFalse);
+      expect(await pendingOutboxCount(), 0);
+    });
+
+    test('notifies, so the inline errors actually repaint', () async {
+      final vm = vmFor();
+      var notifications = 0;
+      vm.addListener(() => notifications++);
+
+      vm.validateAndPublish();
+      expect(notifications, greaterThan(0));
+    });
+
+    test('edit mode is clean — the name rules are create-only', () {
+      const existing = User(id: 'u1', firstName: 'Ada', email: 'ada@x.com');
+      expect(vmFor(existing: existing).validateAndPublish(), isTrue);
+    });
+  });
+
   test('edit mode does not re-impose the create-only name rules', () async {
     // `UpdateUserRequest` marks email `sometimes` and says nothing about the
     // names, so a legacy record with a blank one has to stay editable.

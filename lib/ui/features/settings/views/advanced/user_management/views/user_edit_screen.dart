@@ -229,6 +229,12 @@ class _UserEditBody extends StatelessWidget {
 
   Future<void> _save(BuildContext context, UserEditViewModel vm) async {
     final services = context.read<Services>();
+    // Check the form before asking the user to authenticate. Save is gated
+    // only on `isSaving` (a disabled button can't say *why* it's disabled), so
+    // without this a blank New User form answered a Save tap with the password
+    // sheet and only then said "Please enter a first name" — authenticate
+    // first, find out it was pointless second.
+    if (!vm.validateAndPublish()) return;
     // Every user mutation is password-gated server-side (412). Prime the cache
     // *before* the row is enqueued: otherwise the drain parks it, the sheet
     // pops after the form has already claimed success, and cancelling leaves a

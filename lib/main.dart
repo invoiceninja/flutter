@@ -160,6 +160,7 @@ Future<void> _bootstrap() async {
     services.confirmActions.restore(),
     services.sidebarBadgeModes.restore(),
     services.recentlyViewed.restore(),
+    services.contactsSync.restore(),
   ]);
   mark('restore (auth/theme/locale/sidebar)');
 

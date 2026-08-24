@@ -152,5 +152,24 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Contacts-sync-only update — [ContactsSyncController] calls this when the
+  /// user flips the toggle, changes scope, or a reconcile finishes. Leaves the
+  /// other fields untouched, same partial-write pattern as [saveFilters].
+  ///
+  /// Pass `null` for [json] to clear the preference entirely (the feature has
+  /// never been used, or the last company's state was removed).
+  Future<void> saveContactsSync({
+    required String? json,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        contactsSyncJson: Value(json),
+        updatedAt: now,
+      ),
+    );
+  }
+
   Future<void> clear() => (delete(navState)..where((n) => n.id.equals(0))).go();
 }

@@ -38,6 +38,7 @@ void main() {
     2: 'd5da8c93f363e8c7ab95bf6be124b387832bb84f0a24a576fd84edf522028b06',
     3: 'b320f8d71dffdd0e7a8f6fd069f8a7207c2beb8d7207907007811f71f2303bf2',
     4: '54be9c4ef437fcd6e5a7d8927eca8737f1f582b26b225211a5274d563e3c7eef',
+    5: '5ec0013e47f74da5e433b736a3bdc3c040eb09219358d3c08ab693d387870f91',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -170,6 +171,19 @@ void main() {
             'custom_theme_json',
             'recent_entities_json',
             'text_scale',
+            'contacts_sync_json',
+          }),
+        );
+        // The v5 address-book link index — a whole table rather than a column,
+        // so `createAll()` dropping it would otherwise only surface as a
+        // confusing "no such table" at contacts-sync time.
+        expect(
+          await columnsOf('device_contact_links'),
+          containsAll(<String>{
+            'company_id',
+            'source_id',
+            'device_contact_id',
+            'hash',
           }),
         );
         expect(await columnsOf('saved_views'), contains('icon'));

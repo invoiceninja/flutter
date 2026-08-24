@@ -109,6 +109,19 @@ class AuthRepository {
   /// swallowed; logout must complete regardless.
   void Function()? onSessionReset;
 
+  /// Wired by DI to `ContactsSyncController.removeAllCompanies`. Invoked
+  /// immediately before [logout] wipes the database, and **only on the
+  /// destructive path** — deliberately not on the `preserveLocalData`
+  /// idle-timeout re-lock, where the session is coming back.
+  ///
+  /// Distinct from [onBeforeLogout], which fires for both paths and so can't
+  /// express "we are about to destroy local state". The contacts sync needs
+  /// exactly that: its link table lives in the database, so anything not
+  /// cleaned up here is stranded on the device forever — a signed-out user's
+  /// whole client list left sitting in the address book. Failures are logged
+  /// and swallowed; logout must complete regardless.
+  Future<void> Function()? onBeforeDataWipe;
+
   /// Wired by DI to `SyncRepository.drainOnce`. Fires whenever the active
   /// company becomes non-null (login, restore, /refresh, addCompany) or
   /// switches ([switchCompany]) so any outbox rows pending for that company
@@ -735,6 +748,16 @@ class AuthRepository {
     await _secure.delete(kAuthBiometricEnabledKey);
     // A full logout supersedes any pending re-lock gate.
     await _secure.delete(kAuthSessionLockedKey);
+    // Last chance to clean up anything mirrored *outside* the database before
+    // the record of it is destroyed (today: the device address book).
+    final wipeHook = onBeforeDataWipe;
+    if (wipeHook != null) {
+      try {
+        await wipeHook();
+      } catch (e, st) {
+        _log.warning('onBeforeDataWipe failed', e, st);
+      }
+    }
     await _db.wipe();
   }
 

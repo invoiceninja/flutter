@@ -69,6 +69,7 @@ import 'package:admin/data/services/biometric_service.dart';
 import 'package:admin/data/services/companies_api.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
+import 'package:admin/domain/contacts_sync/contacts_sync_service.dart';
 import 'package:admin/data/services/device_contacts_service_factory.dart';
 import 'package:admin/data/services/documents_api.dart';
 import 'package:admin/data/services/emails_api.dart';
@@ -105,6 +106,7 @@ import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
+import 'package:admin/app/contacts_sync_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme_controller.dart';
@@ -270,6 +272,7 @@ class Services implements SidebarBadgeContext {
     required this.keyboardShortcuts,
     required this.appLocale,
     required this.confirmActions,
+    required this.contactsSync,
     required this.sidebar,
     required this.sidebarBadgeModes,
     required this.resync,
@@ -575,6 +578,13 @@ class Services implements SidebarBadgeContext {
   /// first. Read it at tap time via `guardedOnTap` /
   /// `showConfirmActionDialog`, never cached into a built widget.
   final ConfirmActionsController confirmActions;
+
+  /// Device-local "sync client contacts to this device's address book"
+  /// preference plus the single-flight guard around a reconcile pass
+  /// (Settings → Device Settings → Contacts). Native mobile only — on every
+  /// other platform `deviceContacts.canSync` is false, the settings section
+  /// hides itself and nothing here is ever driven.
+  final ContactsSyncController contactsSync;
 
   final SidebarController sidebar;
 
@@ -1304,18 +1314,51 @@ class Services implements SidebarBadgeContext {
       db: db,
     );
     final confirmActions = ConfirmActionsController(db: db);
+    // One instance, shared by the picker (`services.deviceContacts`) and the
+    // sync engine below — the native impl caches the device's contacts account,
+    // and two of them would probe for it twice.
+    final deviceContacts =
+        deviceContactsService ?? defaultDeviceContactsService();
+    final contactsSync = ContactsSyncController(
+      db: db,
+      engine: ContactsSyncService(
+        device: deviceContacts,
+        clients: entities.clients,
+        db: db,
+        // Read lazily — the statics bundle can land after this point, and a
+        // country name missing from an early card would stick until the next
+        // time that contact was edited.
+        countries: () => statics.countries,
+        currentUserId: () => auth.session.value?.userId ?? '',
+      ),
+    );
     final sidebar = SidebarController(db: db);
     final sidebarBadgeModes = SidebarBadgeModeController(db: db);
     // Captures the deferred `late final Services services` declared above —
     // same pattern as `companyRepo.onSettingsWritten`. The runner only fires on
     // a user action, long after the assignment below.
     final resync = ResyncController(
-      runner: ({required companyId, onProgress, isCancelled}) =>
-          services.syncNow(
-            companyId: companyId,
-            onProgress: onProgress,
-            isCancelled: isCancelled,
-          ),
+      runner: ({required companyId, onProgress, isCancelled}) async {
+        final failed = await services.syncNow(
+          companyId: companyId,
+          onProgress: onProgress,
+          isCancelled: isCancelled,
+        );
+        // Freshen the device address book off the back of the pass that just
+        // refreshed the data it reads. This is the single choke point for all
+        // three Sync surfaces (sidebar button, Device Settings → Data, Account
+        // Management → Force full sync), so hooking it here covers them at
+        // once. Awaited, not fire-and-forget, so the Sync spinner still
+        // reflects work in progress — but its result can't fail the pass.
+        if (contactsSync.enabled && !(isCancelled?.call() ?? false)) {
+          // `refreshClients: false` — `syncNow` above already re-downloaded
+          // every client. Letting the reconcile refresh again would page the
+          // whole client list a second time, back to back, with the Sync
+          // spinner up throughout.
+          await contactsSync.run(companyId, refreshClients: false);
+        }
+        return failed;
+      },
     );
     // Company-scoped — clears itself off `auth.session` changes, same as the
     // nav history. No `onActiveCompanyChanged` hook needed here.
@@ -1350,12 +1393,19 @@ class Services implements SidebarBadgeContext {
       // this stops the *next* entity, not the one already paging, so it
       // narrows the window rather than closing it.
       resync.cancel();
+      // Same cooperative stop for a reconcile in flight — it writes to the
+      // link table, which is about to be wiped.
+      contactsSync.cancel();
       settingsLevel.reset();
       refreshScheduler.stop();
       services.toasts.clearAll();
       services.shortcutHints.reset();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
+    // Only on the destructive logout path — an idle-timeout re-lock keeps the
+    // database (and therefore the link table), so the user's synced cards
+    // should survive it rather than being deleted and rebuilt on re-entry.
+    auth.onBeforeDataWipe = contactsSync.removeAllCompanies;
     final priorOnActiveCompanyChanged = auth.onActiveCompanyChanged;
     auth.onActiveCompanyChanged = (companyId) {
       settingsLevel.reset();
@@ -1453,7 +1503,7 @@ class Services implements SidebarBadgeContext {
       biometric:
           biometricService ??
           (kIsWeb ? const WebBiometricService() : LocalAuthBiometricService()),
-      deviceContacts: deviceContactsService ?? defaultDeviceContactsService(),
+      deviceContacts: deviceContacts,
       theme: theme,
       accentColor: accentColor,
       locale: locale,
@@ -1461,6 +1511,7 @@ class Services implements SidebarBadgeContext {
       keyboardShortcuts: keyboardShortcuts,
       appLocale: appLocale,
       confirmActions: confirmActions,
+      contactsSync: contactsSync,
       sidebar: sidebar,
       sidebarBadgeModes: sidebarBadgeModes,
       resync: resync,

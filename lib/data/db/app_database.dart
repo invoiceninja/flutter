@@ -43,6 +43,7 @@ import 'package:admin/data/db/dao/user_dao.dart';
 import 'package:admin/data/db/dao/webhook_dao.dart';
 import 'package:admin/data/db/dao/user_settings_dao.dart';
 import 'package:admin/data/db/dao/design_dao.dart';
+import 'package:admin/data/db/dao/device_contact_link_dao.dart';
 import 'package:admin/data/db/dao/vendor_dao.dart';
 import 'package:admin/data/db/tables/bank_accounts_table.dart';
 import 'package:admin/data/db/tables/bank_transactions_table.dart';
@@ -51,6 +52,7 @@ import 'package:admin/data/db/tables/companies_table.dart';
 import 'package:admin/data/db/tables/company_gateways_table.dart';
 import 'package:admin/data/db/tables/dashboard_cache_table.dart';
 import 'package:admin/data/db/tables/designs_table.dart';
+import 'package:admin/data/db/tables/device_contact_links_table.dart';
 import 'package:admin/data/db/tables/documents_table.dart';
 import 'package:admin/data/db/tables/drafts_table.dart';
 import 'package:admin/data/db/tables/expense_categories_table.dart';
@@ -134,6 +136,7 @@ final _log = Logger('AppDatabase');
     SystemLogs,
     Webhooks,
     Tokens,
+    DeviceContactLinks,
   ],
   daos: [
     ClientDao,
@@ -176,13 +179,14 @@ final _log = Logger('AppDatabase');
     SystemLogDao,
     WebhookDao,
     TokenDao,
+    DeviceContactLinkDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -216,6 +220,11 @@ class AppDatabase extends _$AppDatabase {
     // preference). Non-nullable with a `true` default, so SQLite's
     // `ADD COLUMN ... DEFAULT 1` backfills installed databases — existing users
     // get the guard switched on, matching a fresh install.
+    //
+    // v4 → v5: add `nav_state.contacts_sync_json` (device-local contacts-sync
+    // preference) and the `device_contact_links` table (the address-book link
+    // index). Both are nullable / brand new, so there's nothing to backfill —
+    // an upgraded install simply has the feature switched off.
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
@@ -225,6 +234,10 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 4) {
         await m.addColumn(navState, navState.confirmActions);
+      }
+      if (from < 5) {
+        await m.addColumn(navState, navState.contactsSyncJson);
+        await m.createTable(deviceContactLinks);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

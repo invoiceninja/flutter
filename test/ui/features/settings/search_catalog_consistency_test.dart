@@ -182,6 +182,7 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/widgets/customize_colors_section.dart',
       'lib/ui/features/settings/widgets/biometric_toggle_tile.dart',
       'lib/ui/features/settings/widgets/confirm_actions_tile.dart',
+      'lib/ui/features/settings/widgets/contacts_sync_section.dart',
       'lib/ui/features/settings/widgets/sidebar_counters_section.dart',
       'lib/domain/sidebar_badge_modes.dart',
     ],

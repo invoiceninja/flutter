@@ -209,6 +209,24 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     required String companyId,
   }) => db.clientDao.watchActiveNames(companyId: companyId);
 
+  /// One page of clients for the contacts-sync reconcile, decoded to domain
+  /// objects. See [ClientDao.pageForContactSync] for why this is paged and
+  /// non-streaming. A page shorter than [limit] is the last one.
+  Future<List<Client>> pageForContactSync({
+    required String companyId,
+    required int offset,
+    required int limit,
+    String? assignedUserId,
+  }) async {
+    final rows = await db.clientDao.pageForContactSync(
+      companyId: companyId,
+      offset: offset,
+      limit: limit,
+      assignedUserId: assignedUserId,
+    );
+    return rows.map(_fromRow).toList();
+  }
+
   @override
   Stream<Client?> watchByRealId({
     required String companyId,

@@ -5000,6 +5000,17 @@ class $NavStateTable extends NavState
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _contactsSyncJsonMeta = const VerificationMeta(
+    'contactsSyncJson',
+  );
+  @override
+  late final GeneratedColumn<String> contactsSyncJson = GeneratedColumn<String>(
+    'contacts_sync_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _recentEntitiesJsonMeta =
       const VerificationMeta('recentEntitiesJson');
   @override
@@ -5052,6 +5063,7 @@ class $NavStateTable extends NavState
     keyboardShortcutsJson,
     sidebarBadgeModesJson,
     confirmActions,
+    contactsSyncJson,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
@@ -5170,6 +5182,15 @@ class $NavStateTable extends NavState
         ),
       );
     }
+    if (data.containsKey('contacts_sync_json')) {
+      context.handle(
+        _contactsSyncJsonMeta,
+        contactsSyncJson.isAcceptableOrUnknown(
+          data['contacts_sync_json']!,
+          _contactsSyncJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('recent_entities_json')) {
       context.handle(
         _recentEntitiesJsonMeta,
@@ -5257,6 +5278,10 @@ class $NavStateTable extends NavState
         DriftSqlType.bool,
         data['${effectivePrefix}confirm_actions'],
       )!,
+      contactsSyncJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contacts_sync_json'],
+      ),
       recentEntitiesJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}recent_entities_json'],
@@ -5316,6 +5341,15 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   /// field. Added in schema v4.
   final bool confirmActions;
 
+  /// Device-local contacts-sync preference (Settings → Device Settings →
+  /// Contacts), as a JSON object:
+  /// `{"enabled":bool,"scope":"all"|"mine",
+  ///   "companies":{"<companyId>":{"groupId":"12","lastRunAt":1750000000000}}}`.
+  /// Null column = the feature has never been switched on. One blob rather than
+  /// four columns, same reasoning as [filtersJson] — the per-company half is
+  /// open-ended and none of it is ever queried by SQL. Added in schema v5.
+  final String? contactsSyncJson;
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,
@@ -5337,6 +5371,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     this.keyboardShortcutsJson,
     this.sidebarBadgeModesJson,
     required this.confirmActions,
+    this.contactsSyncJson,
     this.recentEntitiesJson,
     required this.sidebarCollapsed,
     required this.updatedAt,
@@ -5379,6 +5414,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       map['sidebar_badge_modes_json'] = Variable<String>(sidebarBadgeModesJson);
     }
     map['confirm_actions'] = Variable<bool>(confirmActions);
+    if (!nullToAbsent || contactsSyncJson != null) {
+      map['contacts_sync_json'] = Variable<String>(contactsSyncJson);
+    }
     if (!nullToAbsent || recentEntitiesJson != null) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson);
     }
@@ -5424,6 +5462,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ? const Value.absent()
           : Value(sidebarBadgeModesJson),
       confirmActions: Value(confirmActions),
+      contactsSyncJson: contactsSyncJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contactsSyncJson),
       recentEntitiesJson: recentEntitiesJson == null && nullToAbsent
           ? const Value.absent()
           : Value(recentEntitiesJson),
@@ -5457,6 +5498,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         json['sidebarBadgeModesJson'],
       ),
       confirmActions: serializer.fromJson<bool>(json['confirmActions']),
+      contactsSyncJson: serializer.fromJson<String?>(json['contactsSyncJson']),
       recentEntitiesJson: serializer.fromJson<String?>(
         json['recentEntitiesJson'],
       ),
@@ -5485,6 +5527,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         sidebarBadgeModesJson,
       ),
       'confirmActions': serializer.toJson<bool>(confirmActions),
+      'contactsSyncJson': serializer.toJson<String?>(contactsSyncJson),
       'recentEntitiesJson': serializer.toJson<String?>(recentEntitiesJson),
       'sidebarCollapsed': serializer.toJson<bool>(sidebarCollapsed),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -5505,6 +5548,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     Value<String?> keyboardShortcutsJson = const Value.absent(),
     Value<String?> sidebarBadgeModesJson = const Value.absent(),
     bool? confirmActions,
+    Value<String?> contactsSyncJson = const Value.absent(),
     Value<String?> recentEntitiesJson = const Value.absent(),
     bool? sidebarCollapsed,
     int? updatedAt,
@@ -5530,6 +5574,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         ? sidebarBadgeModesJson.value
         : this.sidebarBadgeModesJson,
     confirmActions: confirmActions ?? this.confirmActions,
+    contactsSyncJson: contactsSyncJson.present
+        ? contactsSyncJson.value
+        : this.contactsSyncJson,
     recentEntitiesJson: recentEntitiesJson.present
         ? recentEntitiesJson.value
         : this.recentEntitiesJson,
@@ -5569,6 +5616,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       confirmActions: data.confirmActions.present
           ? data.confirmActions.value
           : this.confirmActions,
+      contactsSyncJson: data.contactsSyncJson.present
+          ? data.contactsSyncJson.value
+          : this.contactsSyncJson,
       recentEntitiesJson: data.recentEntitiesJson.present
           ? data.recentEntitiesJson.value
           : this.recentEntitiesJson,
@@ -5595,6 +5645,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ..write('keyboardShortcutsJson: $keyboardShortcutsJson, ')
           ..write('sidebarBadgeModesJson: $sidebarBadgeModesJson, ')
           ..write('confirmActions: $confirmActions, ')
+          ..write('contactsSyncJson: $contactsSyncJson, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -5617,6 +5668,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     keyboardShortcutsJson,
     sidebarBadgeModesJson,
     confirmActions,
+    contactsSyncJson,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
@@ -5638,6 +5690,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           other.keyboardShortcutsJson == this.keyboardShortcutsJson &&
           other.sidebarBadgeModesJson == this.sidebarBadgeModesJson &&
           other.confirmActions == this.confirmActions &&
+          other.contactsSyncJson == this.contactsSyncJson &&
           other.recentEntitiesJson == this.recentEntitiesJson &&
           other.sidebarCollapsed == this.sidebarCollapsed &&
           other.updatedAt == this.updatedAt);
@@ -5657,6 +5710,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
   final Value<String?> keyboardShortcutsJson;
   final Value<String?> sidebarBadgeModesJson;
   final Value<bool> confirmActions;
+  final Value<String?> contactsSyncJson;
   final Value<String?> recentEntitiesJson;
   final Value<bool> sidebarCollapsed;
   final Value<int> updatedAt;
@@ -5674,6 +5728,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.keyboardShortcutsJson = const Value.absent(),
     this.sidebarBadgeModesJson = const Value.absent(),
     this.confirmActions = const Value.absent(),
+    this.contactsSyncJson = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5692,6 +5747,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.keyboardShortcutsJson = const Value.absent(),
     this.sidebarBadgeModesJson = const Value.absent(),
     this.confirmActions = const Value.absent(),
+    this.contactsSyncJson = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     required int updatedAt,
@@ -5710,6 +5766,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Expression<String>? keyboardShortcutsJson,
     Expression<String>? sidebarBadgeModesJson,
     Expression<bool>? confirmActions,
+    Expression<String>? contactsSyncJson,
     Expression<String>? recentEntitiesJson,
     Expression<bool>? sidebarCollapsed,
     Expression<int>? updatedAt,
@@ -5730,6 +5787,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       if (sidebarBadgeModesJson != null)
         'sidebar_badge_modes_json': sidebarBadgeModesJson,
       if (confirmActions != null) 'confirm_actions': confirmActions,
+      if (contactsSyncJson != null) 'contacts_sync_json': contactsSyncJson,
       if (recentEntitiesJson != null)
         'recent_entities_json': recentEntitiesJson,
       if (sidebarCollapsed != null) 'sidebar_collapsed': sidebarCollapsed,
@@ -5751,6 +5809,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Value<String?>? keyboardShortcutsJson,
     Value<String?>? sidebarBadgeModesJson,
     Value<bool>? confirmActions,
+    Value<String?>? contactsSyncJson,
     Value<String?>? recentEntitiesJson,
     Value<bool>? sidebarCollapsed,
     Value<int>? updatedAt,
@@ -5771,6 +5830,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       sidebarBadgeModesJson:
           sidebarBadgeModesJson ?? this.sidebarBadgeModesJson,
       confirmActions: confirmActions ?? this.confirmActions,
+      contactsSyncJson: contactsSyncJson ?? this.contactsSyncJson,
       recentEntitiesJson: recentEntitiesJson ?? this.recentEntitiesJson,
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -5823,6 +5883,9 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     if (confirmActions.present) {
       map['confirm_actions'] = Variable<bool>(confirmActions.value);
     }
+    if (contactsSyncJson.present) {
+      map['contacts_sync_json'] = Variable<String>(contactsSyncJson.value);
+    }
     if (recentEntitiesJson.present) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson.value);
     }
@@ -5851,6 +5914,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
           ..write('keyboardShortcutsJson: $keyboardShortcutsJson, ')
           ..write('sidebarBadgeModesJson: $sidebarBadgeModesJson, ')
           ..write('confirmActions: $confirmActions, ')
+          ..write('contactsSyncJson: $contactsSyncJson, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -44418,6 +44482,382 @@ class TokensCompanion extends UpdateCompanion<TokenRow> {
   }
 }
 
+class $DeviceContactLinksTable extends DeviceContactLinks
+    with TableInfo<$DeviceContactLinksTable, DeviceContactLinkRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DeviceContactLinksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deviceContactIdMeta = const VerificationMeta(
+    'deviceContactId',
+  );
+  @override
+  late final GeneratedColumn<String> deviceContactId = GeneratedColumn<String>(
+    'device_contact_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hashMeta = const VerificationMeta('hash');
+  @override
+  late final GeneratedColumn<String> hash = GeneratedColumn<String>(
+    'hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    companyId,
+    sourceId,
+    deviceContactId,
+    hash,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'device_contact_links';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DeviceContactLinkRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceIdMeta);
+    }
+    if (data.containsKey('device_contact_id')) {
+      context.handle(
+        _deviceContactIdMeta,
+        deviceContactId.isAcceptableOrUnknown(
+          data['device_contact_id']!,
+          _deviceContactIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_deviceContactIdMeta);
+    }
+    if (data.containsKey('hash')) {
+      context.handle(
+        _hashMeta,
+        hash.isAcceptableOrUnknown(data['hash']!, _hashMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hashMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {companyId, sourceId};
+  @override
+  DeviceContactLinkRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DeviceContactLinkRow(
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      )!,
+      deviceContactId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}device_contact_id'],
+      )!,
+      hash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hash'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DeviceContactLinksTable createAlias(String alias) {
+    return $DeviceContactLinksTable(attachedDatabase, alias);
+  }
+}
+
+class DeviceContactLinkRow extends DataClass
+    implements Insertable<DeviceContactLinkRow> {
+  final String companyId;
+  final String sourceId;
+  final String deviceContactId;
+
+  /// Content hash of the card last written for [sourceId]. Unchanged hash =>
+  /// no write at all, which is what keeps a repeat sync near-free.
+  final String hash;
+  final int updatedAt;
+  const DeviceContactLinkRow({
+    required this.companyId,
+    required this.sourceId,
+    required this.deviceContactId,
+    required this.hash,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['company_id'] = Variable<String>(companyId);
+    map['source_id'] = Variable<String>(sourceId);
+    map['device_contact_id'] = Variable<String>(deviceContactId);
+    map['hash'] = Variable<String>(hash);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  DeviceContactLinksCompanion toCompanion(bool nullToAbsent) {
+    return DeviceContactLinksCompanion(
+      companyId: Value(companyId),
+      sourceId: Value(sourceId),
+      deviceContactId: Value(deviceContactId),
+      hash: Value(hash),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DeviceContactLinkRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DeviceContactLinkRow(
+      companyId: serializer.fromJson<String>(json['companyId']),
+      sourceId: serializer.fromJson<String>(json['sourceId']),
+      deviceContactId: serializer.fromJson<String>(json['deviceContactId']),
+      hash: serializer.fromJson<String>(json['hash']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'companyId': serializer.toJson<String>(companyId),
+      'sourceId': serializer.toJson<String>(sourceId),
+      'deviceContactId': serializer.toJson<String>(deviceContactId),
+      'hash': serializer.toJson<String>(hash),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  DeviceContactLinkRow copyWith({
+    String? companyId,
+    String? sourceId,
+    String? deviceContactId,
+    String? hash,
+    int? updatedAt,
+  }) => DeviceContactLinkRow(
+    companyId: companyId ?? this.companyId,
+    sourceId: sourceId ?? this.sourceId,
+    deviceContactId: deviceContactId ?? this.deviceContactId,
+    hash: hash ?? this.hash,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  DeviceContactLinkRow copyWithCompanion(DeviceContactLinksCompanion data) {
+    return DeviceContactLinkRow(
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      deviceContactId: data.deviceContactId.present
+          ? data.deviceContactId.value
+          : this.deviceContactId,
+      hash: data.hash.present ? data.hash.value : this.hash,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DeviceContactLinkRow(')
+          ..write('companyId: $companyId, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('deviceContactId: $deviceContactId, ')
+          ..write('hash: $hash, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(companyId, sourceId, deviceContactId, hash, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DeviceContactLinkRow &&
+          other.companyId == this.companyId &&
+          other.sourceId == this.sourceId &&
+          other.deviceContactId == this.deviceContactId &&
+          other.hash == this.hash &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DeviceContactLinksCompanion
+    extends UpdateCompanion<DeviceContactLinkRow> {
+  final Value<String> companyId;
+  final Value<String> sourceId;
+  final Value<String> deviceContactId;
+  final Value<String> hash;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const DeviceContactLinksCompanion({
+    this.companyId = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.deviceContactId = const Value.absent(),
+    this.hash = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DeviceContactLinksCompanion.insert({
+    required String companyId,
+    required String sourceId,
+    required String deviceContactId,
+    required String hash,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       sourceId = Value(sourceId),
+       deviceContactId = Value(deviceContactId),
+       hash = Value(hash),
+       updatedAt = Value(updatedAt);
+  static Insertable<DeviceContactLinkRow> custom({
+    Expression<String>? companyId,
+    Expression<String>? sourceId,
+    Expression<String>? deviceContactId,
+    Expression<String>? hash,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (companyId != null) 'company_id': companyId,
+      if (sourceId != null) 'source_id': sourceId,
+      if (deviceContactId != null) 'device_contact_id': deviceContactId,
+      if (hash != null) 'hash': hash,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DeviceContactLinksCompanion copyWith({
+    Value<String>? companyId,
+    Value<String>? sourceId,
+    Value<String>? deviceContactId,
+    Value<String>? hash,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DeviceContactLinksCompanion(
+      companyId: companyId ?? this.companyId,
+      sourceId: sourceId ?? this.sourceId,
+      deviceContactId: deviceContactId ?? this.deviceContactId,
+      hash: hash ?? this.hash,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (deviceContactId.present) {
+      map['device_contact_id'] = Variable<String>(deviceContactId.value);
+    }
+    if (hash.present) {
+      map['hash'] = Variable<String>(hash.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DeviceContactLinksCompanion(')
+          ..write('companyId: $companyId, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('deviceContactId: $deviceContactId, ')
+          ..write('hash: $hash, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -44472,6 +44912,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SystemLogsTable systemLogs = $SystemLogsTable(this);
   late final $WebhooksTable webhooks = $WebhooksTable(this);
   late final $TokensTable tokens = $TokensTable(this);
+  late final $DeviceContactLinksTable deviceContactLinks =
+      $DeviceContactLinksTable(this);
   late final ClientDao clientDao = ClientDao(this as AppDatabase);
   late final ProductDao productDao = ProductDao(this as AppDatabase);
   late final CompanyGatewayDao companyGatewayDao = CompanyGatewayDao(
@@ -44538,6 +44980,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final SystemLogDao systemLogDao = SystemLogDao(this as AppDatabase);
   late final WebhookDao webhookDao = WebhookDao(this as AppDatabase);
   late final TokenDao tokenDao = TokenDao(this as AppDatabase);
+  late final DeviceContactLinkDao deviceContactLinkDao = DeviceContactLinkDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -44585,6 +45030,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     systemLogs,
     webhooks,
     tokens,
+    deviceContactLinks,
   ];
 }
 
@@ -46879,6 +47325,7 @@ typedef $$NavStateTableCreateCompanionBuilder =
       Value<String?> keyboardShortcutsJson,
       Value<String?> sidebarBadgeModesJson,
       Value<bool> confirmActions,
+      Value<String?> contactsSyncJson,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       required int updatedAt,
@@ -46898,6 +47345,7 @@ typedef $$NavStateTableUpdateCompanionBuilder =
       Value<String?> keyboardShortcutsJson,
       Value<String?> sidebarBadgeModesJson,
       Value<bool> confirmActions,
+      Value<String?> contactsSyncJson,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       Value<int> updatedAt,
@@ -46974,6 +47422,11 @@ class $$NavStateTableFilterComposer
 
   ColumnFilters<bool> get confirmActions => $composableBuilder(
     column: $table.confirmActions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contactsSyncJson => $composableBuilder(
+    column: $table.contactsSyncJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -47067,6 +47520,11 @@ class $$NavStateTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get contactsSyncJson => $composableBuilder(
+    column: $table.contactsSyncJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => ColumnOrderings(column),
@@ -47149,6 +47607,11 @@ class $$NavStateTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get contactsSyncJson => $composableBuilder(
+    column: $table.contactsSyncJson,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => column,
@@ -47207,6 +47670,7 @@ class $$NavStateTableTableManager
                 Value<String?> keyboardShortcutsJson = const Value.absent(),
                 Value<String?> sidebarBadgeModesJson = const Value.absent(),
                 Value<bool> confirmActions = const Value.absent(),
+                Value<String?> contactsSyncJson = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -47224,6 +47688,7 @@ class $$NavStateTableTableManager
                 keyboardShortcutsJson: keyboardShortcutsJson,
                 sidebarBadgeModesJson: sidebarBadgeModesJson,
                 confirmActions: confirmActions,
+                contactsSyncJson: contactsSyncJson,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,
@@ -47243,6 +47708,7 @@ class $$NavStateTableTableManager
                 Value<String?> keyboardShortcutsJson = const Value.absent(),
                 Value<String?> sidebarBadgeModesJson = const Value.absent(),
                 Value<bool> confirmActions = const Value.absent(),
+                Value<String?> contactsSyncJson = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 required int updatedAt,
@@ -47260,6 +47726,7 @@ class $$NavStateTableTableManager
                 keyboardShortcutsJson: keyboardShortcutsJson,
                 sidebarBadgeModesJson: sidebarBadgeModesJson,
                 confirmActions: confirmActions,
+                contactsSyncJson: contactsSyncJson,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,
@@ -64534,6 +65001,221 @@ typedef $$TokensTableProcessedTableManager =
       TokenRow,
       PrefetchHooks Function()
     >;
+typedef $$DeviceContactLinksTableCreateCompanionBuilder =
+    DeviceContactLinksCompanion Function({
+      required String companyId,
+      required String sourceId,
+      required String deviceContactId,
+      required String hash,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DeviceContactLinksTableUpdateCompanionBuilder =
+    DeviceContactLinksCompanion Function({
+      Value<String> companyId,
+      Value<String> sourceId,
+      Value<String> deviceContactId,
+      Value<String> hash,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DeviceContactLinksTableFilterComposer
+    extends Composer<_$AppDatabase, $DeviceContactLinksTable> {
+  $$DeviceContactLinksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deviceContactId => $composableBuilder(
+    column: $table.deviceContactId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hash => $composableBuilder(
+    column: $table.hash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DeviceContactLinksTableOrderingComposer
+    extends Composer<_$AppDatabase, $DeviceContactLinksTable> {
+  $$DeviceContactLinksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deviceContactId => $composableBuilder(
+    column: $table.deviceContactId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hash => $composableBuilder(
+    column: $table.hash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DeviceContactLinksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DeviceContactLinksTable> {
+  $$DeviceContactLinksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get companyId =>
+      $composableBuilder(column: $table.companyId, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get deviceContactId => $composableBuilder(
+    column: $table.deviceContactId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get hash =>
+      $composableBuilder(column: $table.hash, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DeviceContactLinksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DeviceContactLinksTable,
+          DeviceContactLinkRow,
+          $$DeviceContactLinksTableFilterComposer,
+          $$DeviceContactLinksTableOrderingComposer,
+          $$DeviceContactLinksTableAnnotationComposer,
+          $$DeviceContactLinksTableCreateCompanionBuilder,
+          $$DeviceContactLinksTableUpdateCompanionBuilder,
+          (
+            DeviceContactLinkRow,
+            BaseReferences<
+              _$AppDatabase,
+              $DeviceContactLinksTable,
+              DeviceContactLinkRow
+            >,
+          ),
+          DeviceContactLinkRow,
+          PrefetchHooks Function()
+        > {
+  $$DeviceContactLinksTableTableManager(
+    _$AppDatabase db,
+    $DeviceContactLinksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DeviceContactLinksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DeviceContactLinksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DeviceContactLinksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> companyId = const Value.absent(),
+                Value<String> sourceId = const Value.absent(),
+                Value<String> deviceContactId = const Value.absent(),
+                Value<String> hash = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DeviceContactLinksCompanion(
+                companyId: companyId,
+                sourceId: sourceId,
+                deviceContactId: deviceContactId,
+                hash: hash,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String companyId,
+                required String sourceId,
+                required String deviceContactId,
+                required String hash,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DeviceContactLinksCompanion.insert(
+                companyId: companyId,
+                sourceId: sourceId,
+                deviceContactId: deviceContactId,
+                hash: hash,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DeviceContactLinksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DeviceContactLinksTable,
+      DeviceContactLinkRow,
+      $$DeviceContactLinksTableFilterComposer,
+      $$DeviceContactLinksTableOrderingComposer,
+      $$DeviceContactLinksTableAnnotationComposer,
+      $$DeviceContactLinksTableCreateCompanionBuilder,
+      $$DeviceContactLinksTableUpdateCompanionBuilder,
+      (
+        DeviceContactLinkRow,
+        BaseReferences<
+          _$AppDatabase,
+          $DeviceContactLinksTable,
+          DeviceContactLinkRow
+        >,
+      ),
+      DeviceContactLinkRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -64621,4 +65303,6 @@ class $AppDatabaseManager {
       $$WebhooksTableTableManager(_db, _db.webhooks);
   $$TokensTableTableManager get tokens =>
       $$TokensTableTableManager(_db, _db.tokens);
+  $$DeviceContactLinksTableTableManager get deviceContactLinks =>
+      $$DeviceContactLinksTableTableManager(_db, _db.deviceContactLinks);
 }

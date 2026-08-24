@@ -139,7 +139,8 @@ the honest default.
 | Client — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Client — group assignment | ✅ | ✅ | ✅ | ✅ | |
 | Client — multiple contacts | ✅ | ✅ | ✅ | ✅ | |
-| Client — import contact from device address book (iOS) | ❌ | ✅ | ✅ | | |
+| Client — import contact from device address book (iOS + Android) | ❌ | ✅ | ✅ | | |
+| Client contacts — sync out to the device address book (caller ID) | ❌ | ❌ | ✅ | | |
 | Client/Vendor — contact CC-only | ✅ | ✅ | ✅ | — | — |
 | Client — multiple shipping / billing locations | ✅ | ✅ | ✅ | ✅ | |
 | Client — shipping address on the record (billing + shipping, Copy Billing) | ✅ | ✅ | ✅ | ✅ | |
@@ -1055,6 +1056,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Biometric Authentication toggle | — | ✅ | ✅ | ✅ | |
 | Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
+| Contacts sync — push client contacts to the device address book, under a label, with an All / Assigned-to-me scope (mobile only, local, off by default) | — | — | ✅ | | |
 
 ---
 

@@ -318,6 +318,39 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
     );
   }
 
+  /// One page of full client rows for the contacts-sync reconcile.
+  ///
+  /// A [Future], not a [Stream], and paged rather than "all rows": a reconcile
+  /// is a one-shot pass over potentially thousands of clients, each carrying a
+  /// full JSON `payload`, so a watch stream would hold every decoded row in
+  /// memory and re-run on every unrelated write. Callers loop on [offset] until
+  /// a short page comes back.
+  ///
+  /// Active only — an archived client has stopped trading and shouldn't keep a
+  /// card on the user's phone. Ordered by `id` so paging is stable even while
+  /// rows are being written underneath it (`display_name` is not unique and a
+  /// concurrent rename could skip or repeat a row).
+  Future<List<ClientRow>> pageForContactSync({
+    required String companyId,
+    required int offset,
+    required int limit,
+    String? assignedUserId,
+  }) {
+    final q = select(clients)
+      ..where(
+        (c) =>
+            c.companyId.equals(companyId) &
+            c.isDeleted.equals(false) &
+            c.archivedAt.isNull() &
+            (assignedUserId == null || assignedUserId.isEmpty
+                ? const Constant(true)
+                : c.assignedUserId.equals(assignedUserId)),
+      )
+      ..orderBy([(c) => OrderingTerm(expression: c.id)])
+      ..limit(limit, offset: offset);
+    return q.get();
+  }
+
   /// Stream `(id, name)` pairs for active clients in this company. Cheap
   /// alternative to `watchPage` for filter-key suggestions and chip name
   /// resolution — selects only the two columns needed and orders by name.

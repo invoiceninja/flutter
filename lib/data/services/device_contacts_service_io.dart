@@ -3,24 +3,40 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/app/env.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
 
 final _log = Logger('DeviceContactsService');
 
-/// Reads a single device contact via the OS-native picker (`flutter_contacts`).
+/// The real device address book, over `flutter_contacts` — both directions:
+/// the OS picker for a single inbound contact ([pickContact]), and the write
+/// surface the contacts-sync reconcile drives.
 ///
-/// iOS-only today: the native picker exists on iOS and Android, but no
-/// `android/` target is configured, so [isAvailable] gates to iOS. macOS
-/// compiles this file (the package ships a macOS plugin) but has no native
-/// picker — `showPicker` throws there — so it reports unavailable and the
-/// button hides itself.
+/// iOS + Android only ([Env.isMobile]). macOS compiles this file (the package
+/// ships a macOS plugin) but has no native picker, and its sandbox would need a
+/// `com.apple.security.personal-information.addressbook` entitlement to touch
+/// contacts at all — so it reports both capabilities false and every affordance
+/// hides itself.
+///
+/// House rule, inherited from `BiometricService`: **no method throws for a
+/// platform or permission problem.** A denial, a missing account, or a contact
+/// the user deleted by hand all resolve to a value, so the reconcile can carry
+/// on and report rather than abort mid-way through the address book.
 class NativeDeviceContactsService implements DeviceContactsService {
-  const NativeDeviceContactsService();
+  NativeDeviceContactsService();
+
+  /// The account new contacts and the label both go into, resolved once per
+  /// process. `false` for [_accountResolved] means "not looked up yet";
+  /// a resolved `null` means "this device has no contacts account", which is a
+  /// supported state (see [ensureGroup]) and must not trigger a re-probe.
+  Account? _account;
+  bool _accountResolved = false;
 
   @override
-  // Android-ready: `|| defaultTargetPlatform == TargetPlatform.android` once an
-  // `android/` target + READ_CONTACTS manifest entry exist.
-  bool get isAvailable => defaultTargetPlatform == TargetPlatform.iOS;
+  // iOS and Android both ship an OS picker. macOS compiles this file (the
+  // package has a macOS plugin) but has no picker — `showPicker` throws there —
+  // and `Env.isMobile` excludes it, so the button hides itself.
+  bool get isAvailable => Env.isMobile;
 
   @override
   Future<DeviceContactImport?> pickContact() async {
@@ -30,6 +46,20 @@ class NativeDeviceContactsService implements DeviceContactsService {
       // Request the fields we map. Without `properties` the picker returns only
       // id + displayName; passing them keeps the picker permission-free on iOS
       // (no address-book permission prompt — the user hands over one contact).
+      // iOS's picker is permissionless (the user hands over exactly one
+      // contact), but Android's throws without READ_CONTACTS at targetSdk 36.
+      // Asking on iOS too would trade that property away for nothing, so the
+      // request is Android-only.
+      if (defaultTargetPlatform == TargetPlatform.android &&
+          !await FlutterContacts.permissions.has(PermissionType.read)) {
+        final status = await FlutterContacts.permissions.request(
+          PermissionType.read,
+        );
+        if (status != PermissionStatus.granted &&
+            status != PermissionStatus.limited) {
+          return null; // treated as a cancel — no error toast.
+        }
+      }
       picked = await FlutterContacts.native.showPicker(
         properties: const {
           ContactProperty.name,
@@ -80,7 +110,302 @@ class NativeDeviceContactsService implements DeviceContactsService {
     }
     return c.phones.first.number;
   }
+
+  // ---------------------------------------------------------------------------
+  // Push direction
+  // ---------------------------------------------------------------------------
+
+  /// Exactly the properties this feature owns and overwrites. The package only
+  /// lets you update properties you *fetched* ("Data Integrity"), so a
+  /// get-before-update must request this same set — fetch fewer and those
+  /// writes are silently dropped, which looks like a sync that runs clean and
+  /// changes nothing.
+  static const _ownedProperties = <ContactProperty>{
+    ContactProperty.name,
+    ContactProperty.phone,
+    ContactProperty.email,
+    ContactProperty.address,
+    ContactProperty.organization,
+    ContactProperty.website,
+  };
+
+  @override
+  bool get canSync => Env.isMobile;
+
+  @override
+  Future<DeviceContactsPermission> checkPermission() async {
+    if (!canSync) return DeviceContactsPermission.unavailable;
+    try {
+      return _mapPermission(
+        await FlutterContacts.permissions.check(PermissionType.readWrite),
+      );
+    } catch (e, st) {
+      _log.fine('contacts permission check failed', e, st);
+      return DeviceContactsPermission.unavailable;
+    }
+  }
+
+  @override
+  Future<DeviceContactsPermission> requestPermission() async {
+    if (!canSync) return DeviceContactsPermission.unavailable;
+    try {
+      return _mapPermission(
+        await FlutterContacts.permissions.request(PermissionType.readWrite),
+      );
+    } on PlatformException catch (e, st) {
+      // "CONCURRENT_REQUEST" when a prompt is already up — report the current
+      // state rather than surfacing a plumbing error to the user.
+      _log.fine('contacts permission request failed', e, st);
+      return checkPermission();
+    }
+  }
+
+  @override
+  Future<void> openSystemSettings() async {
+    try {
+      await FlutterContacts.permissions.openSettings();
+    } catch (e, st) {
+      _log.warning('opening app settings failed', e, st);
+    }
+  }
+
+  @override
+  Future<String?> ensureGroup(String name) async {
+    final account = await _resolveAccount();
+    // Android refuses to group contacts that live outside the label's own
+    // account (`GroupUtils.addContactsToGroup` throws on a null account, and
+    // again if the contact has no raw contact in it). A device with no accounts
+    // therefore cannot have a label at all — that's a supported degradation,
+    // not a failure, so callers get null and sync without one.
+    if (account == null) {
+      _log.info('no contacts account on this device — syncing without a label');
+      return null;
+    }
+    try {
+      final existing = await _findGroup(name, account);
+      if (existing != null) return existing;
+      final created = await FlutterContacts.groups.create(
+        name,
+        account: account,
+      );
+      return created.id;
+    } catch (e, st) {
+      _log.warning('could not find or create the "$name" label', e, st);
+      return null;
+    }
+  }
+
+  @override
+  Future<String?> findGroup(String name) async {
+    final account = await _resolveAccount();
+    if (account == null) return null;
+    try {
+      return await _findGroup(name, account);
+    } catch (e, st) {
+      _log.warning('could not look up the "$name" label', e, st);
+      return null;
+    }
+  }
+
+  Future<String?> _findGroup(String name, Account account) async {
+    final existing = await FlutterContacts.groups.getAll(accounts: [account]);
+    for (final group in existing) {
+      if (group.name == name && group.id != null) return group.id;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<String>> groupMemberIds(String groupId) async {
+    try {
+      final members = await FlutterContacts.getAll(
+        filter: ContactFilter.group(groupId),
+      );
+      return [
+        for (final c in members)
+          if (c.id case final id?) id,
+      ];
+    } catch (e, st) {
+      _log.warning('could not read the label members', e, st);
+      return const <String>[];
+    }
+  }
+
+  @override
+  Future<List<String>> createContacts(
+    List<DeviceContactCard> cards, {
+    String? groupId,
+  }) async {
+    if (cards.isEmpty) return const <String>[];
+    // Same account as the label, or Android's group insert throws.
+    final account = await _resolveAccount();
+    final ids = await FlutterContacts.createAll([
+      for (final card in cards) _toContact(card),
+    ], account: account);
+    if (groupId != null && ids.isNotEmpty) {
+      try {
+        await FlutterContacts.groups.addContacts(
+          groupId: groupId,
+          contactIds: ids,
+        );
+      } catch (e, st) {
+        // The cards exist and work for caller ID; they're just unlabelled.
+        // Losing them over a labelling failure would be the worse outcome.
+        _log.warning('could not add new contacts to the label', e, st);
+      }
+    }
+    return ids;
+  }
+
+  @override
+  Future<void> updateContacts(List<DeviceContactUpdate> items) async {
+    if (items.isEmpty) return;
+    final updated = <Contact>[];
+    for (final item in items) {
+      final Contact? current;
+      try {
+        current = await FlutterContacts.get(
+          item.deviceId,
+          properties: _ownedProperties,
+        );
+      } catch (e, st) {
+        _log.fine('skipping unreadable contact ${item.deviceId}', e, st);
+        continue;
+      }
+      // Deleted by hand between two syncs. Not an error — the reconcile's next
+      // pass sees the missing link and re-creates it.
+      if (current == null) continue;
+      final next = _toContact(item.card);
+      // Replace only what we own; `copyWith` carries the photo, favourite,
+      // ringtone and anything else the user or OS attached.
+      updated.add(
+        current.copyWith(
+          name: next.name,
+          phones: next.phones,
+          emails: next.emails,
+          addresses: next.addresses,
+          organizations: next.organizations,
+          websites: next.websites,
+        ),
+      );
+    }
+    if (updated.isEmpty) return;
+    await FlutterContacts.updateAll(updated);
+  }
+
+  @override
+  Future<void> deleteContacts(List<String> deviceIds) async {
+    if (deviceIds.isEmpty) return;
+    try {
+      await FlutterContacts.deleteAll(deviceIds);
+    } catch (e, st) {
+      // One already-gone id must not strand the rest of the batch, so fall back
+      // to per-id deletes and let the misses fail individually.
+      _log.fine('batch delete failed, retrying individually', e, st);
+      for (final id in deviceIds) {
+        try {
+          await FlutterContacts.delete(id);
+        } catch (e2, st2) {
+          _log.fine('could not delete contact $id', e2, st2);
+        }
+      }
+    }
+  }
+
+  @override
+  Future<void> deleteGroup(String groupId) async {
+    try {
+      await FlutterContacts.groups.delete(groupId);
+    } catch (e, st) {
+      _log.warning('could not delete the label', e, st);
+    }
+  }
+
+  /// The device's default contacts account (iOS: container), falling back to
+  /// the first one listed. Cached: it can't change mid-process in a way that
+  /// matters, and both `ensureGroup` and every `createContacts` need it.
+  Future<Account?> _resolveAccount() async {
+    if (_accountResolved) return _account;
+    _accountResolved = true;
+    try {
+      _account = await FlutterContacts.accounts.getDefault();
+      if (_account == null) {
+        final all = await FlutterContacts.accounts.getAll();
+        if (all.isNotEmpty) _account = all.first;
+      }
+    } catch (e, st) {
+      _log.warning('could not resolve a contacts account', e, st);
+      _account = null;
+    }
+    return _account;
+  }
+
+  DeviceContactsPermission _mapPermission(PermissionStatus status) =>
+      switch (status) {
+        PermissionStatus.granted => DeviceContactsPermission.granted,
+        // iOS 18 "selected contacts": we can neither enumerate the label nor
+        // trust a reconcile, so the caller treats this as not-yet-usable and
+        // points the user at system settings.
+        PermissionStatus.limited => DeviceContactsPermission.limited,
+        PermissionStatus.denied ||
+        PermissionStatus.notDetermined => DeviceContactsPermission.denied,
+        PermissionStatus.permanentlyDenied || PermissionStatus.restricted =>
+          DeviceContactsPermission.permanentlyDenied,
+      };
+
+  Contact _toContact(DeviceContactCard card) {
+    final hasAddress = [
+      card.address1,
+      card.city,
+      card.state,
+      card.postalCode,
+      card.countryName,
+    ].any((v) => v.trim().isNotEmpty);
+    return Contact(
+      name: Name(first: card.firstName, last: card.lastName),
+      phones: [
+        for (final phone in card.phones)
+          if (phone.number.trim().isNotEmpty)
+            Phone(
+              number: phone.number.trim(),
+              label: Label(phone.isWork ? PhoneLabel.work : PhoneLabel.mobile),
+            ),
+      ],
+      emails: [
+        if (card.email.trim().isNotEmpty)
+          Email(
+            address: card.email.trim(),
+            label: const Label(EmailLabel.work),
+          ),
+      ],
+      addresses: [
+        if (hasAddress)
+          Address(
+            street: _orNull(card.address1),
+            city: _orNull(card.city),
+            state: _orNull(card.state),
+            postalCode: _orNull(card.postalCode),
+            country: _orNull(card.countryName),
+            label: const Label(AddressLabel.work),
+          ),
+      ],
+      organizations: [
+        if (card.organization.trim().isNotEmpty)
+          Organization(name: card.organization.trim()),
+      ],
+      websites: [
+        if (card.website.trim().isNotEmpty)
+          Website(
+            url: card.website.trim(),
+            label: const Label(WebsiteLabel.work),
+          ),
+      ],
+    );
+  }
+
+  static String? _orNull(String value) =>
+      value.trim().isEmpty ? null : value.trim();
 }
 
 DeviceContactsService defaultDeviceContactsService() =>
-    const NativeDeviceContactsService();
+    NativeDeviceContactsService();

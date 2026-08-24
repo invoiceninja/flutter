@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/services/device_contacts_service.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/l10n/localization.dart';
@@ -120,6 +121,11 @@ Future<ShellFixture> buildFixture({
   // destructive mutation). Defaults to the fail-fast offline client so the
   // bulk of widget tests never touch the network.
   http.Client? httpClient,
+  // Inject a fake address book. Left null, `Services.build` picks the real
+  // platform impl — and because `flutter test` reports TargetPlatform.android,
+  // that one reports `canSync == true` and then talks to a method channel that
+  // isn't there. Contacts-sync tests must pass a fake.
+  DeviceContactsService? deviceContactsService,
 }) async {
   final db = AppDatabase(NativeDatabase.memory());
 
@@ -175,6 +181,7 @@ Future<ShellFixture> buildFixture({
     tokenStorage: storage,
     connectivityWatcher: ConnectivityWatcher.fixed(online: online),
     httpClient: httpClient ?? _failFastClient(),
+    deviceContactsService: deviceContactsService,
   );
   await services.auth.restore();
   // `restore()` starts the Services-owned RefreshScheduler's periodic 5-min

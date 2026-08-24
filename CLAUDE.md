@@ -40,6 +40,7 @@ Plus two non-negotiables carried from admin-portal:
 | Editing a CI / release workflow (test gate, job wiring) | `.github/workflows/_test.yaml` + `docs/setup.md` § Shipping to the stores |
 | Debugging a runtime error or stale outbox row | § Diagnostics log + `docs/diagnostics.md` |
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
+| Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
 | Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
 | Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
 | Working around an open upstream (Flutter/pub) bug — or undoing one later | `docs/upstream-workarounds.md` |

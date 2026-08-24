@@ -12,6 +12,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/widgets/biometric_toggle_tile.dart';
 import 'package:admin/ui/features/settings/widgets/confirm_actions_tile.dart';
+import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -32,6 +33,7 @@ const kDeviceSettingsSearchKeys = <String>[
   'confirm_actions',
   'confirm_actions_help',
   'biometric_authentication',
+  ...kContactsSyncSearchKeys,
   ...kSidebarCountersSearchKeys,
   ...kSidebarBadgeModeSearchKeys,
 ];
@@ -91,6 +93,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
                   if (showBiometric) const BiometricToggleTile(),
                 ],
               ),
+              // Native mobile only — hides itself where the app can't write
+              // the address book (desktop, web).
+              const ContactsSyncSection(),
               const SidebarCountersSection(),
               const _DataSection(),
             ],

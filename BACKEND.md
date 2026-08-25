@@ -1683,3 +1683,75 @@ Details → Documents):
   `defaultValue: true` then re-renders the switch ON immediately after the
   "Saved" toast. Nothing to fix client-side; it resolves the moment steps 1–2
   land.
+
+## Reserved date keywords in descriptions / terms — six defects in `processReservedKeywords` — **O (PDF correctness, one data-loss)**
+
+Found while implementing client-side rendering of these keywords for
+[flutter#93](https://github.com/invoiceninja/flutter/issues/93). All line
+references are `app/Utils/Helpers.php` on `v5-develop` unless noted. Nothing
+here blocks the client — we render only the unambiguous half of the grammar and
+leave the rest as the raw token — but each one is visible to a paying customer
+on a rendered PDF.
+
+**1. `[MONTHYEAR|MONTHYEAR/2]` destroys the whole field.** `:292` calls
+`preg_quote($match)` **without** the delimiter argument, so a `/` on the right
+side is not escaped while `/` is the pattern delimiter. The result is the
+malformed pattern `/\[MONTHYEAR\|MONTHYEAR/2]/`; `preg_replace` emits "Unknown
+modifier '2'" and returns `null`, `$value` becomes `null`, and the description /
+terms block renders **empty**. Fix: `preg_quote($match, '/')`.
+
+**2. `[MONTHYEAR|MONTHYEAR-2]` renders a dangling separator.** `:272` sets the
+right side only when there is *no* operator, and `:277` only when the operator is
+`+`. With `-`, `*` (or a bare `/`, which never gets that far — see 1) both
+branches are skipped, `$_right` stays `''`, and `:289` renders
+`"August 2026 to "`. Fix: handle `-`/`*` or fall back to the no-operator value.
+
+**3. `:QUARTER+n` renders a bare integer, not `Qn`.** `:370-388` ends with
+`$output = $final_date->quarter`, so `:QUARTER` → `Q3` but `:QUARTER+1` → `4`.
+This contradicts the shipped help text (`lang/en/texts.php:105` promises
+`"Retainer payment for :QUARTER+1" >> "Retainer payment for Q2"`), and
+`tests/Unit/HelpersTest.php:70` currently pins the wrong behaviour. Fix:
+`'Q' . $final_date->quarter`, and update the test.
+
+**4. `:YEAR/n` renders a float.** `:348` is plain `/`, no `intdiv`, no rounding —
+`:YEAR/4` → `506.5`.
+
+**5. Separator is inconsistent, and the translated one is the wrong string.**
+The bracket-range form hardcodes lowercase `' to '` (`:289`), while every
+literal range (`:MONTH_BEFORE`, `:WEEK`, …) uses `ctrans('texts.to')`. So a
+single description can read "August 2026 to August 2027" next to
+"25/08/2026 To 31/08/2026". Worse, `texts.to` is the **email-recipient** label:
+`de` "An", `fr` "À", `es` "Para", `ja` "宛先" (*addressee*) — so a translated PDF
+renders "15. Juli 2026 **An** 14. Aug 2026". Needs a dedicated range-separator
+key, used by both paths.
+
+**6. Month offsets overflow at month end.** `Carbon::createFromDate($y, $m)`
+(`:239`, `:268`, `:273`, `:286`) passes `$day = null`, which Carbon resolves to
+*today's* day-of-month rather than the 1st; `addMonths()` then overflows. On
+Jan 31, `[MONTHYEAR|MONTHYEAR+1]` → `2026-03-03` → "January 2026 to **March**
+2026". Same class of bug in `:MONTH_BEFORE` / `:MONTH_AFTER` via
+`subMonth()`/`addMonth()`. Fix: anchor to day 1, or
+`Carbon::useMonthsOverflow(false)`. Note this also makes the range output depend
+on the real wall clock even when `$currentDateTime` was supplied explicitly.
+
+### Two related gaps (not defects in the same function)
+
+- **`UpdateOrCreateProduct.php:96-107`** skips the auto-product-update when the
+  notes contain a placeholder, but its list is `[':MONTH', ':YEAR', ':QUARTER',
+  ':WEEK']` — it omits `MONTHYEAR`. A product whose notes are *only* a bracket
+  range (`[MONTHYEAR|MONTHYEAR+12]`) matches nothing and gets clobbered with the
+  already-expanded line-item text.
+- **`RecurringExpenseToExpenseFactory.php:74-276`** is a diverged fork of the
+  same grammar: 7 tokens instead of 11 (no `_BEFORE`/`_AFTER` on month or year),
+  different `:WEEK` windows (8-day, off by one), no `</`-stripping workaround,
+  and it never received the December 2025 quarter-wrap fix. Worth collapsing
+  onto `Helpers::processReservedKeywords`.
+
+### Client status
+
+No server change is required for the client to be correct. `admin` (v2) renders
+`[MONTHYEAR|MONTHYEAR(+n)]`, the four bare literals, and the seven fixed-window
+literals (`lib/domain/date_placeholders.dart`) for *display only*, matching the
+server where the server is right and deliberately leaving every arithmetic form
+as the raw token rather than reproducing defects 2–4. If 1–6 ship, the client's
+`_rangePattern` / `_literalPattern` can widen to match.

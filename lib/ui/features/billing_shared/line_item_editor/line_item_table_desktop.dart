@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/tax_rate.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
@@ -976,6 +977,7 @@ class _RowStateW extends State<_Row> {
                   padding: const EdgeInsets.only(right: _kCellPadH),
                   child: _ProductCell(
                     companyId: companyId,
+                    formatter: formatter,
                     showProductDetails:
                         widget.company?.showProductDetails ?? false,
                     showStock:
@@ -1318,6 +1320,7 @@ class _NumericCell extends StatelessWidget {
 class _ProductCell extends StatefulWidget {
   const _ProductCell({
     required this.companyId,
+    required this.formatter,
     required this.showProductDetails,
     required this.showStock,
     required this.controller,
@@ -1329,6 +1332,10 @@ class _ProductCell extends StatefulWidget {
   });
 
   final String companyId;
+
+  /// Renders the description's reserved date keywords through the company's
+  /// date format; null until the statics bundle resolves.
+  final Formatter? formatter;
 
   /// Company `show_product_details` — when false, the product description is
   /// hidden from the autocomplete option rows (only the product key shows).
@@ -1744,7 +1751,14 @@ class _ProductCellState extends State<_ProductCell> {
                                       Padding(
                                         padding: const EdgeInsets.only(top: 2),
                                         child: Text(
-                                          product.notes.split('\n').first,
+                                          // The dates the keyword becomes, as
+                                          // in the picker sheet and the
+                                          // Products list
+                                          // (invoiceninja/flutter#93).
+                                          expandDatePlaceholders(
+                                            product.notes,
+                                            formatter: widget.formatter,
+                                          ).split('\n').first,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(

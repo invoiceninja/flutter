@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
@@ -162,13 +163,26 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
           ),
         ),
         for (final w in trailing) ...[SizedBox(height: gap), w],
+        // Terms / notes are the other field pair that carries reserved date
+        // keywords, and unlike line items the server never persists the
+        // expansion — it happens when the PDF renders (`HtmlEngine.php:263`,
+        // `:517`, `:819`), so the stored text is always the raw token
+        // (invoiceninja/flutter#93).
         if (publicNotes.isNotEmpty) ...[
           SizedBox(height: gap),
-          _notes(context, 'public_notes', publicNotes),
+          _notes(
+            context,
+            'public_notes',
+            expandDatePlaceholders(publicNotes, formatter: formatter),
+          ),
         ],
         if (terms.isNotEmpty) ...[
           SizedBox(height: gap),
-          _notes(context, 'terms', terms),
+          _notes(
+            context,
+            'terms',
+            expandDatePlaceholders(terms, formatter: formatter),
+          ),
         ],
       ],
     );

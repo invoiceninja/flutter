@@ -17,8 +17,8 @@ import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/currency.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/entity_state.dart';
-import 'package:admin/domain/products/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
@@ -1129,8 +1129,7 @@ class _ProductsTab extends StatelessWidget {
               final notesLine = p.notes.trim().isNotEmpty
                   ? expandDatePlaceholders(
                       p.notes.trim(),
-                      rangeSeparator: context.tr('to'),
-                      locale: formatter?.settings.locale,
+                      formatter: formatter,
                     ).split('\n').first
                   : '';
               return InkWell(

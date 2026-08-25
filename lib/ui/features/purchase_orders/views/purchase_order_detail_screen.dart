@@ -15,6 +15,7 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -373,7 +374,13 @@ class _Overview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(purchaseOrder.publicNotes, style: TextStyle(color: tokens.ink)),
+          Text(
+            expandDatePlaceholders(
+              purchaseOrder.publicNotes,
+              formatter: formatter,
+            ),
+            style: TextStyle(color: tokens.ink),
+          ),
         ],
         if (hasTerms) ...[
           if (hasNotes) SizedBox(height: InSpacing.md(context)),
@@ -386,7 +393,10 @@ class _Overview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(purchaseOrder.terms, style: TextStyle(color: tokens.ink)),
+          Text(
+            expandDatePlaceholders(purchaseOrder.terms, formatter: formatter),
+            style: TextStyle(color: tokens.ink),
+          ),
         ],
         // Purchase orders reuse the `invoice` custom-field config slots — no
         // separate purchase_order keys exist server-side (matches admin-portal).

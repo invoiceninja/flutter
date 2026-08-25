@@ -20,6 +20,7 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -521,8 +522,16 @@ class _Overview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
+          // A recurring template keeps its raw keywords forever — the server
+          // re-expands them per generated invoice, anchored to `next_send_date`
+          // (`RecurringInvoiceToInvoiceFactory.php:148-169`). Rendering today's
+          // dates here previews what the next run will say
+          // (invoiceninja/flutter#93).
           Text(
-            recurringInvoice.publicNotes,
+            expandDatePlaceholders(
+              recurringInvoice.publicNotes,
+              formatter: formatter,
+            ),
             style: TextStyle(color: tokens.ink),
           ),
         ],
@@ -537,7 +546,13 @@ class _Overview extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(recurringInvoice.terms, style: TextStyle(color: tokens.ink)),
+          Text(
+            expandDatePlaceholders(
+              recurringInvoice.terms,
+              formatter: formatter,
+            ),
+            style: TextStyle(color: tokens.ink),
+          ),
         ],
         // Reuses the `invoice` custom-field config slots (no separate
         // recurring-invoice keys exist server-side).

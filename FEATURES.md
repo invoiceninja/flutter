@@ -540,7 +540,9 @@ the honest default.
 | Product — tax category | ✅ | ✅ | ✅ | ✅ | |
 | Product — stock / inventory tracking | ✅ | 🟡 | ✅ | ✅ | |
 | Product — stock shown when selecting products (invoice line items) | ✅ | ✅ | ✅ | | |
-| Product — description date keywords (`[MONTHYEAR\|MONTHYEAR+12]`, `:MONTH`) rendered as dates when browsing lists | ❌ | ❌ | ✅ | ✅ | |
+| Reserved date keywords (`[MONTHYEAR\|MONTHYEAR+12]`, `:MONTH`, `:QUARTER`, `:WEEK`, `:MONTH_BEFORE`/`_AFTER`, `:YEAR_BEFORE`/`_AFTER`, `:WEEK_BEFORE`/`_AHEAD`) rendered as dates on read-only surfaces — product list / detail / pickers, billing-doc line items, terms + public notes | ❌ | ❌ | ✅ | ✅ | |
+| Reserved date keyword **arithmetic** (`:MONTH+2`, `:QUARTER-1`) rendered rather than left raw | ❌ | ❌ | ❌ | | |
+| Reserved date keywords expanded in **custom field values** (server does this at PDF render for every non-date/switch custom field) | ❌ | ❌ | ❌ | | |
 | Product — low-stock / out-of-stock list filter + row highlight | — | — | ✅ | | |
 | Product — stock value (qty × price) column + detail row | — | — | ✅ | | |
 | Product — custom fields | ✅ | ✅ | ✅ | ✅ | |

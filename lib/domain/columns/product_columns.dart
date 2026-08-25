@@ -7,8 +7,8 @@ import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/product_tax_categories.dart';
-import 'package:admin/domain/products/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
@@ -49,8 +49,7 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     cellBuilder: (p, context) => cellText(
       expandDatePlaceholders(
         p.notes,
-        rangeSeparator: context.tr('to'),
-        locale: FormatterScope.maybeOf(context)?.settings.locale,
+        formatter: FormatterScope.maybeOf(context),
       ),
     ),
     valueBuilder: (p) => cellNonZeroString(p.notes),

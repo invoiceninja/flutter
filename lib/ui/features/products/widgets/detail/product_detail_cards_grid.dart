@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/product_tax_categories.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -103,7 +104,9 @@ class ProductDetailCardsGrid extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: _DetailsCard(product: product)),
+          Expanded(
+            child: _DetailsCard(product: product, formatter: formatter),
+          ),
           SizedBox(width: InSpacing.md(context)),
           Expanded(child: _stack(context, rightCards)),
         ],
@@ -118,7 +121,7 @@ class ProductDetailCardsGrid extends StatelessWidget {
     required int enabledTaxSlots,
   }) {
     final cards = <Widget>[
-      _DetailsCard(product: product),
+      _DetailsCard(product: product, formatter: formatter),
       if (hasInventory) _InventoryCard(product: product, formatter: formatter),
       if (hasTaxes) _TaxesCard(product: product, enabledSlots: enabledTaxSlots),
       if (_hasAnyCustomValue) _customFieldsCard(),
@@ -165,8 +168,13 @@ class ProductDetailCardsGrid extends StatelessWidget {
 }
 
 class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({required this.product});
+  const _DetailsCard({required this.product, this.formatter});
   final Product product;
+
+  /// Renders the notes' reserved date keywords through the company's date
+  /// format. Null until the statics bundle resolves — the expansion then falls
+  /// back to ISO dates rather than dropping out.
+  final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +199,17 @@ class _DetailsCard extends StatelessWidget {
               value: product.productImage,
             ),
           if (product.notes.isNotEmpty)
-            DetailInfoRow(label: context.tr('notes'), value: product.notes),
+            DetailInfoRow(
+              label: context.tr('notes'),
+              // Same split the Description column makes: show the dates a
+              // reserved keyword becomes, copy the stored token
+              // (invoiceninja/flutter#93).
+              value: expandDatePlaceholders(
+                product.notes,
+                formatter: formatter,
+              ),
+              copyText: product.notes,
+            ),
         ],
       ),
     );

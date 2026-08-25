@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
@@ -162,12 +163,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
           // (`<div class="project-header">`, `<br/>`); strip it for display
           // so the column reads as text, not tags. See
           // `lineItemNotesPlainText`.
-          _flexCell(
-            4,
-            lineItemNotesPlainText(it.notes),
-            tokens,
-            color: tokens.ink2,
-          ),
+          _flexCell(4, _notesText(it), tokens, color: tokens.ink2),
           _numCell(_kQtyW, _qty(it.quantity), tokens),
           _numCell(_kCostW, _money(it.cost), tokens),
           if (showDiscount)
@@ -200,7 +196,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
         '${context.tr('discount')}: ${_discountLabel(it)}',
       if (showTax && _hasTax(it)) '${context.tr('tax')}: ${_taxLabel(it)}',
     ];
-    final notes = lineItemNotesPlainText(it.notes);
+    final notes = _notesText(it);
     final title = it.productKey.isNotEmpty
         ? it.productKey
         // One line only for the title — the rest of the note follows in the
@@ -366,6 +362,25 @@ class LineItemsReadonlyTable extends StatelessWidget {
       formatter?.money(v, clientCurrencyId: currencyId) ?? v.toString();
 
   String _qty(Decimal v) => formatter?.decimal(v.toDouble()) ?? v.toString();
+
+  /// Strip the PDF's presentational markup, then render any reserved date
+  /// keyword as the date it becomes (invoiceninja/flutter#93).
+  ///
+  /// Both passes are needed and in this order: `lineItemNotesPlainText` drops
+  /// the `<div class="project-header">` wrapper a task-generated note opens
+  /// with, and expanding afterwards means no `/` from a closing tag can be
+  /// mistaken for an arithmetic operator — the bug upstream works around with
+  /// a `str_replace("</", "")` (`Helpers.php:272`).
+  ///
+  /// Worth doing even though the server expands and *persists* line-item notes
+  /// when a document is created (`BaseRepository.php:217-227`): that guard runs
+  /// only for a new model and never for a recurring invoice, so a keyword typed
+  /// into an existing document stays raw in the database and is expanded only
+  /// when the PDF is built.
+  String _notesText(LineItem it) => expandDatePlaceholders(
+    lineItemNotesPlainText(it.notes),
+    formatter: formatter,
+  );
 
   String _discountLabel(LineItem it) =>
       discountIsAmount ? _money(it.discount) : '${_qty(it.discount)}%';

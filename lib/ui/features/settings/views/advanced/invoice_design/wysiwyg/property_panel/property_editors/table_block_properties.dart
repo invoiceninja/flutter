@@ -6,6 +6,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/cell_typography_editor.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/expandable_property_row.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/property_panel/property_inputs.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/table_header_label.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/wysiwyg_design_view_model.dart';
 
 /// Property editor for `table` (products) and `tasks-table`. Phase 7c
@@ -469,7 +470,7 @@ class _ColumnRow extends StatelessWidget {
     return ExpandablePropertyRow(
       index: index,
       title: Text(
-        headerKey.isEmpty ? field : context.tr(headerKey),
+        headerKey.isEmpty ? field : resolveTableHeaderLabel(context, headerKey),
         style: Theme.of(context).textTheme.bodyMedium,
         overflow: TextOverflow.ellipsis,
       ),

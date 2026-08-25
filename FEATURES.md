@@ -797,6 +797,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
 | Predefined label overrides (~40 keys: address, amount, balance, country, credit, date, description, discount, due date, email, hours, ID number, invoice, item, line total, paid to date, partial due, phone, PO number, product, quantity, quote, rate, statement, subtotal, surcharge, tax, terms, total, unit cost, valid until, VAT number, website, etc.) | ✅ | ✅ | ✅ | ✅ | |
+|  ↳ overrides applied in-app (not just stored + sent to the server) | ✅ | 🟡 | 🟡 | — | | React pushes `settings.translations` into i18next once at app start, so every string honors it; v1 applies them inline at the line-item table only; v2 applies them at the line-item headers (edit table, row dialog, detail table) — invoiceninja/flutter#84. Server-rendered output (PDF, email, portal) honors the full set on all three |
 | Free-form custom labels | ✅ | ✅ | ✅ | ✅ | |
 | Country-specific label aliases | ✅ | ✅ | ✅ | ✅ | |
 

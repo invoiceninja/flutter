@@ -1,8 +1,10 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
@@ -10,13 +12,54 @@ import 'package:admin/data/models/value/country.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/datetime_format.dart';
+import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/company_settings.dart';
+import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_kpi_strip.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_overview.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
+import 'package:admin/ui/core/utils/company_labels.dart';
 import 'package:admin/utils/formatting.dart';
 
 import '../../../_localization_helper.dart';
+
+/// Minimal repos so [BillingDocOverview] can watch the active company — it
+/// needs it for surcharge labels and for the header's Custom Labels. Anything
+/// else throws so the test fails loudly if the widget reaches further.
+class _FakeCompanyRepo implements CompanyRepository {
+  _FakeCompanyRepo(this._company);
+  final Company? _company;
+
+  @override
+  Stream<Company?> watchCompany(String companyId) => Stream.value(_company);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _FakeAuth implements AuthRepository {
+  @override
+  String? get currentCompanyId => 'co-A';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _FakeServices implements Services {
+  _FakeServices(this.company);
+  @override
+  final CompanyRepository company;
+  @override
+  final AuthRepository auth = _FakeAuth();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// A company whose Custom Labels (`settings.translations`) hold [overrides].
+Company _companyWithLabels(Map<String, dynamic> overrides) =>
+    Company(settings: CompanySettings(translations: overrides));
 
 /// A USD formatter — exercises the real money/date path so these tests catch
 /// the original bug (raw `100` / `2022-02-08`) regressing.
@@ -63,13 +106,16 @@ LineItem _item({
 );
 
 void main() {
-  Future<void> pump(WidgetTester tester, Widget child) {
+  Future<void> pump(WidgetTester tester, Widget child, {Company? company}) {
     return tester.pumpWidget(
-      MaterialApp(
-        theme: buildInTheme(InTheme.light),
-        localizationsDelegates: kTestLocalizationsDelegates,
-        supportedLocales: kTestSupportedLocales,
-        home: Scaffold(body: child),
+      Provider<Services>.value(
+        value: _FakeServices(_FakeCompanyRepo(company)),
+        child: MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          home: Scaffold(body: child),
+        ),
       ),
     );
   }
@@ -139,6 +185,67 @@ void main() {
       expect(find.text(r'$100.00'), findsOneWidget); // gross = 50 × 2
     });
 
+    testWidgets('header uses the shipped labels when the company has none', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        LineItemsReadonlyTable(
+          items: [_item()],
+          formatter: _usdFormatter(),
+          currencyId: '1',
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Unit Cost'), findsOneWidget);
+      expect(find.text('Item'), findsOneWidget);
+    });
+
+    testWidgets('header honors the company Custom Labels override', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        LineItemsReadonlyTable(
+          items: [_item()],
+          formatter: _usdFormatter(),
+          currencyId: '1',
+          labels: CompanyLabels.fromCompany(
+            _companyWithLabels(const {'unit_cost': 'Unit Price'}),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Unit Price'), findsOneWidget);
+      expect(find.text('Unit Cost'), findsNothing);
+      // Untouched keys keep the bundled string.
+      expect(find.text('Item'), findsOneWidget);
+    });
+
+    testWidgets('a blank override falls back to the shipped label', (
+      tester,
+    ) async {
+      // The Custom Labels editor seeds a newly added row with '', and the
+      // server coerces nulls to ''. Neither may blank the column header.
+      await pump(
+        tester,
+        LineItemsReadonlyTable(
+          items: [_item()],
+          formatter: _usdFormatter(),
+          currencyId: '1',
+          labels: CompanyLabels.fromCompany(
+            _companyWithLabels(const {'unit_cost': '', 'item': '   '}),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Unit Cost'), findsOneWidget);
+      expect(find.text('Item'), findsOneWidget);
+    });
+
     testWidgets('shows an empty placeholder when there are no items', (
       tester,
     ) async {
@@ -192,6 +299,38 @@ void main() {
       expect(find.text('—'), findsNothing);
       // Trailing (invoice-only reminders/payments slot) renders.
       expect(find.text('TRAILING_MARKER'), findsOneWidget);
+    });
+
+    testWidgets('resolves the header Custom Labels off the watched company', (
+      tester,
+    ) async {
+      // The screen-level proof for invoiceninja/flutter#84: the app stored
+      // `settings.translations` and never read it back, so a company that had
+      // renamed the column still saw "Unit Cost" everywhere but the PDF.
+      await pump(
+        tester,
+        SingleChildScrollView(
+          child: BillingDocOverview(
+            totalsInput: BillingTotalsInput(
+              lineItems: [_item()],
+              discount: Decimal.zero,
+              isAmountDiscount: false,
+              usesInclusiveTaxes: false,
+            ),
+            precision: 2,
+            balance: Decimal.parse('100'),
+            publicNotes: '',
+            terms: '',
+            formatter: _usdFormatter(),
+            currencyId: '1',
+          ),
+        ),
+        company: _companyWithLabels(const {'unit_cost': 'Unit Price'}),
+      );
+      await tester.pump();
+
+      expect(find.text('Unit Price'), findsOneWidget);
+      expect(find.text('Unit Cost'), findsNothing);
     });
   });
 }

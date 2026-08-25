@@ -679,6 +679,7 @@ class _ColumnHeader extends StatelessWidget {
       color: tokens.ink3,
       letterSpacing: 0.4,
     );
+    String label(String key) => config.labels.resolve(context, key);
     Widget cell(
       String label, {
       int flex = 1,
@@ -709,15 +710,17 @@ class _ColumnHeader extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: _kDragColWidth),
-          cell(context.tr('item'), flex: 3),
-          cell(context.tr('description'), flex: 3),
-          cell(context.tr('unit_cost'), align: Alignment.centerRight),
-          cell(context.tr('quantity'), align: Alignment.centerRight),
+          // Headers resolve the company's Custom Labels before the bundled
+          // string — see `LineItemColumnConfig.labels`.
+          cell(label('item'), flex: 3),
+          cell(label('description'), flex: 3),
+          cell(label('unit_cost'), align: Alignment.centerRight),
+          cell(label('quantity'), align: Alignment.centerRight),
           if (config.showDiscount)
-            cell(context.tr('discount'), align: Alignment.centerRight),
+            cell(label('discount'), align: Alignment.centerRight),
           if (config.taxColumnCount >= 1)
-            cell(context.tr('tax'), align: Alignment.centerRight),
-          cell(context.tr('line_total'), align: Alignment.centerRight),
+            cell(label('tax'), align: Alignment.centerRight),
+          cell(label('line_total'), align: Alignment.centerRight),
           const SizedBox(width: _kTrailingColWidth),
         ],
       ),

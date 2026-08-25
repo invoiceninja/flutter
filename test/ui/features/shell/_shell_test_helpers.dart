@@ -63,6 +63,7 @@ class FakeCompany {
     this.isAdmin = true,
     this.enabledModules = 32767,
     this.permissions = '',
+    this.settings = const <String, dynamic>{},
   });
   final String id;
   final String name;
@@ -93,6 +94,11 @@ class FakeCompany {
   /// `can('create_quote')` is not). Defaults to `''` (the previous hardcoded
   /// value), so existing callers are unaffected.
   final String permissions;
+
+  /// Extra entries merged into the company's serialized `settings` blob —
+  /// e.g. `{'translations': {'unit_cost': 'Unit Price'}}` for the Custom
+  /// Labels path. [logoUrl] still wins on `company_logo`.
+  final Map<String, dynamic> settings;
 }
 
 class ShellFixture {
@@ -152,6 +158,7 @@ Future<ShellFixture> buildFixture({
         name: c.name,
         displayName: Value(c.name),
         settings: jsonEncode({
+          ...c.settings,
           if (c.logoUrl != null) 'company_logo': c.logoUrl,
         }),
         permissions: c.permissions,

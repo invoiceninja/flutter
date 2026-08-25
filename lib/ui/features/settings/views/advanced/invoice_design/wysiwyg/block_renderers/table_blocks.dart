@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/block_renderers/_shared.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/sample/sample_data.dart';
+import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/table_header_label.dart';
 import 'package:admin/ui/features/settings/views/advanced/invoice_design/wysiwyg/variables/variable_replacer.dart';
 
 /// Renders `table` (products) and `tasks-table`. Both use the same shape
@@ -73,7 +74,10 @@ class TableBlock extends StatelessWidget {
           children: [
             for (final col in columns)
               _cell(
-                text: (col['header'] as String?) ?? '',
+                text: resolveTableHeaderLabel(
+                  context,
+                  col['header'] as String?,
+                ),
                 align: parseTextAlign(col['align'] as String?),
                 // Header cell uses the column's `labelStyle` cascade —
                 // the header IS the label for a table column.

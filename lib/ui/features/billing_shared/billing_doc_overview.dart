@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/company_labels.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
 import 'package:admin/ui/features/billing_shared/totals_widget.dart';
@@ -71,19 +72,19 @@ class BillingDocOverview extends StatefulWidget {
 
 class _BillingDocOverviewState extends State<BillingDocOverview> {
   /// Hoisted (not built in `build`) so the read-only tab doesn't resubscribe
-  /// on every parent rebuild — the stable-stream rule. Only feeds the
-  /// surcharge labels.
+  /// on every parent rebuild — the stable-stream rule. Feeds the surcharge
+  /// labels and the line-item header's Custom Labels.
+  ///
+  /// Watched unconditionally. It used to be lazy — created only for a doc
+  /// carrying a surcharge — but the header's Custom Labels
+  /// (`settings.translations`) need the company on every doc
+  /// (invoiceninja/flutter#84), and a single-row Drift watch is cheap enough
+  /// that gating it isn't worth the divergence. The edit screen's
+  /// `LineItemEditor` already watches the company unconditionally.
   Stream<Company?>? _company;
 
-  /// Only docs that actually carry a surcharge need the company (for its
-  /// labels). Keeping the lookup lazy avoids a pointless watch on the common
-  /// no-surcharge doc, and keeps this widget usable without a `Services`
-  /// provider above it.
-  bool get _needsCompany =>
-      widget.surchargeAmounts.any((a) => a != Decimal.zero);
-
   void _ensureCompanyStream() {
-    if (_company != null || !_needsCompany) return;
+    if (_company != null) return;
     final services = context.read<Services>();
     _company = services.company.watchCompany(
       services.auth.currentCompanyId ?? '',
@@ -105,20 +106,18 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
   @override
   Widget build(BuildContext context) {
     final stream = _company;
-    if (stream == null) return _body(context, const <TotalsSurcharge>[]);
+    if (stream == null) return _body(context, null);
     return StreamBuilder<Company?>(
       stream: stream,
-      builder: (context, snap) => _body(
-        context,
-        buildSurchargeRows(
-          customFields: snap.data?.customFields,
-          amounts: widget.surchargeAmounts,
-        ),
-      ),
+      builder: (context, snap) => _body(context, snap.data),
     );
   }
 
-  Widget _body(BuildContext context, List<TotalsSurcharge> surchargeRows) {
+  Widget _body(BuildContext context, Company? company) {
+    final surchargeRows = buildSurchargeRows(
+      customFields: company?.customFields,
+      amounts: widget.surchargeAmounts,
+    );
     final totalsInput = widget.totalsInput;
     final precision = widget.precision;
     final formatter = widget.formatter;
@@ -144,6 +143,7 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
           formatter: formatter,
           currencyId: currencyId,
           discountIsAmount: totalsInput.isAmountDiscount,
+          labels: CompanyLabels.fromCompany(company),
         ),
         SizedBox(height: gap),
         Align(

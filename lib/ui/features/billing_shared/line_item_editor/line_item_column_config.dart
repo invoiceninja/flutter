@@ -1,4 +1,5 @@
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/ui/core/utils/company_labels.dart';
 
 /// Which optional columns the [LineItemEditor] shows. Driven from the
 /// active company's settings; built once per edit-screen mount.
@@ -17,6 +18,7 @@ class LineItemColumnConfig {
     this.taxColumnCount = 1,
     this.showDiscount = false,
     this.useTaxCategories = false,
+    this.labels = const CompanyLabels.empty(),
   });
 
   /// Show the four invoice-line custom-value columns. Each is independent.
@@ -38,6 +40,11 @@ class LineItemColumnConfig {
   /// `taxColumnCount` is ignored in favor of a single category cell.
   final bool useTaxCategories;
 
+  /// The company's Custom Labels, applied to the column headers. Empty until
+  /// [forCompany] fills it in, so a header always has the bundled string to
+  /// fall back on.
+  final CompanyLabels labels;
+
   /// Default minimal config — qty/cost/total only, one tax column hidden.
   /// Used as a safe fallback when company settings haven't loaded yet.
   static const minimal = LineItemColumnConfig(
@@ -54,11 +61,17 @@ class LineItemColumnConfig {
   /// edit layouts before this existed, so a company with line-item taxes off
   /// still got Tax Name 1 / Tax Rate 1 on every row
   /// (invoiceninja/flutter#85). Clamped to the three slots the editor renders.
+  ///
+  /// Also the point where the company's Custom Labels
+  /// (`settings.translations`) reach the headers — the server, React and
+  /// admin-portal all honor them and this app was storing them without ever
+  /// reading them back (invoiceninja/flutter#84).
   LineItemColumnConfig forCompany(Company? company) => company == null
       ? this
       : copyWith(
           showDiscount: showDiscount && company.enableProductDiscount,
           taxColumnCount: company.enabledItemTaxRates.clamp(0, 3),
+          labels: CompanyLabels.fromCompany(company),
         );
 
   LineItemColumnConfig copyWith({
@@ -69,6 +82,7 @@ class LineItemColumnConfig {
     int? taxColumnCount,
     bool? showDiscount,
     bool? useTaxCategories,
+    CompanyLabels? labels,
   }) => LineItemColumnConfig(
     showCustom1: showCustom1 ?? this.showCustom1,
     showCustom2: showCustom2 ?? this.showCustom2,
@@ -77,5 +91,6 @@ class LineItemColumnConfig {
     taxColumnCount: taxColumnCount ?? this.taxColumnCount,
     showDiscount: showDiscount ?? this.showDiscount,
     useTaxCategories: useTaxCategories ?? this.useTaxCategories,
+    labels: labels ?? this.labels,
   );
 }

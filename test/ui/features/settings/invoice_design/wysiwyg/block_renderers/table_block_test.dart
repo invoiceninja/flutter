@@ -18,6 +18,19 @@ Widget _wrap(Widget child) => MaterialApp(
   home: Scaffold(body: child),
 );
 
+DesignBlock _tableBlockWithColumns(List<Map<String, dynamic>> columns) {
+  final spec = blockSpecFor('table')!;
+  return DesignBlock(
+    id: 'tbl-1',
+    type: 'table',
+    gridPosition: const GridPosition(x: 0, y: 0, w: 12, h: 8),
+    properties: {
+      ...Map<String, dynamic>.from(spec.defaultProperties),
+      'columns': columns,
+    },
+  );
+}
+
 DesignBlock _tableBlock() {
   final spec = blockSpecFor('table')!;
   return DesignBlock(
@@ -36,14 +49,71 @@ void main() {
       ),
     );
     await tester.pump();
-    // Default product table headers: item / description / qty / unit_cost / line_total.
+    // The spec stores localization keys (`item`, `qty`, `unit_cost`); the
+    // canvas used to paint them raw, so the header read "unit_cost" while the
+    // property panel beside it read "Unit Cost" (invoiceninja/flutter#84).
+    // Default product columns: item / description / qty / unit_cost /
+    // line_total.
     expect(find.text('Item'), findsOneWidget);
     expect(find.text('Description'), findsOneWidget);
-    expect(
-      find.text('Quantity'),
-      findsOneWidget,
-    ); // i18n 'qty' → 'Quantity'? Use what en.json has
-  }, skip: true); // Header values come through the spec — i18n keys differ.
+    expect(find.text('Quantity'), findsOneWidget); // 'qty' → "Quantity"
+    expect(find.text('Unit Cost'), findsOneWidget);
+    expect(find.text('Line Total'), findsOneWidget);
+    // No raw key survives to the canvas.
+    expect(find.text('unit_cost'), findsNothing);
+    expect(find.text('qty'), findsNothing);
+  });
+
+  testWidgets('a header key with no translation of its own falls back to the '
+      'label the PDF prints', (tester) async {
+    // `net_cost` is in no locale file. The server labels `$product.net_cost`
+    // with `ctrans('texts.unit_cost')` and React does the same, so the
+    // designer must not show the raw slug for it.
+    await tester.pumpWidget(
+      _wrap(
+        TableBlock(
+          block: _tableBlockWithColumns(const [
+            {
+              'id': 'net_cost',
+              'header': 'net_cost',
+              'field': 'item.net_cost',
+              'width': '15%',
+              'align': 'right',
+            },
+          ]),
+          sample: DesignerSampleData.fallback,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Unit Cost'), findsOneWidget);
+    expect(find.text('net_cost'), findsNothing);
+  });
+
+  testWidgets('a header the user typed renders verbatim', (tester) async {
+    // The property panel exposes `header` as a free-text field, so an
+    // unrecognised value is a heading, not a broken key — never title-case it.
+    await tester.pumpWidget(
+      _wrap(
+        TableBlock(
+          block: _tableBlockWithColumns(const [
+            {
+              'id': 'cost',
+              'header': 'Prix unitaire',
+              'field': 'item.cost',
+              'width': '15%',
+              'align': 'right',
+            },
+          ]),
+          sample: DesignerSampleData.fallback,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Prix unitaire'), findsOneWidget);
+  });
 
   testWidgets('renders one row per sample line item', (tester) async {
     final block = _tableBlock();

@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/company_labels.dart';
 import 'package:admin/utils/formatting.dart';
 
 // Column widths for the wide (table) layout. Item / Description flex; the
@@ -38,6 +39,7 @@ class LineItemsReadonlyTable extends StatelessWidget {
     this.formatter,
     this.currencyId,
     this.discountIsAmount = false,
+    this.labels = const CompanyLabels.empty(),
   });
 
   final List<LineItem> items;
@@ -47,6 +49,10 @@ class LineItemsReadonlyTable extends StatelessWidget {
   /// How to render any per-line discount (mirrors the document-level
   /// `isAmountDiscount`): currency amount vs. percentage.
   final bool discountIsAmount;
+
+  /// The company's Custom Labels, applied to the header row exactly as the
+  /// edit table applies them (`LineItemColumnConfig.labels`).
+  final CompanyLabels labels;
 
   @override
   Widget build(BuildContext context) {
@@ -123,13 +129,14 @@ class LineItemsReadonlyTable extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _flexHead(3, context.tr('item'), tokens),
-          _flexHead(4, context.tr('description'), tokens),
-          _numHead(_kQtyW, context.tr('quantity'), tokens),
-          _numHead(_kCostW, context.tr('unit_cost'), tokens),
-          if (showDiscount) _numHead(_kDiscW, context.tr('discount'), tokens),
-          if (showTax) _numHead(_kTaxW, context.tr('tax'), tokens),
-          _numHead(_kTotalW, context.tr('line_total'), tokens),
+          _flexHead(3, labels.resolve(context, 'item'), tokens),
+          _flexHead(4, labels.resolve(context, 'description'), tokens),
+          _numHead(_kQtyW, labels.resolve(context, 'quantity'), tokens),
+          _numHead(_kCostW, labels.resolve(context, 'unit_cost'), tokens),
+          if (showDiscount)
+            _numHead(_kDiscW, labels.resolve(context, 'discount'), tokens),
+          if (showTax) _numHead(_kTaxW, labels.resolve(context, 'tax'), tokens),
+          _numHead(_kTotalW, labels.resolve(context, 'line_total'), tokens),
         ],
       ),
     );

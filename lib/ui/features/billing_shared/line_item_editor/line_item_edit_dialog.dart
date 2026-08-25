@@ -137,6 +137,9 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
+    // Field labels resolve the company's Custom Labels before the bundled
+    // string, matching the desktop table header.
+    String label(String key) => config.labels.resolve(context, key);
     return AlertDialog(
       title: Text(context.tr('line_item')),
       content: SizedBox(
@@ -148,16 +151,14 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
             children: [
               TextField(
                 controller: _productKey,
-                decoration: InputDecoration(labelText: context.tr('product')),
+                decoration: InputDecoration(labelText: label('product')),
                 textInputAction: TextInputAction.next,
                 autofocus: true,
               ),
               SizedBox(height: InSpacing.md(context)),
               TextField(
                 controller: _notes,
-                decoration: InputDecoration(
-                  labelText: context.tr('description'),
-                ),
+                decoration: InputDecoration(labelText: label('description')),
                 maxLines: 3,
                 minLines: 2,
               ),
@@ -168,7 +169,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                     child: TextField(
                       controller: _cost,
                       decoration: InputDecoration(
-                        labelText: context.tr('unit_cost'),
+                        labelText: label('unit_cost'),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
@@ -179,9 +180,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                   Expanded(
                     child: TextField(
                       controller: _quantity,
-                      decoration: InputDecoration(
-                        labelText: context.tr('quantity'),
-                      ),
+                      decoration: InputDecoration(labelText: label('quantity')),
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -193,9 +192,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                 SizedBox(height: InSpacing.md(context)),
                 TextField(
                   controller: _discount,
-                  decoration: InputDecoration(
-                    labelText: context.tr('discount'),
-                  ),
+                  decoration: InputDecoration(labelText: label('discount')),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),

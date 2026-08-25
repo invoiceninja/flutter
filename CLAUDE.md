@@ -31,6 +31,7 @@ Plus two non-negotiables carried from admin-portal:
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
 | Building a release app / injecting the Sentry DSN | `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
+| iOS Product → Archive failing on a plugin's minimum platform version | `tools/prepare_ios_archive.sh` (run it first) · `docs/setup.md` § Release builds with Sentry · `docs/upstream-workarounds.md` § 8 |
 | Writing release notes for a new version | § Release Notes |
 | Setting up store deploys / CI signing secrets | `docs/store-deployment-setup.md` (runbook) · `docs/setup.md` § Shipping to the stores (reference) |
 | Regenerating app icons (Windows / web / Snap) | `dart run tools/gen_app_icons.dart` · `docs/setup.md` § App icons |

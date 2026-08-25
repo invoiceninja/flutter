@@ -5344,10 +5344,14 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   /// Device-local contacts-sync preference (Settings → Device Settings →
   /// Contacts), as a JSON object:
   /// `{"enabled":bool,"scope":"all"|"mine",
-  ///   "companies":{"<companyId>":{"groupId":"12","lastRunAt":1750000000000}}}`.
+  ///   "lastRun":{"&lt;companyId&gt;":1750000000000},
+  ///   "groupIds":{"&lt;companyId&gt;":"12"}}`.
   /// Null column = the feature has never been switched on. One blob rather than
-  /// four columns, same reasoning as [filtersJson] — the per-company half is
-  /// open-ended and none of it is ever queried by SQL. Added in schema v5.
+  /// four columns, same reasoning as [filtersJson] — both per-company maps are
+  /// open-ended and none of it is ever queried by SQL. `groupIds` is the
+  /// ownership record: the device address-book label is keyed on the company
+  /// id, not its name, so two identically-named companies can't reconcile away
+  /// each other's cards (see `docs/contacts-sync.md`). Added in schema v5.
   final String? contactsSyncJson;
 
   /// JSON array of the most-recently-viewed entity records for the active

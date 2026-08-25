@@ -51,13 +51,15 @@ class NavState extends Table {
 
   /// Device-local contacts-sync preference (Settings → Device Settings →
   /// Contacts), as a JSON object:
-  /// `{"enabled":bool,"scope":"all"|"mine","lastRun":{"&lt;companyId&gt;":1750}}`.
+  /// `{"enabled":bool,"scope":"all"|"mine",
+  ///   "lastRun":{"&lt;companyId&gt;":1750000000000},
+  ///   "groupIds":{"&lt;companyId&gt;":"12"}}`.
   /// Null column = the feature has never been switched on. One blob rather than
-  /// three columns, same reasoning as [filtersJson] — the per-company last-run
-  /// map is open-ended and none of it is ever queried by SQL. The label's id is
-  /// deliberately *not* stored: it is found-or-created by name each pass, so
-  /// there's no id to dangle when the user deletes the label by hand.
-  /// Added in schema v5.
+  /// four columns, same reasoning as [filtersJson] — both per-company maps are
+  /// open-ended and none of it is ever queried by SQL. `groupIds` is the
+  /// ownership record: the device address-book label is keyed on the company
+  /// id, not its name, so two identically-named companies can't reconcile away
+  /// each other's cards (see `docs/contacts-sync.md`). Added in schema v5.
   TextColumn get contactsSyncJson =>
       text().named('contacts_sync_json').nullable()();
 

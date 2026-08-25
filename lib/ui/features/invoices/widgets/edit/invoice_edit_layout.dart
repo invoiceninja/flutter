@@ -32,6 +32,7 @@ import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_tax_surcharge_section.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
+import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
 
 /// Tabbed body for the invoice edit screen.
 ///
@@ -101,6 +102,21 @@ class _InvoiceEditLayoutState extends State<InvoiceEditLayout>
     );
   }
 
+  /// invoiceninja/flutter#88 — schedule the work a line item describes as a
+  /// dated task, without leaving this (possibly dirty) document. Null when the
+  /// company has Tasks off or the user can't create one, which hides the
+  /// affordance in every row menu.
+  ValueChanged<LineItem>? _createTaskHandler(BuildContext context) {
+    final vm = widget.vm;
+    return createTaskFromLineItemHandler(
+      context,
+      companyId: vm.companyId,
+      clientId: vm.draft.clientId,
+      projectId: vm.draft.projectId,
+      documentDate: vm.draft.date,
+    );
+  }
+
   void _openPicker(BuildContext context) {
     final vm = widget.vm;
     openLineItemPicker(
@@ -159,6 +175,7 @@ class _InvoiceEditLayoutState extends State<InvoiceEditLayout>
                 _ItemsTab(
                   vm: widget.vm,
                   onPickItems: () => _openPicker(context),
+                  onCreateTask: _createTaskHandler(context),
                 ),
                 _NotesTab(vm: widget.vm),
                 _SettingsTab(vm: widget.vm),
@@ -192,6 +209,7 @@ class _InvoiceEditLayoutState extends State<InvoiceEditLayout>
       itemsSection: _ItemsSectionDesktop(
         vm: widget.vm,
         onPickItems: () => _openPicker(context),
+        onCreateTask: _createTaskHandler(context),
       ),
       notesTabsCard: _NotesTabsCardDesktop(vm: widget.vm),
       totalsCard: Column(
@@ -530,9 +548,14 @@ class _NumberCardDesktopState extends State<_NumberCardDesktop> {
 }
 
 class _ItemsSectionDesktop extends StatelessWidget {
-  const _ItemsSectionDesktop({required this.vm, required this.onPickItems});
+  const _ItemsSectionDesktop({
+    required this.vm,
+    required this.onPickItems,
+    required this.onCreateTask,
+  });
   final InvoiceEditViewModel vm;
   final VoidCallback onPickItems;
+  final ValueChanged<LineItem>? onCreateTask;
 
   @override
   Widget build(BuildContext context) {
@@ -548,6 +571,7 @@ class _ItemsSectionDesktop extends StatelessWidget {
       newItemFactory: emptyLineItem,
       rowErrors: vm.lineItemRowErrors,
       onPickItems: onPickItems,
+      onCreateTaskFromLineItem: onCreateTask,
       showStockQuantity: BillingDocType.invoice.showsProductStock,
     );
   }
@@ -1174,9 +1198,14 @@ class _ContactsTab extends StatelessWidget {
 // ── Items tab ────────────────────────────────────────────────────────
 
 class _ItemsTab extends StatelessWidget {
-  const _ItemsTab({required this.vm, required this.onPickItems});
+  const _ItemsTab({
+    required this.vm,
+    required this.onPickItems,
+    required this.onCreateTask,
+  });
   final InvoiceEditViewModel vm;
   final VoidCallback onPickItems;
+  final ValueChanged<LineItem>? onCreateTask;
 
   @override
   Widget build(BuildContext context) {
@@ -1194,6 +1223,7 @@ class _ItemsTab extends StatelessWidget {
               newItemFactory: emptyLineItem,
               rowErrors: vm.lineItemRowErrors,
               onPickItems: onPickItems,
+              onCreateTaskFromLineItem: onCreateTask,
               showStockQuantity: BillingDocType.invoice.showsProductStock,
             ),
           ),

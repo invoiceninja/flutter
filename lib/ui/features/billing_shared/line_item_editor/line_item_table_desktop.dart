@@ -74,6 +74,7 @@ class LineItemTableDesktop extends StatefulWidget {
     this.controller,
     this.rowErrors,
     this.showStockQuantity = false,
+    this.onCreateTaskFromLineItem,
   });
 
   final String companyId;
@@ -102,6 +103,12 @@ class LineItemTableDesktop extends StatefulWidget {
   /// Invoice host only — show the bracketed in-stock count on product rows in
   /// the typeahead. ANDed with the company's `trackInventory` at the cell.
   final bool showStockQuantity;
+
+  /// When set, each row's menu offers "Create Task" — schedule the work this
+  /// line describes as a dated task (invoiceninja/flutter#88). Injected by the
+  /// invoice / quote layouts so `billing_shared` stays free of task imports;
+  /// null everywhere else, and the menu item simply doesn't render.
+  final ValueChanged<LineItem>? onCreateTaskFromLineItem;
 
   @override
   State<LineItemTableDesktop> createState() => _LineItemTableDesktopState();
@@ -264,6 +271,22 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     if (index >= widget.items.length) return;
     final next = List<LineItem>.from(widget.items)..removeAt(index);
     _emit(next);
+  }
+
+  /// Hand this row to the host's "Create Task" flow.
+  ///
+  /// Reads the row's LIVE item, not `widget.items[index]`: text cells commit on
+  /// a 250 ms debounce, so the props still hold pre-keystroke text — and the
+  /// description the user just typed is the whole point of the seed. Flushing
+  /// alone isn't enough either, because `widget.onChanged` doesn't update
+  /// `widget.items` within the frame. (`_clone` below reads the stale props and
+  /// has the same latent bug; don't copy it.)
+  void _createTask(int index) {
+    final handler = widget.onCreateTaskFromLineItem;
+    if (handler == null || index >= widget.items.length) return;
+    // Also pushes the pending edit onto the draft, so the document keeps it.
+    _flushAll();
+    handler(_rows[index].buildItem(widget.items[index], useComma: _useComma));
   }
 
   void _clone(int index) {
@@ -565,6 +588,8 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                         },
                         onMenuAction: (action) {
                           switch (action) {
+                            case _RowAction.createTask:
+                              _createTask(index);
                             case _RowAction.clone:
                               _clone(index);
                             case _RowAction.insertBelow:
@@ -581,6 +606,19 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                               _remove(index);
                           }
                         },
+                        // A row that already IS a task can't be scheduled
+                        // again. Deliberately NOT gated on `isBlank`: that
+                        // reads the debounce-stale props and would hide the
+                        // action from the row the user just typed into.
+                        // `!isGhost` is belt-and-braces — the menu isn't
+                        // rendered for the ghost row and its right-click is
+                        // disabled — but `_createTask` would no-op on it, so
+                        // keep the intent local rather than load-bearing at a
+                        // distance.
+                        canCreateTask:
+                            !isGhost &&
+                            widget.onCreateTaskFromLineItem != null &&
+                            (current.taskId ?? '').isEmpty,
                         onTabFromLastCell: () {
                           if (isGhost) {
                             _addBlankRow();
@@ -809,6 +847,7 @@ class _RowState {
 }
 
 enum _RowAction {
+  createTask,
   clone,
   insertBelow,
   moveUp,
@@ -841,6 +880,7 @@ class _Row extends StatefulWidget {
     required this.onCreateProduct,
     required this.onMenuAction,
     required this.onTabFromLastCell,
+    required this.canCreateTask,
   });
 
   final int index;
@@ -863,6 +903,10 @@ class _Row extends StatefulWidget {
   final ValueChanged<String> onCreateProduct;
   final ValueChanged<_RowAction> onMenuAction;
   final VoidCallback onTabFromLastCell;
+
+  /// Whether this row can be scheduled as a task. False when the host wired no
+  /// handler, and false for a row that already *is* a task.
+  final bool canCreateTask;
 
   @override
   State<_Row> createState() => _RowStateW();
@@ -891,6 +935,7 @@ class _RowStateW extends State<_Row> {
   ValueChanged<String> get onCreateProduct => widget.onCreateProduct;
   ValueChanged<_RowAction> get onMenuAction => widget.onMenuAction;
   VoidCallback get onTabFromLastCell => widget.onTabFromLastCell;
+  bool get canCreateTask => widget.canCreateTask;
 
   @override
   Widget build(BuildContext context) {
@@ -1084,6 +1129,7 @@ class _RowStateW extends State<_Row> {
                             onSelected: onMenuAction,
                             canMoveUp: index > 0,
                             canMoveDown: index < lastRealIndex,
+                            canCreateTask: canCreateTask,
                           ),
                         ),
                       ),
@@ -1123,6 +1169,13 @@ class _RowStateW extends State<_Row> {
         Offset.zero & overlay.size,
       ),
       items: [
+        if (canCreateTask) ...[
+          PopupMenuItem(
+            value: _RowAction.createTask,
+            child: Text(ctx.tr('create_task')),
+          ),
+          const PopupMenuDivider(),
+        ],
         PopupMenuItem(value: _RowAction.clone, child: Text(ctx.tr('clone'))),
         PopupMenuItem(
           value: _RowAction.insertBelow,
@@ -1155,11 +1208,13 @@ class _RowMenu extends StatelessWidget {
     required this.onSelected,
     required this.canMoveUp,
     required this.canMoveDown,
+    required this.canCreateTask,
   });
 
   final ValueChanged<_RowAction> onSelected;
   final bool canMoveUp;
   final bool canMoveDown;
+  final bool canCreateTask;
 
   @override
   Widget build(BuildContext context) {
@@ -1169,6 +1224,13 @@ class _RowMenu extends StatelessWidget {
       icon: Icon(Icons.more_vert, size: 18, color: tokens.ink3),
       onSelected: onSelected,
       itemBuilder: (context) => [
+        if (canCreateTask) ...[
+          PopupMenuItem(
+            value: _RowAction.createTask,
+            child: Text(context.tr('create_task')),
+          ),
+          const PopupMenuDivider(),
+        ],
         PopupMenuItem(
           value: _RowAction.clone,
           child: Text(context.tr('clone')),

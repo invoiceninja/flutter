@@ -372,7 +372,7 @@ the honest default.
 | Task — kanban drag-to-reorder within status | ✅ | ✅ | ✅ | ✅ | |
 | Task — kanban filter by project / client / assignee | ✅ | ✅ | ✅ | ✅ | |
 | Task — invoice from task | ✅ | ✅ | ✅ | ✅ | |
-| Task — create/convert a quote or invoice line item into a dated task | ❌ | ❌ | ❌ | | |
+| Task — create/convert a quote or invoice line item into a dated task | ❌ | ❌ | ✅ | | |
 | Task — add to existing invoice | ✅ | ✅ | ✅ | | |
 | Task — bulk invoice / add to invoice from a multi-select (multi-client rejected, multi-project grouped) | ✅ | ✅ | ✅ | | |
 | Task — generated line items carry the project header + time-log details per Task Settings (`invoice_task_project` / `_project_header` / `_datelog` / `_timelog` / `_hours` / `_item_description`) | 🟡 | ✅ | ✅ | | |

@@ -40,6 +40,7 @@ class LineItemEditor extends StatefulWidget {
     this.rowErrors,
     this.onPickItems,
     this.showStockQuantity = false,
+    this.onCreateTaskFromLineItem,
   });
 
   /// Company scope for the desktop table's product autocomplete +
@@ -101,6 +102,13 @@ class LineItemEditor extends StatefulWidget {
   /// the desktop typeahead. ANDed with the company's `trackInventory` at the
   /// cell; other billing docs leave it false.
   final bool showStockQuantity;
+
+  /// When set, each row offers "Create Task" — schedule the work the line
+  /// describes as a dated task (invoiceninja/flutter#88). Injected by the
+  /// invoice / quote layouts, the way `ClientPickerField.onCreateRequested` is,
+  /// so this widget stays free of task-feature imports. Null on credit /
+  /// recurring invoice / purchase order, where the affordance never renders.
+  final ValueChanged<LineItem>? onCreateTaskFromLineItem;
 
   @override
   State<LineItemEditor> createState() => _LineItemEditorState();
@@ -222,6 +230,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
             controller: widget.controller,
             rowErrors: widget.rowErrors,
             showStockQuantity: widget.showStockQuantity,
+            onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
           );
         }
         return LineItemCardListMobile(
@@ -232,6 +241,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
           config: effectiveConfig,
           currencyId: currencyId,
           onPickItems: widget.onPickItems,
+          onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
         );
       },
     );

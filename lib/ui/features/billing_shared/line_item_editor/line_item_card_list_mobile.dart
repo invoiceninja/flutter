@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_edit_dialog.dart';
 import 'package:admin/utils/formatting.dart';
@@ -27,6 +28,7 @@ class LineItemCardListMobile extends StatelessWidget {
     required this.config,
     this.currencyId,
     this.onPickItems,
+    this.onCreateTaskFromLineItem,
   });
 
   /// Company scope used to look up the active [Formatter] so cost /
@@ -55,6 +57,12 @@ class LineItemCardListMobile extends StatelessWidget {
   /// appears but appends a blank row — only used in test contexts that
   /// don't wire the picker.
   final VoidCallback? onPickItems;
+
+  /// When set, each card gets a "Create Task" button — schedule the work the
+  /// line describes as a dated task (invoiceninja/flutter#88). The desktop
+  /// table's equivalent lives in its per-row menu. Null on credit / recurring
+  /// invoice / purchase order, where the button never renders.
+  final ValueChanged<LineItem>? onCreateTaskFromLineItem;
 
   Future<void> _openEditor(BuildContext context, int index) async {
     final fmt = context.read<Services>().formatterIfReady(companyId);
@@ -175,11 +183,40 @@ class LineItemCardListMobile extends StatelessWidget {
           currencyId: currencyId,
           onTap: () => _openEditor(context, index),
           onRemove: () => _remove(index),
+          // A row that already IS a task can't be scheduled again.
+          onCreateTask:
+              onCreateTaskFromLineItem == null || (item.taskId ?? '').isNotEmpty
+              ? null
+              : () => onCreateTaskFromLineItem!(item),
         );
       },
     );
   }
 }
+
+/// Pin a trailing icon button to the app's action-button size.
+///
+/// Left implicit, an `IconButton`'s LAYOUT box floors at
+/// `kMinInteractiveDimension` (48) — via `materialTapTargetSize: padded` on
+/// iOS/Android, and via the M3 default `minimumSize` on desktop — which is both
+/// over the app's own 44 px touch floor and wider than this row can spare. With
+/// two buttons in the cluster that is 96 px taken out of a ~320 px row, and the
+/// `Expanded` identity column pays for all of it. Same trap, same fix, as
+/// invoiceninja/flutter#89: `fixedSize` is *clamped by* min/max, so both must be
+/// neutralised for it to take effect, and `shrinkWrap` stops the box being
+/// re-inflated afterwards.
+///
+/// The money `Text` beside them is deliberately left non-flex: making it
+/// `Flexible` would put it in a flex split with the identity `Expanded` and
+/// hand it half the free space, costing the identity *more* width than the
+/// buttons do.
+ButtonStyle _trailingButtonStyle() => IconButton.styleFrom(
+  fixedSize: Size(actionButtonSize(), actionButtonSize()),
+  minimumSize: Size.zero,
+  maximumSize: Size.infinite,
+  padding: EdgeInsets.zero,
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
 
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
@@ -190,6 +227,7 @@ class _ItemCard extends StatelessWidget {
     required this.currencyId,
     required this.onTap,
     required this.onRemove,
+    required this.onCreateTask,
   });
 
   final LineItem item;
@@ -198,6 +236,9 @@ class _ItemCard extends StatelessWidget {
   final String? currencyId;
   final VoidCallback onTap;
   final VoidCallback onRemove;
+
+  /// Null hides the affordance — see [LineItemCardListMobile.onCreateTaskFromLineItem].
+  final VoidCallback? onCreateTask;
 
   @override
   Widget build(BuildContext context) {
@@ -266,9 +307,18 @@ class _ItemCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(fmt(gross), style: moneyTextStyle(color: tokens.ink)),
+              if (onCreateTask != null)
+                IconButton(
+                  icon: const Icon(Icons.more_time, size: 20),
+                  color: tokens.ink3,
+                  style: _trailingButtonStyle(),
+                  onPressed: onCreateTask,
+                  tooltip: context.tr('create_task'),
+                ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
                 color: tokens.ink3,
+                style: _trailingButtonStyle(),
                 onPressed: onRemove,
                 tooltip: context.tr('remove'),
               ),

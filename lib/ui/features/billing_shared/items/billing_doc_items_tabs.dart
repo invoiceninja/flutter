@@ -49,6 +49,7 @@ class BillingDocItemsTabs extends StatefulWidget {
     required this.rowErrors,
     required this.onPickItems,
     this.showStockQuantity = false,
+    this.onCreateTaskFromLineItem,
   });
 
   /// For `addBeforeSaveHook` + `stripEmptyLineItems`. Type-erased to keep
@@ -64,6 +65,12 @@ class BillingDocItemsTabs extends StatefulWidget {
   /// Invoice host only — show the bracketed in-stock count in the products
   /// tab's product typeahead. Forwarded to the products `LineItemEditor`.
   final bool showStockQuantity;
+
+  /// Invoice / quote hosts only — schedule a line's work as a dated task
+  /// (invoiceninja/flutter#88). Forwarded to ALL THREE tabs: an expense line is
+  /// still schedulable, and the "already a task" gate lives at the row, so one
+  /// rule holds for the tabbed and untabbed cases alike.
+  final ValueChanged<LineItem>? onCreateTaskFromLineItem;
 
   @override
   State<BillingDocItemsTabs> createState() => _BillingDocItemsTabsState();
@@ -278,6 +285,7 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
       // banner, so the per-row tint is just a polish loss in tabbed mode.
       rowErrors: null,
       onPickItems: widget.onPickItems,
+      onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
     );
   }
 

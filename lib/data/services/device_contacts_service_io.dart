@@ -170,7 +170,7 @@ class NativeDeviceContactsService implements DeviceContactsService {
   }
 
   @override
-  Future<String?> ensureGroup(String name) async {
+  Future<String?> ensureGroup(String name, {String? knownId}) async {
     final account = await _resolveAccount();
     // Android refuses to group contacts that live outside the label's own
     // account (`GroupUtils.addContactsToGroup` throws on a null account, and
@@ -182,6 +182,24 @@ class NativeDeviceContactsService implements DeviceContactsService {
       return null;
     }
     try {
+      final known = await _groupById(knownId);
+      if (known != null) {
+        // Found by id under a different name: the company was renamed. Rename
+        // the label to match instead of stranding it — the alternative is a
+        // group in the user's Contacts app naming a company that no longer
+        // exists, with the cards for the renamed one in a second group beside
+        // it. A failed rename is cosmetic, so it must not fail the pass.
+        if (known.name != name) {
+          try {
+            await FlutterContacts.groups.update(
+              Group(id: known.id, name: name),
+            );
+          } catch (e, st) {
+            _log.warning('could not rename the label to "$name"', e, st);
+          }
+        }
+        return known.id;
+      }
       final existing = await _findGroup(name, account);
       if (existing != null) return existing;
       final created = await FlutterContacts.groups.create(
@@ -196,13 +214,47 @@ class NativeDeviceContactsService implements DeviceContactsService {
   }
 
   @override
-  Future<String?> findGroup(String name) async {
+  Future<String?> createGroup(String name) async {
     final account = await _resolveAccount();
     if (account == null) return null;
     try {
+      final created = await FlutterContacts.groups.create(
+        name,
+        account: account,
+      );
+      return created.id;
+    } catch (e, st) {
+      _log.warning('could not create a second "$name" label', e, st);
+      return null;
+    }
+  }
+
+  @override
+  Future<String?> findGroup(String name, {String? knownId}) async {
+    final account = await _resolveAccount();
+    if (account == null) return null;
+    try {
+      final known = await _groupById(knownId);
+      if (known != null) return known.id;
       return await _findGroup(name, account);
     } catch (e, st) {
       _log.warning('could not look up the "$name" label', e, st);
+      return null;
+    }
+  }
+
+  /// The group [id] names, or null when it is null or no longer exists.
+  ///
+  /// Deliberately swallows its own errors rather than failing the caller: a
+  /// stale id is the *expected* state after the user deletes the label by hand,
+  /// and the name lookup behind it is a complete fallback.
+  Future<Group?> _groupById(String? id) async {
+    if (id == null || id.isEmpty) return null;
+    try {
+      final group = await FlutterContacts.groups.get(id);
+      return group?.id == null ? null : group;
+    } catch (e, st) {
+      _log.info('the remembered label $id could not be read', e, st);
       return null;
     }
   }

@@ -41,7 +41,8 @@ class ContactsSyncProgress {
 /// A [ChangeNotifier] rather than a `ValueNotifier` because it holds a small
 /// collection of state (toggle, scope, per-company last-run, progress), which
 /// is the convention the other controllers follow.
-class ContactsSyncController extends ChangeNotifier {
+class ContactsSyncController extends ChangeNotifier
+    implements ContactsSyncGroupStore {
   ContactsSyncController({
     required AppDatabase db,
     required ContactsSyncEngine engine,
@@ -57,6 +58,10 @@ class ContactsSyncController extends ChangeNotifier {
   bool _enabled = false;
   ContactsSyncScope _scope = ContactsSyncScope.all;
   final Map<String, int> _lastRunAt = {};
+
+  /// companyId -> device address-book group id. The ownership record that keeps
+  /// two companies from sharing a group; see [ContactsSyncGroupStore].
+  final Map<String, String> _groupIds = {};
   ContactsSyncProgress _progress = const ContactsSyncProgress.idle();
   final Map<String, ContactsSyncSummary> _lastSummary = {};
 
@@ -95,6 +100,13 @@ class ContactsSyncController extends ChangeNotifier {
         ..addAll({
           for (final e in (json['lastRun'] as Map? ?? const {}).entries)
             if (e.value is int) e.key as String: e.value as int,
+        });
+      _groupIds
+        ..clear()
+        ..addAll({
+          for (final e in (json['groupIds'] as Map? ?? const {}).entries)
+            if (e.value is String && (e.value as String).isNotEmpty)
+              e.key as String: e.value as String,
         });
       notifyListeners();
     } catch (e, st) {
@@ -215,6 +227,12 @@ class ContactsSyncController extends ChangeNotifier {
     await _engine.removeAll(companyId: companyId);
     _lastRunAt.remove(companyId);
     _lastSummary.remove(companyId);
+    // The engine normally clears this itself as it deletes the label, making
+    // this a no-op. It is repeated here so the controller's own bookkeeping is
+    // complete regardless: the engine swallows its failures, so a delete that
+    // died mid-way would otherwise leave an id behind pointing at a group that
+    // may no longer exist.
+    _groupIds.remove(companyId);
     notifyListeners();
     await _persist();
   }
@@ -246,9 +264,45 @@ class ContactsSyncController extends ChangeNotifier {
     }
     _lastRunAt.clear();
     _lastSummary.clear();
+    _groupIds.clear();
     // Deliberately not persisted: this runs immediately before `_db.wipe()`,
-    // so the write would be thrown away anyway. In-memory state is cleared so a
-    // re-login on the same process starts clean.
+    // which empties `nav_state` along with everything else, so the write would
+    // be thrown away anyway. (Each `removeAll` above does persist, via the
+    // group store — same fate, and not worth a special case to avoid.)
+    // In-memory state is cleared so a re-login on the same process starts
+    // clean.
+  }
+
+  // --- ContactsSyncGroupStore ---------------------------------------------
+  //
+  // The controller is the store because it already owns the blob these ids live
+  // in. `ContactsSyncService` holds it behind a getter to break the cycle: the
+  // service is constructed as an argument to this controller.
+
+  @override
+  String? syncedGroupId(String companyId) => _groupIds[companyId];
+
+  @override
+  bool groupIsClaimedByOther(
+    String groupId, {
+    required String exceptCompanyId,
+  }) => _groupIds.entries.any(
+    (e) => e.key != exceptCompanyId && e.value == groupId,
+  );
+
+  @override
+  Future<void> setSyncedGroupId(String companyId, String? groupId) async {
+    final existing = _groupIds[companyId];
+    if (existing == groupId) return;
+    if (groupId == null || groupId.isEmpty) {
+      _groupIds.remove(companyId);
+    } else {
+      _groupIds[companyId] = groupId;
+    }
+    // Deliberately no `notifyListeners`: this is bookkeeping no surface renders,
+    // and a pass resolves its group mid-flight — a rebuild there would churn the
+    // settings card for nothing.
+    await _persist();
   }
 
   Future<void> _persist() async {
@@ -261,6 +315,7 @@ class ContactsSyncController extends ChangeNotifier {
           'enabled': _enabled,
           'scope': _scope.id,
           'lastRun': _lastRunAt,
+          'groupIds': _groupIds,
         }),
         now: _now().millisecondsSinceEpoch,
       );

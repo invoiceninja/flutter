@@ -93,6 +93,31 @@ a pass dying between the OS write and the Drift write — without it those cards
 forever and the next run would create duplicates beside them. **Contacts outside the group are never
 read, written or deleted.**
 
+### …and the label is found by id, never by name
+
+Since the reconcile deletes every group member it doesn't recognise, *which* group a company resolves
+to is a data-safety question, not a lookup detail. `labelFor(companyName)` is a **display name only**:
+two companies can share a name, and every unnamed one falls back to a bare `Invoice Ninja`. Resolving
+by name therefore handed them one group, and each pass deleted the other company's cards off the
+phone — silently, in both directions, and the same flaw let "Remove synced contacts" for one company
+wipe the other's.
+
+So `ContactsSyncService._resolveGroupId` keys on the **company id**:
+
+- `ContactsSyncGroupStore` (implemented by `ContactsSyncController`, persisted in the device-local
+  `nav_state.contacts_sync_json` blob alongside `enabled` / `scope` / `lastRun`) remembers
+  `companyId -> groupId`.
+- `ensureGroup(label, knownId:)` tries that id first. Finding it under a *different* name means the
+  company was renamed, so the label is renamed to match rather than orphaned.
+- The name lookup survives only as the upgrade path for installs predating the stored id, and is
+  **refused** when another company already claims what it finds — otherwise the second company to
+  sync would adopt the first one's group and the collision would outlive the fix.
+- Refused, or genuinely absent, the pass calls `createGroup(label)`, which creates a second label
+  *with the same name*. Groups are identified by id, so two same-named companies honestly get two
+  same-named labels — better than one of them carrying a suffix built from a raw company id.
+
+The blob is free-form JSON and `restore()` tolerates missing keys, so this needed no schema bump.
+
 ## Traps
 
 Each of these is a real constraint that was verified in the `flutter_contacts` 2.2.2 sources, and each
@@ -120,7 +145,13 @@ fails in a way that doesn't look like the cause.
   `currentUserId()` through would silently turn "Assigned to me" into every client in the company.
   `_desiredCards` fails closed with `ContactsSyncOutcome.noUser` instead.
 - **`removeAll` uses `findGroup`, not `ensureGroup`.** The latter is find-*or-create*, so on a
-  teardown path it would briefly add a label to a device that never had one.
+  teardown path it would briefly add a label to a device that never had one. It resolves through the
+  same stored group id (above), so purging one company can't reach an identically-named sibling's
+  cards.
+- **`labelFor` is not an identity.** It is derived from the company name, so it collides by design —
+  see the section above. A change that makes anything resolve a group by name alone re-introduces a
+  silent contact-destroying bug; `test/domain/contacts_sync/contacts_sync_service_test.dart`'s
+  "two companies never share a group" group is the guard.
 - **`removeAllCompanies` awaits the in-flight pass**, it doesn't just `cancel()` it. Cancellation is
   cooperative and returns immediately, so a running pass would otherwise keep creating contacts after
   the removal deleted them — and `_db.wipe()`, a moment later, destroys the link table that recorded

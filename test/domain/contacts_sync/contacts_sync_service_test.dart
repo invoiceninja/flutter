@@ -50,14 +50,49 @@ class _FakeDeviceContacts implements DeviceContactsService {
   bool supportsGroups = true;
 
   final Map<String, DeviceContactCard> contacts = {};
-  final Set<String> groupMembers = {};
-  String? groupId;
+
+  /// groupId -> display name. Models the device's label table, not a single
+  /// group: the collision this feature had to be fixed for is two companies
+  /// resolving to the *same* label, which a one-group fake cannot express.
+  final Map<String, String> groups = {};
+
+  /// groupId -> the device contact ids in it.
+  final Map<String, Set<String>> members = {};
+
   int _nextId = 1;
+  int _nextGroupId = 1;
 
   final List<String> created = [];
   final List<String> updated = [];
   final List<String> deleted = [];
   int deletedGroups = 0;
+
+  /// Names passed to [findGroup] — proves the teardown path never creates one.
+  final List<String> lookedUpGroups = [];
+
+  /// Every contact in any label. Most tests sync one company, where this is
+  /// just "our group's members".
+  Set<String> get allMembers => {for (final ids in members.values) ...ids};
+
+  /// The user deleting a card from the Contacts app by hand.
+  void forgetMember(String deviceId) {
+    for (final ids in members.values) {
+      ids.remove(deviceId);
+    }
+  }
+
+  void clearMembers() {
+    for (final ids in members.values) {
+      ids.clear();
+    }
+  }
+
+  String? _byName(String name) {
+    for (final entry in groups.entries) {
+      if (entry.value == name) return entry.key;
+    }
+    return null;
+  }
 
   @override
   bool get canSync => true;
@@ -72,22 +107,45 @@ class _FakeDeviceContacts implements DeviceContactsService {
   Future<void> openSystemSettings() async {}
 
   @override
-  Future<String?> ensureGroup(String name) async {
+  Future<String?> ensureGroup(String name, {String? knownId}) async {
     if (!supportsGroups) return null;
-    return groupId ??= 'group-1';
+    // Id first, and a rename when the name moved — mirrors the real
+    // implementation, which is what makes ownership survive a company rename.
+    if (knownId != null && groups.containsKey(knownId)) {
+      groups[knownId] = name;
+      return knownId;
+    }
+    final existing = _byName(name);
+    if (existing != null) return existing;
+    final id = 'group-${_nextGroupId++}';
+    groups[id] = name;
+    members[id] = {};
+    return id;
   }
 
   @override
-  Future<String?> findGroup(String name) async {
-    createdGroups.add(name);
-    return groupId;
+  Future<String?> createGroup(String name) async {
+    if (!supportsGroups) return null;
+    // Unconditional, like the real device: group identity is the id, so a
+    // second label with the same name is legal and is how two same-named
+    // companies stay separate.
+    final id = 'group-${_nextGroupId++}';
+    groups[id] = name;
+    members[id] = {};
+    return id;
   }
 
-  /// Names passed to [findGroup] — proves the teardown path never creates one.
-  final List<String> createdGroups = [];
+  @override
+  Future<String?> findGroup(String name, {String? knownId}) async {
+    lookedUpGroups.add(name);
+    if (!supportsGroups) return null;
+    if (knownId != null && groups.containsKey(knownId)) return knownId;
+    return _byName(name);
+  }
 
   @override
-  Future<List<String>> groupMemberIds(String id) async => groupMembers.toList();
+  Future<List<String>> groupMemberIds(String id) async =>
+      (members[id] ?? const <String>{}).toList();
 
   @override
   Future<List<String>> createContacts(
@@ -100,7 +158,7 @@ class _FakeDeviceContacts implements DeviceContactsService {
       contacts[id] = card;
       ids.add(id);
       created.add(card.sourceId);
-      if (groupId != null) groupMembers.add(id);
+      if (groupId != null) (members[groupId] ??= {}).add(id);
     }
     return ids;
   }
@@ -121,7 +179,7 @@ class _FakeDeviceContacts implements DeviceContactsService {
   Future<void> deleteContacts(List<String> deviceIds) async {
     for (final id in deviceIds) {
       contacts.remove(id);
-      groupMembers.remove(id);
+      forgetMember(id);
       deleted.add(id);
     }
   }
@@ -129,7 +187,8 @@ class _FakeDeviceContacts implements DeviceContactsService {
   @override
   Future<void> deleteGroup(String id) async {
     deletedGroups++;
-    groupId = null;
+    groups.remove(id);
+    members.remove(id);
   }
 
   @override
@@ -137,6 +196,30 @@ class _FakeDeviceContacts implements DeviceContactsService {
 
   @override
   Future<DeviceContactImport?> pickContact() async => null;
+}
+
+/// In-memory [ContactsSyncGroupStore], with the same semantics
+/// `ContactsSyncController` implements against its persisted blob.
+class _FakeGroupStore implements ContactsSyncGroupStore {
+  final Map<String, String> ids = {};
+
+  @override
+  String? syncedGroupId(String companyId) => ids[companyId];
+
+  @override
+  bool groupIsClaimedByOther(
+    String groupId, {
+    required String exceptCompanyId,
+  }) => ids.entries.any((e) => e.key != exceptCompanyId && e.value == groupId);
+
+  @override
+  Future<void> setSyncedGroupId(String companyId, String? groupId) async {
+    if (groupId == null) {
+      ids.remove(companyId);
+    } else {
+      ids[companyId] = groupId;
+    }
+  }
 }
 
 const _countries = <String, Country>{};
@@ -165,6 +248,7 @@ void main() {
   late ClientRepository clients;
   late _EmptyClientsApi clientsApi;
   late _FakeDeviceContacts device;
+  late _FakeGroupStore groupStore;
   late ContactsSyncService service;
 
   setUp(() async {
@@ -172,12 +256,14 @@ void main() {
     clientsApi = _EmptyClientsApi();
     clients = ClientRepository(db: db, api: clientsApi);
     device = _FakeDeviceContacts();
+    groupStore = _FakeGroupStore();
     service = ContactsSyncService(
       device: device,
       clients: clients,
       db: db,
       countries: () => _countries,
       currentUserId: () => 'u1',
+      groupStore: () => groupStore,
       now: () => DateTime.utc(2026, 5, 11, 12),
     );
     // The reconcile reads the company row for the label name.
@@ -254,7 +340,7 @@ void main() {
       expect(summary.created, 2);
       expect(summary.labelled, isTrue);
       expect(device.contacts, hasLength(2));
-      expect(device.groupMembers, hasLength(2));
+      expect(device.allMembers, hasLength(2));
       // And the links were recorded, keyed by the IN contact id.
       final links = await db.deviceContactLinkDao.byCompany('co');
       expect(links.keys, containsAll(<String>['k1', 'k2']));
@@ -364,6 +450,7 @@ void main() {
           db: db,
           countries: () => _countries,
           currentUserId: () => '',
+          groupStore: () => groupStore,
           now: () => DateTime.utc(2026, 5, 11, 12),
         );
         await seed([
@@ -457,7 +544,7 @@ void main() {
       // The user deletes it from the Contacts app. The link row survives,
       // still claiming the card exists.
       device.contacts.remove(original);
-      device.groupMembers.remove(original);
+      device.forgetMember(original);
       // And the contact is edited in the app, so the hash moves too — the
       // shape that used to route this down the (silent) update path.
       await seed([
@@ -480,7 +567,7 @@ void main() {
         ]);
         await run();
         device.contacts.clear();
-        device.groupMembers.clear();
+        device.clearMembers();
 
         final summary = await run(isFirstRun: false);
 
@@ -555,8 +642,8 @@ void main() {
         'synced must not briefly gain one', () async {
       await service.removeAll(companyId: 'co');
       // findGroup was used (recorded), and no group was ever created.
-      expect(device.createdGroups, isNotEmpty);
-      expect(device.groupId, isNull);
+      expect(device.lookedUpGroups, isNotEmpty);
+      expect(device.groups, isEmpty);
       expect(device.deletedGroups, 0);
     });
 
@@ -612,16 +699,201 @@ void main() {
       );
     });
 
-    test('the label names the company so two companies cannot collide', () {
+    test('the label is a display name, not an identity — an unnamed company '
+        'falls back to a value every other unnamed company shares', () {
       expect(
         ContactsSyncService.labelFor('Acme Co'),
         'Invoice Ninja — Acme Co',
       );
+      // Precisely why ownership cannot key on this. Two blank-named companies
+      // produce the same string; the group store keys on the company id.
       expect(ContactsSyncService.labelFor('  '), 'Invoice Ninja');
+      expect(
+        ContactsSyncService.labelFor(''),
+        ContactsSyncService.labelFor('   '),
+      );
     });
 
     test('the fallback source id cannot collide with a real contact id', () {
       expect(clientFallbackSourceId('c1'), 'client:c1');
     });
+  });
+
+  // invoiceninja/flutter — the label is derived from the company *name*, so
+  // resolving the group by name handed two same-named companies one group. The
+  // reconcile deletes every group member it doesn't recognise, so each pass
+  // wiped the other company's cards off the phone. Ownership keys on the
+  // company id instead.
+  group('two companies never share a group', () {
+    /// A second company, plus one client with one contact in it.
+    Future<void> seedSecondCompany({required String name}) async {
+      await db.companiesDao.upsertAll([
+        CompaniesCompanion.insert(
+          id: 'co2',
+          name: name,
+          settings: '{}',
+          permissions: '',
+          accountId: 'a1',
+          token: '',
+          updatedAt: 0,
+        ),
+      ]);
+      await clients.applyUpdateResponse(
+        companyId: 'co2',
+        serverResponse: _api('c9', name: 'Other', contacts: [_contact('k9')]),
+      );
+    }
+
+    Future<ContactsSyncSummary> runFor(String companyId) => service.run(
+      companyId: companyId,
+      scope: ContactsSyncScope.all,
+      isFirstRun: true,
+      refreshClients: false,
+    );
+
+    Future<void> renameCompanyOne(String name) async {
+      await db.companiesDao.upsertAll([
+        CompaniesCompanion.insert(
+          id: 'co',
+          name: name,
+          settings: '{}',
+          permissions: '',
+          accountId: 'a1',
+          token: '',
+          updatedAt: 0,
+        ),
+      ]);
+    }
+
+    test('syncing one company does not delete an identically-named '
+        "company's cards", () async {
+      await renameCompanyOne('Acme Co');
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await seedSecondCompany(name: 'Acme Co');
+
+      await runFor('co');
+      final firstCards = device.contacts.keys.toSet();
+      expect(firstCards, hasLength(1));
+
+      await runFor('co2');
+      expect(device.contacts.keys.toSet(), containsAll(firstCards));
+
+      // And back again — the destruction was mutual, so both directions matter.
+      await runFor('co');
+      expect(device.contacts, hasLength(2));
+      expect(device.deleted, isEmpty);
+    });
+
+    test('two *unnamed* companies stay separate — both label as a bare '
+        '"Invoice Ninja", which is the common real-world path', () async {
+      await renameCompanyOne('');
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await seedSecondCompany(name: '');
+
+      await runFor('co');
+      await runFor('co2');
+      await runFor('co');
+
+      expect(device.contacts, hasLength(2));
+      expect(device.deleted, isEmpty);
+      expect(groupStore.ids['co'], isNotNull);
+      expect(groupStore.ids['co2'], isNotNull);
+      expect(groupStore.ids['co'], isNot(groupStore.ids['co2']));
+    });
+
+    test('purging one company leaves the other\'s cards alone', () async {
+      await renameCompanyOne('Acme Co');
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await seedSecondCompany(name: 'Acme Co');
+      await runFor('co');
+      await runFor('co2');
+      expect(device.contacts, hasLength(2));
+
+      await service.removeAll(companyId: 'co');
+
+      expect(device.contacts, hasLength(1));
+      expect(groupStore.ids.containsKey('co'), isFalse);
+      expect(groupStore.ids['co2'], isNotNull);
+      // co2's group survived; only co's was deleted.
+      expect(device.deletedGroups, 1);
+      expect(device.groups.values, ['Invoice Ninja — Acme Co']);
+    });
+
+    test('a renamed company keeps its group instead of orphaning it', () async {
+      await renameCompanyOne('Acme Co');
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await runFor('co');
+      final groupId = groupStore.ids['co'];
+      final card = device.contacts.keys.single;
+
+      await renameCompanyOne('Acme Holdings');
+      final summary = await runFor('co');
+
+      // Same group, renamed to match — not a second one beside the first.
+      expect(groupStore.ids['co'], groupId);
+      expect(device.groups, hasLength(1));
+      expect(device.groups[groupId], 'Invoice Ninja — Acme Holdings');
+      expect(device.contacts.keys.single, card);
+      expect(summary.created, 0);
+      expect(device.deleted, isEmpty);
+    });
+
+    test('after a logout wipes the link table the rename-proof group still '
+        'heals, rather than duplicating', () async {
+      await renameCompanyOne('Acme Co');
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await runFor('co');
+      await renameCompanyOne('Acme Holdings');
+
+      // logout(): link rows gone, the stored group id (device-local) survives.
+      await db.deviceContactLinkDao.deleteCompany('co');
+      final summary = await runFor('co');
+
+      // The old card is reclaimed via the group and re-created once — not left
+      // stranded with a duplicate alongside it.
+      expect(device.contacts, hasLength(1));
+      expect(summary.created, 1);
+      expect(device.groups, hasLength(1));
+    });
+
+    test(
+      'a pre-existing group is adopted by name once, then never stolen — '
+      'the upgrade path for an install that predates the stored id',
+      () async {
+        await renameCompanyOne('Acme Co');
+        await seed([
+          _api('c1', contacts: [_contact('k1')]),
+        ]);
+        await seedSecondCompany(name: 'Acme Co');
+
+        // co synced under the old name-keyed build: a group exists, but nothing
+        // remembers whose it is.
+        await runFor('co');
+        groupStore.ids.clear();
+
+        // co re-adopts it by name...
+        await runFor('co');
+        final adopted = groupStore.ids['co'];
+        expect(adopted, isNotNull);
+        expect(device.groups, hasLength(1));
+
+        // ...and co2, finding the same name, is refused it and gets its own.
+        await runFor('co2');
+        expect(groupStore.ids['co2'], isNot(adopted));
+        expect(device.groups, hasLength(2));
+        expect(device.contacts, hasLength(2));
+        expect(device.deleted, isEmpty);
+      },
+    );
   });
 }

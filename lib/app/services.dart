@@ -1319,7 +1319,13 @@ class Services implements SidebarBadgeContext {
     // and two of them would probe for it twice.
     final deviceContacts =
         deviceContactsService ?? defaultDeviceContactsService();
-    final contactsSync = ContactsSyncController(
+    // `late` so the engine can capture the controller that owns it: the
+    // controller is the engine's `ContactsSyncGroupStore` (it holds the
+    // device-local blob the group ids live in), which makes the reference a
+    // cycle. Same deferred-capture shape as the `resync` runner below; the
+    // getter only runs during a sync pass, long after this assignment.
+    late final ContactsSyncController contactsSync;
+    contactsSync = ContactsSyncController(
       db: db,
       engine: ContactsSyncService(
         device: deviceContacts,
@@ -1330,6 +1336,7 @@ class Services implements SidebarBadgeContext {
         // time that contact was edited.
         countries: () => statics.countries,
         currentUserId: () => auth.session.value?.userId ?? '',
+        groupStore: () => contactsSync,
       ),
     );
     final sidebar = SidebarController(db: db);

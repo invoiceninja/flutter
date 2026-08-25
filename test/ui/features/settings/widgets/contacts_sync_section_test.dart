@@ -34,10 +34,13 @@ class _FakeDeviceContacts implements DeviceContactsService {
   Future<void> openSystemSettings() async => openedSettings++;
 
   @override
-  Future<String?> ensureGroup(String name) async => 'g1';
+  Future<String?> ensureGroup(String name, {String? knownId}) async => 'g1';
 
   @override
-  Future<String?> findGroup(String name) async => 'g1';
+  Future<String?> createGroup(String name) async => null;
+
+  @override
+  Future<String?> findGroup(String name, {String? knownId}) async => 'g1';
 
   @override
   Future<List<String>> groupMemberIds(String groupId) async => const [];

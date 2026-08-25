@@ -119,6 +119,67 @@ void main() {
       expect(b.scope, ContactsSyncScope.assignedToMe);
     });
 
+    test('the group store round-trips — a company that loses its remembered '
+        'group id would re-adopt one by name and collide again', () async {
+      final a = build();
+      await a.setSyncedGroupId('co', 'group-1');
+      await a.setSyncedGroupId('co2', 'group-2');
+
+      final b = build();
+      await b.restore();
+
+      expect(b.syncedGroupId('co'), 'group-1');
+      expect(b.syncedGroupId('co2'), 'group-2');
+      expect(b.syncedGroupId('unknown'), isNull);
+    });
+
+    test('a group id is only ever claimed by one company', () async {
+      final c = build();
+      await c.setSyncedGroupId('co', 'group-1');
+
+      expect(
+        c.groupIsClaimedByOther('group-1', exceptCompanyId: 'co2'),
+        isTrue,
+      );
+      // Its own claim is not a conflict, and an unclaimed group is free.
+      expect(
+        c.groupIsClaimedByOther('group-1', exceptCompanyId: 'co'),
+        isFalse,
+      );
+      expect(
+        c.groupIsClaimedByOther('group-9', exceptCompanyId: 'co2'),
+        isFalse,
+      );
+    });
+
+    test(
+      'clearing a group id forgets it rather than storing a blank',
+      () async {
+        final a = build();
+        await a.setSyncedGroupId('co', 'group-1');
+        await a.setSyncedGroupId('co', null);
+
+        final b = build();
+        await b.restore();
+        expect(b.syncedGroupId('co'), isNull);
+      },
+    );
+
+    test('a blob written before group ids existed restores without them, '
+        'rather than throwing and losing the toggle too', () async {
+      await db.navStateDao.saveContactsSync(
+        json: '{"enabled":true,"scope":"mine","lastRun":{"co":5}}',
+        now: 0,
+      );
+      final c = build();
+      await c.restore();
+
+      expect(c.enabled, isTrue);
+      expect(c.scope, ContactsSyncScope.assignedToMe);
+      expect(c.lastRunAt('co'), 5);
+      expect(c.syncedGroupId('co'), isNull);
+    });
+
     test('a corrupt blob falls back to off instead of wedging boot', () async {
       await db.navStateDao.saveContactsSync(json: 'not json', now: 0);
       final c = build();

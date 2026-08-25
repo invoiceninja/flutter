@@ -42,12 +42,14 @@ class ContactsSyncService implements ContactsSyncEngine {
     required AppDatabase db,
     required Map<String, Country> Function() countries,
     required String Function() currentUserId,
+    required ContactsSyncGroupStore Function() groupStore,
     DateTime Function()? now,
   }) : _device = device,
        _clients = clients,
        _db = db,
        _countries = countries,
        _currentUserId = currentUserId,
+       _groupStore = groupStore,
        _now = now ?? DateTime.now;
 
   final DeviceContactsService _device;
@@ -59,10 +61,22 @@ class ContactsSyncService implements ContactsSyncEngine {
   final Map<String, Country> Function() _countries;
 
   final String Function() _currentUserId;
+
+  /// Read through a getter, not held directly: the store is
+  /// `ContactsSyncController`, which is constructed *around* this service, so a
+  /// direct reference is a cycle. Same deferred-capture shape as `Services`'
+  /// own `resync` runner.
+  final ContactsSyncGroupStore Function() _groupStore;
+
   final DateTime Function() _now;
 
-  /// The label a company's cards live under. Prefixed rather than bare so it
-  /// can't be confused with (or collide with) a label the user made themselves.
+  /// The **display name** of the label a company's cards live under. Prefixed
+  /// rather than bare so it can't be confused with a label the user made
+  /// themselves.
+  ///
+  /// Deliberately *not* an identity: two companies can share a name, and every
+  /// unnamed one shares the bare fallback below. Ownership keys on the company
+  /// id via [ContactsSyncGroupStore] — see [_resolveGroupId].
   static String labelFor(String companyName) {
     final name = companyName.trim();
     return name.isEmpty ? 'Invoice Ninja' : 'Invoice Ninja — $name';
@@ -133,8 +147,7 @@ class ContactsSyncService implements ContactsSyncEngine {
       return const ContactsSyncSummary(outcome: ContactsSyncOutcome.cancelled);
     }
 
-    final companyName = (await _db.companiesDao.byId(companyId))?.name ?? '';
-    final groupId = await _device.ensureGroup(labelFor(companyName));
+    final groupId = await _resolveGroupId(companyId, createIfMissing: true);
 
     final desiredResult = await _desiredCards(
       companyId: companyId,
@@ -290,6 +303,59 @@ class ContactsSyncService implements ContactsSyncEngine {
     return summary;
   }
 
+  /// The device group that belongs to [companyId], resolved **by id**.
+  ///
+  /// The id this install last used is tried first, so the group survives a
+  /// company rename and — the reason this exists — can never be confused with
+  /// another company's. See [ContactsSyncGroupStore].
+  ///
+  /// Falling back to the name is only for installs that predate the stored id,
+  /// and only when no other company already claims what the name finds:
+  /// adopting a sibling's group is the exact collision being fixed. When the
+  /// fallback is refused, [createIfMissing] mints a second group *under the
+  /// same name* — companies that share a name get one label each, which is what
+  /// the user's address book should show, rather than one of them carrying a
+  /// suffix built from a raw company id.
+  ///
+  /// Returns null when the device can't have labels at all (no contacts
+  /// account) or, with [createIfMissing] false, when there's nothing to find.
+  Future<String?> _resolveGroupId(
+    String companyId, {
+    required bool createIfMissing,
+  }) async {
+    final store = _groupStore();
+    final knownId = store.syncedGroupId(companyId);
+    final companyName = (await _db.companiesDao.byId(companyId))?.name ?? '';
+    final label = labelFor(companyName);
+
+    final resolved = createIfMissing
+        ? await _device.ensureGroup(label, knownId: knownId)
+        : await _device.findGroup(label, knownId: knownId);
+    if (resolved == null) {
+      // Nothing to remember, and nothing to unremember: a null here means the
+      // device has no labels (or, on the find-only path, that ours is gone).
+      // Clearing the stored id on the latter would lose the link between a
+      // company and a group that a later pass could still legitimately find.
+      return null;
+    }
+
+    // The name lookup found someone else's group. Refuse it.
+    if (resolved != knownId &&
+        store.groupIsClaimedByOther(resolved, exceptCompanyId: companyId)) {
+      _log.info(
+        'the "$label" label belongs to another company — '
+        '${createIfMissing ? 'creating a separate one' : 'skipping it'}',
+      );
+      if (!createIfMissing) return null;
+      final fresh = await _device.createGroup(label);
+      if (fresh != null) await store.setSyncedGroupId(companyId, fresh);
+      return fresh;
+    }
+
+    if (resolved != knownId) await store.setSyncedGroupId(companyId, resolved);
+    return resolved;
+  }
+
   /// Re-download clients so the reconcile reads a complete set.
   ///
   /// The local cache only holds page 1 per entity until the user browses, so
@@ -376,11 +442,10 @@ class ContactsSyncService implements ContactsSyncEngine {
         for (final link in links.values) link.deviceContactId,
       };
 
-      final companyName = (await _db.companiesDao.byId(companyId))?.name ?? '';
       // Find-only: `ensureGroup` would *create* the label on a device that
       // never had one, seconds before deleting it again. A missing label just
       // means there's nothing of ours left to enumerate.
-      final groupId = await _device.findGroup(labelFor(companyName));
+      final groupId = await _resolveGroupId(companyId, createIfMissing: false);
       if (groupId != null) {
         ids.addAll(await _device.groupMemberIds(groupId));
       }
@@ -391,6 +456,7 @@ class ContactsSyncService implements ContactsSyncEngine {
       // Members first, then the label — deleting a group does not delete its
       // contacts, and doing it the other way round strands every card.
       if (groupId != null) await _device.deleteGroup(groupId);
+      await _groupStore().setSyncedGroupId(companyId, null);
       await _db.deviceContactLinkDao.deleteCompany(companyId);
     } catch (e, st) {
       // Called from logout, immediately before the database is wiped. Throwing

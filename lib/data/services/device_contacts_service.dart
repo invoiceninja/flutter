@@ -186,19 +186,39 @@ abstract class DeviceContactsService {
   /// a [DeviceContactsPermission.limited] grant to full access.
   Future<void> openSystemSettings();
 
-  /// Find-or-create the label/group named [name] and return its id.
+  /// Find-or-create the label/group for a company and return its id.
+  ///
+  /// [knownId] is the id this install last resolved for that company, and is
+  /// tried **first**. It is what makes ownership id-keyed rather than
+  /// name-keyed: [name] is derived from the company name, so resolving by name
+  /// alone hands two same-named companies the same group — see
+  /// `ContactsSyncGroupStore` for why that destroys contacts. A [knownId] that
+  /// no longer exists (the user deleted the label) falls back to [name].
+  ///
+  /// Finding the group by [knownId] under a different name means the company
+  /// was renamed, so the label is renamed to match rather than orphaned.
   ///
   /// **`null` is a supported outcome, not an error**: on Android a group must
   /// belong to an account, and a device whose contacts are local-only has none
   /// to put it in. Callers fall back to syncing without a label — see
   /// `ContactsSyncService`.
-  Future<String?> ensureGroup(String name);
+  Future<String?> ensureGroup(String name, {String? knownId});
 
-  /// Find the label named [name], or `null` if it doesn't exist. Unlike
+  /// Create a new label named [name] **unconditionally** — even when one by
+  /// that name already exists.
+  ///
+  /// Two companies can legitimately share a name (and every unnamed one shares
+  /// the same fallback label), and they must not share a group. Groups are
+  /// identified by id, not name, so the honest resolution is a second label
+  /// with the same name rather than one carrying a disambiguating suffix the
+  /// user would have to decode.
+  Future<String?> createGroup(String name);
+
+  /// Find the label for a company, or `null` if it doesn't exist. Unlike
   /// [ensureGroup] this never creates one — use it on teardown paths, where
   /// creating a label seconds before deleting it would briefly add one to a
-  /// device that had none.
-  Future<String?> findGroup(String name);
+  /// device that had none. [knownId] is tried first, as in [ensureGroup].
+  Future<String?> findGroup(String name, {String? knownId});
 
   /// The device contact ids currently in [groupId]. The reconcile's ownership
   /// boundary: everything here was written by this feature, and nothing outside

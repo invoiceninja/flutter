@@ -33,10 +33,13 @@ class UnsupportedDeviceContactsService implements DeviceContactsService {
   Future<void> openSystemSettings() async {}
 
   @override
-  Future<String?> ensureGroup(String name) async => null;
+  Future<String?> ensureGroup(String name, {String? knownId}) async => null;
 
   @override
-  Future<String?> findGroup(String name) async => null;
+  Future<String?> createGroup(String name) async => null;
+
+  @override
+  Future<String?> findGroup(String name, {String? knownId}) async => null;
 
   @override
   Future<List<String>> groupMemberIds(String groupId) async => const <String>[];

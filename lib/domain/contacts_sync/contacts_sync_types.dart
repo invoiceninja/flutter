@@ -150,3 +150,31 @@ abstract class ContactsSyncEngine {
   /// this session. The logout cleanup must reach all of them.
   Future<List<String>> companiesWithSyncedContacts();
 }
+
+/// Remembers which device address-book group belongs to which company.
+///
+/// Ownership **must** key on the company id. The group's user-visible label is
+/// derived from the company *name*, so a name lookup makes any two companies
+/// sharing a name share one group — and since an unnamed company falls back to
+/// a bare `Invoice Ninja`, that includes every company the user hasn't named
+/// yet. The reconcile deletes any group member it doesn't recognise, so a
+/// shared group means each pass wipes the other company's cards off the phone.
+///
+/// Implemented by [ContactsSyncController], which already owns the device-local
+/// `nav_state.contacts_sync_json` blob these ids live in. A narrow interface so
+/// the service can be tested without one — same seam rationale as
+/// [ContactsSyncEngine], in the other direction.
+abstract class ContactsSyncGroupStore {
+  /// The group id last resolved for [companyId], or null when this install has
+  /// never resolved one — a first run, or an install predating the key.
+  String? syncedGroupId(String companyId);
+
+  /// Whether some company *other than* [exceptCompanyId] already claims
+  /// [groupId]. Gates the name-lookup fallback: without it, the second company
+  /// to sync under a shared label would adopt the first one's group and the
+  /// collision would survive the fix.
+  bool groupIsClaimedByOther(String groupId, {required String exceptCompanyId});
+
+  /// Remember (or, with a null [groupId], forget) the group for [companyId].
+  Future<void> setSyncedGroupId(String companyId, String? groupId);
+}

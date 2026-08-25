@@ -1827,11 +1827,28 @@ class _TaxCellState extends State<_TaxCell> {
       ),
     );
     _focusNode = FocusNode();
+    _ratesStream = widget.services.taxRates.watchAll(
+      companyId: widget.companyId,
+    );
   }
+
+  /// Cached, not rebuilt per frame. One of these exists per line-item row and
+  /// the table rebuilds on every keystroke, so a stream opened in `build` tore
+  /// down and restarted a Drift query per row per frame. Same fix as
+  /// `_LineItemTableDesktopState._companyStream` above.
+  late Stream<List<TaxRate>> _ratesStream;
 
   @override
   void didUpdateWidget(_TaxCell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Only on an actual company switch — re-creating it on any other rebuild is
+    // the churn the cached stream exists to avoid.
+    if (widget.companyId != oldWidget.companyId ||
+        widget.services != oldWidget.services) {
+      _ratesStream = widget.services.taxRates.watchAll(
+        companyId: widget.companyId,
+      );
+    }
     if (!_focusNode.hasFocus &&
         (widget.initialName != oldWidget.initialName ||
             widget.initialRate != oldWidget.initialRate ||
@@ -1885,7 +1902,7 @@ class _TaxCellState extends State<_TaxCell> {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     return StreamBuilder<List<TaxRate>>(
-      stream: widget.services.taxRates.watchAll(companyId: widget.companyId),
+      stream: _ratesStream,
       builder: (context, snapshot) {
         final rates = snapshot.data ?? const <TaxRate>[];
         return RawAutocomplete<_TaxOption>(

@@ -328,7 +328,7 @@
   "always_show_required_fields": "Always show required fields form",
   "always_show_required_fields_help": "Displays the required fields form always at checkout",
   "amount": "Amount",
-  "amount_cents": "Amount in pennies,pence or cents. ie for $0.10 please enter 10",
+  "amount_cents": "Amount in pennies, pence or cents. i.e. for $0.10 please enter 10",
   "amount_due": "Amount due",
   "amount_greater_than_balance": "The amount is greater than the invoice balance, a credit will be created with the remaining amount.",
   "amount_greater_than_balance_v5": "The amount is greater than the invoice balance. You cannot overpay an invoice.",

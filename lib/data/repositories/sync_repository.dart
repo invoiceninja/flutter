@@ -1176,18 +1176,25 @@ class SyncRepository {
     // Task reorder carries `{status_ids, task_ids: {statusId: [taskId…]}}`;
     // task-status reorder carries `{status, all_ids: [statusId…]}`. Collect the
     // reordered ids from whichever shape is present.
+    //
+    // `whereType`, not `cast`: `cast` is a lazy view that throws on the first
+    // non-String element, and this runs inside `_markDead`, *after* the row is
+    // already dead — a throw there would skip the DeadEvent (so no failure
+    // toast) and leave the dirty flags set, which is the exact silent
+    // "every refresh is dropped for these rows" state this method exists to
+    // prevent. Skipping a junk element degrades instead.
     final ids = <String>{};
     final taskIds = payload['task_ids'];
     if (taskIds is Map) {
       for (final list in taskIds.values) {
-        if (list is List) ids.addAll(list.cast<String>());
+        if (list is List) ids.addAll(list.whereType<String>());
       }
     }
     if (payload['status_ids'] is List) {
-      ids.addAll((payload['status_ids'] as List).cast<String>());
+      ids.addAll((payload['status_ids'] as List).whereType<String>());
     }
     if (payload['all_ids'] is List) {
-      ids.addAll((payload['all_ids'] as List).cast<String>());
+      ids.addAll((payload['all_ids'] as List).whereType<String>());
     }
     for (final affectedId in ids) {
       final stillActive = await db.outboxDao.hasActiveRowsForEntity(

@@ -101,7 +101,7 @@ class _RecurringExpenseListTileState extends State<RecurringExpenseListTile> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (w.onAction == null || w.selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<RecurringExpenseAction>(

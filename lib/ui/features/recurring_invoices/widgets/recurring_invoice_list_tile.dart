@@ -96,7 +96,7 @@ class _RecurringInvoiceListTileState extends State<RecurringInvoiceListTile> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (w.onAction == null || w.selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<RecurringInvoiceAction>(

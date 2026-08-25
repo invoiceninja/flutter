@@ -89,7 +89,7 @@ class _ProjectListTileState extends State<ProjectListTile> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (w.onAction == null || w.selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<ProjectAction>(

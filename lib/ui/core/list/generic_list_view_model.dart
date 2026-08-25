@@ -1638,6 +1638,47 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     };
   }
 
+  /// Whether at least one selected, still-loaded row can actually take
+  /// [action] — the gate the selection toolbar renders its verbs behind.
+  ///
+  /// Without it the toolbar advertised every permitted verb regardless of the
+  /// selection, so Delete over an all-already-deleted selection walked the
+  /// user to a dead end: `_onBulk`'s own guard answered "Nothing to delete"
+  /// and the rows stayed put (invoiceninja/flutter#89). The per-row `⋮` menu
+  /// has always hidden an inapplicable verb (`deleteActionItem` returns null);
+  /// this is the same rule for the bulk surface.
+  ///
+  /// Deliberately not [eligibleSelectedIds]`.isNotEmpty`: this runs once per
+  /// verb per build, so it early-exits on the first match instead of building
+  /// a map of every loaded row each time.
+  bool hasEligibleSelected(BulkAction<T> action) {
+    if (_selectedIds.isEmpty) return false;
+    for (final item in _items) {
+      if (_selectedIds.contains(idOf(item)) && action.eligible(item)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Whether the selection toolbar should offer [actionId] at all.
+  ///
+  /// With an empty selection every permitted verb stays offered: selection
+  /// mode can be entered with nothing picked (the mobile "Select" affordance),
+  /// there is nothing to filter on, and the scaffold's own guard then says
+  /// something accurate. Once rows are selected, a verb no row can take is
+  /// hidden — see [hasEligibleSelected].
+  ///
+  /// An [actionId] with no registered [BulkAction] is hidden too: it renders a
+  /// button that does nothing at all when tapped, and
+  /// `test/lint/bulk_action_ids_resolve_test.dart` already fails the build on
+  /// that mismatch, so hiding it here can't mask a wiring bug.
+  bool bulkActionAppliesToSelection(String actionId) {
+    if (_selectedIds.isEmpty) return true;
+    final action = bulkActionById(actionId);
+    return action != null && hasEligibleSelected(action);
+  }
+
   /// Apply a [BulkAction] to the rows in [ids] — or, when that is null, to
   /// every currently-selected entity satisfying its predicate. In the latter
   /// case rows out of the visible window are counted as `skipped`; per-id

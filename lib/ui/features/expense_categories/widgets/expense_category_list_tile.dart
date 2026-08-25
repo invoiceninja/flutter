@@ -81,7 +81,7 @@ class ExpenseCategoryListTile extends StatelessWidget {
       children: [
         // Leading `…` actions slot. Hidden in selection mode.
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (onAction == null || selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<ExpenseCategoryAction>(

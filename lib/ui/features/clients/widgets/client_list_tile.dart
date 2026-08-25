@@ -237,7 +237,7 @@ class _ClientListTileState extends State<ClientListTile> {
         // Leading `…` actions slot. Empty when `onAction` is null
         // (selection mode); otherwise the in-row PopupMenuButton.
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: w.onAction == null
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<ClientAction>(

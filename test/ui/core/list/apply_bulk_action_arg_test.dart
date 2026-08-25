@@ -223,4 +223,92 @@ void main() {
       },
     );
   });
+
+  // invoiceninja/flutter#89: the selection toolbar used to advertise every
+  // permitted verb whatever was selected, so Delete over an all-already-deleted
+  // selection walked the user to a dead end — "Nothing to delete", rows still
+  // there. `EntityListScreenScaffold._bulkActionApplies` hides a verb no
+  // selected row can take; this is the predicate behind it.
+  group('hasEligibleSelected', () {
+    test('false when nothing is selected', () async {
+      final vm = build();
+      await settle();
+      final action = vm.bulkActions.firstWhere((a) => a.id == 'plain');
+      expect(vm.hasEligibleSelected(action), isFalse);
+    });
+
+    test('false when every selected row fails the predicate', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('c'); // deleted
+      final action = vm.bulkActions.firstWhere((a) => a.id == 'plain');
+      expect(vm.hasEligibleSelected(action), isFalse);
+    });
+
+    test('true as soon as one selected row passes', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('c'); // deleted
+      vm.toggleSelected('b'); // eligible
+      final action = vm.bulkActions.firstWhere((a) => a.id == 'plain');
+      expect(vm.hasEligibleSelected(action), isTrue);
+    });
+
+    test(
+      'false for an id that is selected but outside the loaded window',
+      () async {
+        final vm = build();
+        await settle();
+        vm.toggleSelected('not-loaded');
+        final action = vm.bulkActions.firstWhere((a) => a.id == 'plain');
+        expect(vm.hasEligibleSelected(action), isFalse);
+      },
+    );
+
+    test('agrees with eligibleSelectedIds', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('a');
+      vm.toggleSelected('c');
+      final action = vm.bulkActions.firstWhere((a) => a.id == 'plain');
+      expect(
+        vm.hasEligibleSelected(action),
+        vm.eligibleSelectedIds(action).isNotEmpty,
+      );
+    });
+  });
+
+  // The rule the selection toolbar actually renders behind
+  // (`EntityListScreenScaffold._bulkActionItems`).
+  group('bulkActionAppliesToSelection', () {
+    test('offers everything while nothing is selected', () async {
+      final vm = build();
+      await settle();
+      expect(vm.bulkActionAppliesToSelection('plain'), isTrue);
+      expect(vm.bulkActionAppliesToSelection('prep'), isTrue);
+    });
+
+    test('hides a verb no selected row can take', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('c'); // deleted — ineligible for both verbs
+      expect(vm.bulkActionAppliesToSelection('plain'), isFalse);
+      expect(vm.bulkActionAppliesToSelection('prep'), isFalse);
+    });
+
+    test('keeps a verb one selected row can take', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('c');
+      vm.toggleSelected('a');
+      expect(vm.bulkActionAppliesToSelection('plain'), isTrue);
+    });
+
+    test('hides an actionId with no registered BulkAction', () async {
+      final vm = build();
+      await settle();
+      vm.toggleSelected('a');
+      expect(vm.bulkActionAppliesToSelection('no_such_action'), isFalse);
+    });
+  });
 }

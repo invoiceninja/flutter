@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -6,8 +7,10 @@ import 'package:admin/app/mdi_icons.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
 
 import '../../../_localization_helper.dart';
+import '../../../_responsive_helper.dart';
 
 /// Builds the canonical action list: a primary "Edit" item (the only place
 /// `isPrimary` is ever set in the app) plus an ordinary "Archive" item.
@@ -52,6 +55,33 @@ Future<void> _pump(
             editEnabled: editEnabled,
             icon: icon,
             items: _items(onEdit: onEdit, onArchive: onArchive),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Pumps the split-mode cluster inside the **production** slot the wide row
+/// tiles give it, which is what [_pump] deliberately can't see: it centres the
+/// widget under unbounded width, so no amount of inflation ever overflows.
+Future<void> _pumpInSlot(WidgetTester tester) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildInTheme(InTheme.light),
+      localizationsDelegates: kTestLocalizationsDelegates,
+      supportedLocales: kTestSupportedLocales,
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            key: const Key('slot'),
+            width: colWMoreMenu(),
+            child: EntityActionsPopupButton<String>(
+              splitEditAction: true,
+              items: _items(onEdit: () {}, onArchive: () {}),
+            ),
           ),
         ),
       ),
@@ -248,5 +278,62 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(edited, 0);
+  });
+
+  // invoiceninja/flutter#89. `flutter test` reports TargetPlatform.android, so
+  // the touch branch — the one that was broken — is the default path here.
+  group('wide-table actions slot', () {
+    testWidgets('the cluster fits the slot it is given', (tester) async {
+      await _pumpInSlot(tester);
+      expectNoOverflow(tester);
+    });
+
+    testWidgets('the menu button stays inside the slot, so it can be '
+        'hit-tested', (tester) async {
+      await _pumpInSlot(tester);
+      // Geometry as well as the exception: this still fails if someone
+      // silences the overflow with a ClipRect or a FittedBox instead of
+      // sizing the slot for what it holds.
+      final slot = tester.getRect(find.byKey(const Key('slot')));
+      final menu = tester.getRect(
+        find.widgetWithIcon(IconButton, Icons.more_vert),
+      );
+      expect(menu.right, lessThanOrEqualTo(slot.right + 0.01));
+    });
+
+    testWidgets('both buttons meet the touch floor on a touch platform', (
+      tester,
+    ) async {
+      await _pumpInSlot(tester);
+      // Blocks the tempting wrong fix for the two tests above — shrinking the
+      // buttons to make them fit would leave this red.
+      for (final icon in [MdiIcons.circleEditOutline, Icons.more_vert]) {
+        final size = tester.getSize(find.widgetWithIcon(IconButton, icon));
+        expect(size.width, InSizes.touchTarget);
+        expect(size.height, InSizes.touchTarget);
+      }
+    });
+
+    testWidgets('a pointer platform keeps the dense cluster and still fits', (
+      tester,
+    ) async {
+      // Set before pumpWidget: buildInTheme bakes materialTapTargetSize at
+      // ThemeData construction from whatever defaultTargetPlatform was then.
+      // Reset in a finally, not addTearDown — the binding asserts every
+      // foundation debug var is back to null before tear-downs run.
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        await _pumpInSlot(tester);
+        expectNoOverflow(tester);
+        expect(
+          tester
+              .getSize(find.widgetWithIcon(IconButton, Icons.more_vert))
+              .width,
+          32,
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
   });
 }

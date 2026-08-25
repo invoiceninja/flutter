@@ -117,7 +117,7 @@ class _ProductListTileState extends State<ProductListTile> {
       children: [
         // Leading `…` actions slot. Hidden in selection mode.
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (w.onAction == null || w.selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<ProductAction>(

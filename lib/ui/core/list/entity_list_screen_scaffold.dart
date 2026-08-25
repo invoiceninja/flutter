@@ -592,12 +592,14 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
 
   /// Maps the entity's [EntityListBulkAction] descriptors onto the shared
   /// overflow `EntityActionItem` surface (`A == String` actionId). Actions
-  /// the user lacks permission for are dropped entirely; the rest are gated
-  /// off (without a misleading "coming soon" tooltip) while a bulk op is in
-  /// flight.
+  /// the user lacks permission for — or that nothing in the selection can
+  /// take (invoiceninja/flutter#89, the same rule the per-row `⋮` menu has
+  /// always applied) — are dropped entirely; the rest are gated off (without
+  /// a misleading "coming soon" tooltip) while a bulk op is in flight.
   List<EntityActionItem<String>> _bulkActionItems(BuildContext context) => [
     for (final a in widget.bulkActions)
-      if (_bulkActionAllowed(a.actionId))
+      if (_bulkActionAllowed(a.actionId) &&
+          _vm.bulkActionAppliesToSelection(a.actionId))
         EntityActionItem<String>(
           kind: a.actionId,
           icon: a.icon,
@@ -654,7 +656,14 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // buttons disable and a second tap can't re-fire a slow request (e.g. the
     // synchronous bulk-print merge).
     if (action.onSelection != null) {
-      final selected = _vm.selectedItems.where(bulk.eligible).toList();
+      // From the ids captured above, not a fresh read of the live selection:
+      // the confirm dialog sits between that capture and here, and re-reading
+      // across an await is exactly what #89 was. Safe today only because no
+      // `onSelection` action sets `confirm: true` — a coincidence across two
+      // files, not an invariant.
+      final selected = _vm.items
+          .where((i) => eligibleIds.contains(_vm.idOf(i)))
+          .toList();
       await _vm.runSelectionAction(
         () => action.onSelection!(context, selected),
       );

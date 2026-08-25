@@ -90,7 +90,7 @@ class CompanyGatewayListTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (onAction == null || selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<CompanyGatewayAction>(

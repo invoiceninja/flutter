@@ -37,7 +37,7 @@ class EntityListColumnHeaders<T> extends StatelessWidget {
       child: Row(
         children: [
           // Leading actions slot — empty label, mirrors row's `…` menu.
-          const SizedBox(width: kColWMoreMenu),
+          SizedBox(width: colWMoreMenu()),
           const SizedBox(width: kColActionsLeadingGap),
           // Avatar/checkbox slot. On desktop, hovering this slot reveals a
           // select-all checkbox.

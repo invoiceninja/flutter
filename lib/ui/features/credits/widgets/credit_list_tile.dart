@@ -94,7 +94,7 @@ class _CreditListTileState extends State<CreditListTile> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (w.onAction == null || w.selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<CreditAction>(

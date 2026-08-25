@@ -94,7 +94,7 @@ class _PurchaseOrderListTileState extends State<PurchaseOrderListTile> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: (w.onAction == null || w.selecting)
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<PurchaseOrderAction>(

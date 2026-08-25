@@ -152,7 +152,7 @@ class _VendorListTileState extends State<VendorListTile> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: kColWMoreMenu,
+          width: colWMoreMenu(),
           child: w.onAction == null
               ? const SizedBox.shrink()
               : EntityActionsPopupButton<VendorAction>(

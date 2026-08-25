@@ -70,6 +70,12 @@ class _ContactsSyncSectionState extends State<ContactsSyncSection> {
   }
 
   Future<void> _refreshPermission() async {
+    // Guard the `context` read, not just the `setState`. Two callers reach
+    // here *after* an async gap — the Open-Settings round-trip and `_run`'s
+    // `permissionMissing` branch — so leaving Device Settings mid-flight would
+    // otherwise hit `context.read` on a deactivated element ("Looking up a
+    // deactivated widget's ancestor is unsafe").
+    if (!mounted) return;
     final permission = await context
         .read<Services>()
         .deviceContacts

@@ -284,6 +284,46 @@ class NativeDeviceContactsService implements DeviceContactsService {
   }
 
   @override
+  Future<Set<String>> existingContactIds(Iterable<String> ids) async {
+    final wanted = ids.toSet();
+    if (wanted.isEmpty) return const <String>{};
+    try {
+      // One platform call rather than N `get()`s — with no `properties` this
+      // returns id + display name only.
+      final all = await FlutterContacts.getAll();
+      return <String>{
+        for (final c in all)
+          if (c.id case final id?)
+            if (wanted.contains(id)) id,
+      };
+    } catch (e, st) {
+      // Fail toward "they still exist". The caller only asks once it already
+      // suspects the label is untrustworthy, and re-creating every card is by
+      // far the worse of the two errors.
+      _log.warning('could not enumerate contacts to verify links', e, st);
+      return wanted;
+    }
+  }
+
+  @override
+  Future<void> addContactsToGroup({
+    required String groupId,
+    required List<String> contactIds,
+  }) async {
+    if (contactIds.isEmpty) return;
+    try {
+      await FlutterContacts.groups.addContacts(
+        groupId: groupId,
+        contactIds: contactIds,
+      );
+    } catch (e, st) {
+      // Cosmetic: the cards work for caller ID either way, they're just not
+      // in the label yet. The next pass tries again.
+      _log.warning('could not re-add contacts to the label', e, st);
+    }
+  }
+
+  @override
   Future<List<String>> createContacts(
     List<DeviceContactCard> cards, {
     String? groupId,

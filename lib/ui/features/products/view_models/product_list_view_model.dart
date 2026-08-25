@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_custom_fields.dart';
@@ -90,11 +92,23 @@ class ProductListViewModel extends GenericListViewModel<Product> {
 
   void _onCompany(Company? company) {
     final before = _groupingSignature;
+    final beforeEffective = effectiveGroupField;
     _company = company;
     // The custom-field config drives which dimensions are offered, what they
     // are called, and whether the persisted choice is still effective — none
     // of which the inventory early-return below would repaint.
     if (_groupingSignature != before) notifyListeners();
+    // A custom-field grouping is only *effective* once the company's label for
+    // that slot is known, and the company lands on this stream — after
+    // `_init()` has already called `watchPage()`. That call baked
+    // `groupField:` (the DAO's grouping ORDER BY prefix) in at subscribe time,
+    // while `_recomputeGroups` re-reads `effectiveGroupField` on every
+    // emission. Restoring `groupField: custom1` from `nav_state` therefore
+    // subscribed an UNGROUPED query and then painted group labels over it, so
+    // one category rendered as a header per contiguous run. Re-point the query
+    // whenever that answer changes; `setGroupField` covers the user-driven
+    // case itself.
+    if (effectiveGroupField != beforeEffective) resubscribePage();
     final track = company?.trackInventory ?? false;
     final threshold = company?.inventoryNotificationThreshold ?? 0;
     if (track == _trackInventory && threshold == _companyThreshold) return;
@@ -204,7 +218,22 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     if (effectiveGroupField == kProductGroupTags) {
       result = _regroupByTag(result);
     }
-    _recomputeGroups(result);
+    final labelsChanged = _recomputeGroups(result);
+    // `GenericListViewModel._onItems` skips its `notifyListeners()` when the
+    // emitted rows are value-identical to the current ones — and a tag rename
+    // is exactly that: Drift streams are table-scoped, so a write to `tags`
+    // re-emits only `combineLatest2`'s tag side, carrying the SAME product
+    // list. The labels move, the rows don't, and the section header kept the
+    // old tag name until some unrelated rebuild. Notify here for that case
+    // only, so a normal emission still repaints exactly once.
+    //
+    // Safe to call synchronously from inside the stream's `map`: `_items` is
+    // untouched at this point and `_rowGroupLabels` is already updated, so a
+    // listener that rebuilds now sees a consistent pair. Drift delivers stream
+    // events off the event loop, never mid-build.
+    if (labelsChanged && !isDisposed && listEquals(result, items)) {
+      notifyListeners();
+    }
     return result;
   }
 
@@ -266,19 +295,24 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     _ => '',
   };
 
-  void _recomputeGroups(List<Product> rows) {
+  /// Returns whether the labels actually moved — see the notify in
+  /// [_postProcess] for why that matters.
+  bool _recomputeGroups(List<Product> rows) {
     if (effectiveGroupField == null) {
+      final changed = _rowGroupLabels.isNotEmpty;
       _rowGroupLabels = const [];
       _groupCounts = const {};
-      return;
+      return changed;
     }
     final labels = <String>[for (final p in rows) _groupLabelOf(p)];
     final counts = <String, int>{};
     for (final l in labels) {
       counts[l] = (counts[l] ?? 0) + 1;
     }
+    final changed = !listEquals(labels, _rowGroupLabels);
     _rowGroupLabels = labels;
     _groupCounts = counts;
+    return changed;
   }
 
   /// Stock is filtered post-decode over the loaded window, so a short

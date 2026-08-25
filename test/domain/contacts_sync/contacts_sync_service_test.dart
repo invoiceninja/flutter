@@ -147,6 +147,22 @@ class _FakeDeviceContacts implements DeviceContactsService {
   Future<List<String>> groupMemberIds(String id) async =>
       (members[id] ?? const <String>{}).toList();
 
+  /// Backed by the address book, not by the label — which is the whole point:
+  /// a card can be present while its group is gone.
+  @override
+  Future<Set<String>> existingContactIds(Iterable<String> ids) async => {
+    for (final id in ids)
+      if (contacts.containsKey(id)) id,
+  };
+
+  @override
+  Future<void> addContactsToGroup({
+    required String groupId,
+    required List<String> contactIds,
+  }) async {
+    (members[groupId] ??= {}).addAll(contactIds);
+  }
+
   @override
   Future<List<String>> createContacts(
     List<DeviceContactCard> cards, {
@@ -576,6 +592,36 @@ void main() {
         expect(device.contacts, hasLength(1));
       },
     );
+
+    test('deleting the LABEL by hand re-adopts the cards, it does not '
+        'duplicate them', () async {
+      // Ownership is the group, so an empty group normally means "these cards
+      // are gone, re-create them". That reading is catastrophic for the one
+      // case where the group is empty because the *label* was deleted: every
+      // card is re-created, and `upsertAll` re-points each link at the copy —
+      // stranding the originals outside the new group, where the heal pass can
+      // never reach them. Only the address book can tell the two apart.
+      await seed([
+        _api('c1', contacts: [_contact('k1')]),
+      ]);
+      await run();
+      final original = device.contacts.keys.single;
+      final oldGroup = device.groups.keys.single;
+
+      // The user deletes the label in the Contacts app. The cards stay.
+      device.groups.remove(oldGroup);
+      device.members.remove(oldGroup);
+
+      final summary = await run(isFirstRun: false);
+
+      expect(summary.created, 0, reason: 'the card was already there');
+      expect(summary.unchanged, 1);
+      expect(device.contacts, hasLength(1), reason: 'no duplicate');
+      expect(device.contacts.keys.single, original);
+      // ...and it is back under a label, so the next pass can go on trusting
+      // membership by itself.
+      expect(device.allMembers, contains(original));
+    });
 
     test('a contact outside the label is never touched', () async {
       // Something the user added themselves: present in the address book, not

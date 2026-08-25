@@ -147,13 +147,13 @@ class _LineItemEditorState extends State<LineItemEditor> {
         // Gate the discount column on the company's `enable_product_discount`
         // (Settings → Product Settings). Hiding the column only suppresses the
         // input — any existing per-line discount stays on the model and is
-        // still submitted. Until the company loads we keep the host's widget.config
+        // still submitted. Until the company loads we keep the host's config
         // so the common (enabled) case doesn't flash the column away.
         //
         // The tax columns ride along on the same read: `enabled_item_tax_rates`
         // used to be hard-coded to 1 by all five edit layouts, so a company
         // with line-item taxes off still got Tax Name 1 / Tax Rate 1 on every
-        // row (invoiceninja/flutter#85). Same null-means-keep-the-host's-widget.config
+        // row (invoiceninja/flutter#85). Same null-means-keep-the-host's-config
         // rule as the discount column, and for the same reason — a first frame
         // that guesses 0 would reflow the table once the company lands.
         final effectiveConfig = widget.config.forCompany(company);
@@ -248,10 +248,10 @@ class _LineItemEditorState extends State<LineItemEditor> {
   }
 }
 
-/// Placeholder rendered in place of the line-widget.items table when the
+/// Placeholder rendered in place of the line-items table when the
 /// host indicates the section isn't ready yet (typically: no client
 /// picked). Matches the table's outer chrome so the layout doesn't
-/// shift when widget.items become editable.
+/// shift when items become editable.
 class _DisabledItemsPlaceholder extends StatelessWidget {
   const _DisabledItemsPlaceholder({required this.reasonKey});
   final String reasonKey;

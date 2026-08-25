@@ -45,6 +45,16 @@ class UnsupportedDeviceContactsService implements DeviceContactsService {
   Future<List<String>> groupMemberIds(String groupId) async => const <String>[];
 
   @override
+  Future<Set<String>> existingContactIds(Iterable<String> ids) async =>
+      const <String>{};
+
+  @override
+  Future<void> addContactsToGroup({
+    required String groupId,
+    required List<String> contactIds,
+  }) async {}
+
+  @override
   Future<List<String>> createContacts(
     List<DeviceContactCard> cards, {
     String? groupId,

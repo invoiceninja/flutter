@@ -414,9 +414,14 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// group. False for every list that doesn't group.
   bool isRowHidden(int index) => false;
 
-  /// Whether [isRowHidden] can currently return true. The scaffold reads it
-  /// to suppress scroll-edge paging when the visible content is too short to
-  /// scroll (otherwise a fully-collapsed list pages forever to render nothing).
+  /// Whether [isRowHidden] can currently return true.
+  ///
+  /// Read by `EntityListScreenScaffold._ensureRowVisible`, whose scroll
+  /// estimate multiplies a row index by [kEntityListRowHeight] — a collapsed
+  /// group leaves its members in [items] at zero height, so the raw index
+  /// overshoots by a whole folded group. Nothing else consults it: a fully
+  /// collapsed list has no scroll extent, so the scroll-edge trigger simply
+  /// never fires and there is no runaway to guard against.
   bool get hasHiddenRows => false;
 
   /// Number of items currently loaded (the visible / paged-in slice).
@@ -1356,6 +1361,25 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   void _resubscribe() {
     _watchSub?.cancel();
     _subscribe();
+  }
+
+  /// Rebuild the Drift watch from [watchPage] without touching pagination,
+  /// filters or the fetch epoch.
+  ///
+  /// For a subclass whose [watchPage] reads state that arrives on its **own**
+  /// stream rather than through a `set*` call — `ProductListViewModel` bakes
+  /// the grouping `ORDER BY` prefix in from the company's custom-field config,
+  /// which lands after `_init` has already subscribed. `notifyListeners()`
+  /// cannot re-run `watchPage()`, so without this the query and whatever that
+  /// subclass derives per-emission silently disagree.
+  ///
+  /// Deliberately NOT `_resetAndReload`: nothing about the *server* page set
+  /// changed, so re-fetching page 1 (and resetting `loadedPages`) would snap a
+  /// deep-scrolled user back to the top for a purely local re-ordering.
+  @protected
+  void resubscribePage() {
+    if (_disposed) return;
+    _resubscribe();
   }
 
   /// Widen the Drift watch by one page WITHOUT a network round-trip — for when

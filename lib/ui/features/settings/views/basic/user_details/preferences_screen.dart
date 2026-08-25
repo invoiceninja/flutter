@@ -101,18 +101,30 @@ class _LocaleTile extends StatelessWidget {
           subtitle: Text(
             current == null ? context.tr('match_system') : _label(current),
           ),
-          trailing: PopupMenuButton<Locale?>(
+          // Keyed on `localeKey`, not on `Locale` — and never on a nullable
+          // value. `PopupMenuButton<T>` cannot tell a null-valued selection
+          // from a dismissal: `_showButtonMenu` awaits `showMenu<T?>` and does
+          // `if (newValue == null) { onCanceled?.call(); return; }` *before*
+          // reaching `onSelected` (`material/popup_menu.dart`). Typed
+          // `Locale?` with a `value: null` row, "Match system" was a dead menu
+          // item — picking it left the previous language in place. Same fix as
+          // `ProductGroupByButton._kNoGrouping`.
+          trailing: PopupMenuButton<String>(
             tooltip: context.tr('choose_language'),
-            initialValue: current,
-            onSelected: controller.set,
+            initialValue: current == null ? _kMatchSystem : localeKey(current),
+            onSelected: (key) =>
+                controller.set(key == _kMatchSystem ? null : _localeFor(key)),
             itemBuilder: (context) => [
-              PopupMenuItem<Locale?>(
-                value: null,
+              PopupMenuItem<String>(
+                value: _kMatchSystem,
                 child: Text(context.tr('match_system')),
               ),
               const PopupMenuDivider(),
               for (final l in kSupportedLocales)
-                PopupMenuItem<Locale?>(value: l, child: Text(_label(l))),
+                PopupMenuItem<String>(
+                  value: localeKey(l),
+                  child: Text(_label(l)),
+                ),
             ],
             child: const Icon(Icons.arrow_drop_down),
           ),
@@ -120,6 +132,19 @@ class _LocaleTile extends StatelessWidget {
       },
     );
   }
+
+  /// Sentinel for "follow the device language" so the menu never carries a
+  /// `null` **value** — see the note on the button above. No `localeKey`
+  /// returns an empty string, so this can't collide with a real locale.
+  static const String _kMatchSystem = '';
+
+  /// `localeKey` in reverse. Falls back to the first supported locale rather
+  /// than throwing: the only keys in the menu come from [kSupportedLocales]
+  /// itself, so this is unreachable in practice.
+  static Locale _localeFor(String key) => kSupportedLocales.firstWhere(
+    (l) => localeKey(l) == key,
+    orElse: () => kSupportedLocales.first,
+  );
 
   static String _label(Locale locale) {
     const labels = {

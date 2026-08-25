@@ -225,6 +225,30 @@ abstract class DeviceContactsService {
   /// it is ever touched.
   Future<List<String>> groupMemberIds(String groupId);
 
+  /// Which of [ids] still exist on the device.
+  ///
+  /// The reconcile's liveness test is normally group membership — that is what
+  /// lets it heal after `logout()` wipes the link table. Membership is wrong
+  /// for exactly one case, and expensively so: a label the user deleted by
+  /// hand (or a device that has only just gained its first contacts account)
+  /// leaves [ContactsSyncService] holding links to cards that are all still
+  /// there while [groupMemberIds] reports an empty, freshly-minted group.
+  /// Treating those as dead re-creates every one of them — doubling the user's
+  /// address book and orphaning the originals, which the heal pass can never
+  /// reclaim because they sit outside the new group.
+  ///
+  /// Asked only about links that already failed the membership test, so on a
+  /// healthy device this is never called.
+  Future<Set<String>> existingContactIds(Iterable<String> ids);
+
+  /// Put already-created contacts into [groupId]. Used to re-adopt cards that
+  /// outlived their label (see [existingContactIds]) so ownership converges
+  /// back onto the group. Failures are cosmetic — the cards still work.
+  Future<void> addContactsToGroup({
+    required String groupId,
+    required List<String> contactIds,
+  });
+
   /// Create [cards], returning the new device contact ids **in the same order**.
   /// When [groupId] is non-null the new contacts are added to it.
   Future<List<String>> createContacts(

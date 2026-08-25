@@ -387,4 +387,76 @@ void main() {
     expect(vm.availableGroupFieldIds.contains(kProductGroupTags), isFalse);
     vm.dispose();
   });
+
+  test('a grouping restored from nav_state re-points the QUERY, not just the '
+      'labels', () async {
+    // The company's custom-field label is what makes a `custom*` grouping
+    // *effective*, and it arrives on the company stream — after the base VM's
+    // constructor has already run `_init()` → `watchPage()`. That call bakes
+    // the DAO's grouping ORDER BY prefix in at subscribe time, while
+    // `_recomputeGroups` re-reads `effectiveGroupField` every emission. Before
+    // the fix the restored grouping produced labels over an UNGROUPED query,
+    // so one category rendered as a header per contiguous run.
+    //
+    // Ordered by `product_key` the categories interleave (a=H, b=S, c=H);
+    // grouped they don't (a, c, then b). That is the discriminator.
+    await product('a', custom1: 'Hardware');
+    await product('b', custom1: 'Software');
+    await product('c', custom1: 'Hardware');
+    await db.navStateDao.saveFilters(
+      filtersJson: jsonEncode({
+        co: {
+          'product': {'groupField': ProductFieldIds.custom1},
+        },
+      }),
+      now: 1,
+    );
+
+    // No company yet — exactly what `_subscribe()` sees in production, where
+    // `_hydrate`'s nav_state read is queued on the Drift executor ahead of the
+    // company watch.
+    final vm = build(company: null);
+    await settle();
+    expect(vm.groupField, ProductFieldIds.custom1, reason: 'hydrated');
+    expect(vm.effectiveGroupField, isNull, reason: 'no company label yet');
+
+    companies.add(companyWithCategory());
+    await settle();
+
+    expect(vm.effectiveGroupField, ProductFieldIds.custom1);
+    expect(vm.items.map((p) => p.productKey), ['a', 'c', 'b']);
+    expect(
+      [for (var i = 0; i < 3; i++) vm.isGroupStart(i)],
+      [true, false, true],
+    );
+    vm.dispose();
+  });
+
+  test('renaming a tag repaints the header even though no row moved', () async {
+    // Drift streams are table-scoped, so a write to `tags` re-emits only the
+    // tag half of the combine — carrying the SAME product list. The base VM
+    // skips its `notifyListeners()` on a value-identical emission, so the
+    // label moved and the header didn't.
+    await product('p1', tagIds: ['t_a']);
+    await product('p2', tagIds: ['t_b']);
+    final vm = build(company: companyWithCategory(), deferTags: true);
+    await settle();
+    await vm.setGroupField(kProductGroupTags);
+    await settle();
+    tagEvents.add([_tag('t_a', 'Alpha'), _tag('t_b', 'Beta')]);
+    await settle();
+    expect(vm.groupLabelAt(1), 'Beta', reason: 'precondition');
+
+    var notified = 0;
+    vm.addListener(() => notified++);
+    // Beta -> Bravo keeps the alphabetical order, so the row list is
+    // byte-identical and the base VM has nothing to announce.
+    tagEvents.add([_tag('t_a', 'Alpha'), _tag('t_b', 'Bravo')]);
+    await settle();
+
+    expect(vm.items.map((p) => p.productKey), ['p1', 'p2'], reason: 'no move');
+    expect(vm.groupLabelAt(1), 'Bravo');
+    expect(notified, greaterThan(0), reason: 'the header has to repaint');
+    vm.dispose();
+  });
 }

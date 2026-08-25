@@ -177,6 +177,29 @@ class ContactsSyncService implements ContactsSyncEngine {
         ? null
         : (await _device.groupMemberIds(groupId)).toSet();
 
+    // Links whose card isn't in the label. Normally empty. Non-empty means one
+    // of two opposite things, and only the device can tell them apart:
+    //
+    //  * the user deleted the CARD by hand — it really is gone, re-create it;
+    //  * the user deleted the LABEL (or this device only just gained its first
+    //    contacts account), so `ensureGroup` minted an empty replacement while
+    //    every card is still sitting there.
+    //
+    // Guessing the first way round for the second case re-created the entire
+    // address book, and `upsertAll` then re-pointed each link at the new copy —
+    // orphaning the originals somewhere the heal pass can never reach them,
+    // because they are outside the new group. One probe settles it.
+    var unlabelled = const <String>{};
+    if (memberIds != null) {
+      final missing = <String>{
+        for (final link in links.values)
+          if (!memberIds.contains(link.deviceContactId)) link.deviceContactId,
+      };
+      if (missing.isNotEmpty) {
+        unlabelled = await _device.existingContactIds(missing);
+      }
+    }
+
     final toCreate = <DeviceContactCard>[];
     final toUpdate = <DeviceContactUpdate>[];
     // Device ids we intend to keep — everything else in the label is ours to
@@ -187,7 +210,11 @@ class ContactsSyncService implements ContactsSyncEngine {
       final link = links[entry.key];
       final alive =
           link != null &&
-          (memberIds == null || memberIds.contains(link.deviceContactId));
+          (memberIds == null ||
+              memberIds.contains(link.deviceContactId) ||
+              // Outlived its label — still a real card, just not in the group
+              // yet. Re-adopted below.
+              unlabelled.contains(link.deviceContactId));
       if (!alive) {
         // No link at all, or one whose card is gone. Either way, create — the
         // upsert re-points the link row, since it is keyed by source id.
@@ -253,6 +280,18 @@ class ContactsSyncService implements ContactsSyncEngine {
       );
     }
     summary = summary.copyWith(deleted: toDelete.length);
+
+    // Pull the cards that outlived their label back into the group, so the
+    // next pass can go back to trusting membership on its own.
+    if (groupId != null && unlabelled.isNotEmpty) {
+      await _device.addContactsToGroup(
+        groupId: groupId,
+        contactIds: [
+          for (final id in unlabelled)
+            if (keepDeviceIds.contains(id)) id,
+        ],
+      );
+    }
 
     for (final chunk in _chunks(toCreate)) {
       if (isCancelled()) {

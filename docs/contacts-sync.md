@@ -93,6 +93,24 @@ a pass dying between the OS write and the Drift write — without it those cards
 forever and the next run would create duplicates beside them. **Contacts outside the group are never
 read, written or deleted.**
 
+#### …but an empty group is ambiguous, so it is never trusted on its own
+
+Membership answers "is this link's card still real?" — except when the group itself is empty, which
+means one of two opposite things:
+
+* the user deleted the **cards** by hand, and they really are gone; or
+* the user deleted the **label** (or the device only just gained its first contacts account), so
+  `ensureGroup` minted an empty replacement while every card is still sitting there.
+
+Reading the second case as the first re-created the entire address book, and `upsertAll` then
+re-pointed each link at the new copy — leaving the originals outside the new group where the heal
+pass can never reclaim them, not even via *Remove synced contacts*. So a link whose card is **not**
+in the group is not dead yet: `_reconcile` asks `DeviceContactsService.existingContactIds` (one
+platform call, and only for links that already failed the membership test) and keeps the ones that
+still exist, then re-adopts them with `addContactsToGroup` so the next pass can go back to trusting
+membership by itself. A card that genuinely was deleted returns from neither, and is re-created as
+before.
+
 ### …and the label is found by id, never by name
 
 Since the reconcile deletes every group member it doesn't recognise, *which* group a company resolves

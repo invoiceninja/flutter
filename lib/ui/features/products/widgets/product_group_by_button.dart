@@ -16,6 +16,20 @@ import 'package:admin/ui/features/products/view_models/product_list_view_model.d
 class ProductGroupByButton extends StatelessWidget {
   const ProductGroupByButton({required this.vm, super.key});
 
+  /// Stands in for "no grouping" so the menu never carries a `null` **value**.
+  ///
+  /// `PopupMenuButton<T>` cannot tell a null-valued selection from a dismissal
+  /// — `_PopupMenuButtonState._showButtonMenu` awaits `showMenu<T?>` and does
+  /// `if (newValue == null) { onCanceled?.call(); return; }` *before* reaching
+  /// `onSelected` (`material/popup_menu.dart`). Typed `String?` with a
+  /// `value: null` row, this menu's No-grouping entry therefore never called
+  /// `vm.setGroupField(null)`, and since the wide AppBar branch carries no sort
+  /// sheet, a grouped desktop list had no way back to ungrouped at all.
+  ///
+  /// Empty string is safe as the sentinel: a grouping id is either
+  /// [kProductGroupTags] or a `ProductFieldIds.custom*` key, never blank.
+  static const String _kNoGrouping = '';
+
   final ProductListViewModel vm;
 
   String _labelFor(BuildContext context, String id) =>
@@ -39,20 +53,17 @@ class ProductGroupByButton extends StatelessWidget {
     // one that mysteriously re-sorted itself.
     final on = activeLabel != null && activeLabel.isNotEmpty;
 
-    return PopupMenuButton<String?>(
+    return PopupMenuButton<String>(
       tooltip: context.tr('group_by'),
-      initialValue: active,
-      onSelected: vm.setGroupField,
-      itemBuilder: (context) => <PopupMenuEntry<String?>>[
-        PopupMenuItem<String?>(
-          value: null,
+      initialValue: active ?? _kNoGrouping,
+      onSelected: (id) => vm.setGroupField(id == _kNoGrouping ? null : id),
+      itemBuilder: (context) => <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: _kNoGrouping,
           child: Text(context.tr('no_grouping')),
         ),
         for (final id in ids)
-          PopupMenuItem<String?>(
-            value: id,
-            child: Text(_labelFor(context, id)),
-          ),
+          PopupMenuItem<String>(value: id, child: Text(_labelFor(context, id))),
       ],
       child: Container(
         padding: EdgeInsets.symmetric(

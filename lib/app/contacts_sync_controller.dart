@@ -153,7 +153,21 @@ class ContactsSyncController extends ChangeNotifier
     bool refreshClients = true,
   }) {
     final inFlight = _inFlight;
-    if (inFlight != null) return inFlight;
+    if (inFlight != null) {
+      // Attach only when the running pass is for the SAME company. Returning
+      // another company's future would report its result as this one's (and
+      // stamp `_lastSummary` for the wrong key) while B never reconciled at
+      // all — reachable by switching companies mid-pass, since the Sync hook
+      // fires `run` for whichever company just synced.
+      if (_progress.isRunningFor(companyId)) return inFlight;
+      _log.info(
+        'contacts sync for $companyId skipped — a pass for '
+        '${_progress.companyId} is already running',
+      );
+      return Future<ContactsSyncSummary>.value(
+        const ContactsSyncSummary(outcome: ContactsSyncOutcome.cancelled),
+      );
+    }
 
     // Claim the slot *synchronously*, before any engine code can run — the same
     // shape (and for the same reason) as `ResyncController.run`: assigning the
@@ -167,20 +181,29 @@ class ContactsSyncController extends ChangeNotifier
     notifyListeners();
 
     unawaited(
-      _run(companyId, refreshClients: refreshClients).then((summary) {
-        try {
-          _inFlight = null;
-          _cancelled = false;
-          _progress = const ContactsSyncProgress.idle();
-          _lastSummary[companyId] = summary;
-          notifyListeners();
-        } finally {
-          // Completion must not depend on the UI: `notifyListeners` above can
-          // throw past Flutter's guard, and an uncompleted completer would hang
-          // every caller forever with nothing surfaced.
-          completer.complete(summary);
-        }
-      }),
+      _run(companyId, refreshClients: refreshClients)
+          // The engine folds every failure into a summary, so this is a
+          // backstop rather than a live path — but without it a throw would
+          // skip the `.then` below, leave `_inFlight` set forever and wedge
+          // the controller as permanently busy.
+          .catchError((Object e, StackTrace st) {
+            _log.warning('contacts sync pass threw for $companyId', e, st);
+            return ContactsSyncSummary.failed(e);
+          })
+          .then((summary) {
+            try {
+              _inFlight = null;
+              _cancelled = false;
+              _progress = const ContactsSyncProgress.idle();
+              _lastSummary[companyId] = summary;
+              notifyListeners();
+            } finally {
+              // Completion must not depend on the UI: `notifyListeners` above can
+              // throw past Flutter's guard, and an uncompleted completer would hang
+              // every caller forever with nothing surfaced.
+              completer.complete(summary);
+            }
+          }),
     );
     return completer.future;
   }

@@ -64,12 +64,12 @@ bool shouldNagForWhiteLabel(AuthSession? session) {
 
 /// Open the white-label checkout in the host browser.
 ///
-/// Calls `url_launcher` directly rather than reusing `openExternal(Uri)`
-/// (`ui/features/gateways/oauth_setup_launcher.dart`) — that helper is tidier
-/// but reaching into another *feature* package for it is the wrong direction.
-/// Its sibling `upgrade_launcher.dart` inlines the same call. (This file does
-/// import `ui/core/widgets/notify.dart`; shared core widgets are fair game,
-/// feature internals are not.)
+/// Routed through `openExternalUrl` (`ui/core/utils/external_url.dart`) like
+/// every other outbound link in the app: it validates the scheme, tries
+/// `externalApplication` then `platformDefault`, and toasts
+/// `failed_to_open_url` when neither opens. Deliberately the shared *core*
+/// helper rather than `oauth_setup_launcher.dart`'s `openExternal` — reaching
+/// into another feature package for it would be the wrong direction.
 Future<void> launchWhiteLabelPurchase(BuildContext context) async {
   // Toasts on failure — no browser, or a sandbox restriction.
   await openExternalUrl(context, kWhiteLabelPurchaseUrl);

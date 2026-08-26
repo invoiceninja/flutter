@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/company_details_view_model.dart';
@@ -81,7 +81,7 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
               _DocumentList(
                 documents: documents,
                 tokens: tokens,
-                onView: _openDocument,
+                onView: (doc) => _openDocument(context, doc),
                 onDelete: (doc) => _deleteDocument(context, services, vm, doc),
               ),
           ],
@@ -150,9 +150,18 @@ class CompanyDetailsDocumentsScreen extends StatelessWidget {
   /// server-supplied, so the HTTPS check guards against a hostile/compromised
   /// server pushing `javascript:` / `file:` / `intent:` URIs — mirrors
   /// `EntityDocumentsTab._onView`. Silent no-op on an unsafe/empty URL.
-  Future<void> _openDocument(Document doc) async {
-    if (!isSafeHttpsUrl(doc.url)) return;
-    await launchUrl(Uri.parse(doc.url), mode: LaunchMode.externalApplication);
+  Future<void> _openDocument(BuildContext context, Document doc) async {
+    // Both exits used to be silent: a rejected scheme returned, and the
+    // bool from `launchUrl` was discarded — so "View" simply did nothing,
+    // with no toast and no `platformDefault` retry. That is the exact
+    // failure `openExternalUrl` was introduced for (invoiceninja/flutter#80).
+    // The https-only check itself stays: these URLs come from the server,
+    // and a hostile one could otherwise push `javascript:` / `file:` /
+    // `intent:` at the OS handler.
+    final uri = isSafeHttpsUrl(doc.url) ? Uri.tryParse(doc.url) : null;
+    if (uri != null && await launchExternalUri(uri)) return;
+    if (!context.mounted) return;
+    Notify.error(context, context.tr('failed_to_open_url'));
   }
 
   /// Enqueue a document delete + optimistic success toast. The delete is

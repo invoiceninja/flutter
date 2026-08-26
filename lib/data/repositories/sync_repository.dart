@@ -873,6 +873,11 @@ class SyncRepository {
       return true;
     } on ValidationException catch (e) {
       _log.info('422 on ${row.entityType}/${row.entityId}: ${e.message}');
+      // Marks dead directly rather than via `_markDead` because the failure
+      // surface here is `ValidationFailedEvent` (field-keyed, routed to the
+      // edit form), not `DeadEvent` — and the row carries `field_errors_json`.
+      // The two reconciliation steps `_markDead` performs still have to run, or
+      // a 422 death silently skips them; see each for what it protects.
       await db.outboxDao.markDead(
         id: row.id,
         error: e.message,
@@ -881,6 +886,8 @@ class SyncRepository {
             ? null
             : jsonEncode(e.fieldErrors),
       );
+      await _clearReorderDirty(row);
+      await _releaseDeadLifecycleDirty(row);
       _events.add(
         ValidationFailedEvent(
           entityType: _entityTypeFrom(handlers.type),
@@ -1211,11 +1218,68 @@ class SyncRepository {
     }
   }
 
+  /// Release the optimistic `is_dirty` flag left by a **lifecycle** mutation
+  /// (delete / archive / restore) that has died permanently.
+  ///
+  /// Those three flip the local row before the server has agreed —
+  /// `delete()` writes `is_deleted=true, is_dirty=true`, `archive()` writes
+  /// `archived_at`. If the row then dies (the user cancels the password sheet
+  /// on a delete, or an OAuth-only account has no password to give, or any
+  /// permanent 4xx), nothing used to undo that: `upsertAllPreservingDirty`
+  /// skips dirty ids on every page fetch, `refreshAll` and bundle apply, so the
+  /// record stayed invisible locally and refresh-frozen **forever** while the
+  /// server still had it, live. Clearing the flag lets the next refresh restore
+  /// server truth — the same contract [_reconcileDiscardedDirty] gives a
+  /// discarded row.
+  ///
+  /// Deliberately NOT applied to `update`/`create`: a dead edit's local row is
+  /// where the user's unsaved work lives, and the edit screen re-opens onto it
+  /// with a `SaveFailedBanner` + Retry. Clearing dirty there would let the next
+  /// refresh clobber the very edit the user is being asked to retry. Discard is
+  /// different — there the user has explicitly abandoned it, which is why
+  /// [_reconcileDiscardedDirty] clears every kind.
+  ///
+  /// Guarded per-id like its sibling: an id that still has another pending row
+  /// keeps its flag so that separate edit stays protected.
+  Future<void> _releaseDeadLifecycleDirty(OutboxRow row) async {
+    final kind = MutationKind.tryParse(row.mutationKind);
+    if (kind != MutationKind.delete &&
+        kind != MutationKind.archive &&
+        kind != MutationKind.restore) {
+      return;
+    }
+    final stillActive = await db.outboxDao.hasActiveRowsForEntity(
+      companyId: row.companyId,
+      entityType: row.entityType,
+      entityId: row.entityId,
+    );
+    if (stillActive) return;
+    // `hasActiveRowsForEntity` matches only `pending` / `in_flight`, so a
+    // **dead** edit is invisible to it — and a dead edit is exactly what the
+    // doc above says must keep its flag. Reachable: an edit 422s (row dead,
+    // local row dirty, `SaveFailedBanner` + Retry on the form), the user then
+    // archives the same record, and that archive dies too. Without this check
+    // the archive's death would clear the flag, `upsertAllPreservingDirty`
+    // would stop skipping the id, and the next refresh would overwrite the
+    // edit the user is being asked to retry.
+    final hasPendingEdit = await db.outboxDao.hasEditRowForEntity(
+      companyId: row.companyId,
+      entityType: row.entityType,
+      entityId: row.entityId,
+    );
+    if (hasPendingEdit) return;
+    await registry
+        .byWireName(row.entityType)
+        ?.dispatcher
+        .clearLocalDirty(companyId: row.companyId, id: row.entityId);
+  }
+
   Future<void> _markDead(OutboxRow row, String error, int? code) async {
     await db.outboxDao.markDead(id: row.id, error: error, statusCode: code);
     // A permanently-failed reorder must release its optimistic dirty flags so
     // future refreshes can restore the server's ordering (see below).
     await _clearReorderDirty(row);
+    await _releaseDeadLifecycleDirty(row);
     final handlers = registry.byWireName(row.entityType);
     if (handlers != null) {
       _events.add(

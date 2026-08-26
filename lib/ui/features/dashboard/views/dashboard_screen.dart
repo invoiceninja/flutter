@@ -6,22 +6,27 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
+import 'package:admin/data/models/domain/invoice_status.dart';
+import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/repositories/dashboard_repository.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/utils/formatting.dart';
-import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
+import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_mobile_app_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
-import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
-import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile_dashboard_body.dart';
@@ -31,12 +36,8 @@ import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_invoices_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_quotes_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_recurring_invoices_card.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
-import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
-import 'package:admin/data/models/value/dashboard_filter.dart';
-import 'package:admin/data/models/value/date.dart';
-import 'package:admin/data/repositories/dashboard_repository.dart';
-import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
+import 'package:admin/utils/formatting.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -283,7 +284,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ListFilterIntent(
         extraFilters: {
           ...t.extraFilters,
-          if (c.period == CardPeriod.current && !_isAllTimeRange)
+          // Only when the destination has a faithful mapping at all.
+          // `cardListTarget` deliberately returns `{}` for task / expense
+          // cards ("No faithful expense list filter today → bare list"), and
+          // neither list registers a date key or mirrors one locally — so
+          // adding the window there produced a phantom filter: an unfiltered
+          // list with the "clear filters" icon lit, persisted to `nav_state`,
+          // permanently narrowing every later `ensurePageLoaded` (and on tasks
+          // flipping `isNarrowedFetch` so the list stopped advancing its
+          // cursor).
+          if (t.extraFilters.isNotEmpty &&
+              c.period == CardPeriod.current &&
+              !_isAllTimeRange)
             'date_range': {'date,${start.toIso()},${end.toIso()}'},
         },
       ),
@@ -735,7 +747,19 @@ ListFilterIntent buildInvoiceKpiIntent({
   }
   return ListFilterIntent(
     extraFilters: {
-      'client_status': const {'unpaid'},
+      // `status_id`, NOT `client_status`. The invoices list registers no
+      // `client_status` key and `InvoiceRepository.watchPage` has no local
+      // mirror for one (quotes / credits / payments / expenses all do), so it
+      // narrowed the network fetch while the Drift watch the list actually
+      // renders from ignored it: the user landed on an unfiltered list — paid,
+      // draft and cancelled invoices included — with no chip explaining
+      // anything and a lit "clear filters" icon, and the phantom filter then
+      // persisted to `nav_state` and silently windowed every later page fetch.
+      //
+      // Sent + partial IS "unpaid" — the same definition `InvoiceDao`'s own
+      // `unpaid` badge mode uses — and `status_id` renders as a real, removable
+      // chip that the DAO mirrors locally.
+      'status_id': {InvoiceStatus.sent.wireId, InvoiceStatus.partial.wireId},
       if (!isAllTimeRange)
         'date_range': {'date,${start.toIso()},${end.toIso()}'},
     },

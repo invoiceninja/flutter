@@ -19,7 +19,7 @@ const kClientPortalCustomizeSearchKeys = <String>[
   'custom_javascript',
 ];
 
-const _kMonospace = TextStyle(fontFamily: 'monospace', fontSize: 13);
+const _kMonospace = TextStyle(fontFamily: kMonoFontFamily, fontSize: 13);
 
 /// Customize tab — Header / Footer (HTML), plus Custom CSS / Custom JS
 /// (self-hosted only). Only rendered at company scope; per-client custom

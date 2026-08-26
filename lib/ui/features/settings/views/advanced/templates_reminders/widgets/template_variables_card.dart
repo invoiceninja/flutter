@@ -157,7 +157,7 @@ class _VariableChip extends StatelessWidget {
                     softWrap: false,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      fontFamily: kMonoFontFamily,
                       fontSize: 14,
                       color: t.ink,
                     ),

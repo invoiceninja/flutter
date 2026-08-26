@@ -202,7 +202,7 @@ class _TableBlockPropertiesState extends State<TableBlockProperties> {
               subtitle: Text(
                 col['field'] as String,
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                   fontSize: 11,
                   color: ctx.inTheme.ink3,
                 ),
@@ -478,7 +478,7 @@ class _ColumnRow extends StatelessWidget {
         '$field  ·  $width  ·  $align',
         style: TextStyle(
           fontSize: 11,
-          fontFamily: 'monospace',
+          fontFamily: kMonoFontFamily,
           color: tokens.ink3,
         ),
         overflow: TextOverflow.ellipsis,

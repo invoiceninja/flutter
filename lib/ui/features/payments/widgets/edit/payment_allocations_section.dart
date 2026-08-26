@@ -76,8 +76,14 @@ class PaymentAllocationsSection extends StatelessWidget {
 
   final String clientId;
 
-  /// Current `draft.amount`. Drives the per-row auto-fill cap (no cap when
-  /// zero — the user hasn't seeded a target amount).
+  /// The **user-entered** payment amount. Drives the per-row auto-fill cap
+  /// (no cap when zero — the user hasn't seeded a target amount).
+  ///
+  /// Callers must NOT pass `draft.amount` unmodified: it auto-syncs to the
+  /// allocation total while `PaymentEditViewModel.isAmountDirty` is false, so
+  /// the headroom would collapse to zero after the first pick and every later
+  /// allocation would auto-fill 0.00. Pass `Decimal.zero` in that state — see
+  /// `payment_edit_layout.dart`.
   final Decimal paymentAmount;
 
   final ValueChanged<List<Paymentable>> onChanged;
@@ -309,6 +315,11 @@ List<AllocationTarget> _creditTargets(List<Credit> credits) {
 /// preferred amount (partial when set, else balance), capped by the
 /// remaining headroom **only when the user has typed a payment amount**.
 /// Credits ignore the cap (`limit: 0` in old app = unbounded).
+///
+/// [paymentAmount] therefore means "the amount the user fixed", not
+/// "`draft.amount`" — the two differ whenever the amount is still auto-syncing
+/// to the allocation total, and conflating them zeroes every allocation after
+/// the first. See [PaymentAllocationsSection.paymentAmount].
 Decimal computeAutoFillAmount({
   required AllocationKind kind,
   required AllocationTarget target,

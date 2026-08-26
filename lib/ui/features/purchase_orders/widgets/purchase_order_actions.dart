@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
+import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/models/domain/purchase_order_status.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -482,6 +483,11 @@ class PurchaseOrderActions {
           expenseId: '',
           invitations: po.invitations.map((i) => i.freshClone()).toList(),
           eInvoice: null,
+          // Sanitise the rows: drop the links back to the source task /
+          // expense (else re-pointing the clone at another client dead-ends in
+          // a `line_items` error with no field to fix) and drop any
+          // server-generated unpaid-fee row (else the clone re-bills it).
+          lineItems: clonedLineItems(po.lineItems),
           archivedAt: null,
           isDeleted: false,
           isDirty: false,

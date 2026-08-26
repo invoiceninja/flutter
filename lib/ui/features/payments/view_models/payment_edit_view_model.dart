@@ -84,6 +84,18 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
 
   bool get isAmountDirty => _amountDirty;
 
+  /// The amount the auto-fill cap may be measured against — `draft.amount`
+  /// once the user has fixed it, `Decimal.zero` (= "no cap") while it is still
+  /// auto-syncing to the allocation total.
+  ///
+  /// This distinction is the whole point: while [isAmountDirty] is false,
+  /// `draft.amount` **equals** the allocated total by construction, so a cap
+  /// built from it leaves zero headroom and every allocation after the first
+  /// auto-fills 0.00 — a payment that silently applies nothing to the second
+  /// invoice. Hand this to `PaymentAllocationsSection.paymentAmount`, never
+  /// `draft.amount` directly.
+  Decimal get autoFillCap => _amountDirty ? draft.amount : Decimal.zero;
+
   /// Sum of allocation amounts (invoices + credits). The footer surfaces
   /// the running total + a "$Y remaining" hint so the user catches a
   /// mismatch before the server rejects it.

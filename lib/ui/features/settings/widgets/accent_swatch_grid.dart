@@ -345,7 +345,7 @@ class _HexPickerDialogState extends State<_HexPickerDialog> {
               controller: _hex,
               maxLines: 1,
               textInputAction: TextInputAction.done,
-              style: const TextStyle(fontFamily: 'monospace'),
+              style: const TextStyle(fontFamily: kMonoFontFamily),
               decoration: const InputDecoration(
                 hintText: '#RRGGBB',
                 isDense: true,

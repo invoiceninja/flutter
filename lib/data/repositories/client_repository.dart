@@ -407,9 +407,17 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     return result;
   }
 
-  /// Pull-to-refresh / foreground-resume entry point. With [full] true, we
-  /// ignore the cursor and re-pull page 1 from scratch; otherwise we send
-  /// `since=<cursor>` for a delta.
+  /// Pull-to-refresh / foreground-resume entry point.
+  ///
+  /// **[full] resets the cursor; it does NOT shorten the walk.** Page 1 of a
+  /// non-full pass does apply the cursor, but `hasMoreAfterPage` returns true
+  /// for ANY cursor'd page (deliberately — concluding "end of list" from a
+  /// short delta latched `hasMore = false` and capped every warm-session list
+  /// at one page), and `shouldReadCursor` then drops the cursor for `page > 1`.
+  /// So pages 2..N are plain offset pages of the whole list and the loop only
+  /// stops on a short one: both `full: true` and `full: false` cost the same
+  /// number of requests. Lists converge on id-keyed upserts plus this periodic
+  /// full walk (see CLAUDE.md § Sync); do not read [full] as "cheap refresh".
   ///
   /// Filter-agnostic by design: we pull every state into the local cache so
   /// the UI's state filter can flip between active/archived/deleted without

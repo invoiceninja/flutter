@@ -10,9 +10,9 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/entity_registry.dart';
-import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/detail/entity_destination.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -382,22 +382,12 @@ class _OutboxTile extends StatelessWidget {
 /// land on the edit form so the user can fix the rejected fields directly;
 /// pending / in-flight rows land on the detail screen since the local
 /// state already reflects the in-progress mutation.
-String _destinationFor(EntityHandlers handlers, OutboxRow row) {
-  // Some entities aren't an addressable record at all — point those rows at
-  // the screen the change actually belongs to:
-  //   * `user_settings` / `user` — the user handler's routePath
-  //     (`/settings/account`) has no route.
-  //   * `design` — custom designs are created / edited in a modal
-  //     (`showDesignEditScreen`), so `custom_designs` exists only as an
-  //     Invoice Design tab slug; there is no `<root>/<id>` route.
-  if (handlers.type == EntityType.user) return '/settings/user_details';
-  if (handlers.type == EntityType.design) {
-    return '/settings/invoice_design/custom_designs';
-  }
-  final isDead = row.state == 'dead';
-  final suffix = isDead ? '/edit' : '';
-  return '${handlers.routePath}/${row.entityId}$suffix';
-}
+String _destinationFor(EntityHandlers handlers, OutboxRow row) =>
+    entityDestination(
+      handlers: handlers,
+      entityId: row.entityId,
+      edit: row.state == 'dead',
+    );
 
 /// Split a `snake_case` key into title-cased words. Used for both entity
 /// wire names (`user_settings` → `User Settings`) and API field keys
@@ -819,7 +809,7 @@ class _InspectorRow extends StatelessWidget {
               style: TextStyle(
                 color: tokens.ink,
                 fontSize: 13,
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
               ),
             ),
           ),
@@ -868,7 +858,7 @@ class _CodeBlock extends StatelessWidget {
         text,
         style: TextStyle(
           color: isError ? tokens.overdue : tokens.ink,
-          fontFamily: 'monospace',
+          fontFamily: kMonoFontFamily,
           fontSize: 12,
           height: 1.4,
         ),

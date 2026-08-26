@@ -308,7 +308,7 @@ class _TotalItemRow extends StatelessWidget {
             field,
             style: TextStyle(
               fontSize: 11,
-              fontFamily: 'monospace',
+              fontFamily: kMonoFontFamily,
               color: tokens.ink3,
             ),
           ),

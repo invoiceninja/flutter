@@ -31,6 +31,13 @@ import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_vi
 /// every editor's debounced text-field edits regardless of which tab is
 /// active. The wrapper registers `vm.stripEmptyLineItems` exactly once.
 ///
+/// **Invariant: [onChanged] must write through to [vm]'s draft.** The merge-back
+/// reads `vm.lineItemsOf(vm.draft)` rather than [lineItems] so that a Save —
+/// which flushes all three editors in one synchronous pass — doesn't have each
+/// flush rebuild from a list that predates the previous one. Every call site
+/// pairs `lineItems: vm.draft.lineItems` with `onChanged: vm.replaceLineItems`,
+/// which is what makes the two the same list.
+///
 /// Row-error highlighting (`rowErrors`) is keyed by *full-list* index in
 /// the VM but the filtered editor renders with local subset indices, so
 /// the highlight wouldn't align. The wrapper passes `null` for
@@ -241,7 +248,15 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
 
   void _onSubsetChanged(_LineKind kind, List<LineItem> updatedSubset) {
     final next = mergeBackByType(
-      original: widget.lineItems,
+      // The VM's draft, NOT `widget.lineItems`. `onChanged` writes through to
+      // `vm.draft` synchronously, but the props only catch up on the next
+      // frame — and `save()` runs all four before-save hooks in ONE synchronous
+      // loop. Merging into the props therefore had every hook start from the
+      // list as it was before Save began: hook 1 (products flush) committed its
+      // edit, hook 2 (tasks flush) rebuilt from the pre-Save list and silently
+      // dropped it. Same "props don't update within the frame" trap the
+      // `_items` seam closes inside `LineItemTableDesktop`, one level down.
+      original: widget.vm.lineItemsOf(widget.vm.draft),
       updatedSubset: updatedSubset,
       inSubset: (li) => _predicate(kind, li),
     );

@@ -188,7 +188,7 @@ class _LogBlock extends StatelessWidget {
                   style: TextStyle(
                     color: tokens.ink3,
                     fontSize: 12,
-                    fontFamily: 'monospace',
+                    fontFamily: kMonoFontFamily,
                   ),
                 ),
               ),
@@ -237,7 +237,7 @@ class _LogBlock extends StatelessWidget {
             child: SelectableText(
               pretty,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
                 fontSize: 12,
                 color: tokens.ink,
                 height: 1.4,

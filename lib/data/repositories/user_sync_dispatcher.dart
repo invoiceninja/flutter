@@ -156,6 +156,22 @@ class UserSyncDispatcher implements SyncDispatcher {
             companyId: row.companyId,
             serverResponse: item.data,
           );
+        } else {
+          // The bulk action drained successfully but returned no entity — the
+          // server's re-query found zero rows for the id (purged from another
+          // device). `UserController::bulk` answers HTTP 200 `{"data":[]}` in
+          // that case, so this row counts as a success and disappears from the
+          // outbox. The optimistic flip left the local row `is_dirty=true`, and
+          // without this it stays dirty forever: every `/refresh` skips it
+          // (`auth_repository` `if (existingUser?.isDirty == true) continue;`)
+          // and so does every `GET /users` page, leaving a user shown as
+          // Archived that no longer exists. The generic
+          // `BaseEntitySyncDispatcher` has had this branch all along; this
+          // hand-rolled dispatcher did not.
+          await repo.clearLocalDirty(
+            companyId: row.companyId,
+            id: row.entityId,
+          );
         }
 
       case MutationKind.restore:
@@ -170,6 +186,22 @@ class UserSyncDispatcher implements SyncDispatcher {
           await repo.applyUpdateResponse(
             companyId: row.companyId,
             serverResponse: item.data,
+          );
+        } else {
+          // The bulk action drained successfully but returned no entity — the
+          // server's re-query found zero rows for the id (purged from another
+          // device). `UserController::bulk` answers HTTP 200 `{"data":[]}` in
+          // that case, so this row counts as a success and disappears from the
+          // outbox. The optimistic flip left the local row `is_dirty=true`, and
+          // without this it stays dirty forever: every `/refresh` skips it
+          // (`auth_repository` `if (existingUser?.isDirty == true) continue;`)
+          // and so does every `GET /users` page, leaving a user shown as
+          // still Archived when the restore never landed. The generic
+          // `BaseEntitySyncDispatcher` has had this branch all along; this
+          // hand-rolled dispatcher did not.
+          await repo.clearLocalDirty(
+            companyId: row.companyId,
+            id: row.entityId,
           );
         }
 

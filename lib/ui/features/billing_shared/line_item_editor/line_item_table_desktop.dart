@@ -117,6 +117,23 @@ class LineItemTableDesktop extends StatefulWidget {
 class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
   final List<_RowState> _rows = [];
   bool _suppressSync = false;
+
+  /// The most recent list this table emitted, held until the parent's rebuild
+  /// delivers it back as `widget.items`.
+  ///
+  /// `widget.onChanged` does not update the props within the frame, and a
+  /// single gesture can emit more than once — a cell flush promotes the ghost
+  /// row, and the very next statement adds a row on top of that. Reading
+  /// `widget.items` in between sees the list as it was BEFORE the gesture
+  /// started, which silently drops whatever the earlier emit produced: tab out
+  /// of the ghost row inside the 250 ms debounce and the line you just typed
+  /// was committed and then thrown away. Everything that reads "the current
+  /// items" goes through [_items] instead.
+  List<LineItem>? _emitted;
+
+  /// The authoritative item list: what we last emitted while the parent has yet
+  /// to catch up, else the props.
+  List<LineItem> get _items => _emitted ?? widget.items;
   Formatter? _formatter;
 
   bool get _useComma => _formatter?.settings.useCommaAsDecimalPlace ?? false;
@@ -162,6 +179,10 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
       );
     }
     if (_suppressSync) return;
+    // The parent has delivered a list, so the in-frame override is spent —
+    // clear it before the fast-path return, or a gesture that emitted and then
+    // saw an identical-reference rebuild would keep reading a stale override.
+    _emitted = null;
     // Fast-path: skip the full row-state reconciliation when the items
     // list reference is identical to the previous build (e.g. parent
     // rebuild from an unrelated keystroke). Saves N controller-touch
@@ -183,43 +204,71 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
   /// Reconcile the local `_RowState` list to match `widget.items.length + 1`
   /// (the trailing slot is the synthetic ghost row). Called on every
   /// rebuild to keep controllers / focus nodes in sync with parent state.
-  void _syncRows() {
-    final desired = widget.items.length + 1;
+  ///
+  /// [override] is the list the caller has just emitted. `widget.onChanged`
+  /// does NOT update `widget.items` within the frame (the parent rebuilds on
+  /// the next one), so a post-emit sync that read the props would reconcile
+  /// against the PREVIOUS list and reseed every row from stale data. Callers
+  /// that mutate the list pass what they emitted; `build` / `didUpdateWidget`
+  /// pass nothing and read the props, which are authoritative by then.
+  void _syncRows([List<LineItem>? override]) {
+    final items = override ?? widget.items;
+    final desired = items.length + 1;
     while (_rows.length < desired) {
       _rows.add(_RowState());
     }
     while (_rows.length > desired) {
       _rows.removeLast().dispose();
     }
-    for (var i = 0; i < widget.items.length; i++) {
-      _rows[i].syncFrom(widget.items[i]);
+    for (var i = 0; i < items.length; i++) {
+      _rows[i].syncFrom(items[i]);
     }
     // Trailing ghost row tracks a fresh empty item so its controllers
     // start blank.
     _rows.last.syncFrom(emptyLineItem());
   }
 
-  void _flushAll() {
-    for (final row in _rows) {
+  /// Flush every row's debounced text onto the parent, and return the list
+  /// that is now authoritative — which is NOT `widget.items`, since the parent
+  /// rebuilds on the next frame. A caller that goes on to mutate the list must
+  /// build from this return value or it silently discards the flush.
+  List<LineItem> _flushAll() {
+    // Iterate a SNAPSHOT: a row's flush commits through `onCellCommit`, which
+    // can promote the ghost row and so append to `_rows` mid-loop.
+    for (final row in List<_RowState>.of(_rows)) {
       row.flush();
     }
-    _commitPending();
+    return _commitPending();
   }
 
   /// Push every row's pending typed text onto the parent items list. The
   /// trailing ghost row is materialized only if it carries any
   /// user-meaningful content.
-  void _commitPending() {
+  /// Returns the list that is authoritative afterwards — the freshly committed
+  /// one, or `widget.items` when nothing changed. See [_flushAll].
+  List<LineItem> _commitPending() {
+    final base = _items;
+    // `_rows` always carries one entry per item plus the trailing ghost. If
+    // that ever breaks, the bounded loop below silently DROPS the tail items
+    // and re-emits `_rows.last` twice — a truncated billing document pushed
+    // upward as authoritative. Fail loudly in debug; keep the bound as the
+    // release-mode floor.
+    assert(
+      _rows.length == base.length + 1,
+      '_rows (${_rows.length}) must be items (${base.length}) + 1 ghost',
+    );
     final next = <LineItem>[];
-    for (var i = 0; i < widget.items.length; i++) {
-      next.add(_rows[i].buildItem(widget.items[i], useComma: _useComma));
+    for (var i = 0; i < base.length && i < _rows.length; i++) {
+      next.add(_rows[i].buildItem(base[i], useComma: _useComma));
     }
     final ghost = _rows.last.buildItem(emptyLineItem(), useComma: _useComma);
     if (!ghost.isBlank) next.add(ghost);
-    if (_listsEqual(next, widget.items)) return;
+    if (_listsEqual(next, base)) return base;
+    _emitted = next;
     _suppressSync = true;
     widget.onChanged(next);
     _suppressSync = false;
+    return next;
   }
 
   bool _listsEqual(List<LineItem> a, List<LineItem> b) {
@@ -234,30 +283,36 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
   /// product autocomplete (full-row replace), tax cell, overflow menu,
   /// drag reorder.
   void _applyRow(int index, LineItem next) {
-    if (index < widget.items.length) {
-      final updated = List<LineItem>.from(widget.items);
+    final base = _items;
+    if (index < base.length) {
+      final updated = List<LineItem>.from(base);
       updated[index] = next;
       _emit(updated);
     } else {
       // Promoting the ghost row.
-      final updated = List<LineItem>.from(widget.items)..add(next);
+      final updated = List<LineItem>.from(base)..add(next);
       _emit(updated);
     }
   }
 
   void _emit(List<LineItem> next) {
+    _emitted = next;
     _suppressSync = true;
     widget.onChanged(next);
     _suppressSync = false;
     // Force a sync so the just-promoted ghost row gets a fresh trailing
-    // ghost without waiting for the parent to rebuild.
-    setState(_syncRows);
+    // ghost without waiting for the parent to rebuild. Reconcile against
+    // `next`, not the props — see [_syncRows].
+    setState(() => _syncRows(next));
   }
 
   void _addBlankRow() {
-    _flushAll();
-    final next = List<LineItem>.from(widget.items)
-      ..add(widget.newItemFactory());
+    // From the FLUSHED list, not `widget.items`: the flush above commits the
+    // ghost row the user just typed into, and `widget.onChanged` doesn't update
+    // the props within the frame — so building from them discarded that row and
+    // replaced it with a blank one (tab out of the last cell within the 250 ms
+    // debounce and the line you just entered vanished).
+    final next = List<LineItem>.from(_flushAll())..add(widget.newItemFactory());
     _emit(next);
     // Focus the new row's product cell after the frame settles.
     final newIndex = next.length - 1;
@@ -268,8 +323,16 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
   }
 
   void _remove(int index) {
-    if (index >= widget.items.length) return;
-    final next = List<LineItem>.from(widget.items)..removeAt(index);
+    if (index >= _items.length) return;
+    final next = List<LineItem>.from(_items)..removeAt(index);
+    // Carry the positional `_RowState` with its line item — the same rule
+    // `_move` documents below, and for a sharper reason here: `_syncRows`
+    // refuses to reseed a FOCUSED field, so a caret parked in a row below the
+    // mutation kept its old text while the data shifted under it, and
+    // `_commitPending` (which pairs `_rows[i]` with `items[i]` positionally)
+    // then wrote that text onto the wrong item — or, for a removal, promoted it
+    // into the ghost slot and appended it as a duplicate line on Save.
+    _rows.removeAt(index).dispose();
     _emit(next);
   }
 
@@ -283,30 +346,40 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
   /// has the same latent bug; don't copy it.)
   void _createTask(int index) {
     final handler = widget.onCreateTaskFromLineItem;
-    if (handler == null || index >= widget.items.length) return;
+    if (handler == null || index >= _items.length) return;
     // Also pushes the pending edit onto the draft, so the document keeps it.
-    _flushAll();
-    handler(_rows[index].buildItem(widget.items[index], useComma: _useComma));
+    final flushed = _flushAll();
+    if (index >= flushed.length) return;
+    handler(_rows[index].buildItem(flushed[index], useComma: _useComma));
   }
 
   void _clone(int index) {
-    if (index >= widget.items.length) return;
-    final next = List<LineItem>.from(widget.items)
-      ..insert(index + 1, widget.items[index]);
+    // Read the row's LIVE item like `_createTask` does, so a description the
+    // user typed within the debounce window is cloned rather than the stale
+    // props value. (This is the "same latent bug" `_createTask` warns about.)
+    final next = List<LineItem>.from(_flushAll());
+    if (index >= next.length) return;
+    next.insert(index + 1, next[index]);
+    // See `_remove` for why the `_RowState` has to move too.
+    _rows.insert(index + 1, _RowState());
     _emit(next);
   }
 
   void _insertBelow(int index) {
-    final next = List<LineItem>.from(widget.items)
-      ..insert(index + 1, widget.newItemFactory());
+    final next = List<LineItem>.from(_flushAll());
+    if (index >= next.length) return;
+    next.insert(index + 1, widget.newItemFactory());
+    // See `_remove` for why the `_RowState` has to move too.
+    _rows.insert(index + 1, _RowState());
     _emit(next);
   }
 
   void _move(int from, int to) {
-    if (from >= widget.items.length) return;
-    if (to < 0 || to >= widget.items.length) return;
+    final base = _items;
+    if (from >= base.length) return;
+    if (to < 0 || to >= base.length) return;
     if (from == to) return;
-    final next = List<LineItem>.from(widget.items);
+    final next = List<LineItem>.from(base);
     final row = next.removeAt(from);
     next.insert(to, row);
     // Keep the positional _RowState (key, controllers, autocomplete overlay)
@@ -320,13 +393,13 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
 
   void _onReorder(int oldIndex, int newIndex) {
     // Skip reorders dragging the synthetic trailing row itself.
-    if (oldIndex >= widget.items.length) return;
+    if (oldIndex >= _items.length) return;
     var adjusted = newIndex;
     // Drops past the last real row land on the last real position
     // rather than no-op'ing — the visible animation otherwise snaps
     // back, which feels broken.
-    if (adjusted >= widget.items.length) {
-      adjusted = widget.items.length - 1;
+    if (adjusted >= _items.length) {
+      adjusted = _items.length - 1;
     }
     _move(oldIndex, adjusted);
   }
@@ -337,9 +410,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
   /// column layout mirrors `_RowStateW.build` so the floating proxy lines
   /// up with the table underneath.
   Widget _dragSnapshot(BuildContext context, int index, InTheme tokens) {
-    final item = (index >= 0 && index < widget.items.length)
-        ? widget.items[index]
-        : null;
+    final item = (index >= 0 && index < _items.length) ? _items[index] : null;
 
     String dec(Decimal v) {
       if (v == Decimal.zero) return '';
@@ -347,9 +418,11 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
       return _useComma ? raw.replaceAll('.', ',') : raw;
     }
 
-    final tax = (item == null || item.taxName1.isEmpty)
-        ? ''
-        : '${item.taxName1} ${dec(item.taxRate1)}%';
+    String taxLabel(String name, Decimal rate) =>
+        (item == null || name.isEmpty) ? '' : '$name ${dec(rate)}%';
+    final tax = taxLabel(item?.taxName1 ?? '', item?.taxRate1 ?? Decimal.zero);
+    final tax2 = taxLabel(item?.taxName2 ?? '', item?.taxRate2 ?? Decimal.zero);
+    final tax3 = taxLabel(item?.taxName3 ?? '', item?.taxRate3 ?? Decimal.zero);
 
     final gross = item == null ? Decimal.zero : item.cost * item.quantity;
     final total = gross == Decimal.zero
@@ -413,6 +486,10 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
               ),
             if (widget.config.taxColumnCount >= 1)
               cell(tax, align: Alignment.centerRight),
+            if (widget.config.taxColumnCount >= 2)
+              cell(tax2, align: Alignment.centerRight),
+            if (widget.config.taxColumnCount >= 3)
+              cell(tax3, align: Alignment.centerRight),
             Expanded(
               child: Align(
                 alignment: Alignment.centerRight,
@@ -502,18 +579,26 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                       );
                     },
                     itemBuilder: (context, index) {
-                      final isGhost = index >= widget.items.length;
+                      // `_items`, not the props: `_emit` reconciles `_rows`
+                      // (which drives `itemCount`) against the list it just
+                      // emitted, and the parent's rebuild lands a frame later.
+                      // Reading the props here left the two disagreeing for
+                      // that frame, so a just-promoted row rendered as the
+                      // ghost — wrong `current`, suppressed row errors and an
+                      // off-by-one `lastRealIndex`.
+                      final items = _items;
+                      final isGhost = index >= items.length;
                       final row = _rows[index];
                       final current = isGhost
                           ? widget.newItemFactory()
-                          : widget.items[index];
+                          : items[index];
                       final errors = isGhost ? null : widget.rowErrors?[index];
                       return _Row(
                         key: ValueKey(row.id),
                         index: index,
                         isLast: index == _rows.length - 1,
                         isGhost: isGhost,
-                        lastRealIndex: widget.items.length - 1,
+                        lastRealIndex: items.length - 1,
                         config: widget.config,
                         companyId: widget.companyId,
                         company: company,
@@ -532,7 +617,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                         onProductSelected: (product) {
                           final base = isGhost
                               ? widget.newItemFactory()
-                              : widget.items[index];
+                              : items[index];
                           final merged = (company?.fillProducts ?? false)
                               ? _mergeProductInto(
                                   base,
@@ -562,7 +647,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                             if (!context.mounted) return;
                             final base = isGhost
                                 ? widget.newItemFactory()
-                                : widget.items[index];
+                                : items[index];
                             _applyRow(
                               index,
                               (company?.fillProducts ?? false)
@@ -601,7 +686,7 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                             case _RowAction.moveTop:
                               _move(index, 0);
                             case _RowAction.moveBottom:
-                              _move(index, widget.items.length - 1);
+                              _move(index, items.length - 1);
                             case _RowAction.remove:
                               _remove(index);
                           }
@@ -622,8 +707,8 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
                         onTabFromLastCell: () {
                           if (isGhost) {
                             _addBlankRow();
-                          } else if (index == widget.items.length - 1 &&
-                              widget.items.last.isBlank == false) {
+                          } else if (index == items.length - 1 &&
+                              items.last.isBlank == false) {
                             // Falling through into the ghost row — its
                             // first cell receives focus naturally. No-op.
                           }
@@ -718,8 +803,18 @@ class _ColumnHeader extends StatelessWidget {
           cell(label('quantity'), align: Alignment.centerRight),
           if (config.showDiscount)
             cell(label('discount'), align: Alignment.centerRight),
-          if (config.taxColumnCount >= 1)
-            cell(label('tax'), align: Alignment.centerRight),
+          // Slots 2 and 3 exist whenever the company enables 2 or 3 item tax
+          // rates (Settings → Tax Settings). The mobile edit dialog has always
+          // honoured all three; the desktop table rendered only the first, so a
+          // multi-rate company could enter one tax on a phone and not on a
+          // desktop — the same invoice totalling differently by viewport.
+          for (var slot = 1; slot <= config.taxColumnCount; slot++)
+            cell(
+              config.taxColumnCount > 1
+                  ? '${label('tax')} $slot'
+                  : label('tax'),
+              align: Alignment.centerRight,
+            ),
           cell(label('line_total'), align: Alignment.centerRight),
           const SizedBox(width: _kTrailingColWidth),
         ],
@@ -727,6 +822,21 @@ class _ColumnHeader extends StatelessWidget {
     );
   }
 }
+
+/// The line item's tax name / rate for a 1-based slot. Keeps the three
+/// flat `taxName1..3` / `taxRate1..3` fields addressable by index so the row
+/// can render `config.taxColumnCount` cells in a loop.
+String _taxNameOf(LineItem item, int slot) => switch (slot) {
+  1 => item.taxName1,
+  2 => item.taxName2,
+  _ => item.taxName3,
+};
+
+Decimal _taxRateOf(LineItem item, int slot) => switch (slot) {
+  1 => item.taxRate1,
+  2 => item.taxRate2,
+  _ => item.taxRate3,
+};
 
 /// Per-row mutable state. Survives parent rebuilds so cursor position
 /// stays put while typing.
@@ -1094,27 +1204,35 @@ class _RowStateW extends State<_Row> {
                     ),
                   ),
                 ),
-              if (config.taxColumnCount >= 1)
+              // One cell per enabled slot. Only slot 1 used to be rendered,
+              // so a company on 2 or 3 item tax rates could not enter the
+              // others at all on desktop while the mobile dialog offered them
+              // — the same invoice totalling differently by viewport.
+              for (var slot = 1; slot <= config.taxColumnCount; slot++)
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: _kCellPadH),
                     child: _TaxCell(
+                      key: ValueKey('tax_$slot'),
                       companyId: companyId,
                       services: services,
                       formatter: formatter,
-                      initialName: currentItem.taxName1,
-                      initialRate: currentItem.taxRate1,
+                      initialName: _taxNameOf(currentItem, slot),
+                      initialRate: _taxRateOf(currentItem, slot),
                       onSelected: (taxRate) {
-                        onCellCommit(
-                          row
-                              .buildItem(currentItem, useComma: useComma)
-                              .copyWith(
-                                taxName1: taxRate?.name ?? '',
-                                taxRate1: taxRate == null
-                                    ? Decimal.zero
-                                    : Decimal.parse(taxRate.rate.toString()),
-                              ),
+                        final name = taxRate?.name ?? '';
+                        final rate = taxRate == null
+                            ? Decimal.zero
+                            : Decimal.parse(taxRate.rate.toString());
+                        final base = row.buildItem(
+                          currentItem,
+                          useComma: useComma,
                         );
+                        onCellCommit(switch (slot) {
+                          1 => base.copyWith(taxName1: name, taxRate1: rate),
+                          2 => base.copyWith(taxName2: name, taxRate2: rate),
+                          _ => base.copyWith(taxName3: name, taxRate3: rate),
+                        });
                       },
                     ),
                   ),
@@ -1872,6 +1990,7 @@ class _ProductCreate implements _ProductOption {
 /// the watch and feed an `Autocomplete<TaxRate>` for filterable picking.
 class _TaxCell extends StatefulWidget {
   const _TaxCell({
+    super.key,
     required this.companyId,
     required this.services,
     required this.formatter,

@@ -84,12 +84,25 @@ Future<ConflictResolution> showConflictResolutionSheet(
         actions: deleted
             ? [
                 TextButton(
+                  autofocus: true,
                   onPressed: () =>
                       Navigator.of(ctx).pop(ConflictResolution.none),
                   child: Text(ctx.tr('keep_for_later')),
                 ),
                 PrimaryDialogAction(
                   label: ctx.tr('discard_my_changes'),
+                  // This branch HARD-DELETES the local record and its unsynced
+                  // offline edits (`SyncEventListener._handleConflict` →
+                  // `deleteLocalRecord`). The sheet is raised by a background
+                  // drain the user never asked for, so a stray Enter — from a
+                  // form they were saving when it popped — must not complete
+                  // it. Same rule `showConfirmActionDialog` and
+                  // `showDiscardChangesDialog` already follow: autofocus the
+                  // SAFE action, and never advertise Enter on the destructive
+                  // one.
+                  variant: DialogActionVariant.destructive,
+                  autofocus: false,
+                  showEnterHint: false,
                   onPressed: () =>
                       Navigator.of(ctx).pop(ConflictResolution.discardMine),
                 ),

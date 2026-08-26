@@ -258,7 +258,7 @@ class PurchaseOrderRepository
     var rowId = 0;
     await db.transaction(() async {
       await db.purchaseOrderDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
@@ -267,7 +267,10 @@ class PurchaseOrderRepository
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
-        payload: _withSaveQuery(stored.toApiJson(), extraQuery),
+        payload: _withSaveQuery(
+          stored.toApiJson(),
+          mergeSaveQuery(carried, extraQuery),
+        ),
       );
     });
     return SaveResult(entity: stored, outboxRowId: rowId);
@@ -296,7 +299,7 @@ class PurchaseOrderRepository
     var rowId = 0;
     await db.transaction(() async {
       await db.purchaseOrderDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: purchaseOrder.id,
         kind: MutationKind.update,
@@ -307,7 +310,7 @@ class PurchaseOrderRepository
         kind: MutationKind.update,
         payload: _withSaveQuery(
           purchaseOrder.toApiJson(preserveTempId: true),
-          extraQuery,
+          mergeSaveQuery(carried, extraQuery),
         ),
       );
     });

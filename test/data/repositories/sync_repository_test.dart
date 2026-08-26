@@ -66,6 +66,37 @@ class _ProgrammableDispatcher implements SyncDispatcher {
   }) async {}
 }
 
+/// Dispatcher that records which ids had their optimistic `is_dirty` flag
+/// released, so a test can assert the dead-row reconciliation actually fired.
+class _DirtySpyDispatcher implements SyncDispatcher {
+  final List<String> clearedDirty = [];
+  final List<Object?> _outcomes = [];
+
+  void queueThrow(Object error) => _outcomes.add(error);
+
+  @override
+  Future<void> dispatch({
+    required OutboxRow row,
+    required MutationKind kind,
+  }) async {
+    if (_outcomes.isEmpty) throw StateError('no outcome queued');
+    final outcome = _outcomes.removeAt(0);
+    if (outcome is Object) throw outcome;
+  }
+
+  @override
+  Future<void> deleteLocalRecord({
+    required String companyId,
+    required String id,
+  }) async {}
+
+  @override
+  Future<void> clearLocalDirty({
+    required String companyId,
+    required String id,
+  }) async => clearedDirty.add(id);
+}
+
 /// Dispatcher that forwards `deleteLocalRecord` to a repo, the way
 /// `BaseEntitySyncDispatcher` does — used by the discard tests to observe
 /// that the ghost path reaches the repository.
@@ -1888,6 +1919,94 @@ void main() {
             'only the create dispatches; the rename is marked dead before '
             'the drain loop reaches it',
       );
+    });
+  });
+
+  // Regression: `delete()` / `archive()` flip the local Drift row optimistically
+  // (`is_deleted=true, is_dirty=true`) before the server agrees. When the row
+  // then died permanently — the user cancels the password sheet on a delete, or
+  // an OAuth-only account has none to give — nothing undid that flip, and
+  // `upsertAllPreservingDirty` skips dirty ids on every page fetch, `refreshAll`
+  // and bundle apply. The record stayed invisible locally and refresh-frozen
+  // forever while the server still had it, live.
+  group('a dead LIFECYCLE row releases its optimistic dirty flag', () {
+    test(
+      'a dead delete clears is_dirty so a refresh can restore the row',
+      () async {
+        final disp = _DirtySpyDispatcher()
+          ..queueThrow(const ValidationException('nope', {}));
+        final engine = makeEngine(disp);
+        await enqueueClient(entityId: 'c1', kind: MutationKind.delete);
+
+        await engine.drainOnce(companyId: 'co');
+
+        expect(disp.clearedDirty, ['c1']);
+      },
+    );
+
+    test('a dead archive does too', () async {
+      final disp = _DirtySpyDispatcher()
+        ..queueThrow(const ValidationException('nope', {}));
+      final engine = makeEngine(disp);
+      await enqueueClient(entityId: 'c2', kind: MutationKind.archive);
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.clearedDirty, ['c2']);
+    });
+
+    test('a dead UPDATE does NOT — that dirty row is the user\'s unsaved edit '
+        'and the edit screen re-opens onto it with a Retry', () async {
+      final disp = _DirtySpyDispatcher()
+        ..queueThrow(const ValidationException('nope', {}));
+      final engine = makeEngine(disp);
+      await enqueueClient(entityId: 'c3', kind: MutationKind.update);
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.clearedDirty, isEmpty);
+    });
+
+    test('a DEAD edit for the same id also keeps its flag', () async {
+      // `hasActiveRowsForEntity` matches only pending / in_flight, so a dead
+      // update — the user's unsaved work, sitting behind a SaveFailedBanner +
+      // Retry — used to be invisible to the guard. Clearing dirty there lets
+      // the next refresh overwrite the very edit the user is being asked to
+      // retry.
+      final disp = _DirtySpyDispatcher()
+        ..queueThrow(const ValidationException('nope', {}))
+        ..queueThrow(const ValidationException('nope', {}));
+      final engine = makeEngine(disp);
+      // The edit dies first...
+      await enqueueClient(entityId: 'c5', kind: MutationKind.update);
+      await engine.drainOnce(companyId: 'co');
+      // ...then an archive of the same record dies too.
+      await enqueueClient(
+        entityId: 'c5',
+        kind: MutationKind.archive,
+        idempotencyKey: 'k2',
+      );
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.clearedDirty, isEmpty);
+    });
+
+    test('an id that still has another pending row keeps its flag', () async {
+      final disp = _DirtySpyDispatcher()
+        ..queueThrow(const ValidationException('nope', {}));
+      final engine = makeEngine(disp);
+      await enqueueClient(entityId: 'c4', kind: MutationKind.delete);
+      // A separate, still-queued edit for the same record.
+      await enqueueClient(
+        entityId: 'c4',
+        kind: MutationKind.update,
+        idempotencyKey: 'k2',
+        nextAttemptAt: 1 << 40,
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.clearedDirty, isEmpty);
     });
   });
 }

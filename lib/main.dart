@@ -309,7 +309,7 @@ class _SecureStorageUnavailableApp extends StatelessWidget {
                   SizedBox(height: 12),
                   SelectableText(
                     'snap connect invoiceninja:password-manager-service',
-                    style: TextStyle(fontFamily: 'monospace'),
+                    style: TextStyle(fontFamily: kMonoFontFamily),
                   ),
                 ],
               ),

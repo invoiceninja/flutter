@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 
@@ -46,7 +47,7 @@ class _ImportDesignJsonDialogState extends State<_ImportDesignJsonDialog> {
           hintText: context.tr('paste_design_json'),
           border: const OutlineInputBorder(),
         ),
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+        style: const TextStyle(fontFamily: kMonoFontFamily, fontSize: 12),
       ),
       actions: [
         Row(

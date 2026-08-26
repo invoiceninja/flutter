@@ -733,7 +733,7 @@ class _NetworkRow extends StatelessWidget {
                       color: tokens.ink,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
+                      fontFamily: kMonoFontFamily,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -860,7 +860,7 @@ class _DetailDialog extends StatelessWidget {
     return AlertDialog(
       title: Text(
         title,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+        style: const TextStyle(fontFamily: kMonoFontFamily, fontSize: 14),
       ),
       content: SizedBox(
         width: math.min(720, MediaQuery.of(context).size.width - 48),
@@ -1065,7 +1065,7 @@ class _NetworkDetail extends StatelessWidget {
                     style: TextStyle(
                       color: tokens.ink,
                       fontSize: 12,
-                      fontFamily: 'monospace',
+                      fontFamily: kMonoFontFamily,
                     ),
                   ),
                 ),
@@ -1098,7 +1098,7 @@ class _ErrorDetail extends StatelessWidget {
           style: TextStyle(
             color: tokens.ink,
             fontSize: 13,
-            fontFamily: 'monospace',
+            fontFamily: kMonoFontFamily,
           ),
         ),
         if (entry.stack != null) ...[
@@ -1139,7 +1139,7 @@ class _MonoBlock extends StatelessWidget {
             style: TextStyle(
               color: tokens.ink,
               fontSize: 12,
-              fontFamily: 'monospace',
+              fontFamily: kMonoFontFamily,
               height: 1.4,
             ),
           ),

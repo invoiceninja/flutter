@@ -3,10 +3,11 @@ import 'package:admin/data/db/dao/recurring_expense_dao.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/domain/recurring_frequency.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/category_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
@@ -104,11 +105,21 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
         id: RecurringExpenseFieldIds.frequency,
         labelKey: 'frequency',
         width: 140,
-        cellBuilder: (e, _) {
+        // `ctx`, not `_`: `kRecurringFrequencyLabelKey` maps to a LOCALIZATION
+        // KEY (`'5' -> 'freq_monthly'`), so a cell builder that discards its
+        // context painted `freq_monthly` straight into the column. Every
+        // sibling gets this right (`recurring_invoice_columns.dart`).
+        cellBuilder: (e, ctx) {
           final key = kRecurringFrequencyLabelKey[e.frequencyId];
-          return cellText(key ?? e.frequencyId);
+          return cellText(key == null ? e.frequencyId : ctx.tr(key));
         },
-        valueBuilder: (e) => kRecurringFrequencyLabelKey[e.frequencyId],
+        // `valueBuilder` feeds `CellCopyHover`, and it has no `BuildContext`,
+        // so it cannot translate. Emit the raw id rather than the key — the
+        // convention `recurring_invoice_columns.dart` already follows. (Neither
+        // entity copies the *translated* label; that would need a context on
+        // the valueBuilder contract, which is a change across every column
+        // file.)
+        valueBuilder: (e) => cellNonZeroString(e.frequencyId),
       ),
       RecurringExpenseColumn(
         id: RecurringExpenseFieldIds.nextSendDate,
@@ -133,11 +144,14 @@ final List<RecurringExpenseColumn> kAllRecurringExpenseColumns =
         labelKey: 'remaining_cycles',
         width: 110,
         align: ColumnAlign.end,
-        cellBuilder: (e, _) => cellText(
-          e.remainingCycles == -1 ? 'endless' : '${e.remainingCycles}',
+        // `endless` is a bundled Transifex key, not a display string — the
+        // bare literal rendered lowercase and stayed English everywhere.
+        cellBuilder: (e, ctx) => cellText(
+          e.remainingCycles == -1 ? ctx.tr('endless') : '${e.remainingCycles}',
         ),
-        valueBuilder: (e) =>
-            e.remainingCycles == -1 ? 'endless' : '${e.remainingCycles}',
+        // Raw value, not the `endless` localization key — see the frequency
+        // column above.
+        valueBuilder: (e) => '${e.remainingCycles}',
       ),
       RecurringExpenseColumn(
         id: RecurringExpenseFieldIds.amount,

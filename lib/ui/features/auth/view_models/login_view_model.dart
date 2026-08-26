@@ -6,6 +6,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 import 'package:admin/utils/local_network_host.dart';
 
 /// Which credential flow the user picked. The paths share most state
@@ -309,6 +310,20 @@ class LoginViewModel extends ChangeNotifier {
     } on ApiException catch (e) {
       _setError(message: e.message);
       return false;
+    } on Object catch (e) {
+      // Login is the one screen a user cannot route around, and it was the one
+      // screen with no catch-all: anything that isn't an `ApiException` subtype
+      // escaped, `finally` cleared `_busy`, and the view (which has no
+      // try/catch either) turned it into an unhandled zone error. In release
+      // the button simply un-spun and said nothing, forever. Real throwers:
+      // `GoogleOAuth.signIn` is a platform channel (`PlatformException` code 10
+      // DEVELOPER_ERROR on a SHA-1 / client-id mismatch, or
+      // `MissingPluginException`), `_persistAndActivate` writes to the keychain
+      // and to Drift, and an unexpected response shape gives a `TypeError`.
+      // Every other mutation in the app gets this net from
+      // `runMutationWithNotify`.
+      _setError(message: formatNotifyError(e));
+      return false;
     } finally {
       _busy = false;
       notifyListeners();
@@ -381,6 +396,20 @@ class LoginViewModel extends ChangeNotifier {
     } on ApiException catch (e) {
       _setError(message: e.message);
       return false;
+    } on Object catch (e) {
+      // Login is the one screen a user cannot route around, and it was the one
+      // screen with no catch-all: anything that isn't an `ApiException` subtype
+      // escaped, `finally` cleared `_busy`, and the view (which has no
+      // try/catch either) turned it into an unhandled zone error. In release
+      // the button simply un-spun and said nothing, forever. Real throwers:
+      // `GoogleOAuth.signIn` is a platform channel (`PlatformException` code 10
+      // DEVELOPER_ERROR on a SHA-1 / client-id mismatch, or
+      // `MissingPluginException`), `_persistAndActivate` writes to the keychain
+      // and to Drift, and an unexpected response shape gives a `TypeError`.
+      // Every other mutation in the app gets this net from
+      // `runMutationWithNotify`.
+      _setError(message: formatNotifyError(e));
+      return false;
     } finally {
       _busy = false;
       notifyListeners();
@@ -432,6 +461,20 @@ class LoginViewModel extends ChangeNotifier {
     } on ApiException catch (e) {
       _setError(message: e.message);
       return false;
+    } on Object catch (e) {
+      // Login is the one screen a user cannot route around, and it was the one
+      // screen with no catch-all: anything that isn't an `ApiException` subtype
+      // escaped, `finally` cleared `_busy`, and the view (which has no
+      // try/catch either) turned it into an unhandled zone error. In release
+      // the button simply un-spun and said nothing, forever. Real throwers:
+      // `GoogleOAuth.signIn` is a platform channel (`PlatformException` code 10
+      // DEVELOPER_ERROR on a SHA-1 / client-id mismatch, or
+      // `MissingPluginException`), `_persistAndActivate` writes to the keychain
+      // and to Drift, and an unexpected response shape gives a `TypeError`.
+      // Every other mutation in the app gets this net from
+      // `runMutationWithNotify`.
+      _setError(message: formatNotifyError(e));
+      return false;
     } finally {
       _busy = false;
       notifyListeners();
@@ -463,6 +506,20 @@ class LoginViewModel extends ChangeNotifier {
       return true;
     } on ApiException catch (e) {
       _setError(message: e.message);
+      return false;
+    } on Object catch (e) {
+      // Login is the one screen a user cannot route around, and it was the one
+      // screen with no catch-all: anything that isn't an `ApiException` subtype
+      // escaped, `finally` cleared `_busy`, and the view (which has no
+      // try/catch either) turned it into an unhandled zone error. In release
+      // the button simply un-spun and said nothing, forever. Real throwers:
+      // `GoogleOAuth.signIn` is a platform channel (`PlatformException` code 10
+      // DEVELOPER_ERROR on a SHA-1 / client-id mismatch, or
+      // `MissingPluginException`), `_persistAndActivate` writes to the keychain
+      // and to Drift, and an unexpected response shape gives a `TypeError`.
+      // Every other mutation in the app gets this net from
+      // `runMutationWithNotify`.
+      _setError(message: formatNotifyError(e));
       return false;
     } finally {
       _busy = false;

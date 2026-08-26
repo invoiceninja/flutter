@@ -8,6 +8,8 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
+import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/data/models/domain/quote_status.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -422,6 +424,16 @@ class QuoteActions {
           subscriptionId: '',
           invoiceId: '',
           eInvoice: null,
+          // Drop the source's per-send lifecycle state — see
+          // `InvitationClone.freshClone`. Without this the fresh draft shows
+          // the original's sent/viewed timestamps and bounce error, and its
+          // contact link opens the ORIGINAL document's portal page.
+          invitations: quote.invitations.map((i) => i.freshClone()).toList(),
+          // Sanitise the rows: drop the links back to the source task /
+          // expense (else re-pointing the clone at another client dead-ends in
+          // a `line_items` error with no field to fix) and drop any
+          // server-generated unpaid-fee row (else the clone re-bills it).
+          lineItems: clonedLineItems(quote.lineItems),
           archivedAt: null,
           isDeleted: false,
           isDirty: false,

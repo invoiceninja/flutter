@@ -77,8 +77,12 @@ class _LoginBody extends StatelessWidget {
     final ok = await vm.submit();
     if (!context.mounted) return;
     final msg = _resolveError(context);
-    if (!ok && msg != null) {
-      Notify.error(context, msg);
+    if (!ok) {
+      // Never end on silence — unlike the OAuth paths, a false here always
+      // means a real failure (there is no "user dismissed the sheet" case), so
+      // a missing message is a bug, not a cancellation. `_onRecover` already
+      // guards this way.
+      Notify.error(context, msg ?? context.tr('an_error_occurred'));
     }
   }
 

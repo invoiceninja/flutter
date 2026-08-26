@@ -166,6 +166,19 @@ class SavedViewsRepository {
     final doc = Map<String, dynamic>.from(decoded);
     final companyBlob = doc[companyId];
     if (companyBlob is! Map) return;
+    // Remove the slot OUTRIGHT. Writing a partial `{groupField, ...}` slot here
+    // looked like the obvious counterpart to `apply`'s carry-across, but it
+    // breaks a load-bearing invariant: the list VM's nav-state listener
+    // substitutes `_defaultSnapshot()` for an ABSENT slot, which is byte-equal
+    // to `currentSnapshot()` at defaults, so both dedupe guards hold and the
+    // listener no-ops. A partial slot never equals `currentSnapshot()` (which
+    // always emits the six filter keys), so every later emission of the shared
+    // `nav_state` row — a route write, another entity's persist — would fail
+    // both guards and re-run `_applyDecoded` + `_resetAndReload`, refetching
+    // page 1 and clearing the multiselect, until the 500 ms debounced persist
+    // rewrote the slot. Grouping is a display preference and resets here; the
+    // bug this repo actually had was `apply` destroying it, and that stays
+    // fixed.
     final companyMap = Map<String, dynamic>.from(companyBlob)
       ..remove(entityType.name);
     if (companyMap.isEmpty) {
@@ -177,6 +190,20 @@ class SavedViewsRepository {
       filtersJson: jsonEncode(doc),
       now: _now().millisecondsSinceEpoch,
     );
+  }
+
+  /// Copy the display-only keys ([kDisplayOnlySnapshotKeys]) from the live
+  /// nav-state slot [from] onto the slot [to] that is about to replace it.
+  /// No-op for a slot that carries none (a list that was never grouped).
+  static void _carryDisplayOnly({
+    required Object? from,
+    required Map<String, dynamic> to,
+  }) {
+    if (from is! Map) return;
+    for (final key in kDisplayOnlySnapshotKeys) {
+      final value = from[key];
+      if (value != null) to[key] = value;
+    }
   }
 
   /// Decode `doc[companyId][entityType.name]` out of a `filters_json` blob.
@@ -309,6 +336,16 @@ class SavedViewsRepository {
     final companyMap = companyBlob is Map<String, dynamic>
         ? Map<String, dynamic>.from(companyBlob)
         : <String, dynamic>{};
+    // Carry the LIVE slot's display-only keys (grouping + its collapsed set)
+    // across. `savedViewSnapshot` strips them at capture time precisely because
+    // they "must not take part in Saved View identity" — but splicing the
+    // stripped map in as the WHOLE slot then deleted them, so applying a view
+    // silently un-grouped the list and lost which groups were folded, with no
+    // way to get either back but re-picking the dimension by hand. The sibling
+    // deep-link path (`_applyIntentState`) already leaves grouping alone, for
+    // the reason its comment gives: "an intent that silently ungrouped the list
+    // would be a surprise".
+    _carryDisplayOnly(from: companyMap[entityType.name], to: filterSlot);
     companyMap[entityType.name] = filterSlot;
     doc[row.companyId] = companyMap;
 

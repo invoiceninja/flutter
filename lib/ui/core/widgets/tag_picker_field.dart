@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
@@ -86,6 +87,31 @@ class _TagPickerFieldState extends State<TagPickerField> {
     widget.onChanged(widget.selectedIds.where((e) => e != id).toList());
   }
 
+  /// Id prefix for the synthetic "Create «name»" option.
+  ///
+  /// Flutter's `RawAutocomplete` only mounts its options overlay while the
+  /// option list is NON-EMPTY (`_canShowOptionsView`), so a create row that
+  /// lives purely inside `optionsViewBuilder` is unreachable in exactly the
+  /// case it exists for — a name that matches no existing tag. Keeping one
+  /// synthetic option in the list is how `ClientPickerField` solves the same
+  /// problem. The query is part of the id so a fresh query is a fresh option:
+  /// `RawAutocomplete._select` early-returns on an UNCHANGED selection, which
+  /// would otherwise leave the row dead after one cancelled create.
+  static const String _kCreatePrefix = '__create_tag__:';
+
+  static bool _isCreateOption(Tag t) => t.id.startsWith(_kCreatePrefix);
+
+  Tag _createOption(String query) => Tag(
+    id: '$_kCreatePrefix$query',
+    entityType: '',
+    name: query,
+    color: '',
+    updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    archivedAt: null,
+    isDeleted: false,
+  );
+
   bool _canCreate(String query) {
     final q = query.trim();
     if (widget.onCreate == null || q.isEmpty || _creating) return false;
@@ -170,12 +196,26 @@ class _TagPickerFieldState extends State<TagPickerField> {
                   final pool = widget.available.where(
                     (t) => !selected.contains(t.id),
                   );
+                  final raw = value.text.trim();
                   if (q.isEmpty) return pool.take(20);
-                  return pool
+                  final matches = pool
                       .where((t) => t.name.toLowerCase().contains(q))
                       .take(50);
+                  // Keep the list non-empty so the overlay — and with it the
+                  // create row — can mount at all. See [_kCreatePrefix].
+                  if (!_canCreate(raw)) return matches;
+                  return [...matches, _createOption(raw)];
                 },
                 onSelected: (tag) {
+                  // Enter on the highlighted row reaches here; the create row
+                  // is not a real tag. (Tapping it goes through its own
+                  // `InkWell.onTap` below, which is the path CLAUDE.md
+                  // prescribes — `_select` early-returns on an unchanged
+                  // selection, so a tap must not depend on it.)
+                  if (_isCreateOption(tag)) {
+                    unawaited(_handleCreate(tag.name));
+                    return;
+                  }
                   _addTag(tag.id);
                   _controller.clear();
                 },
@@ -251,40 +291,41 @@ class _TagPickerFieldState extends State<TagPickerField> {
                           padding: EdgeInsets.zero,
                           children: [
                             for (final tag in options)
-                              InkWell(
-                                onTap: () => onSelected(tag),
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: InSpacing.md(context),
-                                    vertical: InSpacing.sm,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: parseTagColor(
-                                            tag.color,
-                                            fallback: tokens.ink3,
+                              if (!_isCreateOption(tag))
+                                InkWell(
+                                  onTap: () => onSelected(tag),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: InSpacing.md(context),
+                                      vertical: InSpacing.sm,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 10,
+                                          height: 10,
+                                          decoration: BoxDecoration(
+                                            color: parseTagColor(
+                                              tag.color,
+                                              fallback: tokens.ink3,
+                                            ),
+                                            shape: BoxShape.circle,
                                           ),
-                                          shape: BoxShape.circle,
                                         ),
-                                      ),
-                                      const SizedBox(width: InSpacing.sm),
-                                      Expanded(
-                                        child: Text(
-                                          tag.name,
-                                          style: theme.textTheme.bodyMedium
-                                              ?.copyWith(color: tokens.ink),
+                                        const SizedBox(width: InSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            tag.name,
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(color: tokens.ink),
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
                             if (showCreate) ...[
-                              if (options.isNotEmpty)
+                              if (options.any((t) => !_isCreateOption(t)))
                                 Divider(height: 1, color: tokens.border),
                               InkWell(
                                 onTap: () => _handleCreate(query),

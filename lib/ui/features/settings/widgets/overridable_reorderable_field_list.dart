@@ -205,7 +205,7 @@ class _VariableRow extends StatelessWidget {
               variable,
               style: TextStyle(
                 color: tokens.ink3,
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
                 fontSize: 12,
               ),
               overflow: TextOverflow.ellipsis,
@@ -303,7 +303,7 @@ class _AddVariableDialogState extends State<_AddVariableDialog> {
                     subtitle: Text(
                       v,
                       style: const TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: kMonoFontFamily,
                         fontSize: 12,
                       ),
                     ),

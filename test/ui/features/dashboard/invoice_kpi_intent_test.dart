@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 
@@ -33,7 +34,13 @@ void main() {
       expect(intent.sortAscending, isTrue);
     });
 
-    test('outstanding carries client_status=unpaid + the date window', () {
+    // Regression: this used to emit `client_status: {unpaid}`, which the
+    // invoices list registers no key for and `InvoiceRepository.watchPage` has
+    // no local mirror for — so it narrowed only the network fetch while the
+    // Drift watch the list renders from ignored it. The user landed on an
+    // unfiltered list (paid / draft / cancelled included) with no chip and a
+    // lit "clear filters" icon, and the phantom filter persisted to nav_state.
+    test('outstanding carries a renderable status_id + the date window', () {
       final intent = buildInvoiceKpiIntent(
         overdue: false,
         isAllTimeRange: false,
@@ -41,7 +48,14 @@ void main() {
         end: end,
       );
 
-      expect(intent.extraFilters['client_status'], {'unpaid'});
+      // Sent + partial IS "unpaid" — the same definition `InvoiceDao`'s own
+      // `unpaid` badge mode uses — and `status_id` is a real, chip-rendering,
+      // locally-mirrored filter.
+      expect(intent.extraFilters['status_id'], {
+        InvoiceStatus.sent.wireId,
+        InvoiceStatus.partial.wireId,
+      });
+      expect(intent.extraFilters.containsKey('client_status'), isFalse);
       expect(intent.extraFilters['date_range'], {'date,2026-05-01,2026-05-31'});
     });
 
@@ -54,7 +68,7 @@ void main() {
       );
 
       expect(intent.extraFilters, {
-        'client_status': {'unpaid'},
+        'status_id': {InvoiceStatus.sent.wireId, InvoiceStatus.partial.wireId},
       });
       expect(intent.extraFilters.containsKey('date_range'), isFalse);
     });

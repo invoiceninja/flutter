@@ -453,7 +453,7 @@ class _PreviewRow extends StatelessWidget {
             value,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: t.ink2,
-              fontFamily: 'monospace',
+              fontFamily: kMonoFontFamily,
             ),
           ),
         ),

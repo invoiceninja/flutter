@@ -177,17 +177,91 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// deleting them would race the dispatcher's `applyCreateResponse`. `dead`
   /// rows are left alone too — the existing `onSaved` cleanup deletes them
   /// after a successful re-save.
+  ///
+  /// Returns the SAVE-PARAM query carried by the rows it removed, merged
+  /// oldest-first. That salvage is load-bearing: the billing repos fold an
+  /// action (`mark_sent`, `paid`, `cancel`, `auto_bill`) into an ordinary
+  /// `update` row's payload under [kSaveQueryPayloadKey], and this predicate
+  /// keys only on `(company, type, id, kind)` — so it cannot tell an
+  /// action-bearing save from a plain one. Without carrying the query forward,
+  /// an offline "Mark Sent" followed by an offline typo-fix Save silently
+  /// dropped the action: the invoice synced with the edit and stayed a draft,
+  /// with nothing in the Outbox to show for it. Callers that build a payload
+  /// merge this in via [mergeSaveQuery].
   @protected
-  Future<void> dedupPendingMutations({
+  Future<Map<String, String>> dedupPendingMutations({
     required String companyId,
     required String entityId,
     required MutationKind kind,
-  }) => _outbox.deletePendingForEntity(
-    companyId: companyId,
-    entityType: entityTypeName,
-    entityId: entityId,
-    mutationKind: kind.wireName,
-  );
+  }) async {
+    final superseded = await _outbox.pendingRowsForEntity(
+      companyId: companyId,
+      entityType: entityTypeName,
+      entityId: entityId,
+      mutationKind: kind.wireName,
+    );
+    await _outbox.deletePendingForEntity(
+      companyId: companyId,
+      entityType: entityTypeName,
+      entityId: entityId,
+      mutationKind: kind.wireName,
+    );
+    final carried = <String, String>{};
+    for (final row in superseded) {
+      carried.addAll(saveQueryOf(row.payload));
+    }
+    return carried;
+  }
+
+  /// The SAVE-PARAM query stored in a raw outbox payload, or empty. Tolerant
+  /// of a malformed payload — a salvage step must never break the save it is
+  /// trying to protect.
+  @protected
+  @visibleForTesting
+  static Map<String, String> saveQueryOf(String rawPayload) {
+    try {
+      final decoded = jsonDecode(rawPayload);
+      if (decoded is! Map) return const {};
+      final q = decoded[kSaveQueryPayloadKey];
+      if (q is! Map) return const {};
+      return {
+        for (final e in q.entries)
+          if (e.key is String && e.value != null) e.key as String: '${e.value}',
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// The save-query this save should send: its [own] if it has one, otherwise
+  /// the [carried] one salvaged from the row it supersedes.
+  ///
+  /// **Deliberately not a union.** Merging by key only disambiguates the *same*
+  /// verb; contradictory actions live under *different* keys, so a union keeps
+  /// both. On a sent, unpaid invoice `canMarkPaid` and `canCancel` are true at
+  /// the same time (`invoice_actions.dart`) and neither flips the local status,
+  /// so offline both stay enabled — a union would drain as
+  /// `PUT /invoices/{id}?cancel=true&paid=true`, cancelling the invoice AND
+  /// recording a payment, with the outcome decided by server param ordering
+  /// rather than by the user. `start` / `stop` on a recurring invoice are
+  /// exclusive by definition too.
+  ///
+  /// So: a save that carries its own action states the user's latest intent and
+  /// wins outright (which is what the pre-salvage behaviour did, correctly).
+  /// The carried query is only for the case this salvage exists to fix — a
+  /// PLAIN save superseding an action-bearing one, where dropping it silently
+  /// lost an offline Mark Sent.
+  ///
+  /// Returns null when there is nothing to send, so `_withSaveQuery` skips the
+  /// key entirely.
+  @protected
+  Map<String, String>? mergeSaveQuery(
+    Map<String, String> carried,
+    Map<String, String>? own,
+  ) {
+    if (own != null && own.isNotEmpty) return own;
+    return carried.isEmpty ? null : carried;
+  }
 
   /// Archive a row: flip the local Drift row optimistically (`archived_at`
   /// now, `is_dirty=true`) AND enqueue the mutation, in one transaction — so

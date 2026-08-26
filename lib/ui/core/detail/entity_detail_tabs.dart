@@ -40,12 +40,64 @@ class EntityDetailTabs extends StatefulWidget {
 }
 
 class _EntityDetailTabsState extends State<EntityDetailTabs>
-    with SingleTickerProviderStateMixin {
-  late final TabController _controller = TabController(
-    length: widget.tabs.length,
-    vsync: this,
-    initialIndex: widget.initialIndex.clamp(0, widget.tabs.length - 1),
-  );
+        // PLURAL `TickerProviderStateMixin`: the controller is rebuilt when the tab
+        // count changes, and every `TabController` eagerly builds its own
+        // `AnimationController`, i.e. its own ticker.
+        // `SingleTickerProviderStateMixin.createTicker` asserts `_ticker == null`
+        // and never resets it — not on dispose, not when the ticker is disposed —
+        // so a second controller throws "multiple tickers were created" on exactly
+        // the rebuild this exists to handle. `BillingDocItemsTabs` (which rebuilds
+        // its controller the same way) uses the plural mixin for the same reason.
+        with
+        TickerProviderStateMixin {
+  late TabController _controller = _newController(widget.initialIndex);
+
+  /// Build a controller and wire it up. Every construction goes through here so
+  /// the `_onTabChanged` subscription can never be forgotten — without it
+  /// `_activated` stops growing and the body `Stack` renders nothing for any
+  /// tab the user opens afterwards.
+  TabController _newController(int index) {
+    final controller = TabController(
+      length: widget.tabs.length,
+      vsync: this,
+      initialIndex: widget.tabs.isEmpty
+          ? 0
+          : index.clamp(0, widget.tabs.length - 1),
+    );
+    controller.addListener(_onTabChanged);
+    return controller;
+  }
+
+  /// Rebuild the controller when the tab COUNT changes.
+  ///
+  /// `ClientDetailTabs` builds a variable-length list — eight of its tabs are
+  /// gated on `me?.moduleEnabled(...)` — and toggling a module in Account
+  /// Management rebuilds the branch in place (the shell keeps it mounted, and
+  /// the module write updates `session`, which is the router's
+  /// `refreshListenable`). With a `late final` controller the length went
+  /// stale: shrinking left `_controller.index` past the end so every body was
+  /// `Offstage` and no tab underlined, and growing made a tap on the new last
+  /// tab trip `TabController._changeIndex`'s range assert.
+  @override
+  void didUpdateWidget(EntityDetailTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tabs.length == widget.tabs.length) return;
+    // Dispose FIRST, then build — the plural mixin allows both orders, but this
+    // is the order `BillingDocItemsTabs` uses and it keeps at most one live
+    // ticker.
+    final previousIndex = _controller.index;
+    _controller
+      ..removeListener(_onTabChanged)
+      ..dispose();
+    _controller = _newController(previousIndex);
+    // `_activated` is deliberately NOT cleared. Indices shift when the count
+    // changes, so some entries now point at a different tab — but the set only
+    // gates *eager mounting*, so the cost of a stale entry is a body mounted
+    // early, while clearing tears down every already-live tab's list VM and
+    // scroll position, which this class's own contract promises to preserve.
+    // Out-of-range entries are simply never consulted by the body `Stack`.
+    _activated.add(_controller.index);
+  }
 
   // Tabs the user has activated at least once. `IndexedStack` mounts every
   // child eagerly, which would fire each tab's data fetches before the user
@@ -57,8 +109,8 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
   @override
   void initState() {
     super.initState();
+    // The listener is attached by `_newController`.
     _activated.add(_controller.index);
-    _controller.addListener(_onTabChanged);
   }
 
   void _onTabChanged() {

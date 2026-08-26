@@ -316,8 +316,9 @@ Future<({AppDatabase db, bool wasReset})> openAppDatabase() async {
     return (db: await openFresh(), wasReset: true);
   }
 
+  AppDatabase? opened;
   try {
-    final db = await openFresh();
+    final db = opened = await openFresh();
     // Force a trivial query so a corrupt store (or wrong key — `PRAGMA key`
     // doesn't fail eagerly, the first read does) surfaces here, not later.
     // This also drives the lazy connection open + runs any pending
@@ -338,6 +339,18 @@ Future<({AppDatabase db, bool wasReset})> openAppDatabase() async {
     rethrow;
   } catch (e, st) {
     _log.severe('Drift open failed; recovering by resetting local data', e, st);
+    // Close first: `resetAndReopen` renames the database file, and on Windows
+    // SQLite's VFS opens without FILE_SHARE_DELETE, so renaming a file the
+    // background isolate still holds fails with a sharing violation — which
+    // then escapes `main()` (it only catches `KeyringUnavailableException`) as
+    // a blank window on every launch. On POSIX the rename succeeds but leaks
+    // the isolate and file handle for the process lifetime. `db` used to be
+    // scoped inside the `try`, so this branch could neither reach nor close it.
+    try {
+      await opened?.close();
+    } catch (closeError, closeSt) {
+      _log.warning('closing the broken database failed', closeError, closeSt);
+    }
     return resetAndReopen();
   }
 }

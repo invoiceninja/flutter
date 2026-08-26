@@ -1615,6 +1615,23 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// How many loaded rows the user can actually see — [itemCount] minus the
+  /// ones hidden inside a collapsed group.
+  ///
+  /// The select-all affordances must compare against THIS, not `items.length`:
+  /// [selectAllVisible] deliberately skips hidden rows, so with any group
+  /// folded `countSelected` could never reach `items.length`, the header
+  /// checkbox could never render checked, and its toggle could never take the
+  /// "clear" branch — leaving the only exit from multiselect the AppBar ✕.
+  int get visibleItemCount {
+    if (!hasHiddenRows) return items.length;
+    var n = 0;
+    for (var i = 0; i < items.length; i++) {
+      if (!isRowHidden(i)) n++;
+    }
+    return n;
+  }
+
   /// Select every row the user can actually see. Rows inside a collapsed
   /// group are skipped — otherwise folding a group away and tapping
   /// select-all would sweep invisible records into a bulk delete.

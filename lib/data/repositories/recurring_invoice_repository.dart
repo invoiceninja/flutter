@@ -276,7 +276,7 @@ class RecurringInvoiceRepository
     var rowId = 0;
     await db.transaction(() async {
       await db.recurringInvoiceDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
@@ -285,7 +285,10 @@ class RecurringInvoiceRepository
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
-        payload: _withSaveQuery(stored.toApiJson(), extraQuery),
+        payload: _withSaveQuery(
+          stored.toApiJson(),
+          mergeSaveQuery(carried, extraQuery),
+        ),
       );
     });
     return SaveResult(entity: stored, outboxRowId: rowId);
@@ -314,7 +317,7 @@ class RecurringInvoiceRepository
     var rowId = 0;
     await db.transaction(() async {
       await db.recurringInvoiceDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: recurringInvoice.id,
         kind: MutationKind.update,
@@ -325,7 +328,7 @@ class RecurringInvoiceRepository
         kind: MutationKind.update,
         payload: _withSaveQuery(
           recurringInvoice.toApiJson(preserveTempId: true),
-          extraQuery,
+          mergeSaveQuery(carried, extraQuery),
         ),
       );
     });

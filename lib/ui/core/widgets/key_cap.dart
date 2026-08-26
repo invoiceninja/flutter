@@ -34,7 +34,7 @@ class KeyCap extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: 'monospace',
+            fontFamily: kMonoFontFamily,
             fontFeatures: const [FontFeature.tabularFigures()],
             fontSize: 12,
             color: color ?? tokens.ink,

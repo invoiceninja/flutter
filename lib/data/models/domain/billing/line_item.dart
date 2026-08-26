@@ -208,6 +208,38 @@ Decimal? _parseQuantity(Object? raw) {
 
 /// Serialize back to the JSON shape the server expects. The repository
 /// embeds the result inside the parent entity's `line_items` array.
+extension LineItemClone on LineItem {
+  /// A line-item copy suitable for a *cloned* billing doc: keeps what the user
+  /// typed (product, description, cost, quantity, taxes, custom values) but
+  /// drops the links back to the source records — `taskId` / `expenseId` — and
+  /// resets a task/expense-derived row to a plain `standard` line.
+  ///
+  /// Without this, cloning an invoice that billed task T and then re-pointing
+  /// the clone at a different client — the canonical "same work, new client"
+  /// use of clone — dead-ends: `validateCrossClient` sees the line still
+  /// claiming T (whose client is the ORIGINAL one), returns a `line_items`
+  /// error, and `save()` hard-returns. The message names no field the form can
+  /// fix, so the only way out is deleting and retyping the line. admin-portal
+  /// clears both ids for exactly this reason (`InvoiceItemEntity.clone`).
+  LineItem freshClone() => copyWith(
+    taskId: null,
+    expenseId: null,
+    typeId: typeId == LineItemType.task || typeId == LineItemType.expense
+        ? LineItemType.standard
+        : typeId,
+  );
+}
+
+/// Line items for a *cloned* billing doc: every row sanitised by
+/// [LineItemClone.freshClone], and server-generated unpaid-fee rows dropped
+/// entirely — those are a gateway fee the server added to the ORIGINAL
+/// document, and carrying one into a new draft re-bills it. Mirrors
+/// admin-portal `InvoiceEntity.clone`.
+List<LineItem> clonedLineItems(List<LineItem> items) => [
+  for (final item in items)
+    if (item.typeId != LineItemType.unpaidFee) item.freshClone(),
+];
+
 extension LineItemPayload on LineItem {
   Map<String, dynamic> toApiJson() => <String, dynamic>{
     'product_key': productKey,

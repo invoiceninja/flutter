@@ -482,7 +482,7 @@ class _PositionReadout extends StatelessWidget {
       child: Text(
         'x=${p.x}  y=${p.y}  w=${p.w}  h=${p.h}',
         style: TextStyle(
-          fontFamily: 'monospace',
+          fontFamily: kMonoFontFamily,
           fontSize: 12,
           color: context.inTheme.ink3,
         ),

@@ -438,7 +438,7 @@ class _DesignDetailScreen extends StatelessWidget {
                     SelectableText(
                       s.$2,
                       style: const TextStyle(
-                        fontFamily: 'monospace',
+                        fontFamily: kMonoFontFamily,
                         fontSize: 12,
                       ),
                     ),

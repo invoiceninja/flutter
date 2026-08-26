@@ -888,7 +888,7 @@ class _VariablesPaneState extends State<_VariablesPane> {
         child: ActionChip(
           label: const Text(
             '<!-- Statement marker -->',
-            style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+            style: TextStyle(fontFamily: kMonoFontFamily, fontSize: 12),
           ),
           onPressed: () => widget.onInsert(v),
         ),
@@ -897,7 +897,7 @@ class _VariablesPaneState extends State<_VariablesPane> {
     return ActionChip(
       label: Text(
         v,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+        style: const TextStyle(fontFamily: kMonoFontFamily, fontSize: 12),
       ),
       onPressed: () => widget.onInsert(v),
     );

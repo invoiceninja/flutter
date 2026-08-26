@@ -393,7 +393,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     var rowId = 0;
     await db.transaction(() async {
       await db.invoiceDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
@@ -402,7 +402,10 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
-        payload: _withSaveQuery(_forMutation(stored.toApiJson()), extraQuery),
+        payload: _withSaveQuery(
+          _forMutation(stored.toApiJson()),
+          mergeSaveQuery(carried, extraQuery),
+        ),
       );
     });
     return SaveResult(entity: stored, outboxRowId: rowId);
@@ -446,7 +449,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     var rowId = 0;
     await db.transaction(() async {
       await db.invoiceDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: invoice.id,
         kind: MutationKind.update,
@@ -457,7 +460,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         kind: MutationKind.update,
         payload: _withSaveQuery(
           _forMutation(invoice.toApiJson(preserveTempId: true)),
-          extraQuery,
+          mergeSaveQuery(carried, extraQuery),
         ),
       );
     });

@@ -172,4 +172,58 @@ void main() {
       },
     );
   });
+
+  // Regression: picking a SECOND invoice used to auto-fill 0.00, because the
+  // edit layout handed `draft.amount` to the allocation section's headroom cap
+  // and that value auto-syncs to the allocation total — so headroom was always
+  // exactly zero after the first pick. `autoFillCap` is the seam that keeps the
+  // two apart; the layout must read it instead of `draft.amount`.
+  group('autoFillCap', () {
+    test(
+      'is zero while the amount auto-syncs, so nothing caps the next pick',
+      () {
+        final vm = vmFor();
+        expect(vm.isAmountDirty, isFalse);
+        expect(vm.autoFillCap, Decimal.zero);
+
+        // Pick invoice #1 (balance 100) — the amount follows the allocation.
+        vm.replacePaymentables([inv('i1', 100)]);
+        expect(vm.draft.amount, Decimal.parse('100'));
+        expect(vm.isAmountDirty, isFalse);
+
+        // The bug: `draft.amount` is now 100 and the allocated total is also 100,
+        // so a cap built from it leaves no headroom. `autoFillCap` stays zero.
+        expect(vm.allocatedTotal, Decimal.parse('100'));
+        expect(vm.autoFillCap, Decimal.zero);
+
+        // With no cap the second invoice keeps its own balance, and the payment
+        // grows to cover both.
+        vm.replacePaymentables([inv('i1', 100), inv('i2', 50)]);
+        expect(vm.draft.amount, Decimal.parse('150'));
+      },
+    );
+
+    test('becomes the typed amount once the user fixes it', () {
+      final vm = vmFor();
+      vm.setAmount('120');
+      expect(vm.isAmountDirty, isTrue);
+      expect(vm.autoFillCap, Decimal.parse('120'));
+
+      // A user-fixed amount must still cap: the allocations no longer drive it.
+      vm.replacePaymentables([inv('i1', 100)]);
+      expect(vm.draft.amount, Decimal.parse('120'));
+      expect(vm.autoFillCap, Decimal.parse('120'));
+    });
+
+    test('an existing payment starts capped (amount is user-meaningful)', () {
+      final vm = vmFor(
+        existing: emptyPayment().copyWith(
+          id: 'p1',
+          amount: Decimal.parse('75'),
+        ),
+      );
+      expect(vm.isAmountDirty, isTrue);
+      expect(vm.autoFillCap, Decimal.parse('75'));
+    });
+  });
 }

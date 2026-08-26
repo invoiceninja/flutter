@@ -74,7 +74,20 @@ class _UserEditScreenState extends State<UserEditScreen> {
       // with 412), then fetch a fresh snapshot from the API so the form
       // shows server-canonical data — Drift may be stale or empty on a
       // deep-link. Falls back to the Drift row if the network fails.
-      unawaited(_loadExistingUser(services, companyId, widget.existingId!));
+      // Via a microtask, like the self-edit redirect above. `_loadExistingUser`
+      // runs synchronously up to its first `await` — and that first await is
+      // `showConfirmPasswordSheet`, whose own first statement is
+      // `await showDialog(...)`, which pushes on the root Navigator
+      // *synchronously*. From `didChangeDependencies` that lands inside the
+      // build scope and trips `markNeedsBuild` on the root Overlay (an
+      // ancestor): "setState() or markNeedsBuild() called during build". The
+      // throw is swallowed by the `unawaited`, so in debug/profile the prompt
+      // never appears, `_vm` is never assigned and the screen sits on a
+      // spinner forever.
+      Future.microtask(() {
+        if (!mounted) return;
+        unawaited(_loadExistingUser(services, companyId, widget.existingId!));
+      });
     }
   }
 
@@ -189,39 +202,44 @@ class _UserEditBody extends StatelessWidget {
     final canSave = !vm.isSaving;
     return DefaultTabController(
       length: 3,
-      child: SettingsScreenScaffold(
-        titleKey: isCreate ? 'new_user' : 'edit_user',
-        leading: const BackButton(),
-        actions: [
-          TextButton(
-            onPressed: canSave ? () => _save(context, vm) : null,
-            child: Text(context.tr('save')),
-          ),
-        ],
-        body: Column(
-          children: [
-            TabBar(
-              isScrollable: true,
-              tabs: [
-                Tab(text: context.tr('details')),
-                Tab(text: context.tr('notifications')),
-                Tab(text: context.tr('permissions')),
-              ],
-            ),
-            Expanded(
-              child: FormSaveScope(
-                onSubmit: () => _save(context, vm),
-                enabled: canSave,
-                child: TabBarView(
-                  children: [
-                    _DetailsTab(vm: vm),
-                    _NotificationsTab(vm: vm),
-                    _PermissionsTab(vm: vm),
-                  ],
-                ),
-              ),
+      // `Builder` so the Save handlers below get a context UNDER the
+      // controller — `_save` needs it to jump back to the Details tab, which
+      // is the only tab that renders the field errors it publishes.
+      child: Builder(
+        builder: (context) => SettingsScreenScaffold(
+          titleKey: isCreate ? 'new_user' : 'edit_user',
+          leading: const BackButton(),
+          actions: [
+            TextButton(
+              onPressed: canSave ? () => _save(context, vm) : null,
+              child: Text(context.tr('save')),
             ),
           ],
+          body: Column(
+            children: [
+              TabBar(
+                isScrollable: true,
+                tabs: [
+                  Tab(text: context.tr('details')),
+                  Tab(text: context.tr('notifications')),
+                  Tab(text: context.tr('permissions')),
+                ],
+              ),
+              Expanded(
+                child: FormSaveScope(
+                  onSubmit: () => _save(context, vm),
+                  enabled: canSave,
+                  child: TabBarView(
+                    children: [
+                      _DetailsTab(vm: vm),
+                      _NotificationsTab(vm: vm),
+                      _PermissionsTab(vm: vm),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -234,7 +252,23 @@ class _UserEditBody extends StatelessWidget {
     // without this a blank New User form answered a Save tap with the password
     // sheet and only then said "Please enter a first name" — authenticate
     // first, find out it was pointless second.
-    if (!vm.validateAndPublish()) return;
+    if (!vm.validateAndPublish()) {
+      // The errors `validateAndPublish` publishes are rendered ONLY by
+      // `_DetailsTab` (tab 0). From Notifications or Permissions — a natural
+      // first stop when provisioning a user — the early return used to be
+      // completely silent: no toast, no tab change, no visible error, and Save
+      // is deliberately never disabled (see `canSave`). Send the user to the
+      // tab that can show the problem, and say what it is.
+      DefaultTabController.maybeOf(context)?.animateTo(0);
+      final first = vm.fieldErrors.values
+          .expand((messages) => messages)
+          .firstWhere((m) => m.trim().isNotEmpty, orElse: () => '');
+      Notify.error(
+        context,
+        first.isEmpty ? context.tr('please_fill_out_all_fields') : first,
+      );
+      return;
+    }
     // Every user mutation is password-gated server-side (412). Prime the cache
     // *before* the row is enqueued: otherwise the drain parks it, the sheet
     // pops after the form has already claimed success, and cancelling leaves a

@@ -38,7 +38,7 @@ class TokenCreatedDialog extends StatelessWidget {
             ),
             child: SelectableText(
               secret,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              style: const TextStyle(fontFamily: kMonoFontFamily, fontSize: 13),
             ),
           ),
         ],

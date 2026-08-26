@@ -625,7 +625,7 @@ class _SecretRow extends StatelessWidget {
           child: SelectableText(
             secret,
             style: const TextStyle(
-              fontFamily: 'monospace',
+              fontFamily: kMonoFontFamily,
               fontSize: 14,
               letterSpacing: 1,
             ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:provider/provider.dart';
 
@@ -8,12 +7,13 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/file_drop_zone.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/widgets/plan_gate_banner.dart';
 import 'package:admin/utils/document_upload_validation.dart';
-import 'package:admin/utils/url_safety.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/url_safety.dart';
 
 /// Reusable per-entity Documents tab body. Used on the Client and Product
 /// detail screens (and any future entity that supports attachments).
@@ -203,8 +203,17 @@ class _EntityDocumentsTabState extends State<EntityDocumentsTab> {
     // hostile or compromised server could push javascript:, file:, or
     // intent:// URIs and have them dispatched to the OS handler when the
     // user taps "View document".
-    if (!isSafeHttpsUrl(doc.url)) return;
-    await launchUrl(Uri.parse(doc.url), mode: LaunchMode.externalApplication);
+    // Both exits used to be silent: a rejected scheme returned, and the
+    // bool from `launchUrl` was discarded — so "View" simply did nothing,
+    // with no toast and no `platformDefault` retry. That is the exact
+    // failure `openExternalUrl` was introduced for (invoiceninja/flutter#80).
+    // The https-only check itself stays: these URLs come from the server,
+    // and a hostile one could otherwise push `javascript:` / `file:` /
+    // `intent:` at the OS handler.
+    final uri = isSafeHttpsUrl(doc.url) ? Uri.tryParse(doc.url) : null;
+    if (uri != null && await launchExternalUri(uri)) return;
+    if (!mounted) return;
+    Notify.error(context, context.tr('failed_to_open_url'));
   }
 }
 

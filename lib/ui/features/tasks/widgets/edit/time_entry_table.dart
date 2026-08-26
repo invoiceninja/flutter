@@ -515,6 +515,7 @@ class _DurationCell extends StatefulWidget {
 
 class _DurationCellState extends State<_DurationCell> {
   late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
   String _externalText = '';
 
   @override
@@ -522,6 +523,34 @@ class _DurationCellState extends State<_DurationCell> {
     super.initState();
     _externalText = _format(widget.entry);
     _controller = TextEditingController(text: _externalText);
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  /// Silent revert on blur — the contract `InDateField` / `InTimeField`
+  /// implement, and which the newer `create_task_from_line_item_sheet`
+  /// re-implements as `_syncDurationText`.
+  ///
+  /// [_onChanged] bails on unparseable input BEFORE touching [_externalText],
+  /// so `didUpdateWidget`'s re-seed guard (`next != _externalText`) sees no
+  /// change and never restores the text. Clearing the field therefore left it
+  /// blank for the rest of the screen's life while the entry still held — and
+  /// still saved and invoiced — its original duration. Typing garbage left the
+  /// garbage on screen with the old value underneath it.
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) return;
+    final text = _controller.text;
+    // Only UNPARSEABLE text is reverted. Comparing against `_format` instead
+    // would clobber a perfectly good edit whenever `widget.entry` hasn't caught
+    // up with the commit yet (the parent rebuild lands a frame later), and a
+    // valid-but-differently-spelled entry — `2:30` for `2:30:00` — is not a
+    // lie, so there is nothing to correct.
+    if (parseDurationInput(text) != null) return;
+    final canonical = _format(widget.entry);
+    if (text == canonical) return;
+    setState(() {
+      _externalText = canonical;
+      _controller.text = canonical;
+    });
   }
 
   @override
@@ -539,6 +568,9 @@ class _DurationCellState extends State<_DurationCell> {
 
   @override
   void dispose() {
+    _focusNode
+      ..removeListener(_onFocusChange)
+      ..dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -611,6 +643,7 @@ class _DurationCellState extends State<_DurationCell> {
       constraints: const BoxConstraints(minHeight: _kCellMinHeight),
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         textAlignVertical: TextAlignVertical.center,
         style: const TextStyle(
           fontSize: 12,

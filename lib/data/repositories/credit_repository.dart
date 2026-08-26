@@ -279,7 +279,7 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     var rowId = 0;
     await db.transaction(() async {
       await db.creditDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
@@ -288,7 +288,10 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
-        payload: _withSaveQuery(_forMutation(stored.toApiJson()), extraQuery),
+        payload: _withSaveQuery(
+          _forMutation(stored.toApiJson()),
+          mergeSaveQuery(carried, extraQuery),
+        ),
       );
     });
     return SaveResult(entity: stored, outboxRowId: rowId);
@@ -311,7 +314,7 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     var rowId = 0;
     await db.transaction(() async {
       await db.creditDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: credit.id,
         kind: MutationKind.update,
@@ -322,7 +325,7 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
         kind: MutationKind.update,
         payload: _withSaveQuery(
           _forMutation(credit.toApiJson(preserveTempId: true)),
-          extraQuery,
+          mergeSaveQuery(carried, extraQuery),
         ),
       );
     });

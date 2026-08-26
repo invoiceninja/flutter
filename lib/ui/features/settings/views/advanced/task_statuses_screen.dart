@@ -10,15 +10,6 @@ import 'package:admin/ui/core/utils/task_status_colors.dart';
 import 'package:admin/ui/core/widgets/unsynced_pill.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_list_scaffold.dart';
 
-/// Search keys exported for the settings sidebar search. Colocated with
-/// the screen so adding / renaming a field updates both ends in one place.
-const kTaskStatusesSearchKeys = <String>[
-  'task_statuses',
-  'name',
-  'color',
-  'status_order',
-];
-
 /// `/settings/task_statuses` — list every task status. Drag the handle on
 /// a row to reorder (kanban columns follow this order). Tap a row to edit;
 /// tap "+ New" to create.

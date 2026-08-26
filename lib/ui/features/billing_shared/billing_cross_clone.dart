@@ -337,7 +337,7 @@ Invoice cloneToInvoice(BillingCloneData data) => emptyInvoice().copyWith(
   customValue2: data.customValue2,
   customValue3: data.customValue3,
   customValue4: data.customValue4,
-  lineItems: data.lineItems,
+  lineItems: clonedLineItems(data.lineItems),
   invitations: data.invitations,
 );
 
@@ -370,7 +370,7 @@ Quote cloneToQuote(BillingCloneData data) => emptyQuote().copyWith(
   customValue2: data.customValue2,
   customValue3: data.customValue3,
   customValue4: data.customValue4,
-  lineItems: data.lineItems,
+  lineItems: clonedLineItems(data.lineItems),
   invitations: data.invitations,
 );
 
@@ -403,7 +403,7 @@ Credit cloneToCredit(BillingCloneData data) => emptyCredit().copyWith(
   customValue2: data.customValue2,
   customValue3: data.customValue3,
   customValue4: data.customValue4,
-  lineItems: data.lineItems,
+  lineItems: clonedLineItems(data.lineItems),
   invitations: data.invitations,
 );
 
@@ -437,7 +437,7 @@ RecurringInvoice cloneToRecurringInvoice(BillingCloneData data) =>
       customValue2: data.customValue2,
       customValue3: data.customValue3,
       customValue4: data.customValue4,
-      lineItems: data.lineItems,
+      lineItems: clonedLineItems(data.lineItems),
       invitations: data.invitations,
       // frequencyId intentionally left at the empty default — the user picks
       // the recurrence schedule on the create screen.
@@ -474,5 +474,5 @@ PurchaseOrder cloneToPurchaseOrder(BillingCloneData data) =>
       customValue2: data.customValue2,
       customValue3: data.customValue3,
       customValue4: data.customValue4,
-      lineItems: data.lineItems,
+      lineItems: clonedLineItems(data.lineItems),
     );

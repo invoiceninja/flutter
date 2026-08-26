@@ -152,8 +152,11 @@ class _HeaderSelectAllSlotState<T> extends State<_HeaderSelectAllSlot<T>> {
   Widget build(BuildContext context) {
     final vm = widget.vm;
     final selecting = vm.isInMultiselect;
-    final allSelected =
-        selecting && vm.items.isNotEmpty && vm.countSelected == vm.items.length;
+    // Against the VISIBLE count, not `items.length` — see
+    // `GenericListViewModel.visibleItemCount`. A collapsed group otherwise
+    // pinned this to false forever and the checkbox became inert.
+    final visible = vm.visibleItemCount;
+    final allSelected = selecting && visible > 0 && vm.countSelected >= visible;
 
     Widget child;
     VoidCallback? onTap;

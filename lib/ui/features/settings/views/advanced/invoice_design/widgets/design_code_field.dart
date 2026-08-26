@@ -201,7 +201,7 @@ class _DesignCodeFieldState extends State<DesignCodeField> {
           padding: EdgeInsets.all(InSpacing.sm),
           style: CodeEditorStyle(
             fontSize: 12,
-            fontFamily: 'monospace',
+            fontFamily: kMonoFontFamily,
             codeTheme: CodeHighlightTheme(
               languages: {'xml': CodeHighlightThemeMode(mode: langXml)},
               theme: dark ? atomOneDarkTheme : atomOneLightTheme,
@@ -720,7 +720,7 @@ class _Row extends StatelessWidget {
                   color: _colorFor(prompt.kind, tokens),
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                 ),
               ),
             ),
@@ -729,7 +729,7 @@ class _Row extends StatelessWidget {
                 text: prompt.word,
                 query: input,
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                   fontSize: 12,
                   color: ink,
                 ),

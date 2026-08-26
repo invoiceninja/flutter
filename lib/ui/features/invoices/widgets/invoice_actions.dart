@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
+import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/domain/payment.dart';
@@ -22,10 +24,10 @@ import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
+import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/mark_paid_confirm_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_locked_dialog.dart';
-import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/rectify_invoice.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
 
@@ -647,6 +649,16 @@ class InvoiceActions {
           subscriptionId: '',
           eInvoice: null,
           backup: null,
+          // Drop the source's per-send lifecycle state — see
+          // `InvitationClone.freshClone`. Without this the fresh draft shows
+          // the original's sent/viewed timestamps and bounce error, and its
+          // contact link opens the ORIGINAL document's portal page.
+          invitations: invoice.invitations.map((i) => i.freshClone()).toList(),
+          // Sanitise the rows: drop the links back to the source task /
+          // expense (else re-pointing the clone at another client dead-ends in
+          // a `line_items` error with no field to fix) and drop any
+          // server-generated unpaid-fee row (else the clone re-bills it).
+          lineItems: clonedLineItems(invoice.lineItems),
           archivedAt: null,
           isDeleted: false,
           isDirty: false,

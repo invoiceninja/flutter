@@ -152,6 +152,66 @@ void main() {
       expect(ours['sortField'], 'name');
     });
 
+    // Regression: `savedViewSnapshot` strips grouping at capture time (it "must
+    // not take part in Saved View identity"), and `apply` then spliced the
+    // stripped map in as the WHOLE slot — deleting the live grouping. Applying
+    // a view silently flattened a grouped Products list and lost which groups
+    // were folded, with no way back but re-picking the dimension by hand.
+    test('preserves the live grouping + collapsed set', () async {
+      await db.navStateDao.saveFilters(
+        filtersJson: jsonEncode({
+          'co': {
+            'product': {
+              'search': 'old',
+              'groupField': 'product1',
+              'collapsedGroups': ['Hardware'],
+            },
+          },
+        }),
+        now: 0,
+      );
+      final view = await repo.create(
+        companyId: 'co',
+        entityType: EntityType.product,
+        name: 'Low stock',
+        snapshot: {'search': 'widget'},
+      );
+
+      await repo.apply(view.id);
+
+      final row = await db.navStateDao.current();
+      final ours =
+          (jsonDecode(row!.filtersJson!) as Map)['co']['product'] as Map;
+      expect(ours['search'], 'widget', reason: "the view's filter applied");
+      expect(ours['groupField'], 'product1');
+      expect(ours['collapsedGroups'], ['Hardware']);
+    });
+
+    test('leaves an ungrouped slot alone', () async {
+      await db.navStateDao.saveFilters(
+        filtersJson: jsonEncode({
+          'co': {
+            'product': {'search': 'old'},
+          },
+        }),
+        now: 0,
+      );
+      final view = await repo.create(
+        companyId: 'co',
+        entityType: EntityType.product,
+        name: 'Low stock',
+        snapshot: {'search': 'widget'},
+      );
+
+      await repo.apply(view.id);
+
+      final row = await db.navStateDao.current();
+      final ours =
+          (jsonDecode(row!.filtersJson!) as Map)['co']['product'] as Map;
+      expect(ours.containsKey('groupField'), isFalse);
+      expect(ours.containsKey('collapsedGroups'), isFalse);
+    });
+
     test('on a missing id is a no-op (no nav_state mutation)', () async {
       await repo.apply('does-not-exist');
       final row = await db.navStateDao.current();

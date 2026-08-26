@@ -169,7 +169,11 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
                     kind: AllocationKind.invoice,
                     paymentables: vm.draft.paymentables,
                     clientId: vm.draft.clientId,
-                    paymentAmount: vm.draft.amount,
+                    // NOT `vm.draft.amount` — see `autoFillCap`. That value
+                    // auto-syncs to the allocation total, so passing it raw
+                    // made the headroom zero the moment the first invoice was
+                    // picked and every later pick auto-filled 0.00.
+                    paymentAmount: vm.autoFillCap,
                     onChanged: vm.replacePaymentables,
                     formatter: formatter,
                     currencyId: currencyId,
@@ -656,7 +660,8 @@ class _CreditsSectionGateState extends State<_CreditsSectionGate> {
           kind: AllocationKind.credit,
           paymentables: widget.vm.draft.paymentables,
           clientId: widget.vm.draft.clientId,
-          paymentAmount: widget.vm.draft.amount,
+          // See the invoices section above: never `draft.amount` directly.
+          paymentAmount: widget.vm.autoFillCap,
           onChanged: widget.vm.replacePaymentables,
           formatter: widget.formatter,
           currencyId: widget.currencyId,

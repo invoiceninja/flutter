@@ -287,7 +287,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     var rowId = 0;
     await db.transaction(() async {
       await db.quoteDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
@@ -296,7 +296,10 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
         companyId: companyId,
         entityId: tmpId,
         kind: MutationKind.create,
-        payload: _withSaveQuery(stored.toApiJson(), extraQuery),
+        payload: _withSaveQuery(
+          stored.toApiJson(),
+          mergeSaveQuery(carried, extraQuery),
+        ),
       );
     });
     return SaveResult(entity: stored, outboxRowId: rowId);
@@ -319,7 +322,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     var rowId = 0;
     await db.transaction(() async {
       await db.quoteDao.upsert(companion);
-      await dedupPendingMutations(
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: quote.id,
         kind: MutationKind.update,
@@ -330,7 +333,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
         kind: MutationKind.update,
         payload: _withSaveQuery(
           quote.toApiJson(preserveTempId: true),
-          extraQuery,
+          mergeSaveQuery(carried, extraQuery),
         ),
       );
     });

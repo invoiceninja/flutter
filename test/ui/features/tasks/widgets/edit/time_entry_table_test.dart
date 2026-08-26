@@ -1,5 +1,5 @@
 import 'package:drift/native.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
@@ -118,5 +118,75 @@ void main() {
         await tester.pumpWidget(const SizedBox());
       });
     }
+  });
+
+  // Regression: `_onChanged` bails on unparseable input BEFORE updating its
+  // `_externalText` shadow, so `didUpdateWidget`'s re-seed guard saw no change
+  // and never restored the field. Clearing a duration therefore left the cell
+  // blank for the rest of the screen's life while the entry still held — and
+  // still saved and invoiced — its original duration. A blur revert is the
+  // contract `InDateField` / `InTimeField` already implement.
+  group('duration cell reverts unparseable input on blur', () {
+    testWidgets('clearing the field restores the stored duration', (
+      tester,
+    ) async {
+      final vm = vmWith([stopped(9)]); // 09:00 → 10:00, i.e. 1:00:00
+      await pumpTable(tester, vm);
+
+      final cell = find.widgetWithText(TextField, '1:00:00');
+      expect(cell, findsOneWidget);
+
+      await tester.enterText(cell, '');
+      await tester.pump();
+      // Blur: focus something else on the row.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(
+        find.widgetWithText(TextField, '1:00:00'),
+        findsOneWidget,
+        reason: 'the cell must not keep showing a value the entry never had',
+      );
+      // ...and the entry itself is untouched.
+      expect(vm.draft.timeLog.single.stop, DateTime(2026, 6, 5, 10));
+    });
+
+    testWidgets('garbage input reverts too', (tester) async {
+      final vm = vmWith([stopped(9)]);
+      await pumpTable(tester, vm);
+
+      await tester.enterText(find.widgetWithText(TextField, '1:00:00'), 'abc');
+      await tester.pump();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.widgetWithText(TextField, 'abc'), findsNothing);
+      expect(find.widgetWithText(TextField, '1:00:00'), findsOneWidget);
+    });
+
+    testWidgets('a VALID edit is still committed, not reverted', (
+      tester,
+    ) async {
+      final vm = vmWith([stopped(9)]);
+      await pumpTable(tester, vm);
+
+      await tester.enterText(find.widgetWithText(TextField, '1:00:00'), '2:30');
+      await tester.pump();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(
+        vm.draft.timeLog.single.stop,
+        DateTime(2026, 6, 5, 11, 30),
+        reason: '09:00 + 2:30',
+      );
+      // The field keeps the user's own spelling — `2:30` means the same thing
+      // as `2:30:00`, so there is nothing to correct. What matters is that the
+      // blur handler did NOT roll it back to the old value.
+      expect(find.widgetWithText(TextField, '1:00:00'), findsNothing);
+    });
   });
 }

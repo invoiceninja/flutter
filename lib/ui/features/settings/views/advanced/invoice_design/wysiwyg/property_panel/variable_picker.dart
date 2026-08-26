@@ -106,7 +106,7 @@ class _CategorySection extends StatelessWidget {
             subtitle: Text(
               v.token,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
                 fontSize: 11,
                 color: tokens.ink3,
               ),

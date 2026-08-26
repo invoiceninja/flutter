@@ -78,12 +78,41 @@ void main() {
     await tester.tap(find.text('Save'));
     await _pumpFrames(tester);
 
-    expect(find.text('Please enter a first name'), findsOneWidget);
+    // Two occurrences each: the inline field error on the Details tab, plus
+    // the toast that now names the first problem. The toast exists because the
+    // errors render ONLY on the Details tab, so a Save tapped from the
+    // Notifications or Permissions tab used to do nothing visible at all.
+    expect(find.text('Please enter a first name'), findsWidgets);
     expect(find.text('Please enter a last name'), findsOneWidget);
     expect(find.text('Please enter your email'), findsOneWidget);
     // The regression: the password sheet must not have opened.
     expect(find.text('Confirm Password'), findsNothing);
     expect(find.byType(AlertDialog), findsNothing);
+    await _teardownTree(tester);
+  });
+
+  testWidgets('a blank Save from another tab is not silent', (tester) async {
+    await pumpNewUser(tester);
+
+    // Permissions is a natural first stop when provisioning a user. The field
+    // errors live on the Details tab, so without the jump-and-toast this Save
+    // produced no toast, no tab change and no visible error — indefinitely.
+    await tester.tap(find.text('Permissions'));
+    await _pumpFrames(tester, frames: 3);
+    expect(find.text('Please enter a first name'), findsNothing);
+
+    await tester.tap(find.text('Save'));
+    await _pumpFrames(tester, frames: 5);
+
+    // Back on the Details tab — assert on the tab's own content, not on the
+    // error message: the toast carries that message too, so asserting it alone
+    // passes even when the tab never switches.
+    expect(
+      find.widgetWithText(TextField, 'First Name *'),
+      findsOneWidget,
+      reason: 'a failed Save must land the user where the errors render',
+    );
+    expect(find.text('Please enter a first name'), findsWidgets);
     await _teardownTree(tester);
   });
 

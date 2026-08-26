@@ -238,6 +238,57 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
           ))
           .go();
 
+  /// The `pending` rows [deletePendingForEntity] would remove, in id order.
+  ///
+  /// Exists so a caller can salvage anything the superseding row would
+  /// otherwise destroy — specifically a SAVE-PARAM action folded into an
+  /// earlier save's payload (`__save_query`), which the dedup predicate can't
+  /// see because it keys only on `(company, type, id, kind)`.
+  Future<List<OutboxRow>> pendingRowsForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+    required String mutationKind,
+  }) =>
+      (select(outbox)
+            ..where(
+              (o) =>
+                  o.companyId.equals(companyId) &
+                  o.entityType.equals(entityType) &
+                  o.entityId.equals(entityId) &
+                  o.mutationKind.equals(mutationKind) &
+                  o.state.equals('pending'),
+            )
+            ..orderBy([(o) => OrderingTerm.asc(o.id)]))
+          .get();
+
+  /// True when a `create` or `update` row for [entityId] exists in **any**
+  /// state — including `dead`.
+  ///
+  /// A dead edit is still the user's unsaved work: the edit screen re-opens
+  /// onto the local row with a `SaveFailedBanner` + Retry, so its `is_dirty`
+  /// flag must keep protecting it from the next refresh. [hasActiveRowsForEntity]
+  /// can't answer this — it matches only `pending` / `in_flight`.
+  Future<bool> hasEditRowForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) async {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityType.equals(entityType) &
+            o.entityId.equals(entityId) &
+            o.mutationKind.isIn([
+              MutationKind.create.wireName,
+              MutationKind.update.wireName,
+            ]),
+      )
+      ..limit(1);
+    return (await q.getSingleOrNull()) != null;
+  }
+
   /// Snapshot of `pending` rows for [companyId] (excludes `dead` and
   /// `in_flight`) — same predicate as [deletePendingForCompany], but
   /// returns the rows so a caller can apply per-row discard logic. Used by

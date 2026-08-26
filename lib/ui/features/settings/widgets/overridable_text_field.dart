@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
@@ -134,7 +135,7 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
                       : Icons.visibility_off_outlined,
                 ),
                 onPressed: () => setState(() => _obscured = !_obscured),
-                tooltip: _obscured ? 'Show' : 'Hide',
+                tooltip: context.tr(_obscured ? 'show' : 'hide'),
               )
             : null,
       ),

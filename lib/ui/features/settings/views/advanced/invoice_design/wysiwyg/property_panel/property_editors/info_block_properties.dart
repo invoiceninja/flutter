@@ -296,7 +296,7 @@ class _FieldRow extends StatelessWidget {
         variable,
         style: TextStyle(
           fontSize: 11,
-          fontFamily: 'monospace',
+          fontFamily: kMonoFontFamily,
           color: tokens.ink3,
         ),
         overflow: TextOverflow.ellipsis,

@@ -507,7 +507,6 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'visual_designer',
     'document_settings',
     'page_margin',
-    'embed_documents',
     'hide_empty_columns',
   ],
   'custom_fields': [
@@ -576,7 +575,10 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'administrator',
     'notifications',
     'view_dashboard',
-    'view_reports',
+    // `view_reports` has no string in any locale bundle — `permissions.dart`
+    // maps it to `reports` for the real toggle, so the catalog must too or the
+    // search list renders the raw slug.
+    'reports',
     'disable_emails',
     'resend_email',
     'remove_user',

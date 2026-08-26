@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 
 /// State machine for the in-app signup screen.
 ///
@@ -111,6 +112,11 @@ class SignupViewModel extends ChangeNotifier {
       return false;
     } on ApiException catch (e) {
       _setError(message: e.message);
+      return false;
+    } on Object catch (e) {
+      // See `LoginViewModel.submit` — without this, anything that isn't an
+      // `ApiException` subtype leaves the button un-spun and silent.
+      _setError(message: formatNotifyError(e));
       return false;
     } finally {
       _busy = false;

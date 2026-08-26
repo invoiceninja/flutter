@@ -9,6 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/token_repository.dart';
 import 'package:admin/domain/sync/sync_event.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/entity_destination.dart';
 import 'package:admin/ui/core/widgets/confirm_password_sheet.dart';
 import 'package:admin/ui/core/widgets/conflict_resolution_sheet.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -189,7 +190,18 @@ class _SyncEventListenerState extends State<SyncEventListener> {
             ? services.entityRegistry[event.entityType]
             : null;
         if (handlers != null) {
-          context.go('${handlers.routePath}/${event.entityId}/edit');
+          // Via `entityDestination`, never `routePath` + id directly: the
+          // company and user handlers are settings screens, not addressable
+          // record routes, so the naive form matches nothing and go_router's
+          // top-level errorBuilder replaces the whole app with the route-error
+          // screen. A malformed reply-to address in Email Settings is enough.
+          context.go(
+            entityDestination(
+              handlers: handlers,
+              entityId: event.entityId,
+              edit: true,
+            ),
+          );
         } else {
           context.go('/sync/outbox');
         }
@@ -285,7 +297,9 @@ class _SyncEventListenerState extends State<SyncEventListener> {
           // base path; we append the id.
           final handlers = services.entityRegistry[event.entityType];
           if (handlers != null) {
-            context.go('${handlers.routePath}/${event.entityId}');
+            context.go(
+              entityDestination(handlers: handlers, entityId: event.entityId),
+            );
           }
         case ConflictResolution.discardMine:
           // Scoped to the conflicted record: the parked row plus any queued
@@ -330,7 +344,15 @@ class _SyncEventListenerState extends State<SyncEventListener> {
           // route the user there so they can hit Save.
           final handlers = services.entityRegistry[event.entityType];
           if (handlers != null) {
-            context.go('${handlers.routePath}/${event.entityId}/edit');
+            // See the first call site — `entityDestination` keeps company /
+            // user rows off a route that doesn't exist.
+            context.go(
+              entityDestination(
+                handlers: handlers,
+                entityId: event.entityId,
+                edit: true,
+              ),
+            );
           }
         case ConflictResolution.none:
           // Dismissed — leave the row parked.

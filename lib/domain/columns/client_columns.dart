@@ -3,12 +3,17 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/ids/client_column_ids.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 
 // `kColumnFlexMinWidth` moved to `lib/ui/core/list/entity_list_constants.dart`
 // so every entity's list screen can use the same value.
 export 'package:admin/ui/core/list/entity_list_constants.dart'
     show kColumnFlexMinWidth;
+
+// Id constants live in a leaf file the data layer can import without
+// dragging this Widget-bearing registry (and the UI graph) along.
+export 'package:admin/domain/columns/ids/client_column_ids.dart';
 
 typedef ClientColumn = ColumnDefinition<Client>;
 
@@ -24,41 +29,6 @@ const List<String> kDefaultClientColumns = <String>[
   ClientFieldIds.contactEmail,
   ClientFieldIds.lastLoginAt,
 ];
-
-/// Wire ids — must match the snake_case constants in
-/// `admin-portal/lib/data/models/client_model.dart:59-160` (`ClientFields`).
-/// Renaming any of these breaks compatibility with the existing app.
-class ClientFieldIds {
-  static const String name = 'name';
-  static const String number = 'number';
-  static const String balance = 'balance';
-  static const String paidToDate = 'paid_to_date';
-  static const String creditBalance = 'credit_balance';
-  static const String contactName = 'contact_name';
-  static const String contactEmail = 'contact_email';
-  static const String contactPhone = 'contact_phone';
-  static const String lastLoginAt = 'last_login_at';
-  static const String idNumber = 'id_number';
-  static const String vatNumber = 'vat_number';
-  static const String address1 = 'address1';
-  static const String address2 = 'address2';
-  static const String city = 'city';
-  static const String state = 'state';
-  static const String postalCode = 'postal_code';
-  static const String phone = 'phone';
-  static const String website = 'website';
-  static const String publicNotes = 'public_notes';
-  static const String privateNotes = 'private_notes';
-  static const String custom1 = 'custom1';
-  static const String custom2 = 'custom2';
-  static const String custom3 = 'custom3';
-  static const String custom4 = 'custom4';
-  static const String createdAt = 'created_at';
-  static const String updatedAt = 'updated_at';
-  static const String archivedAt = 'archived_at';
-  // Display-only (tags live in the payload) — never add to sortOptions.
-  static const String tagIds = 'client_tag_ids';
-}
 
 /// Every column the new app knows how to render for the client list.
 ///

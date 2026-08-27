@@ -1,9 +1,14 @@
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/ids/user_column_ids.dart';
 
 export 'package:admin/ui/core/list/entity_list_constants.dart'
     show kColumnFlexMinWidth;
+
+// Id constants live in a leaf file the data layer can import without
+// dragging this Widget-bearing registry (and the UI graph) along.
+export 'package:admin/domain/columns/ids/user_column_ids.dart';
 
 typedef UserColumn = ColumnDefinition<User>;
 
@@ -17,16 +22,6 @@ const List<String> kDefaultUserColumns = <String>[
   UserFieldIds.email,
   UserFieldIds.phone,
 ];
-
-/// Wire ids for sort + persisted column selection.
-class UserFieldIds {
-  static const String firstName = 'first_name';
-  static const String lastName = 'last_name';
-  static const String email = 'email';
-  static const String phone = 'phone';
-  static const String createdAt = 'created_at';
-  static const String updatedAt = 'updated_at';
-}
 
 final List<UserColumn> kAllUserColumns = <UserColumn>[
   UserColumn(

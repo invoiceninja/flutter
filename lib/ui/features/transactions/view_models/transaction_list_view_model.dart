@@ -1,4 +1,3 @@
-import 'package:admin/data/db/dao/bank_transaction_dao.dart';
 import 'package:admin/data/db/dao/billing_extra_filters.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/data/repositories/bank_transaction_repository.dart';

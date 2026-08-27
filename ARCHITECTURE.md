@@ -202,6 +202,7 @@ Each row points to the one file to open if you want to learn more. Details live 
 | Idempotency keys | generated in `base_entity_repository.dart:108`, attached in `api_client.dart:646` |
 | Encrypted Drift | key `invoiceninja.db.key.v1` in `flutter_secure_storage` (see `lib/data/db/app_database.dart`) |
 | `CompanyScopedDao` (multi-company lint) | `lib/data/db/company_scoped_dao.dart` |
+| Data-layer import boundary (`lib/data` ↛ `lib/ui`) | `test/lint/layering_test.dart` + `lib/domain/columns/ids/` |
 | Restore-on-restart (route + company) | `lib/app/nav_state_persister.dart` + `lib/main.dart:95` |
 | Localization (`context.tr('key')`) | `lib/l10n/localization.dart` + `assets/i18n/<locale>.json` |
 | Design tokens (`InTheme`) | `lib/app/design_tokens.dart` → wired into `MaterialApp` in `lib/app/theme.dart` |
@@ -213,6 +214,10 @@ Each row points to the one file to open if you want to learn more. Details live 
 ## 7. Testing
 
 - **Unit tests** mirror `lib/` under `test/`. Run with `flutter test`.
+- **Layering is enforced, not just described.** `test/lint/layering_test.dart` walks the transitive
+  `package:admin/` import graph and fails if anything under `lib/data/` reaches `lib/ui/` or a
+  Widget-bearing column registry. Keeping that boundary is what lets a data-layer test
+  compile ~140 files instead of ~1,395. See CLAUDE.md § Strict rules for the history.
 - **Repository contract harness**: `test/data/repositories/_base_entity_repository_contract.dart`. Every per-entity repo test registers the fixture and inherits a dozen-plus shared tests (offline create + id-remap, save dirty flag, delete, applyCreateResponse, conflicts, etc.). Look at `test/data/repositories/product_repository_test.dart` for the canonical invocation.
 - **Integration tests**: `integration_test/app_smoke_test.dart` boots the real `InvoiceNinjaApp` against in-memory Drift + `MockClient`. **CI only** — don't run them locally; they steal focus from the dev's session. Stable widget keys (`login_submit`, `lock_unlock`, `lock_sign_out`) keep assertions locale-independent.
 - **Widget previews**: `@Preview` annotations on `lib/ui/core/widgets/` light up Flutter Widget Preview in the IDE — useful for the design-system widgets (`EmptyState`, `ErrorView`, `StatusPill`, `LinkText`). Feature screens depend on `Services` and aren't preview-friendly.

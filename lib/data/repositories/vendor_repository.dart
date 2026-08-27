@@ -6,7 +6,7 @@ import 'package:drift/drift.dart'
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
-import 'package:admin/domain/columns/vendor_columns.dart';
+import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/data/services/upload_source.dart';

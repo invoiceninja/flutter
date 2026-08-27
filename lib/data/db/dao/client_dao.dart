@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/data/models/value/date.dart';
-import 'package:admin/domain/columns/client_columns.dart';
+import 'package:admin/domain/columns/ids/client_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
@@ -231,17 +231,17 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
   /// table can be sorted by any column the user has shown — including fields
   /// we don't denormalize (address, contact name, …).
   ///
-  /// Safety contract: [field] MUST be a key in [clientColumnsById]. The asserts
+  /// Safety contract: [field] MUST be in [kClientColumnIds]. The asserts
   /// fail in debug builds (catches misuse during development); in release
   /// builds we degrade to sorting by `name` so a stray field id from a stale
   /// persisted filter can't crash the list.
   Expression _sortExpression(Clients c, String field) {
     assert(
-      clientColumnsById.containsKey(field),
+      kClientColumnIds.contains(field),
       'ClientDao._sortExpression: unknown column id "$field". '
-      'Validate against clientColumnsById in the ViewModel before calling.',
+      'Validate against kClientColumnIds in the ViewModel before calling.',
     );
-    if (!clientColumnsById.containsKey(field)) {
+    if (!kClientColumnIds.contains(field)) {
       return c.name; // release-mode safety net for the assert above.
     }
     switch (field) {

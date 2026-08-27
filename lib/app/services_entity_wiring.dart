@@ -282,19 +282,48 @@ class WiredEntities {
   firstPagePrefetchers;
 }
 
-/// Builds every CRUD-list entity wired into the sync engine. Lifts the
-/// previous ~260 LOC of per-entity api+repo+wireEntity blocks out of
-/// `Services.build` so adding the next document-bearing entity
-/// (expense / vendor / invoice) only touches this file (one block) plus
-/// `kWiredEntityModules` (one spec) — not `services.dart` directly.
+/// Builds every CRUD-list entity wired into the sync engine, so adding one
+/// touches this file plus `kWiredEntityModules` — never `services.dart`.
+///
+/// **This function is an orchestrator, not a place to add code.** Each entity
+/// gets its own top-level `_wire<Entity>(reg)` function below returning its
+/// `(api, repo)` pair; this body just calls them in order and assembles
+/// [WiredEntities]. It was a single ~1,900-line function until it wasn't —
+/// `services.dart`'s own split trigger fired at 6 wired entities and there are
+/// 28, so a new entity means a **new `_wireX` function**, one call here, and
+/// one field on [WiredEntities].
+///
+/// **Order is load-bearing** in exactly one way: [WiredEntities.bundleAppliers]
+/// is consumed in list order by `auth.onPersistBundles`. Everything else
+/// resolves cross-entity references lazily through [_EntityWiring.repos] at
+/// mutation time, so the call order below only has to keep the bundle order
+/// stable.
 ///
 /// `customActions` factories live next to each entity below; sharable trios
 /// (documents) flow through [documentMutationHandlers].
-WiredEntities wireEntities(EntityWiringContext ctx) {
-  // Registry of every wired repo by type, so the cross-entity refresher
-  // (`refreshRelatedEntities`) can reach any sibling repo generically via
-  // `repos[type]?.refreshByIds(...)`.
+/// Shared construction state every per-entity `_wireX` block reads.
+///
+/// `wireEntities` used to be one ~1,900-line function whose 28 entity blocks
+/// all closed over the same locals. Each block is its own top-level function
+/// now, so this carries what they genuinely shared. Construction ORDER still
+/// matters — see `wireEntities` — but only through [repos], which every
+/// refresher reads lazily at mutation time rather than at wiring time.
+class _EntityWiring {
+  _EntityWiring(this.ctx);
+
+  final EntityWiringContext ctx;
+
+  /// Registry of every wired repo by type, so the cross-entity refresher
+  /// ([refreshRelatedEntities]) can reach any sibling repo generically via
+  /// `repos[type]?.refreshByIds(...)`.
   final repos = <EntityType, BaseEntityRepository<dynamic, dynamic>>{};
+
+  /// Shared by the Client + GroupSetting `setDefaultDesign` handlers (the
+  /// client/group-scope "Update all records" design retro-apply). The endpoint
+  /// lives on CompaniesApi but is scope-parameterised, so one stateless
+  /// instance serves both dispatchers.
+  late final CompaniesApi companiesApi = CompaniesApi(ctx.apiClient);
+
   // Local closure that mirrors the original `wireEntity<TItem, TInner>(...)`
   // in services.dart — generic functions can't be passed as values, so we
   // re-declare the helper here with access to `ctx.dispatchers`.
@@ -391,21 +420,18 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
       // Self-heals on the next resync; never fail the mutation.
     }
   }
+}
 
-  // ---- Client --------------------------------------------------------------
-  // Shared across the Client + GroupSetting `setDefaultDesign` handlers (the
-  // client/group-scope "Update all records" design retro-apply). The endpoint
-  // lives on CompaniesApi but is scope-parameterised, so one stateless
-  // instance serves both dispatchers.
-  final companiesApi = CompaniesApi(ctx.apiClient);
-  final clientsApi = ClientsApi(ctx.apiClient);
-  final locationsApi = LocationsApi(ctx.apiClient);
+/// Client wiring.
+(ClientsApi api, ClientRepository repo) _wireClient(_EntityWiring reg) {
+  final clientsApi = ClientsApi(reg.ctx.apiClient);
+  final locationsApi = LocationsApi(reg.ctx.apiClient);
   final clientRepo = ClientRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: clientsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<ClientItemApi, ClientApi>(
+  reg.wire<ClientItemApi, ClientApi>(
     type: EntityType.client,
     api: clientsApi,
     repo: clientRepo,
@@ -421,7 +447,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
       // discarded — the Activity tab refetches once the pending outbox
       // row drains.
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'clients',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -454,7 +480,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           clientId: payload['merge_from_id'] as String,
         );
         if (movedChildren.isNotEmpty) {
-          await refreshRelatedEntities(row.companyId, movedChildren);
+          await reg.refreshRelatedEntities(row.companyId, movedChildren);
         }
         return survivor;
       },
@@ -465,7 +491,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
       // POST /designs/set/default settings_level=client — the client-scope
       // "Update all records" design retro-apply (shared factory; group uses
       // the same handler).
-      ...setDefaultDesignHandlers<ClientApi>(companiesApi),
+      ...setDefaultDesignHandlers<ClientApi>(reg.companiesApi),
       // Client locations — standalone /api/v1/locations resource, read-
       // embedded on the client. After the write lands, re-pull the parent
       // client and return its envelope so the dispatcher upserts it (the
@@ -495,9 +521,9 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         final client = await clientsApi.get(payload['client_id'] as String);
         return client.data;
       },
-      ...reactivateEmailHandlers<ClientApi>(ctx.emailsApi),
+      ...reactivateEmailHandlers<ClientApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<ClientApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: clientsApi.uploadDocument,
         applyChanged: clientRepo.applyDocumentChanged,
         applyDeleted: clientRepo.applyDocumentDeleted,
@@ -505,33 +531,41 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- Product -------------------------------------------------------------
-  final productsApi = ProductsApi(ctx.apiClient);
+  return (clientsApi, clientRepo);
+}
+
+/// Product wiring.
+(ProductsApi api, ProductRepository repo) _wireProduct(_EntityWiring reg) {
+  final productsApi = ProductsApi(reg.ctx.apiClient);
   final productRepo = ProductRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: productsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<ProductItemApi, ProductApi>(
+  reg.wire<ProductItemApi, ProductApi>(
     type: EntityType.product,
     api: productsApi,
     repo: productRepo,
     customActions: documentMutationHandlers<ProductApi>(
-      documentsApi: ctx.documentsApi,
+      documentsApi: reg.ctx.documentsApi,
       upload: productsApi.uploadDocument,
       applyChanged: productRepo.applyDocumentChanged,
       applyDeleted: productRepo.applyDocumentDeleted,
     ),
   );
 
-  // ---- Task ----------------------------------------------------------------
-  final tasksApi = TasksApi(ctx.apiClient);
+  return (productsApi, productRepo);
+}
+
+/// Task wiring.
+(TasksApi api, TaskRepository repo) _wireTask(_EntityWiring reg) {
+  final tasksApi = TasksApi(reg.ctx.apiClient);
   final taskRepo = TaskRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: tasksApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<TaskItemApi, TaskApi>(
+  reg.wire<TaskItemApi, TaskApi>(
     type: EntityType.task,
     api: tasksApi,
     repo: taskRepo,
@@ -564,7 +598,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return null;
       },
       ...documentMutationHandlers<TaskApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: tasksApi.uploadDocument,
         applyChanged: taskRepo.applyDocumentChanged,
         applyDeleted: taskRepo.applyDocumentDeleted,
@@ -572,14 +606,18 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- Project -------------------------------------------------------------
-  final projectsApi = ProjectsApi(ctx.apiClient);
+  return (tasksApi, taskRepo);
+}
+
+/// Project wiring.
+(ProjectsApi api, ProjectRepository repo) _wireProject(_EntityWiring reg) {
+  final projectsApi = ProjectsApi(reg.ctx.apiClient);
   final projectRepo = ProjectRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: projectsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<ProjectItemApi, ProjectApi>(
+  reg.wire<ProjectItemApi, ProjectApi>(
     type: EntityType.project,
     api: projectsApi,
     repo: projectRepo,
@@ -593,7 +631,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       ...documentMutationHandlers<ProjectApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: projectsApi.uploadDocument,
         applyChanged: projectRepo.applyDocumentChanged,
         applyDeleted: projectRepo.applyDocumentDeleted,
@@ -601,20 +639,24 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- Vendor --------------------------------------------------------------
-  final vendorsApi = VendorsApi(ctx.apiClient);
+  return (projectsApi, projectRepo);
+}
+
+/// Vendor wiring.
+(VendorsApi api, VendorRepository repo) _wireVendor(_EntityWiring reg) {
+  final vendorsApi = VendorsApi(reg.ctx.apiClient);
   final vendorRepo = VendorRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: vendorsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<VendorItemApi, VendorApi>(
+  reg.wire<VendorItemApi, VendorApi>(
     type: EntityType.vendor,
     api: vendorsApi,
     repo: vendorRepo,
     customActions: {
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'vendors',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -645,12 +687,12 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           vendorId: payload['merge_from_id'] as String,
         );
         if (movedChildren.isNotEmpty) {
-          await refreshRelatedEntities(row.companyId, movedChildren);
+          await reg.refreshRelatedEntities(row.companyId, movedChildren);
         }
         return survivor;
       },
       ...documentMutationHandlers<VendorApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: vendorsApi.uploadDocument,
         applyChanged: vendorRepo.applyDocumentChanged,
         applyDeleted: vendorRepo.applyDocumentDeleted,
@@ -658,20 +700,24 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- Expense -------------------------------------------------------------
-  final expensesApi = ExpensesApi(ctx.apiClient);
+  return (vendorsApi, vendorRepo);
+}
+
+/// Expense wiring.
+(ExpensesApi api, ExpenseRepository repo) _wireExpense(_EntityWiring reg) {
+  final expensesApi = ExpensesApi(reg.ctx.apiClient);
   final expenseRepo = ExpenseRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: expensesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<ExpenseItemApi, ExpenseApi>(
+  reg.wire<ExpenseItemApi, ExpenseApi>(
     type: EntityType.expense,
     api: expensesApi,
     repo: expenseRepo,
     customActions: {
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'expenses',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -688,7 +734,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       ...documentMutationHandlers<ExpenseApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: expensesApi.uploadDocument,
         applyChanged: expenseRepo.applyDocumentChanged,
         applyDeleted: expenseRepo.applyDocumentDeleted,
@@ -696,21 +742,25 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- RecurringExpense ----------------------------------------------------
-  // `start` / `stop` route through dedicated `PUT /recurring_expenses/{id}?
-  // start=true` / `&stop=true` endpoints. Repository enqueues these as
-  // [MutationKind.start] / [MutationKind.stop]; the customActions handlers
-  // below call the dedicated API methods. Reused verbatim when
-  // `recurring_invoice` lands (three entities × two enum values = same total
-  // cardinality as one-value-with-payload, and keeps `customActions`
-  // type-safe + the Outbox screen readable).
-  final recurringExpensesApi = RecurringExpensesApi(ctx.apiClient);
+  return (expensesApi, expenseRepo);
+}
+
+/// `start` / `stop` route through dedicated `PUT /recurring_expenses/{id}?
+/// start=true` / `&stop=true` endpoints. Repository enqueues these as
+/// [MutationKind.start] / [MutationKind.stop]; the customActions handlers
+/// below call the dedicated API methods. Reused verbatim when
+/// `recurring_invoice` lands (three entities × two enum values = same total
+/// cardinality as one-value-with-payload, and keeps `customActions`
+/// type-safe + the Outbox screen readable).
+(RecurringExpensesApi api, RecurringExpenseRepository repo)
+_wireRecurringExpense(_EntityWiring reg) {
+  final recurringExpensesApi = RecurringExpensesApi(reg.ctx.apiClient);
   final recurringExpenseRepo = RecurringExpenseRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: recurringExpensesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<RecurringExpenseItemApi, RecurringExpenseApi>(
+  reg.wire<RecurringExpenseItemApi, RecurringExpenseApi>(
     type: EntityType.recurringExpense,
     api: recurringExpensesApi,
     repo: recurringExpenseRepo,
@@ -732,7 +782,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response.data;
       },
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'recurring_expenses',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -741,7 +791,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return null;
       },
       ...documentMutationHandlers<RecurringExpenseApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: recurringExpensesApi.uploadDocument,
         applyChanged: recurringExpenseRepo.applyDocumentChanged,
         applyDeleted: recurringExpenseRepo.applyDocumentDeleted,
@@ -749,101 +799,129 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- ExpenseCategory -----------------------------------------------------
-  // Settings-only entity reached via Settings → Advanced → Expense
-  // Categories. Bundled via `/refresh?first_load=true` (same pattern as
-  // task_statuses / payment_terms): the bundleApplier closure at the bottom
-  // upserts on every refresh; CRUD also flows through the paginated path
-  // for offline edits.
-  final expenseCategoriesApi = ExpenseCategoriesApi(ctx.apiClient);
+  return (recurringExpensesApi, recurringExpenseRepo);
+}
+
+/// Settings-only entity reached via Settings → Advanced → Expense
+/// Categories. Bundled via `/refresh?first_load=true` (same pattern as
+/// task_statuses / payment_terms): the bundleApplier closure at the bottom
+/// upserts on every refresh; CRUD also flows through the paginated path
+/// for offline edits.
+(ExpenseCategoriesApi api, ExpenseCategoryRepository repo) _wireExpenseCategory(
+  _EntityWiring reg,
+) {
+  final expenseCategoriesApi = ExpenseCategoriesApi(reg.ctx.apiClient);
   final expenseCategoryRepo = ExpenseCategoryRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: expenseCategoriesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<ExpenseCategoryItemApi, ExpenseCategoryApi>(
+  reg.wire<ExpenseCategoryItemApi, ExpenseCategoryApi>(
     type: EntityType.expenseCategory,
     api: expenseCategoriesApi,
     repo: expenseCategoryRepo,
   );
 
-  // ---- CompanyGateway ------------------------------------------------------
-  final companyGatewaysApi = CompanyGatewaysApi(ctx.apiClient);
+  return (expenseCategoriesApi, expenseCategoryRepo);
+}
+
+/// CompanyGateway wiring.
+(CompanyGatewaysApi api, CompanyGatewayRepository repo) _wireCompanyGateway(
+  _EntityWiring reg,
+) {
+  final companyGatewaysApi = CompanyGatewaysApi(reg.ctx.apiClient);
   final companyGatewayRepo = CompanyGatewayRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: companyGatewaysApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<CompanyGatewayItemApi, CompanyGatewayApi>(
+  reg.wire<CompanyGatewayItemApi, CompanyGatewayApi>(
     type: EntityType.companyGateway,
     api: companyGatewaysApi,
     repo: companyGatewayRepo,
   );
 
-  // ---- PaymentTerm ---------------------------------------------------------
-  final paymentTermsApi = PaymentTermsApi(ctx.apiClient);
+  return (companyGatewaysApi, companyGatewayRepo);
+}
+
+/// PaymentTerm wiring.
+(PaymentTermsApi api, PaymentTermRepository repo) _wirePaymentTerm(
+  _EntityWiring reg,
+) {
+  final paymentTermsApi = PaymentTermsApi(reg.ctx.apiClient);
   final paymentTermRepo = PaymentTermRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: paymentTermsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<PaymentTermItemApi, PaymentTermApi>(
+  reg.wire<PaymentTermItemApi, PaymentTermApi>(
     type: EntityType.paymentTerm,
     api: paymentTermsApi,
     repo: paymentTermRepo,
   );
 
-  // ---- Schedule ------------------------------------------------------------
-  // Bundled settings entity. Server includes `company.task_schedulers` in
-  // the `/refresh?first_load=true` envelope; `applyBundle` upserts into
-  // the local table. Per-entity paged fetch is still wired so the list
-  // can pull a fresh snapshot if the bundle was stale.
-  final schedulesApi = SchedulesApi(ctx.apiClient);
+  return (paymentTermsApi, paymentTermRepo);
+}
+
+/// Bundled settings entity. Server includes `company.task_schedulers` in
+/// the `/refresh?first_load=true` envelope; `applyBundle` upserts into
+/// the local table. Per-entity paged fetch is still wired so the list
+/// can pull a fresh snapshot if the bundle was stale.
+(SchedulesApi api, ScheduleRepository repo) _wireSchedule(_EntityWiring reg) {
+  final schedulesApi = SchedulesApi(reg.ctx.apiClient);
   final scheduleRepo = ScheduleRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: schedulesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<ScheduleItemApi, ScheduleApi>(
+  reg.wire<ScheduleItemApi, ScheduleApi>(
     type: EntityType.schedule,
     api: schedulesApi,
     repo: scheduleRepo,
   );
 
-  // ---- TaxRate -------------------------------------------------------------
-  // Bundled-only repo today (no CRUD screen) — the Settings → Tax Settings
-  // pickers read from Drift via `watchAll`. Wiring `wire<...>(...)` here is
-  // fine: `kDisabledEntityModules` carries the matching spec so the entity
-  // registry consistency test stays green. When the Tax Rates CRUD page
-  // lands, move the spec from `kDisabledEntityModules` to `kWiredEntityModules`
-  // and the existing dispatcher / api / repo all keep working.
-  //
-  // Trade-off: this entity gets a real (functional) sync dispatcher even
-  // though it's listed as disabled. There is no UI path today that enqueues
-  // a TaxRate mutation, so the live dispatcher is dormant. If a future bug
-  // does enqueue one, the outbox will fire real HTTP — preferable to a
-  // silent no-op (we'd hear about it via the outbox screen) and matches
-  // the contract the CRUD screen will eventually rely on.
-  final taxRatesApi = TaxRatesApi(ctx.apiClient);
+  return (schedulesApi, scheduleRepo);
+}
+
+/// Bundled-only repo today (no CRUD screen) — the Settings → Tax Settings
+/// pickers read from Drift via `watchAll`. Wiring it here is fine: `kDisabledEntityModules` carries the matching spec so the entity
+/// registry consistency test stays green. When the Tax Rates CRUD page
+/// lands, move the spec from `kDisabledEntityModules` to `kWiredEntityModules`
+/// and the existing dispatcher / api / repo all keep working.
+///
+/// Trade-off: this entity gets a real (functional) sync dispatcher even
+/// though it's listed as disabled. There is no UI path today that enqueues
+/// a TaxRate mutation, so the live dispatcher is dormant. If a future bug
+/// does enqueue one, the outbox will fire real HTTP — preferable to a
+/// silent no-op (we'd hear about it via the outbox screen) and matches
+/// the contract the CRUD screen will eventually rely on.
+(TaxRatesApi api, TaxRateRepository repo) _wireTaxRate(_EntityWiring reg) {
+  final taxRatesApi = TaxRatesApi(reg.ctx.apiClient);
   final taxRateRepo = TaxRateRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: taxRatesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<TaxRateItemApi, TaxRateApi>(
+  reg.wire<TaxRateItemApi, TaxRateApi>(
     type: EntityType.taxRate,
     api: taxRatesApi,
     repo: taxRateRepo,
   );
 
-  // ---- TaskStatus ----------------------------------------------------------
-  final taskStatusesApi = TaskStatusesApi(ctx.apiClient);
+  return (taxRatesApi, taxRateRepo);
+}
+
+/// TaskStatus wiring.
+(TaskStatusesApi api, TaskStatusRepository repo) _wireTaskStatus(
+  _EntityWiring reg,
+) {
+  final taskStatusesApi = TaskStatusesApi(reg.ctx.apiClient);
   final taskStatusRepo = TaskStatusRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: taskStatusesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<TaskStatusItemApi, TaskStatusApi>(
+  reg.wire<TaskStatusItemApi, TaskStatusApi>(
     type: EntityType.taskStatus,
     api: taskStatusesApi,
     repo: taskStatusRepo,
@@ -873,98 +951,125 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- Tag -----------------------------------------------------------------
-  // NOT bundled and NOT generically paginated — `TagRepository.refreshAll`
-  // fetches both entity types via `/api/v1/tags?entity_type=...` on company
-  // activate. Wired here only so create/update/delete/archive/restore from the
-  // tag picker + Settings → Tags drain through the standard outbox.
-  final tagsApi = TagsApi(ctx.apiClient);
-  final tagRepo = TagRepository(
-    db: ctx.db,
-    api: tagsApi,
-    onEnqueued: ctx.kickDrain,
-  );
-  wire<TagItemApi, TagApi>(type: EntityType.tag, api: tagsApi, repo: tagRepo);
+  return (taskStatusesApi, taskStatusRepo);
+}
 
-  // ---- Design --------------------------------------------------------------
-  // Bundled via `/refresh?first_load=true` (data[N].company.designs) — the
-  // Invoice Design pickers consume the resulting `designs` Drift table.
-  // Modeled as a wired entity so the outbox dispatcher handles future
-  // create/update/delete from the Custom Designs CRUD screens. No reorder
-  // (server has no sort endpoint for designs).
-  final designsApi = DesignsApi(ctx.apiClient);
-  final designRepo = DesignRepository(
-    db: ctx.db,
-    api: designsApi,
-    onEnqueued: ctx.kickDrain,
+/// NOT bundled and NOT generically paginated — `TagRepository.refreshAll`
+/// fetches both entity types via `/api/v1/tags?entity_type=...` on company
+/// activate. Wired here only so create/update/delete/archive/restore from the
+/// tag picker + Settings → Tags drain through the standard outbox.
+(TagsApi api, TagRepository repo) _wireTag(_EntityWiring reg) {
+  final tagsApi = TagsApi(reg.ctx.apiClient);
+  final tagRepo = TagRepository(
+    db: reg.ctx.db,
+    api: tagsApi,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<DesignItemApi, DesignApi>(
+  reg.wire<TagItemApi, TagApi>(
+    type: EntityType.tag,
+    api: tagsApi,
+    repo: tagRepo,
+  );
+
+  return (tagsApi, tagRepo);
+}
+
+/// Bundled via `/refresh?first_load=true` (data[N].company.designs) — the
+/// Invoice Design pickers consume the resulting `designs` Drift table.
+/// Modeled as a wired entity so the outbox dispatcher handles future
+/// create/update/delete from the Custom Designs CRUD screens. No reorder
+/// (server has no sort endpoint for designs).
+(DesignsApi api, DesignRepository repo) _wireDesign(_EntityWiring reg) {
+  final designsApi = DesignsApi(reg.ctx.apiClient);
+  final designRepo = DesignRepository(
+    db: reg.ctx.db,
+    api: designsApi,
+    onEnqueued: reg.ctx.kickDrain,
+  );
+  reg.wire<DesignItemApi, DesignApi>(
     type: EntityType.design,
     api: designsApi,
     repo: designRepo,
   );
 
-  // ---- GroupSetting --------------------------------------------------------
-  final groupSettingsApi = GroupSettingsApi(ctx.apiClient);
+  return (designsApi, designRepo);
+}
+
+/// GroupSetting wiring.
+(GroupSettingsApi api, GroupSettingRepository repo) _wireGroupSetting(
+  _EntityWiring reg,
+) {
+  final groupSettingsApi = GroupSettingsApi(reg.ctx.apiClient);
   final groupSettingRepo = GroupSettingRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: groupSettingsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<GroupSettingItemApi, GroupSettingApi>(
+  reg.wire<GroupSettingItemApi, GroupSettingApi>(
     type: EntityType.group,
     api: groupSettingsApi,
     repo: groupSettingRepo,
     customActions: {
       ...documentMutationHandlers<GroupSettingApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: groupSettingsApi.uploadDocument,
         applyChanged: groupSettingRepo.applyDocumentChanged,
         applyDeleted: groupSettingRepo.applyDocumentDeleted,
       ),
       // POST /designs/set/default settings_level=group_settings — the
       // group-scope "Update all records" design retro-apply (shared factory).
-      ...setDefaultDesignHandlers<GroupSettingApi>(companiesApi),
+      ...setDefaultDesignHandlers<GroupSettingApi>(reg.companiesApi),
     },
   );
 
-  // ---- PaymentLink (wire: `subscription`) ---------------------------------
-  // Settings-only entity reached via Settings → Advanced → Payment Links.
-  // Bundled via `/refresh?first_load=true` (same pattern as
-  // expense_categories): the bundleApplier closure at the bottom upserts on
-  // every refresh; CRUD also flows through the paginated path for offline
-  // edits.
-  final subscriptionsApi = SubscriptionsApi(ctx.apiClient);
+  return (groupSettingsApi, groupSettingRepo);
+}
+
+/// PaymentLink — **the wire name is `subscription`**. `payment_link` is what we
+/// use internally and in the UI, so the api + models below read `Subscription*`
+/// while the repo and `EntityType` read `paymentLink`.
+/// Settings-only entity reached via Settings → Advanced → Payment Links.
+/// Bundled via `/refresh?first_load=true` (same pattern as
+/// expense_categories): the bundleApplier closure at the bottom upserts on
+/// every refresh; CRUD also flows through the paginated path for offline
+/// edits.
+(SubscriptionsApi api, PaymentLinkRepository repo) _wirePaymentLink(
+  _EntityWiring reg,
+) {
+  final subscriptionsApi = SubscriptionsApi(reg.ctx.apiClient);
   final paymentLinkRepo = PaymentLinkRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: subscriptionsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<SubscriptionItemApi, SubscriptionApi>(
+  reg.wire<SubscriptionItemApi, SubscriptionApi>(
     type: EntityType.paymentLink,
     api: subscriptionsApi,
     repo: paymentLinkRepo,
   );
 
-  // ---- Invoice ------------------------------------------------------------
-  // Document-bearing, with eleven non-CRUD custom actions (mark_sent /
-  // mark_paid / email / schedule_email / clone_to_{invoice,quote,credit,
-  // recurring,purchase_order} / auto_bill / cancel / run_template). The
-  // shape will be reused verbatim by Quote / Credit / PurchaseOrder /
-  // RecurringInvoice — the customActions map varies only in *which* kinds
-  // it registers.
-  final invoicesApi = InvoicesApi(ctx.apiClient);
+  return (subscriptionsApi, paymentLinkRepo);
+}
+
+/// Document-bearing, with eleven non-CRUD custom actions (mark_sent /
+/// mark_paid / email / schedule_email / clone_to_{invoice,quote,credit,
+/// recurring,purchase_order} / auto_bill / cancel / run_template). The
+/// shape will be reused verbatim by Quote / Credit / PurchaseOrder /
+/// RecurringInvoice — the customActions map varies only in *which* kinds
+/// it registers.
+(InvoicesApi api, InvoiceRepository repo) _wireInvoice(_EntityWiring reg) {
+  final invoicesApi = InvoicesApi(reg.ctx.apiClient);
   final invoiceRepo = InvoiceRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: invoicesApi,
-    onEnqueued: ctx.kickDrain,
-    onRelatedEntitiesAffected: refreshRelatedEntities,
+    onEnqueued: reg.ctx.kickDrain,
+    onRelatedEntitiesAffected: reg.refreshRelatedEntities,
     // SettingsRepository is a stateless Drift wrapper — a local instance is
     // equivalent to the one services.dart builds, and avoids reordering
     // construction just to thread it through EntityWiringContext.
-    settings: SettingsRepository(db: ctx.db),
+    settings: SettingsRepository(db: reg.ctx.db),
   );
-  wire<InvoiceItemApi, InvoiceApi>(
+  reg.wire<InvoiceItemApi, InvoiceApi>(
     type: EntityType.invoice,
     api: invoicesApi,
     repo: invoiceRepo,
@@ -1029,7 +1134,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         // response) + moves the client balance. The returned invoice refreshes
         // itself + its client/tasks/expenses via applyUpdateResponse; also pull
         // the new payment into the local list.
-        await refreshRecentPayments(row.companyId);
+        await reg.refreshRecentPayments(row.companyId);
         return response?.data;
       },
       MutationKind.emailEntity: ({required row, required payload}) async {
@@ -1065,7 +1170,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.invoice,
@@ -1078,7 +1183,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.quote,
@@ -1091,7 +1196,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.credit,
@@ -1104,7 +1209,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.recurringInvoice,
@@ -1118,7 +1223,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
             );
-            await refreshCloneTarget(
+            await reg.refreshCloneTarget(
               row.companyId,
               clone?.data.id,
               EntityType.purchaseOrder,
@@ -1132,7 +1237,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         );
         // autoBill creates a Payment (gateway/credit) not in the invoice
         // response — pull the newest payments into the local list.
-        await refreshRecentPayments(row.companyId);
+        await reg.refreshRecentPayments(row.companyId);
         return response?.data;
       },
       MutationKind.cancelEntity: ({required row, required payload}) async {
@@ -1151,7 +1256,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'invoices',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -1159,9 +1264,9 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         );
         return null;
       },
-      ...reactivateEmailHandlers<InvoiceApi>(ctx.emailsApi),
+      ...reactivateEmailHandlers<InvoiceApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<InvoiceApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: invoicesApi.uploadDocument,
         applyChanged: invoiceRepo.applyDocumentChanged,
         applyDeleted: invoiceRepo.applyDocumentDeleted,
@@ -1169,20 +1274,23 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- Quote -------------------------------------------------------------
-  // Mirrors Invoice but with quote-specific custom actions (approve,
-  // convertToInvoice, convertToProject) instead of mark_paid / auto_bill.
-  // All shared kinds (mark_sent, email, schedule_email, clone_to_*,
-  // cancel, run_template, addComment, document trio) reuse the exact
-  // same handler shape.
-  final quotesApi = QuotesApi(ctx.apiClient);
+  return (invoicesApi, invoiceRepo);
+}
+
+/// Mirrors Invoice but with quote-specific custom actions (approve,
+/// convertToInvoice, convertToProject) instead of mark_paid / auto_bill.
+/// All shared kinds (mark_sent, email, schedule_email, clone_to_*,
+/// cancel, run_template, addComment, document trio) reuse the exact
+/// same handler shape.
+(QuotesApi api, QuoteRepository repo) _wireQuote(_EntityWiring reg) {
+  final quotesApi = QuotesApi(reg.ctx.apiClient);
   final quoteRepo = QuoteRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: quotesApi,
-    onEnqueued: ctx.kickDrain,
-    onRelatedEntitiesAffected: refreshRelatedEntities,
+    onEnqueued: reg.ctx.kickDrain,
+    onRelatedEntitiesAffected: reg.refreshRelatedEntities,
   );
-  wire<QuoteItemApi, QuoteApi>(
+  reg.wire<QuoteItemApi, QuoteApi>(
     type: EntityType.quote,
     api: quotesApi,
     repo: quoteRepo,
@@ -1252,7 +1360,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.invoice,
@@ -1265,7 +1373,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.quote,
@@ -1278,7 +1386,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.credit,
@@ -1291,7 +1399,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.recurringInvoice,
@@ -1305,7 +1413,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
             );
-            await refreshCloneTarget(
+            await reg.refreshCloneTarget(
               row.companyId,
               clone?.data.id,
               EntityType.purchaseOrder,
@@ -1328,7 +1436,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'quotes',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -1336,9 +1444,9 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         );
         return null;
       },
-      ...reactivateEmailHandlers<QuoteApi>(ctx.emailsApi),
+      ...reactivateEmailHandlers<QuoteApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<QuoteApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: quotesApi.uploadDocument,
         applyChanged: quoteRepo.applyDocumentChanged,
         applyDeleted: quoteRepo.applyDocumentDeleted,
@@ -1346,17 +1454,22 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- BankAccount ---------------------------------------------------------
-  // Settings-only entity reached via Settings → Bank Accounts. The
-  // `refresh_accounts` custom action asks the upstream provider
-  // (Yodlee/Nordigen) to refresh balances + the connected account list.
-  final bankAccountsApi = BankAccountsApi(ctx.apiClient);
+  return (quotesApi, quoteRepo);
+}
+
+/// Settings-only entity reached via Settings → Bank Accounts. The
+/// `refresh_accounts` custom action asks the upstream provider
+/// (Yodlee/Nordigen) to refresh balances + the connected account list.
+(BankAccountsApi api, BankAccountRepository repo) _wireBankAccount(
+  _EntityWiring reg,
+) {
+  final bankAccountsApi = BankAccountsApi(reg.ctx.apiClient);
   final bankAccountRepo = BankAccountRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: bankAccountsApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<BankAccountItemApi, BankAccountApi>(
+  reg.wire<BankAccountItemApi, BankAccountApi>(
     type: EntityType.bankAccount,
     api: bankAccountsApi,
     repo: bankAccountRepo,
@@ -1373,18 +1486,23 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- BankTransaction -----------------------------------------------------
-  // Top-level workspace entity at `/transactions`. Four `match` variants +
-  // two bulk actions (`convert_matched`, `unlink`) all route through this
-  // dispatcher's customActions map.
-  final bankTransactionsApi = BankTransactionsApi(ctx.apiClient);
+  return (bankAccountsApi, bankAccountRepo);
+}
+
+/// Top-level workspace entity at `/transactions`. Four `match` variants +
+/// two bulk actions (`convert_matched`, `unlink`) all route through this
+/// dispatcher's customActions map.
+(BankTransactionsApi api, BankTransactionRepository repo) _wireBankTransaction(
+  _EntityWiring reg,
+) {
+  final bankTransactionsApi = BankTransactionsApi(reg.ctx.apiClient);
   final bankTransactionRepo = BankTransactionRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: bankTransactionsApi,
-    onEnqueued: ctx.kickDrain,
-    onRelatedEntitiesAffected: refreshRelatedEntities,
+    onEnqueued: reg.ctx.kickDrain,
+    onRelatedEntitiesAffected: reg.refreshRelatedEntities,
   );
-  wire<BankTransactionItemApi, BankTransactionApi>(
+  reg.wire<BankTransactionItemApi, BankTransactionApi>(
     type: EntityType.transaction,
     api: bankTransactionsApi,
     repo: bankTransactionRepo,
@@ -1455,67 +1573,81 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- TransactionRule -----------------------------------------------------
-  // Settings-only entity reached via Settings → Bank Accounts → Rules.
-  final transactionRulesApi = TransactionRulesApi(ctx.apiClient);
+  return (bankTransactionsApi, bankTransactionRepo);
+}
+
+/// Settings-only entity reached via Settings → Bank Accounts → Rules.
+(TransactionRulesApi api, TransactionRuleRepository repo) _wireTransactionRule(
+  _EntityWiring reg,
+) {
+  final transactionRulesApi = TransactionRulesApi(reg.ctx.apiClient);
   final transactionRuleRepo = TransactionRuleRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: transactionRulesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<TransactionRuleItemApi, TransactionRuleApi>(
+  reg.wire<TransactionRuleItemApi, TransactionRuleApi>(
     type: EntityType.transactionRule,
     api: transactionRulesApi,
     repo: transactionRuleRepo,
   );
 
-  // ---- Webhook -----------------------------------------------------------
-  // Settings-only entity reached via Settings → Integrations → API Webhooks.
-  // Bundled on `/refresh?first_load=true` (small list — typically a handful
-  // of rows per company).
-  final webhooksApi = WebhooksApi(ctx.apiClient);
+  return (transactionRulesApi, transactionRuleRepo);
+}
+
+/// Settings-only entity reached via Settings → Integrations → API Webhooks.
+/// Bundled on `/refresh?first_load=true` (small list — typically a handful
+/// of rows per company).
+(WebhooksApi api, WebhookRepository repo) _wireWebhook(_EntityWiring reg) {
+  final webhooksApi = WebhooksApi(reg.ctx.apiClient);
   final webhookRepo = WebhookRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: webhooksApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<WebhookItemApi, WebhookApi>(
+  reg.wire<WebhookItemApi, WebhookApi>(
     type: EntityType.webhook,
     api: webhooksApi,
     repo: webhookRepo,
   );
 
-  // ---- Token (API Tokens) -----------------------------------------------
-  // Settings-only entity reached via Settings → Integrations → API Tokens.
-  // Bundled on `/refresh?first_load=true` via `tokens_hashed`. The server
-  // returns masked `token` values on the bundle / list; the raw bearer
-  // secret only appears on the create response and is broadcast via
-  // `TokenRepository.newSecrets` for the one-time "copy now" dialog.
-  final tokensApi = TokensApi(ctx.apiClient);
+  return (webhooksApi, webhookRepo);
+}
+
+/// Settings-only entity reached via Settings → Integrations → API Tokens.
+/// Bundled on `/refresh?first_load=true` via `tokens_hashed`. The server
+/// returns masked `token` values on the bundle / list; the raw bearer
+/// secret only appears on the create response and is broadcast via
+/// `TokenRepository.newSecrets` for the one-time "copy now" dialog.
+(TokensApi api, TokenRepository repo) _wireToken(_EntityWiring reg) {
+  final tokensApi = TokensApi(reg.ctx.apiClient);
   final tokenRepo = TokenRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: tokensApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<TokenItemApi, TokenApi>(
+  reg.wire<TokenItemApi, TokenApi>(
     type: EntityType.token,
     api: tokensApi,
     repo: tokenRepo,
   );
 
-  // ---- Credit ------------------------------------------------------------
-  // Mirrors Quote shape without the convert-to-X actions. Reuses every
-  // shared MutationKind (mark_sent, email, schedule_email, clone_to_*,
-  // run_template, addComment, document trio). Credits have a 4-step
-  // status (Draft / Sent / Partial / Applied).
-  final creditsApi = CreditsApi(ctx.apiClient);
+  return (tokensApi, tokenRepo);
+}
+
+/// Mirrors Quote shape without the convert-to-X actions. Reuses every
+/// shared MutationKind (mark_sent, email, schedule_email, clone_to_*,
+/// run_template, addComment, document trio). Credits have a 4-step
+/// status (Draft / Sent / Partial / Applied).
+(CreditsApi api, CreditRepository repo) _wireCredit(_EntityWiring reg) {
+  final creditsApi = CreditsApi(reg.ctx.apiClient);
   final creditRepo = CreditRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: creditsApi,
-    onEnqueued: ctx.kickDrain,
-    onRelatedEntitiesAffected: refreshRelatedEntities,
+    onEnqueued: reg.ctx.kickDrain,
+    onRelatedEntitiesAffected: reg.refreshRelatedEntities,
   );
-  wire<CreditItemApi, CreditApi>(
+  reg.wire<CreditItemApi, CreditApi>(
     type: EntityType.credit,
     api: creditsApi,
     repo: creditRepo,
@@ -1533,7 +1665,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           idempotencyKey: row.idempotencyKey,
         );
         // Credit markPaid records a synthetic Payment — pull it into the list.
-        await refreshRecentPayments(row.companyId);
+        await reg.refreshRecentPayments(row.companyId);
         return response?.data;
       },
       MutationKind.emailEntity: ({required row, required payload}) async {
@@ -1565,7 +1697,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.invoice,
@@ -1578,7 +1710,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.quote,
@@ -1591,7 +1723,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.credit,
@@ -1604,7 +1736,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.recurringInvoice,
@@ -1618,7 +1750,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
             );
-            await refreshCloneTarget(
+            await reg.refreshCloneTarget(
               row.companyId,
               clone?.data.id,
               EntityType.purchaseOrder,
@@ -1634,7 +1766,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'credits',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -1642,9 +1774,9 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         );
         return null;
       },
-      ...reactivateEmailHandlers<CreditApi>(ctx.emailsApi),
+      ...reactivateEmailHandlers<CreditApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<CreditApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: creditsApi.uploadDocument,
         applyChanged: creditRepo.applyDocumentChanged,
         applyDeleted: creditRepo.applyDocumentDeleted,
@@ -1652,21 +1784,27 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // PurchaseOrder — vendor-centric mirror of Quote/Credit. Adds the
-  // PO-specific custom actions (`convert_to_expense`, `add_to_inventory`) on
-  // top of the shared mark_sent / email / schedule_email / run_template /
-  // addComment / cancelEntity / document trio. Status lifecycle:
-  // Draft → Sent → Accepted → Received → Cancelled. Accept is vendor-portal
-  // only (no admin route); cross-type clone is client-side (the server's
-  // /bulk has no clone_to_* for POs), so no clone_to_* handlers here.
-  final purchaseOrdersApi = PurchaseOrdersApi(ctx.apiClient);
+  return (creditsApi, creditRepo);
+}
+
+/// PurchaseOrder — vendor-centric mirror of Quote/Credit. Adds the
+/// PO-specific custom actions (`convert_to_expense`, `add_to_inventory`) on
+/// top of the shared mark_sent / email / schedule_email / run_template /
+/// addComment / cancelEntity / document trio. Status lifecycle:
+/// Draft → Sent → Accepted → Received → Cancelled. Accept is vendor-portal
+/// only (no admin route); cross-type clone is client-side (the server's
+/// /bulk has no clone_to_* for POs), so no clone_to_* handlers here.
+(PurchaseOrdersApi api, PurchaseOrderRepository repo) _wirePurchaseOrder(
+  _EntityWiring reg,
+) {
+  final purchaseOrdersApi = PurchaseOrdersApi(reg.ctx.apiClient);
   final purchaseOrderRepo = PurchaseOrderRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: purchaseOrdersApi,
-    onEnqueued: ctx.kickDrain,
-    onRelatedEntitiesAffected: refreshRelatedEntities,
+    onEnqueued: reg.ctx.kickDrain,
+    onRelatedEntitiesAffected: reg.refreshRelatedEntities,
   );
-  wire<PurchaseOrderItemApi, PurchaseOrderApi>(
+  reg.wire<PurchaseOrderItemApi, PurchaseOrderApi>(
     type: EntityType.purchaseOrder,
     api: purchaseOrdersApi,
     repo: purchaseOrderRepo,
@@ -1735,7 +1873,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'purchase_orders',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -1743,9 +1881,9 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         );
         return null;
       },
-      ...reactivateEmailHandlers<PurchaseOrderApi>(ctx.emailsApi),
+      ...reactivateEmailHandlers<PurchaseOrderApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<PurchaseOrderApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: purchaseOrdersApi.uploadDocument,
         applyChanged: purchaseOrderRepo.applyDocumentChanged,
         applyDeleted: purchaseOrderRepo.applyDocumentDeleted,
@@ -1753,18 +1891,23 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // RecurringInvoice — invoice-shaped template with recurring lifecycle.
-  // Uses the shared `start` / `stop` MutationKinds (originally added for
-  // RecurringExpense) plus the usual mark_sent / email / schedule_email /
-  // clone_to_* / run_template / addComment / document trio. Status
-  // lifecycle: Draft → Active → Paused → Completed.
-  final recurringInvoicesApi = RecurringInvoicesApi(ctx.apiClient);
+  return (purchaseOrdersApi, purchaseOrderRepo);
+}
+
+/// RecurringInvoice — invoice-shaped template with recurring lifecycle.
+/// Uses the shared `start` / `stop` MutationKinds (originally added for
+/// RecurringExpense) plus the usual mark_sent / email / schedule_email /
+/// clone_to_* / run_template / addComment / document trio. Status
+/// lifecycle: Draft → Active → Paused → Completed.
+(RecurringInvoicesApi api, RecurringInvoiceRepository repo)
+_wireRecurringInvoice(_EntityWiring reg) {
+  final recurringInvoicesApi = RecurringInvoicesApi(reg.ctx.apiClient);
   final recurringInvoiceRepo = RecurringInvoiceRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: recurringInvoicesApi,
-    onEnqueued: ctx.kickDrain,
+    onEnqueued: reg.ctx.kickDrain,
   );
-  wire<RecurringInvoiceItemApi, RecurringInvoiceApi>(
+  reg.wire<RecurringInvoiceItemApi, RecurringInvoiceApi>(
     type: EntityType.recurringInvoice,
     api: recurringInvoicesApi,
     repo: recurringInvoiceRepo,
@@ -1812,7 +1955,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.invoice,
@@ -1825,7 +1968,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'quote',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.quote,
@@ -1838,7 +1981,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'credit',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.credit,
@@ -1851,7 +1994,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
           targetType: 'recurring_invoice',
           idempotencyKey: row.idempotencyKey,
         );
-        await refreshCloneTarget(
+        await reg.refreshCloneTarget(
           row.companyId,
           clone?.data.id,
           EntityType.recurringInvoice,
@@ -1865,7 +2008,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
               targetType: 'purchase_order',
               idempotencyKey: row.idempotencyKey,
             );
-            await refreshCloneTarget(
+            await reg.refreshCloneTarget(
               row.companyId,
               clone?.data.id,
               EntityType.purchaseOrder,
@@ -1896,7 +2039,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return response?.data;
       },
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'recurring_invoices',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -1904,9 +2047,9 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         );
         return null;
       },
-      ...reactivateEmailHandlers<RecurringInvoiceApi>(ctx.emailsApi),
+      ...reactivateEmailHandlers<RecurringInvoiceApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<RecurringInvoiceApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: recurringInvoicesApi.uploadDocument,
         applyChanged: recurringInvoiceRepo.applyDocumentChanged,
         applyDeleted: recurringInvoiceRepo.applyDocumentDeleted,
@@ -1914,20 +2057,23 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     },
   );
 
-  // ---- Payment -------------------------------------------------------------
-  // Document-bearing, password-gated delete/purge/documentDelete. Two
-  // payment-only customActions handle the non-CRUD endpoints:
-  //   * refundPayment → POST /payments/refund with body {id, date, invoices}
-  //     and `?email_receipt=…[&gateway_refund=true]`
-  //   * applyPayment  → PUT /payments/{id} with body {invoices: [...]}
-  final paymentsApi = PaymentsApi(ctx.apiClient);
+  return (recurringInvoicesApi, recurringInvoiceRepo);
+}
+
+/// Document-bearing, password-gated delete/purge/documentDelete. Two
+/// payment-only customActions handle the non-CRUD endpoints:
+///   * refundPayment → POST /payments/refund with body {id, date, invoices}
+///     and `?email_receipt=…[&gateway_refund=true]`
+///   * applyPayment  → PUT /payments/{id} with body {invoices: [...]}
+(PaymentsApi api, PaymentRepository repo) _wirePayment(_EntityWiring reg) {
+  final paymentsApi = PaymentsApi(reg.ctx.apiClient);
   final paymentRepo = PaymentRepository(
-    db: ctx.db,
+    db: reg.ctx.db,
     api: paymentsApi,
-    onEnqueued: ctx.kickDrain,
-    onRelatedEntitiesAffected: refreshRelatedEntities,
+    onEnqueued: reg.ctx.kickDrain,
+    onRelatedEntitiesAffected: reg.refreshRelatedEntities,
   );
-  wire<PaymentItemApi, PaymentApi>(
+  reg.wire<PaymentItemApi, PaymentApi>(
     type: EntityType.payment,
     api: paymentsApi,
     repo: paymentRepo,
@@ -1957,7 +2103,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         );
       },
       MutationKind.addComment: ({required row, required payload}) async {
-        await ctx.activitiesApi.addNote(
+        await reg.ctx.activitiesApi.addNote(
           entity: 'payments',
           entityId: payload['entity_id'] as String,
           notes: payload['notes'] as String,
@@ -1966,7 +2112,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
         return null;
       },
       ...documentMutationHandlers<PaymentApi>(
-        documentsApi: ctx.documentsApi,
+        documentsApi: reg.ctx.documentsApi,
         upload: paymentsApi.uploadDocument,
         applyChanged: paymentRepo.applyDocumentChanged,
         applyDeleted: paymentRepo.applyDocumentDeleted,
@@ -1980,6 +2126,44 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
   // and a prefetch (fires on every `auth.onActiveCompanyChanged` so the
   // badge is non-zero before the user opens the list). Settings-only and
   // bundled-only entities are intentionally absent.
+  return (paymentsApi, paymentRepo);
+}
+
+WiredEntities wireEntities(EntityWiringContext ctx) {
+  final reg = _EntityWiring(ctx);
+  final (clientsApi, clientRepo) = _wireClient(reg);
+  final (productsApi, productRepo) = _wireProduct(reg);
+  final (tasksApi, taskRepo) = _wireTask(reg);
+  final (projectsApi, projectRepo) = _wireProject(reg);
+  final (vendorsApi, vendorRepo) = _wireVendor(reg);
+  final (expensesApi, expenseRepo) = _wireExpense(reg);
+  final (recurringExpensesApi, recurringExpenseRepo) = _wireRecurringExpense(
+    reg,
+  );
+  final (expenseCategoriesApi, expenseCategoryRepo) = _wireExpenseCategory(reg);
+  final (companyGatewaysApi, companyGatewayRepo) = _wireCompanyGateway(reg);
+  final (paymentTermsApi, paymentTermRepo) = _wirePaymentTerm(reg);
+  final (schedulesApi, scheduleRepo) = _wireSchedule(reg);
+  final (taxRatesApi, taxRateRepo) = _wireTaxRate(reg);
+  final (taskStatusesApi, taskStatusRepo) = _wireTaskStatus(reg);
+  final (tagsApi, tagRepo) = _wireTag(reg);
+  final (designsApi, designRepo) = _wireDesign(reg);
+  final (groupSettingsApi, groupSettingRepo) = _wireGroupSetting(reg);
+  final (subscriptionsApi, paymentLinkRepo) = _wirePaymentLink(reg);
+  final (invoicesApi, invoiceRepo) = _wireInvoice(reg);
+  final (quotesApi, quoteRepo) = _wireQuote(reg);
+  final (bankAccountsApi, bankAccountRepo) = _wireBankAccount(reg);
+  final (bankTransactionsApi, bankTransactionRepo) = _wireBankTransaction(reg);
+  final (transactionRulesApi, transactionRuleRepo) = _wireTransactionRule(reg);
+  final (webhooksApi, webhookRepo) = _wireWebhook(reg);
+  final (tokensApi, tokenRepo) = _wireToken(reg);
+  final (creditsApi, creditRepo) = _wireCredit(reg);
+  final (purchaseOrdersApi, purchaseOrderRepo) = _wirePurchaseOrder(reg);
+  final (recurringInvoicesApi, recurringInvoiceRepo) = _wireRecurringInvoice(
+    reg,
+  );
+  final (paymentsApi, paymentRepo) = _wirePayment(reg);
+
   final countWatchers = <EntityType, SidebarCountWatcher>{
     EntityType.client: (c, mode, user) => clientRepo.watchBadgeCount(
       companyId: c,

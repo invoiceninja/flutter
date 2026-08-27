@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
 import 'package:admin/data/db/app_database.dart';
-import 'package:admin/domain/columns/user_columns.dart';
+import 'package:admin/domain/columns/ids/user_column_ids.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/tables/user_table.dart';
 import 'package:admin/domain/entity_state.dart';

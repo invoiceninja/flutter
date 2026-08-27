@@ -197,12 +197,15 @@ int get prefetchConcurrencyForTest => _kPrefetchConcurrency;
 /// Not a service locator — anything beyond app bootstrap should still take
 /// its dependencies via constructor injection (ViewModel ctors do this).
 ///
-/// **Split trigger:** when `kWiredEntityModules.length >= 6`, hoist the
-/// per-entity `<Entity>sApi` + `<Entity>Repository` + `wireEntity<…>(...)`
-/// blocks out of `Services.build` into a `lib/app/services_entities.dart`
-/// helper (e.g. a `registerEntities(BuildContext)` extension method that
-/// returns the typed repo bag). At 2–3 wired entities the linear block is
-/// readable; past that, merges over `Services.build` become a hot spot.
+/// **Split trigger (fired — kept as the rationale):** at `>= 6` wired entity
+/// modules the per-entity `<Entity>sApi` + `<Entity>Repository` +
+/// `wire<…>(...)` blocks were hoisted out of `Services.build` into
+/// `lib/app/services_entity_wiring.dart`. That first hoist moved them into a
+/// single ~1,900-line `wireEntities()`, which at 28 entities had the same
+/// problem one level down; they are now one top-level `_wire<Entity>(reg)`
+/// function each. If a future bag of construction outgrows its home, split by
+/// unit of change (one function or file per entity) rather than relocating the
+/// pile.
 class Services implements SidebarBadgeContext {
   Services._({
     required this.db,

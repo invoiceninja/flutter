@@ -3,6 +3,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/l10n/localization.dart';
 
@@ -10,6 +11,10 @@ import 'package:admin/l10n/localization.dart';
 // single source as clients/products.
 export 'package:admin/ui/core/list/entity_list_constants.dart'
     show kColumnFlexMinWidth;
+
+// Id constants live in a leaf file the data layer can import without
+// dragging this Widget-bearing registry (and the UI graph) along.
+export 'package:admin/domain/columns/ids/vendor_column_ids.dart';
 
 typedef VendorColumn = ColumnDefinition<Vendor>;
 
@@ -24,41 +29,6 @@ const List<String> kDefaultVendorColumns = <String>[
   VendorFieldIds.city,
   VendorFieldIds.phone,
 ];
-
-/// Wire ids — must match the snake_case constants in admin-portal's
-/// `vendor_model.dart` `VendorFields`. Renaming any of these breaks
-/// compatibility with the existing app.
-class VendorFieldIds {
-  static const String name = 'name';
-  static const String number = 'number';
-  static const String contactName = 'contact_name';
-  static const String contactEmail = 'contact_email';
-  static const String contactPhone = 'contact_phone';
-  static const String idNumber = 'id_number';
-  static const String vatNumber = 'vat_number';
-  static const String address1 = 'address1';
-  static const String address2 = 'address2';
-  static const String city = 'city';
-  static const String state = 'state';
-  static const String postalCode = 'postal_code';
-  static const String phone = 'phone';
-  static const String website = 'website';
-  static const String currencyId = 'currency_id';
-  static const String classification = 'classification';
-  static const String routingId = 'routing_id';
-  static const String lastLogin = 'last_login';
-  static const String publicNotes = 'public_notes';
-  static const String privateNotes = 'private_notes';
-  static const String custom1 = 'custom1';
-  static const String custom2 = 'custom2';
-  static const String custom3 = 'custom3';
-  static const String custom4 = 'custom4';
-  static const String createdAt = 'created_at';
-  static const String updatedAt = 'updated_at';
-  static const String archivedAt = 'archived_at';
-  // Display-only (tags live in the payload) — never add to sortOptions.
-  static const String tagIds = 'vendor_tag_ids';
-}
 
 /// Every column the new app knows how to render for the vendor list.
 ///

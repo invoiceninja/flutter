@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 
 import 'package:admin/data/db/dao/_distinct_stream.dart';
 
-import 'package:admin/domain/columns/vendor_columns.dart';
+import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/base_entity_dao.dart';
@@ -160,11 +160,11 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
   /// Wire-id → Drift ordering expression. Mirrors `ClientDao._sortExpression`.
   Expression _sortExpression(Vendors v, String field) {
     assert(
-      vendorColumnsById.containsKey(field),
+      kVendorColumnIds.contains(field),
       'VendorDao._sortExpression: unknown column id "$field". '
-      'Validate against vendorColumnsById in the ViewModel before calling.',
+      'Validate against kVendorColumnIds in the ViewModel before calling.',
     );
-    if (!vendorColumnsById.containsKey(field)) {
+    if (!kVendorColumnIds.contains(field)) {
       return v.name; // release-mode safety net for the assert above.
     }
     switch (field) {

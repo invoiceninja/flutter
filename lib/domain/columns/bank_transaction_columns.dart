@@ -1,37 +1,21 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
-import 'package:admin/data/db/dao/bank_transaction_dao.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/ids/bank_transaction_column_ids.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/expense_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_status_pill.dart';
 
-typedef BankTransactionColumn = ColumnDefinition<BankTransaction>;
+// Id constants live in a leaf file the data layer can import without
+// dragging this Widget-bearing registry (and the UI graph) along.
+export 'package:admin/domain/columns/ids/bank_transaction_column_ids.dart';
 
-/// Column id constants. Most map 1:1 to `BankTransactionFieldIds`; the
-/// `deposit` / `withdrawal` ids are display-only splits of `amount` driven
-/// by `baseType`. They aren't sortable on their own — sort by `amount` to
-/// order both columns numerically.
-class BankTransactionColumnIds {
-  static const String status = BankTransactionFieldIds.statusId;
-  static const String deposit = 'deposit';
-  static const String withdrawal = 'withdrawal';
-  static const String date = BankTransactionFieldIds.date;
-  static const String participantName = BankTransactionFieldIds.participantName;
-  static const String description = BankTransactionFieldIds.description;
-  static const String bankAccountId = 'bank_account_id';
-  static const String invoices = 'invoices';
-  static const String expenses = 'expenses';
-  static const String currencyId = 'currency_id';
-  static const String amount = BankTransactionFieldIds.amount;
-  static const String updatedAt = BankTransactionFieldIds.updatedAt;
-  static const String tagIds = 'bank_transaction_tag_ids';
-}
+typedef BankTransactionColumn = ColumnDefinition<BankTransaction>;
 
 /// Default visible columns. Status pill leads, deposit + withdrawal split by
 /// `baseType` so the two amount columns line up for an at-a-glance ledger

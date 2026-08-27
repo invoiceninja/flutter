@@ -6,25 +6,18 @@ import 'package:admin/data/db/dao/_distinct_stream.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/app_database.dart';
-import 'package:admin/domain/columns/bank_transaction_columns.dart';
+import 'package:admin/domain/columns/ids/bank_transaction_column_ids.dart';
 import 'package:admin/data/db/company_scoped_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/bank_transactions_table.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
-part 'bank_transaction_dao.g.dart';
+// `BankTransactionFieldIds` + `BankTransactionColumnIds` moved to a leaf so this
+// DAO and the Widget-bearing column registry stop importing each other.
+// Re-exported here so existing consumers of this file are unchanged.
+export 'package:admin/domain/columns/ids/bank_transaction_column_ids.dart';
 
-class BankTransactionFieldIds {
-  static const String date = 'date';
-  static const String amount = 'amount';
-  static const String description = 'description';
-  static const String participantName = 'participant_name';
-  static const String statusId = 'status_id';
-  static const String baseType = 'base_type';
-  static const String state = 'state';
-  static const String updatedAt = 'updated_at';
-  static const String createdAt = 'created_at';
-}
+part 'bank_transaction_dao.g.dart';
 
 @DriftAccessor(tables: [BankTransactions])
 class BankTransactionDao extends DatabaseAccessor<AppDatabase>

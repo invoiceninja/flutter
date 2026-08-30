@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
@@ -20,6 +22,7 @@ enum PaymentAction {
   refund,
   sendEmail,
   addComment,
+  copyLink,
   archive,
   restore,
   delete,
@@ -100,6 +103,12 @@ class PaymentActions {
         enabled: true,
         onTap: () => onTap(PaymentAction.addComment),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: PaymentAction.copyLink,
+        entityId: payment.id,
+        onTap: () => onTap(PaymentAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(payment),
@@ -149,6 +158,8 @@ class PaymentActions {
         }
       case PaymentAction.addComment:
         await _promptAddComment(context, services, companyId, payment);
+      case PaymentAction.copyLink:
+        await copyEntityLink(context, EntityType.payment, payment.id);
       case PaymentAction.archive:
         await StandardEntityActions.archive(
           context: context,

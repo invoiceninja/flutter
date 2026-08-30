@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
@@ -60,6 +62,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<BankTransaction>(
       vm: _vm,
+      hydrate: () => _services.bankTransactions.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.transaction),
       emptyIcon: Icons.swap_horiz,
       emptyTitle: context.tr('transaction_not_found'),
       actionsForItem: (context, tx) => _ActionsRow(transaction: tx),

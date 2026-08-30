@@ -8,7 +8,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 
 /// OAuth-return landing for calendar connect. Reached two ways with identical
 /// behaviour: a full-page web redirect back to this route, or a native deep
-/// link bridged here by `CalendarDeepLinks`. Reads the one-time `handoff` from
+/// link bridged here by `AppDeepLinks`. Reads the one-time `handoff` from
 /// the URL, fires the security-critical `/complete` confirmation (the server
 /// asserts the completing user started the flow), then routes back to the
 /// calendar.

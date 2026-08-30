@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/app/services.dart';
@@ -65,6 +66,11 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<PurchaseOrder>(
       vm: _vm,
+      hydrate: () => _services.purchaseOrders.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.purchaseOrder),
       emptyIcon: Icons.shopping_bag_outlined,
       emptyTitle: context.tr('purchase_order_not_found'),
       actionsForItem: (context, po) => StreamBuilder<Company?>(

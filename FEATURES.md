@@ -1514,8 +1514,11 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Real-time WebSocket / Pusher notifications | ✅ | ✅ | ❌ |  | |
 | Live UI refresh on server-side change | ✅ | ✅ | ❌ |  | |
 | Push notifications (FCM / APNs) | 🟡 | ✅ | ❌ |  | |
-| Deep links | — | ✅ | ✅ | ✅ | |
-| Native share sheet | — | ✅ | ✅ | ✅ | |
+| Deep links (open a record from a shared `invoiceninja://` link) | — | ❌ | ✅ |  | v1 has no incoming-link handling at all — its only URL scheme is the Google OAuth callback |
+| Copy Link on a record — shareable deep link, auto-switches company | — | — | ✅ | | |
+| Paste a record link into the command palette (covers web / Linux / non-linkifying messengers) | — | — | ✅ | | |
+| Detail screen hydrates an uncached record on arrival (deep link / dashboard tap / restored route) | — | — | ✅ | | |
+| Native share sheet | — | ✅ | 🟡 | ✅ | v2: PDFs only, via `Printing.sharePdf` — no `share_plus` |
 | Responsive layout — mobile | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — tablet | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — desktop | ✅ | ✅ | ✅ | ✅ | |
@@ -1562,8 +1565,9 @@ Field-level breakdown of every option under each advanced settings panel. Source
 |---|---|---|---|---|---|
 | Biometric lock (Touch ID / Face ID / fingerprint) | — | ✅ | ✅ | ✅ | |
 | Push notifications (FCM / APNs) | — | ✅ | ❌ |  | |
-| Native share sheet | — | ✅ | ✅ | ✅ | |
-| OS deep links / universal links | — | ✅ | ✅ | ✅ | |
+| Native share sheet | — | ✅ | 🟡 | ✅ | v2: PDFs only, via `Printing.sharePdf` |
+| OS deep links (custom scheme) | — | ❌ | ✅ | ✅ | `invoiceninja://app/…`; v1 registers a scheme for Google OAuth only |
+| Universal / App Links (https) | — | ❌ | ❌ | | needs server-hosted `.well-known` + an associated-domains entitlement |
 | Native window-state persistence (macOS + Windows) | — | ❌ | ✅ | ✅ | |
 | OAuth deep-link handler (callback URL) | — | ✅ | ✅ | ✅ | |
 | Web platform support (`flutter build web`) | ✅ | — | ✅ | | |

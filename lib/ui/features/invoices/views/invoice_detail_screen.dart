@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/app/services.dart';
@@ -71,10 +72,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
     _vm = InvoiceDetailViewModel.bound(
       _services.invoices.watch(companyId: _companyId, id: widget.id),
     );
-    // Hydrate on a cache miss — a dashboard tap opens the detail with the row
-    // only in the dashboard cache, not the invoices table, so without this the
-    // watch yields null forever and the screen shows "not found".
-    _services.invoices.ensureLoaded(companyId: _companyId, id: widget.id);
     loadFormatter(_services, _companyId);
   }
 
@@ -88,6 +85,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Invoice>(
       vm: _vm,
+      hydrate: () =>
+          _services.invoices.ensureLoaded(companyId: _companyId, id: widget.id),
+      emptyAction: entityListEmptyAction(context, EntityType.invoice),
       emptyIcon: Icons.receipt_long_outlined,
       emptyTitle: context.tr('invoice_not_found'),
       actionsForItem: (context, invoice) => _InvoiceActionsRow(

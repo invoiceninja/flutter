@@ -18,6 +18,7 @@ import 'package:admin/data/models/domain/purchase_order_status.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -56,6 +57,7 @@ enum PurchaseOrderAction {
   cloneToCredit,
   runTemplate,
   addComment,
+  copyLink,
   archive,
   restore,
   delete,
@@ -312,6 +314,12 @@ class PurchaseOrderActions {
           onTap: () => onTap(PurchaseOrderAction.addComment),
         ),
       ],
+      ?copyLinkActionItem(
+        context: context,
+        kind: PurchaseOrderAction.copyLink,
+        entityId: po.id,
+        onTap: () => onTap(PurchaseOrderAction.copyLink),
+      ),
       if (canEdit)
         ?archiveActionItem(
           context: context,
@@ -532,6 +540,8 @@ class PurchaseOrderActions {
           text: text,
         );
 
+      case PurchaseOrderAction.copyLink:
+        await copyEntityLink(context, EntityType.purchaseOrder, po.id);
       case PurchaseOrderAction.archive:
         if (tmpGate()) return;
         await StandardEntityActions.archive(

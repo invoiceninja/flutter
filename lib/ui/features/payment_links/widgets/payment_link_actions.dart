@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment_link.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -15,7 +17,7 @@ import 'package:admin/ui/core/sync/require_synced.dart';
 /// link into a fresh create form (invoiceninja/flutter#62: setting up
 /// per-duration tiers of the same product otherwise means rebuilding all
 /// four tabs by hand).
-enum PaymentLinkAction { edit, clone, archive, restore, delete }
+enum PaymentLinkAction { edit, clone, copyLink, archive, restore, delete }
 
 /// Single source of truth for what PaymentLink actions exist and what
 /// they do. Consumed by the list-row popup, detail header, and edit
@@ -107,6 +109,12 @@ class PaymentLinkActions {
         enabled: hasProAccess,
         onTap: () => onTap(PaymentLinkAction.clone),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: PaymentLinkAction.copyLink,
+        entityId: paymentLink.id,
+        onTap: () => onTap(PaymentLinkAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(paymentLink),
@@ -150,6 +158,8 @@ class PaymentLinkActions {
           '/settings/payment_links',
           extra: cloneDraftFor(paymentLink),
         );
+      case PaymentLinkAction.copyLink:
+        await copyEntityLink(context, EntityType.paymentLink, paymentLink.id);
       case PaymentLinkAction.archive:
         await StandardEntityActions.archive(
           context: context,

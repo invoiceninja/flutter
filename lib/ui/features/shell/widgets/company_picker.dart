@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
+import 'package:admin/ui/features/shell/widgets/switch_company_guarded.dart';
 
 /// Overlay content: list of companies, a placeholder "New company" action,
 /// and the only Sign out entry in the new shell.
@@ -69,72 +70,54 @@ class _CompanyPickerState extends State<CompanyPicker> {
       unawaited(Navigator.of(context).maybePop());
       return;
     }
+    // Capture everything context-derived *before* the await, so nothing past
+    // it touches `context` (also what keeps `use_build_context_synchronously`
+    // quiet). `companySafeLocation` strips an entity-id path back to its list
+    // root (`/clients/<old-id>/edit` -> `/clients`) and passes every other
+    // route through unchanged, so the user stays on the same logical page in
+    // the new company. The shell's KeyedSubtree handles the same-route
+    // refresh. `maybeOf` because widget tests pump the picker without a
+    // router.
     final services = context.read<Services>();
-    // Confirm unsaved / unsynced changes while the picker is still up, so these
-    // dialogs resolve against its Services-bearing context and a cancel leaves
-    // the picker open.
-    if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
-    if (!mounted) return;
-    final result = await confirmPendingOutboxIfAny(
-      context,
-      companyId: session.currentCompanyId,
-    );
-    if (result == OutboxConfirmResult.cancelled || !mounted) return;
-    // Capture everything context-derived *before* the await, so nothing past it
-    // touches `context` (also what keeps `use_build_context_synchronously`
-    // quiet). `maybeOf` because widget tests pump the picker without a router;
-    // `companySafeLocation` strips an entity-id path back to its list root
-    // (`/clients/<old-id>/edit` → `/clients`) and passes every other route
-    // through unchanged, so the user stays on the same logical page in the new
-    // company. The shell's KeyedSubtree handles the same-route refresh.
     final router = GoRouter.maybeOf(context);
     final currentLocation =
         router?.routerDelegate.currentConfiguration.uri.toString() ??
         '/clients';
     final routePaths = services.entityRegistry.uiRoutePaths;
-    // `Notify.capture` is the documented seam for raising a toast after an
-    // await; the queue is global and outlives any context.
-    final toasts = Notify.capture(context);
-    final loc = Localization.of(context);
     final nav = Navigator.of(context);
-    setState(() => _switchingId = c.id);
     // Hold the picker open until the switch resolves, rather than dismissing
     // first. The happy path is local — session + credentials + one keychain
-    // write — so the dismiss still looks immediate. But a switch into a company
-    // whose token is missing pauses on a healing `/refresh`, and dismissing up
-    // front left the user staring at an unchanged shell for the length of a
-    // full sync before an error toast finally arrived. The tapped row shows a
-    // spinner for that window.
-    SwitchCompanyResult outcome;
-    try {
-      outcome = await services.auth.switchCompany(c.id);
-    } finally {
+    // write — so the dismiss still looks immediate. But a switch into a
+    // company whose token is missing pauses on a healing `/refresh`, and
+    // dismissing up front left the user staring at an unchanged shell for the
+    // length of a full sync before an error toast finally arrived. The tapped
+    // row shows a spinner for that window.
+    final outcome = await switchCompanyGuarded(
+      context,
+      c.id,
+      companyName: c.displayName,
       // Clear before popping so a picker that can't pop (pumped inline rather
-      // than routed) doesn't latch every row, New company and Sign out disabled
-      // with no way back.
-      if (mounted) setState(() => _switchingId = null);
-    }
+      // than routed) doesn't latch every row, New company and Sign out
+      // disabled with no way back.
+      onSwitchStart: () {
+        if (mounted) setState(() => _switchingId = c.id);
+      },
+      onSwitchEnd: () {
+        if (mounted) setState(() => _switchingId = null);
+      },
+    );
+    // Cancelled at the unsaved-changes or pending-outbox guard: the picker
+    // stays open and the user stays put.
+    if (outcome == null) return;
     // Only pop what is still ours. Deferring the dismiss means the route can
     // disappear underneath us — a 401 during the healing refresh logs out and
     // the router replaces the stack — and popping a captured NavigatorState
-    // then would take a route off the /login stack instead. The toast below
-    // still fires either way.
+    // then would take a route off the /login stack instead. The toast raised
+    // inside `switchCompanyGuarded` still fires either way.
     if (mounted) unawaited(nav.maybePop());
     if (outcome == SwitchCompanyResult.ok) {
       router?.go(companySafeLocation(currentLocation, routePaths));
-      return;
     }
-    // A logout raced the tap; the router is already heading to /login and the
-    // "no token for that company" explanation below would be a lie.
-    if (outcome == SwitchCompanyResult.noSession) return;
-    // Navigating on a failed switch would reset the route while leaving the
-    // user in the old company — indistinguishable from the app ignoring the
-    // tap, which is how issue #16 presented. Stay put and say so.
-    toasts?.error(
-      loc?.lookup('failed_to_switch_company', {'company': c.displayName}) ??
-          'failed_to_switch_company',
-      detail: loc?.lookup('failed_to_switch_company_help'),
-    );
   }
 
   Future<void> _handleNewCompany(AuthSession session) async {

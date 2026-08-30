@@ -728,6 +728,23 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
       documents: decodeDocumentsColumn(row.documents),
     );
   }
+
+  /// Lazily hydrate one credit by id when it isn't in the local cache —
+  /// a deep-linked record the recipient has never browsed to, a restored
+  /// route, or a cross-entity reference off the prefetched page. Cache-gated,
+  /// coalesced, and negative-cached; see [ensureLoadedTemplate].
+  Future<void> ensureLoaded({required String companyId, required String id}) =>
+      ensureLoadedTemplate(
+        companyId: companyId,
+        id: id,
+        fetch: (id) async => (await api.get(id)).data,
+        idOf: (a) => a.id,
+        toCompanion: (a) => _apiToCompanion(a, companyId),
+        upsert: (byId) => db.creditDao.upsertAllPreservingDirty(
+          companyId: companyId,
+          byId: byId,
+        ),
+      );
 }
 
 MutationKind _cloneKindFor(String targetType) {

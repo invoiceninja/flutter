@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/entity_links.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -28,6 +29,11 @@ import 'package:admin/ui/features/shell/widgets/in_sidebar.dart'
     show kInSidebarWidth, kInSidebarCollapsedWidth;
 import 'package:admin/ui/features/sync/views/outbox_screen.dart';
 import 'package:admin/ui/features/tasks/views/calendar_connection_complete_screen.dart';
+
+// `entityRecordPath` lives in the `entity_links` leaf so link building can
+// reach it without importing this file (and, transitively, every screen).
+// Re-exported here because every existing call site imports the router.
+export 'package:admin/app/entity_links.dart' show entityRecordPath;
 
 final _rootKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -387,18 +393,6 @@ String? highlightSelectedIdFromRoute(BuildContext context) {
   return scope.selectedId;
 }
 
-/// Pure decision for [goEntityRecord]'s target path. Extracted so the
-/// rule is unit-testable without a widget tree.
-///
-/// Row-click always opens the read-only **view** (detail) screen. The
-/// only exception is the no-detail-screen guard: entities that have no
-/// detail screen fall back to edit so the route is never dead.
-String entityRecordPath({
-  required String routePath,
-  required String id,
-  required bool hasDetailScreen,
-}) => hasDetailScreen ? '$routePath/$id' : '$routePath/$id/edit';
-
 /// Navigate to a record from a **datatable row tap** (or any
 /// equivalent same-entity record jump — kanban cards, next/prev
 /// actions). Resolves the entity's `routePath` from the registry
@@ -640,7 +634,7 @@ GoRouter buildRouter({
       // Calendar OAuth return. Top-level (outside the shell) so it survives a
       // full-page web reload before the shell/company context is ready; it
       // reads the handoff from the URL, completes, and self-routes to the
-      // calendar. Native deep links are bridged here by `CalendarDeepLinks`.
+      // calendar. Native deep links are bridged here by `AppDeepLinks`.
       GoRoute(
         path: '/calendar_connection/complete',
         builder: (context, state) => const CalendarConnectionCompleteScreen(),

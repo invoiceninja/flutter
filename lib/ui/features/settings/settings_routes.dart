@@ -105,7 +105,24 @@ GoRoute _settingsRoute({
     path: path,
     pageBuilder: (context, state) => CustomTransitionPage<void>(
       key: state.pageKey,
-      child: _SettingsLevelKeyed(child: builder(context, state)),
+      // `state.pageKey` is derived from the route *pattern*, not the location
+      // (go_router's `RouteMatch.pageKey` is `ValueKey(newMatchedPath)`, built
+      // from `route.path`), so every `:id` under one root shares a page — and
+      // these screens bind their VM from `widget.id` in `initState`. Without
+      // an id-keyed subtree, going straight from record A to record B leaves
+      // the previous record's VM (and its detail scaffold's one-shot
+      // `hydrate`) in place, so the pane silently keeps showing A. The entity
+      // branches solve this the same way; see `buildEntityRouteBlock` in
+      // `router.dart`. Only `:id` routes are keyed — a literal path yields a
+      // constant key, and keying those would needlessly drop state.
+      child: _SettingsLevelKeyed(
+        child: path == ':id'
+            ? KeyedSubtree(
+                key: ValueKey('settings_record:${state.matchedLocation}'),
+                child: builder(context, state),
+              )
+            : builder(context, state),
+      ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final wide = MediaQuery.sizeOf(context).width >= Breakpoints.wide;
         if (wide) return child;
@@ -134,7 +151,8 @@ GoRoute _leaf(String path, Widget Function() child) =>
 ///
 /// Those blocks invert the entity-branch shape: there, `:id` is the detail
 /// screen and `:id/edit` the form; here `:id` IS the form and nothing lives at
-/// `:id/edit`. But `entityRecordPath` (`router.dart`), the outbox row "Open"
+/// `:id/edit`. But `entityRecordPath` (`app/entity_links.dart`, re-exported
+/// from `router.dart`), the outbox row "Open"
 /// action (`outbox_screen.dart`), and the sync listener's validation / conflict
 /// actions (`sync_event_listener.dart`) all append `/edit` for a detail-less
 /// entity — so that URL has to resolve or the user lands on the route-error

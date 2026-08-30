@@ -7,15 +7,46 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/entity_links.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/recent_record.dart';
 import 'package:admin/data/models/domain/search_result.dart';
+import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/key_cap.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
+
+/// Search-result group key for a pasted record deep link. Renders as its own
+/// header via `context.tr` — `link` is an existing translated key.
+const String kDeepLinkSearchGroup = 'link';
+
+/// A record deep link the user pasted into the palette, as a single hit — or
+/// null when [query] isn't one.
+///
+/// This is the only way to follow a shared link on **web and Linux**, where
+/// the OS never hands the app a custom-scheme URI, and the fallback anywhere a
+/// messenger renders `invoiceninja://…` as inert text rather than a tappable
+/// link. Pure + unit-tested.
+SearchResult? deepLinkSearchHit(String query, EntityRegistry registry) {
+  final raw = query.trim();
+  if (raw.isEmpty) return null;
+  final uri = Uri.tryParse(raw);
+  if (uri == null) return null;
+  final target = parseAppDeepLink(uri, registry);
+  if (target == null) return null;
+  // `path` carries the ORIGINAL uri, not the resolved route: activation hands
+  // it back to `DeepLinkRouter` so a cross-company link still switches company
+  // (the resolved route alone has no company on it).
+  return SearchResult(
+    group: kDeepLinkSearchGroup,
+    name: target.path,
+    id: '',
+    path: raw,
+  );
+}
 
 /// Maps a `POST /api/v1/search` response group key to an [EntityType] so
 /// the hit routes through the entity registry (module-enabled + permission
@@ -185,6 +216,17 @@ class _CommandPaletteState extends State<_CommandPalette> {
 
   Future<void> _run(String q) async {
     final seq = ++_reqSeq;
+    // A pasted deep link resolves locally — no round-trip, and no other hit
+    // could be what the user meant.
+    final link = deepLinkSearchHit(q, context.read<Services>().entityRegistry);
+    if (link != null) {
+      setState(() {
+        _results = [link];
+        _selected = 0;
+        _loading = false;
+      });
+      return;
+    }
     setState(() => _loading = true);
     try {
       final r = await context.read<Services>().search.search(q);
@@ -288,6 +330,12 @@ class _CommandPaletteState extends State<_CommandPalette> {
     if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
     if (!mounted) return;
     Navigator.of(context).pop();
+    if (r.group == kDeepLinkSearchGroup) {
+      // Back through the same choreography an OS-delivered link gets, so a
+      // pasted cross-company link switches company before it navigates.
+      unawaited(services.deepLinks.open(Uri.parse(r.path)));
+      return;
+    }
     final type = entityTypeForSearchGroup(r.group);
     final recordId = recordIdForSearchHit(r);
     if (type != null && recordId.isNotEmpty) {
@@ -407,11 +455,12 @@ class _CommandPaletteState extends State<_CommandPalette> {
                         final r = _results[i];
                         final sel = i == _selected;
                         final type = entityTypeForSearchGroup(r.group);
-                        final icon =
-                            (type != null
-                                ? registry[type]?.effectiveOutlinedIcon
-                                : null) ??
-                            Icons.settings_outlined;
+                        final icon = r.group == kDeepLinkSearchGroup
+                            ? Icons.link
+                            : (type != null
+                                      ? registry[type]?.effectiveOutlinedIcon
+                                      : null) ??
+                                  Icons.settings_outlined;
                         return MouseRegion(
                           onEnter: (_) {
                             if (_selected != i) {

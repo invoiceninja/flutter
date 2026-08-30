@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -33,6 +34,7 @@ enum VendorAction {
   newPurchaseOrder,
   newRecurringExpense,
   merge,
+  copyLink,
   archive,
   restore,
   delete,
@@ -149,6 +151,12 @@ class VendorActions {
           enabled: vendor.archivedAt == null && !vendor.id.startsWith('tmp_'),
           onTap: () => onTap(VendorAction.merge),
         ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: VendorAction.copyLink,
+        entityId: vendor.id,
+        onTap: () => onTap(VendorAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(vendor),
@@ -185,6 +193,8 @@ class VendorActions {
     switch (action) {
       case VendorAction.edit:
         goEntityEdit(context, '/vendors', vendor.id);
+      case VendorAction.copyLink:
+        await copyEntityLink(context, EntityType.vendor, vendor.id);
       case VendorAction.archive:
         await StandardEntityActions.archive(
           context: context,

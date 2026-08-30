@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/features/gateways/view_models/company_gateway_detail_view_model.dart';
 import 'package:admin/ui/features/gateways/widgets/detail/company_gateway_detail_actions_row.dart';
 import 'package:admin/ui/features/gateways/widgets/detail/company_gateway_detail_cards.dart';
@@ -49,6 +51,11 @@ class _CompanyGatewayDetailScreenState
   Widget build(BuildContext context) {
     return EntityDetailScaffold<CompanyGateway>(
       vm: _vm,
+      hydrate: () => _services.companyGateways.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.companyGateway),
       emptyIcon: Icons.account_balance_wallet_outlined,
       emptyTitle: context.tr('company_gateway'),
       actionsForItem: (context, gateway) =>

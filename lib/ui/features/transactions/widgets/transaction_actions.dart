@@ -5,6 +5,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -18,7 +19,15 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 /// archive/restore/delete trio plus two transaction-specific actions:
 /// `convert` (matched → converted server-side) and `unlink` (matched or
 /// converted → unmatched, detaches from linked entities).
-enum TransactionAction { edit, convert, unlink, archive, restore, delete }
+enum TransactionAction {
+  edit,
+  convert,
+  unlink,
+  copyLink,
+  archive,
+  restore,
+  delete,
+}
 
 class TransactionActions {
   TransactionActions._();
@@ -77,6 +86,12 @@ class TransactionActions {
           enabled: true,
           onTap: () => onTap(TransactionAction.unlink),
         ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: TransactionAction.copyLink,
+        entityId: transaction.id,
+        onTap: () => onTap(TransactionAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(transaction),
@@ -146,6 +161,8 @@ class TransactionActions {
         if (context.mounted) {
           Notify.success(context, context.tr('unlinked_transaction'));
         }
+      case TransactionAction.copyLink:
+        await copyEntityLink(context, EntityType.transaction, transaction.id);
       case TransactionAction.archive:
         await StandardEntityActions.archive(
           context: context,

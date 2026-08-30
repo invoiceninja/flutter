@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 ///   `/calendar_connection/complete`.
 /// - **Native**: open the system browser (Google blocks OAuth inside embedded
 ///   webviews); the return arrives via a custom-scheme deep link bridged by
-///   `CalendarDeepLinks`.
+///   `AppDeepLinks`.
 ///
 /// Throws [StateError] when the platform refuses to launch the URL.
 Future<void> openCalendarAuthorize(Uri authorizeUrl) async {

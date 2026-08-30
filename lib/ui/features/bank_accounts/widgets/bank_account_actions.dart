@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/bank_account.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -12,7 +14,7 @@ import 'package:admin/ui/core/sync/require_synced.dart';
 /// surface — edit / archive / restore / delete — since bank accounts (bank
 /// integrations) carry no clone or cross-entity navigation. Mirrors
 /// `ExpenseCategoryActions`.
-enum BankAccountAction { edit, archive, restore, delete }
+enum BankAccountAction { edit, copyLink, archive, restore, delete }
 
 /// Single source of truth for what BankAccount actions exist and what they
 /// do. The detail header (`EntityDetailActionsRow<BankAccountAction>`)
@@ -38,6 +40,12 @@ class BankAccountActions {
         context: context,
         kind: BankAccountAction.edit,
         onTap: () => onTap(BankAccountAction.edit),
+      ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: BankAccountAction.copyLink,
+        entityId: account.id,
+        onTap: () => onTap(BankAccountAction.copyLink),
       ),
       ?archiveActionItem(
         context: context,
@@ -72,6 +80,8 @@ class BankAccountActions {
     switch (action) {
       case BankAccountAction.edit:
         goEntityEdit(context, '/settings/bank_accounts', account.id);
+      case BankAccountAction.copyLink:
+        await copyEntityLink(context, EntityType.bankAccount, account.id);
       case BankAccountAction.archive:
         await StandardEntityActions.archive(
           context: context,

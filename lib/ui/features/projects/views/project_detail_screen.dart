@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/projects/view_models/project_detail_view_model.dart';
 import 'package:admin/ui/features/projects/widgets/detail/project_detail_cards_grid.dart';
@@ -52,6 +54,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Project>(
       vm: _vm,
+      hydrate: () =>
+          _services.projects.ensureLoaded(companyId: _companyId, id: widget.id),
+      emptyAction: entityListEmptyAction(context, EntityType.project),
       emptyIcon: Icons.work_outline,
       emptyTitle: context.tr('project_not_found'),
       actionsForItem: (context, p) => EntityDetailActionsRow<ProjectAction>(

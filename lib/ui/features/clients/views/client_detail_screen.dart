@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/clients/view_models/client_detail_view_model.dart';
 import 'package:admin/ui/features/clients/widgets/client_actions.dart';
@@ -53,6 +55,9 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Client>(
       vm: _vm,
+      hydrate: () =>
+          _services.clients.ensureLoaded(companyId: _companyId, id: widget.id),
+      emptyAction: entityListEmptyAction(context, EntityType.client),
       emptyIcon: Icons.person_off_outlined,
       emptyTitle: context.tr('client_not_found'),
       emptySubtitle: context.tr('client_not_found_subtitle'),

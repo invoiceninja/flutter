@@ -18,6 +18,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/billing/invoice_lock.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -83,6 +84,7 @@ enum InvoiceAction {
   sendEInvoice,
   validateEInvoice,
   addComment,
+  copyLink,
   archive,
   restore,
   delete,
@@ -428,6 +430,12 @@ class InvoiceActions {
           onTap: () => onTap(InvoiceAction.addComment),
         ),
       ],
+      ?copyLinkActionItem(
+        context: context,
+        kind: InvoiceAction.copyLink,
+        entityId: invoice.id,
+        onTap: () => onTap(InvoiceAction.copyLink),
+      ),
       if (canEditInvoice)
         ?archiveActionItem(
           context: context,
@@ -748,6 +756,8 @@ class InvoiceActions {
           text: text,
         );
 
+      case InvoiceAction.copyLink:
+        await copyEntityLink(context, EntityType.invoice, invoice.id);
       case InvoiceAction.archive:
         if (tmpGate()) return;
         await StandardEntityActions.archive(

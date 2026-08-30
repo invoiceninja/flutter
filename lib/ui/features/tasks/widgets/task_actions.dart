@@ -11,6 +11,7 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -37,6 +38,7 @@ enum TaskAction {
   addToInvoice,
   viewClient,
   clone,
+  copyLink,
   archive,
   restore,
   delete,
@@ -214,6 +216,12 @@ class TaskActions {
         enabled: true,
         onTap: () => onTap(TaskAction.clone),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: TaskAction.copyLink,
+        entityId: task.id,
+        onTap: () => onTap(TaskAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(task),
@@ -261,6 +269,8 @@ class TaskActions {
       case TaskAction.viewClient:
         if (task.clientId.isEmpty) return;
         goEntityFullDetail(context, '/clients', task.clientId);
+      case TaskAction.copyLink:
+        await copyEntityLink(context, EntityType.task, task.id);
       case TaskAction.archive:
         await StandardEntityActions.archive(
           context: context,

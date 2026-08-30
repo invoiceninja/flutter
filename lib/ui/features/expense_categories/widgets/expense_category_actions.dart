@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -11,7 +13,7 @@ import 'package:admin/ui/core/sync/require_synced.dart';
 /// Action set surfaced for an expense category. Mirrors the standard
 /// minimum surface — edit / archive / restore / delete — since
 /// categories are too small to support clone or cross-entity navigation.
-enum ExpenseCategoryAction { edit, archive, restore, delete }
+enum ExpenseCategoryAction { edit, copyLink, archive, restore, delete }
 
 /// Single source of truth for what ExpenseCategory actions exist and what
 /// they do. The list-row popup, detail header, and edit screen overflow
@@ -54,6 +56,12 @@ class ExpenseCategoryActions {
         kind: ExpenseCategoryAction.edit,
         onTap: () => onTap(ExpenseCategoryAction.edit),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: ExpenseCategoryAction.copyLink,
+        entityId: category.id,
+        onTap: () => onTap(ExpenseCategoryAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(category),
@@ -87,6 +95,8 @@ class ExpenseCategoryActions {
     switch (action) {
       case ExpenseCategoryAction.edit:
         goEntityEdit(context, '/settings/expense_categories', category.id);
+      case ExpenseCategoryAction.copyLink:
+        await copyEntityLink(context, EntityType.expenseCategory, category.id);
       case ExpenseCategoryAction.archive:
         await StandardEntityActions.archive(
           context: context,

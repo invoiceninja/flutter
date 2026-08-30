@@ -68,6 +68,21 @@ Three invariants hold that together, each of which fails silently:
    (`?view=full`) is not a new place; leaving a `/x/new` create form replaces
    its entry too, since a blank form is never a back destination.
 
+### Deep links
+
+Two sources feed one entry point, `Services.deepLinks.open(Uri)`
+(`lib/app/deep_link_router.dart`): the OS, via `AppDeepLinks`
+(`app_links`, native only), and the user, by pasting a link into the command
+palette — which is the only path on web and Linux, where the OS never hands the
+app a custom-scheme URI.
+
+`open` validates the URI against the entity registry, holds it if the app is
+signed out or biometric-locked, switches company through the same guarded
+helper the company picker uses, and only then `go()`s to the record. The link
+grammar, the reasons behind the constant `app` host, and the five silent
+failure modes are in CLAUDE.md § Deep links; the parse/build helpers are a leaf
+(`lib/app/entity_links.dart`) so they unit-test without a widget tree.
+
 ## Offline-first write pipeline
 
 Every write goes through this pipeline:

@@ -13,6 +13,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
+import 'package:admin/ui/features/bank_accounts/views/bank_account_detail_screen.dart';
 import 'package:admin/ui/features/clients/views/client_detail_screen.dart';
 import 'package:admin/ui/features/clients/views/client_edit_screen.dart';
 import 'package:admin/ui/features/clients/views/client_list_screen.dart';
@@ -858,9 +859,9 @@ final kWiredEntityModules = <EntityModuleSpec>[
   // DI: wire<BankAccountItemApi, BankAccountApi>(...) in
   // lib/app/services_entity_wiring.dart. Settings-only entity — reached
   // via Settings → Bank Accounts; the settings router owns the route
-  // tree (see `settings_routes.dart`). No screen builders are wired
-  // here so the spec stays compatible with the settings-router-driven
-  // route (no duplicate registration).
+  // tree (see `settings_routes.dart`), so the list/create/edit builders
+  // stay unwired here — only `detailBuilder` is set, and only as a fact
+  // about the entity rather than a route (see the note on it below).
   EntityModuleSpec(
     type: EntityType.bankAccount,
     wireName: 'bank_account',
@@ -872,6 +873,15 @@ final kWiredEntityModules = <EntityModuleSpec>[
     sidebarSection: SidebarSection.none,
     sidebarOrder: 255,
     requiresPasswordFor: const {MutationKind.delete, MutationKind.purge},
+    // The ONE builder wired here, and it registers no route: this entity has
+    // no branch, so `_buildBranch` never reads it. It is here because every
+    // other reader treats `detailBuilder != null` as "does this entity have a
+    // detail screen?" — and it does (`/settings/bank_accounts/:id` renders
+    // `BankAccountDetailScreen`; `/edit` is a separate route onto the editor).
+    // Leaving it null made `entityRecordPath` — and so the shareable deep link
+    // — point at the editor, while the list's own row tap goes to the viewer.
+    detailBuilder: (context, state) =>
+        BankAccountDetailScreen(id: state.pathParameters['id']!),
   ),
   // DI: wire<BankTransactionItemApi, BankTransactionApi>(...) in
   // lib/app/services_entity_wiring.dart. Top-level workspace entity at

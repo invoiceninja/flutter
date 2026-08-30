@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
@@ -44,9 +46,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
     _vm = PaymentDetailViewModel.bound(
       _services.payments.watch(companyId: _companyId, id: widget.id),
     );
-    // Hydrate on a cache miss (dashboard tap) so the detail resolves
-    // instead of showing "not found".
-    _services.payments.ensureLoaded(companyId: _companyId, id: widget.id);
     loadFormatter(_services, _companyId);
   }
 
@@ -60,6 +59,9 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Payment>(
       vm: _vm,
+      hydrate: () =>
+          _services.payments.ensureLoaded(companyId: _companyId, id: widget.id),
+      emptyAction: entityListEmptyAction(context, EntityType.payment),
       emptyIcon: Icons.payments_outlined,
       emptyTitle: context.tr('payment_not_found'),
       actionsForItem: (context, p) => PaymentDetailActionsRow(

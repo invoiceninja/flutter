@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -35,6 +36,7 @@ enum ProjectAction {
   addToInvoice,
   runTemplate,
   clone,
+  copyLink,
   archive,
   restore,
   delete,
@@ -179,6 +181,12 @@ class ProjectActions {
         enabled: true,
         onTap: () => onTap(ProjectAction.clone),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: ProjectAction.copyLink,
+        entityId: project.id,
+        onTap: () => onTap(ProjectAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(project),
@@ -220,6 +228,8 @@ class ProjectActions {
           '/tasks',
           extra: emptyTask().copyWith(projectId: project.id),
         );
+      case ProjectAction.copyLink:
+        await copyEntityLink(context, EntityType.project, project.id);
       case ProjectAction.archive:
         await StandardEntityActions.archive(
           context: context,

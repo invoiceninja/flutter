@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/app/services.dart';
@@ -56,12 +57,6 @@ class _RecurringInvoiceDetailScreenState
     _vm = RecurringInvoiceDetailViewModel.bound(
       _services.recurringInvoices.watch(companyId: _companyId, id: widget.id),
     );
-    // Hydrate on a cache miss (dashboard tap) so the detail resolves
-    // instead of showing "not found".
-    _services.recurringInvoices.ensureLoaded(
-      companyId: _companyId,
-      id: widget.id,
-    );
     loadFormatter(_services, _companyId);
   }
 
@@ -75,6 +70,11 @@ class _RecurringInvoiceDetailScreenState
   Widget build(BuildContext context) {
     return EntityDetailScaffold<RecurringInvoice>(
       vm: _vm,
+      hydrate: () => _services.recurringInvoices.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.recurringInvoice),
       emptyIcon: Icons.event_repeat_outlined,
       emptyTitle: context.tr('recurring_invoice_not_found'),
       actionsForItem: (context, ri) =>

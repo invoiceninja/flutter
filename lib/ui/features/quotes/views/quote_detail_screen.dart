@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/app/services.dart';
@@ -52,9 +53,6 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
     _vm = QuoteDetailViewModel.bound(
       _services.quotes.watch(companyId: _companyId, id: widget.id),
     );
-    // Hydrate on a cache miss (dashboard tap) so the detail resolves
-    // instead of showing "not found".
-    _services.quotes.ensureLoaded(companyId: _companyId, id: widget.id);
     loadFormatter(_services, _companyId);
   }
 
@@ -68,6 +66,9 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Quote>(
       vm: _vm,
+      hydrate: () =>
+          _services.quotes.ensureLoaded(companyId: _companyId, id: widget.id),
+      emptyAction: entityListEmptyAction(context, EntityType.quote),
       emptyIcon: Icons.request_quote_outlined,
       emptyTitle: context.tr('quote_not_found'),
       actionsForItem: (context, quote) => EntityDetailActionsRow<QuoteAction>(

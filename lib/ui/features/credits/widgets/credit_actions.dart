@@ -16,6 +16,7 @@ import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -48,6 +49,7 @@ enum CreditAction {
   cloneToPurchaseOrder,
   runTemplate,
   addComment,
+  copyLink,
   archive,
   restore,
   delete,
@@ -255,6 +257,12 @@ class CreditActions {
           onTap: () => onTap(CreditAction.addComment),
         ),
       ],
+      ?copyLinkActionItem(
+        context: context,
+        kind: CreditAction.copyLink,
+        entityId: credit.id,
+        onTap: () => onTap(CreditAction.copyLink),
+      ),
       if (canEdit)
         ?archiveActionItem(
           context: context,
@@ -443,6 +451,8 @@ class CreditActions {
           text: text,
         );
 
+      case CreditAction.copyLink:
+        await copyEntityLink(context, EntityType.credit, credit.id);
       case CreditAction.archive:
         if (tmpGate()) return;
         await StandardEntityActions.archive(

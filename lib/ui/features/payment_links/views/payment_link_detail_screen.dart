@@ -7,9 +7,11 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment_link.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -63,6 +65,11 @@ class _PaymentLinkDetailScreenState extends State<PaymentLinkDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<PaymentLink>(
       vm: _vm,
+      hydrate: () => _services.paymentLinks.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.paymentLink),
       emptyIcon: Icons.link_outlined,
       emptyTitle: context.tr('payment_link'),
       actionsForItem: (context, paymentLink) =>

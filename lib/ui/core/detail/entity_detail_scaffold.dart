@@ -28,6 +28,8 @@ class EntityDetailScaffold<T> extends StatefulWidget {
     required this.emptyTitle,
     this.emptySubtitle,
     this.emptyIcon = Icons.search_off_outlined,
+    this.emptyAction,
+    this.hydrate,
     this.actionsForItem,
     this.embedded = false,
   });
@@ -37,6 +39,24 @@ class EntityDetailScaffold<T> extends StatefulWidget {
   final String emptyTitle;
   final String? emptySubtitle;
   final IconData emptyIcon;
+
+  /// Optional escape hatch rendered under the empty state — typically a
+  /// `Go to <list>` button. A record can legitimately not resolve (deleted
+  /// server-side, outside this user's permissions, a stale shared link), and
+  /// without this the screen is a dead end.
+  final Widget? emptyAction;
+
+  /// Optional one-shot fetch for a record that isn't in the local cache,
+  /// invoked once from `initState` (typically `repo.ensureLoaded`).
+  ///
+  /// The scaffold shows its resolving spinner for the duration instead of the
+  /// empty state. That matters more than it looks: [GenericDetailViewModel]
+  /// clears `isResolving` on the FIRST Drift emission, and for an uncached
+  /// record that emission is `null` — so without this the screen flashes
+  /// "not found" for the length of the network round-trip and then flips to
+  /// content. A deep-link recipient hits that path every time, since the whole
+  /// point is that they have never browsed to the record.
+  final Future<void> Function()? hydrate;
 
   /// Optional builder for the AppBar's title slot — usually an entity
   /// actions row. Receives the resolved item; not called while resolving
@@ -61,6 +81,25 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
   // embedded related-entity list can drive its pagination off this scroll
   // (the embedded list shrink-wraps and no longer scrolls itself).
   final ScrollController _outerScroll = ScrollController();
+
+  /// True while [EntityDetailScaffold.hydrate] is in flight.
+  bool _hydrating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final hydrate = widget.hydrate;
+    if (hydrate == null) return;
+    _hydrating = true;
+    // `ensureLoaded` handles its own errors, but `hydrate` is a public
+    // parameter — a caller that passes something else must not turn a failed
+    // *prefetch* into an unhandled async error (a zone error, a diagnostics
+    // entry and a Sentry report from a screen that merely didn't warm up).
+    // A cache hit is fast but not synchronous: it still awaits one Drift read.
+    hydrate().catchError((_) {}).whenComplete(() {
+      if (mounted) setState(() => _hydrating = false);
+    });
+  }
 
   @override
   void dispose() {
@@ -166,7 +205,7 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
   }
 
   Widget _stateBody(BuildContext context, T? item) {
-    if (item == null && widget.vm.isResolving) {
+    if (item == null && (widget.vm.isResolving || _hydrating)) {
       return const Center(child: CircularProgressIndicator());
     }
     if (item == null) {
@@ -174,6 +213,7 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
         icon: widget.emptyIcon,
         title: widget.emptyTitle,
         subtitle: widget.emptySubtitle,
+        action: widget.emptyAction,
       );
     }
     // Publish the page scroll so an embedded related-entity list (rendered

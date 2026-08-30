@@ -1,8 +1,11 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart' show Icons, SizedBox;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/app/entity_modules.dart' show DisabledEntityDispatcher;
 import 'package:admin/data/models/domain/search_result.dart';
+import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
@@ -45,6 +48,46 @@ void main() {
       expect(entityTypeForSearchGroup('settings'), isNull);
       expect(entityTypeForSearchGroup('whatever'), isNull);
       expect(entityTypeForSearchGroup(''), isNull);
+    });
+  });
+
+  group('deepLinkSearchHit — pasting a shared link', () {
+    final registry = EntityRegistry({
+      EntityType.client: EntityHandlers(
+        type: EntityType.client,
+        wireName: 'client',
+        apiPath: '/api/v1/clients',
+        routePath: '/clients',
+        icon: Icons.circle,
+        dispatcher: DisabledEntityDispatcher(EntityType.client),
+        detailBuilder: (_, _) => const SizedBox.shrink(),
+      ),
+    });
+
+    test('resolves a pasted record link to one hit', () {
+      final hit = deepLinkSearchHit(
+        '  invoiceninja://app/clients/abc?company=co1  ',
+        registry,
+      );
+      expect(hit, isNotNull);
+      expect(hit!.group, kDeepLinkSearchGroup);
+      expect(hit.name, '/clients/abc');
+      // The ORIGINAL uri, not the resolved route — activation hands it back to
+      // DeepLinkRouter so a cross-company link still switches company.
+      expect(hit.path, 'invoiceninja://app/clients/abc?company=co1');
+    });
+
+    test('ignores ordinary search text', () {
+      expect(deepLinkSearchHit('acme corp', registry), isNull);
+      expect(deepLinkSearchHit('', registry), isNull);
+      expect(deepLinkSearchHit('https://example.test', registry), isNull);
+    });
+
+    test('ignores a link this build cannot route', () {
+      expect(
+        deepLinkSearchHit('invoiceninja://app/widgets/x', registry),
+        isNull,
+      );
     });
   });
 

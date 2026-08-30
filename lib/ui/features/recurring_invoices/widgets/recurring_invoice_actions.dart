@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/recurring_invoice_status.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -45,6 +46,7 @@ enum RecurringInvoiceAction {
   cloneToPurchaseOrder,
   runTemplate,
   addComment,
+  copyLink,
   archive,
   restore,
   delete,
@@ -259,6 +261,12 @@ class RecurringInvoiceActions {
           onTap: () => onTap(RecurringInvoiceAction.addComment),
         ),
       ],
+      ?copyLinkActionItem(
+        context: context,
+        kind: RecurringInvoiceAction.copyLink,
+        entityId: ri.id,
+        onTap: () => onTap(RecurringInvoiceAction.copyLink),
+      ),
       if (canEdit)
         ?archiveActionItem(
           context: context,
@@ -444,6 +452,8 @@ class RecurringInvoiceActions {
           text: text,
         );
 
+      case RecurringInvoiceAction.copyLink:
+        await copyEntityLink(context, EntityType.recurringInvoice, ri.id);
       case RecurringInvoiceAction.archive:
         if (tmpGate()) return;
         await StandardEntityActions.archive(

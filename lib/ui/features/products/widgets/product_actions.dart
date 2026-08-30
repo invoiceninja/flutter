@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -30,6 +31,7 @@ enum ProductAction {
   newPurchaseOrder,
   setTaxCategory,
   clone,
+  copyLink,
   archive,
   restore,
   delete,
@@ -159,6 +161,12 @@ class ProductActions {
         enabled: true,
         onTap: () => onTap(ProductAction.clone),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: ProductAction.copyLink,
+        entityId: product.id,
+        onTap: () => onTap(ProductAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(product),
@@ -194,6 +202,8 @@ class ProductActions {
         break; // Submenu parent — never dispatched; children carry the action.
       case ProductAction.edit:
         goEntityEdit(context, '/products', product.id);
+      case ProductAction.copyLink:
+        await copyEntityLink(context, EntityType.product, product.id);
       case ProductAction.archive:
         await StandardEntityActions.archive(
           context: context,

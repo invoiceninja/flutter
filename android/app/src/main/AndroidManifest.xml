@@ -40,13 +40,26 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Calendar OAuth return: the backend redirects to
-                 invoiceninja://calendar_connection/complete?...handoff=...
-                 which `CalendarDeepLinks` bridges into the router. -->
+            <!-- OS deep links, bridged into the router by `AppDeepLinks`. Two
+                 hosts, deliberately pinned rather than claiming the whole
+                 scheme:
+                   app                  - shared record links, e.g.
+                                          invoiceninja://app/clients/<id>?company=<id>
+                   calendar_connection  - the calendar OAuth return, i.e.
+                                          invoiceninja://calendar_connection/complete?...handoff=...
+                 Android pools <data> attributes per group and matches the
+                 CROSS-PRODUCT of them, so these two elements declare
+                 {invoiceninja} x {app, calendar_connection} — which is what we
+                 want here only because both carry the same scheme. Adding an
+                 https <data> to THIS filter would therefore also claim
+                 https://app/... and invoiceninja://<that host>/...; universal
+                 links need their own filter (they need autoVerify anyway).
+                 The Dart-side parser validates the path. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="invoiceninja" android:host="app"/>
                 <data android:scheme="invoiceninja" android:host="calendar_connection"/>
             </intent-filter>
         </activity>

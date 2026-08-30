@@ -10,6 +10,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/expense_invoice_line_item.dart';
 import 'package:admin/domain/expense_recurring_conversion.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
@@ -30,6 +31,7 @@ enum ExpenseAction {
   addToInvoice,
   runTemplate,
   addComment,
+  copyLink,
   archive,
   restore,
   delete,
@@ -126,6 +128,12 @@ class ExpenseActions {
         enabled: true,
         onTap: () => onTap(ExpenseAction.addComment),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: ExpenseAction.copyLink,
+        entityId: expense.id,
+        onTap: () => onTap(ExpenseAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(expense),
@@ -192,6 +200,8 @@ class ExpenseActions {
         );
       case ExpenseAction.addComment:
         await _promptAddComment(context, services, companyId, expense);
+      case ExpenseAction.copyLink:
+        await copyEntityLink(context, EntityType.expense, expense.id);
       case ExpenseAction.archive:
         await StandardEntityActions.archive(
           context: context,

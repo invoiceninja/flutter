@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/features/expense_categories/view_models/expense_category_detail_view_model.dart';
 import 'package:admin/ui/features/expense_categories/widgets/detail/expense_category_detail_actions_row.dart';
 import 'package:admin/ui/features/expense_categories/widgets/detail/expense_category_detail_header.dart';
@@ -51,6 +53,11 @@ class _ExpenseCategoryDetailScreenState
   Widget build(BuildContext context) {
     return EntityDetailScaffold<ExpenseCategory>(
       vm: _vm,
+      hydrate: () => _services.expenseCategories.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.expenseCategory),
       emptyIcon: Icons.category_outlined,
       emptyTitle: context.tr('expense_category'),
       actionsForItem: (context, category) =>

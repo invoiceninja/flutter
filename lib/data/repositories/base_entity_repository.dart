@@ -78,6 +78,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// In-flight + negative-result guards for [ensureLoadedTemplate], so the
   /// N rows referencing the same uncached entity issue one network fetch
   /// and a 404 / deleted id isn't re-fetched on every rebuild this session.
+  ///
+  /// Keyed by `companyId/id`, not the bare id: repos are process-wide
+  /// singletons, so an id negative-cached under one company would otherwise
+  /// stay poisoned after a company switch. That used to degrade a
+  /// `*NameLabel` to a raw id; now that a detail screen's `hydrate` runs
+  /// through here too, it would leave the record's own screen permanently
+  /// empty for the rest of the session.
   final Map<String, Future<void>> _ensureInFlight = {};
   final Set<String> _ensureMissing = {};
 
@@ -962,10 +969,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     required TCompanion Function(TItem) toCompanion,
     required Future<void> Function(Map<String, TCompanion> byId) upsert,
   }) {
-    if (id.isEmpty || id.startsWith('tmp_') || _ensureMissing.contains(id)) {
+    final cacheKey = '$companyId/$id';
+    if (id.isEmpty ||
+        id.startsWith('tmp_') ||
+        _ensureMissing.contains(cacheKey)) {
       return Future<void>.value();
     }
-    return _ensureInFlight[id] ??= () async {
+    return _ensureInFlight[cacheKey] ??= () async {
       try {
         final cached = await watch(companyId: companyId, id: id).first;
         if (cached != null) return;
@@ -974,7 +984,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       } on NotFoundException {
         // Genuinely gone server-side (404) — negative-cache so a deleted /
         // unknown reference isn't re-fetched on every rebuild this session.
-        _ensureMissing.add(id);
+        _ensureMissing.add(cacheKey);
       } catch (_) {
         // Transient failure (NetworkException / 5xx ServerException /
         // RateLimitedException / stale 401): leave the id eligible so the
@@ -983,7 +993,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       } finally {
         // `remove` returns the in-flight future itself; awaiting it here
         // would deadlock, so explicitly mark it unawaited.
-        unawaited(_ensureInFlight.remove(id));
+        unawaited(_ensureInFlight.remove(cacheKey));
       }
     }();
   }

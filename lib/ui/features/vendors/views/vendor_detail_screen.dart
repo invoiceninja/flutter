@@ -10,6 +10,7 @@ import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/ledger/ledger_tab.dart';
@@ -59,6 +60,9 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Vendor>(
       vm: _vm,
+      hydrate: () =>
+          _services.vendors.ensureLoaded(companyId: _companyId, id: widget.id),
+      emptyAction: entityListEmptyAction(context, EntityType.vendor),
       emptyIcon: Icons.store_outlined,
       emptyTitle: context.tr('vendor_not_found'),
       emptySubtitle: context.tr('vendor_not_found_subtitle'),

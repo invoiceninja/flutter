@@ -41,6 +41,7 @@ Plus two non-negotiables carried from admin-portal:
 | Editing a CI / release workflow (test gate, job wiring) | `.github/workflows/_test.yaml` + `docs/setup.md` § Shipping to the stores |
 | Debugging a runtime error or stale outbox row | § Diagnostics log + `docs/diagnostics.md` |
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
+| Sharing a link to a record, or handling an incoming one | § Deep links |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
 | Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
 | Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
@@ -246,7 +247,7 @@ Contract tests live in `test/data/repositories/_base_entity_repository_contract.
 9. Entity module spec in `kWiredEntityModules` (`lib/app/entity_modules.dart`)
 10. DI: one new `_wireFoo(reg)` function in `lib/app/services_entity_wiring.dart` (returning its `(api, repo)` record) plus one call from `wireEntities()` — build the API + repo, call `reg.wire<FooItemApi, FooApi>(type: EntityType.foo, api:, repo:, customActions:)`. Document-bearing → `customActions: documentMutationHandlers<FooApi>(...)`. Bundled → append a closure to `bundleAppliers`.
 11. Branch order in `kBranchOrder` (append-only)
-12. Actions + 7 translation keys (entity translation completeness test enforces)
+12. Actions + 7 translation keys (entity translation completeness test enforces) — including the mandatory `copyLink` action (`entity_copy_link_coverage_test` enforces)
 13. Tests: contract fixture + entity-specific mapper / filter / conflict tests
 
 Full step-by-step shapes, "Standard action helpers" factories, the "Non-standard actions" pattern (e.g. Invoice `markPaid` via `customActions:`), and the bundled-entity alternative live in `docs/adding-an-entity.md`. Clients and Products are the reference invocations to mirror.
@@ -342,6 +343,110 @@ The four widgets in `lib/ui/core/widgets/` (`EmptyState`, `ErrorView`, `StatusPi
 Debug-only on-disk capture (`getApplicationSupportDirectory()/claude-diagnostics.log`) so a future Claude session can read what went wrong without copy-pasted console output: uncaught Flutter/async errors and every `Logger` record at `WARNING` or higher. Wired in `lib/app/diagnostics_log.dart` + `lib/main.dart`; surfaced in Settings → Advanced → System Logs (which also has an "Append outbox snapshot" button for stale rows). **Disabled in release builds and on web.**
 
 The user can say *"read the diagnostics log"* — the path resolves at runtime per platform, so get it from System Logs (copy button), the boot log line, or the macOS path convention. Full layout, rotation, capture details, and the path-resolution sources are in `docs/diagnostics.md`.
+
+## Deep links
+
+A record's actions menu offers **Copy Link**, which puts a shareable
+`invoiceninja://` URL on the clipboard; following it opens the app on that
+record, switching company first if the link came from another workspace
+(invoiceninja/flutter#96). The same `app_links` subscription also carries the
+calendar OAuth return, which is what it was originally built for.
+
+```
+invoiceninja://app/<in-app route, leading slash dropped>?company=<companyId>
+invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq
+```
+
+**The whole route lives in the URI path, behind a constant `app` host.** That
+is not cosmetic: `Uri.parse` lower-cases a reg-name host (`_normalizeRegName`
+in the SDK's `uri.dart`) and never the path, and entity ids are case-sensitive
+hashids — so encoding the route *as* the host would work only for as long as
+every `routePath` happens to be lowercase snake_case, and would fail silently
+the day one isn't. The constant host also keeps record links in a different
+namespace from server-owned OAuth-return hosts (`calendar_connection`), which
+is what lets Android keep **host-pinned** intent filters instead of claiming
+the whole scheme.
+
+Four pieces, deliberately split:
+
+- `lib/app/entity_links.dart` — a **leaf** (imports only the registry) holding
+  `buildEntityDeepLink` / `parseAppDeepLink` / `parseCalendarCompleteLink`, plus
+  `entityRecordPath`, which lives here and is re-exported from `router.dart` so
+  link building doesn't drag in the router's whole UI graph. Build uses
+  `entityRecordPath`, so a shared link opens exactly what tapping the row opens
+   — **never `entityDestination`**, whose `user`/`company`/`design` cases point
+  at the reader's own settings screens rather than a record.
+- `lib/app/deep_link_router.dart` — `Services.deepLinks`, the arrival
+  choreography. Takes only the auth slice it needs (session + lock listenables
+  + an `isAuthenticated` predicate) so it is testable with plain fakes, and
+  `attach(go:, contextOf:)` wires navigation once `MaterialApp.router` exists.
+- `lib/app/app_deep_links.dart` — the platform bridge (`app_links`), which only
+  transports URIs into `deepLinks.open`. The **command palette is the second
+  source**: paste a link into ⌘K and it routes through the same `open`. That is
+  the only way to follow a link on web and Linux (neither ever receives one from
+  the OS) and the fallback wherever a messenger renders the scheme as inert text.
+- `lib/ui/features/shell/widgets/switch_company_guarded.dart` — the company
+  switch, shared with `CompanyPicker` so a link can't fork it (trap 4).
+
+Five things fail silently if you change this:
+
+1. **Every platform delivers a cold-start link twice** — Android, iOS, macOS and
+   Windows all replay the cached `initialLink` into the stream on `onListen`
+   *and* return it from `getInitialLink()`, and the bridge subscribes to both.
+   Harmless for the calendar return; for a record link it means two
+   unsaved-changes prompts and two pending-outbox prompts. `_pending` de-dups
+   and `_inFlight` serialises two *different* links arriving mid-dialog. Scope
+   `_pending` to what is **in flight**, never to history: the palette feeds the
+   same `open`, where re-following a link is an ordinary user action, and a
+   history guard silently killed it for the rest of the session.
+2. **`parseAppDeepLink` drops the entire query string**, not just `company`.
+   `stripTransientQuery` only knows `module_off` and `view=full`, so anything
+   else would be written into `nav_state.current_route` and replayed on every
+   cold start.
+3. **Nothing modal runs before the auth + biometric gate.** The lock screen is
+   an ordinary `Scaffold` — a `showDialog` lands right on top of it — so a link
+   arriving while signed out or locked is *held* and replayed once both clear.
+   This is also why there is no `/login?from=` round-trip: a route can't carry
+   the company, and holding the parsed link can. **The gate must listen to
+   `auth.credentials`, not just `auth.session`**: `AuthRepository` assigns
+   `_session` before `_credentials` on both login and `restore()`, so a gate
+   that reads `isAuthenticated` (credentials) while waking on the session edge
+   sees `false`, drops the link, and then replays it minutes later off an
+   unrelated background refresh. `main.dart` merges `credentials` first into the
+   router's own `refreshListenable` for the same reason. And a held link is
+   dropped on logout (`deepLinks.reset()` from `onBeforeLogout`) — it belongs to
+   the account that was signed in when it arrived.
+4. **A company switch goes through `switchCompanyGuarded`**
+   (`lib/ui/features/shell/widgets/switch_company_guarded.dart`, shared with
+   `CompanyPicker`), never `auth.switchCompany` directly — the unsaved-changes
+   and pending-outbox prompts are non-negotiable. Navigation afterwards is the
+   record path, **never `companySafeLocation`**, which strips `/clients/<id>`
+   back to `/clients`.
+5. **An unvalidated path must never reach `go()`** — go_router's top-level
+   `errorBuilder` replaces the whole app with the route-error screen, outside
+   the shell with the sidebar gone.
+
+Landing on a record the recipient has never opened is the normal case, so every
+detail screen passes `hydrate:` to `EntityDetailScaffold` (`repo.ensureLoaded`)
+and the scaffold holds its spinner until that resolves — without it the screen
+flashes "not found" for the length of the fetch. `emptyAction:` gives a genuinely
+missing record a way onward instead of a dead end.
+
+Two registry notes this depends on. `EntityHandlers.detailBuilder` is read as
+"does this entity have a detail screen?" by `entityRecordPath`, so a
+settings-hosted entity whose detail screen is registered by the *settings*
+router still has to declare it (bank accounts do — the builder there registers
+no route, since the entity has no branch); leave it null and the shared link
+points at the editor while the list's own row tap goes to the viewer. And a
+settings `:id` route needs its own id-keyed subtree (`_settingsRoute` adds one):
+go_router derives `state.pageKey` from the route *pattern*, so every id under a
+root shares one page, and these screens bind their VM from `widget.id` in
+`initState` — without the key, going straight from record A to record B keeps
+showing A. The entity branches already do this in `buildEntityRouteBlock`.
+
+**Adding an entity?** `test/lint/entity_copy_link_coverage_test.dart` fails the
+build unless its action enum declares `copyLink` — nothing in the type system
+would otherwise notice a new entity shipping with no way to link to it.
 
 ## Desktop window state
 

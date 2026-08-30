@@ -969,6 +969,7 @@
   "switch_anyway": "Switch anyway",
   "switch_away_from_peppol_message": "This account is still bound to the PEPPOL network. Switching the e-invoice type away will leave the binding active on the server. Disconnect from PEPPOL first, then change the type.",
   "switch_away_from_peppol_title": "Switch away from PEPPOL?",
+  "switched_to_company": "Switched to :company",
   "sync": "Sync",
   "sync_complete": "Sync complete",
   "sync_contacts_to_device": "Sync contacts to this device",

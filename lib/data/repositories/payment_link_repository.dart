@@ -358,6 +358,23 @@ class PaymentLinkRepository
       archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
     );
   }
+
+  /// Lazily hydrate one payment link by id when it isn't in the local cache —
+  /// a deep-linked record the recipient has never browsed to, a restored
+  /// route, or a cross-entity reference off the prefetched page. Cache-gated,
+  /// coalesced, and negative-cached; see [ensureLoadedTemplate].
+  Future<void> ensureLoaded({required String companyId, required String id}) =>
+      ensureLoadedTemplate(
+        companyId: companyId,
+        id: id,
+        fetch: (id) async => (await api.get(id)).data,
+        idOf: (a) => a.id,
+        toCompanion: (a) => _apiToCompanion(a, companyId),
+        upsert: (byId) => db.paymentLinkDao.upsertAllPreservingDirty(
+          companyId: companyId,
+          byId: byId,
+        ),
+      );
 }
 
 int _secs(DateTime d) => d.millisecondsSinceEpoch ~/ 1000;

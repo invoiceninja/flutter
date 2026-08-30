@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import 'package:admin/app/entity_modules.dart';
+import 'package:admin/app/deep_link_router.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services_entity_wiring.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
@@ -643,6 +644,19 @@ class Services implements SidebarBadgeContext {
   /// regardless of where it fired (e.g. from a sheet that then pops). Cleared
   /// on logout. No DI deps, so it's field-initialized like [searchFocus].
   final ToastController toasts = ToastController();
+
+  /// Where an incoming deep link goes — shared by the OS bridge
+  /// (`AppDeepLinks`) and the command palette's paste-a-link path. `late`
+  /// because it closes over [auth] and [entityRegistry], and the `GoRouter` it
+  /// navigates with only exists once `MaterialApp.router` is built, so the app
+  /// state calls `attach(...)` afterwards.
+  late final DeepLinkRouter deepLinks = DeepLinkRouter(
+    session: auth.session,
+    credentials: auth.credentials,
+    requiresBiometricUnlock: auth.requiresBiometricUnlock,
+    registry: entityRegistry,
+    toasts: toasts,
+  );
 
   /// Registry + visibility for the hold-modifier shortcut hint bar, rendered
   /// by the global `ShortcutHintOverlay` in `main.dart`. Context-free +
@@ -1410,6 +1424,10 @@ class Services implements SidebarBadgeContext {
       refreshScheduler.stop();
       services.toasts.clearAll();
       services.shortcutHints.reset();
+      // A deep link held at the signed-out / locked gate belongs to the
+      // account that was signed in when it arrived. Replaying it into the next
+      // session would navigate the new user by the old one's ids.
+      services.deepLinks.reset();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
     // Only on the destructive logout path — an idle-timeout re-lock keeps the

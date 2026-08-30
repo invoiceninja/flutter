@@ -176,3 +176,31 @@ EntityActionItem<A> pdfGroupActionItem<A>({
   enabled: children.any((c) => c.enabled),
   children: children,
 );
+
+/// "Copy Link" — puts a shareable `invoiceninja://` deep link to this record
+/// on the clipboard, so a colleague can open it straight on the record
+/// instead of being told an id to search for (invoiceninja/flutter#96).
+///
+/// Returns null — i.e. the item doesn't exist — for a record that has no
+/// shareable identity: a create form (empty id) or an offline create still
+/// carrying a `tmp_` id, which resolves to nothing on anyone else's device.
+///
+/// Not `isLifecycle`, so `menuChildrenFor`'s auto-divider leaves it at the
+/// bottom of the normal-actions group rather than beside Archive/Delete; and
+/// deliberately not `confirm`, which CLAUDE.md reserves for mutations.
+EntityActionItem<A>? copyLinkActionItem<A>({
+  required BuildContext context,
+  required A kind,
+  required String entityId,
+  required VoidCallback onTap,
+}) {
+  if (entityId.isEmpty || entityId.startsWith('tmp_')) return null;
+  return EntityActionItem(
+    kind: kind,
+    // `Icons.link`, not `Icons.copy_outlined` — that one is Clone's.
+    icon: Icons.link,
+    label: context.tr('copy_link'),
+    enabled: true,
+    onTap: onTap,
+  );
+}

@@ -6,10 +6,12 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/bank_account.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/detail/generic_detail_view_model.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_list_screen.dart'
     show kBankAccountsListSearchKeys;
@@ -81,6 +83,11 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
         final formatter = snapshot.data;
         return EntityDetailScaffold<BankAccount>(
           vm: _vm,
+          hydrate: () => _services.bankAccounts.ensureLoaded(
+            companyId: _companyId,
+            id: widget.id,
+          ),
+          emptyAction: entityListEmptyAction(context, EntityType.bankAccount),
           emptyIcon: Icons.account_balance_outlined,
           emptyTitle: context.tr('bank_account_not_found'),
           actionsForItem: (context, account) => _ActionsRow(account: account),

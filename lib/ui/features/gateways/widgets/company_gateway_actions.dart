@@ -4,8 +4,10 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/gateway_constants.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -23,6 +25,7 @@ enum CompanyGatewayAction {
   disconnect,
   importCustomers,
   verifyCustomers,
+  copyLink,
   archive,
   restore,
   delete,
@@ -103,6 +106,12 @@ class CompanyGatewayActions {
         label: context.tr('clone'),
         enabled: true,
         onTap: () => onTap(CompanyGatewayAction.clone),
+      ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: CompanyGatewayAction.copyLink,
+        entityId: gateway.id,
+        onTap: () => onTap(CompanyGatewayAction.copyLink),
       ),
       ?archiveActionItem(
         context: context,
@@ -207,6 +216,8 @@ class CompanyGatewayActions {
             await _showVerifyCustomersDialog(context, counts);
           }
         }
+      case CompanyGatewayAction.copyLink:
+        await copyEntityLink(context, EntityType.companyGateway, gateway.id);
       case CompanyGatewayAction.archive:
         await StandardEntityActions.archive(
           context: context,

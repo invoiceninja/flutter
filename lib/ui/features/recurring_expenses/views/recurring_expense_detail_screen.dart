@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/recurring_expenses/view_models/recurring_expense_detail_view_model.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/detail/recurring_expense_detail_actions_row.dart';
@@ -56,6 +58,11 @@ class _RecurringExpenseDetailScreenState
   Widget build(BuildContext context) {
     return EntityDetailScaffold<RecurringExpense>(
       vm: _vm,
+      hydrate: () => _services.recurringExpenses.ensureLoaded(
+        companyId: _companyId,
+        id: widget.id,
+      ),
+      emptyAction: entityListEmptyAction(context, EntityType.recurringExpense),
       emptyIcon: Icons.event_repeat_outlined,
       emptyTitle: context.tr('recurring_expense_not_found'),
       actionsForItem: (context, e) => RecurringExpenseDetailActionsRow(

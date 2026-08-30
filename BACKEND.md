@@ -1055,7 +1055,7 @@ delivered to *them*:
   `invoiceninja://calendar_connection/complete` (Info.plist + AndroidManifest;
   on Windows via MSIX `protocol_activation` plus the app_links second-instance
   forward in `windows/runner/main.cpp`) and bridges it into its router
-  (`lib/app/calendar_deep_links.dart`). The server must redirect there for
+  (`lib/app/app_deep_links.dart`). The server must redirect there for
   native callers. Windows caveat: only packaged (MSIX/Store) installs register
   the scheme — `flutter run -d windows` dev builds can't complete the flow.
 - **Web (Flutter) and Linux** — reuse the existing `react_url` redirect:
@@ -1087,7 +1087,7 @@ app; everything else keeps today's React behavior:
 
 Only one env var is needed: `CALENDAR_NATIVE_REDIRECT` (defaults to the scheme
 above). The client side — scheme registration (Info.plist + AndroidManifest) and
-the deep-link bridge (`lib/app/calendar_deep_links.dart`) — is already in place.
+the deep-link bridge (`lib/app/app_deep_links.dart`) — is already in place.
 
 **Acceptance** — a `one_time_token` minted with `platform=flutter_native`
 produces a callback `302` to `invoiceninja://calendar_connection/complete?...handoff=...`;

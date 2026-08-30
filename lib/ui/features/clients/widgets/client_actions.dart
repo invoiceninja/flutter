@@ -10,6 +10,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -52,6 +53,7 @@ enum ClientAction {
   newTask,
   newExpense,
   merge,
+  copyLink,
   archive,
   restore,
   delete,
@@ -263,6 +265,12 @@ class ClientActions {
           enabled: client.archivedAt == null && !client.id.startsWith('tmp_'),
           onTap: () => onTap(ClientAction.merge),
         ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: ClientAction.copyLink,
+        entityId: client.id,
+        onTap: () => onTap(ClientAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(client),
@@ -343,6 +351,8 @@ class ClientActions {
               );
         if (portalUrl.isEmpty) return;
         await launchClientPortal(context, portalUrl);
+      case ClientAction.copyLink:
+        await copyEntityLink(context, EntityType.client, client.id);
       case ClientAction.archive:
         await StandardEntityActions.archive(
           context: context,

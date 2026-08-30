@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/credit.dart';
@@ -63,6 +64,9 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Credit>(
       vm: _vm,
+      hydrate: () =>
+          _services.credits.ensureLoaded(companyId: _companyId, id: widget.id),
+      emptyAction: entityListEmptyAction(context, EntityType.credit),
       emptyIcon: Icons.assignment_return_outlined,
       emptyTitle: context.tr('credit_not_found'),
       actionsForItem: (context, credit) => EntityDetailActionsRow<CreditAction>(

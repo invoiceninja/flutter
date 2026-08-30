@@ -108,7 +108,25 @@ void main() {
 
   testWidgets('soft-deleted client shows only restore + purge', (tester) async {
     final items = await resolveItems(tester, client: _client(isDeleted: true));
-    expect(kindsOf(items), {ClientAction.restore, ClientAction.purge});
+    // Copy Link is state-independent: a soft-deleted record is still a real
+    // record with a real id, and a colleague following the link should land on
+    // it (and see that it's deleted) rather than on nothing.
+    expect(kindsOf(items), {
+      ClientAction.copyLink,
+      ClientAction.restore,
+      ClientAction.purge,
+    });
+  });
+
+  testWidgets('copy link is offered on a saved record', (tester) async {
+    final items = await resolveItems(tester, client: _client());
+    expect(kindsOf(items), contains(ClientAction.copyLink));
+  });
+
+  testWidgets('copy link is absent on an unsynced offline create — a tmp_ id '
+      'resolves to nothing on the recipient\'s device', (tester) async {
+    final items = await resolveItems(tester, client: _client(id: 'tmp_abc'));
+    expect(kindsOf(items), isNot(contains(ClientAction.copyLink)));
   });
 
   testWidgets('client portal is disabled when the contact has no link', (

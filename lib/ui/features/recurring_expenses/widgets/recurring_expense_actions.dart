@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/expense_recurring_conversion.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
@@ -30,6 +31,7 @@ enum RecurringExpenseAction {
   clone,
   cloneToExpense,
   addComment,
+  copyLink,
   archive,
   restore,
   delete,
@@ -119,6 +121,12 @@ class RecurringExpenseActions {
         enabled: true,
         onTap: () => onTap(RecurringExpenseAction.addComment),
       ),
+      ?copyLinkActionItem(
+        context: context,
+        kind: RecurringExpenseAction.copyLink,
+        entityId: recurringExpense.id,
+        onTap: () => onTap(RecurringExpenseAction.copyLink),
+      ),
       ?archiveActionItem(
         context: context,
         subject: _confirmSubject(recurringExpense),
@@ -200,6 +208,12 @@ class RecurringExpenseActions {
         );
       case RecurringExpenseAction.addComment:
         await _promptAddComment(context, services, companyId, recurringExpense);
+      case RecurringExpenseAction.copyLink:
+        await copyEntityLink(
+          context,
+          EntityType.recurringExpense,
+          recurringExpense.id,
+        );
       case RecurringExpenseAction.archive:
         await StandardEntityActions.archive(
           context: context,

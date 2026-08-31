@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:admin/app/router.dart'
@@ -14,6 +15,10 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/db/app_database.dart' show CompanyRow;
+import 'package:admin/domain/entity_registry.dart' show EntityHandlers;
+import 'package:admin/domain/entity_state.dart';
+import 'package:admin/domain/list_status_tabs.dart';
 import 'package:admin/domain/permissions.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -27,6 +32,7 @@ import 'package:admin/ui/core/list/entity_list_top_row.dart';
 import 'package:admin/ui/core/list/entity_list_column_headers.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/entity_list_footer.dart';
+import 'package:admin/ui/core/list/entity_list_status_tabs.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart'
     show MasterDetailNavScope, goToCreateRoute;
@@ -386,6 +392,18 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   late VM _vm;
   late final Services _services;
   late String _companyId;
+
+  /// Company row watch behind the status strip's inventory gate, cached
+  /// per-company.
+  ///
+  /// Hoisted out of `build` on purpose: `_bodyWithBanner` runs on every VM
+  /// notify — every Drift emission, page load and selection change — and
+  /// `watchById` returns a FRESH stream object per call, so an inline
+  /// `StreamBuilder` would tear down and re-subscribe the query on each of
+  /// them. Same reason `EntityListStatusTabs` caches its count streams. Only
+  /// Products ever builds this (it owns the only inventory-gated buckets).
+  Stream<CompanyRow?>? _companyWatch;
+  String? _companyWatchFor;
 
   /// Vertical scroll. Triggers `loadMore()` when the viewport is within
   /// [_loadMoreThresholdPx] of the bottom — the next page is in flight
@@ -1212,16 +1230,173 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
   }) {
     final body = _body(context, wide: wide, selecting: selecting);
     final banner = widget.headerBanner;
-    if (banner == null) return body;
+    final statusTabs = _statusTabs(context, wide: wide, selecting: selecting);
+    if (banner == null && statusTabs == null) return body;
     // Embedded shrink-wraps (no bounded height) so the body can't be
     // Expanded; stack at intrinsic height instead.
     return Column(
       mainAxisSize: widget.embedded ? MainAxisSize.min : MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        banner,
+        if (banner != null) banner,
+        if (statusTabs != null) statusTabs,
         if (widget.embedded) body else Expanded(child: body),
       ],
     );
+  }
+
+  /// The status tab strip (invoiceninja/flutter#98), or null when this list
+  /// doesn't get one.
+  ///
+  /// Deliberately built HERE rather than inside [_body]: that method returns
+  /// early for both the empty state and [ErrorView], so a strip mounted inside
+  /// it would vanish exactly when a tab yields no rows — stranding the user on
+  /// a filtered-to-nothing list with no visible way back to **All**.
+  Widget? _statusTabs(
+    BuildContext context, {
+    required bool wide,
+    required bool selecting,
+  }) {
+    // Embedded lists are scoped to a parent record while the counts are
+    // company-wide, so "Draft 47" on one client's Invoices tab would be a flat
+    // lie. There's no cheap parent-scoped count to swap in, so no strip.
+    if (widget.embedded) return null;
+    final handlers = _services.entityRegistry[_vm.entityType];
+    if (handlers == null) return null;
+    if (!kListStatusTabs.containsKey(_vm.entityType)) return null;
+
+    return ValueListenableBuilder<bool>(
+      // The scaffold's own ListenableBuilder watches the ViewModel, which never
+      // fires when the device setting flips — without this an open list would
+      // keep the strip until some unrelated rebuild.
+      valueListenable: _services.statusTabs,
+      builder: (context, enabled, _) {
+        // Only the product stock buckets are company-gated, so only that list
+        // pays for the extra watch.
+        final needsInventory = handlers.badgeModes.any(
+          (m) => m.requiresInventoryTracking,
+        );
+        if (!needsInventory) {
+          return _statusTabsFor(
+            context,
+            handlers,
+            wide: wide,
+            selecting: selecting,
+            settingEnabled: enabled,
+            trackInventory: false,
+            availabilityKnown: true,
+          );
+        }
+        return StreamBuilder<CompanyRow?>(
+          stream: _companyWatchStream(),
+          builder: (context, snap) => _statusTabsFor(
+            context,
+            handlers,
+            wide: wide,
+            selecting: selecting,
+            settingEnabled: enabled,
+            trackInventory: snap.data?.trackInventory ?? false,
+            // Load-bearing: a Drift read cannot land synchronously, so the
+            // first build always has no data. Reporting that as "tracking is
+            // off" made an empty tab list look like an unusable bucket and
+            // cleared the user's restored filter.
+            availabilityKnown: snap.hasData,
+          ),
+        );
+      },
+    );
+  }
+
+  /// Clear a status tab whose bucket this company can no longer use.
+  ///
+  /// Guarded against re-entry: `setBadgeMode` triggers a reload, which rebuilds
+  /// this widget, and without the latch a slow reload could schedule a second
+  /// callback before the first has cleared the filter.
+  bool _healingBadgeMode = false;
+
+  void _healUnavailableBadgeMode() {
+    if (_healingBadgeMode) return;
+    _healingBadgeMode = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        _vm.setBadgeMode(null).whenComplete(() {
+          _healingBadgeMode = false;
+        }),
+      );
+    });
+  }
+
+  /// The cached company watch, rebuilt only when the active company changes.
+  Stream<CompanyRow?> _companyWatchStream() {
+    if (_companyWatchFor != _companyId || _companyWatch == null) {
+      _companyWatchFor = _companyId;
+      _companyWatch = _services.db.companiesDao.watchById(_companyId);
+    }
+    return _companyWatch!;
+  }
+
+  /// Routes the pure [decideStatusStrip] verdict into widgets. Every condition
+  /// that can suppress the strip lives in that function so it can be tested
+  /// without a `Services` graph.
+  Widget _statusTabsFor(
+    BuildContext context,
+    EntityHandlers handlers, {
+    required bool wide,
+    required bool selecting,
+    required bool settingEnabled,
+    required bool trackInventory,
+    required bool availabilityKnown,
+  }) {
+    final tabs = listStatusTabsFor(
+      _vm.entityType,
+      modes: handlers.badgeModes,
+      trackInventory: trackInventory,
+    );
+    final decision = decideStatusStrip(
+      embedded: widget.embedded,
+      settingEnabled: settingEnabled,
+      activeModeId: _vm.activeBadgeModeId,
+      tabs: tabs,
+      availabilityKnown: availabilityKnown,
+    );
+
+    switch (decision.action) {
+      case StatusStripAction.hide:
+        return const SizedBox.shrink();
+      case StatusStripAction.healThenHide:
+        _healUnavailableBadgeMode();
+        return const SizedBox.shrink();
+      case StatusStripAction.show:
+        return Opacity(
+          opacity: selecting ? 0.4 : 1,
+          child: EntityListStatusTabs(
+            // 24 on wide lines the first tab up with the table card below it.
+            contentPadding: EdgeInsetsDirectional.only(
+              start: wide ? 24 : InSpacing.sm,
+            ),
+            tabs: tabs,
+            selectedIndex: decision.selectedIndex,
+            // The counts are active-only (`badgeBaseFilter`), so a number above
+            // an archived or deleted list would simply be wrong. The tabs still
+            // filter; only the badges stand down.
+            showCounts:
+                _vm.states.length == 1 &&
+                _vm.states.contains(EntityState.active),
+            streamKey: '${_vm.entityType.name}:$_companyId',
+            countStream: (modeId) => _services.watchEntityCount(
+              _vm.entityType,
+              _companyId,
+              modeId: modeId,
+            ),
+            // Laid out but inert during multi-select: unmounting would jump the
+            // body on every enter/exit, and a live tap would reload the list and
+            // silently discard the user's selection.
+            enabled: !selecting,
+            onTap: (tab) => _vm.setBadgeMode(tab.listModeId),
+          ),
+        );
+    }
   }
 
   Widget _body(

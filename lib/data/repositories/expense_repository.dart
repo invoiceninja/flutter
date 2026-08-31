@@ -72,6 +72,8 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     String? vendorId,
     String? projectId,
     Map<String, Set<String>> extraFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(
       loadedPages >= 1,
@@ -79,6 +81,7 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     );
     return db.expenseDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

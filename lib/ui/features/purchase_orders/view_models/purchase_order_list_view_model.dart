@@ -71,6 +71,7 @@ class PurchaseOrderListViewModel extends GenericListViewModel<PurchaseOrder> {
   @override
   Stream<List<PurchaseOrder>> watchPage() => repo
       .watchPage(
+        badgeModeId: activeBadgeModeId,
         companyId: companyId,
         loadedPages: loadedPages,
         search: search.isEmpty ? null : search,

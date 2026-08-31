@@ -69,6 +69,7 @@ class RecurringInvoiceListViewModel
 
   @override
   Stream<List<RecurringInvoice>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

@@ -70,6 +70,8 @@ class RecurringExpenseRepository
     bool sortAscending = false,
     String? vendorId,
     Map<int, Set<String>> customFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(
       loadedPages >= 1,
@@ -77,6 +79,7 @@ class RecurringExpenseRepository
     );
     return db.recurringExpenseDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

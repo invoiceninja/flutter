@@ -80,6 +80,8 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     String? clientId,
     Map<int, Set<String>> customFilters = const {},
     Map<String, Set<String>> extraFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(
       loadedPages >= 1,
@@ -98,6 +100,7 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     };
     return db.paymentDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

@@ -39,6 +39,7 @@ void main() {
     3: 'b320f8d71dffdd0e7a8f6fd069f8a7207c2beb8d7207907007811f71f2303bf2',
     4: '54be9c4ef437fcd6e5a7d8927eca8737f1f582b26b225211a5274d563e3c7eef',
     5: '5ec0013e47f74da5e433b736a3bdc3c040eb09219358d3c08ab693d387870f91',
+    6: 'c54173a0059bf0eb1f550c09081e7c59f50673588b7bda1d969b79425401ce90',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -172,6 +173,7 @@ void main() {
             'recent_entities_json',
             'text_scale',
             'contacts_sync_json',
+            'status_tabs',
           }),
         );
         // The v5 address-book link index — a whole table rather than a column,

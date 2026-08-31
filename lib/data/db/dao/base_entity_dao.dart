@@ -114,6 +114,33 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
     return q.map((row) => row.read(count) ?? 0).watchSingle();
   }
 
+  /// The list-filter form of [badgeModePredicate]: the SAME expression
+  /// [watchBadgeCount] counts, packaged for a `watchPage` WHERE clause.
+  ///
+  /// This is what makes the status-tab strip (issue #98) honest — the tab's
+  /// count and the tab's rows are one predicate, so "Draft 6" above five rows
+  /// is structurally impossible rather than merely unlikely.
+  ///
+  /// Null means "don't narrow": an absent id, [kBadgeModeTotal], or a mode this
+  /// entity doesn't understand. [kBadgeModeNone] returns a hard false so a
+  /// hidden-badge row can't accidentally read as "everything".
+  ///
+  /// `currentUserId` is fixed at `''` because no *tab* is
+  /// [kBadgeModeAssignedToMe] (`list_status_tabs.dart` omits it, and its test
+  /// keeps that true). Should one ever be added, [assignedToUserFilter] fails
+  /// closed on an empty id rather than matching every row.
+  @protected
+  Expression<bool>? badgeModeListFilter(
+    String? modeId, {
+    required String companyId,
+  }) {
+    if (modeId == null || modeId.isEmpty || modeId == kBadgeModeTotal) {
+      return null;
+    }
+    if (modeId == kBadgeModeNone) return const Constant(false);
+    return badgeModePredicate(modeId, companyId: companyId, currentUserId: '');
+  }
+
   /// The company + active-state predicate every badge count starts from. Also
   /// used to scope the cross-entity subqueries (a vendor's unpaid expenses
   /// shouldn't count an expense the user archived).

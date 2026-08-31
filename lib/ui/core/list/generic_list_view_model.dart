@@ -13,6 +13,7 @@ import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/list_status_tabs.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 
@@ -213,7 +214,25 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// [_kAutoChainMaxPages] per filter/search/sort change so completeness
   /// stays page-bounded (by design) instead of sweeping the whole table.
   @protected
-  bool get localOnlyFilterActive => tagFilterActive;
+  bool get localOnlyFilterActive => tagFilterActive || localOnlyBadgeModeActive;
+
+  /// True while a status tab is selected whose rows the Drift query still has
+  /// to narrow after the fetch — either because the tab has no server filter at
+  /// all (Projects "Over budget", Vendors "Unpaid expenses") or because its
+  /// filter is a deliberate superset (Quotes "Expired", which fetches drafts
+  /// too).
+  ///
+  /// Both cases can emit a page shorter than `pageSize`, which has no scroll
+  /// extent, so the scroll-driven load-more never fires and the list shows a
+  /// false "No records found" the user cannot scroll out of — the same failure
+  /// the products `stock:` filter and the `tag_ids` post-LIMIT filter each had
+  /// to fix. Note this is deliberately NOT "has no server mapping": a widened
+  /// mapping narrows the fetch and still needs the chain.
+  @protected
+  bool get localOnlyBadgeModeActive {
+    final mode = activeBadgeModeId;
+    return mode != null && statusTabNarrowsLocally(entityType, mode);
+  }
 
   /// True while a `tag:` chip is applied. `tag_ids` IS a real server filter and
   /// stays on the request, but every repo also re-applies it in memory over
@@ -350,13 +369,35 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// local-cache-bounded limitation class as partial-sync). Returns the
   /// unmodified `_extraFilters` when there are no custom filters.
   Map<String, Set<String>> _serverExtraFilters() {
-    if (_customFilters.isEmpty) return _extraFilters;
+    final mode = activeBadgeModeId;
+    if (_customFilters.isEmpty && mode == null) return _extraFilters;
     final merged = Map<String, Set<String>>.from(_extraFilters);
     _customFilters.forEach((slot, values) {
       if (values.length == 1) {
         merged['custom_value$slot'] = values;
       }
     });
+    // The status tab's own key is app-private and never goes on the wire; the
+    // list is narrowed locally by the DAO re-applying `badgeModePredicate`.
+    // Where the entity has a server dimension that returns a SUPERSET of that
+    // predicate, splice it in so a rare status still pages in on a large
+    // account instead of waiting for the auto-chain to stumble over it.
+    //
+    // Doing it here rather than in each `fetchPage` is what keeps the six
+    // hand-rolled `ensurePageLoaded` bodies out of this change: every fetch
+    // path already funnels through this one method.
+    if (mode != null) {
+      merged.remove(kBadgeModeFilterKey);
+      final server = statusTabServerFilters(entityType, mode);
+      if (server != null) {
+        for (final entry in server.entries) {
+          // A filter the user set by hand wins the fetch — the tab's local
+          // predicate still ANDs on top, so what renders is the honest
+          // intersection rather than a silently-widened list.
+          merged.putIfAbsent(entry.key, () => entry.value);
+        }
+      }
+    }
     return merged;
   }
 
@@ -368,6 +409,24 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// right).
   Map<String, Set<String>> _extraFilters = const {};
   Map<String, Set<String>> get extraFilters => _extraFilters;
+
+  /// The status tab the list is currently narrowed to — a
+  /// [SidebarBadgeMode.id] — or null for `All`.
+  ///
+  /// Single-valued by construction ([setBadgeMode] writes a one-element set),
+  /// and stored in [extraFilters] rather than a field of its own so it rides
+  /// `currentSnapshot()` into `nav_state` and saved views for free, and so
+  /// `clearAllFilters()` resets the strip without knowing it exists.
+  String? get activeBadgeModeId {
+    final values = _extraFilters[kBadgeModeFilterKey];
+    return (values == null || values.isEmpty) ? null : values.first;
+  }
+
+  /// Select a status tab, or pass null for `All`. One reset + reload.
+  Future<void> setBadgeMode(String? modeId) => setExtraFilter(
+    serverKey: kBadgeModeFilterKey,
+    values: modeId == null ? const {} : {modeId},
+  );
 
   /// Optional grouping dimension for the list body — an entity-defined id
   /// (Products uses `custom1`..`custom4` / `tags`). Null means "no grouping",
@@ -743,6 +802,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
         }
       });
       _migrateLegacyUpdatedBetween(next);
+      _dropUnknownBadgeMode(next);
       _extraFilters = next;
     }
 
@@ -788,6 +848,23 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       }
     }
     next.remove('updated_between');
+  }
+
+  /// Drop a persisted [kBadgeModeFilterKey] naming a status tab this build no
+  /// longer offers.
+  ///
+  /// Same failure shape as [_migrateLegacyUpdatedBetween]: a mode removed (or
+  /// renamed) in a later release would otherwise sit in the restored blob
+  /// filtering to nothing, render no tab as selected, and keep
+  /// [hasActiveFilters] true forever — with the global "Clear filters" the only
+  /// escape. Degrading to `All` mirrors how `SidebarBadgeModeController` drops
+  /// an unknown stored mode back to `total`. Mutates [next] in place.
+  void _dropUnknownBadgeMode(Map<String, Set<String>> next) {
+    final values = next[kBadgeModeFilterKey];
+    if (values == null) return;
+    if (values.length != 1 || !isKnownStatusTabMode(entityType, values.first)) {
+      next.remove(kBadgeModeFilterKey);
+    }
   }
 
   /// The filter+sort+search payload as it would be written to
@@ -894,10 +971,16 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
         : defaultSortField;
     _sortAscending = intent.sortAscending ?? defaultSortAscending;
     _customFilters = const {};
-    _extraFilters = Map<String, Set<String>>.unmodifiable({
+    // `ListFilterIntent.extraFilters` is a verbatim passthrough by contract, and
+    // `_init` persists whatever lands here — so it gets the same sanitizing the
+    // nav_state restore path does. No producer emits `badge_mode` today; this
+    // is the guard for the day one does.
+    final next = <String, Set<String>>{
       for (final e in intent.extraFilters.entries)
         if (e.value.isNotEmpty) e.key: Set<String>.unmodifiable(e.value),
-    });
+    };
+    _dropUnknownBadgeMode(next);
+    _extraFilters = Map<String, Set<String>>.unmodifiable(next);
   }
 
   /// Apply a dashboard deep-link [intent] and reload page 1. Idempotent per

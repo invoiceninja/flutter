@@ -1524,6 +1524,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Responsive layout — desktop | ✅ | ✅ | ✅ | ✅ | |
 | Column picker on lists | ✅ | ✅ | ✅ | ✅ | |
 | List filter — checkbox multi-select for status / state | — | — | ✅ | ✅ | |
+| List status tabs — one-tap strip above 14 lists (All + per-status live counts), device-toggleable | ❌ | ❌ | ✅ | | |
 | List filter — client country/industry/size/classification/vat/group/assigned/custom + number/id_number (exact) | ✅ | ✅ | ✅ | ✅ | v5 filter PR (number/id_number exact-match) + denormalized cols |
 | List filter — expense project / vendor | ✅ | ✅ | ✅ | ✅ | v5 `project_ids`/`vendor_ids` |
 | List filter — canonical `date_range` (`column,start,end`) | — | — | ✅ | ✅ | legacy 2-part still parsed |

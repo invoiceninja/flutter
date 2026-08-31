@@ -49,6 +49,18 @@ class NavState extends Table {
   BoolColumn get confirmActions =>
       boolean().named('confirm_actions').withDefault(const Constant(true))();
 
+  /// Device-local "show the status tab strip above lists" preference (Settings
+  /// → Device Settings). The strip turns each entity's sidebar-counter buckets
+  /// into one-tap filters with live counts — see `lib/domain/list_status_tabs.dart`
+  /// and invoiceninja/flutter#98, which asked for exactly this because reaching
+  /// a draft through the search field's filter menu costs three or four taps.
+  ///
+  /// Defaults to **on**: the issue's premise is that fewer taps should be the
+  /// default, and the switch exists for people who would rather have the
+  /// vertical space back. Added in schema v6.
+  BoolColumn get statusTabs =>
+      boolean().named('status_tabs').withDefault(const Constant(true))();
+
   /// Device-local contacts-sync preference (Settings → Device Settings →
   /// Contacts), as a JSON object:
   /// `{"enabled":bool,"scope":"all"|"mine",

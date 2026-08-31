@@ -76,10 +76,13 @@ class PurchaseOrderRepository
     bool sortAscending = false,
     String? vendorId,
     Map<int, Set<String>> customFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(loadedPages >= 1);
     return db.purchaseOrderDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

@@ -71,6 +71,8 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     bool sortAscending = true,
     Map<int, Set<String>> customFilters = const {},
     Map<String, Set<String>> extraFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(
       loadedPages >= 1,
@@ -102,6 +104,7 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     );
     return db.clientDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

@@ -149,6 +149,7 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   @override
   Stream<List<Product>> watchPage() {
     final base = repo.watchPage(
+      badgeModeId: activeBadgeModeId,
       companyId: companyId,
       loadedPages: loadedPages,
       search: search.isEmpty ? null : search,

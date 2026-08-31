@@ -152,6 +152,18 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Status-tabs-only update — [StatusTabsController] calls this when the user
+  /// flips the switch. Same partial-write pattern as [saveConfirmActions].
+  Future<void> saveStatusTabs({required bool enabled, required int now}) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        statusTabs: Value(enabled),
+        updatedAt: now,
+      ),
+    );
+  }
+
   /// Contacts-sync-only update — [ContactsSyncController] calls this when the
   /// user flips the toggle, changes scope, or a reconcile finishes. Leaves the
   /// other fields untouched, same partial-write pattern as [saveFilters].

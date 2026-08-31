@@ -27,6 +27,7 @@ Plus two non-negotiables carried from admin-portal:
 | Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
 | Changing the Drift schema (forward migration) | `docs/migrations.md` |
 | Adding / changing a sidebar count badge | § Sidebar counters + `lib/domain/sidebar_badge_modes.dart` |
+| Adding / changing a list's status tabs | § List status tabs + `lib/domain/list_status_tabs.dart` |
 | Localization / Transifex import | § Localization |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
@@ -294,11 +295,12 @@ Rule of thumb: small / mostly-read / company-shared / rarely-paginated (≲ a fe
 
 ## Sidebar counters
 
-`lib/domain/sidebar_badge_modes.dart` is the single source of truth for what each sidebar row's count badge can count (`total` / `overdue` / `low_stock` / `assigned_to_me` / …, plus `none` to hide it). Every mode is answerable from columns already in Drift — **the badge never issues a network call**. Adding or changing one is three coordinated edits:
+`lib/domain/sidebar_badge_modes.dart` is the single source of truth for what each sidebar row's count badge can count (`total` / `overdue` / `low_stock` / `assigned_to_me` / …, plus `none` to hide it). Every mode is answerable from columns already in Drift — **the badge never issues a network call**. The catalog now drives **two** surfaces — the rail's badge and the list's status tabs (below) — so adding or changing a mode is four coordinated edits:
 
 1. the per-entity `SidebarBadgeMode` list here (+ its `badgeModes:` reference in `kWiredEntityModules`),
 2. a case in that DAO's `badgeModePredicate` (`BaseEntityDao`; `BankTransactionDao` hand-rolls the same hook),
-3. the mode's `labelKey` in `kSidebarBadgeModeLabelKeys`, which the settings-search catalog spreads.
+3. the mode's `labelKey` in `kSidebarBadgeModeLabelKeys`, which the settings-search catalog spreads,
+4. a `ListStatusTabSpec` in `lib/domain/list_status_tabs.dart` — `list_status_tabs_test` fails the build if the two catalogs disagree, so a new mode can't quietly ship as a counter with no way to filter by it.
 
 `sidebar_badge_count_test` fails the build if a declared mode has no predicate — the failure mode otherwise is silent, since a null predicate makes the badge count *every* row and still look like it works. Both pickers (the row's right-click menu and Settings → Device Settings → Sidebar counters) read the same registry list through `availableBadgeModes(...)`, so they can't drift apart.
 
@@ -307,6 +309,20 @@ Counts come from the **local Drift cache**, which after login holds page 1 per e
 Second known staleness: `Date.today()` is baked into the SQL when a badge stream is built, and a sidebar stream lives for the whole session — so **leaving the app open past midnight keeps the date-sensitive counters (invoice/client/project `overdue`, quote `expired`) on yesterday's date** until a restart or company switch. The list filter chip has always had this property; it's just more visible on a permanent surface. Fixing it needs a date-rollover trigger to re-key the streams — deliberately not built.
 
 Note `BaseEntityDao.watchBadgeCount` counts **active** rows (`archived_at IS NULL`), unlike the older `watchCount`, which is archived-inclusive and still backs list empty-states.
+
+## List status tabs
+
+A one-tap status strip above every entity list — `All / Draft / Unpaid / Overdue` on Invoices, and so on for the other 13 entities that declare status counters (invoiceninja/flutter#98: reaching a draft through the search field's filter menu cost three or four taps). It is a **view over the sidebar-counter catalog**, not a second one: `lib/domain/list_status_tabs.dart` adds only the tab *order* (lifecycle, deliberately not the badge lists' "most actionable first") and the optional server translation. Labels, tones and the inventory gate all resolve from the entity's own `badgeModes` at render time.
+
+- **The count and the rows are one predicate.** The badge reads `watchBadgeCount(modeId:)`; the list passes `badgeModeId:` down VM → repo → DAO, where `BaseEntityDao.badgeModeListFilter` applies the *same* `badgeModePredicate` inside `watchPage`'s WHERE (pre-`LIMIT`, so the Drift window stays aligned with the page count). `list_status_tab_filter_test` asserts `rows == count` for all 14 entities × every mode; that test is the feature.
+- **The whole state is `extraFilters['badge_mode'] = {modeId}`** — one key, so `currentSnapshot()` carries it into `nav_state` and saved views for free, `clearAllFilters()` resets the strip without knowing it exists, and the strip's selection is always literally that value (no second source to drift). It is **app-private and never reaches the wire**: `_serverExtraFilters()` strips it and splices in the entity's real query params instead.
+- **A server mapping must return a SUPERSET of the local predicate.** Over-fetching is free (the local predicate discards the extras); under-fetching silently hides rows — the tab reads "Expired 12" over eight rows and the missing four never arrive. Where the obvious value is a subset, *widen* it (quotes send `client_status=expired,draft` because the app also counts a past-due draft as expired) rather than dropping to local-only. Eight modes are deliberately unmapped; each says why in `list_status_tabs.dart`, and `list_status_tabs_test` pins the exact set so mapping one later is a deliberate edit.
+- **A widened mapping MUST be marked `widened: true`, and that flag is not bookkeeping.** `statusTabNarrowsLocally` — the gate on `localOnlyFilterActive`, i.e. on the auto-chain — is true for an unmapped tab **and** for a widened one, because in both the Drift predicate is still throwing rows away after the fetch lands. Gate the chain on "has no server mapping" instead and five tabs break the same way: a widened fetch fills page 1 with rows the local predicate discards (Quotes → Expired pulling 50 drafts to find 3 expired quotes), the emission is shorter than a page, there is no scroll extent for the load-more trigger, and the tab renders "Expired 3" over a false "No records found". Only an **exact** mapping — server clause and badge predicate select the same rows — leaves the chain off.
+- **Don't map a mode whose only superset is nearly the whole table.** Payment / credit `unapplied` were mapped once (`completed,partially_refunded` and every non-draft status): no useful narrowing, and `isNarrowedFetch` then costs the delta cursor too. Local-only plus the auto-chain is strictly better there.
+- **No strip on an embedded list** (`widget.embedded`): the counts are company-wide, so "Draft 47" on one client's Invoices tab would be a flat lie.
+- **The strip renders whenever a tab is active, even with the device setting off** — a `badge_mode` restored from `nav_state` or applied by a saved view is a live filter, and hiding its only control would leave the list narrowed with nothing but "Clear filters" to escape. `_hydrate` drops a `badge_mode` naming a mode this build no longer offers, for the same reason `_migrateLegacyUpdatedBetween` exists.
+- Counts are **active-only**, so the badges stand down (tabs keep filtering) when the list is showing archived / deleted rows, and they carry the same local-cache under-reporting caveat as the rail. A zero renders in the neutral palette whatever the bucket's tone — a red `0` would claim urgency about the one outcome that means there's nothing to do.
+- Device-toggleable, default **on**: Settings → Device Settings → Status tabs (`nav_state.status_tabs`, schema v6, `StatusTabsController`).
 
 ## Localization
 

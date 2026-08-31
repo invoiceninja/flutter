@@ -77,6 +77,7 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
 
   @override
   Stream<List<Quote>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

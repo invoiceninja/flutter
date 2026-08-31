@@ -81,6 +81,7 @@ class _FakeClientRepo implements ClientRepository {
     bool sortAscending = true,
     Map<int, Set<String>> customFilters = const {},
     Map<String, Set<String>> extraFilters = const {},
+    String? badgeModeId,
   }) {
     searches.add(search);
     final sorted = [...rows]..sort((a, b) => a.name.compareTo(b.name));

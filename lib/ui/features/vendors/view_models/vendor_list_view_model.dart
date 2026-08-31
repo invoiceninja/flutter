@@ -63,6 +63,7 @@ class VendorListViewModel extends GenericListViewModel<Vendor> {
 
   @override
   Stream<List<Vendor>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

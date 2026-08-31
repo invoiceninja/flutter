@@ -59,6 +59,7 @@ class _StubProductRepo implements ProductRepository {
     bool sortAscending = true,
     Map<int, Set<String>> customFilters = const {},
     String? groupField,
+    String? badgeModeId,
   }) => const Stream<List<Product>>.empty();
 
   @override

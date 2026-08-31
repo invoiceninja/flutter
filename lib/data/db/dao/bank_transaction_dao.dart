@@ -39,9 +39,16 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
     String? dateValue,
     String sortField = BankTransactionFieldIds.date,
     bool sortAscending = false,
+    String? badgeModeId,
   }) {
     final q = select(bankTransactions)
       ..where((t) => t.companyId.equals(companyId));
+    // Status-tab strip (#98): the SAME predicate the tab's count uses, so
+    // the number above the list and the rows in it can't disagree. Applied
+    // here (pre-LIMIT) rather than post-decode, so the Drift window stays
+    // aligned with the page count.
+    final badgeFilter = _badgeModeListFilter(badgeModeId);
+    if (badgeFilter != null) q.where((_) => badgeFilter);
 
     if (states.isNotEmpty) {
       q.where(
@@ -216,6 +223,26 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
     final predicate = badgeModePredicate(modeId);
     if (predicate != null) q.where(predicate);
     return q.map((row) => row.read(count) ?? 0).watchSingle();
+  }
+
+  /// The list-filter form of [badgeModePredicate], mirroring
+  /// `BaseEntityDao.badgeModeListFilter` — this DAO isn't a `BaseEntityDao`, so
+  /// it carries its own copy. Keep the two in step: the status-tab strip
+  /// depends on the list predicate being the same expression the badge count
+  /// uses.
+  ///
+  /// It takes no `companyId` / `currentUserId`, unlike the base, because this
+  /// DAO's [badgeModePredicate] takes neither — both its modes are plain
+  /// `status_id` comparisons on an already company-scoped select. Add a mode
+  /// that needs either (a cross-entity subquery, `assigned_to_me`) and this
+  /// signature has to grow with `badgeModePredicate`'s, rather than accepting
+  /// an argument it silently drops.
+  Expression<bool>? _badgeModeListFilter(String? modeId) {
+    if (modeId == null || modeId.isEmpty || modeId == kBadgeModeTotal) {
+      return null;
+    }
+    if (modeId == kBadgeModeNone) return const Constant(false);
+    return badgeModePredicate(modeId);
   }
 
   /// Mirrors `BaseEntityDao.badgeModePredicate` so the sidebar-counter

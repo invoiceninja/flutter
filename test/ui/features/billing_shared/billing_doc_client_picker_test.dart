@@ -88,6 +88,7 @@ class _FakeClientRepo implements ClientRepository {
     bool sortAscending = true,
     Map<int, Set<String>> customFilters = const {},
     Map<String, Set<String>> extraFilters = const {},
+    String? badgeModeId,
   }) => Stream<List<Client>>.value(const []);
 
   @override

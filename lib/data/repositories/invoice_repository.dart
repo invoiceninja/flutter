@@ -89,6 +89,8 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     String? projectId,
     Map<int, Set<String>> customFilters = const {},
     Map<String, Set<String>> extraFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(
       loadedPages >= 1,
@@ -102,6 +104,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     final dueDateRange = parseDueDateRangeFilter(extraFilters);
     return db.invoiceDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

@@ -109,6 +109,7 @@ import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/contacts_sync_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
+import 'package:admin/app/status_tabs_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme_controller.dart';
 
@@ -276,6 +277,7 @@ class Services implements SidebarBadgeContext {
     required this.keyboardShortcuts,
     required this.appLocale,
     required this.confirmActions,
+    required this.statusTabs,
     required this.contactsSync,
     required this.sidebar,
     required this.sidebarBadgeModes,
@@ -582,6 +584,12 @@ class Services implements SidebarBadgeContext {
   /// first. Read it at tap time via `guardedOnTap` /
   /// `showConfirmActionDialog`, never cached into a built widget.
   final ConfirmActionsController confirmActions;
+
+  /// Device-local "show the status tab strip above lists" preference
+  /// (Settings → Device Settings). Read live via a `ValueListenableBuilder` in
+  /// `EntityListScreenScaffold` — the list's own `ListenableBuilder` watches
+  /// the ViewModel, which never fires when this flips.
+  final StatusTabsController statusTabs;
 
   /// Device-local "sync client contacts to this device's address book"
   /// preference plus the single-flight guard around a reconcile pass
@@ -1331,6 +1339,7 @@ class Services implements SidebarBadgeContext {
       db: db,
     );
     final confirmActions = ConfirmActionsController(db: db);
+    final statusTabs = StatusTabsController(db: db);
     // One instance, shared by the picker (`services.deviceContacts`) and the
     // sync engine below — the native impl caches the device's contacts account,
     // and two of them would probe for it twice.
@@ -1539,6 +1548,7 @@ class Services implements SidebarBadgeContext {
       keyboardShortcuts: keyboardShortcuts,
       appLocale: appLocale,
       confirmActions: confirmActions,
+      statusTabs: statusTabs,
       contactsSync: contactsSync,
       sidebar: sidebar,
       sidebarBadgeModes: sidebarBadgeModes,

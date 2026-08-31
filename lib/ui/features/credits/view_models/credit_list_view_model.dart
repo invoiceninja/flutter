@@ -68,6 +68,7 @@ class CreditListViewModel extends GenericListViewModel<Credit> {
 
   @override
   Stream<List<Credit>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

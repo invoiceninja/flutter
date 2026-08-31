@@ -143,8 +143,15 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
     Set<String> customValues3 = const {},
     Set<String> customValues4 = const {},
     String? groupField,
+    String? badgeModeId,
   }) {
     final q = select(products)..where((p) => p.companyId.equals(companyId));
+    // Status-tab strip (#98): the SAME predicate the tab's count uses, so
+    // the number above the list and the rows in it can't disagree. Applied
+    // here (pre-LIMIT) rather than post-decode, so the Drift window stays
+    // aligned with the page count.
+    final badgeFilter = badgeModeListFilter(badgeModeId, companyId: companyId);
+    if (badgeFilter != null) q.where((_) => badgeFilter);
 
     // Custom-field filters mirror server `custom_value1..4` (exact-set local
     // predicate is source of truth — same idiom as ClientDao/InvoiceDao).

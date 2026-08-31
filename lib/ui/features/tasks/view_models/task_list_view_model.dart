@@ -73,6 +73,7 @@ class TaskListViewModel extends GenericListViewModel<Task> {
 
   @override
   Stream<List<Task>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

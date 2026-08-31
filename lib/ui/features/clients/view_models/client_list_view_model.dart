@@ -75,6 +75,7 @@ class ClientListViewModel extends GenericListViewModel<Client> {
 
   @override
   Stream<List<Client>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

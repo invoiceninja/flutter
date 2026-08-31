@@ -16,6 +16,7 @@ import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
+import 'package:admin/ui/features/settings/widgets/list_status_tabs_section.dart';
 import 'package:admin/ui/features/settings/widgets/sidebar_counters_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
 import 'package:admin/ui/features/settings/widgets/theme_tile.dart';
@@ -38,6 +39,7 @@ const kDeviceSettingsSearchKeys = <String>[
   'confirm_actions_help',
   'biometric_authentication',
   ...kContactsSyncSearchKeys,
+  ...kListStatusTabsSearchKeys,
   ...kSidebarCountersSearchKeys,
   ...kSidebarBadgeModeSearchKeys,
 ];
@@ -100,6 +102,7 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Native mobile only — hides itself where the app can't write
               // the address book (desktop, web).
               const ContactsSyncSection(),
+              const ListStatusTabsSection(),
               const SidebarCountersSection(),
               const _DataSection(),
             ],

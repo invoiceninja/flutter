@@ -76,6 +76,8 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     String? clientId,
     Map<int, Set<String>> customFilters = const {},
     Map<String, Set<String>> extraFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(loadedPages >= 1);
     final dateRange = parseDateRangeFilter(extraFilters);
@@ -86,6 +88,7 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi> {
     final dueDateRange = parseDueDateRangeFilter(extraFilters);
     return db.creditDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

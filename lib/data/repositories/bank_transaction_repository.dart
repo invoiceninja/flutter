@@ -63,10 +63,13 @@ class BankTransactionRepository
     Set<EntityState> states = const {EntityState.active},
     String sortField = BankTransactionFieldIds.date,
     bool sortAscending = false,
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(loadedPages >= 1);
     return db.bankTransactionDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

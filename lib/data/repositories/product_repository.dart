@@ -106,6 +106,8 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     bool sortAscending = true,
     Map<int, Set<String>> customFilters = const {},
     String? groupField,
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(
       loadedPages >= 1,
@@ -113,6 +115,7 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     );
     return db.productDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

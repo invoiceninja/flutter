@@ -84,6 +84,7 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
 
   @override
   Stream<List<Invoice>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

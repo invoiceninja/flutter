@@ -186,7 +186,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -225,6 +225,12 @@ class AppDatabase extends _$AppDatabase {
     // preference) and the `device_contact_links` table (the address-book link
     // index). Both are nullable / brand new, so there's nothing to backfill —
     // an upgraded install simply has the feature switched off.
+    //
+    // v5 → v6: add `nav_state.status_tabs` (device-local "show the status tab
+    // strip above lists" preference, invoiceninja/flutter#98). Same shape as
+    // `confirm_actions`: non-nullable with a `true` default, so SQLite's
+    // `ADD COLUMN ... DEFAULT 1` backfills installed databases and existing
+    // users get the strip switched on, matching a fresh install.
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
@@ -238,6 +244,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await m.addColumn(navState, navState.contactsSyncJson);
         await m.createTable(deviceContactLinks);
+      }
+      if (from < 6) {
+        await m.addColumn(navState, navState.statusTabs);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

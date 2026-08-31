@@ -956,6 +956,8 @@
   "starter_templates_hint": "Pick a starter layout, then customize.",
   "statement_offline": "Cannot generate statement while offline",
   "status_code_label": "Status code",
+  "status_tabs": "Status tabs",
+  "status_tabs_help": "Show a row of status tabs with live counts above each list, so one tap filters to drafts, overdue items and the rest.",
   "stay_in_twig_editor": "Stay in Twig editor",
   "stock_value": "Stock value",
   "stop_all": "Stop all",

@@ -69,6 +69,8 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     String? projectId,
     Map<int, Set<String>> customFilters = const {},
     Map<String, Set<String>> extraFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(loadedPages >= 1);
     final dateRange = parseDateRangeFilter(extraFilters);
@@ -80,6 +82,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     final statuses = parseQuoteStatusFilter(extraFilters);
     return db.quoteDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

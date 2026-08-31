@@ -58,6 +58,7 @@ class ProjectListViewModel extends GenericListViewModel<Project> {
 
   @override
   Stream<List<Project>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

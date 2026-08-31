@@ -81,6 +81,8 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     String? projectId,
     Map<String, Set<String>> extraFilters = const {},
     Map<int, Set<String>> customFilters = const {},
+    // Status-tab filter — see `list_status_tabs.dart`.
+    String? badgeModeId,
   }) {
     assert(
       loadedPages >= 1,
@@ -89,6 +91,7 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     final tagIds = parseCsvFilter(extraFilters, 'tag_ids');
     return db.taskDao
         .watchPage(
+          badgeModeId: badgeModeId,
           companyId: companyId,
           offset: 0,
           limit: pageSize * loadedPages,

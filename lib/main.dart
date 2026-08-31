@@ -158,6 +158,7 @@ Future<void> _bootstrap() async {
     services.keyboardShortcuts.restore(),
     services.sidebar.restore(),
     services.confirmActions.restore(),
+    services.statusTabs.restore(),
     services.sidebarBadgeModes.restore(),
     services.recentlyViewed.restore(),
     services.contactsSync.restore(),

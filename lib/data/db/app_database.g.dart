@@ -5000,6 +5000,21 @@ class $NavStateTable extends NavState
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _statusTabsMeta = const VerificationMeta(
+    'statusTabs',
+  );
+  @override
+  late final GeneratedColumn<bool> statusTabs = GeneratedColumn<bool>(
+    'status_tabs',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("status_tabs" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _contactsSyncJsonMeta = const VerificationMeta(
     'contactsSyncJson',
   );
@@ -5063,6 +5078,7 @@ class $NavStateTable extends NavState
     keyboardShortcutsJson,
     sidebarBadgeModesJson,
     confirmActions,
+    statusTabs,
     contactsSyncJson,
     recentEntitiesJson,
     sidebarCollapsed,
@@ -5182,6 +5198,12 @@ class $NavStateTable extends NavState
         ),
       );
     }
+    if (data.containsKey('status_tabs')) {
+      context.handle(
+        _statusTabsMeta,
+        statusTabs.isAcceptableOrUnknown(data['status_tabs']!, _statusTabsMeta),
+      );
+    }
     if (data.containsKey('contacts_sync_json')) {
       context.handle(
         _contactsSyncJsonMeta,
@@ -5278,6 +5300,10 @@ class $NavStateTable extends NavState
         DriftSqlType.bool,
         data['${effectivePrefix}confirm_actions'],
       )!,
+      statusTabs: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}status_tabs'],
+      )!,
       contactsSyncJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}contacts_sync_json'],
@@ -5341,6 +5367,17 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   /// field. Added in schema v4.
   final bool confirmActions;
 
+  /// Device-local "show the status tab strip above lists" preference (Settings
+  /// → Device Settings). The strip turns each entity's sidebar-counter buckets
+  /// into one-tap filters with live counts — see `lib/domain/list_status_tabs.dart`
+  /// and invoiceninja/flutter#98, which asked for exactly this because reaching
+  /// a draft through the search field's filter menu costs three or four taps.
+  ///
+  /// Defaults to **on**: the issue's premise is that fewer taps should be the
+  /// default, and the switch exists for people who would rather have the
+  /// vertical space back. Added in schema v6.
+  final bool statusTabs;
+
   /// Device-local contacts-sync preference (Settings → Device Settings →
   /// Contacts), as a JSON object:
   /// `{"enabled":bool,"scope":"all"|"mine",
@@ -5375,6 +5412,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     this.keyboardShortcutsJson,
     this.sidebarBadgeModesJson,
     required this.confirmActions,
+    required this.statusTabs,
     this.contactsSyncJson,
     this.recentEntitiesJson,
     required this.sidebarCollapsed,
@@ -5418,6 +5456,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       map['sidebar_badge_modes_json'] = Variable<String>(sidebarBadgeModesJson);
     }
     map['confirm_actions'] = Variable<bool>(confirmActions);
+    map['status_tabs'] = Variable<bool>(statusTabs);
     if (!nullToAbsent || contactsSyncJson != null) {
       map['contacts_sync_json'] = Variable<String>(contactsSyncJson);
     }
@@ -5466,6 +5505,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ? const Value.absent()
           : Value(sidebarBadgeModesJson),
       confirmActions: Value(confirmActions),
+      statusTabs: Value(statusTabs),
       contactsSyncJson: contactsSyncJson == null && nullToAbsent
           ? const Value.absent()
           : Value(contactsSyncJson),
@@ -5502,6 +5542,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         json['sidebarBadgeModesJson'],
       ),
       confirmActions: serializer.fromJson<bool>(json['confirmActions']),
+      statusTabs: serializer.fromJson<bool>(json['statusTabs']),
       contactsSyncJson: serializer.fromJson<String?>(json['contactsSyncJson']),
       recentEntitiesJson: serializer.fromJson<String?>(
         json['recentEntitiesJson'],
@@ -5531,6 +5572,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         sidebarBadgeModesJson,
       ),
       'confirmActions': serializer.toJson<bool>(confirmActions),
+      'statusTabs': serializer.toJson<bool>(statusTabs),
       'contactsSyncJson': serializer.toJson<String?>(contactsSyncJson),
       'recentEntitiesJson': serializer.toJson<String?>(recentEntitiesJson),
       'sidebarCollapsed': serializer.toJson<bool>(sidebarCollapsed),
@@ -5552,6 +5594,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     Value<String?> keyboardShortcutsJson = const Value.absent(),
     Value<String?> sidebarBadgeModesJson = const Value.absent(),
     bool? confirmActions,
+    bool? statusTabs,
     Value<String?> contactsSyncJson = const Value.absent(),
     Value<String?> recentEntitiesJson = const Value.absent(),
     bool? sidebarCollapsed,
@@ -5578,6 +5621,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         ? sidebarBadgeModesJson.value
         : this.sidebarBadgeModesJson,
     confirmActions: confirmActions ?? this.confirmActions,
+    statusTabs: statusTabs ?? this.statusTabs,
     contactsSyncJson: contactsSyncJson.present
         ? contactsSyncJson.value
         : this.contactsSyncJson,
@@ -5620,6 +5664,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       confirmActions: data.confirmActions.present
           ? data.confirmActions.value
           : this.confirmActions,
+      statusTabs: data.statusTabs.present
+          ? data.statusTabs.value
+          : this.statusTabs,
       contactsSyncJson: data.contactsSyncJson.present
           ? data.contactsSyncJson.value
           : this.contactsSyncJson,
@@ -5649,6 +5696,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ..write('keyboardShortcutsJson: $keyboardShortcutsJson, ')
           ..write('sidebarBadgeModesJson: $sidebarBadgeModesJson, ')
           ..write('confirmActions: $confirmActions, ')
+          ..write('statusTabs: $statusTabs, ')
           ..write('contactsSyncJson: $contactsSyncJson, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
@@ -5672,6 +5720,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     keyboardShortcutsJson,
     sidebarBadgeModesJson,
     confirmActions,
+    statusTabs,
     contactsSyncJson,
     recentEntitiesJson,
     sidebarCollapsed,
@@ -5694,6 +5743,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           other.keyboardShortcutsJson == this.keyboardShortcutsJson &&
           other.sidebarBadgeModesJson == this.sidebarBadgeModesJson &&
           other.confirmActions == this.confirmActions &&
+          other.statusTabs == this.statusTabs &&
           other.contactsSyncJson == this.contactsSyncJson &&
           other.recentEntitiesJson == this.recentEntitiesJson &&
           other.sidebarCollapsed == this.sidebarCollapsed &&
@@ -5714,6 +5764,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
   final Value<String?> keyboardShortcutsJson;
   final Value<String?> sidebarBadgeModesJson;
   final Value<bool> confirmActions;
+  final Value<bool> statusTabs;
   final Value<String?> contactsSyncJson;
   final Value<String?> recentEntitiesJson;
   final Value<bool> sidebarCollapsed;
@@ -5732,6 +5783,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.keyboardShortcutsJson = const Value.absent(),
     this.sidebarBadgeModesJson = const Value.absent(),
     this.confirmActions = const Value.absent(),
+    this.statusTabs = const Value.absent(),
     this.contactsSyncJson = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
@@ -5751,6 +5803,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.keyboardShortcutsJson = const Value.absent(),
     this.sidebarBadgeModesJson = const Value.absent(),
     this.confirmActions = const Value.absent(),
+    this.statusTabs = const Value.absent(),
     this.contactsSyncJson = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
@@ -5770,6 +5823,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Expression<String>? keyboardShortcutsJson,
     Expression<String>? sidebarBadgeModesJson,
     Expression<bool>? confirmActions,
+    Expression<bool>? statusTabs,
     Expression<String>? contactsSyncJson,
     Expression<String>? recentEntitiesJson,
     Expression<bool>? sidebarCollapsed,
@@ -5791,6 +5845,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       if (sidebarBadgeModesJson != null)
         'sidebar_badge_modes_json': sidebarBadgeModesJson,
       if (confirmActions != null) 'confirm_actions': confirmActions,
+      if (statusTabs != null) 'status_tabs': statusTabs,
       if (contactsSyncJson != null) 'contacts_sync_json': contactsSyncJson,
       if (recentEntitiesJson != null)
         'recent_entities_json': recentEntitiesJson,
@@ -5813,6 +5868,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Value<String?>? keyboardShortcutsJson,
     Value<String?>? sidebarBadgeModesJson,
     Value<bool>? confirmActions,
+    Value<bool>? statusTabs,
     Value<String?>? contactsSyncJson,
     Value<String?>? recentEntitiesJson,
     Value<bool>? sidebarCollapsed,
@@ -5834,6 +5890,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       sidebarBadgeModesJson:
           sidebarBadgeModesJson ?? this.sidebarBadgeModesJson,
       confirmActions: confirmActions ?? this.confirmActions,
+      statusTabs: statusTabs ?? this.statusTabs,
       contactsSyncJson: contactsSyncJson ?? this.contactsSyncJson,
       recentEntitiesJson: recentEntitiesJson ?? this.recentEntitiesJson,
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
@@ -5887,6 +5944,9 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     if (confirmActions.present) {
       map['confirm_actions'] = Variable<bool>(confirmActions.value);
     }
+    if (statusTabs.present) {
+      map['status_tabs'] = Variable<bool>(statusTabs.value);
+    }
     if (contactsSyncJson.present) {
       map['contacts_sync_json'] = Variable<String>(contactsSyncJson.value);
     }
@@ -5918,6 +5978,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
           ..write('keyboardShortcutsJson: $keyboardShortcutsJson, ')
           ..write('sidebarBadgeModesJson: $sidebarBadgeModesJson, ')
           ..write('confirmActions: $confirmActions, ')
+          ..write('statusTabs: $statusTabs, ')
           ..write('contactsSyncJson: $contactsSyncJson, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
@@ -47329,6 +47390,7 @@ typedef $$NavStateTableCreateCompanionBuilder =
       Value<String?> keyboardShortcutsJson,
       Value<String?> sidebarBadgeModesJson,
       Value<bool> confirmActions,
+      Value<bool> statusTabs,
       Value<String?> contactsSyncJson,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
@@ -47349,6 +47411,7 @@ typedef $$NavStateTableUpdateCompanionBuilder =
       Value<String?> keyboardShortcutsJson,
       Value<String?> sidebarBadgeModesJson,
       Value<bool> confirmActions,
+      Value<bool> statusTabs,
       Value<String?> contactsSyncJson,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
@@ -47426,6 +47489,11 @@ class $$NavStateTableFilterComposer
 
   ColumnFilters<bool> get confirmActions => $composableBuilder(
     column: $table.confirmActions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get statusTabs => $composableBuilder(
+    column: $table.statusTabs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -47524,6 +47592,11 @@ class $$NavStateTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get statusTabs => $composableBuilder(
+    column: $table.statusTabs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get contactsSyncJson => $composableBuilder(
     column: $table.contactsSyncJson,
     builder: (column) => ColumnOrderings(column),
@@ -47611,6 +47684,11 @@ class $$NavStateTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get statusTabs => $composableBuilder(
+    column: $table.statusTabs,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get contactsSyncJson => $composableBuilder(
     column: $table.contactsSyncJson,
     builder: (column) => column,
@@ -47674,6 +47752,7 @@ class $$NavStateTableTableManager
                 Value<String?> keyboardShortcutsJson = const Value.absent(),
                 Value<String?> sidebarBadgeModesJson = const Value.absent(),
                 Value<bool> confirmActions = const Value.absent(),
+                Value<bool> statusTabs = const Value.absent(),
                 Value<String?> contactsSyncJson = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
@@ -47692,6 +47771,7 @@ class $$NavStateTableTableManager
                 keyboardShortcutsJson: keyboardShortcutsJson,
                 sidebarBadgeModesJson: sidebarBadgeModesJson,
                 confirmActions: confirmActions,
+                statusTabs: statusTabs,
                 contactsSyncJson: contactsSyncJson,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
@@ -47712,6 +47792,7 @@ class $$NavStateTableTableManager
                 Value<String?> keyboardShortcutsJson = const Value.absent(),
                 Value<String?> sidebarBadgeModesJson = const Value.absent(),
                 Value<bool> confirmActions = const Value.absent(),
+                Value<bool> statusTabs = const Value.absent(),
                 Value<String?> contactsSyncJson = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
@@ -47730,6 +47811,7 @@ class $$NavStateTableTableManager
                 keyboardShortcutsJson: keyboardShortcutsJson,
                 sidebarBadgeModesJson: sidebarBadgeModesJson,
                 confirmActions: confirmActions,
+                statusTabs: statusTabs,
                 contactsSyncJson: contactsSyncJson,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,

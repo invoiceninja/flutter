@@ -87,6 +87,7 @@ class ExpenseListViewModel extends GenericListViewModel<Expense> {
 
   @override
   Stream<List<Expense>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

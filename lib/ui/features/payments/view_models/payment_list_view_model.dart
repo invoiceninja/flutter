@@ -80,6 +80,7 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
 
   @override
   Stream<List<Payment>> watchPage() => repo.watchPage(
+    badgeModeId: activeBadgeModeId,
     companyId: companyId,
     loadedPages: loadedPages,
     search: search.isEmpty ? null : search,

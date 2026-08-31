@@ -10,14 +10,13 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/standard_crud_bulk_actions.dart';
 
 /// List ViewModel for the Recurring Expenses screen. Mirrors
-/// `ExpenseListViewModel`; the extra moving part here is the
-/// `recurringStatus` chip filter (one of the 5 [kRecurringExpenseStatus*]
-/// values, or `null` for "all") — surfaced via `setRecurringStatus(...)`
-/// and consumed by `watchPage`.
+/// `ExpenseListViewModel`.
 ///
-/// In-memory only (no `nav_state` persistence yet): switching companies
-/// or restarting the app drops the chip back to "all". Promote to a
-/// persisted dimension once the filter chip selection earns its keep.
+/// Status filtering is the shared status-tab strip (`badge_mode`, see
+/// `lib/domain/list_status_tabs.dart`), which supersedes the in-memory
+/// `recurringStatus` dimension this VM used to carry: that one never called
+/// `_resetAndReload`, so it notified listeners without re-subscribing the Drift
+/// watch and could not actually filter anything.
 class RecurringExpenseListViewModel
     extends GenericListViewModel<RecurringExpense> {
   RecurringExpenseListViewModel({
@@ -36,16 +35,6 @@ class RecurringExpenseListViewModel
 
   /// When non-null, scopes the watch + fetch to one vendor.
   final String? vendorId;
-
-  /// `null` = "all"; otherwise one of [kRecurringExpenseStatus*].
-  String? _recurringStatus;
-  String? get recurringStatus => _recurringStatus;
-
-  void setRecurringStatus(String? statusId) {
-    if (_recurringStatus == statusId) return;
-    _recurringStatus = statusId;
-    notifyListeners();
-  }
 
   @override
   Set<String> get lockedFilterKeyIds => {if (vendorId != null) 'vendor'};
@@ -87,10 +76,10 @@ class RecurringExpenseListViewModel
   @override
   Stream<List<RecurringExpense>> watchPage() => repo
       .watchPage(
+        badgeModeId: activeBadgeModeId,
         companyId: companyId,
         loadedPages: loadedPages,
         search: search.isEmpty ? null : search,
-        recurringStatus: _recurringStatus,
         states: states,
         sortField: sortField,
         sortAscending: sortAscending,

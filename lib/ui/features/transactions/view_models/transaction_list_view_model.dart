@@ -102,6 +102,7 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
     final dateCmp = parseComparableDateFilter(extraFilters, 'date');
     return repo
         .watchPage(
+          badgeModeId: activeBadgeModeId,
           companyId: companyId,
           loadedPages: loadedPages,
           search: search.isEmpty ? null : search,

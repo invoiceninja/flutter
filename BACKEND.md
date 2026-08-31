@@ -1515,6 +1515,33 @@ server action/endpoint.
 
 ---
 
+## `status_id` is implemented only on invoices — recurring-invoice + bank-transaction status filters are silently ignored — **O (client filters narrow locally only)**
+
+Found while auditing filter semantics for the list status tabs (invoiceninja/flutter#98).
+
+`status_id()` exists on `app/Filters/InvoiceFilters.php` alone; it is **not** on
+`QueryFilters`, so no other entity inherits it. The app nonetheless sends it for two
+entities:
+
+- `RecurringInvoiceStatusFilterKey` (`lib/ui/features/recurring_invoices/widgets/recurring_invoice_filter_keys.dart`) → `status_id=1|2|3`
+- `TransactionStatusFilterKey` (`lib/ui/features/transactions/widgets/transaction_filter_keys.dart`) → `status_id=1|2`
+
+Both are dropped on the floor server-side. The chips still *work* because each list
+re-applies the same predicate against the local Drift cache, so the only symptom is that
+the fetch isn't narrowed — the user pages through every row to find the matching ones,
+and on a large account a status that sorts late may never appear.
+
+Both filter classes do expose `client_status`, with plain `whereIn('status_id', …)`
+semantics that match the app's local predicates exactly:
+
+- `RecurringInvoiceFilters::client_status` → `draft|active|paused|completed`
+- `BankTransactionFilters::client_status` → `unmatched|matched|converted` (+ `deposits`/`withdrawals` on `base_type`)
+
+**No server change needed** — this is a client-side fix: point both FilterKeys at
+`client_status` and map their values. The status *tabs* for those two entities already use
+`client_status`, so the two surfaces currently disagree about which param to send. Worth
+its own PR; tracked here so the next person auditing filter coverage doesn't re-derive it.
+
 ## `/refresh` mints the `is_system` token per **company**, not per (company, user) — **R (drops a company from multi-company clients)**
 
 **Provenance** — 2026-08-11, tracing

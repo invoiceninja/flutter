@@ -64,7 +64,9 @@ class Breakpoints {
   /// (890x412) would match on `shortestSide` alone.
   ///
   /// Wire this in **per screen, deliberately**. It is not applied app-wide;
-  /// [isWide] stays the default gate and `DashboardScreen` is the only caller.
+  /// [isWide] stays the default gate and the callers are a small, deliberate
+  /// set — `DashboardScreen` and `showCommandPalette` (whose dialog geometry
+  /// and keyboard-only hints both key off the device, not the window).
   static bool isPhone(BuildContext context) =>
       Env.isTouchPrimary && MediaQuery.sizeOf(context).shortestSide < wide;
 

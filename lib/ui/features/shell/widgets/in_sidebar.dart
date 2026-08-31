@@ -23,6 +23,7 @@ import 'package:admin/ui/features/shell/widgets/command_palette.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_search_box.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_header.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
@@ -259,6 +260,11 @@ class _InSidebarState extends State<InSidebar> {
             // collapsed 64px rail to zero usable width. Bottom is already
             // handled by SidebarFooterActions' own SafeArea(top: false). On
             // macOS every inset is 0, so desktop layout is unchanged.
+            final navHistory = NavHistoryButtons(
+              compact: collapsed,
+              popDrawerFirst: widget.width == null,
+              touch: touch,
+            );
             final content = SafeArea(
               left: false,
               right: false,
@@ -281,32 +287,61 @@ class _InSidebarState extends State<InSidebar> {
                   // buttons, so without these a tablet/phone user who follows
                   // a cross-entity link has no way back.
                   Padding(
+                    // left 10 is an alignment, not a leftover: with touch
+                    // sizing the back arrow's 18-px glyph starts at
+                    // 10 + (44 − 18) / 2 = 23 — exactly the company avatar's
+                    // left edge below it (14 outer + 1 border + 8 padding).
+                    // right 14 lines the search box's trailing edge up with
+                    // the Sync button.
                     padding: collapsed
                         ? const EdgeInsets.only(top: 4)
-                        : const EdgeInsets.fromLTRB(10, 4, 10, 0),
-                    child: NavHistoryButtons(
-                      compact: collapsed,
-                      popDrawerFirst: widget.width == null,
-                      touch: touch,
-                    ),
+                        : const EdgeInsets.fromLTRB(10, 4, 14, 0),
+                    // Global search (issue #101) shares this row when there is
+                    // room for it. Touch-only: desktop reaches the palette via
+                    // ⌘/ and the Dashboard row's hover icon. Absent from the
+                    // collapsed rail — 2×32 arrows fill its 64 px exactly.
+                    //
+                    // The arrows stay a *direct* child on the other two paths
+                    // rather than always sitting in a `Row`. A Row hands a
+                    // non-flex child an unbounded main axis, which makes
+                    // `NavHistoryButtons` shrink-wrap and leaves its own
+                    // `mainAxisAlignment: compact ? center : start` with no
+                    // free space to work in — so the collapsed rail's centring
+                    // would silently become a no-op that only looks right
+                    // because 2×32 == 64 exactly.
+                    child: touch && !collapsed
+                        ? Row(
+                            children: [
+                              navHistory,
+                              // Deliberately no gap widget: `_HistoryButton`
+                              // centres an 18-px glyph in a 44-px box, so 13 px
+                              // of optical separation is already built in, and
+                              // the box needs every pixel it can get on the
+                              // 232-px rail.
+                              Expanded(
+                                child: SidebarSearchBox(
+                                  // Unlike Sync this *does* pop the mobile
+                                  // drawer first — the palette is a modal the
+                                  // user then types into, and leaving the
+                                  // drawer open behind it stacks two overlays.
+                                  onTap: () {
+                                    widget.onBeforeModal?.call();
+                                    showCommandPalette(context);
+                                  },
+                                ),
+                              ),
+                            ],
+                          )
+                        : navHistory,
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
                     child: SidebarHeader(
                       session: session,
                       onBeforeModal: widget.onBeforeModal,
                       compact: collapsed,
                       touch: touch,
                       resync: services.resync,
-                      // Touch-only (the header drops it otherwise). Unlike
-                      // Sync this *does* pop the mobile drawer first — the
-                      // palette is a modal the user then types into, and
-                      // leaving the drawer open behind it stacks two
-                      // overlays.
-                      onSearch: () {
-                        widget.onBeforeModal?.call();
-                        showCommandPalette(context);
-                      },
                       // Deliberately does not pop the mobile drawer the way
                       // the company switcher does: closing it would hide the
                       // spinner the user just started. The toast host paints
@@ -318,7 +353,7 @@ class _InSidebarState extends State<InSidebar> {
                   Container(height: 1, color: tokens.border),
                   Expanded(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
+                      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
                       // Counter choices repaint the rail: a badge switching
                       // from a grey total to a red overdue count changes the
                       // row, not just the number.
@@ -425,7 +460,7 @@ class _InSidebarState extends State<InSidebar> {
         labelKey: 'dashboard',
         icon: Icons.dashboard_outlined,
         kind: FixedBranchKind.dashboard,
-        trailingHover: const _SidebarSearchButton(),
+        trailingHover: const _DashboardRowSearchButton(),
       ),
       // Entities — Clients, Products, and the per-module entities. Rows whose
       // module is disabled for this company are omitted entirely; client /
@@ -790,8 +825,8 @@ class _HoverAddButton extends StatelessWidget {
 /// Hover-revealed search affordance on the right of the Dashboard row
 /// (desktop, expanded rail only — mirrors the entity-row `+` button).
 /// Opens the command palette — the same target as the `⌘/` shortcut.
-class _SidebarSearchButton extends StatelessWidget {
-  const _SidebarSearchButton();
+class _DashboardRowSearchButton extends StatelessWidget {
+  const _DashboardRowSearchButton();
 
   @override
   Widget build(BuildContext context) {

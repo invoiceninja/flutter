@@ -9,12 +9,14 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/entity_links.dart';
 import 'package:admin/app/router.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/recent_record.dart';
 import 'package:admin/data/models/domain/search_result.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/key_cap.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
@@ -120,18 +122,29 @@ Future<void> showCommandPalette(BuildContext context) {
     builder: (ctx) {
       final tokens = ctx.inTheme;
       final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      // `Dialog` adds the keyboard height to `insetPadding`
+      // (`effectivePadding = viewInsets + insetPadding`), so on a phone the
+      // desktop geometry collapses: in landscape, 393 − 120 − (24 + ~200) left
+      // ~49 px for a column whose fixed chrome needs ~72, and `RenderFlex`'s
+      // `ClipRRect` below hid the overflow in release (a bare `Column` would
+      // have painted it — `Flex.clipBehavior` defaults to `Clip.none`), so it
+      // showed as a sliced search field and no results at all. Portrait merely
+      // wasted 167 px of scrim above the field.
+      // Also covers iPad Slide Over and Android split-screen.
+      final phone = Breakpoints.isPhone(ctx);
       return Dialog(
         backgroundColor: Colors.transparent,
         elevation: 0,
         alignment: Alignment.topCenter,
-        insetPadding: const EdgeInsets.only(
-          top: 120,
-          left: 24,
-          right: 24,
-          bottom: 24,
-        ),
+        insetPadding: phone
+            ? const EdgeInsets.all(8)
+            : const EdgeInsets.only(top: 120, left: 24, right: 24, bottom: 24),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680, maxHeight: 520),
+          constraints: BoxConstraints(
+            maxWidth: 680,
+            // `Column(mainAxisSize: min)` still shrink-wraps a short list.
+            maxHeight: phone ? double.infinity : 520,
+          ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(InRadii.r4),
             child: BackdropFilter(
@@ -345,9 +358,53 @@ class _CommandPaletteState extends State<_CommandPalette> {
     }
   }
 
+  /// The `↑↓ · ↵ · esc` affordance row, rendered under both the results list
+  /// and the recents list. One definition, two spread sites: it shipped as two
+  /// byte-identical 26-line blocks 120 lines apart, so a copy edit — a fourth
+  /// hint, spelling `↵` as Enter, localizing `esc` — would have landed in one
+  /// state and not the other, with nothing to catch it.
+  ///
+  /// Keyboard-only, so the callers hide it on a phone along with the `⌘/` chip:
+  /// a divider plus ~29 px of glyphs nobody can act on, in a dialog that is
+  /// short on height exactly there. Nothing is stranded — the barrier is
+  /// dismissible, Android back pops the route, and the field carries a close
+  /// button on every touch device.
+  List<Widget> _keyboardHints(BuildContext context) {
+    final tokens = context.inTheme;
+    return [
+      Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: DefaultTextStyle(
+          style: TextStyle(fontSize: 11, color: tokens.ink3),
+          child: const Row(
+            children: [
+              Text('↑↓'),
+              Text('   ·   '),
+              Text('↵'),
+              Text('   ·   '),
+              Text('esc'),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // Same gate `showCommandPalette` uses for the dialog geometry — see the
+    // comment there. Resolved again here because that local lives in the
+    // dialog builder's scope, not this one.
+    final phone = Breakpoints.isPhone(context);
+    // Deliberately a *different* question from `phone`. `phone` asks "is this
+    // window small and certainly keyboardless" — it gates the geometry and the
+    // keyboard hints, since an iPad with a Magic Keyboard can use both. `touch`
+    // asks "can this device tap" — it gates the close button, because the
+    // sidebar's Search box is itself mounted on `Env.isTouchPrimary`, so a
+    // tablet can reach this dialog with no visible way back out of it.
+    final touch = Env.isTouchPrimary;
     final services = context.read<Services>();
     final registry = services.entityRegistry;
     _recents = services.recentlyViewed.items;
@@ -390,15 +447,53 @@ class _CommandPaletteState extends State<_CommandPalette> {
               prefixIcon: Icon(Icons.search, size: 26, color: tokens.ink3),
               hintText: context.tr('search'),
               hintStyle: TextStyle(fontSize: 22, color: tokens.ink3),
+              // Two independent affordances, not an either/or: a phone
+              // has no keyboard to press `⌘/` on, so the chip is dead chrome
+              // there (issue #101 is the same complaint about the sidebar),
+              // while any touch device needs a *visible* way out once the
+              // `esc` hint below is gone. Desktop keeps the chip alone,
+              // unchanged. The slot is only ever empty on a hypothetical
+              // keyboardless non-touch platform, which does not exist.
               suffixIcon: Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: EdgeInsets.only(right: touch ? 4 : 12),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    KeyCap(
-                      label: '${platformModifierLabel()}/',
-                      color: tokens.ink3,
-                    ),
+                    if (!phone)
+                      KeyCap(
+                        label: '${platformModifierLabel()}/',
+                        color: tokens.ink3,
+                      ),
+                    if (touch)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 22),
+                        color: tokens.ink3,
+                        tooltip: context.tr('close'),
+                        // Closes, always — it deliberately does not double as
+                        // a clear. A clear has to reset `_results`/`_selected`
+                        // itself: routing it through `_onChanged('')` arms the
+                        // debounce into `_run('')`, and `SearchApi.search`
+                        // omits the `search` param for a blank query, so the
+                        // server answers with an unfiltered page. One glyph
+                        // meaning two things also left no one-tap exit.
+                        onPressed: () => Navigator.of(context).pop(),
+                        // Unstyled, M3 resolves `tapTargetSize` from the theme
+                        // — `padded` on the only platforms this renders on —
+                        // and lays the button out at 48, which the zeroed
+                        // `suffixIconConstraints` cannot prevent (they remove a
+                        // minimum, not a maximum). Pinned per CLAUDE.md trap 5;
+                        // the glyph then sits 4 + (44 − 22) / 2 = 15 px in.
+                        style: IconButton.styleFrom(
+                          fixedSize: const Size(
+                            InSizes.touchTarget,
+                            InSizes.touchTarget,
+                          ),
+                          minimumSize: Size.zero,
+                          maximumSize: Size.infinite,
+                          padding: EdgeInsets.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -542,22 +637,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
                       ),
                     ),
             ),
-            Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: DefaultTextStyle(
-                style: TextStyle(fontSize: 11, color: tokens.ink3),
-                child: const Row(
-                  children: [
-                    Text('↑↓'),
-                    Text('   ·   '),
-                    Text('↵'),
-                    Text('   ·   '),
-                    Text('esc'),
-                  ],
-                ),
-              ),
-            ),
+            if (!phone) ..._keyboardHints(context),
           ],
           if (showRecent) ...[
             Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
@@ -658,22 +738,7 @@ class _CommandPaletteState extends State<_CommandPalette> {
                 ],
               ),
             ),
-            Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: DefaultTextStyle(
-                style: TextStyle(fontSize: 11, color: tokens.ink3),
-                child: const Row(
-                  children: [
-                    Text('↑↓'),
-                    Text('   ·   '),
-                    Text('↵'),
-                    Text('   ·   '),
-                    Text('esc'),
-                  ],
-                ),
-              ),
-            ),
+            if (!phone) ..._keyboardHints(context),
           ],
         ],
       ),

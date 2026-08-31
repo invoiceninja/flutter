@@ -115,50 +115,86 @@ String recordIdForSearchHit(SearchResult r) {
 /// (`SearchApi`) across all entities + settings; arrow/enter/escape
 /// keyboard nav; selection routes via the entity registry (or the
 /// server path for settings).
+///
+/// Two presentations, split on [Breakpoints.isPhone]:
+///
+///  * **Phone — a full-screen page.** The floating card left the screen behind
+///    it legible through a 0.18 scrim, and on a phone that screen is almost
+///    always an entity list whose *own* search box is pinned in the app bar
+///    (`entity_list_app_bar.dart`, a permanent 56-px `PreferredSize`). At rest
+///    the card shrink-wrapped to just its field, so the two landed ~20 px
+///    apart and read as one control: users thought they were searching the
+///    page behind (invoiceninja/flutter#102). In landscape it was three, the
+///    persistent rail's own Search box included. The page reuses the
+///    `Dialog.fullscreen` + `Scaffold` + `AppBar` shape the app already gives
+///    every other phone-width modal (`ClientCreateDialog._fullscreen`,
+///    `DesignEditScreen`) and narrow *list* search
+///    (`TokenSearchField._openSheet` -> `FilterEntrySheet`).
+///  * **Everything else — the Spotlight card**, unchanged.
+///
+/// `useSafeArea: false` is deliberate and each branch then owns its insets.
+/// The phone page paints edge-to-edge so its `AppBar` supplies the status-bar
+/// padding and posts the `SystemUiOverlayStyle` (nothing else in `lib/` does);
+/// left to the default, the strips outside the safe area would stay bare
+/// `ModalBarrier` — which, being `barrierDismissible`, would also let a tap
+/// beside the gesture bar close the page. The card re-wraps itself in the
+/// `SafeArea` it has always had, so nothing changes there.
+///
+/// Neither `MediaQuery` nor `Theme` may be read from the **caller's** context
+/// here, which is why `phone` is resolved in the builder rather than hoisted
+/// into an argument: the phone entry point is `SidebarSearchBox`, which pops
+/// the drawer in the statement before this call, and `AppDrawer` documents
+/// that the drawer's `BuildContext` does not survive that pop. Resolving it
+/// per build also keeps the palette adapting to a live resize (Android
+/// split-screen, iPad Slide Over).
 Future<void> showCommandPalette(BuildContext context) {
   return showDialog<void>(
     context: context,
-    barrierColor: Colors.black.withValues(alpha: 0.18),
+    // A tablet reaches the card from the same sidebar Search box and had the
+    // same two-fields-at-once problem, just less acutely — the 0.18 Spotlight
+    // scrim was tuned for a small popover anchored on a big desktop window.
+    // Gated on the device, not the window, exactly like
+    // `DateRangePickerButton`'s. Invisible on a phone (the page covers it).
+    barrierColor: Env.isTouchPrimary
+        ? Colors.black54
+        : Colors.black.withValues(alpha: 0.18),
+    useSafeArea: false,
     builder: (ctx) {
+      if (Breakpoints.isPhone(ctx)) {
+        return const Dialog.fullscreen(child: _CommandPalette());
+      }
       final tokens = ctx.inTheme;
       final isDark = Theme.of(ctx).brightness == Brightness.dark;
-      // `Dialog` adds the keyboard height to `insetPadding`
-      // (`effectivePadding = viewInsets + insetPadding`), so on a phone the
-      // desktop geometry collapses: in landscape, 393 − 120 − (24 + ~200) left
-      // ~49 px for a column whose fixed chrome needs ~72, and `RenderFlex`'s
-      // `ClipRRect` below hid the overflow in release (a bare `Column` would
-      // have painted it — `Flex.clipBehavior` defaults to `Clip.none`), so it
-      // showed as a sliced search field and no results at all. Portrait merely
-      // wasted 167 px of scrim above the field.
-      // Also covers iPad Slide Over and Android split-screen.
-      final phone = Breakpoints.isPhone(ctx);
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        alignment: Alignment.topCenter,
-        insetPadding: phone
-            ? const EdgeInsets.all(8)
-            : const EdgeInsets.only(top: 120, left: 24, right: 24, bottom: 24),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 680,
-            // `Column(mainAxisSize: min)` still shrink-wraps a short list.
-            maxHeight: phone ? double.infinity : 520,
+      return SafeArea(
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          alignment: Alignment.topCenter,
+          insetPadding: const EdgeInsets.only(
+            top: 120,
+            left: 24,
+            right: 24,
+            bottom: 24,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(InRadii.r4),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: tokens.surface.withValues(alpha: isDark ? 0.86 : 0.92),
-                  border: Border.all(
-                    color: tokens.border.withValues(alpha: 0.6),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680, maxHeight: 520),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(InRadii.r4),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: tokens.surface.withValues(
+                      alpha: isDark ? 0.86 : 0.92,
+                    ),
+                    border: Border.all(
+                      color: tokens.border.withValues(alpha: 0.6),
+                    ),
+                    borderRadius: BorderRadius.circular(InRadii.r4),
+                    boxShadow: tokens.shadow2,
                   ),
-                  borderRadius: BorderRadius.circular(InRadii.r4),
-                  boxShadow: tokens.shadow2,
+                  child: const _CommandPalette(),
                 ),
-                child: const _CommandPalette(),
               ),
             ),
           ),
@@ -225,6 +261,28 @@ class _CommandPaletteState extends State<_CommandPalette> {
   void _onChanged(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 250), () => _run(q));
+  }
+
+  /// Empties the field and returns the palette to its at-rest (Recents)
+  /// state, without touching the network.
+  ///
+  /// Bumps [_reqSeq]. Cancelling [_debounce] alone is not enough: a request
+  /// that has already left is only discarded by [_run]'s `seq != _reqSeq`
+  /// check, so without the bump a response landing after the tap repopulates
+  /// the list under an empty field, with nothing on screen to explain it.
+  ///
+  /// It also deliberately does not route through [_onChanged] — that arms the
+  /// debounce into `_run('')`, and `SearchApi.search` omits the `search` param
+  /// for a blank query, so the server answers with an unfiltered page.
+  void _reset() {
+    _debounce?.cancel();
+    _reqSeq++;
+    _controller.clear();
+    setState(() {
+      _results = const [];
+      _selected = 0;
+      _loading = false;
+    });
   }
 
   Future<void> _run(String q) async {
@@ -391,19 +449,139 @@ class _CommandPaletteState extends State<_CommandPalette> {
     ];
   }
 
+  /// The search field. Two shapes.
+  ///
+  /// On a **phone** it is the `AppBar`'s title: no prefix glyph (the back
+  /// arrow owns the leading slot) and no suffix (the clear button is an
+  /// `AppBar` action), at the 16-px Material search-bar size — 22 was tuned
+  /// for the 680-px card and does not leave room for the placeholder beside a
+  /// 44-px arrow on a 412-px screen. Everywhere else it is the card's own
+  /// 22-px row, unchanged.
+  Widget _buildField(
+    BuildContext context, {
+    required bool phone,
+    required bool touch,
+  }) {
+    final tokens = context.inTheme;
+    if (phone) {
+      return TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.search,
+        onChanged: _onChanged,
+        onSubmitted: (_) => _select(),
+        style: TextStyle(fontSize: 16, color: tokens.ink),
+        decoration: InputDecoration(
+          // `search_placeholder` ("Find invoices, clients, and more"), not the
+          // bare `search`: saying what this searches is the other half of
+          // flutter#102, whose reporter's users read a lone magnifier as
+          // "search *this page*". A real Transifex key, so it keeps its
+          // translation everywhere the bundle has one.
+          hintText: context.tr('search_placeholder'),
+          hintStyle: TextStyle(fontSize: 16, color: tokens.ink3),
+          // Ellipsize rather than wrap — an `InputDecorator` hint wraps by
+          // default and the German string is ~38 characters.
+          hintMaxLines: 1,
+          filled: false,
+          isDense: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          // 12 + line box + 12 is ~44: a real tap target for re-focusing after
+          // the keyboard is dismissed, and still inside the 56-px toolbar.
+          // `isCollapsed` would shrink it to the text's own ~20 px.
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      );
+    }
+    return TextField(
+      controller: _controller,
+      autofocus: true,
+      textInputAction: TextInputAction.go,
+      onChanged: _onChanged,
+      onSubmitted: (_) => _select(),
+      style: TextStyle(fontSize: 22, color: tokens.ink),
+      decoration: InputDecoration(
+        prefixIcon: Icon(Icons.search, size: 26, color: tokens.ink3),
+        hintText: context.tr('search'),
+        hintStyle: TextStyle(fontSize: 22, color: tokens.ink3),
+        // Two independent affordances, not an either/or. The `⌘/` chip is
+        // keyboard-only; the close button is gated on touch because a
+        // **tablet** — touch, but not `isPhone` — reaches this card from the
+        // sidebar's Search box (itself mounted on `Env.isTouchPrimary`) and
+        // would otherwise have no visible way out of it. A phone never gets
+        // here: it gets the full-screen page, whose back arrow closes it. The
+        // slot is only ever empty on a hypothetical keyboardless non-touch
+        // platform, which does not exist.
+        suffixIcon: Padding(
+          padding: EdgeInsetsDirectional.only(end: touch ? 4 : 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              KeyCap(label: '${platformModifierLabel()}/', color: tokens.ink3),
+              if (touch)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 22),
+                  color: tokens.ink3,
+                  tooltip: context.tr('close'),
+                  // Closes, always — it deliberately does not double as a
+                  // clear. One glyph meaning two things left no one-tap exit;
+                  // the phone page has room for both, and its clear goes
+                  // through `_reset`.
+                  onPressed: () => Navigator.of(context).pop(),
+                  // Unstyled, M3 resolves `tapTargetSize` from the theme
+                  // — `padded` on the only platforms this renders on —
+                  // and lays the button out at 48, which the zeroed
+                  // `suffixIconConstraints` cannot prevent (they remove a
+                  // minimum, not a maximum). Pinned per CLAUDE.md trap 5;
+                  // the glyph then sits 4 + (44 − 22) / 2 = 15 px in.
+                  style: IconButton.styleFrom(
+                    fixedSize: const Size(
+                      InSizes.touchTarget,
+                      InSizes.touchTarget,
+                    ),
+                    minimumSize: Size.zero,
+                    maximumSize: Size.infinite,
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        filled: false,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        focusedErrorBorder: InputBorder.none,
+        isDense: false,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 20,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    // Same gate `showCommandPalette` uses for the dialog geometry — see the
-    // comment there. Resolved again here because that local lives in the
-    // dialog builder's scope, not this one.
+    // Same gate `showCommandPalette` uses to pick the presentation, resolved
+    // again because that local lives in the dialog builder's scope, not this
+    // one. Both reads are per-build on purpose — see the note there about the
+    // caller's (popped) drawer context and about live resizes.
     final phone = Breakpoints.isPhone(context);
     // Deliberately a *different* question from `phone`. `phone` asks "is this
-    // window small and certainly keyboardless" — it gates the geometry and the
-    // keyboard hints, since an iPad with a Magic Keyboard can use both. `touch`
-    // asks "can this device tap" — it gates the close button, because the
-    // sidebar's Search box is itself mounted on `Env.isTouchPrimary`, so a
-    // tablet can reach this dialog with no visible way back out of it.
+    // window small and certainly keyboardless" — it picks the presentation and
+    // hides the keyboard hints, since an iPad with a Magic Keyboard can use
+    // both. `touch` asks "can this device tap" — it gates the card's close
+    // button; see `_buildField`.
     final touch = Env.isTouchPrimary;
     final services = context.read<Services>();
     final registry = services.entityRegistry;
@@ -426,320 +604,289 @@ class _CommandPaletteState extends State<_CommandPalette> {
       items.add(i);
     }
 
+    // Everything below the field, shared by both presentations: the card
+    // stacks it under the field in one `Column`, the phone page puts it in the
+    // `Scaffold` body while the field sits in the `AppBar`.
+    final sections = <Widget>[
+      if (!resting) ...[
+        Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
+        SizedBox(
+          height: 2,
+          child: _loading ? const LinearProgressIndicator(minHeight: 2) : null,
+        ),
+        Flexible(
+          child: hasResults
+              ? ListView.builder(
+                  controller: _scrollController,
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(top: 6, bottom: 6),
+                  itemCount: items.length,
+                  itemBuilder: (context, idx) {
+                    final item = items[idx];
+                    if (item is String) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                        child: Text(
+                          context.tr(item),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                            color: tokens.ink3,
+                          ),
+                        ),
+                      );
+                    }
+                    final i = item as int;
+                    final r = _results[i];
+                    final sel = i == _selected;
+                    final type = entityTypeForSearchGroup(r.group);
+                    final icon = r.group == kDeepLinkSearchGroup
+                        ? Icons.link
+                        : (type != null
+                                  ? registry[type]?.effectiveOutlinedIcon
+                                  : null) ??
+                              Icons.settings_outlined;
+                    return MouseRegion(
+                      onEnter: (_) {
+                        if (_selected != i) {
+                          setState(() => _selected = i);
+                        }
+                      },
+                      child: Semantics(
+                        button: true,
+                        selected: sel,
+                        label: r.name,
+                        child: Padding(
+                          key: sel ? _selRowKey : null,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              setState(() => _selected = i);
+                              _select();
+                            },
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? tokens.accentSoft
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(InRadii.r2),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      icon,
+                                      size: 20,
+                                      color: sel
+                                          ? tokens.accentInk
+                                          : tokens.ink2,
+                                    ),
+                                    SizedBox(width: InSpacing.md(context)),
+                                    Expanded(
+                                      child: Text(
+                                        r.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: tokens.ink,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                )
+              // Nothing to report while the request is still out — the
+              // progress bar above already says so. `_run` sets `_loading`
+              // without clearing `_results`, so an ungated empty state filled
+              // the whole page with "No records found" on every search started
+              // from rest, then replaced itself a moment later. Invisible in
+              // the 520-px card; not on a 915-px one.
+              : _loading
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 32,
+                  ),
+                  child: Center(
+                    child: Text(
+                      context.tr('no_records_found'),
+                      style: TextStyle(color: tokens.ink3),
+                    ),
+                  ),
+                ),
+        ),
+        if (!phone) ..._keyboardHints(context),
+      ],
+      if (showRecent) ...[
+        Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
+        Flexible(
+          child: ListView(
+            controller: _scrollController,
+            shrinkWrap: true,
+            padding: const EdgeInsets.only(top: 6, bottom: 6),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                child: Text(
+                  context.tr('recently_viewed'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                    color: tokens.ink3,
+                  ),
+                ),
+              ),
+              for (var i = 0; i < _recents.length; i++)
+                Builder(
+                  builder: (context) {
+                    final r = _recents[i];
+                    final sel = i == _selected;
+                    final icon =
+                        registry[r.type]?.effectiveOutlinedIcon ??
+                        Icons.history;
+                    return MouseRegion(
+                      onEnter: (_) {
+                        if (_selected != i) {
+                          setState(() => _selected = i);
+                        }
+                      },
+                      child: Semantics(
+                        button: true,
+                        selected: sel,
+                        label: r.label,
+                        child: Padding(
+                          key: sel ? _selRowKey : null,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              setState(() => _selected = i);
+                              _select();
+                            },
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? tokens.accentSoft
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(InRadii.r2),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      icon,
+                                      size: 20,
+                                      color: sel
+                                          ? tokens.accentInk
+                                          : tokens.ink2,
+                                    ),
+                                    SizedBox(width: InSpacing.md(context)),
+                                    Expanded(
+                                      child: Text(
+                                        r.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: tokens.ink,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+        if (!phone) ..._keyboardHints(context),
+      ],
+    ];
+
+    final bindings = <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.arrowDown): () => _move(1),
+      const SingleActivator(LogicalKeyboardKey.arrowUp): () => _move(-1),
+      const SingleActivator(LogicalKeyboardKey.escape): () =>
+          Navigator.of(context).pop(),
+    };
+
+    if (phone) {
+      return CallbackShortcuts(
+        bindings: bindings,
+        child: Scaffold(
+          appBar: AppBar(
+            // Structural close, not history back — this is a modal route, so
+            // CLAUDE.md's "a close affordance must go() to the URL-parent"
+            // rule (which is about in-shell chrome) does not apply. Matches
+            // `FilterEntrySheet`, the narrow-list search page.
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: context.tr('close'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            titleSpacing: 0,
+            title: _buildField(context, phone: true, touch: touch),
+            actions: [
+              // Listens to the controller on its own so a keystroke rebuilds
+              // one icon rather than the whole result list.
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _controller,
+                builder: (context, value, _) => value.text.isEmpty
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: context.tr('clear'),
+                        onPressed: _reset,
+                      ),
+              ),
+            ],
+          ),
+          body: SafeArea(top: false, child: Column(children: sections)),
+        ),
+      );
+    }
+
     return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.arrowDown): () => _move(1),
-        const SingleActivator(LogicalKeyboardKey.arrowUp): () => _move(-1),
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            Navigator.of(context).pop(),
-      },
+      bindings: bindings,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            textInputAction: TextInputAction.go,
-            onChanged: _onChanged,
-            onSubmitted: (_) => _select(),
-            style: TextStyle(fontSize: 22, color: tokens.ink),
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.search, size: 26, color: tokens.ink3),
-              hintText: context.tr('search'),
-              hintStyle: TextStyle(fontSize: 22, color: tokens.ink3),
-              // Two independent affordances, not an either/or: a phone
-              // has no keyboard to press `⌘/` on, so the chip is dead chrome
-              // there (issue #101 is the same complaint about the sidebar),
-              // while any touch device needs a *visible* way out once the
-              // `esc` hint below is gone. Desktop keeps the chip alone,
-              // unchanged. The slot is only ever empty on a hypothetical
-              // keyboardless non-touch platform, which does not exist.
-              suffixIcon: Padding(
-                padding: EdgeInsets.only(right: touch ? 4 : 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!phone)
-                      KeyCap(
-                        label: '${platformModifierLabel()}/',
-                        color: tokens.ink3,
-                      ),
-                    if (touch)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 22),
-                        color: tokens.ink3,
-                        tooltip: context.tr('close'),
-                        // Closes, always — it deliberately does not double as
-                        // a clear. A clear has to reset `_results`/`_selected`
-                        // itself: routing it through `_onChanged('')` arms the
-                        // debounce into `_run('')`, and `SearchApi.search`
-                        // omits the `search` param for a blank query, so the
-                        // server answers with an unfiltered page. One glyph
-                        // meaning two things also left no one-tap exit.
-                        onPressed: () => Navigator.of(context).pop(),
-                        // Unstyled, M3 resolves `tapTargetSize` from the theme
-                        // — `padded` on the only platforms this renders on —
-                        // and lays the button out at 48, which the zeroed
-                        // `suffixIconConstraints` cannot prevent (they remove a
-                        // minimum, not a maximum). Pinned per CLAUDE.md trap 5;
-                        // the glyph then sits 4 + (44 − 22) / 2 = 15 px in.
-                        style: IconButton.styleFrom(
-                          fixedSize: const Size(
-                            InSizes.touchTarget,
-                            InSizes.touchTarget,
-                          ),
-                          minimumSize: Size.zero,
-                          maximumSize: Size.infinite,
-                          padding: EdgeInsets.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              suffixIconConstraints: const BoxConstraints(
-                minWidth: 0,
-                minHeight: 0,
-              ),
-              filled: false,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              disabledBorder: InputBorder.none,
-              errorBorder: InputBorder.none,
-              focusedErrorBorder: InputBorder.none,
-              isDense: false,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 20,
-              ),
-            ),
-          ),
-          if (!resting) ...[
-            Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
-            SizedBox(
-              height: 2,
-              child: _loading
-                  ? const LinearProgressIndicator(minHeight: 2)
-                  : null,
-            ),
-            Flexible(
-              child: hasResults
-                  ? ListView.builder(
-                      controller: _scrollController,
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.only(top: 6, bottom: 6),
-                      itemCount: items.length,
-                      itemBuilder: (context, idx) {
-                        final item = items[idx];
-                        if (item is String) {
-                          return Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-                            child: Text(
-                              context.tr(item),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
-                                color: tokens.ink3,
-                              ),
-                            ),
-                          );
-                        }
-                        final i = item as int;
-                        final r = _results[i];
-                        final sel = i == _selected;
-                        final type = entityTypeForSearchGroup(r.group);
-                        final icon = r.group == kDeepLinkSearchGroup
-                            ? Icons.link
-                            : (type != null
-                                      ? registry[type]?.effectiveOutlinedIcon
-                                      : null) ??
-                                  Icons.settings_outlined;
-                        return MouseRegion(
-                          onEnter: (_) {
-                            if (_selected != i) {
-                              setState(() => _selected = i);
-                            }
-                          },
-                          child: Semantics(
-                            button: true,
-                            selected: sel,
-                            label: r.name,
-                            child: Padding(
-                              key: sel ? _selRowKey : null,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  setState(() => _selected = i);
-                                  _select();
-                                },
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: sel
-                                        ? tokens.accentSoft
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(
-                                      InRadii.r2,
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          icon,
-                                          size: 20,
-                                          color: sel
-                                              ? tokens.accentInk
-                                              : tokens.ink2,
-                                        ),
-                                        SizedBox(width: InSpacing.md(context)),
-                                        Expanded(
-                                          child: Text(
-                                            r.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              color: tokens.ink,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 32,
-                      ),
-                      child: Center(
-                        child: Text(
-                          context.tr('no_records_found'),
-                          style: TextStyle(color: tokens.ink3),
-                        ),
-                      ),
-                    ),
-            ),
-            if (!phone) ..._keyboardHints(context),
-          ],
-          if (showRecent) ...[
-            Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
-            Flexible(
-              child: ListView(
-                controller: _scrollController,
-                shrinkWrap: true,
-                padding: const EdgeInsets.only(top: 6, bottom: 6),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-                    child: Text(
-                      context.tr('recently_viewed'),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                        color: tokens.ink3,
-                      ),
-                    ),
-                  ),
-                  for (var i = 0; i < _recents.length; i++)
-                    Builder(
-                      builder: (context) {
-                        final r = _recents[i];
-                        final sel = i == _selected;
-                        final icon =
-                            registry[r.type]?.effectiveOutlinedIcon ??
-                            Icons.history;
-                        return MouseRegion(
-                          onEnter: (_) {
-                            if (_selected != i) {
-                              setState(() => _selected = i);
-                            }
-                          },
-                          child: Semantics(
-                            button: true,
-                            selected: sel,
-                            label: r.label,
-                            child: Padding(
-                              key: sel ? _selRowKey : null,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  setState(() => _selected = i);
-                                  _select();
-                                },
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: sel
-                                        ? tokens.accentSoft
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(
-                                      InRadii.r2,
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          icon,
-                                          size: 20,
-                                          color: sel
-                                              ? tokens.accentInk
-                                              : tokens.ink2,
-                                        ),
-                                        SizedBox(width: InSpacing.md(context)),
-                                        Expanded(
-                                          child: Text(
-                                            r.label,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              color: tokens.ink,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ),
-            if (!phone) ..._keyboardHints(context),
-          ],
+          _buildField(context, phone: false, touch: touch),
+          ...sections,
         ],
       ),
     );

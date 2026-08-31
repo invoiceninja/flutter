@@ -65,8 +65,10 @@ class Breakpoints {
   ///
   /// Wire this in **per screen, deliberately**. It is not applied app-wide;
   /// [isWide] stays the default gate and the callers are a small, deliberate
-  /// set — `DashboardScreen` and `showCommandPalette` (whose dialog geometry
-  /// and keyboard-only hints both key off the device, not the window).
+  /// set — `DashboardScreen` and `showCommandPalette`, which uses it to pick
+  /// its whole presentation (a full-screen page on a phone, the floating
+  /// Spotlight card everywhere else) along with its keyboard-only hints: both
+  /// are questions about the device, not the window.
   static bool isPhone(BuildContext context) =>
       Env.isTouchPrimary && MediaQuery.sizeOf(context).shortestSide < wide;
 

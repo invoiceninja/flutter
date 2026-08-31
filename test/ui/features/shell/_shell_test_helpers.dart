@@ -205,25 +205,34 @@ Future<ShellFixture> buildFixture({
 /// deliberately skips the `GoogleFonts` runtime fetch from `buildInTheme`
 /// (which spins up an HttpClient and leaves a pending timer in headless
 /// tests) — colour tokens are what the sidebar actually reads.
+///
+/// `Provider<Services>` sits **above** `MaterialApp`, mirroring `main.dart`
+/// (where it wraps `MaterialApp.router`). That placement is load-bearing for
+/// anything shown on the root navigator: `showDialog` / `Navigator.push`
+/// default to `useRootNavigator: true`, so a routed widget mounts under
+/// `MaterialApp`'s Navigator — above `home:`. Provided only inside `home:`,
+/// every such route threw `ProviderNotFoundException`, and a caller that owns
+/// its own route (`showCommandPalette` takes only a `BuildContext`) had no way
+/// to re-provide it.
 Widget wrapWithShell(Services services, Widget child) {
   final theme = ThemeData.light().copyWith(
     extensions: <ThemeExtension<dynamic>>[InTheme.light],
     dividerColor: InTheme.light.border,
     scaffoldBackgroundColor: InTheme.light.bg,
   );
-  return MaterialApp(
-    theme: theme,
-    locale: const Locale('en'),
-    supportedLocales: kSupportedLocales,
-    localizationsDelegates: [
-      _SyncLocalizationDelegate(_enStrings(), _pendingStrings()),
-    ],
-    home: Provider<Services>.value(
-      value: services,
+  return Provider<Services>.value(
+    value: services,
+    child: MaterialApp(
+      theme: theme,
+      locale: const Locale('en'),
+      supportedLocales: kSupportedLocales,
+      localizationsDelegates: [
+        _SyncLocalizationDelegate(_enStrings(), _pendingStrings()),
+      ],
       // Mirror the real app: the global toast host sits above the content as
       // a later Stack sibling, so any widget that fires a `Notify.*` renders
       // its toast here too.
-      child: Stack(
+      home: Stack(
         children: [
           Scaffold(body: child),
           Positioned.fill(child: ToastHost(controller: services.toasts)),

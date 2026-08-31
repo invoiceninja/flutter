@@ -1,14 +1,18 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart' show Icons, SizedBox;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/entity_modules.dart' show DisabledEntityDispatcher;
 import 'package:admin/data/models/domain/search_result.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/widgets/key_cap.dart';
 import 'package:admin/ui/features/settings/settings_search_catalog.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
+
+import '_shell_test_helpers.dart';
 
 void main() {
   group('entityTypeForSearchGroup', () {
@@ -219,9 +223,8 @@ void main() {
   // The palette it opens had the same defect on the same device: three
   // keyboard-only affordances rendered unconditionally, including the `Ctrl/`
   // chip visible in the reporter's Android screenshot. Scanned rather than
-  // pumped — the palette body is private and DI-bound, and `flutter test`'s
-  // default 800x600 surface has `shortestSide == 600`, so `isPhone` is false
-  // out of the box and a pump would need an explicit resize.
+  // pumped — these assert the *shape* of the source, which a pumped test can
+  // only observe indirectly.
   group('phone chrome (issue #101)', () {
     // Comments stripped: these scans assert what the widget *does*, and the
     // prose explaining a guard names the very identifiers the guard forbids —
@@ -265,35 +268,34 @@ void main() {
       );
     });
 
-    test('the modifier keycap is gated, and the close button is not', () {
+    test('the card keeps its keycap and its touch-gated close button', () {
+      // `_buildField`'s `phone: false` half is the tablet/desktop card. The
+      // close button is gated on touch rather than on `!isPhone`: a tablet
+      // mounts the sidebar's Search box on `Env.isTouchPrimary` but is not
+      // `isPhone`, so it lands on the card and needs a visible way out.
       final suffix = palette.indexOf('suffixIcon:');
       expect(suffix, isNot(-1));
       final slot = palette.substring(suffix, suffix + 2000);
 
-      expect(
-        slot.contains('if (!phone)'),
-        isTrue,
-        reason: 'the ⌘/ chip is keyboard-only chrome',
-      );
+      expect(slot.contains('KeyCap('), isTrue);
       expect(
         slot.contains('if (touch)'),
         isTrue,
         reason:
-            'the close button is gated on touch, not isPhone: the sidebar '
-            'mounts its Search box on Env.isTouchPrimary, so a tablet can '
-            'reach this dialog and needs a visible way out of it',
+            'the close button is gated on touch, not isPhone: a tablet can '
+            'reach this card and needs a visible way out of it',
       );
-      expect(
-        slot.contains('Icons.close'),
-        isTrue,
-        reason: 'the freed slot carries the close button',
-      );
+      expect(slot.contains('Icons.close'), isTrue);
     });
 
-    test('the close button closes — it never doubles as a clear', () {
+    test('the card close button closes — it never doubles as a clear', () {
+      // Scoped to the FIRST `Icons.close`, which is `_buildField`'s card
+      // branch. The phone page's second one is the clear button, which
+      // legitimately calls `_controller.clear()` — through `_reset`, never
+      // through `_onChanged`.
       final close = palette.indexOf('Icons.close');
       expect(close, isNot(-1));
-      final button = palette.substring(close, close + 1400);
+      final button = palette.substring(close, close + 1200);
 
       expect(
         button.contains('Navigator.of(context).pop()'),
@@ -312,36 +314,237 @@ void main() {
       expect(
         button.contains('_controller.clear()'),
         isFalse,
-        reason: 'this button closes; clearing is the keyboard\'s job',
+        reason: 'this button closes; clearing is the phone page\'s job',
       );
     });
 
-    test('the dialog takes phone geometry', () {
-      // `Dialog` adds the keyboard height to `insetPadding`, so the desktop
-      // `top: 120` + `maxHeight: 520` overflowed a landscape phone by ~50 px
-      // and clipped the search field itself.
-      expect(
-        RegExp(r'Breakpoints\.isPhone\(').allMatches(palette),
-        hasLength(2),
-        reason:
-            'the gate is resolved twice by design — once in the dialog '
-            'builder for geometry, once in the State for its chrome. Matched '
-            'without the argument name: pinning `(ctx)` failed on a rename '
-            'claiming the gate had been removed.',
+    test('clearing bumps the request sequence, not just the debounce', () {
+      // Cancelling `_debounce` does nothing to a request already in flight:
+      // `_run` only discards a late response via `seq != _reqSeq`. Without the
+      // bump, tapping clear mid-flight repopulates the list under an empty
+      // field.
+      final reset = palette.indexOf('void _reset() {');
+      expect(reset, isNot(-1));
+      final body = palette.substring(reset, reset + 400);
+      expect(body.contains('_debounce?.cancel()'), isTrue);
+      expect(body.contains('_reqSeq++'), isTrue);
+    });
+  });
+
+  // Issue #102: the palette floated over the screen behind it through a
+  // 0.18 scrim, and on a phone that screen is an entity list whose own search
+  // box is pinned in the app bar — two search fields ~20 px apart. These are
+  // pumped, not scanned: what changed is the presentation, and the gate needs
+  // a real viewport (`flutter test`'s default 800x600 has shortestSide == 600,
+  // so `isPhone` is false out of the box) plus a real target platform.
+  group('the phone palette is a page, not a card (issue #102)', () {
+    late ShellFixture fixture;
+
+    setUp(() async {
+      fixture = await buildFixture(
+        companies: const [FakeCompany(id: 'c1', name: 'Acme')],
       );
-      final inset = palette.indexOf('insetPadding:');
-      expect(inset, isNot(-1));
-      expect(
-        palette.substring(inset, inset + 200).contains('phone'),
-        isTrue,
-        reason: 'insetPadding must branch on phone',
+    });
+
+    tearDown(() async => fixture.dispose());
+
+    const phone = Size(412, 915);
+    const desktop = Size(1200, 800);
+
+    /// Opens the palette at [size] on [platform] and runs [body] against it.
+    ///
+    /// The platform override is set *before* `pumpWidget` (`wrapWithShell`
+    /// bakes `ThemeData`'s platform in at build time) and cleared in a
+    /// `finally` — `flutter_test` verifies the foundation debug vars at the
+    /// end of the test *body*, before any `addTearDown` callback runs, so a
+    /// tear-down reset is too late and fails every test that sets one.
+    ///
+    /// `tester.view.physicalSize`, not `setSurfaceSize`: `WidgetsApp` inserts
+    /// its own `MediaQuery.fromView` inside `MaterialApp`, so a surface-size
+    /// override never reaches `Breakpoints.isPhone` — the test would silently
+    /// exercise the desktop branch and pass.
+    Future<void> withPalette(
+      WidgetTester tester, {
+      required Size size,
+      required TargetPlatform platform,
+      required Future<void> Function() body,
+    }) async {
+      debugDefaultTargetPlatformOverride = platform;
+      try {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          wrapWithShell(
+            fixture.services,
+            Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showCommandPalette(context),
+                child: const Text('trigger'),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('trigger'));
+        await tester.pumpAndSettle();
+        await body();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    }
+
+    testWidgets('fills the viewport, so nothing shows through behind it', (
+      tester,
+    ) async {
+      await withPalette(
+        tester,
+        size: phone,
+        platform: TargetPlatform.android,
+        body: () async {
+          expect(find.byType(Dialog), findsOneWidget);
+          // Measure the Scaffold, NOT the Dialog: `Dialog` renders an
+          // `AnimatedPadding` wrapping an `Align`, so its own box is the full
+          // screen on *either* branch and asserting on it passes vacuously
+          // against the card (verified by forcing the card branch).
+          final surface = find.descendant(
+            of: find.byType(Dialog),
+            matching: find.byType(Scaffold),
+          );
+          expect(
+            surface,
+            findsOneWidget,
+            reason: 'the phone presentation is a page: Scaffold + AppBar',
+          );
+          expect(
+            tester.getSize(surface),
+            phone,
+            reason:
+                'a card that shrink-wraps to its field leaves the list — and '
+                'the list\'s own pinned search box — legible behind the '
+                'scrim (#102)',
+          );
+        },
       );
-      final maxH = palette.indexOf('maxHeight:');
-      expect(maxH, isNot(-1));
-      expect(
-        palette.substring(maxH, maxH + 120).contains('phone'),
-        isTrue,
-        reason: 'maxHeight must branch on phone',
+    });
+
+    testWidgets('paints under the notch, and the strips are not a barrier', (
+      tester,
+    ) async {
+      // The one assertion that pins `useSafeArea: false`. Left at the default
+      // the surface stops below the status bar and that strip stays bare
+      // `ModalBarrier` — the page showing through exactly where the list's
+      // title sits, and (the barrier being dismissible) a tap beside the
+      // gesture bar closing the page. Physical px; devicePixelRatio is 1.0.
+      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      addTearDown(tester.view.resetPadding);
+
+      await withPalette(
+        tester,
+        size: phone,
+        platform: TargetPlatform.android,
+        body: () async {
+          final surface = find.descendant(
+            of: find.byType(Dialog),
+            matching: find.byType(Scaffold),
+          );
+          expect(
+            tester.getSize(surface),
+            phone,
+            reason: 'the page owns the insets, not a SafeArea above it',
+          );
+          expect(
+            tester.getTopLeft(surface),
+            Offset.zero,
+            reason: 'edge to edge — the AppBar supplies the status-bar pad',
+          );
+        },
+      );
+    });
+
+    testWidgets('carries a back arrow that closes it, and no keycap', (
+      tester,
+    ) async {
+      await withPalette(
+        tester,
+        size: phone,
+        platform: TargetPlatform.android,
+        body: () async {
+          expect(
+            find.byType(KeyCap),
+            findsNothing,
+            reason: 'no keyboard to press ⌘/ on',
+          );
+          expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+          await tester.tap(find.byIcon(Icons.arrow_back));
+          await tester.pumpAndSettle();
+          expect(find.byType(Dialog), findsNothing);
+        },
+      );
+    });
+
+    testWidgets('names what it searches, rather than just "Search"', (
+      tester,
+    ) async {
+      await withPalette(
+        tester,
+        size: phone,
+        platform: TargetPlatform.android,
+        body: () async {
+          // The reporter's users read a lone magnifier as "search *this
+          // page*". `search_placeholder` is a real Transifex key, so this
+          // keeps its translation.
+          expect(find.text('Find invoices, clients, and more'), findsOneWidget);
+        },
+      );
+    });
+
+    testWidgets('clear empties the field without closing the page', (
+      tester,
+    ) async {
+      await withPalette(
+        tester,
+        size: phone,
+        platform: TargetPlatform.android,
+        body: () async {
+          await tester.enterText(find.byType(TextField), 'acme');
+          await tester.pumpAndSettle();
+          expect(find.byIcon(Icons.close), findsOneWidget);
+
+          await tester.tap(find.byIcon(Icons.close));
+          await tester.pumpAndSettle();
+          expect(
+            find.byIcon(Icons.close),
+            findsNothing,
+            reason: 'the clear action only exists while the field has text',
+          );
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).controller?.text,
+            isEmpty,
+          );
+          expect(
+            find.byType(Dialog),
+            findsOneWidget,
+            reason: 'clear clears; it must not double as a close',
+          );
+        },
+      );
+    });
+
+    testWidgets('a desktop window keeps the floating card', (tester) async {
+      await withPalette(
+        tester,
+        size: desktop,
+        platform: TargetPlatform.macOS,
+        body: () async {
+          expect(find.byIcon(Icons.arrow_back), findsNothing);
+          expect(find.byType(KeyCap), findsOneWidget);
+          expect(
+            tester.getSize(find.byType(ClipRRect)).width,
+            lessThanOrEqualTo(680),
+            reason: 'the Spotlight card is unchanged on desktop',
+          );
+        },
       );
     });
   });

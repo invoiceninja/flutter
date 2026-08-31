@@ -116,7 +116,9 @@ class EntityListTopRow<T> extends StatelessWidget {
       isScrollControlled: true,
       builder: (_) => EntityColumnPickerSheet<T>(
         initial: vm.columnIds,
-        allColumns: vm.allColumns,
+        // The decorated registry: custom-field slots under the company's own
+        // labels, unconfigured slots omitted.
+        allColumns: vm.availableColumns,
         onApply: vm.setColumns,
         onReset: vm.resetColumns,
       ),

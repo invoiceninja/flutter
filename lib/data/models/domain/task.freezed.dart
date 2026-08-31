@@ -14,7 +14,10 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Task {
 
- String get id; String get number; String get description; Decimal get rate; String get invoiceId; String get clientId; String get projectId; String get statusId; int get statusOrder; String get assignedUserId; List<TimeEntry> get timeLog; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted; List<Document> get documents;// Attached tag ids (hashed). Names/colors are resolved from the tag
+ String get id; String get number; String get description; Decimal get rate; String get invoiceId; String get clientId; String get projectId; String get statusId; int get statusOrder; String get assignedUserId;/// Creator. Read-only (server-assigned) and payload-backed — the `tasks`
+/// table has no `user_id` column — so the list column that renders it is
+/// display-only.
+ String get userId; List<TimeEntry> get timeLog; String get customValue1; String get customValue2; String get customValue3; String get customValue4; DateTime get updatedAt; DateTime get createdAt; DateTime? get archivedAt; bool get isDeleted; List<Document> get documents;// Attached tag ids (hashed). Names/colors are resolved from the tag
 // cache for rendering; `toApiJson` sends the full set (server `sync()`s).
  List<String> get tagIds;// Set only when this task was converted from a calendar event — carries the
 // event link the server uses to dedupe (one task per user per event).
@@ -29,16 +32,16 @@ $TaskCopyWith<Task> get copyWith => _$TaskCopyWithImpl<Task>(this as Task, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Task&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.description, description) || other.description == description)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.statusOrder, statusOrder) || other.statusOrder == statusOrder)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&const DeepCollectionEquality().equals(other.timeLog, timeLog)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tagIds, tagIds)&&(identical(other.meta, meta) || other.meta == meta)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Task&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.description, description) || other.description == description)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.statusOrder, statusOrder) || other.statusOrder == statusOrder)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&const DeepCollectionEquality().equals(other.timeLog, timeLog)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other.documents, documents)&&const DeepCollectionEquality().equals(other.tagIds, tagIds)&&(identical(other.meta, meta) || other.meta == meta)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,number,description,rate,invoiceId,clientId,projectId,statusId,statusOrder,assignedUserId,const DeepCollectionEquality().hash(timeLog),customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tagIds),meta,isDirty]);
+int get hashCode => Object.hashAll([runtimeType,id,number,description,rate,invoiceId,clientId,projectId,statusId,statusOrder,assignedUserId,userId,const DeepCollectionEquality().hash(timeLog),customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(documents),const DeepCollectionEquality().hash(tagIds),meta,isDirty]);
 
 @override
 String toString() {
-  return 'Task(id: $id, number: $number, description: $description, rate: $rate, invoiceId: $invoiceId, clientId: $clientId, projectId: $projectId, statusId: $statusId, statusOrder: $statusOrder, assignedUserId: $assignedUserId, timeLog: $timeLog, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, meta: $meta, isDirty: $isDirty)';
+  return 'Task(id: $id, number: $number, description: $description, rate: $rate, invoiceId: $invoiceId, clientId: $clientId, projectId: $projectId, statusId: $statusId, statusOrder: $statusOrder, assignedUserId: $assignedUserId, userId: $userId, timeLog: $timeLog, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, meta: $meta, isDirty: $isDirty)';
 }
 
 
@@ -49,7 +52,7 @@ abstract mixin class $TaskCopyWith<$Res>  {
   factory $TaskCopyWith(Task value, $Res Function(Task) _then) = _$TaskCopyWithImpl;
 @useResult
 $Res call({
- String id, String number, String description, Decimal rate, String invoiceId, String clientId, String projectId, String statusId, int statusOrder, String assignedUserId, List<TimeEntry> timeLog, String customValue1, String customValue2, String customValue3, String customValue4, DateTime updatedAt, DateTime createdAt, DateTime? archivedAt, bool isDeleted, List<Document> documents, List<String> tagIds, TaskMeta? meta, bool isDirty
+ String id, String number, String description, Decimal rate, String invoiceId, String clientId, String projectId, String statusId, int statusOrder, String assignedUserId, String userId, List<TimeEntry> timeLog, String customValue1, String customValue2, String customValue3, String customValue4, DateTime updatedAt, DateTime createdAt, DateTime? archivedAt, bool isDeleted, List<Document> documents, List<String> tagIds, TaskMeta? meta, bool isDirty
 });
 
 
@@ -66,7 +69,7 @@ class _$TaskCopyWithImpl<$Res>
 
 /// Create a copy of Task
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? description = null,Object? rate = null,Object? invoiceId = null,Object? clientId = null,Object? projectId = null,Object? statusId = null,Object? statusOrder = null,Object? assignedUserId = null,Object? timeLog = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? documents = null,Object? tagIds = null,Object? meta = freezed,Object? isDirty = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? number = null,Object? description = null,Object? rate = null,Object? invoiceId = null,Object? clientId = null,Object? projectId = null,Object? statusId = null,Object? statusOrder = null,Object? assignedUserId = null,Object? userId = null,Object? timeLog = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? documents = null,Object? tagIds = null,Object? meta = freezed,Object? isDirty = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
@@ -78,6 +81,7 @@ as String,projectId: null == projectId ? _self.projectId : projectId // ignore: 
 as String,statusId: null == statusId ? _self.statusId : statusId // ignore: cast_nullable_to_non_nullable
 as String,statusOrder: null == statusOrder ? _self.statusOrder : statusOrder // ignore: cast_nullable_to_non_nullable
 as int,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
+as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,timeLog: null == timeLog ? _self.timeLog : timeLog // ignore: cast_nullable_to_non_nullable
 as List<TimeEntry>,customValue1: null == customValue1 ? _self.customValue1 : customValue1 // ignore: cast_nullable_to_non_nullable
 as String,customValue2: null == customValue2 ? _self.customValue2 : customValue2 // ignore: cast_nullable_to_non_nullable
@@ -188,10 +192,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String number,  String description,  Decimal rate,  String invoiceId,  String clientId,  String projectId,  String statusId,  int statusOrder,  String assignedUserId,  List<TimeEntry> timeLog,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  DateTime updatedAt,  DateTime createdAt,  DateTime? archivedAt,  bool isDeleted,  List<Document> documents,  List<String> tagIds,  TaskMeta? meta,  bool isDirty)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String number,  String description,  Decimal rate,  String invoiceId,  String clientId,  String projectId,  String statusId,  int statusOrder,  String assignedUserId,  String userId,  List<TimeEntry> timeLog,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  DateTime updatedAt,  DateTime createdAt,  DateTime? archivedAt,  bool isDeleted,  List<Document> documents,  List<String> tagIds,  TaskMeta? meta,  bool isDirty)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Task() when $default != null:
-return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoiceId,_that.clientId,_that.projectId,_that.statusId,_that.statusOrder,_that.assignedUserId,_that.timeLog,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.updatedAt,_that.createdAt,_that.archivedAt,_that.isDeleted,_that.documents,_that.tagIds,_that.meta,_that.isDirty);case _:
+return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoiceId,_that.clientId,_that.projectId,_that.statusId,_that.statusOrder,_that.assignedUserId,_that.userId,_that.timeLog,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.updatedAt,_that.createdAt,_that.archivedAt,_that.isDeleted,_that.documents,_that.tagIds,_that.meta,_that.isDirty);case _:
   return orElse();
 
 }
@@ -209,10 +213,10 @@ return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoice
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String number,  String description,  Decimal rate,  String invoiceId,  String clientId,  String projectId,  String statusId,  int statusOrder,  String assignedUserId,  List<TimeEntry> timeLog,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  DateTime updatedAt,  DateTime createdAt,  DateTime? archivedAt,  bool isDeleted,  List<Document> documents,  List<String> tagIds,  TaskMeta? meta,  bool isDirty)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String number,  String description,  Decimal rate,  String invoiceId,  String clientId,  String projectId,  String statusId,  int statusOrder,  String assignedUserId,  String userId,  List<TimeEntry> timeLog,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  DateTime updatedAt,  DateTime createdAt,  DateTime? archivedAt,  bool isDeleted,  List<Document> documents,  List<String> tagIds,  TaskMeta? meta,  bool isDirty)  $default,) {final _that = this;
 switch (_that) {
 case _Task():
-return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoiceId,_that.clientId,_that.projectId,_that.statusId,_that.statusOrder,_that.assignedUserId,_that.timeLog,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.updatedAt,_that.createdAt,_that.archivedAt,_that.isDeleted,_that.documents,_that.tagIds,_that.meta,_that.isDirty);case _:
+return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoiceId,_that.clientId,_that.projectId,_that.statusId,_that.statusOrder,_that.assignedUserId,_that.userId,_that.timeLog,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.updatedAt,_that.createdAt,_that.archivedAt,_that.isDeleted,_that.documents,_that.tagIds,_that.meta,_that.isDirty);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -229,10 +233,10 @@ return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoice
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String number,  String description,  Decimal rate,  String invoiceId,  String clientId,  String projectId,  String statusId,  int statusOrder,  String assignedUserId,  List<TimeEntry> timeLog,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  DateTime updatedAt,  DateTime createdAt,  DateTime? archivedAt,  bool isDeleted,  List<Document> documents,  List<String> tagIds,  TaskMeta? meta,  bool isDirty)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String number,  String description,  Decimal rate,  String invoiceId,  String clientId,  String projectId,  String statusId,  int statusOrder,  String assignedUserId,  String userId,  List<TimeEntry> timeLog,  String customValue1,  String customValue2,  String customValue3,  String customValue4,  DateTime updatedAt,  DateTime createdAt,  DateTime? archivedAt,  bool isDeleted,  List<Document> documents,  List<String> tagIds,  TaskMeta? meta,  bool isDirty)?  $default,) {final _that = this;
 switch (_that) {
 case _Task() when $default != null:
-return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoiceId,_that.clientId,_that.projectId,_that.statusId,_that.statusOrder,_that.assignedUserId,_that.timeLog,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.updatedAt,_that.createdAt,_that.archivedAt,_that.isDeleted,_that.documents,_that.tagIds,_that.meta,_that.isDirty);case _:
+return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoiceId,_that.clientId,_that.projectId,_that.statusId,_that.statusOrder,_that.assignedUserId,_that.userId,_that.timeLog,_that.customValue1,_that.customValue2,_that.customValue3,_that.customValue4,_that.updatedAt,_that.createdAt,_that.archivedAt,_that.isDeleted,_that.documents,_that.tagIds,_that.meta,_that.isDirty);case _:
   return null;
 
 }
@@ -244,7 +248,7 @@ return $default(_that.id,_that.number,_that.description,_that.rate,_that.invoice
 
 
 class _Task implements Task {
-  const _Task({required this.id, required this.number, required this.description, required this.rate, required this.invoiceId, required this.clientId, required this.projectId, required this.statusId, required this.statusOrder, required this.assignedUserId, required final  List<TimeEntry> timeLog, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted, final  List<Document> documents = const <Document>[], final  List<String> tagIds = const <String>[], this.meta, this.isDirty = false}): _timeLog = timeLog,_documents = documents,_tagIds = tagIds;
+  const _Task({required this.id, required this.number, required this.description, required this.rate, required this.invoiceId, required this.clientId, required this.projectId, required this.statusId, required this.statusOrder, required this.assignedUserId, this.userId = '', required final  List<TimeEntry> timeLog, required this.customValue1, required this.customValue2, required this.customValue3, required this.customValue4, required this.updatedAt, required this.createdAt, required this.archivedAt, required this.isDeleted, final  List<Document> documents = const <Document>[], final  List<String> tagIds = const <String>[], this.meta, this.isDirty = false}): _timeLog = timeLog,_documents = documents,_tagIds = tagIds;
   
 
 @override final  String id;
@@ -257,6 +261,10 @@ class _Task implements Task {
 @override final  String statusId;
 @override final  int statusOrder;
 @override final  String assignedUserId;
+/// Creator. Read-only (server-assigned) and payload-backed — the `tasks`
+/// table has no `user_id` column — so the list column that renders it is
+/// display-only.
+@override@JsonKey() final  String userId;
  final  List<TimeEntry> _timeLog;
 @override List<TimeEntry> get timeLog {
   if (_timeLog is EqualUnmodifiableListView) return _timeLog;
@@ -305,16 +313,16 @@ _$TaskCopyWith<_Task> get copyWith => __$TaskCopyWithImpl<_Task>(this, _$identit
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Task&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.description, description) || other.description == description)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.statusOrder, statusOrder) || other.statusOrder == statusOrder)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&const DeepCollectionEquality().equals(other._timeLog, _timeLog)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tagIds, _tagIds)&&(identical(other.meta, meta) || other.meta == meta)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Task&&(identical(other.id, id) || other.id == id)&&(identical(other.number, number) || other.number == number)&&(identical(other.description, description) || other.description == description)&&(identical(other.rate, rate) || other.rate == rate)&&(identical(other.invoiceId, invoiceId) || other.invoiceId == invoiceId)&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.statusId, statusId) || other.statusId == statusId)&&(identical(other.statusOrder, statusOrder) || other.statusOrder == statusOrder)&&(identical(other.assignedUserId, assignedUserId) || other.assignedUserId == assignedUserId)&&(identical(other.userId, userId) || other.userId == userId)&&const DeepCollectionEquality().equals(other._timeLog, _timeLog)&&(identical(other.customValue1, customValue1) || other.customValue1 == customValue1)&&(identical(other.customValue2, customValue2) || other.customValue2 == customValue2)&&(identical(other.customValue3, customValue3) || other.customValue3 == customValue3)&&(identical(other.customValue4, customValue4) || other.customValue4 == customValue4)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.archivedAt, archivedAt) || other.archivedAt == archivedAt)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&const DeepCollectionEquality().equals(other._documents, _documents)&&const DeepCollectionEquality().equals(other._tagIds, _tagIds)&&(identical(other.meta, meta) || other.meta == meta)&&(identical(other.isDirty, isDirty) || other.isDirty == isDirty));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,id,number,description,rate,invoiceId,clientId,projectId,statusId,statusOrder,assignedUserId,const DeepCollectionEquality().hash(_timeLog),customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),meta,isDirty]);
+int get hashCode => Object.hashAll([runtimeType,id,number,description,rate,invoiceId,clientId,projectId,statusId,statusOrder,assignedUserId,userId,const DeepCollectionEquality().hash(_timeLog),customValue1,customValue2,customValue3,customValue4,updatedAt,createdAt,archivedAt,isDeleted,const DeepCollectionEquality().hash(_documents),const DeepCollectionEquality().hash(_tagIds),meta,isDirty]);
 
 @override
 String toString() {
-  return 'Task(id: $id, number: $number, description: $description, rate: $rate, invoiceId: $invoiceId, clientId: $clientId, projectId: $projectId, statusId: $statusId, statusOrder: $statusOrder, assignedUserId: $assignedUserId, timeLog: $timeLog, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, meta: $meta, isDirty: $isDirty)';
+  return 'Task(id: $id, number: $number, description: $description, rate: $rate, invoiceId: $invoiceId, clientId: $clientId, projectId: $projectId, statusId: $statusId, statusOrder: $statusOrder, assignedUserId: $assignedUserId, userId: $userId, timeLog: $timeLog, customValue1: $customValue1, customValue2: $customValue2, customValue3: $customValue3, customValue4: $customValue4, updatedAt: $updatedAt, createdAt: $createdAt, archivedAt: $archivedAt, isDeleted: $isDeleted, documents: $documents, tagIds: $tagIds, meta: $meta, isDirty: $isDirty)';
 }
 
 
@@ -325,7 +333,7 @@ abstract mixin class _$TaskCopyWith<$Res> implements $TaskCopyWith<$Res> {
   factory _$TaskCopyWith(_Task value, $Res Function(_Task) _then) = __$TaskCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String number, String description, Decimal rate, String invoiceId, String clientId, String projectId, String statusId, int statusOrder, String assignedUserId, List<TimeEntry> timeLog, String customValue1, String customValue2, String customValue3, String customValue4, DateTime updatedAt, DateTime createdAt, DateTime? archivedAt, bool isDeleted, List<Document> documents, List<String> tagIds, TaskMeta? meta, bool isDirty
+ String id, String number, String description, Decimal rate, String invoiceId, String clientId, String projectId, String statusId, int statusOrder, String assignedUserId, String userId, List<TimeEntry> timeLog, String customValue1, String customValue2, String customValue3, String customValue4, DateTime updatedAt, DateTime createdAt, DateTime? archivedAt, bool isDeleted, List<Document> documents, List<String> tagIds, TaskMeta? meta, bool isDirty
 });
 
 
@@ -342,7 +350,7 @@ class __$TaskCopyWithImpl<$Res>
 
 /// Create a copy of Task
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? number = null,Object? description = null,Object? rate = null,Object? invoiceId = null,Object? clientId = null,Object? projectId = null,Object? statusId = null,Object? statusOrder = null,Object? assignedUserId = null,Object? timeLog = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? documents = null,Object? tagIds = null,Object? meta = freezed,Object? isDirty = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? number = null,Object? description = null,Object? rate = null,Object? invoiceId = null,Object? clientId = null,Object? projectId = null,Object? statusId = null,Object? statusOrder = null,Object? assignedUserId = null,Object? userId = null,Object? timeLog = null,Object? customValue1 = null,Object? customValue2 = null,Object? customValue3 = null,Object? customValue4 = null,Object? updatedAt = null,Object? createdAt = null,Object? archivedAt = freezed,Object? isDeleted = null,Object? documents = null,Object? tagIds = null,Object? meta = freezed,Object? isDirty = null,}) {
   return _then(_Task(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,number: null == number ? _self.number : number // ignore: cast_nullable_to_non_nullable
@@ -354,6 +362,7 @@ as String,projectId: null == projectId ? _self.projectId : projectId // ignore: 
 as String,statusId: null == statusId ? _self.statusId : statusId // ignore: cast_nullable_to_non_nullable
 as String,statusOrder: null == statusOrder ? _self.statusOrder : statusOrder // ignore: cast_nullable_to_non_nullable
 as int,assignedUserId: null == assignedUserId ? _self.assignedUserId : assignedUserId // ignore: cast_nullable_to_non_nullable
+as String,userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
 as String,timeLog: null == timeLog ? _self._timeLog : timeLog // ignore: cast_nullable_to_non_nullable
 as List<TimeEntry>,customValue1: null == customValue1 ? _self.customValue1 : customValue1 // ignore: cast_nullable_to_non_nullable
 as String,customValue2: null == customValue2 ? _self.customValue2 : customValue2 // ignore: cast_nullable_to_non_nullable

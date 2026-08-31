@@ -53,6 +53,10 @@ class _ProjectFixture
   bool isDirtyOf(Project item) => item.isDirty;
 
   @override
+  DateTime Function(Project item)? get updatedAtOf =>
+      (item) => item.updatedAt;
+
+  @override
   Future<SaveResult<Project>> create(
     BaseEntityRepository<Project, ProjectApi> repo, {
     required String companyId,

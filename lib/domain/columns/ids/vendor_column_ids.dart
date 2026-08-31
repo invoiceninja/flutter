@@ -39,6 +39,25 @@ class VendorFieldIds {
   static const String archivedAt = 'archived_at';
   // Display-only (tags live in the payload) — never add to sortOptions.
   static const String tagIds = 'vendor_tag_ids';
+
+  /// Column id only — the `vendors` table has no `assigned_user_id` column
+  /// (the value lives in the payload JSON), so it is never a valid *sort*
+  /// field. Same shape as [TaskFieldIds.assignedUserId].
+  static const String assignedUserId = 'assigned_user_id';
+
+  // ── Standard record metadata ────────────────────────────────────────
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
+
+  /// Derived from `archived_at` + `is_deleted`; no column to order by, so the
+  /// column is display-only.
+  static const String entityState = 'entity_state';
+
+  /// Attachment count, read from the `documents` JSON column. Display-only.
+  static const String documents = 'documents';
+
+  /// Creator. Payload-only on every table — display-only.
+  static const String userId = 'user_id';
 }
 
 /// Every id `kAllVendorColumns` declares — the key set of `vendorColumnsById`,
@@ -78,4 +97,9 @@ const Set<String> kVendorColumnIds = <String>{
   VendorFieldIds.updatedAt,
   VendorFieldIds.archivedAt,
   VendorFieldIds.tagIds,
+  VendorFieldIds.assignedUserId,
+  VendorFieldIds.entityState,
+  VendorFieldIds.isDeleted,
+  VendorFieldIds.documents,
+  VendorFieldIds.userId,
 };

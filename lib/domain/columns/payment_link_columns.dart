@@ -1,6 +1,7 @@
 import 'package:admin/data/db/dao/payment_link_dao.dart';
 import 'package:admin/data/models/domain/payment_link.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 
 typedef PaymentLinkColumn = ColumnDefinition<PaymentLink>;
@@ -36,12 +37,10 @@ final List<PaymentLinkColumn> kAllPaymentLinkColumns = <PaymentLinkColumn>[
     cellBuilder: (s, _) => cellText(s.purchasePage),
     valueBuilder: (s) => cellNonZeroString(s.purchasePage),
   ),
-  PaymentLinkColumn(
-    id: PaymentLinkFieldIds.updatedAt,
-    labelKey: 'last_updated',
+  colUpdatedAt<PaymentLink>(
+    PaymentLinkFieldIds.updatedAt,
+    (s) => s.updatedAt,
     width: 110,
-    cellBuilder: (s, ctx) => cellDate(s.updatedAt, ctx),
-    valueBuilder: (s) => s.updatedAt.toIso8601String(),
   ),
 ];
 

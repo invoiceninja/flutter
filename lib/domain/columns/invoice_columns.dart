@@ -2,7 +2,10 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/invoice_dao.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/vendor_name_label.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
@@ -198,44 +201,63 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
         i.privateNotes.isEmpty ? cellEmpty() : cellText(i.privateNotes),
     valueBuilder: (i) => cellNonZeroString(i.privateNotes),
   ),
+  colUpdatedAt<Invoice>(InvoiceFieldIds.updatedAt, (i) => i.updatedAt),
+  // Billing docs can carry a vendor as well as a client. The id, the Drift
+  // column and the DAO sort case all already existed — only the column was
+  // missing. React and the legacy app both offer it.
   InvoiceColumn(
-    id: InvoiceFieldIds.updatedAt,
-    labelKey: 'last_updated',
-    width: 120,
-    cellBuilder: (i, ctx) => cellDate(i.updatedAt, ctx),
-    valueBuilder: (i) => i.updatedAt.toIso8601String(),
+    id: InvoiceFieldIds.vendorId,
+    labelKey: 'vendor',
+    width: 160,
+    cellBuilder: (i, _) => i.vendorId.isEmpty
+        ? cellEmpty()
+        : VendorNameLabel(vendorId: i.vendorId, link: true),
+    valueBuilder: (i) => cellNonZeroString(i.vendorId),
   ),
-  InvoiceColumn(
-    id: InvoiceFieldIds.customValue1,
-    labelKey: 'custom_value1',
-    width: 140,
-    cellBuilder: (i, _) =>
-        i.customValue1.isEmpty ? cellEmpty() : cellText(i.customValue1),
-    valueBuilder: (i) => cellNonZeroString(i.customValue1),
+  // The company's own labels ('Region'), type-aware values and the
+  // hiding of unconfigured slots are applied by
+  // `decorateCustomFieldColumns` — see `custom_field_columns.dart`.
+  ...customFieldColumns<Invoice>(
+    prefix: 'invoice',
+    ids: const [
+      InvoiceFieldIds.customValue1,
+      InvoiceFieldIds.customValue2,
+      InvoiceFieldIds.customValue3,
+      InvoiceFieldIds.customValue4,
+    ],
+    values: [
+      (i) => i.customValue1,
+      (i) => i.customValue2,
+      (i) => i.customValue3,
+      (i) => i.customValue4,
+    ],
   ),
-  InvoiceColumn(
-    id: InvoiceFieldIds.customValue2,
-    labelKey: 'custom_value2',
-    width: 140,
-    cellBuilder: (i, _) =>
-        i.customValue2.isEmpty ? cellEmpty() : cellText(i.customValue2),
-    valueBuilder: (i) => cellNonZeroString(i.customValue2),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colCreatedAt<Invoice>(InvoiceFieldIds.createdAt, (i) => i.createdAt),
+  colArchivedAt<Invoice>(InvoiceFieldIds.archivedAt, (i) => i.archivedAt),
+  colEntityState<Invoice>(
+    InvoiceFieldIds.entityState,
+    archivedAt: (i) => i.archivedAt,
+    isDeleted: (i) => i.isDeleted,
   ),
-  InvoiceColumn(
-    id: InvoiceFieldIds.customValue3,
-    labelKey: 'custom_value3',
-    width: 140,
-    cellBuilder: (i, _) =>
-        i.customValue3.isEmpty ? cellEmpty() : cellText(i.customValue3),
-    valueBuilder: (i) => cellNonZeroString(i.customValue3),
+  colFlag<Invoice>(
+    InvoiceFieldIds.isDeleted,
+    (i) => i.isDeleted,
+    labelKey: 'is_deleted',
   ),
-  InvoiceColumn(
-    id: InvoiceFieldIds.customValue4,
-    labelKey: 'custom_value4',
-    width: 140,
-    cellBuilder: (i, _) =>
-        i.customValue4.isEmpty ? cellEmpty() : cellText(i.customValue4),
-    valueBuilder: (i) => cellNonZeroString(i.customValue4),
+  colDocumentsCount<Invoice>(
+    InvoiceFieldIds.documents,
+    (i) => i.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Invoice>(
+    InvoiceFieldIds.userId,
+    (i) => i.userId,
+    labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
   InvoiceColumn(

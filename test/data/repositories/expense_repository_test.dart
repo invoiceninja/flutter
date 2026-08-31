@@ -53,6 +53,10 @@ class _ExpenseFixture
   bool isDirtyOf(Expense item) => item.isDirty;
 
   @override
+  DateTime Function(Expense item)? get updatedAtOf =>
+      (item) => item.updatedAt;
+
+  @override
   Future<SaveResult<Expense>> create(
     BaseEntityRepository<Expense, ExpenseApi> repo, {
     required String companyId,

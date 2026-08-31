@@ -56,6 +56,10 @@ class _RecurringExpenseFixture
   bool isDirtyOf(RecurringExpense item) => item.isDirty;
 
   @override
+  DateTime Function(RecurringExpense item)? get updatedAtOf =>
+      (item) => item.updatedAt;
+
+  @override
   Future<SaveResult<RecurringExpense>> create(
     BaseEntityRepository<RecurringExpense, RecurringExpenseApi> repo, {
     required String companyId,

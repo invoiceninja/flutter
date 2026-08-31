@@ -201,6 +201,8 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
         return v.customValue3;
       case VendorFieldIds.custom4:
         return v.customValue4;
+      case VendorFieldIds.isDeleted:
+        return v.isDeleted;
     }
     // Contact columns are derived from the `contacts[]` array — their column
     // ids are not payload keys, so the generic fallback below returned NULL

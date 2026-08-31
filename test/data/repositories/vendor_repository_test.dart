@@ -47,6 +47,10 @@ class _VendorFixture
   bool isDirtyOf(Vendor item) => item.isDirty;
 
   @override
+  DateTime Function(Vendor item)? get updatedAtOf =>
+      (item) => item.updatedAt;
+
+  @override
   Future<SaveResult<Vendor>> create(
     BaseEntityRepository<Vendor, VendorApi> repo, {
     required String companyId,

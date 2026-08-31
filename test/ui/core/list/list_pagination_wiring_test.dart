@@ -36,6 +36,25 @@ void main() {
       );
     });
 
+    test(
+      'the VM is bound to the active company in both places it is built',
+      () {
+        // initState + the company-switch rebuild. Custom-field columns render
+        // under the company's configured labels and hide unconfigured slots, so
+        // a list whose VM is never bound silently offers zero of them — nothing
+        // throws, the Columns picker is just quietly short.
+        expect(
+          'bindCompany(_services.company.watchCompany('
+              .allMatches(scaffold)
+              .length,
+          2,
+          reason:
+              'both `initState` and `_onSessionChanged` must bind the company, '
+              'or that list permanently shows no custom-field columns.',
+        );
+      },
+    );
+
     test('the VM is bound to the Sync pass in both places it is built', () {
       // initState + the company-switch rebuild. Missing either leaves that
       // list unable to re-arm after a Sync.

@@ -25,8 +25,16 @@ class EntityColumnPickerSheet<T> extends StatefulWidget {
     super.key,
   });
 
-  /// Current selection in user order. Ids not in [allColumns] are filtered
-  /// out before showing the picker (they still round-trip in storage).
+  /// Current selection in user order. Ids not in [allColumns] are hidden from
+  /// the picker and re-inserted at their original positions on Done, so they
+  /// survive in storage.
+  ///
+  /// Two things land here: a column id written by a newer build, and a
+  /// custom-field slot the company has since un-configured (which
+  /// `decorateCustomFieldColumns` drops). Both must come back if the id becomes
+  /// renderable again — before this, pressing Done while one was hidden erased
+  /// it permanently, so an admin blanking a custom-field label cost every user
+  /// that column for good.
   final List<String> initial;
 
   /// Every column the entity knows how to render. Order here drives the
@@ -46,17 +54,33 @@ class _EntityColumnPickerSheetState<T>
   late List<String> _selected;
   late Map<String, ColumnDefinition<T>> _byId;
 
+  /// `(index in [widget.initial], id)` for every selected id this build can't
+  /// render. Held out of [_selected] so the user never sees an opaque entry,
+  /// and spliced back in by [_applied] so Done doesn't destroy them.
+  late List<(int, String)> _unrenderable;
+
   @override
   void initState() {
     super.initState();
     _byId = {for (final c in widget.allColumns) c.id: c};
-    // Keep only ids the registry recognises so the user doesn't see opaque
-    // entries (unknown ids still round-trip in storage; they're invisible
-    // in the picker).
     _selected = [
       for (final id in widget.initial)
         if (_byId.containsKey(id)) id,
     ];
+    _unrenderable = [
+      for (final (i, id) in widget.initial.indexed)
+        if (!_byId.containsKey(id)) (i, id),
+    ];
+  }
+
+  /// The selection to persist: what the user arranged, with the hidden ids put
+  /// back at their original indices.
+  List<String> get _applied {
+    final out = List<String>.from(_selected);
+    for (final (index, id) in _unrenderable) {
+      out.insert(index.clamp(0, out.length), id);
+    }
+    return List<String>.unmodifiable(out);
   }
 
   List<String> get _available => [
@@ -64,10 +88,8 @@ class _EntityColumnPickerSheetState<T>
       if (!_selected.contains(c.id)) c.id,
   ];
 
-  String _labelFor(BuildContext context, String id) {
-    final key = _byId[id]?.labelKey;
-    return key == null ? id : context.tr(key);
-  }
+  String _labelFor(BuildContext context, String id) =>
+      _byId[id]?.resolveLabel(context) ?? id;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +176,7 @@ class _EntityColumnPickerSheetState<T>
                   PrimaryDialogAction(
                     label: context.tr('done'),
                     onPressed: () {
-                      widget.onApply(List<String>.unmodifiable(_selected));
+                      widget.onApply(_applied);
                       Navigator.of(context).pop();
                     },
                   ),

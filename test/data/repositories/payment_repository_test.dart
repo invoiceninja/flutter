@@ -47,6 +47,10 @@ class _PaymentFixture
   bool isDirtyOf(Payment item) => item.isDirty;
 
   @override
+  DateTime Function(Payment item)? get updatedAtOf =>
+      (item) => item.updatedAt;
+
+  @override
   Future<SaveResult<Payment>> create(
     BaseEntityRepository<Payment, PaymentApi> repo, {
     required String companyId,

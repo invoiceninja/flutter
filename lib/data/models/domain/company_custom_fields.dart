@@ -40,14 +40,36 @@ extension CompanyCustomFields on Company {
     Formatter? formatter,
     required String yes,
     required String no,
-  }) {
-    switch (customFieldType(key)) {
-      case kFieldTypeSwitch:
-        return isSwitchTruthy(value) ? yes : no;
-      case kFieldTypeDate:
-        return value.isEmpty ? '' : (formatter?.date(value) ?? value);
-      default:
-        return value;
-    }
+  }) => displayCustomFieldValue(
+    type: customFieldType(key),
+    value: value,
+    formatter: formatter,
+    yes: yes,
+    no: no,
+  );
+}
+
+/// [CompanyCustomFields.customFieldDisplay] with the slot's render type already
+/// resolved.
+///
+/// Split out for the callers that know the type up front and would otherwise
+/// re-parse the company's `"Label|type"` string on every call — the list-table
+/// custom-field cells resolve it once per company emission and would otherwise
+/// re-parse once per cell per frame. Both paths share this body so a new field
+/// type can't reach one surface and miss the other.
+String displayCustomFieldValue({
+  required String type,
+  required String value,
+  required String yes,
+  required String no,
+  Formatter? formatter,
+}) {
+  switch (type) {
+    case kFieldTypeSwitch:
+      return isSwitchTruthy(value) ? yes : no;
+    case kFieldTypeDate:
+      return value.isEmpty ? '' : (formatter?.date(value) ?? value);
+    default:
+      return value;
   }
 }

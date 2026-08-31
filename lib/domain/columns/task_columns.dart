@@ -6,7 +6,10 @@ import 'package:admin/data/db/dao/task_dao.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
+import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
@@ -141,13 +144,78 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
         : UserNameLabel(userId: t.assignedUserId),
     valueBuilder: (t) => cellNonZeroString(t.assignedUserId),
   ),
+  colUpdatedAt<Task>(TaskFieldIds.updatedAt, (t) => t.updatedAt),
+  // Linked invoice — real `invoice_id` column, so both this and the derived
+  // "is invoiced" flag sort.
   TaskColumn(
-    id: TaskFieldIds.updatedAt,
-    labelKey: 'last_updated',
-    width: 120,
-    cellBuilder: (t, ctx) => cellDate(t.updatedAt, ctx),
-    valueBuilder: (t) => t.updatedAt.toIso8601String(),
+    id: TaskFieldIds.invoiceId,
+    labelKey: 'invoice',
+    width: 160,
+    cellBuilder: (t, _) => t.invoiceId.isEmpty
+        ? cellEmpty()
+        : InvoiceNameLabel(invoiceId: t.invoiceId, link: true),
+    valueBuilder: (t) => cellNonZeroString(t.invoiceId),
   ),
+  colFlag<Task>(
+    TaskFieldIds.isInvoiced,
+    (t) => t.isInvoiced,
+    labelKey: 'is_invoiced',
+  ),
+  colFlag<Task>(
+    TaskFieldIds.isRunning,
+    (t) => t.isRunning,
+    labelKey: 'is_running',
+  ),
+  // The first logged entry's start date. Derived from `time_log` in the
+  // payload — no column to order by, like `duration` above.
+  TaskColumn(
+    id: TaskFieldIds.date,
+    labelKey: 'date',
+    width: 120,
+    sortable: false,
+    cellBuilder: (t, ctx) {
+      final start = _firstStart(t);
+      return start == null ? cellEmpty() : cellDate(start, ctx);
+    },
+    valueBuilder: (t) => _firstStart(t)?.toIso8601String(),
+  ),
+  // The company's own labels ('Region'), type-aware values and the hiding
+  // of unconfigured slots are applied by `decorateCustomFieldColumns`.
+  ...customFieldColumns<Task>(
+    prefix: 'task',
+    ids: const [
+      TaskFieldIds.custom1,
+      TaskFieldIds.custom2,
+      TaskFieldIds.custom3,
+      TaskFieldIds.custom4,
+    ],
+    values: [
+      (t) => t.customValue1,
+      (t) => t.customValue2,
+      (t) => t.customValue3,
+      (t) => t.customValue4,
+    ],
+  ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colCreatedAt<Task>(TaskFieldIds.createdAt, (t) => t.createdAt),
+  colArchivedAt<Task>(TaskFieldIds.archivedAt, (t) => t.archivedAt),
+  colEntityState<Task>(
+    TaskFieldIds.entityState,
+    archivedAt: (t) => t.archivedAt,
+    isDeleted: (t) => t.isDeleted,
+  ),
+  colFlag<Task>(
+    TaskFieldIds.isDeleted,
+    (t) => t.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Task>(TaskFieldIds.documents, (t) => t.documents.length),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Task>(TaskFieldIds.userId, (t) => t.userId, labelKey: 'user'),
   // Default-off (not in kDefaultTaskColumns) — opt-in via the column picker.
   // Header sort orders by the denormalized `tag_names` column.
   TaskColumn(
@@ -166,3 +234,13 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
 final Map<String, TaskColumn> taskColumnsById = {
   for (final c in kAllTaskColumns) c.id: c,
 };
+
+/// The task's own date: when the first logged entry started. `time_log` is
+/// stored oldest-first, and an entry with no start round-trips as null (see
+/// `TimeEntry.parseLog`), so this is the first entry that actually has one.
+DateTime? _firstStart(Task t) {
+  for (final entry in t.timeLog) {
+    if (entry.start != null) return entry.start;
+  }
+  return null;
+}

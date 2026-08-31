@@ -22,6 +22,7 @@ import '_base_entity_repository_contract.dart';
 EntityRepositoryContractFixture<Product, ProductApi> _productFixture() =>
     EntityRepositoryContractFixture.build(
       entityType: 'product',
+      updatedAtOf: (item) => item.updatedAt,
       buildRepo: (db) => ProductRepository(db: db, api: _FakeProductsApi()),
       buildApiModel:
           ({

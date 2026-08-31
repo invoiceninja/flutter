@@ -60,11 +60,23 @@ abstract class EntityRepositoryContractFixture<TDomain, TApi> {
     delete,
     bool createRequiresPassword,
     bool deleteRequiresPassword,
+    DateTime Function(TDomain item)? updatedAtOf,
   }) = _ClosureContractFixture<TDomain, TApi>;
 
   /// Concrete subclasses that need extra plumbing keep the inheritance
   /// constructor.
   EntityRepositoryContractFixture();
+
+  /// The entity's server `updated_at`, when the domain model carries one.
+  ///
+  /// Opt-in: leave it null and the timestamp-survival test is skipped. That
+  /// test is the one guard on a hazard `TagRepository._fromRow` and
+  /// `PaymentLink.toApiJson` each had to solve individually — the local save
+  /// path writes the Drift `payload` from `toApiJson`, which deliberately omits
+  /// server-assigned timestamps, so a `_fromRow` that decodes the payload
+  /// without overlaying them from the (authoritative) columns hands back epoch
+  /// 0 and the list paints 1 Jan 1970.
+  DateTime Function(TDomain item)? get updatedAtOf => null;
 
   /// Matches `EntityType.<x>.name` — used both to scope outbox lookups and to
   /// label the test group output.
@@ -179,7 +191,9 @@ class _ClosureContractFixture<TDomain, TApi>
     delete,
     bool createRequiresPassword = false,
     bool deleteRequiresPassword = true,
+    DateTime Function(TDomain item)? updatedAtOf,
   }) : _buildRepo = buildRepo,
+       _updatedAtOf = updatedAtOf,
        _buildApiModel = buildApiModel,
        _fromApi = fromApi,
        _editCopy = editCopy,
@@ -201,6 +215,11 @@ class _ClosureContractFixture<TDomain, TApi>
 
   @override
   bool get deleteRequiresPassword => _deleteRequiresPassword;
+  final DateTime Function(TDomain item)? _updatedAtOf;
+
+  @override
+  DateTime Function(TDomain item)? get updatedAtOf => _updatedAtOf;
+
   final BaseEntityRepository<TDomain, TApi> Function(AppDatabase) _buildRepo;
   final TApi Function({required String id, String? displayValue, int updatedAt})
   _buildApiModel;
@@ -478,6 +497,32 @@ void runEntityRepositoryContract<TDomain, TApi>(
       );
       final clean = await fixture.watch(repo, companyId: 'co', id: id).first;
       expect(fixture.isDirtyOf(clean as TDomain), isFalse);
+    });
+
+    test('a locally-edited row keeps its server timestamps', () async {
+      // `toApiJson` (rightly) omits `created_at` / `updated_at`, and the same
+      // map is written into the Drift `payload` column on every local save. A
+      // `_fromRow` that decodes the payload without overlaying the timestamps
+      // from the columns therefore reports epoch 0 for any row with a pending
+      // edit — which the list renders as 1 Jan 1970 and the sort orders first.
+      // See `TagRepository._fromRow` and
+      // `payment_link_repository_test.dart`'s "Timestamps must survive".
+      final updatedAtOf = fixture.updatedAtOf;
+      if (updatedAtOf == null) return; // opt-in
+
+      const seconds = 1700000000;
+      final seeded = fixture.fromApi(
+        fixture.buildApiModel(id: 'e_1', displayValue: 'A', updatedAt: seconds),
+      );
+      await fixture.save(repo, companyId: 'co', entity: seeded);
+      final saved = await repo.watch(companyId: 'co', id: 'e_1').first;
+      expect(saved, isNotNull);
+      expect(
+        updatedAtOf(saved as TDomain).millisecondsSinceEpoch ~/ 1000,
+        seconds,
+        reason:
+            'a dirty row must still report the server timestamp, not epoch 0',
+      );
     });
 
     test('applyDeleteResponse marks the local row is_deleted so the list '

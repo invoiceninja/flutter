@@ -2,7 +2,10 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/quote_dao.dart';
 import 'package:admin/data/models/domain/quote.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/widgets/vendor_name_label.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
@@ -134,37 +137,65 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
         q.publicNotes.isEmpty ? cellEmpty() : cellText(q.publicNotes),
     valueBuilder: (q) => cellNonZeroString(q.publicNotes),
   ),
+  colUpdatedAt<Quote>(QuoteFieldIds.updatedAt, (q) => q.updatedAt),
+  // Billing docs can carry a vendor as well as a client. The id, the Drift
+  // column and the DAO sort case all already existed — only the column was
+  // missing. React and the legacy app both offer it.
   QuoteColumn(
-    id: QuoteFieldIds.updatedAt,
-    labelKey: 'last_updated',
-    width: 120,
-    cellBuilder: (q, ctx) => cellDate(q.updatedAt, ctx),
-    valueBuilder: (q) => q.updatedAt.toIso8601String(),
+    id: QuoteFieldIds.vendorId,
+    labelKey: 'vendor',
+    width: 160,
+    cellBuilder: (q, _) => q.vendorId.isEmpty
+        ? cellEmpty()
+        : VendorNameLabel(vendorId: q.vendorId, link: true),
+    valueBuilder: (q) => cellNonZeroString(q.vendorId),
   ),
-  for (var i = 1; i <= 4; i++)
-    QuoteColumn(
-      id: 'custom_value$i',
-      labelKey: 'custom_value$i',
-      width: 140,
-      cellBuilder: (q, _) {
-        final v = switch (i) {
-          1 => q.customValue1,
-          2 => q.customValue2,
-          3 => q.customValue3,
-          _ => q.customValue4,
-        };
-        return v.isEmpty ? cellEmpty() : cellText(v);
-      },
-      valueBuilder: (q) {
-        final v = switch (i) {
-          1 => q.customValue1,
-          2 => q.customValue2,
-          3 => q.customValue3,
-          _ => q.customValue4,
-        };
-        return cellNonZeroString(v);
-      },
-    ),
+  // Payload-only on this table, so display-only — lift the field into
+  // the Drift table first if it ever needs to sort.
+  colNotes<Quote>(
+    QuoteFieldIds.privateNotes,
+    (q) => q.privateNotes,
+    labelKey: 'private_notes',
+  ),
+  // Quotes, credits, purchase orders and recurring invoices all read the
+  // company's `invoice1..4` slots — there are no per-type definitions.
+  // The configured labels, type-aware values and the hiding of
+  // unconfigured slots come from `decorateCustomFieldColumns`.
+  ...customFieldColumns<Quote>(
+    prefix: 'invoice',
+    ids: const [
+      'custom_value1',
+      'custom_value2',
+      'custom_value3',
+      'custom_value4',
+    ],
+    values: [
+      (q) => q.customValue1,
+      (q) => q.customValue2,
+      (q) => q.customValue3,
+      (q) => q.customValue4,
+    ],
+  ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colCreatedAt<Quote>(QuoteFieldIds.createdAt, (q) => q.createdAt),
+  colArchivedAt<Quote>(QuoteFieldIds.archivedAt, (q) => q.archivedAt),
+  colEntityState<Quote>(
+    QuoteFieldIds.entityState,
+    archivedAt: (q) => q.archivedAt,
+    isDeleted: (q) => q.isDeleted,
+  ),
+  colFlag<Quote>(
+    QuoteFieldIds.isDeleted,
+    (q) => q.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Quote>(QuoteFieldIds.documents, (q) => q.documents.length),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Quote>(QuoteFieldIds.userId, (q) => q.userId, labelKey: 'user'),
   // Attached tags. Display-only (not a sortable Drift column).
   QuoteColumn(
     id: QuoteFieldIds.tagIds,

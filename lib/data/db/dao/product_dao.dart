@@ -44,6 +44,25 @@ class ProductFieldIds {
   // Display-only column id (tags live in the payload, not a Drift column) —
   // never add to the list screen's sortOptions.
   static const String tagIds = 'product_tag_ids';
+
+  /// Column id only — this table has no `assigned_user_id` column (the value
+  /// lives in the payload JSON), so it is never a valid *sort* field. Same
+  /// shape as [TaskFieldIds.assignedUserId].
+  static const String assignedUserId = 'assigned_user_id';
+
+  // ── Standard record metadata ────────────────────────────────────────
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
+
+  /// Derived from `archived_at` + `is_deleted`; no column to order by, so the
+  /// column is display-only.
+  static const String entityState = 'entity_state';
+
+  /// Attachment count, read from the `documents` JSON column. Display-only.
+  static const String documents = 'documents';
+
+  /// Creator. Payload-only on every table — display-only.
+  static const String userId = 'user_id';
 }
 
 @DriftAccessor(tables: [Products])
@@ -299,6 +318,8 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
         return CustomExpression<String>(
           "LOWER(COALESCE(json_extract(payload, '\$.$field'), ''))",
         );
+      case ProductFieldIds.isDeleted:
+        return p.isDeleted;
       default:
         // Every registered product column now has a case, so this is
         // unreachable — throw rather than silently ordering by product_key, so

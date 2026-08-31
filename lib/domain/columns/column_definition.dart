@@ -1,7 +1,40 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/l10n/localization.dart';
+
 /// How a column's contents align inside its allocated width.
 enum ColumnAlign { start, end }
+
+/// Marks a column as one of an entity's four company-configurable custom-field
+/// slots.
+///
+/// Carried by the **raw** registry entry; `GenericListViewModel.availableColumns`
+/// runs `decorateCustomFieldColumns` over it to resolve the company's own label,
+/// pick a type-aware renderer, and drop the column entirely when the company
+/// hasn't configured that slot.
+@immutable
+class CustomFieldSlot<T> {
+  const CustomFieldSlot({
+    required this.prefix,
+    required this.index,
+    required this.valueOf,
+  }) : assert(index >= 1 && index <= 4);
+
+  /// Key prefix into `Company.customFields` — deliberately **not** the entity
+  /// name. Quotes, credits, purchase orders and recurring invoices all read the
+  /// `invoice1..4` slots; recurring expenses read `expense1..4`.
+  final String prefix;
+
+  /// 1-4.
+  final int index;
+
+  /// The raw stored `custom_value<index>`. Never formatted — the decorator
+  /// applies `Company.customFieldDisplay` on top for switch / date slots.
+  final String Function(T entity) valueOf;
+
+  /// `client1`, `invoice3`, … — the key into `Company.customFields`.
+  String get companyKey => '$prefix$index';
+}
 
 /// Declarative description of one column in a list view's table layout.
 ///
@@ -23,12 +56,25 @@ class ColumnDefinition<T> {
     this.width,
     this.align = ColumnAlign.start,
     this.sortable = true,
+    this.label,
+    this.customField,
   });
 
   final String id;
   // Localization key for the column header. Resolve via
-  // `context.tr(column.labelKey)` at render time.
+  // `column.resolveLabel(context)` — NOT `context.tr(labelKey)` directly, or a
+  // custom-field column loses the company's own label.
   final String labelKey;
+
+  /// Already-resolved header text that **wins over** [labelKey].
+  ///
+  /// Only `decorateCustomFieldColumns` sets it, to the company's configured
+  /// custom-field name ("Region"). That is user data, so it has no translation
+  /// key and can't go through [labelKey].
+  final String? label;
+
+  /// Non-null on the four raw custom-field slots. See [CustomFieldSlot].
+  final CustomFieldSlot<T>? customField;
   final double? width;
   final ColumnAlign align;
   final Widget Function(T entity, BuildContext context) cellBuilder;
@@ -48,6 +94,32 @@ class ColumnDefinition<T> {
   final bool sortable;
 
   bool get isFlex => width == null;
+
+  /// Header / picker text: the company's own label when this column carries one
+  /// (custom-field slots), otherwise the translated [labelKey].
+  String resolveLabel(BuildContext context) => label ?? context.tr(labelKey);
+
+  /// Copy carrying the company's resolved [label] and, for switch / date slots,
+  /// a company-aware [cellBuilder]. Everything else is carried verbatim.
+  ///
+  /// Deliberately NOT a general `copyWith`: `width == null` is the "flex"
+  /// sentinel ([isFlex]), so a general copyWith would need a *second* sentinel
+  /// to tell "keep 140" from "make me flex" — for exactly one caller that never
+  /// touches width.
+  ColumnDefinition<T> withResolvedLabel({
+    required String label,
+    Widget Function(T entity, BuildContext context)? cellBuilder,
+  }) => ColumnDefinition<T>(
+    id: id,
+    labelKey: labelKey,
+    cellBuilder: cellBuilder ?? this.cellBuilder,
+    valueBuilder: valueBuilder,
+    width: width,
+    align: align,
+    sortable: sortable,
+    label: label,
+    customField: customField,
+  );
 }
 
 /// True when [field] names a known, sortable column.

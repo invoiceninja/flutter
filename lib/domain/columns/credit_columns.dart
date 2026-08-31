@@ -2,7 +2,11 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/credit_dao.dart';
 import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
+import 'package:admin/ui/core/widgets/vendor_name_label.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
@@ -114,37 +118,89 @@ final List<CreditColumn> kAllCreditColumns = <CreditColumn>[
         : DesignNameLabel(designId: c.designId),
     valueBuilder: (c) => cellNonZeroString(c.designId),
   ),
+  colUpdatedAt<Credit>(CreditFieldIds.updatedAt, (c) => c.updatedAt),
+  // Project this document belongs to.
   CreditColumn(
-    id: CreditFieldIds.updatedAt,
-    labelKey: 'last_updated',
-    width: 120,
-    cellBuilder: (c, ctx) => cellDate(c.updatedAt, ctx),
-    valueBuilder: (c) => c.updatedAt.toIso8601String(),
+    id: CreditFieldIds.projectId,
+    labelKey: 'project',
+    width: 160,
+    cellBuilder: (c, _) => c.projectId.isEmpty
+        ? cellEmpty()
+        : ProjectNameLabel(projectId: c.projectId, link: true),
+    valueBuilder: (c) => cellNonZeroString(c.projectId),
   ),
-  for (var i = 1; i <= 4; i++)
-    CreditColumn(
-      id: 'custom_value$i',
-      labelKey: 'custom_value$i',
-      width: 140,
-      cellBuilder: (c, _) {
-        final v = switch (i) {
-          1 => c.customValue1,
-          2 => c.customValue2,
-          3 => c.customValue3,
-          _ => c.customValue4,
-        };
-        return v.isEmpty ? cellEmpty() : cellText(v);
-      },
-      valueBuilder: (c) {
-        final v = switch (i) {
-          1 => c.customValue1,
-          2 => c.customValue2,
-          3 => c.customValue3,
-          _ => c.customValue4,
-        };
-        return cellNonZeroString(v);
-      },
-    ),
+  // Billing docs can carry a vendor as well as a client. The id, the Drift
+  // column and the DAO sort case all already existed — only the column was
+  // missing. React and the legacy app both offer it.
+  CreditColumn(
+    id: CreditFieldIds.vendorId,
+    labelKey: 'vendor',
+    width: 160,
+    cellBuilder: (c, _) => c.vendorId.isEmpty
+        ? cellEmpty()
+        : VendorNameLabel(vendorId: c.vendorId, link: true),
+    valueBuilder: (c) => cellNonZeroString(c.vendorId),
+  ),
+  // Payload-only on this table, so display-only — lift the field into
+  // the Drift table first if it ever needs to sort.
+  colNotes<Credit>(
+    CreditFieldIds.publicNotes,
+    (c) => c.publicNotes,
+    labelKey: 'public_notes',
+  ),
+  colNotes<Credit>(
+    CreditFieldIds.privateNotes,
+    (c) => c.privateNotes,
+    labelKey: 'private_notes',
+  ),
+  // Quotes, credits, purchase orders and recurring invoices all read the
+  // company's `invoice1..4` slots — there are no per-type definitions.
+  // The configured labels, type-aware values and the hiding of
+  // unconfigured slots come from `decorateCustomFieldColumns`.
+  ...customFieldColumns<Credit>(
+    prefix: 'invoice',
+    ids: const [
+      'custom_value1',
+      'custom_value2',
+      'custom_value3',
+      'custom_value4',
+    ],
+    values: [
+      (c) => c.customValue1,
+      (c) => c.customValue2,
+      (c) => c.customValue3,
+      (c) => c.customValue4,
+    ],
+  ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colUserName<Credit>(
+    CreditFieldIds.assignedUserId,
+    (c) => c.assignedUserId,
+    labelKey: 'assigned_user',
+    sortable: true,
+  ),
+  colCreatedAt<Credit>(CreditFieldIds.createdAt, (c) => c.createdAt),
+  colArchivedAt<Credit>(CreditFieldIds.archivedAt, (c) => c.archivedAt),
+  colEntityState<Credit>(
+    CreditFieldIds.entityState,
+    archivedAt: (c) => c.archivedAt,
+    isDeleted: (c) => c.isDeleted,
+  ),
+  colFlag<Credit>(
+    CreditFieldIds.isDeleted,
+    (c) => c.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Credit>(
+    CreditFieldIds.documents,
+    (c) => c.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Credit>(CreditFieldIds.userId, (c) => c.userId, labelKey: 'user'),
   // Attached tags. Display-only (not a sortable Drift column).
   CreditColumn(
     id: CreditFieldIds.tagIds,

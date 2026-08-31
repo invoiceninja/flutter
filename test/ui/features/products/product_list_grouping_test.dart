@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/tag.dart';
 import 'package:admin/data/repositories/product_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
@@ -36,6 +37,26 @@ Tag _tag(String id, String name) => Tag(
   archivedAt: null,
   isDeleted: false,
 );
+
+/// Counts page-query rebuilds, so a test can assert that a benign company
+/// emission does NOT tear the Drift watch down and build it again.
+class _CountingVm extends ProductListViewModel {
+  _CountingVm({
+    required super.repo,
+    required super.companyId,
+    required super.navStateDao,
+    required super.userSettings,
+    super.persistDebounce,
+  });
+
+  int watchPageCalls = 0;
+
+  @override
+  Stream<List<Product>> watchPage() {
+    watchPageCalls++;
+    return super.watchPage();
+  }
+}
 
 void main() {
   late AppDatabase db;
@@ -101,7 +122,6 @@ void main() {
     final vm = ProductListViewModel(
       repo: repo,
       companyId: co,
-      companyStream: companies.stream,
       // A factory: the VM folds this into its page stream and rebuilds it on
       // every re-subscribe, so it must hand back a fresh stream each call.
       tagStream: withTagStream
@@ -113,6 +133,8 @@ void main() {
       userSettings: UserSettingsRepository(db: db),
       persistDebounce: const Duration(milliseconds: 1),
     );
+    // The list scaffold binds this for real screens; a bare VM binds it itself.
+    vm.bindCompany(companies.stream);
     companies.add(company);
     return vm;
   }
@@ -458,5 +480,43 @@ void main() {
     expect(vm.groupLabelAt(1), 'Bravo');
     expect(notified, greaterThan(0), reason: 'the header has to repaint');
     vm.dispose();
+  });
+
+  test('a company re-emission after setGroupField does NOT resubscribe', () async {
+    // `onCompanyChanged` re-points the query when the company's arrival changes
+    // whether the grouping resolves. It compares against the grouping the
+    // CURRENT query was built with — recorded in `watchPage`. Recording it at
+    // the end of the hook instead goes stale the moment grouping changes by any
+    // other route, and the next company row write (a sync pass, a settings
+    // save, an `applyUpdateResponse`) then tears down and rebuilds an
+    // already-correct watch mid-scroll.
+    await product('p1', custom1: 'Hardware');
+    companies = StreamController<Company?>.broadcast();
+    final vm = _CountingVm(
+      repo: repo,
+      companyId: co,
+      navStateDao: db.navStateDao,
+      userSettings: UserSettingsRepository(db: db),
+      persistDebounce: const Duration(milliseconds: 1),
+    );
+    addTearDown(vm.dispose);
+    vm.bindCompany(companies.stream);
+    companies.add(companyWithCategory());
+    await settle();
+
+    await vm.setGroupField(ProductFieldIds.custom1);
+    await settle();
+    expect(vm.effectiveGroupField, ProductFieldIds.custom1, reason: 'grouped');
+    final afterGrouping = vm.watchPageCalls;
+
+    // An unrelated write to the same company row.
+    companies.add(companyWithCategory());
+    await settle();
+
+    expect(
+      vm.watchPageCalls,
+      afterGrouping,
+      reason: 'the grouping answer did not change, so nothing should re-point',
+    );
   });
 }

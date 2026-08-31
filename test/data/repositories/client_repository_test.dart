@@ -103,6 +103,10 @@ class _ClientFixture
   bool isDirtyOf(Client item) => item.isDirty;
 
   @override
+  DateTime Function(Client item)? get updatedAtOf =>
+      (item) => item.updatedAt;
+
+  @override
   Future<SaveResult<Client>> create(
     BaseEntityRepository<Client, ClientApi> repo, {
     required String companyId,

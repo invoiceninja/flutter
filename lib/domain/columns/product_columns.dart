@@ -6,7 +6,9 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/product_dao.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/product_tax_categories.dart';
 import 'package:admin/l10n/localization.dart';
@@ -78,12 +80,10 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     cellBuilder: (p, _) => cellText(p.quantity.toString()),
     valueBuilder: (p) => p.quantity.toString(),
   ),
-  ProductColumn(
-    id: ProductFieldIds.updatedAt,
-    labelKey: 'last_updated',
+  colUpdatedAt<Product>(
+    ProductFieldIds.updatedAt,
+    (p) => p.updatedAt,
     width: 110,
-    cellBuilder: (p, ctx) => cellDate(p.updatedAt, ctx),
-    valueBuilder: (p) => p.updatedAt.toIso8601String(),
   ),
   // --- Optional columns (opt-in via the column picker) ---
   ProductColumn(
@@ -181,33 +181,23 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
         cellMoney(p.inStockQuantity * p.price, context),
     valueBuilder: (p) => cellMoneyValue(p.inStockQuantity * p.price),
   ),
-  ProductColumn(
-    id: ProductFieldIds.custom1,
-    labelKey: 'custom1',
-    width: 140,
-    cellBuilder: (p, _) => cellText(p.customValue1),
-    valueBuilder: (p) => cellNonZeroString(p.customValue1),
-  ),
-  ProductColumn(
-    id: ProductFieldIds.custom2,
-    labelKey: 'custom2',
-    width: 140,
-    cellBuilder: (p, _) => cellText(p.customValue2),
-    valueBuilder: (p) => cellNonZeroString(p.customValue2),
-  ),
-  ProductColumn(
-    id: ProductFieldIds.custom3,
-    labelKey: 'custom3',
-    width: 140,
-    cellBuilder: (p, _) => cellText(p.customValue3),
-    valueBuilder: (p) => cellNonZeroString(p.customValue3),
-  ),
-  ProductColumn(
-    id: ProductFieldIds.custom4,
-    labelKey: 'custom4',
-    width: 140,
-    cellBuilder: (p, _) => cellText(p.customValue4),
-    valueBuilder: (p) => cellNonZeroString(p.customValue4),
+  // The company's own labels ('Region'), type-aware values and the
+  // hiding of unconfigured slots are applied by
+  // `decorateCustomFieldColumns` — see `custom_field_columns.dart`.
+  ...customFieldColumns<Product>(
+    prefix: 'product',
+    ids: const [
+      ProductFieldIds.custom1,
+      ProductFieldIds.custom2,
+      ProductFieldIds.custom3,
+      ProductFieldIds.custom4,
+    ],
+    values: [
+      (p) => p.customValue1,
+      (p) => p.customValue2,
+      (p) => p.customValue3,
+      (p) => p.customValue4,
+    ],
   ),
   ProductColumn(
     id: ProductFieldIds.createdAt,
@@ -223,6 +213,37 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
     cellBuilder: (p, ctx) =>
         p.archivedAt == null ? cellEmpty() : cellDate(p.archivedAt!, ctx),
     valueBuilder: (p) => p.archivedAt?.toIso8601String(),
+  ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colUserName<Product>(
+    ProductFieldIds.assignedUserId,
+    (p) => p.assignedUserId,
+    labelKey: 'assigned_user',
+    sortable: false,
+  ),
+  colEntityState<Product>(
+    ProductFieldIds.entityState,
+    archivedAt: (p) => p.archivedAt,
+    isDeleted: (p) => p.isDeleted,
+  ),
+  colFlag<Product>(
+    ProductFieldIds.isDeleted,
+    (p) => p.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Product>(
+    ProductFieldIds.documents,
+    (p) => p.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Product>(
+    ProductFieldIds.userId,
+    (p) => p.userId,
+    labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column) — tag ids live
   // only in the payload; the tag cache resolves names/colors for rendering.

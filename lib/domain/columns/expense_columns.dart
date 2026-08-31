@@ -2,7 +2,9 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/expense_dao.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/category_name_label.dart';
@@ -168,44 +170,57 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
         e.privateNotes.isEmpty ? cellEmpty() : cellText(e.privateNotes),
     valueBuilder: (e) => cellNonZeroString(e.privateNotes),
   ),
-  ExpenseColumn(
-    id: ExpenseFieldIds.updatedAt,
-    labelKey: 'last_updated',
-    width: 120,
-    cellBuilder: (e, ctx) => cellDate(e.updatedAt, ctx),
-    valueBuilder: (e) => e.updatedAt.toIso8601String(),
+  colUpdatedAt<Expense>(ExpenseFieldIds.updatedAt, (e) => e.updatedAt),
+  // The company's own labels ('Region'), type-aware values and the
+  // hiding of unconfigured slots are applied by
+  // `decorateCustomFieldColumns` — see `custom_field_columns.dart`.
+  ...customFieldColumns<Expense>(
+    prefix: 'expense',
+    ids: const [
+      ExpenseFieldIds.customValue1,
+      ExpenseFieldIds.customValue2,
+      ExpenseFieldIds.customValue3,
+      ExpenseFieldIds.customValue4,
+    ],
+    values: [
+      (e) => e.customValue1,
+      (e) => e.customValue2,
+      (e) => e.customValue3,
+      (e) => e.customValue4,
+    ],
   ),
-  ExpenseColumn(
-    id: ExpenseFieldIds.customValue1,
-    labelKey: 'custom_value1',
-    width: 140,
-    cellBuilder: (e, _) =>
-        e.customValue1.isEmpty ? cellEmpty() : cellText(e.customValue1),
-    valueBuilder: (e) => cellNonZeroString(e.customValue1),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colUserName<Expense>(
+    ExpenseFieldIds.assignedUserId,
+    (e) => e.assignedUserId,
+    labelKey: 'assigned_user',
+    sortable: false,
   ),
-  ExpenseColumn(
-    id: ExpenseFieldIds.customValue2,
-    labelKey: 'custom_value2',
-    width: 140,
-    cellBuilder: (e, _) =>
-        e.customValue2.isEmpty ? cellEmpty() : cellText(e.customValue2),
-    valueBuilder: (e) => cellNonZeroString(e.customValue2),
+  colCreatedAt<Expense>(ExpenseFieldIds.createdAt, (e) => e.createdAt),
+  colArchivedAt<Expense>(ExpenseFieldIds.archivedAt, (e) => e.archivedAt),
+  colEntityState<Expense>(
+    ExpenseFieldIds.entityState,
+    archivedAt: (e) => e.archivedAt,
+    isDeleted: (e) => e.isDeleted,
   ),
-  ExpenseColumn(
-    id: ExpenseFieldIds.customValue3,
-    labelKey: 'custom_value3',
-    width: 140,
-    cellBuilder: (e, _) =>
-        e.customValue3.isEmpty ? cellEmpty() : cellText(e.customValue3),
-    valueBuilder: (e) => cellNonZeroString(e.customValue3),
+  colFlag<Expense>(
+    ExpenseFieldIds.isDeleted,
+    (e) => e.isDeleted,
+    labelKey: 'is_deleted',
   ),
-  ExpenseColumn(
-    id: ExpenseFieldIds.customValue4,
-    labelKey: 'custom_value4',
-    width: 140,
-    cellBuilder: (e, _) =>
-        e.customValue4.isEmpty ? cellEmpty() : cellText(e.customValue4),
-    valueBuilder: (e) => cellNonZeroString(e.customValue4),
+  colDocumentsCount<Expense>(
+    ExpenseFieldIds.documents,
+    (e) => e.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Expense>(
+    ExpenseFieldIds.userId,
+    (e) => e.userId,
+    labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
   ExpenseColumn(

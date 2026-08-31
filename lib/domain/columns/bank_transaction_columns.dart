@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/data/models/domain/bank_transaction.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/ids/bank_transaction_column_ids.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
@@ -48,139 +49,156 @@ Widget _linkedNumbers(List<String> ids, Widget Function(String id) label) {
   );
 }
 
-final List<BankTransactionColumn> kAllBankTransactionColumns =
-    <BankTransactionColumn>[
-      // Wide-mode column renders the colored TransactionStatusPill (dot +
-      // localized label) so the visual vocabulary matches the narrow row
-      // tile and the detail-screen header. `valueBuilder` still exposes the
-      // raw `status_id` for clipboard copy + sort.
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.status,
-        labelKey: 'status',
-        width: 130,
-        cellBuilder: (t, _) => TransactionStatusPill(statusId: t.statusId),
-        valueBuilder: (t) => t.statusId,
-      ),
-      // Deposits column — only populated for CREDIT rows (per the React UX).
-      // Sort by `amount`, not `deposit` (the column id is display-only).
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.deposit,
-        // Display-only split of `amount` by `base_type` (see the note at the
-        // top of this file) — there is no column to order by.
-        sortable: false,
-        labelKey: 'deposit',
-        width: 130,
-        align: ColumnAlign.end,
-        cellBuilder: (t, context) => t.isDeposit
-            ? cellMoney(t.amount, context, currencyId: t.currencyId)
-            : cellEmpty(),
-        valueBuilder: (t) => t.isDeposit ? cellMoneyValue(t.amount) : null,
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.withdrawal,
-        // Display-only split of `amount` by `base_type` (see the note at the
-        // top of this file) — there is no column to order by.
-        sortable: false,
-        labelKey: 'withdrawal',
-        width: 130,
-        align: ColumnAlign.end,
-        cellBuilder: (t, context) => t.isWithdrawal
-            ? cellMoney(t.amount, context, currencyId: t.currencyId)
-            : cellEmpty(),
-        valueBuilder: (t) => t.isWithdrawal ? cellMoneyValue(t.amount) : null,
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.amount,
-        labelKey: 'amount',
-        width: 130,
-        align: ColumnAlign.end,
-        cellBuilder: (t, context) =>
-            cellMoney(t.amount, context, currencyId: t.currencyId),
-        valueBuilder: (t) => cellMoneyValue(t.amount),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.date,
-        labelKey: 'date',
-        width: 120,
-        cellBuilder: (t, ctx) =>
-            t.date == null ? cellEmpty() : cellDate(t.date!.toDateTime(), ctx),
-        valueBuilder: (t) => t.date?.toIso(),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.participantName,
-        labelKey: 'participant_name',
-        width: 200,
-        cellBuilder: (t, _) => t.participantName.isEmpty
-            ? cellEmpty()
-            : cellText(t.participantName),
-        valueBuilder: (t) => cellNonZeroString(t.participantName),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.description,
-        labelKey: 'description',
-        width: 240,
-        cellBuilder: (t, _) =>
-            t.description.isEmpty ? cellEmpty() : cellText(t.description),
-        valueBuilder: (t) => cellNonZeroString(t.description),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.bankAccountId,
-        labelKey: 'bank_account',
-        width: 180,
-        cellBuilder: (t, _) => t.bankAccountId.isEmpty
-            ? cellEmpty()
-            : BankAccountNameLabel(bankAccountId: t.bankAccountId, link: true),
-        valueBuilder: (t) => cellNonZeroString(t.bankAccountId),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.invoices,
-        labelKey: 'invoices',
-        width: 160,
-        // Resolve the hashed invoice ids to their #numbers (never render raw
-        // ids); a transaction usually matches one invoice, so show the first
-        // resolved number and a "+N" count for the rare multi-match.
-        cellBuilder: (t, _) => _linkedNumbers(
-          t.linkedInvoiceIds,
-          (id) => InvoiceNameLabel(invoiceId: id, link: true),
-        ),
-        valueBuilder: (t) => cellNonZeroString(t.invoiceIds),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.expenses,
-        labelKey: 'expense',
-        width: 160,
-        cellBuilder: (t, _) => _linkedNumbers(
-          t.linkedExpenseIds,
-          (id) => ExpenseNameLabel(expenseId: id, link: true),
-        ),
-        valueBuilder: (t) => cellNonZeroString(t.expenseId),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.currencyId,
-        labelKey: 'currency',
-        width: 100,
-        cellBuilder: (t, ctx) => cellCurrency(ctx, t.currencyId),
-        valueBuilder: (t) => cellNonZeroString(t.currencyId),
-      ),
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.updatedAt,
-        labelKey: 'last_updated',
-        width: 120,
-        cellBuilder: (t, ctx) => cellDate(t.updatedAt, ctx),
-        valueBuilder: (t) => t.updatedAt.toIso8601String(),
-      ),
-      // Attached tags. Display-only (not a sortable Drift column).
-      BankTransactionColumn(
-        id: BankTransactionColumnIds.tagIds,
-        labelKey: 'tags',
-        sortable: false,
-        width: 200,
-        cellBuilder: (t, _) => t.tagIds.isEmpty
-            ? cellEmpty()
-            : EntityTagsView(entityType: 'bank_transaction', tagIds: t.tagIds),
-        valueBuilder: (t) => '',
-      ),
-    ];
+final kAllBankTransactionColumns = <BankTransactionColumn>[
+  // Wide-mode column renders the colored TransactionStatusPill (dot +
+  // localized label) so the visual vocabulary matches the narrow row
+  // tile and the detail-screen header. `valueBuilder` still exposes the
+  // raw `status_id` for clipboard copy + sort.
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.status,
+    labelKey: 'status',
+    width: 130,
+    cellBuilder: (t, _) => TransactionStatusPill(statusId: t.statusId),
+    valueBuilder: (t) => t.statusId,
+  ),
+  // Deposits column — only populated for CREDIT rows (per the React UX).
+  // Sort by `amount`, not `deposit` (the column id is display-only).
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.deposit,
+    // Display-only split of `amount` by `base_type` (see the note at the
+    // top of this file) — there is no column to order by.
+    sortable: false,
+    labelKey: 'deposit',
+    width: 130,
+    align: ColumnAlign.end,
+    cellBuilder: (t, context) => t.isDeposit
+        ? cellMoney(t.amount, context, currencyId: t.currencyId)
+        : cellEmpty(),
+    valueBuilder: (t) => t.isDeposit ? cellMoneyValue(t.amount) : null,
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.withdrawal,
+    // Display-only split of `amount` by `base_type` (see the note at the
+    // top of this file) — there is no column to order by.
+    sortable: false,
+    labelKey: 'withdrawal',
+    width: 130,
+    align: ColumnAlign.end,
+    cellBuilder: (t, context) => t.isWithdrawal
+        ? cellMoney(t.amount, context, currencyId: t.currencyId)
+        : cellEmpty(),
+    valueBuilder: (t) => t.isWithdrawal ? cellMoneyValue(t.amount) : null,
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.amount,
+    labelKey: 'amount',
+    width: 130,
+    align: ColumnAlign.end,
+    cellBuilder: (t, context) =>
+        cellMoney(t.amount, context, currencyId: t.currencyId),
+    valueBuilder: (t) => cellMoneyValue(t.amount),
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.date,
+    labelKey: 'date',
+    width: 120,
+    cellBuilder: (t, ctx) =>
+        t.date == null ? cellEmpty() : cellDate(t.date!.toDateTime(), ctx),
+    valueBuilder: (t) => t.date?.toIso(),
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.participantName,
+    labelKey: 'participant_name',
+    width: 200,
+    cellBuilder: (t, _) =>
+        t.participantName.isEmpty ? cellEmpty() : cellText(t.participantName),
+    valueBuilder: (t) => cellNonZeroString(t.participantName),
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.description,
+    labelKey: 'description',
+    width: 240,
+    cellBuilder: (t, _) =>
+        t.description.isEmpty ? cellEmpty() : cellText(t.description),
+    valueBuilder: (t) => cellNonZeroString(t.description),
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.bankAccountId,
+    labelKey: 'bank_account',
+    width: 180,
+    cellBuilder: (t, _) => t.bankAccountId.isEmpty
+        ? cellEmpty()
+        : BankAccountNameLabel(bankAccountId: t.bankAccountId, link: true),
+    valueBuilder: (t) => cellNonZeroString(t.bankAccountId),
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.invoices,
+    labelKey: 'invoices',
+    width: 160,
+    // Resolve the hashed invoice ids to their #numbers (never render raw
+    // ids); a transaction usually matches one invoice, so show the first
+    // resolved number and a "+N" count for the rare multi-match.
+    cellBuilder: (t, _) => _linkedNumbers(
+      t.linkedInvoiceIds,
+      (id) => InvoiceNameLabel(invoiceId: id, link: true),
+    ),
+    valueBuilder: (t) => cellNonZeroString(t.invoiceIds),
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.expenses,
+    labelKey: 'expense',
+    width: 160,
+    cellBuilder: (t, _) => _linkedNumbers(
+      t.linkedExpenseIds,
+      (id) => ExpenseNameLabel(expenseId: id, link: true),
+    ),
+    valueBuilder: (t) => cellNonZeroString(t.expenseId),
+  ),
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.currencyId,
+    labelKey: 'currency',
+    width: 100,
+    cellBuilder: (t, ctx) => cellCurrency(ctx, t.currencyId),
+    valueBuilder: (t) => cellNonZeroString(t.currencyId),
+  ),
+  colUpdatedAt<BankTransaction>(
+    BankTransactionColumnIds.updatedAt,
+    (t) => t.updatedAt,
+  ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colCreatedAt<BankTransaction>(
+    BankTransactionColumnIds.createdAt,
+    (b) => b.createdAt,
+  ),
+  colArchivedAt<BankTransaction>(
+    BankTransactionColumnIds.archivedAt,
+    (b) => b.archivedAt,
+  ),
+  colEntityState<BankTransaction>(
+    BankTransactionColumnIds.entityState,
+    archivedAt: (b) => b.archivedAt,
+    isDeleted: (b) => b.isDeleted,
+  ),
+  colFlag<BankTransaction>(
+    BankTransactionColumnIds.isDeleted,
+    (b) => b.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  // Attached tags. Display-only (not a sortable Drift column).
+  BankTransactionColumn(
+    id: BankTransactionColumnIds.tagIds,
+    labelKey: 'tags',
+    sortable: false,
+    width: 200,
+    cellBuilder: (t, _) => t.tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: 'bank_transaction', tagIds: t.tagIds),
+    valueBuilder: (t) => '',
+  ),
+];
 
 final Map<String, BankTransactionColumn> bankTransactionColumnsById = {
   for (final c in kAllBankTransactionColumns) c.id: c,

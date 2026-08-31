@@ -239,6 +239,7 @@ the honest default.
 | Quote — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Quote — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Quote — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Quote — list columns for private notes + vendor | ✅ | ✅ | ✅ | | |
 | Quote — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
@@ -268,6 +269,7 @@ the honest default.
 | Credit — archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
 | Credit — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Credit — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Credit — list columns for public / private notes, project, vendor, assigned user | ✅ | ✅ | ✅ | | |
 | Credit — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
@@ -298,6 +300,7 @@ the honest default.
 | Recurring invoice — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — import | ✅ | 🟡 | ✅ | ✅ | |
 | Recurring invoice — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Recurring invoice — list columns for public / private notes, project, vendor, assigned user | ✅ | ✅ | ✅ | | |
 | Recurring invoice — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
@@ -320,6 +323,7 @@ the honest default.
 | Payment — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Payment — import (CSV) | ✅ | 🟡 | ✅ | ✅ | |
 | Payment — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Payment — list column for private notes | ✅ | ✅ | ✅ | | |
 | Payment — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
@@ -345,6 +349,7 @@ the honest default.
 | Project — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Project — activities | ✅ | ✅ | ✅ | ✅ | |
 | Project — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Project — list columns for every editable field (public / private notes, custom fields, colour, budgeted amount) | 🟡 | 🟡 | ✅ | | |
 | Project — tags (attach via picker, list `tag_ids` filter + column, local sort) | ✅ | — | ✅ | | |
 | Project — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Project — bulk actions | ✅ | ✅ | ✅ | ✅ | |
@@ -388,6 +393,7 @@ the honest default.
 | Task — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Task — activities | ✅ | ✅ | ✅ | ✅ | |
 | Task — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Task — list columns for custom fields, invoice, is-invoiced, is-running, date | ✅ | ✅ | ✅ | | |
 | Task — tags (attach via picker, list `tag_ids` filter + column, local sort) | ✅ | — | ✅ | | |
 | Task — archive / restore / delete / purge | ✅ | ✅ | ✅ | ✅ | |
 | Task — bulk actions | ✅ | ✅ | ✅ | ✅ | |
@@ -450,6 +456,7 @@ the honest default.
 | Purchase order — bulk actions | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — import | ✅ | 🟡 | ✅ | ✅ | |
 | Purchase order — custom fields | ✅ | ✅ | ✅ | ✅ | |
+| Purchase order — list columns for public / private notes, project, assigned user | ✅ | ✅ | ✅ | | |
 | Purchase order — tags (attach via picker, list `tag_ids` filter + column, detail chips) | ✅ | — | ✅ | | |
 
 ---
@@ -1523,6 +1530,8 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Responsive layout — tablet | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — desktop | ✅ | ✅ | ✅ | ✅ | |
 | Column picker on lists | ✅ | ✅ | ✅ | ✅ | |
+| List columns — custom fields under the company's configured label, values formatted by type (date / Yes-No), unconfigured slots hidden | ✅ | 🟡 | ✅ | | |
+| List columns — record metadata on every entity (state, created, archived, deleted, documents, created-by, assigned user) | ✅ | ✅ | ✅ | | |
 | List filter — checkbox multi-select for status / state | — | — | ✅ | ✅ | |
 | List status tabs — one-tap strip above 14 lists (All + per-status live counts), device-toggleable | ❌ | ❌ | ✅ | | |
 | List filter — client country/industry/size/classification/vat/group/assigned/custom + number/id_number (exact) | ✅ | ✅ | ✅ | ✅ | v5 filter PR (number/id_number exact-match) + denormalized cols |

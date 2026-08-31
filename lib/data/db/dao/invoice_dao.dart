@@ -45,6 +45,23 @@ class InvoiceFieldIds {
   static const String customValue4 = 'custom_value4';
   // Display-only (tags live in the payload) — never add to sortOptions.
   static const String tagIds = 'invoice_tag_ids';
+
+  // ── Standard record metadata ────────────────────────────────────────
+  /// Real Drift column (`EntityTimestampColumns`) — sortable.
+  static const String archivedAt = 'archived_at';
+
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
+
+  /// Derived from `archived_at` + `is_deleted`; no column to order by, so the
+  /// column is display-only.
+  static const String entityState = 'entity_state';
+
+  /// Attachment count, read from the `documents` JSON column. Display-only.
+  static const String documents = 'documents';
+
+  /// Creator. Payload-only on every table — display-only.
+  static const String userId = 'user_id';
 }
 
 @DriftAccessor(tables: [Invoices])
@@ -276,6 +293,10 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
         return e.customValue3.lower();
       case InvoiceFieldIds.customValue4:
         return e.customValue4.lower();
+      case InvoiceFieldIds.archivedAt:
+        return e.archivedAt;
+      case InvoiceFieldIds.isDeleted:
+        return e.isDeleted;
       default:
         // Silent fallback would mask real failures — see expense_dao.dart
         // for the rationale.

@@ -28,6 +28,7 @@ Plus two non-negotiables carried from admin-portal:
 | Changing the Drift schema (forward migration) | `docs/migrations.md` |
 | Adding / changing a sidebar count badge | § Sidebar counters + `lib/domain/sidebar_badge_modes.dart` |
 | Adding / changing a list's status tabs | § List status tabs + `lib/domain/list_status_tabs.dart` |
+| Adding a column to an entity list (or a custom-field column) | § List columns + `lib/domain/columns/` |
 | Localization / Transifex import | § Localization |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
@@ -309,6 +310,53 @@ Counts come from the **local Drift cache**, which after login holds page 1 per e
 Second known staleness: `Date.today()` is baked into the SQL when a badge stream is built, and a sidebar stream lives for the whole session — so **leaving the app open past midnight keeps the date-sensitive counters (invoice/client/project `overdue`, quote `expired`) on yesterday's date** until a restart or company switch. The list filter chip has always had this property; it's just more visible on a permanent surface. Fixing it needs a date-rollover trigger to re-key the streams — deliberately not built.
 
 Note `BaseEntityDao.watchBadgeCount` counts **active** rows (`archived_at IS NULL`), unlike the older `watchCount`, which is archived-inclusive and still backs list empty-states.
+
+## List columns
+
+`lib/domain/columns/<entity>_columns.dart` is one registry per entity: an
+ordered `kAll<Entity>Columns`, the `kDefault<Entity>Columns` subset shown
+out-of-the-box, and a `<entity>ColumnsById` map. The user's selection lives in
+`user_settings.table_columns` (**not** `nav_state`) in the same byte format the
+legacy admin-portal uses, so **renaming a column id silently drops a user's
+saved layout** — don't. (The one safe case is a constant no registry ever
+referenced, i.e. one that cannot be in anybody's stored list: that is why
+`ProjectFieldIds.customValue1..4` could become `custom1..4`.)
+
+- **Every field the entity's edit screen can set earns a column** (that rule is
+  what invoiceninja/flutter#106 was about), plus the shared metadata block:
+  created / archived / state / deleted / documents / created-by / assigned user.
+  Build those with the factories in `lib/domain/columns/column_factories.dart`
+  rather than hand-rolling a fifteenth copy.
+- **Real Drift column ⇒ `sortable: true` plus a `_sortExpression` case in the
+  DAO. Derived or payload-only ⇒ `sortable: false` plus an entry in
+  `sortable_columns_test`'s `displayOnly` map.** Every header is a sort control,
+  and most DAOs throw on an unmapped field — `sortable_columns_test` detects the
+  gap by catching that throw, so a DAO that falls back silently instead makes
+  its own dead headers invisible (that is how `task.duration` shipped).
+  **`ClientDao`, `VendorDao` and `UserDao` are the exceptions**: the first two
+  assert against `k<Entity>ColumnIds` and then fall through to a generic
+  `json_extract(payload, '$.<id>')` — which is what legitimately sorts their
+  address / notes / contact columns, but also means the probe can never fail
+  for them. Adding a sortable client or vendor column means checking the
+  `_sortExpression` arm by hand; the id-set test only proves the id is *known*.
+- **Custom-field slots go through `customFieldColumns` (`custom_field_columns.dart`),
+  never a hand-written `custom1` column.** `GenericListViewModel.availableColumns`
+  then decorates them per company: the header and picker show the *configured*
+  label ("Region"), values format by configured type (date → company date
+  format, switch → localized Yes/No), and an unconfigured slot is dropped from
+  both. Read the label through `column.resolveLabel(context)` — a bare
+  `context.tr(labelKey)` loses it. Note the slot **prefix is not the entity
+  name**: quotes / credits / purchase orders / recurring invoices all read
+  `invoice1..4`, and recurring expenses read `expense1..4`.
+- Hiding a column is **never** destructive: `_resolveColumns` drops an id it
+  can't render while `_columnIds` (and `user_settings`) keep it, and
+  `EntityColumnPickerSheet` re-inserts it at its original index on Done.
+- **Client and Vendor ids must also join `k<Entity>ColumnIds`** in
+  `lib/domain/columns/ids/` — their DAOs guard `_sortExpression` on that set and
+  degrade to name-order in release when an id is missing.
+  `column_ids_match_registry_test` is the guard.
+- A user-facing label needs a placeholder-free key: use `user` for created-by,
+  never `created_by` ("Created by :name").
 
 ## List status tabs
 

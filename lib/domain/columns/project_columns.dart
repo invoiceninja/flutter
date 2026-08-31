@@ -1,9 +1,12 @@
+import 'package:admin/app/color_hex.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/project_dao.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
@@ -105,12 +108,86 @@ final List<ProjectColumn> kAllProjectColumns = <ProjectColumn>[
         cellPartyMoney(p.taskRate, context, clientId: p.clientId),
     valueBuilder: (p) => cellMoneyValue(p.taskRate),
   ),
+  colUpdatedAt<Project>(ProjectFieldIds.updatedAt, (p) => p.updatedAt),
+  // Every field the Projects edit screen can set is selectable here — that
+  // is what invoiceninja/flutter#106 asked for. Notes and the money budget
+  // live only in the payload JSON, so they are display-only.
+  colNotes<Project>(
+    ProjectFieldIds.publicNotes,
+    (p) => p.publicNotes,
+    labelKey: 'public_notes',
+  ),
+  colNotes<Project>(
+    ProjectFieldIds.privateNotes,
+    (p) => p.privateNotes,
+    labelKey: 'private_notes',
+  ),
   ProjectColumn(
-    id: ProjectFieldIds.updatedAt,
-    labelKey: 'last_updated',
+    id: ProjectFieldIds.budgetedAmount,
+    labelKey: 'budgeted_amount',
+    width: 140,
+    align: ColumnAlign.end,
+    sortable: false,
+    // A per-client budget, so it formats in the client's currency — same
+    // cascade as `task_rate` above.
+    cellBuilder: (p, context) =>
+        cellPartyMoney(p.budgetedAmount, context, clientId: p.clientId),
+    valueBuilder: (p) => cellMoneyValue(p.budgetedAmount),
+  ),
+  // Swatch + hex, parsed through the canonical `parseHexColor`. Real Drift
+  // column, so the header sorts.
+  ProjectColumn(
+    id: ProjectFieldIds.color,
+    labelKey: 'color',
     width: 120,
-    cellBuilder: (p, ctx) => cellDate(p.updatedAt, ctx),
-    valueBuilder: (p) => p.updatedAt.toIso8601String(),
+    cellBuilder: (p, _) => cellColor(p.color),
+    // Agree with the cell: `cellColor` em-dashes an unparseable hex, so the
+    // hover-copy affordance must not offer to copy it.
+    valueBuilder: (p) => parseHexColor(p.color) == null ? null : p.color,
+  ),
+  // The company's own labels ('Region'), type-aware values and the hiding
+  // of unconfigured slots are applied by `decorateCustomFieldColumns`.
+  ...customFieldColumns<Project>(
+    prefix: 'project',
+    ids: const [
+      ProjectFieldIds.custom1,
+      ProjectFieldIds.custom2,
+      ProjectFieldIds.custom3,
+      ProjectFieldIds.custom4,
+    ],
+    values: [
+      (p) => p.customValue1,
+      (p) => p.customValue2,
+      (p) => p.customValue3,
+      (p) => p.customValue4,
+    ],
+  ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colCreatedAt<Project>(ProjectFieldIds.createdAt, (p) => p.createdAt),
+  colArchivedAt<Project>(ProjectFieldIds.archivedAt, (p) => p.archivedAt),
+  colEntityState<Project>(
+    ProjectFieldIds.entityState,
+    archivedAt: (p) => p.archivedAt,
+    isDeleted: (p) => p.isDeleted,
+  ),
+  colFlag<Project>(
+    ProjectFieldIds.isDeleted,
+    (p) => p.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Project>(
+    ProjectFieldIds.documents,
+    (p) => p.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Project>(
+    ProjectFieldIds.userId,
+    (p) => p.userId,
+    labelKey: 'user',
   ),
   // Default-off — opt-in via the column picker. Header sort orders by the
   // denormalized `tag_names` column.

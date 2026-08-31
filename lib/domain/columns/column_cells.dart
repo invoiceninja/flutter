@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/color_hex.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
@@ -180,6 +181,30 @@ Widget cellDate(DateTime value, BuildContext context) {
   final localeKey = Localizations.localeOf(context).toString();
   final fallback = _dateFormatCache[localeKey] ??= DateFormat.yMMMd(localeKey);
   return CellText(value: fallback.format(local));
+}
+
+/// Colour cell — a small swatch plus the stored hex. Parses through the
+/// canonical [parseHexColor] (never a second inline parser); an empty or
+/// malformed value renders as [cellEmpty] rather than an invisible swatch.
+Widget cellColor(String hex) {
+  if (hex.isEmpty) return cellEmpty();
+  final color = parseHexColor(hex);
+  if (color == null) return cellEmpty();
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(InRadii.r1),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Flexible(child: CellText(value: hex)),
+    ],
+  );
 }
 
 /// Canonical string for a money cell, used by `valueBuilder` to drive the

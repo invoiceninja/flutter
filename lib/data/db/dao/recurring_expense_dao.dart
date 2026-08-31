@@ -40,6 +40,28 @@ class RecurringExpenseFieldIds {
   static const String customValue4 = 'custom_value4';
   // Display-only (tags live in the payload) — never add to sortOptions.
   static const String tagIds = 'recurring_expense_tag_ids';
+
+  /// Column id only — this table has no `assigned_user_id` column (the value
+  /// lives in the payload JSON), so it is never a valid *sort* field. Same
+  /// shape as [TaskFieldIds.assignedUserId].
+  static const String assignedUserId = 'assigned_user_id';
+
+  // ── Standard record metadata ────────────────────────────────────────
+  /// Real Drift column (`EntityTimestampColumns`) — sortable.
+  static const String archivedAt = 'archived_at';
+
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
+
+  /// Derived from `archived_at` + `is_deleted`; no column to order by, so the
+  /// column is display-only.
+  static const String entityState = 'entity_state';
+
+  /// Attachment count, read from the `documents` JSON column. Display-only.
+  static const String documents = 'documents';
+
+  /// Creator. Payload-only on every table — display-only.
+  static const String userId = 'user_id';
 }
 
 @DriftAccessor(tables: [RecurringExpenses])
@@ -290,6 +312,10 @@ class RecurringExpenseDao
         return e.customValue3.lower();
       case RecurringExpenseFieldIds.customValue4:
         return e.customValue4.lower();
+      case RecurringExpenseFieldIds.archivedAt:
+        return e.archivedAt;
+      case RecurringExpenseFieldIds.isDeleted:
+        return e.isDeleted;
       default:
         // Silent fallback masks the real failure (user clicks a column
         // header → list re-orders by next-send-date with no error).

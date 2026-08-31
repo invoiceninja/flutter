@@ -142,6 +142,10 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
         return t.invoiceIds;
       case BankTransactionColumnIds.expenses:
         return t.expenseId;
+      case BankTransactionFieldIds.archivedAt:
+        return t.archivedAt;
+      case BankTransactionFieldIds.isDeleted:
+        return t.isDeleted;
       default:
         // Throw like every other list DAO rather than silently ordering by
         // something else: `sortable_columns_test` probes every registered

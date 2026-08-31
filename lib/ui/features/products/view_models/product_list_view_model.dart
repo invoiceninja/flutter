@@ -28,7 +28,6 @@ const String kProductGroupTags = 'tags';
 class ProductListViewModel extends GenericListViewModel<Product> {
   ProductListViewModel({
     required this.repo,
-    required Stream<Company?> companyStream,
     required super.companyId,
     required super.navStateDao,
     required super.userSettings,
@@ -37,9 +36,7 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     super.searchDebounce,
     super.persistDebounce,
     super.now,
-  }) {
-    _companySub = companyStream.listen(_onCompany);
-  }
+  });
 
   final ProductRepository repo;
 
@@ -50,8 +47,6 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   /// to re-emit for a second listener. Null = the tags dimension isn't offered.
   final Stream<List<Tag>> Function()? tagStream;
 
-  late final StreamSubscription<Company?> _companySub;
-  Company? _company;
   bool _trackInventory = false;
   int _companyThreshold = 0;
 
@@ -80,24 +75,39 @@ class ProductListViewModel extends GenericListViewModel<Product> {
 
   /// Everything about the company that the grouping UI reads: the four slot
   /// labels (menu entries + the desktop button's caption) and whether the
-  /// active choice still resolves. Compared in [_onCompany] so renaming or
-  /// un-configuring a slot repaints.
+  /// active choice still resolves. Compared in [onCompanyChanged] so renaming
+  /// or un-configuring a slot repaints.
   String get _groupingSignature {
-    final company = _company;
+    final company = this.company;
     return [
       effectiveGroupField ?? '',
       for (var i = 1; i <= 4; i++) company?.customFieldLabel('product$i') ?? '',
     ].join('\u0000');
   }
 
-  void _onCompany(Company? company) {
-    final before = _groupingSignature;
-    final beforeEffective = effectiveGroupField;
-    _company = company;
+  /// What the last-built query and the last repaint were based on.
+  ///
+  /// The base assigns `company` *before* calling [onCompanyChanged], so a
+  /// "before" snapshot taken inside the hook would already reflect the new
+  /// value and every comparison would be a no-op — which silently left a
+  /// restored grouping painting labels over an ungrouped query.
+  ///
+  /// [_lastEffectiveGroupField] is therefore recorded in [watchPage], i.e. at
+  /// the moment the query is built, so every path that re-subscribes keeps it
+  /// fresh. [_lastGroupingSignature] is only ever about repainting, so
+  /// recording it here is enough.
+  String _lastGroupingSignature = '';
+  String? _lastEffectiveGroupField;
+
+  @override
+  void onCompanyChanged(Company? company) {
+    final before = _lastGroupingSignature;
+    final beforeEffective = _lastEffectiveGroupField;
+    _lastGroupingSignature = _groupingSignature;
     // The custom-field config drives which dimensions are offered, what they
     // are called, and whether the persisted choice is still effective — none
     // of which the inventory early-return below would repaint.
-    if (_groupingSignature != before) notifyListeners();
+    if (_lastGroupingSignature != before) notifyListeners();
     // A custom-field grouping is only *effective* once the company's label for
     // that slot is known, and the company lands on this stream — after
     // `_init()` has already called `watchPage()`. That call baked
@@ -148,6 +158,13 @@ class ProductListViewModel extends GenericListViewModel<Product> {
 
   @override
   Stream<List<Product>> watchPage() {
+    // Record the grouping this query is being BUILT with. `onCompanyChanged`
+    // compares against it to decide whether the company's arrival changed the
+    // answer — recording it at the end of that hook instead would go stale the
+    // moment grouping changed by any other route (`setGroupField`, a nav_state
+    // restore, a saved view), and the next company row write would then
+    // resubscribe an already-correct query.
+    _lastEffectiveGroupField = effectiveGroupField;
     final base = repo.watchPage(
       badgeModeId: activeBadgeModeId,
       companyId: companyId,
@@ -373,12 +390,6 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     delete: (id) => repo.delete(companyId: companyId, id: id),
   );
 
-  @override
-  void dispose() {
-    _companySub.cancel();
-    super.dispose();
-  }
-
   // ── Grouping ────────────────────────────────────────────────────────
 
   @override
@@ -440,7 +451,7 @@ class ProductListViewModel extends GenericListViewModel<Product> {
     if (id == kProductGroupTags) return tagStream == null ? null : id;
     final slot = _slotOf(id);
     if (slot == null) return null;
-    return (_company?.customFieldLabel('product$slot') ?? '').isEmpty
+    return (company?.customFieldLabel('product$slot') ?? '').isEmpty
         ? null
         : id;
   }
@@ -455,7 +466,7 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   /// hide on an empty list). Same "keep the committed value reachable" rule the
   /// searchable pickers follow.
   List<String> get availableGroupFieldIds {
-    final company = _company;
+    final company = this.company;
     final ids = <String>[
       for (var i = 1; i <= 4; i++)
         if (company != null &&
@@ -475,7 +486,7 @@ class ProductListViewModel extends GenericListViewModel<Product> {
   String groupFieldLabel(String id) {
     final slot = _slotOf(id);
     if (slot == null) return '';
-    return _company?.customFieldLabel('product$slot') ?? '';
+    return company?.customFieldLabel('product$slot') ?? '';
   }
 
   static String _customGroupId(int slot) => switch (slot) {

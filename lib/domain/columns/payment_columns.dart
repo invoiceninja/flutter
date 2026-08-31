@@ -2,7 +2,9 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/db/dao/payment_dao.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/company_gateway_name_label.dart';
@@ -142,44 +144,64 @@ final List<PaymentColumn> kAllPaymentColumns = <PaymentColumn>[
         : VendorNameLabel(vendorId: p.vendorId, link: true),
     valueBuilder: (p) => cellNonZeroString(p.vendorId),
   ),
-  PaymentColumn(
-    id: PaymentFieldIds.updatedAt,
-    labelKey: 'last_updated',
-    width: 120,
-    cellBuilder: (p, ctx) => cellDate(p.updatedAt, ctx),
-    valueBuilder: (p) => p.updatedAt.toIso8601String(),
+  colUpdatedAt<Payment>(PaymentFieldIds.updatedAt, (p) => p.updatedAt),
+  // Payload-only on this table, so display-only — lift the field into
+  // the Drift table first if it ever needs to sort.
+  colNotes<Payment>(
+    PaymentFieldIds.privateNotes,
+    (p) => p.privateNotes,
+    labelKey: 'private_notes',
   ),
-  PaymentColumn(
-    id: PaymentFieldIds.customValue1,
-    labelKey: 'custom_value1',
-    width: 140,
-    cellBuilder: (p, _) =>
-        p.customValue1.isEmpty ? cellEmpty() : cellText(p.customValue1),
-    valueBuilder: (p) => cellNonZeroString(p.customValue1),
+  // The company's own labels ('Region'), type-aware values and the
+  // hiding of unconfigured slots are applied by
+  // `decorateCustomFieldColumns` — see `custom_field_columns.dart`.
+  ...customFieldColumns<Payment>(
+    prefix: 'payment',
+    ids: const [
+      PaymentFieldIds.customValue1,
+      PaymentFieldIds.customValue2,
+      PaymentFieldIds.customValue3,
+      PaymentFieldIds.customValue4,
+    ],
+    values: [
+      (p) => p.customValue1,
+      (p) => p.customValue2,
+      (p) => p.customValue3,
+      (p) => p.customValue4,
+    ],
   ),
-  PaymentColumn(
-    id: PaymentFieldIds.customValue2,
-    labelKey: 'custom_value2',
-    width: 140,
-    cellBuilder: (p, _) =>
-        p.customValue2.isEmpty ? cellEmpty() : cellText(p.customValue2),
-    valueBuilder: (p) => cellNonZeroString(p.customValue2),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colUserName<Payment>(
+    PaymentFieldIds.assignedUserId,
+    (p) => p.assignedUserId,
+    labelKey: 'assigned_user',
+    sortable: false,
   ),
-  PaymentColumn(
-    id: PaymentFieldIds.customValue3,
-    labelKey: 'custom_value3',
-    width: 140,
-    cellBuilder: (p, _) =>
-        p.customValue3.isEmpty ? cellEmpty() : cellText(p.customValue3),
-    valueBuilder: (p) => cellNonZeroString(p.customValue3),
+  colCreatedAt<Payment>(PaymentFieldIds.createdAt, (p) => p.createdAt),
+  colArchivedAt<Payment>(PaymentFieldIds.archivedAt, (p) => p.archivedAt),
+  colEntityState<Payment>(
+    PaymentFieldIds.entityState,
+    archivedAt: (p) => p.archivedAt,
+    isDeleted: (p) => p.isDeleted,
   ),
-  PaymentColumn(
-    id: PaymentFieldIds.customValue4,
-    labelKey: 'custom_value4',
-    width: 140,
-    cellBuilder: (p, _) =>
-        p.customValue4.isEmpty ? cellEmpty() : cellText(p.customValue4),
-    valueBuilder: (p) => cellNonZeroString(p.customValue4),
+  colFlag<Payment>(
+    PaymentFieldIds.isDeleted,
+    (p) => p.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Payment>(
+    PaymentFieldIds.documents,
+    (p) => p.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Payment>(
+    PaymentFieldIds.userId,
+    (p) => p.userId,
+    labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
   PaymentColumn(

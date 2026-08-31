@@ -2,7 +2,9 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/l10n/localization.dart';
@@ -193,33 +195,23 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
     cellBuilder: (v, _) => cellText(v.privateNotes),
     valueBuilder: (v) => cellNonZeroString(v.privateNotes),
   ),
-  VendorColumn(
-    id: VendorFieldIds.custom1,
-    labelKey: 'custom1',
-    width: 140,
-    cellBuilder: (v, _) => cellText(v.customValue1),
-    valueBuilder: (v) => cellNonZeroString(v.customValue1),
-  ),
-  VendorColumn(
-    id: VendorFieldIds.custom2,
-    labelKey: 'custom2',
-    width: 140,
-    cellBuilder: (v, _) => cellText(v.customValue2),
-    valueBuilder: (v) => cellNonZeroString(v.customValue2),
-  ),
-  VendorColumn(
-    id: VendorFieldIds.custom3,
-    labelKey: 'custom3',
-    width: 140,
-    cellBuilder: (v, _) => cellText(v.customValue3),
-    valueBuilder: (v) => cellNonZeroString(v.customValue3),
-  ),
-  VendorColumn(
-    id: VendorFieldIds.custom4,
-    labelKey: 'custom4',
-    width: 140,
-    cellBuilder: (v, _) => cellText(v.customValue4),
-    valueBuilder: (v) => cellNonZeroString(v.customValue4),
+  // The company's own labels ('Region'), type-aware values and the
+  // hiding of unconfigured slots are applied by
+  // `decorateCustomFieldColumns` — see `custom_field_columns.dart`.
+  ...customFieldColumns<Vendor>(
+    prefix: 'vendor',
+    ids: const [
+      VendorFieldIds.custom1,
+      VendorFieldIds.custom2,
+      VendorFieldIds.custom3,
+      VendorFieldIds.custom4,
+    ],
+    values: [
+      (v) => v.customValue1,
+      (v) => v.customValue2,
+      (v) => v.customValue3,
+      (v) => v.customValue4,
+    ],
   ),
   VendorColumn(
     id: VendorFieldIds.createdAt,
@@ -228,12 +220,10 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
     cellBuilder: (v, ctx) => cellDate(v.createdAt, ctx),
     valueBuilder: (v) => v.createdAt.toIso8601String(),
   ),
-  VendorColumn(
-    id: VendorFieldIds.updatedAt,
-    labelKey: 'last_updated',
+  colUpdatedAt<Vendor>(
+    VendorFieldIds.updatedAt,
+    (v) => v.updatedAt,
     width: 110,
-    cellBuilder: (v, ctx) => cellDate(v.updatedAt, ctx),
-    valueBuilder: (v) => v.updatedAt.toIso8601String(),
   ),
   VendorColumn(
     id: VendorFieldIds.archivedAt,
@@ -243,6 +233,33 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
         v.archivedAt == null ? cellEmpty() : cellDate(v.archivedAt!, ctx),
     valueBuilder: (v) => v.archivedAt?.toIso8601String(),
   ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colUserName<Vendor>(
+    VendorFieldIds.assignedUserId,
+    (v) => v.assignedUserId,
+    labelKey: 'assigned_user',
+    sortable: false,
+  ),
+  colEntityState<Vendor>(
+    VendorFieldIds.entityState,
+    archivedAt: (v) => v.archivedAt,
+    isDeleted: (v) => v.isDeleted,
+  ),
+  colFlag<Vendor>(
+    VendorFieldIds.isDeleted,
+    (v) => v.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Vendor>(
+    VendorFieldIds.documents,
+    (v) => v.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Vendor>(VendorFieldIds.userId, (v) => v.userId, labelKey: 'user'),
   // Attached tags. Display-only (not a sortable Drift column).
   VendorColumn(
     id: VendorFieldIds.tagIds,

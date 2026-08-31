@@ -22,6 +22,19 @@ class TaskFieldIds {
   static const String taskStatusId = 'task_status_id';
   static const String statusOrder = 'status_order';
   static const String updatedAt = 'updated_at';
+  static const String createdAt = 'created_at';
+  static const String invoiceId = 'invoice_id';
+  static const String isRunning = 'is_running';
+  static const String custom1 = 'custom1';
+  static const String custom2 = 'custom2';
+  static const String custom3 = 'custom3';
+  static const String custom4 = 'custom4';
+
+  /// `invoice_id` is non-empty. Derived in SQL, so it sorts.
+  static const String isInvoiced = 'is_invoiced';
+
+  /// First time-log entry's start. Derived from the payload — display-only.
+  static const String date = 'date';
 
   /// Column id only — the `tasks` table has no `assigned_user_id` column (the
   /// value lives in the payload JSON), so this is never a valid *sort* field.
@@ -31,6 +44,23 @@ class TaskFieldIds {
   /// Local approximation of the server's `task_tag_ids|asc` sort — orders by
   /// the denormalized, comma-joined tag names (`tasks.tag_names`).
   static const String tagIds = 'task_tag_ids';
+
+  // ── Standard record metadata ────────────────────────────────────────
+  /// Real Drift column (`EntityTimestampColumns`) — sortable.
+  static const String archivedAt = 'archived_at';
+
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
+
+  /// Derived from `archived_at` + `is_deleted`; no column to order by, so the
+  /// column is display-only.
+  static const String entityState = 'entity_state';
+
+  /// Attachment count, read from the `documents` JSON column. Display-only.
+  static const String documents = 'documents';
+
+  /// Creator. Payload-only on every table — display-only.
+  static const String userId = 'user_id';
 }
 
 @DriftAccessor(tables: [Tasks])
@@ -215,8 +245,36 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
         return t.tagNames;
       case TaskFieldIds.updatedAt:
         return t.updatedAt;
+      case TaskFieldIds.createdAt:
+        return t.createdAt;
+      case TaskFieldIds.invoiceId:
+        return t.invoiceId;
+      // "Has an invoice", ordered as a boolean so the two buckets group.
+      case TaskFieldIds.isInvoiced:
+        return t.invoiceId.equals('').not();
+      case TaskFieldIds.isRunning:
+        return t.isRunning;
+      case TaskFieldIds.custom1:
+        return t.customValue1.lower();
+      case TaskFieldIds.custom2:
+        return t.customValue2.lower();
+      case TaskFieldIds.custom3:
+        return t.customValue3.lower();
+      case TaskFieldIds.custom4:
+        return t.customValue4.lower();
+      case TaskFieldIds.archivedAt:
+        return t.archivedAt;
+      case TaskFieldIds.isDeleted:
+        return t.isDeleted;
       default:
-        return t.updatedAt;
+        // Silent fallback would mask real failures — see expense_dao.dart for
+        // the rationale. It also blinded `sortable_columns_test`, which detects
+        // an unmapped column by catching this throw: `duration` shipped with a
+        // live sort arrow that quietly ordered by `updated_at`.
+        throw ArgumentError(
+          'Unknown sort field "$field" for Task — add a case in '
+          '_sortExpression or stop exposing it as a sort option.',
+        );
     }
   }
 

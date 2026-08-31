@@ -8,9 +8,11 @@ import 'package:logging/logging.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/nav_state_dao.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/saved_views_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/list_status_tabs.dart';
@@ -350,7 +352,38 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   Set<EntityState> get states => _states;
 
   late String _sortField;
-  String get sortField => _sortField;
+
+  /// The sort actually in force.
+  ///
+  /// `_sortField` is what the user picked and what stays persisted; this is
+  /// what the query orders by and what the header paints its arrow on. They
+  /// differ in exactly one case: the field names a column this **company** can
+  /// no longer render — a custom-field slot whose label was blanked in
+  /// Settings, which `decorateCustomFieldColumns` drops. The header strip
+  /// iterates the resolved columns, so that would leave the list ordered by an
+  /// invisible column with no arrow to click and no way back short of "Clear
+  /// filters", which also discards every other filter. Unlike un-ticking a
+  /// column in the picker (which legitimately keeps its sort — you can sort by
+  /// a date you don't want to show, and the picker can put it back), this
+  /// happens to the user without them touching anything.
+  ///
+  /// Deliberately a derived READ, never a clear — same rule as
+  /// `ProductListViewModel.effectiveGroupField`: an empty `custom_fields` map
+  /// is also what `CompanyRepository.applyUpdateResponse` writes when a
+  /// response merely omits the key, so clearing would destroy the user's
+  /// preference on a signal we can't trust. Restore the label and the sort
+  /// comes back.
+  ///
+  /// A field that was never in the registry at all is left alone: several VMs'
+  /// `isValidColumnId` allow ids with no column (`updated_at`, transactions'
+  /// `amount`), and those are not "unreachable", just unlisted.
+  String get sortField {
+    final field = _sortField;
+    if (_company == null) return field;
+    if (!allColumns.any((c) => c.id == field)) return field;
+    if (availableColumns.any((c) => c.id == field)) return field;
+    return defaultSortField;
+  }
 
   /// Seeded from [defaultSortAscending] in the constructor — the initializer
   /// here is only to satisfy definite assignment (a subclass getter can't be
@@ -527,8 +560,43 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   }
 
   late List<String> _columnIds;
-  List<ColumnDefinition<T>> get columns => _resolveColumns(_columnIds);
+
+  /// The columns actually rendered, in user order.
+  ///
+  /// Memoized: this is read once per header build, once by
+  /// `computeTableMinWidth`, and **once per visible row tile**, so resolving it
+  /// afresh each time would rebuild the id map (and, with custom-field
+  /// decoration, four `ColumnDefinition`s plus their closures) on every frame.
+  ///
+  /// Handed back mutable, unlike [columnIds]: wrapping in `List.unmodifiable`
+  /// allocates per read, which is exactly what the memo exists to avoid. Treat
+  /// it as read-only — every caller in the app does.
+  List<ColumnDefinition<T>> get columns =>
+      _resolvedCache ??= _resolveColumns(_columnIds);
+
+  /// Every column this company can currently SEE: [allColumns] with each
+  /// custom-field slot resolved to the company's configured label and a
+  /// type-aware cell, or dropped when the slot is unconfigured.
+  ///
+  /// This — not [allColumns] — is what the Columns picker offers and what
+  /// [columns] resolves persisted ids against. [allColumns] stays the raw
+  /// registry so [isValidColumnId] (the sort allowlist), the DAO id-set guards
+  /// and `sortable_columns_test` keep seeing every id the entity knows,
+  /// whatever one company happens to have configured.
+  List<ColumnDefinition<T>> get availableColumns =>
+      _availableCache ??= decorateCustomFieldColumns(allColumns, _company);
+
   List<String> get columnIds => List.unmodifiable(_columnIds);
+
+  List<ColumnDefinition<T>>? _availableCache;
+  Map<String, ColumnDefinition<T>>? _availableByIdCache;
+  List<ColumnDefinition<T>>? _resolvedCache;
+
+  void _invalidateColumnCaches() {
+    _availableCache = null;
+    _availableByIdCache = null;
+    _resolvedCache = null;
+  }
 
   /// Whether the user has an explicit stored column preference (vs sitting on
   /// the registry default). A saved view only persists `columnIds` when this
@@ -696,6 +764,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
               : List<String>.from(ids);
           if (listEquals(next, _columnIds)) return;
           _columnIds = next;
+          _invalidateColumnCaches();
           notifyListeners();
         });
   }
@@ -1043,6 +1112,63 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     resync.addListener(_onResyncChanged);
   }
 
+  Company? _company;
+  StreamSubscription<Company?>? _companySub;
+  String _customFieldSignature = '';
+
+  /// The [sortField] the live Drift query was built with — see [_subscribe].
+  String? _lastEffectiveSortField;
+
+  /// The active company, or null before its first emission.
+  @protected
+  Company? get company => _company;
+
+  /// Bind the active company so custom-field columns render under the company's
+  /// own labels — and disappear when a slot is un-configured.
+  ///
+  /// Bound by the host scaffold right after `buildVm`, for the same reason
+  /// [bindResync] is: threading it would mean touching all ~17 concrete
+  /// subclass signatures, every `buildVm:` closure and every test that
+  /// constructs one, and entity #18 could silently forget it. A VM that is
+  /// never bound keeps [_company] null, which hides every custom-field column —
+  /// degraded, never wrong.
+  ///
+  /// `CompanyRepository.watchCompany` hands back a FRESH stream per call, so
+  /// there is no `identical` short-circuit to take: cancel and re-listen. In
+  /// practice this runs once per VM instance, since a company switch builds a
+  /// brand-new VM.
+  void bindCompany(Stream<Company?> companyStream) {
+    if (_disposed) return;
+    _companySub?.cancel();
+    _companySub = companyStream.listen(_onCompany);
+  }
+
+  void _onCompany(Company? company) {
+    if (_disposed) return;
+    _company = company;
+    final next = customFieldColumnSignature(allColumns, company);
+    final changed = next != _customFieldSignature;
+    if (changed) {
+      _customFieldSignature = next;
+      _invalidateColumnCaches();
+    }
+    // A company that un-configures the sorted custom-field slot changes what
+    // `sortField` resolves to; the live query was built with the old answer,
+    // so without this the arrow would move while the rows stayed put.
+    if (_lastEffectiveSortField != null &&
+        sortField != _lastEffectiveSortField) {
+      _resubscribe();
+    }
+    onCompanyChanged(company);
+    if (changed) notifyListeners();
+  }
+
+  /// Subclass hook: the active company changed. The base already refreshes the
+  /// custom-field columns; override for anything else the company drives (the
+  /// Products list reads its inventory flags and grouping labels here).
+  @protected
+  void onCompanyChanged(Company? company) {}
+
   void _onResyncChanged() {
     final running = _resync?.value.isRunningFor(companyId) ?? false;
     final finished = _resyncWasRunningForMe && !running;
@@ -1309,6 +1435,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     final next = List<String>.unmodifiable(ids);
     if (listEquals(next, _columnIds)) return;
     _columnIds = next;
+    _invalidateColumnCaches();
     // Explicit user choice — mark eagerly so a saved view captured before the
     // userSettings watch round-trips still records the column override.
     _columnsCustomized = true;
@@ -1323,6 +1450,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   Future<void> resetColumns() async {
     if (isEmbedded) return;
     _columnIds = List<String>.from(defaultColumnIds);
+    _invalidateColumnCaches();
     _columnsCustomized = false;
     notifyListeners();
     await userSettings.resetColumns(
@@ -1432,6 +1560,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     // with no ErrorView (the fetch's own try/catch only guards the network
     // call, not the stream). Surface it the same way a failed fetch does so
     // the failure is loud instead of an inexplicably empty screen.
+    // What the query about to be built orders by, so `_onCompany` can tell
+    // whether the company's arrival changed the answer. Recorded here rather
+    // than in the hook for the reason `ProductListViewModel` records its
+    // grouping here: every resubscribe path keeps it fresh for free.
+    _lastEffectiveSortField = sortField;
     _watchSub = transformPage(watchPage()).listen(
       _onItems,
       onError: (Object e) {
@@ -1638,24 +1771,20 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   }
 
   List<ColumnDefinition<T>> _resolveColumns(List<String> ids) {
-    final byId = {for (final c in allColumns) c.id: c};
+    // Built from [availableColumns], so an id whose custom-field slot the
+    // company has un-configured drops out of the RENDER while surviving in
+    // `_columnIds` (and therefore in `user_settings`) — the same contract this
+    // method already had for ids the registry doesn't recognise, and the same
+    // non-destructive shape as `ProductListViewModel.effectiveGroupField`.
+    final byId = _availableByIdCache ??= {
+      for (final c in availableColumns) c.id: c,
+    };
     final out = <ColumnDefinition<T>>[];
     for (final id in ids) {
       final col = byId[id];
       if (col != null) out.add(col);
     }
     return out;
-  }
-
-  /// Localization key for a column id, or the id itself if the registry
-  /// doesn't recognise it (so a stale persisted value stays readable in
-  /// active-filter chips). Resolve via
-  /// `context.tr(vm.columnLabelKeyById(id))` at render time.
-  String columnLabelKeyById(String id) {
-    for (final c in allColumns) {
-      if (c.id == id) return c.labelKey;
-    }
-    return id;
   }
 
   // ── Multiselect / bulk actions ──────────────────────────────────────
@@ -1933,6 +2062,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _resync?.removeListener(_onResyncChanged);
+    _companySub?.cancel();
     _searchTimer?.cancel();
     _persistTimer?.cancel();
     _watchSub?.cancel();

@@ -274,6 +274,13 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
         return c.customValue3;
       case ClientFieldIds.custom4:
         return c.customValue4;
+      case ClientFieldIds.isDeleted:
+        return c.isDeleted;
+      // Explicit rather than left to the generic payload fallback below: the
+      // indexed column beats a JSON scan, and the id IS a payload key so the
+      // fallback would silently "work" while doing more work.
+      case ClientFieldIds.assignedUserId:
+        return c.assignedUserId;
     }
     // Monetary payload fields: cast to REAL so "9" < "1000".
     if (field == ClientFieldIds.paidToDate ||

@@ -27,6 +27,11 @@ abstract class Task with _$Task {
     required String statusId,
     required int statusOrder,
     required String assignedUserId,
+
+    /// Creator. Read-only (server-assigned) and payload-backed — the `tasks`
+    /// table has no `user_id` column — so the list column that renders it is
+    /// display-only.
+    @Default('') String userId,
     required List<TimeEntry> timeLog,
     required String customValue1,
     required String customValue2,
@@ -57,6 +62,7 @@ abstract class Task with _$Task {
     statusId: a.statusId,
     statusOrder: a.statusOrder ?? 0,
     assignedUserId: a.assignedUserId,
+    userId: a.userId,
     timeLog: TimeEntry.parseLog(a.timeLog),
     customValue1: a.customValue1,
     customValue2: a.customValue2,
@@ -146,6 +152,11 @@ extension TaskPayload on Task {
       'status_id': statusId,
       'status_order': statusOrder,
       'assigned_user_id': assignedUserId,
+      // The server ignores this (it isn't fillable), but the Drift `payload`
+      // column is written from this same map — so omitting it blanked the
+      // list's created-by cell on every row with a pending edit. Guarded and
+      // emitted exactly as Client and Product already do.
+      if (userId.isNotEmpty) 'user_id': userId,
       'time_log': TimeEntry.encodeLog(timeLog),
       'custom_value1': customValue1,
       'custom_value2': customValue2,

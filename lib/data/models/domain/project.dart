@@ -87,6 +87,11 @@ extension ProjectPayload on Project {
     return <String, dynamic>{
       if (preserveTempId || !id.startsWith('tmp_')) 'id': id,
       'assigned_user_id': assignedUserId,
+      // The server ignores this (it isn't fillable), but the Drift `payload`
+      // column is written from this same map — so omitting it blanked the
+      // list's created-by cell on every row with a pending edit. Guarded and
+      // emitted exactly as Client and Product already do.
+      if (userId.isNotEmpty) 'user_id': userId,
       'client_id': clientId,
       'number': number,
       'name': name,

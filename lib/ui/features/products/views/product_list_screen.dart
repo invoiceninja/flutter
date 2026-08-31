@@ -39,10 +39,9 @@ class ProductListScreen extends StatelessWidget {
       buildVm: (services, companyId) => ProductListViewModel(
         repo: services.products,
         companyId: companyId,
-        // The VM watches the company for inventory settings (track-inventory +
-        // threshold) so the low-stock filter/highlight stay live; a company
-        // switch rebuilds the VM with the new company's stream.
-        companyStream: services.company.watchCompany(companyId),
+        // The company (inventory settings + custom-field labels) arrives via
+        // `GenericListViewModel.bindCompany`, which the list scaffold wires for
+        // every entity — see `ProductListViewModel.onCompanyChanged`.
         navStateDao: services.db.navStateDao,
         userSettings: services.userSettings,
         savedViews: services.savedViews,

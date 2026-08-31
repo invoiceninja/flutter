@@ -23,17 +23,37 @@ class ProjectFieldIds {
   static const String taskRate = 'task_rate';
   static const String budgetedHours = 'budgeted_hours';
   static const String currentHours = 'current_hours';
-  static const String state = 'state';
   static const String updatedAt = 'updated_at';
   static const String createdAt = 'created_at';
-  static const String customValue1 = 'custom_value1';
-  static const String customValue2 = 'custom_value2';
-  static const String customValue3 = 'custom_value3';
-  static const String customValue4 = 'custom_value4';
+  static const String publicNotes = 'public_notes';
+  static const String privateNotes = 'private_notes';
+  static const String budgetedAmount = 'budgeted_amount';
+  static const String color = 'color';
+  static const String custom1 = 'custom1';
+  static const String custom2 = 'custom2';
+  static const String custom3 = 'custom3';
+  static const String custom4 = 'custom4';
 
   /// Local approximation of the server's `project_tag_ids|asc` sort — orders
   /// by the denormalized, comma-joined tag names (`projects.tag_names`).
   static const String tagIds = 'project_tag_ids';
+
+  // ── Standard record metadata ────────────────────────────────────────
+  /// Real Drift column (`EntityTimestampColumns`) — sortable.
+  static const String archivedAt = 'archived_at';
+
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
+
+  /// Derived from `archived_at` + `is_deleted`; no column to order by, so the
+  /// column is display-only.
+  static const String entityState = 'entity_state';
+
+  /// Attachment count, read from the `documents` JSON column. Display-only.
+  static const String documents = 'documents';
+
+  /// Creator. Payload-only on every table — display-only.
+  static const String userId = 'user_id';
 }
 
 @DriftAccessor(tables: [Projects])
@@ -204,16 +224,30 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
         return p.createdAt;
       case ProjectFieldIds.updatedAt:
         return p.updatedAt;
-      case ProjectFieldIds.customValue1:
+      case ProjectFieldIds.custom1:
         return p.customValue1.lower();
-      case ProjectFieldIds.customValue2:
+      case ProjectFieldIds.custom2:
         return p.customValue2.lower();
-      case ProjectFieldIds.customValue3:
+      case ProjectFieldIds.custom3:
         return p.customValue3.lower();
-      case ProjectFieldIds.customValue4:
+      case ProjectFieldIds.custom4:
         return p.customValue4.lower();
+      case ProjectFieldIds.color:
+        return p.color.lower();
+      case ProjectFieldIds.archivedAt:
+        return p.archivedAt;
+      case ProjectFieldIds.isDeleted:
+        return p.isDeleted;
       default:
-        return p.name.lower();
+        // Silent fallback would mask real failures — see expense_dao.dart for
+        // the rationale. It also blinded `sortable_columns_test`, which detects
+        // an unmapped column by catching this throw: every Project column added
+        // without a case here ordered by name while its header still painted a
+        // sort arrow.
+        throw ArgumentError(
+          'Unknown sort field "$field" for Project — add a case in '
+          '_sortExpression or stop exposing it as a sort option.',
+        );
     }
   }
 

@@ -43,6 +43,23 @@ class ClientFieldIds {
   static const String archivedAt = 'archived_at';
   // Display-only (tags live in the payload) — never add to sortOptions.
   static const String tagIds = 'client_tag_ids';
+
+  /// Real Drift column — sortable.
+  static const String assignedUserId = 'assigned_user_id';
+
+  // ── Standard record metadata ────────────────────────────────────────
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
+
+  /// Derived from `archived_at` + `is_deleted`; no column to order by, so the
+  /// column is display-only.
+  static const String entityState = 'entity_state';
+
+  /// Attachment count, read from the `documents` JSON column. Display-only.
+  static const String documents = 'documents';
+
+  /// Creator. Payload-only on every table — display-only.
+  static const String userId = 'user_id';
 }
 
 /// Every id `kAllClientColumns` declares — the key set of `clientColumnsById`,
@@ -81,4 +98,9 @@ const Set<String> kClientColumnIds = <String>{
   ClientFieldIds.updatedAt,
   ClientFieldIds.archivedAt,
   ClientFieldIds.tagIds,
+  ClientFieldIds.assignedUserId,
+  ClientFieldIds.entityState,
+  ClientFieldIds.isDeleted,
+  ClientFieldIds.documents,
+  ClientFieldIds.userId,
 };

@@ -24,6 +24,7 @@ void main() {
       // Matches `PurchaseOrderRepository.entityTypeName`, which overrides the
       // base `EntityType.name` — the outbox stores the snake_case spelling.
       entityType: 'purchase_order',
+      updatedAtOf: (item) => item.updatedAt,
       buildRepo: (db) =>
           PurchaseOrderRepository(db: db, api: _FakePurchaseOrdersApi()),
       buildApiModel: ({required id, displayValue, updatedAt = 1700000000}) =>

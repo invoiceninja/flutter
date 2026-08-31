@@ -2,7 +2,9 @@ import 'package:admin/app/router.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 
@@ -217,33 +219,23 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
     cellBuilder: (c, _) => cellText(c.privateNotes),
     valueBuilder: (c) => cellNonZeroString(c.privateNotes),
   ),
-  ClientColumn(
-    id: ClientFieldIds.custom1,
-    labelKey: 'custom1',
-    width: 140,
-    cellBuilder: (c, _) => cellText(c.customValue1),
-    valueBuilder: (c) => cellNonZeroString(c.customValue1),
-  ),
-  ClientColumn(
-    id: ClientFieldIds.custom2,
-    labelKey: 'custom2',
-    width: 140,
-    cellBuilder: (c, _) => cellText(c.customValue2),
-    valueBuilder: (c) => cellNonZeroString(c.customValue2),
-  ),
-  ClientColumn(
-    id: ClientFieldIds.custom3,
-    labelKey: 'custom3',
-    width: 140,
-    cellBuilder: (c, _) => cellText(c.customValue3),
-    valueBuilder: (c) => cellNonZeroString(c.customValue3),
-  ),
-  ClientColumn(
-    id: ClientFieldIds.custom4,
-    labelKey: 'custom4',
-    width: 140,
-    cellBuilder: (c, _) => cellText(c.customValue4),
-    valueBuilder: (c) => cellNonZeroString(c.customValue4),
+  // The company's own labels ('Region'), type-aware values and the
+  // hiding of unconfigured slots are applied by
+  // `decorateCustomFieldColumns` — see `custom_field_columns.dart`.
+  ...customFieldColumns<Client>(
+    prefix: 'client',
+    ids: const [
+      ClientFieldIds.custom1,
+      ClientFieldIds.custom2,
+      ClientFieldIds.custom3,
+      ClientFieldIds.custom4,
+    ],
+    values: [
+      (c) => c.customValue1,
+      (c) => c.customValue2,
+      (c) => c.customValue3,
+      (c) => c.customValue4,
+    ],
   ),
   ClientColumn(
     id: ClientFieldIds.createdAt,
@@ -252,12 +244,10 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
     cellBuilder: (c, ctx) => cellDate(c.createdAt, ctx),
     valueBuilder: (c) => c.createdAt.toIso8601String(),
   ),
-  ClientColumn(
-    id: ClientFieldIds.updatedAt,
-    labelKey: 'last_updated',
+  colUpdatedAt<Client>(
+    ClientFieldIds.updatedAt,
+    (c) => c.updatedAt,
     width: 110,
-    cellBuilder: (c, ctx) => cellDate(c.updatedAt, ctx),
-    valueBuilder: (c) => c.updatedAt.toIso8601String(),
   ),
   ClientColumn(
     id: ClientFieldIds.archivedAt,
@@ -267,6 +257,33 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
         c.archivedAt == null ? cellEmpty() : cellDate(c.archivedAt!, ctx),
     valueBuilder: (c) => c.archivedAt?.toIso8601String(),
   ),
+  // ── Standard record metadata ──────────────────────────────────────────
+  // Shared across every entity list; see `column_factories.dart`. Created /
+  // archived / deleted are real Drift columns and sort; state, documents and
+  // the two user columns are derived or payload-only and don't.
+  colUserName<Client>(
+    ClientFieldIds.assignedUserId,
+    (c) => c.assignedUserId,
+    labelKey: 'assigned_user',
+    sortable: true,
+  ),
+  colEntityState<Client>(
+    ClientFieldIds.entityState,
+    archivedAt: (c) => c.archivedAt,
+    isDeleted: (c) => c.isDeleted,
+  ),
+  colFlag<Client>(
+    ClientFieldIds.isDeleted,
+    (c) => c.isDeleted,
+    labelKey: 'is_deleted',
+  ),
+  colDocumentsCount<Client>(
+    ClientFieldIds.documents,
+    (c) => c.documents.length,
+  ),
+  // Created by. `labelKey: 'user'` — NOT `created_by`, which is
+  // "Created by :name" and would leak the raw placeholder.
+  colUserName<Client>(ClientFieldIds.userId, (c) => c.userId, labelKey: 'user'),
   // Attached tags. Display-only (not a sortable Drift column).
   ClientColumn(
     id: ClientFieldIds.tagIds,

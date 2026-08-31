@@ -26,6 +26,7 @@ void main() {
   runEntityRepositoryContract(
     EntityRepositoryContractFixture<Invoice, InvoiceApi>.build(
       entityType: 'invoice',
+      updatedAtOf: (item) => item.updatedAt,
       buildRepo: (db) => InvoiceRepository(
         db: db,
         api: _FakeInvoicesApi(),

@@ -20,9 +20,14 @@ class BankTransactionFieldIds {
   static const String participantName = 'participant_name';
   static const String statusId = 'status_id';
   static const String baseType = 'base_type';
-  static const String state = 'state';
   static const String updatedAt = 'updated_at';
   static const String createdAt = 'created_at';
+
+  /// Real Drift column (`EntityTimestampColumns`) — sortable.
+  static const String archivedAt = 'archived_at';
+
+  /// Real Drift column (`EntityFlagColumns`) — sortable.
+  static const String isDeleted = 'is_deleted';
 }
 
 /// Column id constants. Most map 1:1 to [BankTransactionFieldIds]; the
@@ -43,4 +48,10 @@ class BankTransactionColumnIds {
   static const String amount = BankTransactionFieldIds.amount;
   static const String updatedAt = BankTransactionFieldIds.updatedAt;
   static const String tagIds = 'bank_transaction_tag_ids';
+  static const String createdAt = BankTransactionFieldIds.createdAt;
+  static const String archivedAt = BankTransactionFieldIds.archivedAt;
+  static const String isDeleted = BankTransactionFieldIds.isDeleted;
+
+  /// Derived from `archived_at` + `is_deleted` — display-only.
+  static const String entityState = 'entity_state';
 }

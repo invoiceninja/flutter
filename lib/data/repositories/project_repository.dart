@@ -590,6 +590,18 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
       isDirty: row.isDirty,
       isDeleted: row.isDeleted,
       archivedAt: epochSecondsToUtcOrNull(row.archivedAt ?? 0),
+      // The local save path writes `payload` from `toApiJson`, which
+      // deliberately omits the server-assigned timestamps — so a dirty row's
+      // decoded `created_at` / `updated_at` fall back to the DTO default of 0
+      // and `epochSecondsToUtc` (no zero guard) turns that into 1970. Read
+      // them from the authoritative columns instead, exactly as
+      // `TagRepository._fromRow` does.
+      createdAt: epochSecondsToUtc(row.createdAt),
+      updatedAt: epochSecondsToUtc(row.updatedAt),
+      // Same story: `current_hours` is server-computed and `toApiJson`
+      // doesn't send it, so a dirty row would read 0 in the DEFAULT
+      // Projects layout.
+      currentHours: row.currentHours,
       documents: decodeDocumentsColumn(row.documents),
     );
   }

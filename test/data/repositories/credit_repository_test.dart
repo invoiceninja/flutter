@@ -21,6 +21,7 @@ void main() {
   runEntityRepositoryContract(
     EntityRepositoryContractFixture<Credit, CreditApi>.build(
       entityType: 'credit',
+      updatedAtOf: (item) => item.updatedAt,
       buildRepo: (db) => CreditRepository(db: db, api: _FakeCreditsApi()),
       buildApiModel: ({required id, displayValue, updatedAt = 1700000000}) =>
           CreditApi(id: id, number: displayValue ?? id, updatedAt: updatedAt),

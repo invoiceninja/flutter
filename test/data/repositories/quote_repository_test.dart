@@ -90,6 +90,7 @@ void main() {
   runEntityRepositoryContract(
     EntityRepositoryContractFixture<Quote, QuoteApi>.build(
       entityType: 'quote',
+      updatedAtOf: (item) => item.updatedAt,
       buildRepo: (db) => QuoteRepository(db: db, api: _FakeQuotesApi(const {})),
       buildApiModel: ({required id, displayValue, updatedAt = 1700000000}) =>
           QuoteApi(id: id, number: displayValue ?? id, updatedAt: updatedAt),

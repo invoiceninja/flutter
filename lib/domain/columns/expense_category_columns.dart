@@ -4,6 +4,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/db/dao/expense_category_dao.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/domain/columns/column_cells.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 
 typedef ExpenseCategoryColumn = ColumnDefinition<ExpenseCategory>;
@@ -32,12 +33,10 @@ final List<ExpenseCategoryColumn> kAllExpenseCategoryColumns =
         cellBuilder: (c, ctx) => _ColorSwatchCell(color: c.color),
         valueBuilder: (c) => cellNonZeroString(c.color),
       ),
-      ExpenseCategoryColumn(
-        id: ExpenseCategoryFieldIds.updatedAt,
-        labelKey: 'last_updated',
+      colUpdatedAt<ExpenseCategory>(
+        ExpenseCategoryFieldIds.updatedAt,
+        (c) => c.updatedAt,
         width: 110,
-        cellBuilder: (c, ctx) => cellDate(c.updatedAt, ctx),
-        valueBuilder: (c) => c.updatedAt.toIso8601String(),
       ),
     ];
 

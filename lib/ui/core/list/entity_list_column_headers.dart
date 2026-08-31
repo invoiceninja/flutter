@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/columns/column_definition.dart';
-import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/widgets/selection_checkbox.dart';
@@ -74,7 +73,10 @@ class _HeaderCell<T> extends StatelessWidget {
     final isActive = vm.sortField == column.id;
     final activeStyle = labelStyle.copyWith(color: tokens.ink2);
     final text = Text(
-      context.tr(column.labelKey).toUpperCase(),
+      // `resolveLabel`, not `context.tr(labelKey)`: a custom-field column
+      // carries the COMPANY's own label ("Region"), which is user data with no
+      // translation key.
+      column.resolveLabel(context).toUpperCase(),
       style: isActive ? activeStyle : labelStyle,
     );
     final arrow = isActive

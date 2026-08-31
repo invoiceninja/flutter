@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/api/task_api_model.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/repositories/task_repository.dart';
@@ -289,6 +290,34 @@ void main() {
         .first;
     expect(after!.isRunning, isFalse);
     expect(after.timeLog, isEmpty);
+  });
+
+  // TaskRepository isn't registered on the shared contract (see
+  // `_base_entity_repository_contract.dart`), so the timestamp-survival check
+  // every other entity gets from there lives here instead.
+  test('a locally-edited task keeps its server timestamps and creator', () async {
+    final repo = makeRepo();
+    const seconds = 1700000000;
+    final seeded = Task.fromApi(
+      const TaskApi(
+        id: 't_1',
+        userId: 'u_9',
+        updatedAt: seconds,
+        createdAt: seconds,
+      ),
+    );
+    await repo.save(companyId: 'co', task: seeded);
+
+    // `toApiJson` (rightly) omits `created_at` / `updated_at`, and the same map
+    // is written into the Drift `payload` column — so a `_fromRow` that decodes
+    // the payload without overlaying the columns reports epoch 0, which the
+    // list paints as 1 Jan 1970. `user_id` has no column at all, which is why
+    // `Task.toApiJson` emits it.
+    final after = await repo.watchByRealId(companyId: 'co', id: 't_1').first;
+    expect(after, isNotNull);
+    expect(after!.updatedAt.millisecondsSinceEpoch ~/ 1000, seconds);
+    expect(after.createdAt.millisecondsSinceEpoch ~/ 1000, seconds);
+    expect(after.userId, 'u_9', reason: 'the created-by column needs this');
   });
 }
 

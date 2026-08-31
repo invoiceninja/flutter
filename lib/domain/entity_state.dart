@@ -30,3 +30,21 @@ enum EntityState {
     EntityState.deleted => 'deleted',
   };
 }
+
+/// Derive the lifecycle state from the two persisted columns.
+///
+/// The mapping is documented on [EntityState] but had no implementation — the
+/// `entity_state` list column needs one. (The Client and Vendor row pills still
+/// derive it privately: they also model an `unsynced` state, which is a local
+/// flag [EntityState] deliberately doesn't carry, so they can't delegate here
+/// without widening this enum.) Deleted wins over archived, and
+/// "archived" is `archivedAt != null` — the same predicate `entityStateFilter`
+/// uses, so a row the filter calls active can never render as archived.
+EntityState entityStateOf({
+  required DateTime? archivedAt,
+  required bool isDeleted,
+}) {
+  if (isDeleted) return EntityState.deleted;
+  if (archivedAt != null) return EntityState.archived;
+  return EntityState.active;
+}

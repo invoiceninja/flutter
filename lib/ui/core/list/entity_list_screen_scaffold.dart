@@ -460,6 +460,11 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // A completed Sync re-arms the VM's pagination — see
     // `GenericListViewModel.bindResync`.
     _vm.bindResync(_services.resync);
+    // Custom-field columns render under the company's configured labels — see
+    // `GenericListViewModel.bindCompany`. Bound here rather than through
+    // `buildVm` for the same reason `bindResync` is: this is the one choke
+    // point every list VM passes through, so no entity can forget it.
+    _vm.bindCompany(_services.company.watchCompany(_companyId));
     // Embedded lists don't scroll themselves (they grow with the detail
     // page); their pagination is wired to the page controller in
     // didChangeDependencies instead.
@@ -480,6 +485,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
       _companyId = s.currentCompanyId;
       _vm = widget.buildVm(_services, _companyId);
       _vm.bindResync(_services.resync);
+      _vm.bindCompany(_services.company.watchCompany(_companyId));
     });
     // Dispose AFTER swapping in the new VM so any in-flight rebuild keyed
     // on the old `_vm` reference has already moved on.

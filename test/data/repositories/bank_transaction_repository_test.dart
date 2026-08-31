@@ -15,6 +15,7 @@ void main() {
   runEntityRepositoryContract(
     EntityRepositoryContractFixture<BankTransaction, BankTransactionApi>.build(
       entityType: 'bank_transaction',
+      updatedAtOf: (item) => item.updatedAt,
       buildRepo: (db) =>
           BankTransactionRepository(db: db, api: _FakeBankTransactionsApi()),
       buildApiModel:

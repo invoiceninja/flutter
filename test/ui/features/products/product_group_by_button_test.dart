@@ -72,12 +72,15 @@ void main() {
     final vm = ProductListViewModel(
       repo: repo,
       companyId: co,
-      companyStream: Stream<Company?>.value(
-        const Company(customFields: {'product1': 'Category|Hardware,Software'}),
-      ),
       navStateDao: db.navStateDao,
       userSettings: UserSettingsRepository(db: db),
       persistDebounce: const Duration(milliseconds: 1),
+    );
+    // The list scaffold binds this for real screens; a bare VM binds it itself.
+    vm.bindCompany(
+      Stream<Company?>.value(
+        const Company(customFields: {'product1': 'Category|Hardware,Software'}),
+      ),
     );
     addTearDown(vm.dispose);
     await tester.pumpWidget(

@@ -41,11 +41,17 @@ import 'package:admin/domain/columns/vendor_columns.dart';
 /// This test locks the invariant: a column is either **sortable and mapped** in
 /// its DAO, or explicitly marked `sortable: false`.
 ///
-/// Every list DAO now THROWS on an unmapped sort field, so this probe detects a
-/// gap for all of them — that is the whole mechanism. Any DAO that silently
-/// falls back instead makes its own dead headers invisible here, which is
-/// exactly how six bank-transaction columns and `user.phone` shipped ordering
-/// by something else.
+/// The probe works by catching that throw, so it only covers the DAOs that
+/// throw. **Client, Vendor and User do not**: `ClientDao._sortExpression` and
+/// `VendorDao._sortExpression` assert against `k<Entity>ColumnIds` and then
+/// fall through to a generic `json_extract(payload, '$.<id>')`, which is what
+/// legitimately powers sorting by address / notes / contact fields. For those
+/// three, the guard is `column_ids_match_registry_test` (the id set must equal
+/// the registry) plus review of the explicit `case` arms — a *new* sortable
+/// column there whose id isn't a real payload key would order by NULL, and this
+/// probe would stay green. Everything else throws, which is how six
+/// bank-transaction columns and `user.phone` were caught shipping ordering by
+/// something else.
 void main() {
   late AppDatabase db;
 
@@ -255,21 +261,64 @@ void main() {
     // notes, a computed status, or a foreign-key "View" link — with no Drift
     // column behind it. Task/project tags are deliberately absent: they have a
     // denormalized `tag_names` column and DO sort.
+    // Every entity's shared metadata block is display-only bar `created_at` /
+    // `archived_at` / `is_deleted`: `entity_state` is a derived pair of
+    // columns, `documents` is a count over a JSON blob, and `user_id` is
+    // payload-only everywhere.
+    const sharedMetadata = <String>['entity_state', 'documents', 'user_id'];
+    // `assigned_user_id` is a real column on the billing docs, clients and
+    // projects, and payload-only on these — see each `FieldIds` doc comment.
+    const payloadAssignee = <String>['assigned_user_id'];
+
     final displayOnly = <String, List<String>>{
-      'client': [ClientFieldIds.tagIds],
-      'vendor': [VendorFieldIds.tagIds],
-      'product': [ProductFieldIds.tagIds],
-      'payment': [PaymentFieldIds.tagIds],
-      'credit': [CreditFieldIds.tagIds],
-      'quote': [QuoteFieldIds.publicNotes, QuoteFieldIds.tagIds],
-      'purchase_order': [PurchaseOrderFieldIds.tagIds],
-      'recurring_invoice': [RecurringInvoiceFieldIds.tagIds],
-      'bank_transaction': [BankTransactionColumnIds.tagIds],
+      'client': [ClientFieldIds.tagIds, ...sharedMetadata],
+      'vendor': [VendorFieldIds.tagIds, ...sharedMetadata, ...payloadAssignee],
+      'product': [
+        ProductFieldIds.tagIds,
+        ...sharedMetadata,
+        ...payloadAssignee,
+      ],
+      'payment': [
+        PaymentFieldIds.tagIds,
+        PaymentFieldIds.privateNotes,
+        ...sharedMetadata,
+        ...payloadAssignee,
+      ],
+      'credit': [
+        CreditFieldIds.tagIds,
+        CreditFieldIds.publicNotes,
+        CreditFieldIds.privateNotes,
+        ...sharedMetadata,
+      ],
+      'quote': [
+        QuoteFieldIds.publicNotes,
+        QuoteFieldIds.privateNotes,
+        QuoteFieldIds.tagIds,
+        ...sharedMetadata,
+      ],
+      'purchase_order': [
+        PurchaseOrderFieldIds.tagIds,
+        PurchaseOrderFieldIds.publicNotes,
+        PurchaseOrderFieldIds.privateNotes,
+        ...sharedMetadata,
+      ],
+      'recurring_invoice': [
+        RecurringInvoiceFieldIds.tagIds,
+        RecurringInvoiceFieldIds.publicNotes,
+        RecurringInvoiceFieldIds.privateNotes,
+        ...sharedMetadata,
+      ],
+      // No documents / assigned user / creator on the wire for this entity.
+      'bank_transaction': [
+        BankTransactionColumnIds.tagIds,
+        BankTransactionColumnIds.entityState,
+      ],
       'invoice': [
         InvoiceFieldIds.recurringId,
         InvoiceFieldIds.publicNotes,
         InvoiceFieldIds.privateNotes,
         InvoiceFieldIds.tagIds,
+        ...sharedMetadata,
       ],
       'expense': [
         ExpenseFieldIds.status,
@@ -277,12 +326,31 @@ void main() {
         ExpenseFieldIds.publicNotes,
         ExpenseFieldIds.privateNotes,
         ExpenseFieldIds.tagIds,
+        ...sharedMetadata,
+        ...payloadAssignee,
       ],
       'recurring_expense': [
         RecurringExpenseFieldIds.status,
         RecurringExpenseFieldIds.publicNotes,
         RecurringExpenseFieldIds.privateNotes,
         RecurringExpenseFieldIds.tagIds,
+        ...sharedMetadata,
+        ...payloadAssignee,
+      ],
+      // Notes and the money budget live only in the project payload.
+      'project': [
+        ProjectFieldIds.publicNotes,
+        ProjectFieldIds.privateNotes,
+        ProjectFieldIds.budgetedAmount,
+        ...sharedMetadata,
+      ],
+      // `duration` and `date` are both derived from `time_log`; the tasks
+      // table has no `assigned_user_id` column.
+      'task': [
+        'duration',
+        TaskFieldIds.date,
+        ...sharedMetadata,
+        ...payloadAssignee,
       ],
     };
 
@@ -299,6 +367,8 @@ void main() {
       'invoice': invoiceColumnsById.cast(),
       'expense': expenseColumnsById.cast(),
       'recurring_expense': recurringExpenseColumnsById.cast(),
+      'project': projectColumnsById.cast(),
+      'task': taskColumnsById.cast(),
     };
 
     displayOnly.forEach((entity, ids) {

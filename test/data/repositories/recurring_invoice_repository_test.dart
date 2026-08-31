@@ -27,6 +27,7 @@ void main() {
       // Matches `RecurringInvoiceRepository.entityTypeName`, which overrides
       // the base `EntityType.name` — the outbox stores the snake_case spelling.
       entityType: 'recurring_invoice',
+      updatedAtOf: (item) => item.updatedAt,
       buildRepo: (db) =>
           RecurringInvoiceRepository(db: db, api: _FakeRecurringInvoicesApi()),
       buildApiModel: ({required id, displayValue, updatedAt = 1700000000}) =>

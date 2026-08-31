@@ -210,41 +210,15 @@ class _HintBar extends StatelessWidget {
           spacing: InSpacing.lg(context),
           runSpacing: InSpacing.sm,
           children: [
-            for (final hint in hints) _HintChip(hint: hint),
+            for (final hint in hints)
+              KeyCapRow(keys: hint.keys, label: context.tr(hint.labelKey)),
             // Trailing pointer to the full list — the modifier-only bar isn't
             // exhaustive (single-key shortcuts + the G-leader live in the ?
             // dialog). `?` is itself a global shortcut that opens it.
-            const _HintChip(
-              hint: ShortcutHint(keys: ['?'], labelKey: 'all_shortcuts'),
-            ),
+            KeyCapRow(keys: const ['?'], label: context.tr('all_shortcuts')),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _HintChip extends StatelessWidget {
-  const _HintChip({required this.hint});
-
-  final ShortcutHint hint;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < hint.keys.length; i++) ...[
-          if (i > 0) const SizedBox(width: 3),
-          KeyCap(label: hint.keys[i]),
-        ],
-        const SizedBox(width: 8),
-        Text(
-          context.tr(hint.labelKey),
-          style: TextStyle(fontSize: 13, color: tokens.ink2),
-        ),
-      ],
     );
   }
 }

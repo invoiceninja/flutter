@@ -44,9 +44,9 @@ class NavHistoryButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final history = context.watch<NavHistoryController>();
-    // KeyCap chip glyph: '⌘' on Apple; 'Alt+' elsewhere loses its '+' —
-    // the chip row already reads as a combination.
-    final mod = platformHistoryModifierLabel().replaceAll('+', '');
+    // One entry per key: '⌘' on Apple, 'Alt' elsewhere. The chip row already
+    // reads as a combination, so the label's '+' must not land inside a cap.
+    final mod = platformHistoryModifierGlyphs();
     return Row(
       mainAxisAlignment: compact
           ? MainAxisAlignment.center
@@ -55,7 +55,7 @@ class NavHistoryButtons extends StatelessWidget {
         _HistoryButton(
           icon: Icons.arrow_back,
           labelKey: 'go_back',
-          keys: [mod, '←'],
+          keys: [...mod, '←'],
           enabled: history.canGoBack,
           touch: touch,
           compact: compact,
@@ -64,7 +64,7 @@ class NavHistoryButtons extends StatelessWidget {
         _HistoryButton(
           icon: Icons.arrow_forward,
           labelKey: 'go_forward',
-          keys: [mod, '→'],
+          keys: [...mod, '→'],
           enabled: history.canGoForward,
           touch: touch,
           compact: compact,

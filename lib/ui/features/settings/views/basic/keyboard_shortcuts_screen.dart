@@ -199,12 +199,12 @@ class _ShortcutRow extends StatelessWidget {
         style: TextStyle(color: tokens.ink3, fontSize: 12),
       );
     }
-    return Wrap(
-      spacing: 4,
-      children: [
-        for (final glyph in binding.displayGlyphs(mod))
-          KeyCap(label: glyph, color: conflict ? tokens.warning : null),
-      ],
+    // `KeyCapRow`, not a hand-rolled `Wrap`: one chord is one row, at the
+    // app's single inter-cap gap. This rendered the same `displayGlyphs` list
+    // as the hint bar and the `?` dialog at a different spacing.
+    return KeyCapRow(
+      keys: binding.displayGlyphs(mod),
+      keyColor: conflict ? tokens.warning : null,
     );
   }
 }

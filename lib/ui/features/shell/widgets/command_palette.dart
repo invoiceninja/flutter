@@ -416,34 +416,64 @@ class _CommandPaletteState extends State<_CommandPalette> {
     }
   }
 
-  /// The `↑↓ · ↵ · esc` affordance row, rendered under both the results list
-  /// and the recents list. One definition, two spread sites: it shipped as two
-  /// byte-identical 26-line blocks 120 lines apart, so a copy edit — a fourth
-  /// hint, spelling `↵` as Enter, localizing `esc` — would have landed in one
-  /// state and not the other, with nothing to catch it.
+  /// The keyboard affordance row under the results / recents lists:
+  /// `[↑][↓] Navigate  [Enter] Select  [Esc] Close`.
   ///
-  /// Keyboard-only, so the callers hide it on a phone along with the `⌘/` chip:
-  /// a divider plus ~29 px of glyphs nobody can act on, in a dialog that is
-  /// short on height exactly there. Nothing is stranded — the barrier is
+  /// Every key is a [KeyCapRow] — the same chip the hold-modifier hint bar,
+  /// the `?` dialog and this card's own field use. It was flat
+  /// `↑↓ · ↵ · esc` text, which put two treatments of one idea ~40 px apart:
+  /// this row, and the keycap directly above it
+  /// (invoiceninja/flutter#103). The middots went with it — a bordered cap is
+  /// already its own visual unit, so the runs separate on space. `Enter` and
+  /// `Esc` are spelled out rather than drawn as `↵` / `⎋`, matching the `?`
+  /// dialog and what `KeyBinding.displayGlyphs` produces for a rebind.
+  ///
+  /// The nav runs are gated, because a keycap makes a claim that grey 11-px
+  /// text got away with mumbling: [_move] early-returns on an empty list and
+  /// [_select] on an out-of-range index, and this footer renders in the
+  /// "No records found" and loading-from-rest states too, where `↑↓` and
+  /// `Enter` do nothing at all.
+  ///
+  /// `Esc` is NOT gated on `Env.isTouchPrimary`, though a tablet reaches this
+  /// card (touch, but `shortestSide >= 600`, so not `isPhone`). It stays
+  /// registered in `bindings` either way, so an iPad with a keyboard can press
+  /// it — hiding a hint that is true, on the same device the card keeps its
+  /// arrow hints for, would have been the inconsistency rather than the fix.
+  ///
+  /// One definition, two spread sites: it shipped as two byte-identical
+  /// 26-line blocks 120 lines apart, so a copy edit — a fourth hint, a
+  /// relabelled key — would have landed in one state and not the other, with
+  /// nothing to catch it.
+  ///
+  /// Keyboard-only, so the callers hide the whole row on a phone along with
+  /// the `⌘ /` chip: a divider plus glyphs nobody can press, in a dialog that
+  /// is short on height exactly there. Nothing is stranded — the barrier is
   /// dismissible, Android back pops the route, and the field carries a close
   /// button on every touch device.
   List<Widget> _keyboardHints(BuildContext context) {
     final tokens = context.inTheme;
+    final canNavigate = _recentMode || _results.isNotEmpty;
+    final runs = <Widget>[
+      if (canNavigate) ...[
+        KeyCapRow(keys: const ['↑', '↓'], label: context.tr('navigate')),
+        KeyCapRow(keys: const ['Enter'], label: context.tr('select')),
+      ],
+      KeyCapRow(keys: const ['Esc'], label: context.tr('close')),
+    ];
     return [
       Container(height: 1, color: tokens.border.withValues(alpha: 0.6)),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: DefaultTextStyle(
-          style: TextStyle(fontSize: 11, color: tokens.ink3),
-          child: const Row(
-            children: [
-              Text('↑↓'),
-              Text('   ·   '),
-              Text('↵'),
-              Text('   ·   '),
-              Text('esc'),
-            ],
-          ),
+        // `Wrap`, not `Row`: the three runs are ~314 px on the 680-px card
+        // (German ~344, Spanish ~364) and the caps grow with `textScaler`, so
+        // a narrow window at a large text size would overflow a `Row` rather
+        // than reflow. Left-aligned to match the card's own content edge —
+        // and the design-editor footer, the app's other hint row.
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: InSpacing.lg(context),
+          runSpacing: InSpacing.sm,
+          children: runs,
         ),
       ),
     ];
@@ -521,7 +551,11 @@ class _CommandPaletteState extends State<_CommandPalette> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              KeyCap(label: '${platformModifierLabel()}/', color: tokens.ink3),
+              // One cap per glyph — `[⌘][/]`, not a single `⌘/` cap, which
+              // rendered `Ctrl/` with no gap on Windows and Linux. Default
+              // ink, like every other KeyCap in the app; this chip was the
+              // only dimmed one (invoiceninja/flutter#103).
+              KeyCapRow(keys: [platformModifierLabel(), '/']),
               if (touch)
                 IconButton(
                   icon: const Icon(Icons.close, size: 22),

@@ -239,9 +239,9 @@ void main() {
     test('both hint spread sites are gated on isPhone', () {
       // The footer is one `_keyboardHints` definition spread twice, so the
       // check is a short marker per site — the earlier version scanned a fixed
-      // 900-char window back from each `Text('esc')` against an actual
-      // distance of 604, i.e. ~300 chars of slack before a couple of added
-      // comment lines turned CI red with no behaviour change.
+      // 900-char window back from each hint literal against an actual distance
+      // of 604, i.e. ~300 chars of slack before a couple of added comment
+      // lines turned CI red with no behaviour change.
       final spreads = RegExp(
         r'\.\.\._keyboardHints\(',
       ).allMatches(palette).toList();
@@ -256,11 +256,11 @@ void main() {
           isTrue,
           reason:
               'a keyboard hint row still renders on a phone, where none of '
-              '↑↓ / ↵ / esc can be pressed',
+              'the arrow / Enter / Esc keys can be pressed',
         );
       }
       expect(
-        RegExp(r"Text\('esc'\)").allMatches(palette),
+        RegExp(r"'Esc'").allMatches(palette),
         hasLength(1),
         reason:
             'one definition, two spread sites — a second literal means the '
@@ -277,7 +277,26 @@ void main() {
       expect(suffix, isNot(-1));
       final slot = palette.substring(suffix, suffix + 2000);
 
-      expect(slot.contains('KeyCap('), isTrue);
+      expect(
+        slot.contains('KeyCapRow('),
+        isTrue,
+        reason:
+            'one cap per glyph — `[Ctrl][/]`, never a single `Ctrl/` cap '
+            '(invoiceninja/flutter#103)',
+      );
+      // Scoped to the chip, NOT `slot`: the close button four lines later
+      // legitimately dims its icon with the same token.
+      final chip = palette.substring(
+        suffix,
+        palette.indexOf('if (touch)', suffix),
+      );
+      expect(
+        chip.contains('tokens.ink3'),
+        isFalse,
+        reason:
+            'the chip uses the default cap ink like every other KeyCap in '
+            'the app; it was the only dimmed one',
+      );
       expect(
         slot.contains('if (touch)'),
         isTrue,
@@ -531,6 +550,77 @@ void main() {
       );
     });
 
+    // #103: the field's `⌘ /` chip was a bordered mono keycap while the row
+    // directly under it was flat sans text joined by `·` — two treatments of
+    // one idea ~40 px apart. These pin the footer's new shape, and the gate
+    // that keeps a louder hint from claiming a key that does nothing.
+    testWidgets('the footer only offers keys that currently do something', (
+      tester,
+    ) async {
+      await withPalette(
+        tester,
+        size: desktop,
+        platform: TargetPlatform.macOS,
+        body: () async {
+          // `buildFixture` installs a fail-fast client, so the search rejects
+          // and the palette lands on "No records found" — where `_move` and
+          // `_select` both early-return.
+          await tester.enterText(find.byType(TextField), 'acme');
+          // `_onChanged` doesn't setState; nothing rebuilds until the debounce
+          // fires `_run`. Plain `pump`, never `pumpAndSettle`: a still-running
+          // LinearProgressIndicator would hang it for the 10-minute timeout.
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pump();
+
+          expect(find.text('No records found'), findsOneWidget);
+          expect(
+            find.text('Navigate'),
+            findsNothing,
+            reason: 'there is nothing to move through',
+          );
+          expect(find.text('Select'), findsNothing);
+          expect(
+            find.text('Close'),
+            findsOneWidget,
+            reason: 'Esc still works, so it is still offered',
+          );
+          // The 2 field-chip caps plus Esc.
+          expect(find.byType(KeyCap), findsNWidgets(3));
+        },
+      );
+    });
+
+    testWidgets('a populated footer is keycaps, with no middot separators', (
+      tester,
+    ) async {
+      await withPalette(
+        tester,
+        size: desktop,
+        platform: TargetPlatform.macOS,
+        body: () async {
+          // A pasted deep link resolves locally in `_run` — synchronous
+          // results with no network and no recents timer to drain.
+          await tester.enterText(
+            find.byType(TextField),
+            'invoiceninja://app/clients/abc',
+          );
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pump();
+
+          expect(find.text('Navigate'), findsOneWidget);
+          expect(find.text('Select'), findsOneWidget);
+          expect(find.text('Close'), findsOneWidget);
+          // ⌘ / in the field, then ↑ ↓ Enter Esc in the footer.
+          expect(find.byType(KeyCap), findsNWidgets(6));
+          expect(
+            find.textContaining('·'),
+            findsNothing,
+            reason: 'the separators are gone — a cap is its own visual unit',
+          );
+        },
+      );
+    });
+
     testWidgets('a desktop window keeps the floating card', (tester) async {
       await withPalette(
         tester,
@@ -538,7 +628,12 @@ void main() {
         platform: TargetPlatform.macOS,
         body: () async {
           expect(find.byIcon(Icons.arrow_back), findsNothing);
-          expect(find.byType(KeyCap), findsOneWidget);
+          // One cap per glyph: `⌘` + `/` on macOS. The card is at rest (no
+          // query, no recents), so `sections` is empty and the footer's own
+          // caps aren't up yet.
+          expect(find.byType(KeyCap), findsNWidgets(2));
+          expect(find.text('⌘'), findsOneWidget);
+          expect(find.text('/'), findsOneWidget);
           expect(
             tester.getSize(find.byType(ClipRRect)).width,
             lessThanOrEqualTo(680),

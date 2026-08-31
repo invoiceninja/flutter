@@ -25,7 +25,10 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final mod = platformModifierLabel();
-    final navMod = platformHistoryModifierLabel();
+    // One entry per key ('⌘' on Apple, 'Alt' elsewhere) — a keycap row already
+    // reads as a combination, so the label's '+' must not land inside a cap.
+    // Shared with `nav_history_buttons.dart`, which renders the same chord.
+    final navMod = platformHistoryModifierGlyphs();
 
     // Global + create rows come from the resolved bindings (override → default)
     // so the dialog matches the live `Shortcuts` map + the hint bar. Cleared
@@ -36,7 +39,7 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
         if (def.group == group)
           if (controller.resolvedBinding(def.id) case final b?)
             _Row(
-              keys: [b.displayGlyphs(mod).join()],
+              chords: [b.displayGlyphs(mod)],
               description: context.tr(def.labelKey),
             ),
     ];
@@ -60,20 +63,63 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
         icon: Icons.list_alt,
         title: context.tr('shortcuts_records'),
         rows: [
-          _Row(keys: ['N'], description: context.tr('new_record')),
-          _Row(keys: ['E'], description: context.tr('edit_current')),
+          _Row(
+            chords: const [
+              ['N'],
+            ],
+            description: context.tr('new_record'),
+          ),
+          _Row(
+            chords: const [
+              ['E'],
+            ],
+            description: context.tr('edit_current'),
+          ),
         ],
       ),
       _Section(
         icon: Icons.unfold_more,
         title: context.tr('shortcuts_navigation'),
         rows: [
-          _Row(keys: ['J', '↓'], description: context.tr('next_record')),
-          _Row(keys: ['K', '↑'], description: context.tr('previous_record')),
-          _Row(keys: ['$navMod←'], description: context.tr('go_back')),
-          _Row(keys: ['$navMod→'], description: context.tr('go_forward')),
-          _Row(keys: ['F'], description: context.tr('toggle_full_screen')),
-          _Row(keys: ['Esc'], description: context.tr('close')),
+          // Alternatives, not a chord: `[J] or [↓]`.
+          _Row(
+            chords: const [
+              ['J'],
+              ['↓'],
+            ],
+            description: context.tr('next_record'),
+          ),
+          _Row(
+            chords: const [
+              ['K'],
+              ['↑'],
+            ],
+            description: context.tr('previous_record'),
+          ),
+          _Row(
+            chords: [
+              [...navMod, '←'],
+            ],
+            description: context.tr('go_back'),
+          ),
+          _Row(
+            chords: [
+              [...navMod, '→'],
+            ],
+            description: context.tr('go_forward'),
+          ),
+          _Row(
+            chords: const [
+              ['F'],
+            ],
+            description: context.tr('toggle_full_screen'),
+          ),
+          _Row(
+            chords: const [
+              ['Esc'],
+            ],
+            description: context.tr('close'),
+          ),
         ],
       ),
       _Section(
@@ -83,21 +129,51 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
           // `/` (focus search) is a global, remappable shortcut — it's rendered
           // dynamically in the Global section above (reflecting any rebind), so
           // it's intentionally not repeated here.
-          _Row(keys: ['↑', '↓'], description: context.tr('move_selection')),
-          _Row(keys: ['Enter'], description: context.tr('apply_filter')),
+          // Alternatives — `[↑] or [↓]`. NOT one `['↑','↓']` run: that is the
+          // command palette footer's shape, which means "the arrow keys".
           _Row(
-            keys: ['Backspace'],
+            chords: const [
+              ['↑'],
+              ['↓'],
+            ],
+            description: context.tr('move_selection'),
+          ),
+          _Row(
+            chords: const [
+              ['Enter'],
+            ],
+            description: context.tr('apply_filter'),
+          ),
+          _Row(
+            chords: const [
+              ['Backspace'],
+            ],
             description: context.tr('remove_last_filter'),
           ),
-          _Row(keys: ['Esc'], description: context.tr('dismiss_menu')),
+          _Row(
+            chords: const [
+              ['Esc'],
+            ],
+            description: context.tr('dismiss_menu'),
+          ),
         ],
       ),
       _Section(
         icon: Icons.edit_note,
         title: context.tr('shortcuts_forms'),
         rows: [
-          _Row(keys: ['Enter'], description: context.tr('save')),
-          _Row(keys: ['${mod}S'], description: context.tr('save')),
+          _Row(
+            chords: const [
+              ['Enter'],
+            ],
+            description: context.tr('save'),
+          ),
+          _Row(
+            chords: [
+              [mod, 'S'],
+            ],
+            description: context.tr('save'),
+          ),
         ],
       ),
     ];
@@ -242,9 +318,19 @@ sealed class _RowSpec {
 }
 
 class _Row extends _RowSpec {
-  const _Row({required this.keys, required this.description});
+  const _Row({required this.chords, required this.description});
 
-  final List<String> keys;
+  /// Alternative ways to trigger the action, joined by a localized "or".
+  /// Each entry is one chord's display glyphs, rendered as a [KeyCapRow]:
+  /// `[['⌘', 'S']]` is ⌘+S together, `[['J'], ['↓']]` is "J or ↓".
+  ///
+  /// The nesting is load-bearing. This field used to be a flat
+  /// `List<String>` of *alternatives* whose chords were pre-joined into one
+  /// string (`'⌘S'`), which painted `Ctrl/` with no gap on Windows
+  /// (invoiceninja/flutter#103). Flattening an alternatives row back into a
+  /// single chord — `[['↑', '↓']]` instead of `[['↑'], ['↓']]` — silently
+  /// turns "press either arrow" into "press both".
+  final List<List<String>> chords;
   @override
   final String description;
 }
@@ -306,18 +392,21 @@ class _RowView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final keysWidget = switch (row) {
+      // One `KeyCapRow` per alternative — the 3-px gap between a chord's own
+      // glyphs lives inside the row, so the caps must NOT be direct `Wrap`
+      // children or that gap would compound with the Wrap's own 6 px.
       _Row r => Wrap(
         spacing: 6,
         runSpacing: 4,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          for (var i = 0; i < r.keys.length; i++) ...[
+          for (var i = 0; i < r.chords.length; i++) ...[
             if (i > 0)
               Text(
                 context.tr('or'),
                 style: TextStyle(fontSize: 11, color: tokens.ink3),
               ),
-            KeyCap(label: r.keys[i]),
+            KeyCapRow(keys: r.chords[i]),
           ],
         ],
       ),

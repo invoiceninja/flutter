@@ -187,13 +187,7 @@ class _ShortcutRecorderDialogState extends State<_ShortcutRecorderDialog> {
                         '…',
                         style: TextStyle(color: tokens.ink3, fontSize: 18),
                       )
-                    : Wrap(
-                        spacing: 6,
-                        children: [
-                          for (final glyph in candidate.displayGlyphs(mod))
-                            KeyCap(label: glyph),
-                        ],
-                      ),
+                    : KeyCapRow(keys: candidate.displayGlyphs(mod)),
               ),
             ),
             if (_errorKey != null) ...[

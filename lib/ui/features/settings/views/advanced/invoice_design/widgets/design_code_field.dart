@@ -7,6 +7,8 @@ import 'package:re_highlight/styles/atom-one-light.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/static/design_template_completions.dart';
+import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/key_cap.dart';
 
 /// Syntax-highlighting HTML editor for one custom-design template section
 /// (body / header / footer / includes / product / task). Wraps `re_editor`
@@ -600,8 +602,31 @@ class _DesignCompletionsBuilder implements CodeAutocompletePromptsBuilder {
 
 const int _kMaxRows = 12;
 const double _kRowHeight = 28;
-const double _kFooterHeight = 22;
-const double _kOverlayWidth = 320;
+
+/// Footer floor. A dense [KeyCapRow] is ~17 px, so this is headroom, not a fit.
+///
+/// It is also what [_OverlayView.preferredSize] reports, and `re_editor` uses
+/// that for **both** halves of the flip-above decision — whether to flip, and
+/// how far: `offsetY = -child.preferredSize.height - lineHeight`
+/// (`_code_autocomplete.dart`). The footer is a `minHeight`, never a fixed
+/// `height`, because an `Align` does not clip and a wrapped second run would
+/// otherwise paint over the completion row above it — but that means the real
+/// height grows with `MediaQuery.textScaler` while this constant does not, and
+/// `preferredSize` has no `BuildContext` to read the scaler from. So a popover
+/// that flips up at a large text scale sits a little low, over the caret line.
+/// [_kOverlayWidth] is sized to keep the footer on one run so that stays small.
+const double _kFooterHeight = 26;
+
+/// Widened from 320 to buy the footer one notch of text scale before it wraps
+/// — which is when [_kFooterHeight] starts under-reporting.
+///
+/// Measured against the longest locale (Spanish, ~274 px of runs): at 320 it
+/// wraps by **1.15×**, at 360 it does not. Both wrap by **1.3×**, so this
+/// narrows the window rather than closing it — a user on a large accessibility
+/// text size still gets a two-run footer and the slightly-low flipped popover
+/// described on [_kFooterHeight]. Closing it entirely would mean dropping the
+/// labels, and saying what the keys do is the footer's whole job.
+const double _kOverlayWidth = 360;
 
 class _OverlayView extends StatelessWidget implements PreferredSizeWidget {
   const _OverlayView({required this.notifier, required this.onSelected});
@@ -665,16 +690,52 @@ class _OverlayView extends StatelessWidget implements PreferredSizeWidget {
                       ),
                     ),
                   ),
+                // Keycaps, not `↑↓ navigate · ↵ insert · esc close` as one
+                // flat string — the app's shared vocabulary for keyboard
+                // hints, and the same treatment the command palette's footer
+                // got (invoiceninja/flutter#103). `dense` because this
+                // popover is a fixed 320 px wide. Also localizes a row that
+                // was hardcoded English; `select` rather than a new "insert"
+                // key, since it is a real translated string in every locale.
+                //
+                // `minHeight`, NOT `height:`: an `Align` does not clip, so a
+                // fixed box would let a `Wrap` that reflows at a large text
+                // scale paint over the completion row above it — silently,
+                // with no overflow error and nothing a test could see.
                 Container(
-                  height: _kFooterHeight,
+                  constraints: const BoxConstraints(minHeight: _kFooterHeight),
                   decoration: BoxDecoration(
                     border: Border(top: BorderSide(color: tokens.border)),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    '↑↓ navigate · ↵ insert · esc close',
-                    style: TextStyle(color: tokens.ink3, fontSize: 10),
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    // A literal, not `InSpacing.md(context)`: that token
+                    // resolves off *window* width, which says nothing
+                    // about this popover's fixed one.
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      KeyCapRow(
+                        keys: const ['↑', '↓'],
+                        label: context.tr('navigate'),
+                        dense: true,
+                      ),
+                      KeyCapRow(
+                        keys: const ['Enter'],
+                        label: context.tr('select'),
+                        dense: true,
+                      ),
+                      KeyCapRow(
+                        keys: const ['Esc'],
+                        label: context.tr('close'),
+                        dense: true,
+                      ),
+                    ],
                   ),
                 ),
               ],

@@ -23,6 +23,13 @@ const int kCompanyNameTooltipThreshold = 22;
 /// picker is also the sidebar's only Sign-out entry, and the ⌘K path
 /// (`scaffold_with_nav.dart`) never had the gate — so this is the consistent
 /// behavior, not a new affordance.
+///
+/// Issue #104 did **not** revert that. On a single-company mobile drawer this
+/// widget isn't rendered at all, but the control it opens is still there — it
+/// moves to `SidebarCompanyFooterAction` in the footer row, which is reachable
+/// at `companies.length` of 1 *and* 0. Relocated, never gated: `CompanyPicker`
+/// owns the app's only "New company" entry, so making it unreachable at one
+/// company would lock an owner out of ever having two.
 class CompanySwitcherButton extends StatefulWidget {
   const CompanySwitcherButton({
     required this.session,
@@ -44,9 +51,9 @@ class CompanySwitcherButton extends StatefulWidget {
   /// anchored on the same key.
   final bool compact;
 
-  /// Floors the button at [InSizes.touchTarget] tall. Only bites in [compact]
-  /// mode — the expanded button is already 44 (28 avatar + 8 padding either
-  /// side). Height only: the collapsed rail leaves just 64 − 28 = 36 px of
+  /// Floors the button at [InSizes.touchTarget] tall. Never bites outside
+  /// [compact] mode — the expanded button is already 46: `Container` folds the
+  /// 1-px border into the 8-px padding, so it is 28 avatar + 2x9. Height only: the collapsed rail leaves just 64 − 28 = 36 px of
   /// usable width. Set from `Env.isTouchPrimary` by `InSidebar`; see issue #11.
   final bool touch;
 

@@ -25,6 +25,16 @@ import 'package:admin/l10n/localization.dart';
 /// chrome already means "search *this* list" (`TokenSearchField`, Settings)
 /// rather than "search everything".
 ///
+/// **The label survived issue #104 too**, but only just — and that is now the
+/// binding constraint on this row. A single-company drawer drops the sidebar
+/// header and moves Sync in here, which takes the label slot from 130 px to 84.
+/// The 232-px rail, which the note above calls the tightest surface, gets 82,
+/// so the drawer stays a hair wider — but only because that layout spends
+/// `InSpacing.xs` on the Sync gap rather than `sm`, and trims its right inset
+/// from 14 to 12 (both rationalised in `in_sidebar.dart`). Give **both** back
+/// and the slot is 78, where French ("Rechercher", 64.5 px) ellipsizes at
+/// 1.21x — the app's own Large is 1.2. Either one alone still clears it.
+///
 /// **`MainAxisAlignment.center` is load-bearing.** A *full-width* bordered box
 /// with a magnifier reads as a text field — precisely the complaint in #101. At
 /// button width with a centred icon + label it reads as a button, and it shares
@@ -43,7 +53,7 @@ import 'package:admin/l10n/localization.dart';
 /// The 44 floor is hardcoded rather than taken as a `touch:` parameter (which
 /// is what `SidebarSyncButton` and `_HistoryButton` do) because this is only
 /// ever mounted on touch — relaxing that gate means adding the parameter first,
-/// or a 44-px box lands beside 32-px arrows and grows the desktop row to 48.
+/// or a 44-px box lands beside 32-px arrows and grows the desktop row to 44.
 ///
 /// Absent from the 64-px collapsed rail because there is no horizontal slack
 /// there: the two arrows are 2×32 in a 64-px box with no horizontal padding.
@@ -87,9 +97,9 @@ class SidebarSearchBox extends StatelessWidget {
             ),
             // 6, not InSpacing.sm — the tightest surface is the 232-px rail,
             // where the box is 120 wide. `Container` folds the 1-px border into
-            // the padding, so at 8 the label slot is 74 px and "Rechercher"
+            // the padding, so at 8 the label slot is 76 px and "Rechercher"
             // (the widest bundled label, 64.5 px at 13 pt) ellipsizes from
-            // 1.06× text scale — below the app's own Large setting of 1.2×.
+            // ~1.18× text scale — below the app's own Large setting of 1.2×.
             // Dropping this and the icon gap to 6 takes the slot to 82 and buys
             // one notch of that ladder back. InSpacing has no 6 (xs 4, sm 8).
             padding: const EdgeInsets.symmetric(horizontal: 6),

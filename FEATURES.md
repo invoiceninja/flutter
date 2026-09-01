@@ -1498,7 +1498,8 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Offline editing (full CRUD without network) | — | 🟡 | ✅ | ✅ | |
 | "Unsynced" indicator on rows with a pending/rejected outbox edit | — | — | ✅ | | |
 | Encrypted local database (SQLCipher) | — | ❌ | ✅ | ✅ | |
-| One-tap Sync in the sidebar header (push + download, shared progress) | — | — | ✅ | | |
+| One-tap Sync in the sidebar (push + download, shared progress) | — | — | ✅ | | |
+| Single-company drawer compaction — hides the company header row, moving Sync into the toolbar row and the switcher into the footer | — | — | ✅ | | |
 
 ---
 

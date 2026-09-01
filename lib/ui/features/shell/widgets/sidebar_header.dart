@@ -17,6 +17,13 @@ import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
 /// moved it up into the back/forward row, which had ~172 px of dead horizontal
 /// space, to give the nav list that row back. See `SidebarSearchBox`.
 ///
+/// **The mobile drawer doesn't mount this at all on a single-company account**
+/// (issue #104): with nothing to switch between, the row was ~54 px net of
+/// pure overhead (62 removed, 8 handed back as the toolbar row's new bottom
+/// inset). `InSidebar` then puts Sync in that same toolbar row and the
+/// switcher in the footer (`SidebarCompanyFooterAction`). The persistent rail
+/// always mounts it — its toolbar row has no width to spare.
+///
 /// Pure and directly pumpable — callbacks arrive as parameters rather than
 /// this widget reaching for `Services`, matching `SidebarNavItem` /
 /// `NavHistoryButtons` / `SidebarSyncButton`.

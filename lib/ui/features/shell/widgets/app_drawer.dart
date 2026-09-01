@@ -10,6 +10,12 @@ import 'package:admin/ui/features/shell/widgets/in_sidebar.dart';
 /// Mobile drawer that consolidates what desktop shows in the persistent
 /// `InSidebar`: company switcher + branch nav + trial footer.
 ///
+/// On a single-company account the switcher is not the header row it is on the
+/// rail — issue #104 drops that row here and re-homes the control as
+/// `SidebarCompanyFooterAction` in the footer, with Sync moving up beside
+/// Search. `InSidebar` owns that branch; this class only passes `width: null`,
+/// which is what selects it.
+///
 /// Reads the active `StatefulNavigationShell` from a `Provider` rooted on
 /// `ScaffoldWithNav` so branch swaps go through `goBranch(...)` —
 /// preserving each branch's inner navigator stack (e.g. an open client

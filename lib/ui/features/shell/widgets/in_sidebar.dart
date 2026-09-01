@@ -24,7 +24,9 @@ import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_search_box.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_header.dart';
+import 'package:admin/ui/features/shell/widgets/show_company_picker.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
 import 'package:admin/ui/features/shell/widgets/white_label_footer.dart';
@@ -248,6 +250,35 @@ class _InSidebarState extends State<InSidebar> {
             final effectiveWidth = canCollapse
                 ? (collapsed ? kInSidebarCollapsedWidth : kInSidebarWidth)
                 : null;
+            // Issue #104: a single-company account has nothing to switch
+            // *between*, so in the drawer the header row is pure overhead —
+            // Sync moves up into the toolbar row and the switcher moves into
+            // the footer, handing the nav list ~54 px (about 1.2 rows at the
+            // 44-px touch pitch) back. That is the *net*: the block removed
+            // below is 8 + 46 + 8 = 62, of which 8 comes straight back as the
+            // toolbar row's new bottom inset. 46, not 44, because
+            // `CompanySwitcherButton`'s `Container` folds its 1-px border into
+            // its 8-px padding, so the switcher is 28 + 2x9 and its
+            // `minHeight: 44` never bites.
+            //
+            // Drawer only (`!canCollapse`, so `collapsed` can never be true
+            // here). The 232-px rail cannot absorb it, though **not** because
+            // anything overflows — an earlier version of this comment said so
+            // and was wrong. Its content box is 208 and the fixed children are
+            // 88 + 4 + 44 = 136, so the `Expanded` search box gets 72, well
+            // over its 44 minimum. What breaks is the *label*: 72 less the
+            // box's own 38 px of border/padding/icon/gap leaves 34 px for a
+            // ~42-px "Search", so it ellipsizes at 1.0x text scale, before a
+            // user has changed anything. The rail is also always on screen and
+            // never scrolled past, so it has none of the drawer's pressure.
+            //
+            // `<= 1` deliberately covers the empty roster too. Issue #16's
+            // dead end was a roster that had wrongly *shrunk*, and the footer
+            // entry keeps `CompanyPicker` — the app's only "New company", and
+            // its Sign out — reachable in exactly that state.
+            final hideHeader = !canCollapse && session.companies.length <= 1;
+            // One callback, two possible mount points for the Sync button.
+            void onSync() => unawaited(SettingsActions.forceResync(context));
             // SafeArea (top-only): both hosts reach the window's top edge
             // with no AppBar — the mobile drawer (Flutter's `Drawer` adds no
             // inset of its own) and the iPad persistent rail (Positioned at
@@ -265,6 +296,7 @@ class _InSidebarState extends State<InSidebar> {
               popDrawerFirst: widget.width == null,
               touch: touch,
             );
+            final showSearch = touch && !collapsed;
             final content = SafeArea(
               left: false,
               right: false,
@@ -291,25 +323,50 @@ class _InSidebarState extends State<InSidebar> {
                     // sizing the back arrow's 18-px glyph starts at
                     // 10 + (44 − 18) / 2 = 23 — exactly the company avatar's
                     // left edge below it (14 outer + 1 border + 8 padding).
-                    // right 14 lines the search box's trailing edge up with
-                    // the Sync button.
+                    //
+                    // The right inset has two answers because both of the
+                    // things it used to line up with move under `hideHeader`:
+                    // 14 lines the search box's trailing edge up with the Sync
+                    // button *in the header row below*, but with no header
+                    // below there is nothing to line up with — so the merged
+                    // row takes the nav list's own 12 instead, which is both
+                    // the correct alignment and 2 px the search label needs
+                    // (see the width note on the row itself). The bottom inset
+                    // likewise only exists when this row is the last thing
+                    // before the divider.
                     padding: collapsed
                         ? const EdgeInsets.only(top: 4)
-                        : const EdgeInsets.fromLTRB(10, 4, 14, 0),
+                        : EdgeInsets.fromLTRB(
+                            10,
+                            4,
+                            hideHeader ? 12 : 14,
+                            hideHeader ? 8 : 0,
+                          ),
                     // Global search (issue #101) shares this row when there is
                     // room for it. Touch-only: desktop reaches the palette via
                     // ⌘/ and the Dashboard row's hover icon. Absent from the
                     // collapsed rail — 2×32 arrows fill its 64 px exactly.
                     //
-                    // The arrows stay a *direct* child on the other two paths
-                    // rather than always sitting in a `Row`. A Row hands a
+                    // Sync joins it under `hideHeader` (issue #104), and the
+                    // label slot is the thing to watch: at 280 the row is
+                    // 258 wide, arrows take 88 and Sync 44, leaving the box
+                    // 122 and its label 84 px — a hair more than the 232-px
+                    // rail's 82, which `sidebar_search_box.dart` calls the
+                    // tightest surface in the app. Don't spend those pixels.
+                    // `InSpacing.xs`, not `sm`: two bordered boxes need *some*
+                    // daylight (unlike the bare-glyph arrows, which carry 13 px
+                    // of optical separation inside their own 44-px boxes), but
+                    // 4 is enough and 8 would put the label under the rail.
+                    //
+                    // The arrows stay a *direct* child when nothing shares the
+                    // row rather than always sitting in a `Row`. A Row hands a
                     // non-flex child an unbounded main axis, which makes
                     // `NavHistoryButtons` shrink-wrap and leaves its own
                     // `mainAxisAlignment: compact ? center : start` with no
                     // free space to work in — so the collapsed rail's centring
                     // would silently become a no-op that only looks right
                     // because 2×32 == 64 exactly.
-                    child: touch && !collapsed
+                    child: showSearch || hideHeader
                         ? Row(
                             children: [
                               navHistory,
@@ -318,38 +375,60 @@ class _InSidebarState extends State<InSidebar> {
                               // of optical separation is already built in, and
                               // the box needs every pixel it can get on the
                               // 232-px rail.
-                              Expanded(
-                                child: SidebarSearchBox(
-                                  // Unlike Sync this *does* pop the mobile
-                                  // drawer first — the palette is a modal the
-                                  // user then types into, and leaving the
-                                  // drawer open behind it stacks two overlays.
-                                  onTap: () {
-                                    widget.onBeforeModal?.call();
-                                    showCommandPalette(context);
-                                  },
+                              if (showSearch)
+                                Expanded(
+                                  child: SidebarSearchBox(
+                                    // Unlike Sync this *does* pop the mobile
+                                    // drawer first — the palette is a modal the
+                                    // user then types into, and leaving the
+                                    // drawer open behind it stacks two overlays.
+                                    onTap: () {
+                                      widget.onBeforeModal?.call();
+                                      showCommandPalette(context);
+                                    },
+                                  ),
                                 ),
-                              ),
+                              if (hideHeader) ...[
+                                SizedBox(width: InSpacing.xs),
+                                // Left-aligned beside the arrows on a pointer
+                                // drawer (no search box to push it out): three
+                                // controls in a row read as a toolbar, whereas
+                                // a lone button pinned 150 px away at the right
+                                // edge reads as a stray.
+                                SidebarSyncButton(
+                                  progress: services.resync,
+                                  companyId: session.currentCompanyId,
+                                  touch: touch,
+                                  onSync: onSync,
+                                ),
+                              ],
                             ],
                           )
                         : navHistory,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-                    child: SidebarHeader(
-                      session: session,
-                      onBeforeModal: widget.onBeforeModal,
-                      compact: collapsed,
-                      touch: touch,
-                      resync: services.resync,
-                      // Deliberately does not pop the mobile drawer the way
-                      // the company switcher does: closing it would hide the
-                      // spinner the user just started. The toast host paints
-                      // above the drawer either way.
-                      onSync: () =>
-                          unawaited(SettingsActions.forceResync(context)),
+                  // Dropped entirely by `hideHeader` — the switcher then lives
+                  // in the footer and Sync in the row above. Deliberately not
+                  // wrapped in an `AnimatedSize`: the 1 -> 2 transition never
+                  // happens on screen (the add-company flow pops the drawer and
+                  // routes to Company Details), and 2 -> 1 only arrives with a
+                  // roster that has wrongly shrunk — the issue #16 state, where
+                  // the layout changing is information rather than jank.
+                  if (!hideHeader)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                      child: SidebarHeader(
+                        session: session,
+                        onBeforeModal: widget.onBeforeModal,
+                        compact: collapsed,
+                        touch: touch,
+                        resync: services.resync,
+                        // Deliberately does not pop the mobile drawer the way
+                        // the company switcher does: closing it would hide the
+                        // spinner the user just started. The toast host paints
+                        // above the drawer either way.
+                        onSync: onSync,
+                      ),
                     ),
-                  ),
                   Container(height: 1, color: tokens.border),
                   Expanded(
                     child: SingleChildScrollView(
@@ -389,6 +468,22 @@ class _InSidebarState extends State<InSidebar> {
                     compact: collapsed,
                     showCollapseToggle: canCollapse,
                     touch: touch,
+                    // The single-company drawer's company switcher. Pops the
+                    // drawer first, exactly like the header switcher does, then
+                    // opens the picker — which is always the bottom sheet here,
+                    // since `showCompanyPicker` forks at `Breakpoints.wide` and
+                    // the drawer only exists below it. No anchor key for the
+                    // same reason: the sheet ignores one.
+                    leading: hideHeader
+                        ? SidebarCompanyFooterAction(
+                            company: session.currentCompany,
+                            touch: touch,
+                            onTap: () {
+                              widget.onBeforeModal?.call();
+                              showCompanyPicker(context);
+                            },
+                          )
+                        : null,
                   ),
                   TrialFooter(compact: collapsed),
                   WhiteLabelFooter(compact: collapsed),

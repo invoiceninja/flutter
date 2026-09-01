@@ -21,8 +21,11 @@ import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 /// name — every other one titles with a localized key
 /// (`entity_list_app_bar`, Reports, Outbox, Settings, Tasks). The key here is
 /// the same `'dashboard'` the sidebar nav row uses (`in_sidebar.dart`), so the
-/// bar and the nav label can't drift apart. The company is still one tap away
-/// in the drawer's `CompanySwitcherButton`.
+/// bar and the nav label can't drift apart. The company is one tap away in the
+/// drawer — the `CompanySwitcherButton` header on a multi-company account, and
+/// `SidebarCompanyFooterAction` on a single-company one, which drops the header
+/// row for the space (issue #104) and shows the name in the picker sheet it
+/// opens rather than in the drawer itself.
 ///
 /// Split out of `DashboardScreen` so it can be pumped without a
 /// `Provider<Services>` harness, exactly like its wide sibling — the screen

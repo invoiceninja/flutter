@@ -5,7 +5,9 @@ import 'package:admin/utils/url_safety.dart';
 
 /// Small rounded square showing the first letters of [name], tinted with a
 /// stable colour derived from [seed]. Used wherever the design system shows
-/// a company "logo" — sidebar header, picker rows, mobile top bar.
+/// a company "logo" — the sidebar header, the picker rows, and the
+/// single-company drawer's footer action. (Not the mobile top bar: flutter#50
+/// retitled that to the page name.)
 ///
 /// When [logoUrl] is non-null the uploaded logo is drawn on its own (its
 /// transparent pixels composite over the surrounding surface, not the tint);

@@ -8,17 +8,21 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
-import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/upgrade/upgrade_launcher.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 import 'package:admin/ui/features/shell/widgets/switch_company_guarded.dart';
 
 /// Overlay content: list of companies, a placeholder "New company" action,
-/// and the only Sign out entry in the new shell.
+/// and the shell's only Sign out entry (Settings -> User Details has the other
+/// one; "New company" has no other home anywhere in the app).
+///
+/// At exactly one company it reads as an **account menu** rather than a
+/// switcher — see [_CompanyRow.isOnly]. That is the shape a single-company
+/// mobile account gets from the sidebar footer since issue #104, and the only
+/// place the company name is still spelled out on that layout.
 ///
 /// Used by `showCompanyPicker` — either inside a desktop popup or a mobile
 /// modal bottom sheet. Closes itself with `Navigator.of(context).maybePop()`.
@@ -120,119 +124,20 @@ class _CompanyPickerState extends State<CompanyPicker> {
     }
   }
 
-  Future<void> _handleNewCompany(AuthSession session) async {
+  Future<void> _handleNewCompany() async {
     if (_switching) return;
-
-    // Capture every context-derived dependency BEFORE any await so we can
-    // safely use them after async gaps without tripping
-    // `use_build_context_synchronously`. The mounted checks below guard
-    // BuildContext usage (e.g. confirmPendingOutboxIfAny).
-    final services = context.read<Services>();
-    final loc = Localization.of(context);
-    String tr(String key) => loc?.lookup(key) ?? key;
-    final navState = Navigator.of(context, rootNavigator: true);
-    // The picker pops itself at step 3 below, so whether this State outlives
-    // the `addCompany` round-trip is a race between the pop animation and the
-    // network. Don't depend on it: capture the toast queue up front (the
-    // documented `Notify.capture` seam — the queue is global and outlives any
-    // context) so the error can't go unreported on the slow-network ordering.
-    final toasts = Notify.capture(context);
-    final router = GoRouter.maybeOf(context);
-
-    // 1. Confirm the action in-place. The picker stays open — cancelling
-    //    should leave the user where they were.
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(ctx.tr('add_company')),
-        content: Text(ctx.tr('add_company_confirm')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(ctx.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            label: ctx.tr('add_company'),
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    // 2a. Confirm in-memory unsaved edits first — they're more recent than
-    //     anything in the outbox and would be silently lost on the swap.
-    if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
-    if (!mounted) return;
-
-    // 2b. Quiesce the outbox for the currently-active company so an unsynced
-    //     edit isn't silently abandoned when we swap into the new company.
-    final outbox = await confirmPendingOutboxIfAny(
-      context,
-      companyId: session.currentCompanyId,
-    );
-    if (outbox == OutboxConfirmResult.cancelled || !mounted) return;
-
-    // 3. Pop the picker and show a barrier-locked busy dialog. A snackbar
-    //    would auto-dismiss before the POST + refresh + Drift wipe complete
-    //    and would be hidden by the company switch anyway.
+    // The flow itself lives in `SettingsActions.addCompany` — confirm, unsaved
+    // guard, outbox quiesce, busy dialog, error mapping — because Settings ->
+    // Account Management offers the same action. This row keeps only what is
+    // local to the sheet: the re-entrancy latch, and popping itself once every
+    // guard has passed so the busy dialog isn't stacked on top of a sheet.
     setState(() => _busy = true);
-    unawaited(Navigator.of(context).maybePop());
-    unawaited(
-      showDialog<void>(
-        context: navState.context,
-        barrierDismissible: false,
-        builder: (ctx) => PopScope(
-          canPop: false,
-          child: AlertDialog(
-            content: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 16),
-                Flexible(child: Text(tr('please_wait'))),
-              ],
-            ),
-          ),
-        ),
-      ),
+    await SettingsActions.addCompany(
+      context,
+      onStart: () {
+        if (mounted) unawaited(Navigator.of(context).maybePop());
+      },
     );
-
-    Object? error;
-    try {
-      await services.auth.addCompany();
-    } catch (e) {
-      error = e;
-    } finally {
-      // Dismiss the busy dialog regardless of outcome.
-      navState.pop();
-    }
-
-    if (error == null) {
-      // Land the user on Company Details so they can immediately name and
-      // configure the brand-new company instead of staring at an empty
-      // dashboard. The shell's top bar already reflects the new company,
-      // so no success snackbar is necessary.
-      router?.go('/settings/company_details');
-    } else {
-      toasts?.error(
-        _addCompanyErrorMessage(error, tr),
-        // Retry re-enters a flow that opens dialogs on this State's context,
-        // so it only works while the picker is still mounted — which, after the
-        // pop above, it usually isn't. Decide now rather than offering a button
-        // that does nothing when pressed.
-        action: mounted
-            ? NotifyAction(tr('retry'), () {
-                if (mounted) _handleNewCompany(session);
-              })
-            : null,
-      );
-    }
-
     if (mounted) setState(() => _busy = false);
   }
 
@@ -296,6 +201,9 @@ class _CompanyPickerState extends State<CompanyPicker> {
                               key: isActive ? _activeRowKey : null,
                               company: c,
                               isActive: isActive,
+                              // With nothing to switch to, the selection
+                              // signals are noise — see [_CompanyRow.isOnly].
+                              isOnly: companies.length == 1,
                               isSwitching: _switchingId == c.id,
                               onTap: _switching
                                   ? null
@@ -318,7 +226,10 @@ class _CompanyPickerState extends State<CompanyPicker> {
                     final enabled =
                         (reason == CanAddCompanyResult.ok || isPlanLimit) &&
                         !_switching;
-                    final reasonText = _reasonText(rowCtx, reason);
+                    final reasonText = SettingsActions.addCompanyBlockedReason(
+                      rowCtx,
+                      reason,
+                    );
                     return _ActionRow(
                       icon: isPlanLimit ? Icons.lock_outline : Icons.add,
                       label: rowCtx.tr('new_company'),
@@ -327,7 +238,7 @@ class _CompanyPickerState extends State<CompanyPicker> {
                       enabled: enabled,
                       onTap: isPlanLimit
                           ? () => launchUpgrade(rowCtx)
-                          : () => _handleNewCompany(session),
+                          : () => _handleNewCompany(),
                     );
                   },
                 ),
@@ -348,54 +259,32 @@ class _CompanyPickerState extends State<CompanyPicker> {
   }
 }
 
-String? _reasonText(BuildContext context, CanAddCompanyResult reason) {
-  switch (reason) {
-    case CanAddCompanyResult.ok:
-      return null;
-    case CanAddCompanyResult.notOwner:
-      return context.tr('not_owner_add_company');
-    case CanAddCompanyResult.capReached:
-      return context.tr('max_companies_reached');
-    case CanAddCompanyResult.hostedPlanLimit:
-      return context.tr('upgrade_to_add_company');
-    case CanAddCompanyResult.demoMode:
-      return context.tr('demo_mode_disabled');
-  }
-}
-
-/// Translate the various API exception types into a single user-facing
-/// snackbar string. Avoids leaking `DioException`/`ServerException` types.
-String _addCompanyErrorMessage(Object error, String Function(String) tr) {
-  // Not a failed create — the company exists on the server, we just couldn't
-  // activate it. Saying "failed" here would push the user into creating a
-  // duplicate.
-  if (error is CompanyCreatedNotActivatedException) {
-    return tr('company_created_switch_failed');
-  }
-  if (error is DemoModeException) return tr('demo_mode_disabled');
-  if (error is ValidationException) {
-    return '${tr('failed_to_add_company')}: ${error.message}';
-  }
-  if (error is ServerException) {
-    return '${tr('failed_to_add_company')}: ${error.message}';
-  }
-  if (error is NetworkException) {
-    return '${tr('failed_to_add_company')}: ${error.message}';
-  }
-  return tr('failed_to_add_company');
-}
-
 class _CompanyRow extends StatelessWidget {
   const _CompanyRow({
     required this.company,
     required this.isActive,
     required this.onTap,
+    this.isOnly = false,
     this.isSwitching = false,
     super.key,
   });
 
   final AuthCompany company;
   final bool isActive;
+
+  /// This is the account's *only* company, so the row is identity, not a
+  /// choice: the tinted fill, the "Active" caption and the trailing check are
+  /// all dropped and the row goes inert.
+  ///
+  /// Three redundant "this one is selected" marks against a list of one read
+  /// as a switcher that failed — especially since [_CompanyPickerState._pick]
+  /// short-circuits a tap on the active company to a bare `maybePop()`, so the
+  /// one row on offer is a control that appears to do nothing. That matters
+  /// more since issue #104: on a single-company mobile account this sheet is
+  /// the destination of the sidebar's only account affordance, so it has to
+  /// read as an account menu (company, New company, Sign out) rather than as a
+  /// broken company switcher.
+  final bool isOnly;
 
   /// The switch into this company is in flight. Swaps the trailing slot for a
   /// spinner — the switch can pause on a healing `/refresh`, and without it the
@@ -421,10 +310,10 @@ class _CompanyRow extends StatelessWidget {
       ),
     );
     return Material(
-      color: isActive ? tokens.accentSoft : Colors.transparent,
+      color: isActive && !isOnly ? tokens.accentSoft : Colors.transparent,
       borderRadius: BorderRadius.circular(InRadii.r2),
       child: InkWell(
-        onTap: onTap,
+        onTap: isOnly ? null : onTap,
         borderRadius: BorderRadius.circular(InRadii.r2),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -444,7 +333,7 @@ class _CompanyRow extends StatelessWidget {
                     displayName.length > 22
                         ? Tooltip(message: displayName, child: nameText)
                         : nameText,
-                    if (isActive)
+                    if (isActive && !isOnly)
                       Text(
                         context.tr('active'),
                         style: TextStyle(fontSize: 11, color: tokens.ink3),
@@ -461,7 +350,7 @@ class _CompanyRow extends StatelessWidget {
                     color: tokens.accent,
                   ),
                 )
-              else if (isActive)
+              else if (isActive && !isOnly)
                 Icon(Icons.check, size: 16, color: tokens.accent),
             ],
           ),

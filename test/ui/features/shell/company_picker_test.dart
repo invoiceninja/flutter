@@ -125,6 +125,35 @@ void main() {
     await _drain(tester, fixture);
   });
 
+  testWidgets('a single company reads as an account menu, not a switcher', (
+    tester,
+  ) async {
+    // Issue #104 made this sheet the destination of the single-company mobile
+    // drawer's only account affordance, so it has to read as one. With nothing
+    // to switch to, the tinted fill + "Active" caption + trailing check are
+    // three redundant "this is selected" marks on a list of one, and the row
+    // they decorate is inert (`_pick` short-circuits a tap on the active
+    // company to a bare `maybePop`) — which reads as a switcher that failed.
+    final fixture = await buildFixture(
+      companies: const [FakeCompany(id: 'c1', name: 'Acme Co')],
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.pumpWidget(
+      wrapWithShell(fixture.services, const CompanyPicker(fillWidth: true)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Acme Co'), findsOneWidget);
+    expect(find.text('Active'), findsNothing);
+    expect(find.byIcon(Icons.check), findsNothing);
+    // The company, New company, Sign out — an account menu.
+    expect(find.text('New Company'), findsOneWidget);
+    expect(find.text('Log Out'), findsOneWidget);
+
+    await _drain(tester, fixture);
+  });
+
   testWidgets('passes settings.company_logo through to CompanyAvatar', (
     tester,
   ) async {

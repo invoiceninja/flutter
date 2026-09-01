@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/features/shell/widgets/about_dialog.dart';
+import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
 import 'package:admin/ui/features/shell/widgets/contact_us_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/show_theme_menu.dart';
 
@@ -18,6 +20,27 @@ const String _kDocsBaseUrl = 'https://invoiceninja.github.io/en';
 /// pinned right with a vertical divider between the two groups. When the wide
 /// sidebar is collapsed to a 64-px rail (`compact: true`), only the toggle
 /// remains; the action icons hide entirely.
+///
+/// The row is **five actions, or six**: the single-company mobile drawer drops
+/// the sidebar header entirely (issue #104) and passes its company switcher in
+/// as [leading], which is what keeps `CompanyPicker` — and with it the app's
+/// only "New company" entry — reachable.
+///
+/// Six `Expanded` actions land on **43.83 px** in the 280-px drawer, a rounding
+/// error under the 44-px touch floor. The drawer's *content* box is 279, not
+/// 280: `InSidebar`'s `AnimatedContainer` carries a `Border(right:)` whose 1 px
+/// folds into the container's own padding, inside the width constraint. (The
+/// rail escapes that — its `OverflowBox` re-pins the content to exactly 232 —
+/// which is why only the drawer figures move.) So 263 / 6 = 43.83. Note the
+/// widget test pumps into a bare `SizedBox(width: 280)` and therefore measures
+/// 44.0; the gap is called out in its `reason:`.
+///
+/// A seventh action would take that to 37.6, and this is also why there is
+/// deliberately **no divider** between the company action and the five help
+/// icons the way the rail has one before its collapse toggle: a 1-px rule plus
+/// its 8 px of padding takes every action to 42.3. The avatar separates itself
+/// well enough — a tinted rounded square (or an uploaded logo) among grey
+/// 18-px line glyphs.
 ///
 /// Visual language matches `SidebarNavItem` — `InkWell` + `Padding` over
 /// `tokens.ink3` icons rather than the default Material `IconButton` ripple,
@@ -31,11 +54,12 @@ class SidebarFooterActions extends StatelessWidget {
     this.compact = false,
     this.showCollapseToggle = false,
     this.touch = false,
+    this.leading,
     super.key,
   });
 
-  /// Hides the four help/info actions when true — only the collapse toggle
-  /// remains (and only if [showCollapseToggle] is also true).
+  /// Hides the help/info actions (and [leading]) when true — only the collapse
+  /// toggle remains, and only if [showCollapseToggle] is also true.
   final bool compact;
 
   /// Whether the collapse toggle is part of this row. False inside `AppDrawer`,
@@ -46,10 +70,18 @@ class SidebarFooterActions extends StatelessWidget {
   /// `Env.isTouchPrimary` by `InSidebar`; see issue #11.
   final bool touch;
 
+  /// Extra action mounted ahead of the help/info icons. Only the
+  /// single-company mobile drawer passes one — a [SidebarCompanyFooterAction]
+  /// standing in for the header row it no longer renders (issue #104). Null on
+  /// the persistent rail, which keeps its header and has no room for a sixth
+  /// icon beside the divider and collapse toggle.
+  final Widget? leading;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final actions = <Widget>[
+      if (leading != null) leading!,
       _FooterAction(
         icon: Icons.mail_outline,
         tooltipKey: 'contact_us',
@@ -85,8 +117,9 @@ class SidebarFooterActions extends StatelessWidget {
     // then lands on a neighbour rather than on dead space. It also keeps the
     // row from overflowing: fixed 44-wide actions would need
     // 5×44 + 9 (divider) + 44 (toggle) = 273 px, but the expanded rail only
-    // offers 232 − 16 = 216. `Expanded` shares out whatever is there (52.8 px
-    // each in the 280 px drawer, 32.6 px each on the rail).
+    // offers 232 − 16 = 216. `Expanded` shares out whatever is there (52.6 px
+    // each in the drawer with five actions, 43.8 with the company action's
+    // six, 32.6 each on the rail).
     List<Widget> shareWidth(List<Widget> items) =>
         touch ? [for (final a in items) Expanded(child: a)] : items;
 
@@ -100,7 +133,7 @@ class SidebarFooterActions extends StatelessWidget {
         child: _CollapseToggleButton(collapsed: true, touch: touch),
       );
     } else if (showCollapseToggle) {
-      // Expanded wide rail: 4 actions, vertical divider, collapse toggle.
+      // Expanded wide rail: the actions, a vertical divider, collapse toggle.
       body = Row(
         children: [
           Expanded(
@@ -117,7 +150,8 @@ class SidebarFooterActions extends StatelessWidget {
         ],
       );
     } else {
-      // Drawer: 4 actions, no toggle.
+      // Drawer: the actions, no toggle. Five of them, or six when the
+      // single-company layout hands over its company switcher as [leading].
       body = Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: shareWidth(actions),
@@ -259,6 +293,100 @@ Widget _footerActionBody({required Widget glyph, required bool touch}) {
     padding: const EdgeInsets.all(6),
     child: glyph,
   );
+}
+
+/// The company switcher, shaped as a footer action.
+///
+/// Mounted as [SidebarFooterActions.leading] by the single-company mobile
+/// drawer, which drops the sidebar header row to give the nav list ~60 px back
+/// (issue #104). It is not decoration: `CompanyPicker` is the app's **only**
+/// "New company" entry — `new_company` appears nowhere else in `lib/` — so
+/// hiding the header without re-homing this control would leave a one-company
+/// owner permanently unable to create a second one, a failure that locks
+/// itself in. (Sign out is the softer half: it is also in Settings -> User
+/// Details, whose `sign_out` search key makes it findable from both the
+/// settings search and the command palette.)
+///
+/// **Sizing.** The avatar is 24, between the siblings' 18-px line glyphs and
+/// the 28 both other `CompanyAvatar` mounts use: a filled square reads smaller
+/// than a line glyph in the same box, and at 20 the initials would render at
+/// `20 * 0.42` = 8.4 px, smaller than anything else in the app.
+///
+/// **Semantics are explicit, not inherited from the [Tooltip].** Unlike its
+/// five siblings this action has a real text node inside it — `CompanyAvatar`
+/// paints initials — so a tooltip-only label announces twice ("AC", then the
+/// name). The initials are excluded and the label/hint set by hand, matching
+/// `CompanyPicker._ActionRow`. The hint also carries "switch company", which is
+/// what makes this findable by TalkBack's find-on-screen now that reaching it
+/// means traversing the whole scrolling nav list first — it leads the footer
+/// row, but the footer is the last thing in the drawer, where the header this
+/// replaces was the fourth focusable on a touch drawer. (That hint is
+/// English-only: `switch_company` is in `en.json` but in none of the ten
+/// translated bundles, so it falls back to English on every locale.)
+class SidebarCompanyFooterAction extends StatelessWidget {
+  const SidebarCompanyFooterAction({
+    required this.company,
+    required this.onTap,
+    this.touch = false,
+    super.key,
+  });
+
+  /// Active company, or null when the roster is empty — the degenerate state
+  /// issue #16 was about. That case gets a neutral business glyph and the
+  /// "Switch company" label rather than the header switcher's '—' fallback: as
+  /// the *sole* account affordance, a tinted square containing an em dash whose
+  /// tooltip is also an em dash reads as a rendering bug, and the picker's own
+  /// empty state (plus New company / Sign out) is a real recovery screen the
+  /// user needs to be able to find.
+  final AuthCompany? company;
+
+  final VoidCallback onTap;
+
+  /// Grows the action to [InSizes.touchTarget] tall, like its siblings.
+  final bool touch;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final me = company;
+    final action = context.tr('switch_company');
+    final label = me?.displayName ?? action;
+    // Null company: label and hint would be the same string, and a screen
+    // reader would say "Switch Company, button, Switch Company".
+    final hint = label == action ? null : action;
+    final Widget glyph = me == null
+        ? Icon(Icons.business_outlined, size: 18, color: tokens.ink3)
+        : CompanyAvatar(
+            name: me.displayName,
+            seed: me.id,
+            size: 24,
+            logoUrl: me.logoUrl,
+          );
+    return Tooltip(
+      // The Semantics below owns the announcement; without this the tooltip
+      // adds a second one.
+      excludeFromSemantics: true,
+      message: label,
+      waitDuration: const Duration(milliseconds: 600),
+      child: Semantics(
+        button: true,
+        label: label,
+        hint: hint,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(InRadii.r2),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(InRadii.r2),
+            child: _footerActionBody(
+              touch: touch,
+              glyph: ExcludeSemantics(child: glyph),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// The theme switcher action. Unlike [_FooterAction] it owns a [GlobalKey] to

@@ -418,6 +418,10 @@ const kSettingsSearchCatalog = <String, List<String>>{
     'account_id',
     'email',
     'set_default_company',
+    // Issue #104: the only searchable route to `auth.addCompany()`. The
+    // `CompanyPicker` sheet's row can never be one, and that sheet's entry
+    // point on a single-company mobile drawer is an unlabelled footer icon.
+    'new_company',
     'activate_company',
     'enable_pdf_markdown',
     'enable_email_markdown',

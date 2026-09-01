@@ -5,8 +5,10 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/l10n/localization.dart';
 
-/// One-tap Sync, paired with the company switcher at the top of the sidebar
-/// (issue #14 — syncing used to be four taps deep in Settings).
+/// One-tap Sync at the top of the sidebar (issue #14 — syncing used to be four
+/// taps deep in Settings). Paired with the company switcher in `SidebarHeader`,
+/// except on a single-company mobile drawer, where that header is gone and this
+/// sits beside the search box in the toolbar row instead (issue #104).
 ///
 /// Pure and directly pumpable: it takes the progress listenable and the
 /// callback rather than reaching for `context.read<Services>()`, matching
@@ -102,8 +104,9 @@ class SidebarSyncButton extends StatelessWidget {
                   borderRadius: BorderRadius.circular(InRadii.r2),
                   border: Border.all(color: tokens.border),
                 ),
-                // Minimums only — never `SizedBox(height:)`. The expanded
-                // header stretches this box to the company switcher's height,
+                // Minimums only — never `SizedBox(height:)`. Where this
+                // sits in the header, that row stretches the box to the
+                // company switcher's height,
                 // which grows with text scale; a fixed height would fight that
                 // and clip the switcher's descenders.
                 constraints: BoxConstraints(

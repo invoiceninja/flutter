@@ -222,7 +222,11 @@ class MobileDashboardBody extends StatelessWidget {
   /// carries a bare filter *icon* — so every figure below was scoped to a range
   /// the user couldn't see (flutter#37). It displaced `ACME CORPORATION ·
   /// DASHBOARD`, which cost nothing: the nav already says which page this is,
-  /// and the company is one tap away in the drawer's `CompanySwitcherButton`.
+  /// and the company is a tap or two away in the drawer — the
+  /// `CompanySwitcherButton` header on a multi-company account, and
+  /// `SidebarCompanyFooterAction` on a single-company one (issue #104), which
+  /// drops the header row for the space and spells the name out in the picker
+  /// sheet it opens rather than in the drawer itself.
   /// (This used to point at the AppBar title for the company name; flutter#50
   /// retitled that bar to the page name, so the drawer is the sole surface.)
   ///

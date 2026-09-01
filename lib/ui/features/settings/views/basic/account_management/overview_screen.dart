@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,7 +7,9 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
+import 'package:admin/domain/upgrade/upgrade_launcher.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/company_settings_gate.dart';
@@ -17,8 +21,14 @@ import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 ///   1. Plan info (plan name, trial countdown OR expiry, hosted client cap).
 ///   2. Account info (account ID, account email — copy-to-clipboard tiles).
 ///   3. Default company (Set as default button when not already default).
-///   4. Company toggles (activate, PDF/email markdown, include drafts/deleted).
-///   5. Data (Force full sync — pre-existing).
+///   4. New company — the account's *second* route to `auth.addCompany()`.
+///      The first is the `CompanyPicker` sheet, which until issue #104 was the
+///      only one in the whole app; that issue moved the sheet's entry point
+///      into the drawer footer, where it is a 24-px unlabelled icon, so a
+///      one-company owner needed a findable path that isn't behind it. This
+///      one is also a settings-search key, which the picker row can never be.
+///   5. Company toggles (activate, PDF/email markdown, include drafts/deleted).
+///   6. Data (Force full sync — pre-existing).
 ///
 /// The self-hosted White Label card (Purchase / Renew / Apply License) used to
 /// live here; it moved to the Plan tab in issue #41, which left that tab with
@@ -67,6 +77,7 @@ class _AccountManagementOverviewScreenState
                       busy: _settingDefault,
                       onPressed: _onSetDefaultCompany,
                     ),
+                  NewCompanySection(session: value),
                   _CompanyTogglesCard(company: company, ready: ready),
                 ],
               ),
@@ -284,6 +295,63 @@ class _CopyableTile extends StatelessWidget {
           ? null
           : Icon(Icons.content_copy, size: 18, color: tokens.ink3),
       onTap: disabled ? null : () => copyToClipboard(context, value),
+    );
+  }
+}
+
+/// Second home for "New company" (issue #104). The flow — confirm, unsaved
+/// guard, outbox quiesce, busy dialog, error mapping — is
+/// `SettingsActions.addCompany`, shared with `CompanyPicker`; this card owns
+/// only the gating.
+///
+/// Always rendered, never hidden when blocked: a disabled button that says why
+/// ("Only the account owner can add a company") is a better answer than a
+/// missing one, and it is the difference between a user who understands their
+/// account and one who thinks the app lost a feature. The plan-limit case stays
+/// *enabled* and routes to the upgrade flow for the same reason.
+///
+/// Promoted out of privacy so the gating can be pumped on its own: the screen
+/// around it opens a `watchCompany` Drift stream, and a widget test that mounts
+/// the whole thing deadlocks in `AppDatabase.close()` at tear-down (the close
+/// waits on stream teardown that resolves on `Timer.run`, and fake time stops
+/// advancing after the last pump). This card owns no stream of its own.
+@visibleForTesting
+class NewCompanySection extends StatelessWidget {
+  const NewCompanySection({required this.session, super.key});
+
+  final AuthSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final reason = session.canAddCompany;
+    final isPlanLimit = reason == CanAddCompanyResult.hostedPlanLimit;
+    final enabled = reason == CanAddCompanyResult.ok || isPlanLimit;
+    final reasonText = SettingsActions.addCompanyBlockedReason(context, reason);
+    return FormSection(
+      title: context.tr('new_company'),
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.tonal(
+            style: FilledButton.styleFrom(minimumSize: const Size(160, 44)),
+            onPressed: !enabled
+                ? null
+                : isPlanLimit
+                ? () => launchUpgrade(context)
+                : () => unawaited(SettingsActions.addCompany(context)),
+            child: Text(context.tr('new_company')),
+          ),
+        ),
+        if (reasonText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              reasonText,
+              style: TextStyle(fontSize: 12, color: tokens.ink3),
+            ),
+          ),
+      ],
     );
   }
 }

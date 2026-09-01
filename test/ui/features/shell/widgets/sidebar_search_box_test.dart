@@ -12,8 +12,10 @@ import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_search_box.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
 
 import '../../../../_localization_helper.dart';
 
@@ -33,6 +35,12 @@ const _kRowKey = Key('sidebar-toolbar-row');
 /// call site leaves the width tests green while the app truncates — the wiring
 /// scan is what notices the mount, not this.
 const _kRowPadding = EdgeInsets.fromLTRB(10, 4, 14, 0);
+
+/// The same row on a single-company drawer (issue #104), where the sidebar
+/// header is gone and Sync moves in here. The right inset drops to 12 because
+/// the 14 existed to line the box's trailing edge up with the header's Sync
+/// button, which no longer exists — and the label needs those 2 px.
+const _kMergedRowPadding = EdgeInsets.fromLTRB(10, 4, 12, 8);
 
 class _FakeRouter extends ChangeNotifier {
   String path = '/';
@@ -61,6 +69,7 @@ void main() {
   late ValueNotifier<AuthSession?> session;
   late NavHistoryController history;
   late int taps;
+  late ValueNotifier<ResyncProgress> progress;
 
   // File-scoped, not per-test: `flutter test` otherwise renders a placeholder
   // face whose every glyph is a full em square, which would make `Rechercher`
@@ -78,11 +87,13 @@ void main() {
       session: session,
     );
     taps = 0;
+    progress = ValueNotifier<ResyncProgress>(const ResyncProgress.idle());
   });
 
   tearDown(() {
     history.dispose();
     session.dispose();
+    progress.dispose();
   });
 
   /// The real composition from `in_sidebar.dart`: arrows leading, search box
@@ -93,6 +104,7 @@ void main() {
     bool touch = true,
     bool compact = false,
     bool showSearch = true,
+    bool withSync = false,
     double textScale = 1.0,
     String? searchLabel,
   }) {
@@ -114,20 +126,40 @@ void main() {
                 alignment: Alignment.topLeft,
                 child: SizedBox(
                   width: railWidth,
-                  child: Padding(
-                    padding: compact
-                        ? const EdgeInsets.only(top: 4)
-                        : _kRowPadding,
-                    child: Row(
-                      key: _kRowKey,
-                      children: [
-                        NavHistoryButtons(compact: compact, touch: touch),
-                        if (showSearch)
-                          Expanded(
-                            child: SidebarSearchBox(onTap: () => taps++),
-                          ),
-                      ],
-                    ),
+                  // A `Column`, exactly like `in_sidebar.dart`'s: it hands a
+                  // non-flex child an unbounded main axis, which is what makes
+                  // `SidebarSyncButton`'s `Center` shrink-wrap to its 44-px
+                  // minimum. Under a bounded height that `Center` expands to
+                  // fill, and the row measures ~588 — an artefact of the
+                  // harness, not of the app.
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: compact
+                            ? const EdgeInsets.only(top: 4)
+                            : (withSync ? _kMergedRowPadding : _kRowPadding),
+                        child: Row(
+                          key: _kRowKey,
+                          children: [
+                            NavHistoryButtons(compact: compact, touch: touch),
+                            if (showSearch)
+                              Expanded(
+                                child: SidebarSearchBox(onTap: () => taps++),
+                              ),
+                            if (withSync) ...[
+                              SizedBox(width: InSpacing.xs),
+                              SidebarSyncButton(
+                                progress: progress,
+                                companyId: 'c1',
+                                touch: touch,
+                                onSync: () {},
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -274,6 +306,92 @@ void main() {
     });
   });
 
+  group('the merged row (single-company drawer, issue #104)', () {
+    // The drawer's header is gone and Sync has moved in here, so this row now
+    // carries four controls in 280 px. Two things can go wrong silently: the
+    // Row overflows (hidden by the sidebar's own ClipRect in the app), or the
+    // search label ellipsizes at a text scale the plain row survives.
+
+    testWidgets('lays out at the drawer width without overflow', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrapRow(railWidth: 280, withSync: true));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SidebarSyncButton), findsOneWidget);
+      expect(tester.getSize(find.byKey(_kRowKey)).height, 44);
+      for (final f in [
+        find.byType(SidebarSearchBox),
+        find.byType(SidebarSyncButton),
+      ]) {
+        final size = tester.getSize(f);
+        expect(size.width, greaterThanOrEqualTo(InSizes.touchTarget));
+        expect(size.height, greaterThanOrEqualTo(InSizes.touchTarget));
+      }
+    });
+
+    testWidgets('leaves the label more room than the 232-px rail', (
+      tester,
+    ) async {
+      // The rail is what `sidebar_search_box.dart` calls the tightest surface
+      // in the app, and this row must not quietly become tighter: that is what
+      // the `InSpacing.xs` gap and the trimmed 12-px right inset buy. Compare
+      // the box itself — the label slot is a fixed inset off it.
+      await tester.pumpWidget(wrapRow(railWidth: 232));
+      await tester.pumpAndSettle();
+      final rail = tester.getSize(find.byType(SidebarSearchBox)).width;
+
+      await tester.pumpWidget(wrapRow(railWidth: 280, withSync: true));
+      await tester.pumpAndSettle();
+      final merged = tester.getSize(find.byType(SidebarSearchBox)).width;
+
+      expect(
+        merged,
+        greaterThanOrEqualTo(rail),
+        reason:
+            'the merged drawer row must not be tighter than the rail — give '
+            'back BOTH the InSpacing.xs gap and the trimmed right inset and '
+            'the slot is 78, where French ellipsizes at 1.21x against the '
+            "app's own Large of 1.2",
+      );
+    });
+
+    testWidgets('survives the app\'s Large and Extra Large text scales', (
+      tester,
+    ) async {
+      for (final scale in [1.2, 1.4]) {
+        await tester.pumpWidget(
+          wrapRow(railWidth: 280, withSync: true, textScale: scale),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'text scale $scale');
+      }
+    });
+
+    testWidgets('a pointer drawer puts Sync beside the arrows, not adrift', (
+      tester,
+    ) async {
+      // No search box off touch, so Sync sits immediately after the arrows:
+      // three controls read as a toolbar, a lone button pinned 150 px away at
+      // the right edge reads as a stray.
+      await tester.pumpWidget(
+        wrapRow(
+          railWidth: 280,
+          touch: false,
+          showSearch: false,
+          withSync: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final arrows = tester.getRect(find.byType(NavHistoryButtons));
+      final sync = tester.getRect(find.byType(SidebarSyncButton));
+      expect(sync.left - arrows.right, lessThan(InSizes.touchTarget));
+    });
+  });
+
   group('wiring', () {
     // Mirrors `nav_history_buttons_test.dart` / `resync_wiring_test.dart` /
     // `sidebar_nav_item_test.dart`: nothing widget-tests `InSidebar`, so this
@@ -319,6 +437,70 @@ void main() {
         sidebar.indexOf('onBeforeModal', start),
         lessThan(sidebar.indexOf('showCommandPalette(context)', start)),
         reason: 'pop the drawer first, then open the palette',
+      );
+    });
+
+    // Issue #104's three moving parts. The layout is covered above against a
+    // replica of the row; this is the only thing that knows the replica still
+    // describes the real call site.
+    //
+    // A widget test of `InSidebar` itself would be better and was tried: it
+    // deadlocks. The pump works, but `AppDatabase.close()` in the fixture's
+    // tear-down waits on the saved-views watch
+    // (`SavedViewsRepository._combineLatest`) releasing its Drift
+    // subscriptions, and that chain resolves on `Timer.run` — which fake time
+    // never advances again once the last pump is done. The file then hangs with
+    // no output at all rather than failing. `tester.runAsync` unsticks the
+    // close in isolation but not from inside the widget tree's tear-down.
+    test('InSidebar drops the header and re-homes its two controls', () {
+      expect(
+        sidebar.contains('!canCollapse && session.companies.length <= 1'),
+        isTrue,
+        reason:
+            'drawer only (the rail cannot fit the merged row), and `<= 1` so '
+            'an empty roster keeps a route to the picker — see issue #16',
+      );
+      expect(
+        sidebar.contains('if (!hideHeader)'),
+        isTrue,
+        reason: 'the ~60 px header row is what the issue reclaims',
+      );
+
+      final syncStart = sidebar.indexOf('SidebarSyncButton(');
+      expect(syncStart, isNot(-1), reason: 'Sync must move into this row');
+      final syncBody = sidebar.substring(
+        syncStart,
+        (syncStart + 300).clamp(0, sidebar.length),
+      );
+      expect(
+        syncBody.contains('progress: services.resync'),
+        isTrue,
+        reason:
+            'the shared controller, not a local flag, or a pass started '
+            'elsewhere leaves this button showing idle',
+      );
+
+      final footerStart = sidebar.indexOf('SidebarCompanyFooterAction(');
+      expect(
+        footerStart,
+        isNot(-1),
+        reason:
+            'CompanyPicker owns the only "New company" entry in the app — the '
+            'switcher is relocated to the footer, never hidden',
+      );
+      final footerBody = sidebar.substring(
+        footerStart,
+        (footerStart + 400).clamp(0, sidebar.length),
+      );
+      expect(
+        footerBody.contains('onBeforeModal'),
+        isTrue,
+        reason: 'pop the drawer, or the picker sheet stacks on top of it',
+      );
+      expect(
+        sidebar.indexOf('onBeforeModal', footerStart),
+        lessThan(sidebar.indexOf('showCompanyPicker(context)', footerStart)),
+        reason: 'pop the drawer first, then open the picker',
       );
     });
   });

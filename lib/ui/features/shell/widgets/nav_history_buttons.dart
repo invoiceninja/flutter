@@ -28,7 +28,8 @@ class NavHistoryButtons extends StatelessWidget {
   });
 
   /// Collapsed-rail variant: the pair centers itself in the 64-px rail
-  /// instead of left-aligning under the company switcher.
+  /// instead of left-aligning with the row below (the company switcher, or the
+  /// nav list itself on a single-company drawer — see issue #104).
   final bool compact;
 
   /// Grows the pair to [InSizes.touchTarget]. Set from `Env.isTouchPrimary` by

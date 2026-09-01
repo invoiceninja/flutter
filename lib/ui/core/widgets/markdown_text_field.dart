@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart';
@@ -6,6 +7,7 @@ import 'package:super_editor/super_editor.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
+import 'package:admin/utils/legacy_html_markdown.dart';
 
 /// Handle the host can pass into [MarkdownTextField] to force the
 /// editor to serialize + emit its current content immediately,
@@ -51,6 +53,7 @@ class MarkdownTextField extends StatefulWidget {
     required this.label,
     this.showLabel = true,
     this.height = 200,
+    this.maxHeight,
     this.expand = false,
     this.enabled = true,
     this.readOnly = false,
@@ -58,7 +61,11 @@ class MarkdownTextField extends StatefulWidget {
     this.focusNode,
     this.controller,
     this.debounce = const Duration(milliseconds: 300),
-  });
+  }) : assert(
+         maxHeight == null || maxHeight >= height,
+         'maxHeight is a ceiling above height; a contradiction is resolved in '
+         'favour of the floor, silently discarding the ceiling.',
+       );
 
   /// Starting markdown content. Null and empty are equivalent.
   final String? initialValue;
@@ -75,9 +82,16 @@ class MarkdownTextField extends StatefulWidget {
   /// (placeholder/semantics). Defaults to true.
   final bool showLabel;
 
-  /// Fixed height of the editor's scroll viewport. Content beyond this scrolls
-  /// inside the editor. Ignored when [expand] is true.
+  /// Minimum height of the editor's viewport, and the height it renders at
+  /// while the content fits. The field grows with its content from here up to
+  /// [maxHeight] and scrolls internally past that. Ignored when [expand] is
+  /// true.
   final double height;
+
+  /// Ceiling for that content-driven growth. Defaults to half the viewport
+  /// height, capped at 480 and never below [height]. Ignored when [expand] is
+  /// true (the parent bounds the field there).
+  final double? maxHeight;
 
   /// When true the editor fills its parent's available height (the parent must
   /// supply a bounded height) instead of using the fixed [height]. Used inside
@@ -89,9 +103,11 @@ class MarkdownTextField extends StatefulWidget {
   /// hidden.
   final bool enabled;
 
-  /// When true, the editor is interactive (selection works) but no edits are
-  /// permitted. Currently treated the same as `!enabled` — kept distinct so a
-  /// future "preview but copy-paste" mode can be added without API churn.
+  /// When true the editor is a live but non-editable reader: selection and
+  /// scrolling work, tapping does not promote to the editor, and no toolbar is
+  /// shown. Distinct from `!enabled`, which additionally dims the frame and
+  /// blocks pointers. `OverridableMarkdownField` uses this for a cascade value
+  /// the user hasn't overridden — inherited text they still need to read.
   final bool readOnly;
 
   /// Bump to force the editor to reseed its document from [initialValue].
@@ -258,20 +274,11 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     _isApplyingExternal = false;
   }
 
-  /// Strips a few HTML residues the old admin-portal data sometimes carries
-  /// from the legacy Quill editor. Mirrors the cleanup in
-  /// `admin-portal/lib/utils/super_editor/super_editor.dart`. Permissive
-  /// enough to catch self-closing variants (`<p/>`, `<div />`).
-  String _sanitize(String md) {
-    return md
-        .replaceAll(RegExp(r'<\s*/?\s*p\s*/?\s*>', caseSensitive: false), '\n')
-        .replaceAll(
-          RegExp(r'<\s*/?\s*div\s*/?\s*>', caseSensitive: false),
-          '\n',
-        )
-        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
-        .trim();
-  }
+  /// Folds the HTML that the React (TinyMCE) client and the pre-v5 apps store
+  /// in these fields into markdown. Left raw, a block-level tag doesn't just
+  /// render as literal text — it takes its whole block out of the document —
+  /// so this runs on every seed. See `markdownFromLegacyHtml`.
+  String _sanitize(String md) => markdownFromLegacyHtml(md);
 
   void _onDocumentChange(DocumentChangeLog _) {
     if (_isApplyingExternal) return;
@@ -430,6 +437,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
               ),
             _EditorHost(
               height: widget.height,
+              maxHeight: widget.maxHeight,
               expand: widget.expand,
               // In reader mode the inner `SuperReader` subtree is `ExcludeFocus`'d
               // so its deep, possibly-unlaid render objects stay out of the
@@ -444,6 +452,14 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
               // focused/editing keeps its `SuperEditor` mounted; switching tabs
               // normally unfocuses it (→ reader), so this is not a live path.
               excludeFocus: !showEditor,
+              // Everything but the live `readOnly` reader blocks pointers into
+              // the document: the tap-to-edit reader so its tap layer wins the
+              // arena, and a disabled field because it takes no input at all.
+              // This used to be inferred from `enterEditing != null`, which
+              // left the disabled case to a frame-level `IgnorePointer` —
+              // i.e. to the very construct #107 was about.
+              ignorePointer:
+                  !showEditor && !(widget.readOnly && widget.enabled),
               enterEditing: (!showEditor && canEdit) ? _enterEditing : null,
               sliver: sliver,
             ),
@@ -452,9 +468,12 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       ),
     );
 
-    final body = disabled
-        ? IgnorePointer(child: Opacity(opacity: 0.55, child: frame))
-        : frame;
+    // Dim only — the pointer block lives on the sliver (see `ignorePointer`
+    // above). An `IgnorePointer` here would switch off the editor's own
+    // `CustomScrollView` too, leaving a disabled field's overflowing content
+    // unreachable. Nothing else in a disabled frame takes input: the toolbar
+    // is hidden and `enterEditing` is null.
+    final body = disabled ? Opacity(opacity: 0.55, child: frame) : frame;
 
     if (!widget.showLabel) return body;
 
@@ -504,8 +523,8 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   }
 }
 
-/// Bounds the editor's height and gives SuperEditor/SuperReader their own
-/// (closer) sliver host.
+/// Sizes the editor and gives SuperEditor/SuperReader their own (closer)
+/// sliver host.
 ///
 /// SuperEditor/SuperReader walk the ancestor chain for a vertical Scrollable
 /// and return their content as a Sliver when they find one. Settings screens
@@ -516,15 +535,22 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
 class _EditorHost extends StatelessWidget {
   const _EditorHost({
     required this.height,
+    required this.maxHeight,
     required this.expand,
     required this.excludeFocus,
+    required this.ignorePointer,
     required this.enterEditing,
     required this.sliver,
   });
 
   final double height;
+  final double? maxHeight;
   final bool expand;
   final bool excludeFocus;
+
+  /// Whether the document itself is inert to pointers. Blocked at the
+  /// **sliver**, so the enclosing scroll view keeps working.
+  final bool ignorePointer;
 
   /// Non-null only in the editable read-only state: invoked to promote the
   /// field to the editing `SuperEditor` (by pointer tap, by Tab focusing the
@@ -534,11 +560,42 @@ class _EditorHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget content = sliver;
+    if (ignorePointer) {
+      // Make the document inert to pointers: in the tap-to-edit reader so the
+      // tap layer below deterministically wins the gesture arena over
+      // SuperReader's own mouse/selection interactor, and in a disabled field
+      // because it takes no input at all. Read-mode text selection is
+      // sacrificed — acceptable; the field's purpose is editing.
+      //
+      // This MUST block at the sliver, never around the scroll host. An
+      // `IgnorePointer` there also switches off the `CustomScrollView`, so a
+      // value taller than the box could not be scrolled into view by drag or
+      // by mouse wheel — it was simply cut off (invoiceninja/flutter#107).
+      // `SliverIgnorePointer` is a sliver-to-sliver proxy, so it satisfies the
+      // rule above that only slivers sit between the host and the editor, and
+      // it covers super_editor's gesture detectors, which are box children
+      // hit-tested through the returned sliver. The one thing outside its
+      // reach is the drag-handle / toolbar layer, which super_editor mounts in
+      // an `OverlayPortal` — moot here, since a reader wrapped in
+      // `ExcludeFocus` can never take the selection that raises it.
+      content = SliverIgnorePointer(sliver: content);
+    }
     Widget host = expand
-        ? CustomScrollView(slivers: [sliver])
-        : SizedBox(
-            height: height,
-            child: CustomScrollView(slivers: [sliver]),
+        ? CustomScrollView(slivers: [content])
+        : ConstrainedBox(
+            // [height] is the floor, not the size: the field grows with its
+            // content and only starts scrolling internally past [maxHeight].
+            // A hard `SizedBox` gave a one-line note and a forty-line note
+            // the same box, which is the other half of #107.
+            constraints: BoxConstraints(
+              minHeight: height,
+              maxHeight: _resolveMaxHeight(context),
+            ),
+            // `shrinkWrap` is cheap here despite its reputation: super_editor
+            // hands us a single `SliverToBoxAdapter` that lays the whole
+            // document out either way, so no lazy build is being defeated.
+            child: CustomScrollView(shrinkWrap: true, slivers: [content]),
           );
     if (excludeFocus) {
       // Keep the reader's deep (possibly-unlaid) render objects out of the
@@ -563,14 +620,14 @@ class _EditorHost extends StatelessWidget {
             },
           ),
         },
+        // A tap still promotes the field even though the scroll view below is
+        // live again: `ScrollView` hit-tests opaquely, so its drag recognizer
+        // joins the arena first and then rejects on a movement-free pointer
+        // up, leaving this tap to win the sweep. A drag scrolls instead.
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: enter,
-          // The reader is inert to pointers so this tap layer
-          // deterministically wins the gesture arena over SuperReader's own
-          // mouse/selection interactor. Read-mode text selection is
-          // sacrificed — acceptable; the field's purpose is editing.
-          child: IgnorePointer(child: host),
+          child: host,
         ),
       );
     }
@@ -579,6 +636,16 @@ class _EditorHost extends StatelessWidget {
     // so there's no dead space below the editor inside a fixed-height panel.
     return expand ? Expanded(child: host) : host;
   }
+
+  /// Ceiling on the content-driven growth. Half the viewport keeps a long
+  /// note from crowding out the fields around it while still showing several
+  /// times what the old fixed box did; the 480 cap keeps a desktop settings
+  /// field from turning into a page of its own. Never below [height], so a
+  /// caller's floor always wins.
+  double _resolveMaxHeight(BuildContext context) => math.max(
+    height,
+    maxHeight ?? math.min(MediaQuery.sizeOf(context).height * 0.5, 480.0),
+  );
 }
 
 class _MarkdownToolbar extends StatelessWidget {

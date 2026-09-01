@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
+import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_field_bindings.dart';
@@ -54,14 +55,27 @@ class OverridableMarkdownField extends StatelessWidget {
         ? errors.first
         : null;
 
-    // Always pass `enabled: enabled` straight through. At group/client level
-    // when the override is off, OverridableField owns the disabled visual
-    // (IgnorePointer + Opacity 0.65); doubling that up with the editor's own
-    // disabled overlay would compound to ~0.36 alpha and crush legibility.
+    // At group/client level with the override off, the field displays the
+    // inherited value. `OverridableField` owns the dimming there (Opacity
+    // 0.65); doubling it up with the editor's own disabled overlay would
+    // compound to ~0.36 alpha and crush legibility, so `enabled` is passed
+    // straight through.
+    //
+    // What the editor does own is *how* it goes inert. It opts out of
+    // `OverridableField`'s `IgnorePointer` below and uses `readOnly` instead:
+    // an `IgnorePointer` wrapped around this widget would also switch off the
+    // editor's internal scroll view, so an inherited Terms longer than the box
+    // could not be read at all — invoiceninja/flutter#107 reappearing in the
+    // settings cascade. `readOnly` blocks editing while leaving the reader
+    // live, which is exactly the state an inherited value wants.
+    final inactive =
+        !overridden &&
+        context.watch<SettingsLevelController>().level != SettingsLevel.company;
     final editor = MarkdownTextField(
       label: label,
       initialValue: value,
       enabled: enabled,
+      readOnly: inactive,
       externalValueKey: Object.hash(apiKey, value, overridden),
       debounce: debounce ?? const Duration(milliseconds: 300),
       onChanged: (v) {
@@ -97,6 +111,7 @@ class OverridableMarkdownField extends StatelessWidget {
       apiKey: apiKey,
       label: label,
       cascadedValueOnEnable: () => readFn(host.settings) ?? '',
+      blockPointerWhenInactive: false,
       child: field,
     );
   }

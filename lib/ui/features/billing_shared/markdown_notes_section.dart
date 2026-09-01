@@ -22,6 +22,7 @@ class MarkdownNotesField extends StatefulWidget {
     this.registerBeforeSaveHook,
     this.showLabel = true,
     this.height = 180,
+    this.maxHeight,
     this.expand = false,
   });
 
@@ -59,8 +60,13 @@ class MarkdownNotesField extends StatefulWidget {
   /// "Saved" (and the post-save pop discarded the late emit).
   final VoidCallback Function(VoidCallback hook)? registerBeforeSaveHook;
 
-  /// Editor body height. Ignored when [expand] is true.
+  /// Minimum editor body height — the field grows with its content from here
+  /// up to [maxHeight]. Ignored when [expand] is true.
   final double height;
+
+  /// Ceiling for that growth; see [MarkdownTextField.maxHeight] for the
+  /// default. Ignored when [expand] is true.
+  final double? maxHeight;
 
   /// When true the editor stretches to fill the parent's available height
   /// (the parent must bound it) instead of using the fixed [height]. Set on
@@ -145,6 +151,7 @@ class _MarkdownNotesFieldState extends State<MarkdownNotesField> {
       label: widget.label,
       showLabel: false,
       height: widget.height,
+      maxHeight: widget.maxHeight,
       expand: widget.expand,
       externalValueKey: widget.externalValueKey,
       controller: _controller,

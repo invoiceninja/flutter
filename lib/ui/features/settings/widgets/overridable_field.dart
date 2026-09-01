@@ -44,6 +44,7 @@ class OverridableField extends StatelessWidget {
     required this.isOverridden,
     required this.onOverrideToggle,
     required this.child,
+    this.blockPointerWhenInactive = true,
   });
 
   /// Cascade-aware wrapper for the `Overridable*` field widgets. Reads the
@@ -64,12 +65,14 @@ class OverridableField extends StatelessWidget {
     required String label,
     required String? Function() cascadedValueOnEnable,
     required Widget child,
+    bool blockPointerWhenInactive = true,
   }) {
     return _OverridableBoundField(
       key: key,
       apiKey: apiKey,
       label: label,
       cascadedValueOnEnable: cascadedValueOnEnable,
+      blockPointerWhenInactive: blockPointerWhenInactive,
       child: child,
     );
   }
@@ -104,6 +107,18 @@ class OverridableField extends StatelessWidget {
 
   final String label;
   final bool isOverridden;
+
+  /// Whether an un-overridden field is made inert to pointers as well as
+  /// dimmed. True for every variant whose child has nothing to interact with
+  /// when read-only — a `TextField`, a dropdown, a switch.
+  ///
+  /// `OverridableMarkdownField` passes false: its editor owns an internal
+  /// scroll view, and blocking pointers around it means an inherited value
+  /// taller than the box can't be read at all — the invoiceninja/flutter#107
+  /// failure, reappearing in the settings cascade. It renders itself
+  /// non-editable via `MarkdownTextField.readOnly` instead; the dimming here
+  /// still applies, so the two don't compound.
+  final bool blockPointerWhenInactive;
   final ValueChanged<bool> onOverrideToggle;
   final Widget child;
 
@@ -130,7 +145,7 @@ class OverridableField extends StatelessWidget {
         SizedBox(width: InSpacing.md(context)),
         Expanded(
           child: IgnorePointer(
-            ignoring: !isOverridden,
+            ignoring: !isOverridden && blockPointerWhenInactive,
             // 0.65 keeps the disabled state readable on light + dark themes
             // (WCAG AA-clearing on most ink tokens) while still reading as
             // "inactive" at a glance.
@@ -149,6 +164,7 @@ class _OverridableBoundField extends StatelessWidget {
     required this.label,
     required this.cascadedValueOnEnable,
     required this.child,
+    this.blockPointerWhenInactive = true,
     this.binding,
   });
 
@@ -156,6 +172,9 @@ class _OverridableBoundField extends StatelessWidget {
   final String label;
   final String? Function() cascadedValueOnEnable;
   final Widget child;
+
+  /// See [OverridableField.blockPointerWhenInactive].
+  final bool blockPointerWhenInactive;
 
   /// When non-null, the read/write goes through these inline closures
   /// instead of [SettingsDraftHost.isOverridden] / [SettingsDraftHost.setOverride]
@@ -193,6 +212,7 @@ class _OverridableBoundField extends StatelessWidget {
       label: label,
       isOverridden: isOverridden,
       onOverrideToggle: onToggle,
+      blockPointerWhenInactive: blockPointerWhenInactive,
       child: child,
     );
   }

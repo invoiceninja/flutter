@@ -49,13 +49,19 @@ class BillingDocEditDesktopShell extends StatelessWidget {
   /// Slim single-line "Total" bar pinned at the very bottom.
   final Widget stickyTotals;
 
-  /// Working height of the left notes/terms/footer editor card. Sized
-  /// short (~1/4 of the older 460–580 pane) — the markdown editors scroll
-  /// internally and the Settings / e-Invoice sub-tabs are already wrapped
-  /// in a `SingleChildScrollView`, so all content remains reachable.
+  /// Working height of the left notes/terms/footer editor card. Still well
+  /// short of the 460–580 pane this replaced: the Settings / e-Invoice
+  /// sub-tabs sit in a `SingleChildScrollView` and the markdown editors
+  /// scroll internally, so nothing here is unreachable.
+  ///
+  /// It was `(h * 0.16).clamp(120, 150)` — sized on that same "scrolls
+  /// internally" reasoning at a time when a read-mode markdown editor
+  /// *couldn't* actually be scrolled (invoiceninja/flutter#107), which made a
+  /// 120 px window over Terms a peephole with no way out. Raised now that the
+  /// scrolling works.
   static double notesPaneHeight(BuildContext context) {
     final h = MediaQuery.sizeOf(context).height;
-    return (h * 0.16).clamp(120.0, 150.0);
+    return (h * 0.22).clamp(180.0, 260.0);
   }
 
   /// Height of the full-width PDF preview pane at the bottom of the

@@ -103,13 +103,20 @@ Future<void> openManageDashboardCards(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => FractionallySizedBox(
-      heightFactor: 0.92,
-      child: _ManageBody(
-        vm: vm,
-        twoColumn: false,
-        initialTab: initialTab,
-        mobileLayout: mobileLayout,
+    // The field pickers are real text fields, and `showModalBottomSheet` lifts
+    // nothing by itself. Padding first also makes the 0.92 fraction measure
+    // against the keyboard-reduced box rather than the whole screen — otherwise
+    // the sheet keeps its full height and simply hides behind the keyboard.
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+      child: FractionallySizedBox(
+        heightFactor: 0.92,
+        child: _ManageBody(
+          vm: vm,
+          twoColumn: false,
+          initialTab: initialTab,
+          mobileLayout: mobileLayout,
+        ),
       ),
     ),
   );

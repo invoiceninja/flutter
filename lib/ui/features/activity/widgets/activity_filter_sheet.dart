@@ -49,7 +49,14 @@ Future<void> openActivityFilters(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (_) => FractionallySizedBox(heightFactor: 0.92, child: body),
+    // The user picker is a real text field, and `showModalBottomSheet` lifts
+    // nothing by itself. Padding first also makes the 0.92 fraction measure
+    // against the keyboard-reduced box rather than the whole screen — otherwise
+    // the sheet keeps its full height and simply hides behind the keyboard.
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+      child: FractionallySizedBox(heightFactor: 0.92, child: body),
+    ),
   );
 }
 

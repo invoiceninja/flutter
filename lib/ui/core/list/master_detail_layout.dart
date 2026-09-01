@@ -538,19 +538,41 @@ class _MasterDetailLayoutState extends State<MasterDetailLayout>
       return Stack(
         children: [
           Offstage(offstage: true, child: widget.list),
-          // Full-page pane on narrow. Wrap in Material (mirroring the wide
-          // branch) so the embedded detail/edit body has a Material ancestor:
-          // without it, plain-Container cards inherit the fallback
-          // DefaultTextStyle and paint the "missing Material" yellow
-          // underlines + oversized text (which also overflows the time-log
-          // rows). The SafeArea sits *inside* the Material so `bg` still
-          // paints behind the status bar while the header strip starts below
-          // it — the narrow twin of the wide branch's Positioned
-          // `top: MediaQuery.paddingOf(context).top`. Bottom stays free: the
-          // body scrolls and nothing docks at the bottom edge.
-          Material(
-            color: context.inTheme.bg,
-            child: SafeArea(
+          // Full-page pane on narrow. This IS the full-page screen at this
+          // viewport, so it owns the `Scaffold` — `ScaffoldWithNav`'s narrow
+          // branch is a deliberate passthrough with no outer one, and the list's
+          // Scaffold is a *sibling* in this Stack (Offstage), never an ancestor.
+          // Two things ride on that:
+          //
+          //  * `resizeToAvoidBottomInset` (the default — spelled out because it
+          //    is the whole reason this is a Scaffold and not the `Material` it
+          //    replaces). Nothing in the pane's own chrome or in an entity form
+          //    consumes `MediaQuery.viewInsets.bottom` (a modal sheet opened
+          //    from in here does, but it mounts in the Navigator *below* this
+          //    Scaffold and so reads 0 — correctly, since the body has already
+          //    been inset). Without it a form's viewport keeps full height
+          //    under the on-screen keyboard, `EditableText`
+          //    sees the caret as already visible and never scrolls, and a field
+          //    low in the form stays behind the keyboard
+          //    (invoiceninja/flutter#105 — payment Private Notes). Geometry is
+          //    unchanged with no keyboard up, and the 600–1024 band can't
+          //    double-inset: the wide shell Scaffold already zeroed the inset
+          //    for its body.
+          //  * the Material ancestor the embedded detail/edit body needs
+          //    (`Scaffold` builds one from `backgroundColor`) — without it,
+          //    plain-Container cards inherit the fallback DefaultTextStyle and
+          //    paint the "missing Material" yellow underlines + oversized text
+          //    (which also overflows the time-log rows).
+          //
+          // The SafeArea sits *inside* so `bg` still paints behind the status
+          // bar while the header strip starts below it — the narrow twin of the
+          // wide branch's Positioned `top: MediaQuery.paddingOf(context).top`.
+          // Bottom stays free: the body scrolls and nothing docks at the bottom
+          // edge.
+          Scaffold(
+            resizeToAvoidBottomInset: true,
+            backgroundColor: context.inTheme.bg,
+            body: SafeArea(
               bottom: false,
               child: _PaneRoot(
                 basePath: widget.basePath,

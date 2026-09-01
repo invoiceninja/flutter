@@ -40,7 +40,15 @@ class SavedViewsButton<T> extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => SavedViewsSheet<T>(vm: vm),
+      // `showModalBottomSheet` applies no `viewInsets` padding of its own, and
+      // the sheet's name field autofocuses — so without this the keyboard rose
+      // straight over the input the sheet exists to collect. Padding here also
+      // shrinks the constraints the sheet's own `maxHeight: height * 0.85` cap
+      // is enforced against, so the header can't be pushed off the top.
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+        child: SavedViewsSheet<T>(vm: vm),
+      ),
     );
   }
 }

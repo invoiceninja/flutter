@@ -231,10 +231,20 @@ void _openPropertySheet(
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => SizedBox(
-      height: MediaQuery.of(context).size.height * 0.8,
-      child: PropertyPanel(vm: vm),
-    ),
+    // The property panel is mostly text fields, and `showModalBottomSheet`
+    // lifts nothing by itself — pad by the keyboard inset. The height also
+    // reads the *builder's* context: the outer one was captured before the
+    // sheet opened, so it never saw the keyboard (or a rotation) at all.
+    builder: (ctx) {
+      final insets = MediaQuery.viewInsetsOf(ctx).bottom;
+      return Padding(
+        padding: EdgeInsets.only(bottom: insets),
+        child: SizedBox(
+          height: (MediaQuery.sizeOf(ctx).height - insets) * 0.8,
+          child: PropertyPanel(vm: vm),
+        ),
+      );
+    },
   );
 }
 
@@ -242,8 +252,12 @@ void _showPaletteSheet(BuildContext context, WysiwygDesignViewModel vm) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => SizedBox(
-      height: MediaQuery.of(context).size.height * 0.7,
+    // No text input here, so no keyboard inset to take — but read the height
+    // from the *builder's* context for the same reason its sibling above does:
+    // the outer one was captured before the sheet opened and never sees a
+    // rotation.
+    builder: (ctx) => SizedBox(
+      height: MediaQuery.sizeOf(ctx).height * 0.7,
       child: ComponentPalette(vm: vm),
     ),
   );

@@ -253,13 +253,30 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
     if (key is! ComparableFilterKey) return;
     showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        child: SegmentMenu(
-          vm: widget.vm,
-          filterKey: key,
-          kind: kind,
-          currentWire: chip.rawValues.single,
-          onClose: () => Navigator.of(sheetContext).pop(),
+      // The value segment's field autofocuses, so the keyboard is up before the
+      // sheet has settled: pad by the inset or it opens straight behind it.
+      // `isScrollControlled` goes with it because the padding comes *out of*
+      // the sheet's height ceiling: that ceiling is `9/16 × height` by default
+      // and is never itself reduced by the keyboard, so on a short viewport
+      // (landscape phone, split-screen) 9/16 minus the inset can collapse below
+      // what the value field needs. Lifting the ceiling to full height gives
+      // the padding room to come out of. Trade-off, keyboard aside: the
+      // effective cap becomes `SegmentMenu`'s own 360 px rather than
+      // `min(360, 9/16 × height)`, so a long field list grows on viewports
+      // under ~640 px tall. Nothing changes on a portrait phone.
+      isScrollControlled: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: SafeArea(
+          child: SegmentMenu(
+            vm: widget.vm,
+            filterKey: key,
+            kind: kind,
+            currentWire: chip.rawValues.single,
+            onClose: () => Navigator.of(sheetContext).pop(),
+          ),
         ),
       ),
     );

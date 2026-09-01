@@ -370,42 +370,79 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     final showEditor = canEdit && _editing;
     final showToolbar = showEditor;
 
-    // The sliver fed into the CustomScrollView host below. Must stay a raw
+    // The sliver fed into the CustomScrollView host below. Nothing that
+    // creates a `RenderObject` may sit between that host and the
     // SuperEditor/SuperReader — they return a Sliver when hosted in a
     // Scrollable, so RenderBox wrappers (ExcludeFocus / GestureDetector) go
-    // *around* the scroll host, never between it and the editor.
+    // *around* the scroll host, never between it and the editor. The `Theme`
+    // below is the one permitted wrapper, and only because it builds nothing
+    // but `InheritedWidget`s (see the third bullet).
     //
     // Only the focused field mounts a `SuperEditor` (and therefore one IME
     // client); every other field renders a read-only `SuperReader` with no
     // IME, so the many-editor screens never collide on the null input id.
-    final Widget sliver = showEditor
-        ? SuperEditor(
-            editor: _editor,
-            focusNode: _focusNode,
-            // The reader had no editing focus to hand over, so grab focus on
-            // mount. Caret lands at the document edge rather than the exact
-            // tap offset — an accepted tradeoff for never colliding IME
-            // registrations across the many-editor screens.
-            autofocus: true,
-            stylesheet: _buildStylesheet(t),
-            // Caret color isn't stylesheet-controllable in super_editor; the
-            // only seam is the overlay-builder list. The package default caret
-            // (`DefaultCaretOverlayBuilder`) hardcodes black — invisible in
-            // dark mode — so reuse the default builders (keeping the mobile
-            // selection/handle overlays untouched) and swap just the desktop
-            // caret for a theme-aware one. `t.ink` is the primary foreground
-            // token: near-black in light mode, near-white in dark, matching
-            // the editor's body text color above.
-            documentOverlayBuilders: [
-              ...defaultSuperEditorDocumentOverlayBuilders.where(
-                (b) => b is! DefaultCaretOverlayBuilder,
-              ),
-              DefaultCaretOverlayBuilder(
-                caretStyle: CaretStyle(width: 2, color: t.ink),
-              ),
-            ],
-          )
-        : SuperReader(editor: _editor, stylesheet: _buildStylesheet(t));
+    //
+    // The `Theme` override is what makes the caret visible on Android and iOS.
+    // super_editor paints the *mobile* caret, the drag handles, the iOS
+    // magnifier border, and `SuperReader`'s handles with
+    // `Theme.of(context).primaryColor` whenever no explicit color is supplied
+    // — and `buildInTheme` leaves `primaryColor` unset, so Flutter derives it
+    // (`isDark ? colorScheme.surface : colorScheme.primary`). In dark mode
+    // that lands on `surface`, i.e. exactly this field's own background: the
+    // caret was painted invisible (invoiceninja/flutter#108). Light mode
+    // already resolved to the accent, so nothing changes there. Three reasons
+    // it's this seam and not another:
+    //
+    //  * The `DefaultCaretOverlayBuilder` below is **desktop-only** —
+    //    `CaretDocumentOverlay` returns an empty box on Android/iOS unless
+    //    `displayOnAllPlatforms` is set — so it never covered the mobile caret,
+    //    and setting that flag would double-paint against the platform layer's
+    //    own caret while still leaving every handle invisible.
+    //  * `primaryColor` is the single fallback all of those sites consult. The
+    //    per-builder `caretColor` / `handleColor` params reach the caret but
+    //    not the Android handles (those read the controls controller, whose
+    //    `controlsColor` is final — so retinting on an accent change means
+    //    disposing a controller out from under live descendants), and
+    //    `SuperReader` consults no controls scope at all.
+    //  * `Theme` builds only `InheritedWidget`s and creates no `RenderObject`,
+    //    so it may sit inside the sliver host without breaking the protocol
+    //    described above.
+    //
+    // `t.accent` matches every other caret and selection handle in the app —
+    // M3 defaults a `TextField` cursor to `colorScheme.primary`, which is the
+    // same token.
+    final Widget sliver = Theme(
+      data: Theme.of(context).copyWith(primaryColor: t.accent),
+      child: showEditor
+          ? SuperEditor(
+              editor: _editor,
+              focusNode: _focusNode,
+              // The reader had no editing focus to hand over, so grab focus on
+              // mount. Caret lands at the document edge rather than the exact
+              // tap offset — an accepted tradeoff for never colliding IME
+              // registrations across the many-editor screens.
+              autofocus: true,
+              stylesheet: _buildStylesheet(t),
+              // The *desktop* caret color isn't stylesheet-controllable in
+              // super_editor; the only seam is the overlay-builder list. The
+              // package default (`DefaultCaretOverlayBuilder`) hardcodes black
+              // — invisible in dark mode — so reuse the default builders
+              // (keeping the mobile selection/handle overlays untouched; those
+              // are themed by the `primaryColor` override above) and swap just
+              // the desktop caret for a theme-aware one. `t.ink` is the primary
+              // foreground token: near-black in light mode, near-white in dark,
+              // matching the editor's body text color above.
+              documentOverlayBuilders: [
+                ...defaultSuperEditorDocumentOverlayBuilders.where(
+                  (b) => b is! DefaultCaretOverlayBuilder,
+                ),
+                DefaultCaretOverlayBuilder(
+                  caretStyle: CaretStyle(width: 2, color: t.ink),
+                ),
+              ],
+            )
+          : SuperReader(editor: _editor, stylesheet: _buildStylesheet(t)),
+    );
 
     // Wrap the editor frame in [TextInputFocusScope] so the app-wide
     // `isTextInputFocused()` guard returns true while the caret is in

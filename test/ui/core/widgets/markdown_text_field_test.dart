@@ -9,12 +9,14 @@ import 'package:admin/ui/core/widgets/markdown_text_field.dart';
 import '../../../_localization_helper.dart';
 
 void main() {
-  Widget wrap(Widget child) => MaterialApp(
-    theme: buildInTheme(InTheme.light),
+  Widget wrapIn(InTheme tokens, Widget child) => MaterialApp(
+    theme: buildInTheme(tokens),
     localizationsDelegates: kTestLocalizationsDelegates,
     supportedLocales: kTestSupportedLocales,
     home: Scaffold(body: child),
   );
+
+  Widget wrap(Widget child) => wrapIn(InTheme.light, child);
 
   testWidgets(
     'many fields mount in one frame without a duplicate-IME throw and '
@@ -451,5 +453,83 @@ void main() {
     await tester.drag(find.byType(MarkdownTextField), const Offset(0, -60));
     await tester.pump();
     expect(position.pixels, greaterThan(0));
+  });
+
+  testWidgets('the mobile caret and handles are the accent, not the surface', (
+    tester,
+  ) async {
+    // invoiceninja/flutter#108. On Android/iOS super_editor paints the caret
+    // and drag handles with `Theme.of(context).primaryColor`, which
+    // `buildInTheme` leaves Flutter to derive — `colorScheme.surface` in dark
+    // mode, i.e. this field's own background, so the caret was invisible.
+    // `flutter test` runs as Android, so the platform handle layer is the one
+    // that builds here; every other test in this file is light-themed, where
+    // the derivation already lands on the accent and the bug can't show.
+    const tokens = InTheme.dark;
+    await tester.pumpWidget(
+      wrapIn(
+        tokens,
+        Center(
+          child: SizedBox(
+            width: 400,
+            child: MarkdownTextField(
+              label: 'Public notes',
+              showLabel: false,
+              initialValue: 'Test',
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // The reader needs it too: `SuperReader` reads `primaryColor` for its own
+    // Android handles and consults no controls scope, so it has no other seam.
+    expect(
+      Theme.of(tester.element(find.byType(SuperReader))).primaryColor,
+      tokens.accent,
+    );
+
+    await tester.tap(find.byType(MarkdownTextField));
+    await tester.pump(); // run the post-frame callback in _enterEditing
+    await tester.pump(); // rebuild with the editor
+    expect(find.byType(SuperEditor), findsOneWidget);
+
+    // The handles' color source. The drag handles, the floating toolbar and the
+    // iOS magnifier are `OverlayPortal` children of this subtree, and the SDK
+    // guarantees an overlay child resolves inherited widgets — `Theme` by name
+    // — from the portal's position, so this one lookup is what colors them.
+    // Asserted here rather than on the widget because `AndroidSelectionHandle`
+    // isn't exported from `package:super_editor/super_editor.dart`. It covers
+    // iOS too: its caret and handles read the same inherited `primaryColor`.
+    expect(
+      Theme.of(tester.element(find.byType(SuperEditor))).primaryColor,
+      tokens.accent,
+    );
+
+    // The color super_editor will paint, read straight off the Android layer —
+    // no selection or blink timing required.
+    final layer = tester.state<AndroidControlsDocumentLayerState>(
+      find.byType(AndroidHandlesDocumentLayer),
+    );
+    expect(layer.caretColor, tokens.accent);
+    expect(layer.caretColor, isNot(tokens.surface)); // the #108 failure
+
+    // And the painted article: tap inside the now-live editor to place a
+    // collapsed caret, then read the box that actually renders it. Tap by
+    // coordinate — `SuperEditor` is a sliver, so `tap()` can't target it.
+    await tester.pump(const Duration(milliseconds: 300)); // retire double-tap
+    await tester.tapAt(
+      tester.getTopLeft(find.byType(CustomScrollView)) + const Offset(30, 12),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final caret = tester.widget<ColoredBox>(find.byKey(DocumentKeys.caret));
+    // Alpha is the blink phase; the caret jumps opaque on a move, but pin the
+    // hue rather than depend on that.
+    expect(caret.color.withValues(alpha: 1), tokens.accent);
+    expect(caret.color.withValues(alpha: 1), isNot(tokens.surface));
   });
 }

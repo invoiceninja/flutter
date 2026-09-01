@@ -57,6 +57,7 @@ class _TagsScreenState extends State<TagsScreen> {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
+      streamKey: (companyId, _entityType),
       stream: () => repo.watchAll(
         companyId: companyId,
         entityType: _entityType,

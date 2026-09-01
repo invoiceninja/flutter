@@ -15,6 +15,7 @@ import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/payment_links/view_models/payment_link_detail_view_model.dart';
 import 'package:admin/ui/features/payment_links/widgets/detail/payment_link_detail_actions_row.dart';
@@ -64,6 +65,7 @@ class _PaymentLinkDetailScreenState extends State<PaymentLinkDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<PaymentLink>(
+      id: widget.id,
       vm: _vm,
       hydrate: () => _services.paymentLinks.ensureLoaded(
         companyId: _companyId,
@@ -241,8 +243,9 @@ class _RelatedInvoicesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Invoice>>(
-      stream: services.invoices.watchForSubscription(
+    return WatchBuilder<List<Invoice>>(
+      cacheKey: (companyId, subscriptionId),
+      create: () => services.invoices.watchForSubscription(
         companyId: companyId,
         subscriptionId: subscriptionId,
       ),
@@ -290,8 +293,9 @@ class _RelatedRecurringInvoicesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<RecurringInvoice>>(
-      stream: services.recurringInvoices.watchForSubscription(
+    return WatchBuilder<List<RecurringInvoice>>(
+      cacheKey: (companyId, subscriptionId),
+      create: () => services.recurringInvoices.watchForSubscription(
         companyId: companyId,
         subscriptionId: subscriptionId,
       ),

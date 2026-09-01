@@ -296,13 +296,16 @@ void main() {
     },
   );
 
-  testWidgets('the wide pane owns its own affordance and pins it above the '
-      'scroll area — it has no AppBar to host one', (tester) async {
+  testWidgets('the wide pane owns its own title + affordance and pins them '
+      'above the scroll area — it has no AppBar to host them', (tester) async {
     await pumpBarePane(tester);
 
     // Present, and outside the ListView: same invariant, different chrome.
     expect(find.widgetWithIcon(IconButton, Icons.search), findsOneWidget);
     expect(searchButton(within: find.byType(ListView)), findsNothing);
+    // The screen title the narrow layout gets from its AppBar. Exactly one, so
+    // the pane can't grow a second copy inside the list.
+    expect(find.text('Settings'), findsOneWidget);
 
     await tester.drag(find.byType(ListView), const Offset(0, -3000));
     await tester.pumpAndSettle();
@@ -314,11 +317,17 @@ void main() {
       reason: 'the pinned strip keeps it reachable at any scroll position',
     );
     expect(
+      find.text('Settings'),
+      findsOneWidget,
+      reason: 'the screen title is pinned, so it survives any scroll position',
+    );
+    expect(
       find.text('Basic Settings'),
       findsNothing,
       reason:
-          'the pinned strip is icon-only on purpose — hoisting the group '
-          'label into it would leave it claiming Basic down here in Advanced',
+          'the pinned strip carries the SCREEN title, never a group label — '
+          'hoisting "Basic Settings" would leave it claiming Basic down here '
+          'in Advanced',
     );
 
     // And it still opens the in-pane field row.

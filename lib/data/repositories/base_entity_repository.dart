@@ -88,6 +88,66 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   final Map<String, Future<void>> _ensureInFlight = {};
   final Set<String> _ensureMissing = {};
 
+  /// Most recently OBSERVED value per `companyId/id`, mirrored out of [watch]'s
+  /// emissions so a freshly-MOUNTED widget can paint the right thing on its
+  /// first frame instead of a raw hashid.
+  ///
+  /// Why this exists: the master-detail pane re-keys its subtree per `:id`
+  /// (`router.dart`), so every row click is a fresh mount — and a fresh mount is
+  /// the one event that makes `StreamBuilder` start at `AsyncSnapshot.nothing()`
+  /// (a *rebuild* can't: `afterDisconnected` preserves `data`). Without a seed,
+  /// `ClientNameLabel` paints `Wpmbk5ezJn` and swaps to `Acme Corp` a frame
+  /// later, on every single click.
+  ///
+  /// **NOT a source of truth** — Drift remains the only thing the UI reads
+  /// from. Exactly one legal use: `initialData` on a `StreamBuilder` whose
+  /// stream is [watch] for the SAME `(companyId, id)`. Never branch on it,
+  /// never consult it after the watch has emitted.
+  /// `test/lint/peek_is_seed_only_test.dart` enforces that.
+  ///
+  /// Same shape as `Services.formatterIfReady`, and the same key discipline as
+  /// [_ensureMissing] — repos are process-wide singletons, so the company must
+  /// be in the key.
+  final Map<String, TDomain> _lastSeen = {};
+
+  /// Cap on [_lastSeen]. The requirement is "the ids in the viewport plus the
+  /// one just clicked": a 4K datatable shows ~60 rows and a page is 50, so this
+  /// is ~2x headroom (and buys warm names when scrolling back up). Domain
+  /// objects aren't tiny — a `Client` carries contacts / locations / documents
+  /// — so this is deliberately bounded rather than unlimited.
+  @visibleForTesting
+  static const int peekCacheLimit = 128;
+
+  /// The last value [watch] emitted for `(companyId, id)`, or null if this
+  /// session has never observed it. Read the contract on [_lastSeen] before
+  /// using this: it is a first-frame seed, not a source of truth.
+  TDomain? peek({required String companyId, required String id}) =>
+      _lastSeen['$companyId/$id'];
+
+  /// Drop every seed. Called on logout — display names are user data, and a
+  /// second user on the same install must not inherit them.
+  void clearPeekCache() => _lastSeen.clear();
+
+  /// Mirror an emission into [_lastSeen] and pass it through unchanged.
+  TDomain? _remember(String companyId, String id, TDomain? value) {
+    final key = '$companyId/$id';
+    // A null emission REMOVES the entry. Load-bearing: a record deleted
+    // server-side must not be resurrected as a seed on the next remount.
+    if (value == null) {
+      _lastSeen.remove(key);
+      return null;
+    }
+    // Re-insert so Dart's insertion-ordered map keeps the most recently
+    // observed key at the end, then evict from the front.
+    _lastSeen
+      ..remove(key)
+      ..[key] = value;
+    while (_lastSeen.length > peekCacheLimit) {
+      _lastSeen.remove(_lastSeen.keys.first);
+    }
+    return value;
+  }
+
   /// API path segment in the EntityType registry sense, used by the sync
   /// engine to know which API to call. Concrete repos override.
   String get entityTypeName => entityType.name;
@@ -549,11 +609,16 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// resolve through `id_remap` so an open detail screen survives the swap
   /// the sync engine makes after a successful create — even when the swap
   /// happens **while** the screen is open.
+  ///
+  /// Emissions are mirrored into [_lastSeen] so a later remount can seed its
+  /// first frame via [peek]. Keyed by the REQUESTED id (tmp ids included), so
+  /// `peek(id: x)` answers exactly `watch(id: x)` — the base class has no
+  /// `idOf(TDomain)` to key on the object instead.
   Stream<TDomain?> watch({required String companyId, required String id}) {
-    if (!id.startsWith('tmp_')) {
-      return watchByRealId(companyId: companyId, id: id);
-    }
-    return watchByTempId(companyId: companyId, tempId: id);
+    final inner = id.startsWith('tmp_')
+        ? watchByTempId(companyId: companyId, tempId: id)
+        : watchByRealId(companyId: companyId, id: id);
+    return inner.map((v) => _remember(companyId, id, v));
   }
 
   /// Drift's `watchById(tempId)` goes blank when the sync engine deletes the

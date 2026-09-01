@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 
 /// Read-only gateway display on the payment detail Overview tab. The gateway
@@ -31,8 +32,9 @@ class PaymentDetailGatewayCard extends StatelessWidget {
     final services = context.read<Services>();
     final tokens = context.inTheme;
     final theme = Theme.of(context);
-    return StreamBuilder<CompanyGateway?>(
-      stream: services.companyGateways.watch(
+    return WatchBuilder<CompanyGateway?>(
+      cacheKey: (companyId, companyGatewayId),
+      create: () => services.companyGateways.watch(
         companyId: companyId,
         id: companyGatewayId,
       ),

@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -93,8 +94,9 @@ class _ProjectProgressCardState extends State<ProjectProgressCard> {
     if (company == null || !company.can('view_task')) {
       return const SizedBox.shrink();
     }
-    return StreamBuilder<List<Task>>(
-      stream: services.tasks.watchForProject(
+    return WatchBuilder<List<Task>>(
+      cacheKey: (widget.companyId, widget.project.id),
+      create: () => services.tasks.watchForProject(
         companyId: widget.companyId,
         projectId: widget.project.id,
       ),

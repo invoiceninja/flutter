@@ -79,6 +79,10 @@ class _ProjectNameLabelState extends State<ProjectNameLabel> {
       return _text(context, widget.projectId);
     }
     return StreamBuilder<Project?>(
+      initialData: services.projects.peek(
+        companyId: companyId,
+        id: widget.projectId,
+      ),
       stream: services.projects.watch(
         companyId: companyId,
         id: widget.projectId,

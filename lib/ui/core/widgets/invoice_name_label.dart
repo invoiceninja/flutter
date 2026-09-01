@@ -80,6 +80,10 @@ class _InvoiceNameLabelState extends State<InvoiceNameLabel> {
       return _text(context, widget.invoiceId);
     }
     return StreamBuilder<Invoice?>(
+      initialData: services.invoices.peek(
+        companyId: companyId,
+        id: widget.invoiceId,
+      ),
       stream: services.invoices.watch(
         companyId: companyId,
         id: widget.invoiceId,

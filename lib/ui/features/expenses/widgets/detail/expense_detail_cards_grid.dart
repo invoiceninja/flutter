@@ -20,6 +20,7 @@ import 'package:admin/ui/core/detail/entity_link_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
@@ -105,6 +106,7 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
           entityId: e.vendorId,
           routePath: '/vendors/${e.vendorId}',
           permissionKey: 'view_vendor',
+          repo: context.read<Services>().vendors,
           watchBuilder: () => context.read<Services>().vendors.watch(
             companyId: companyId,
             id: e.vendorId,
@@ -121,6 +123,7 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
           entityId: e.clientId,
           routePath: '/clients/${e.clientId}',
           permissionKey: 'view_client',
+          repo: context.read<Services>().clients,
           watchBuilder: () => context.read<Services>().clients.watch(
             companyId: companyId,
             id: e.clientId,
@@ -138,6 +141,7 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
           entityId: e.invoiceId,
           routePath: '/invoices/${e.invoiceId}',
           permissionKey: 'view_invoice',
+          repo: context.read<Services>().invoices,
           watchBuilder: () => context.read<Services>().invoices.watch(
             companyId: companyId,
             id: e.invoiceId,
@@ -154,6 +158,7 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
           entityId: e.projectId,
           routePath: '/projects/${e.projectId}',
           permissionKey: 'view_project',
+          repo: context.read<Services>().projects,
           watchBuilder: () => context.read<Services>().projects.watch(
             companyId: companyId,
             id: e.projectId,
@@ -170,6 +175,7 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
           entityId: e.categoryId,
           routePath: '/settings/expense_categories/${e.categoryId}',
           permissionKey: 'view_expense',
+          repo: context.read<Services>().expenseCategories,
           watchBuilder: () => context.read<Services>().expenseCategories.watch(
             companyId: companyId,
             id: e.categoryId,
@@ -189,6 +195,7 @@ class ExpenseDetailCardsGrid extends StatelessWidget {
           routePath: '/transactions/${e.transactionId}',
           permissionKey: 'view_bank_transaction',
           module: EntityType.transaction,
+          repo: context.read<Services>().bankTransactions,
           watchBuilder: () => context.read<Services>().bankTransactions.watch(
             companyId: companyId,
             id: e.transactionId,
@@ -557,8 +564,9 @@ class _CustomFieldsCard extends StatelessWidget {
     final e = expense;
     final yes = context.tr('yes');
     final no = context.tr('no');
-    return StreamBuilder<Company?>(
-      stream: context.read<Services>().company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => context.read<Services>().company.watchCompany(companyId),
       builder: (context, snapshot) {
         final rows = customFieldDetailRows(
           company: snapshot.data,

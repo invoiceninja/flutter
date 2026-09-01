@@ -69,6 +69,10 @@ class _ExpenseNameLabelState extends State<ExpenseNameLabel> {
       return _text(context, widget.expenseId);
     }
     return StreamBuilder<Expense?>(
+      initialData: services.expenses.peek(
+        companyId: companyId,
+        id: widget.expenseId,
+      ),
       stream: services.expenses.watch(
         companyId: companyId,
         id: widget.expenseId,

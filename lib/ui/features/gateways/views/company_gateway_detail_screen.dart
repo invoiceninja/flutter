@@ -50,6 +50,7 @@ class _CompanyGatewayDetailScreenState
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<CompanyGateway>(
+      id: widget.id,
       vm: _vm,
       hydrate: () => _services.companyGateways.ensureLoaded(
         companyId: _companyId,

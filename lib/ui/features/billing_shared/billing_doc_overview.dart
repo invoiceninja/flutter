@@ -82,13 +82,17 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
   /// that gating it isn't worth the divergence. The edit screen's
   /// `LineItemEditor` already watches the company unconditionally.
   Stream<Company?>? _company;
+  Company? _seed;
 
   void _ensureCompanyStream() {
     if (_company != null) return;
     final services = context.read<Services>();
-    _company = services.company.watchCompany(
-      services.auth.currentCompanyId ?? '',
-    );
+    final companyId = services.auth.currentCompanyId ?? '';
+    // First-frame seed: without it the surcharge rows appear late and the
+    // line-item column labels change under the user on every row click, since
+    // the detail pane re-mounts this per `:id`.
+    _seed = services.company.peek(companyId: companyId, id: companyId);
+    _company = services.company.watchCompany(companyId);
   }
 
   @override
@@ -108,6 +112,7 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
     final stream = _company;
     if (stream == null) return _body(context, null);
     return StreamBuilder<Company?>(
+      initialData: _seed,
       stream: stream,
       builder: (context, snap) => _body(context, snap.data),
     );

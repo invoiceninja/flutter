@@ -54,6 +54,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Task>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.tasks.ensureLoaded(companyId: _companyId, id: widget.id),

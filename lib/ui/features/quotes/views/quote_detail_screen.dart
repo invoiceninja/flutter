@@ -16,6 +16,7 @@ import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -65,6 +66,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Quote>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.quotes.ensureLoaded(companyId: _companyId, id: widget.id),
@@ -85,8 +87,10 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
           services: _services,
           companyId: _companyId,
         );
-        final f = formatter;
-        return f != null ? FormatterScope(formatter: f, child: body) : body;
+        // Always mounted, even while `formatter` is still null: branching
+        // here would change the tree shape and remount the whole body when
+        // the formatter lands.
+        return FormatterScope(formatter: formatter, child: body);
       },
     );
   }
@@ -278,8 +282,13 @@ class _Header extends StatelessWidget {
                 : null,
           ),
           const SizedBox(height: 16),
-          StreamBuilder<Client?>(
-            stream: services.clients.watch(
+          WatchBuilder<Client?>(
+            cacheKey: (companyId, quote.clientId),
+            initialData: services.clients.peek(
+              companyId: companyId,
+              id: quote.clientId,
+            ),
+            create: () => services.clients.watch(
               companyId: companyId,
               id: quote.clientId,
             ),
@@ -331,8 +340,14 @@ class _Overview extends StatelessWidget {
     final formatter = FormatterScope.maybeOf(context);
     final services = context.read<Services>();
     final companyId = services.auth.currentCompanyId ?? '';
-    return StreamBuilder<Client?>(
-      stream: services.clients.watch(companyId: companyId, id: quote.clientId),
+    return WatchBuilder<Client?>(
+      cacheKey: (companyId, quote.clientId),
+      initialData: services.clients.peek(
+        companyId: companyId,
+        id: quote.clientId,
+      ),
+      create: () =>
+          services.clients.watch(companyId: companyId, id: quote.clientId),
       builder: (context, clientSnap) {
         final currencyId = clientSnap.data?.currencyId;
         final precision =

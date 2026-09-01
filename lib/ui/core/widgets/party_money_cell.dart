@@ -45,6 +45,17 @@ class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
   Stream<String?>? _currencyId;
   String? _sourceKey;
 
+  /// First-frame seed for [_currencyId], read synchronously from the party
+  /// repo's peek cache so a freshly-MOUNTED cell doesn't render one frame in
+  /// the company default before the party's own currency arrives.
+  ///
+  /// **Tier 1 only.** `watchEffectiveClientCurrency` cascades client → group →
+  /// company, and the group tier can't be resolved synchronously. An empty
+  /// tier-1 `currencyId` means "ask the group", so it is deliberately dropped
+  /// rather than seeded — seeding `''` would flash the COMPANY currency for a
+  /// group-inheriting client, which is exactly the wrong answer.
+  String? _seed;
+
   @override
   void initState() {
     super.initState();
@@ -90,6 +101,12 @@ class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
     }
     if (key == _sourceKey) return;
     _sourceKey = key;
+    final seed = key == null
+        ? null
+        : vendorId.isNotEmpty
+        ? services.vendors.peek(companyId: companyId, id: vendorId)?.currencyId
+        : services.clients.peek(companyId: companyId, id: clientId)?.currencyId;
+    _seed = (seed == null || seed.isEmpty) ? null : seed;
     if (key == null) {
       _currencyId = null;
     } else if (vendorId.isNotEmpty) {
@@ -116,6 +133,7 @@ class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
     if ((widget.vendorId ?? '').isEmpty && (widget.clientId ?? '').isEmpty) {
       _sourceKey = null;
       _currencyId = null;
+      _seed = null;
       return widget.builder(context, null);
     }
     _ensureStream(context.read<Services>());
@@ -124,6 +142,12 @@ class _PartyCurrencyBuilderState extends State<PartyCurrencyBuilder> {
       return widget.builder(context, null);
     }
     return StreamBuilder<String?>(
+      // Keyed on the source: without this a party change swaps the stream but
+      // `StreamBuilder.afterDisconnected` PRESERVES the old snapshot, so the
+      // cell renders the PREVIOUS party's currency symbol until the new stream
+      // emits. The key forces a fresh State (and re-applies `initialData`).
+      key: ValueKey(_sourceKey),
+      initialData: _seed,
       stream: stream,
       builder: (context, snap) => widget.builder(context, snap.data),
     );

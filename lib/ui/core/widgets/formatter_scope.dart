@@ -19,7 +19,12 @@ class FormatterScope extends InheritedWidget {
     required super.child,
   });
 
-  final Formatter formatter;
+  /// Nullable on purpose. A cold start can mount this before the company's
+  /// Formatter resolves, and branching on that (`f != null ? FormatterScope(...)
+  /// : body`) changes the TREE SHAPE — which remounts the entire subtree when
+  /// the formatter lands, blanking every descendant that resolves data. Always
+  /// mount the scope; `maybeOf` already returns null-able.
+  final Formatter? formatter;
 
   static Formatter? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<FormatterScope>()?.formatter;

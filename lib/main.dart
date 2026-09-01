@@ -17,6 +17,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/idle_timeout_controller.dart';
 import 'package:admin/app/logging.dart';
 import 'package:admin/app/native_splash.dart';
+import 'package:admin/app/native_window.dart';
 import 'package:admin/app/native_window_theme.dart';
 import 'package:admin/app/nav_history_controller.dart';
 import 'package:admin/app/nav_state_persister.dart';
@@ -147,6 +148,10 @@ Future<void> _bootstrap() async {
   }
   mark('db-open (incl. secure-storage key)');
   final services = Services.build(db: opened.db, diagnosticsLog: diag);
+  // Subscribe to the desktop runner's window pushes (fullscreen enter/exit) and
+  // seed the current state. No-op off desktop; nothing downstream awaits it, so
+  // it never gates the first frame.
+  unawaited(NativeWindow.instance.listenForNativeEvents());
   _debugCaptureStoreRef = services.debugCaptureStore;
   _authForSentry = services.auth;
   _installCaptureHandlers(services.debugCaptureStore);

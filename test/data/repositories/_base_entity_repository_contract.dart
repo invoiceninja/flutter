@@ -469,6 +469,96 @@ void runEntityRepositoryContract<TDomain, TApi>(
       expect(mapped, 'real_1');
     });
 
+    group('peek (the first-frame seed cache)', () {
+      // `peek` exists so a freshly-MOUNTED *NameLabel paints the right name
+      // instead of a raw hashid — the master-detail pane re-keys its subtree
+      // per `:id`, so every row click is a fresh mount. It is a seed, never a
+      // source of truth; `test/lint/peek_is_seed_only_test.dart` pins that.
+
+      test('is null before anything has watched the id', () {
+        expect(repo.peek(companyId: 'co', id: 'p_1'), isNull);
+      });
+
+      test('mirrors what watch emitted', () async {
+        const id = 'p_1';
+        await repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: id,
+          serverResponse: fixture.buildApiModel(id: id, displayValue: 'A'),
+        );
+        final watched = await fixture
+            .watch(repo, companyId: 'co', id: id)
+            .first;
+
+        expect(watched, isNotNull);
+        expect(repo.peek(companyId: 'co', id: id), watched);
+      });
+
+      test('is scoped by company', () async {
+        const id = 'p_1';
+        await repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: id,
+          serverResponse: fixture.buildApiModel(id: id, displayValue: 'A'),
+        );
+        await fixture.watch(repo, companyId: 'co', id: id).first;
+
+        expect(repo.peek(companyId: 'other', id: id), isNull);
+      });
+
+      test('a null emission REMOVES the entry, so a record deleted '
+          'server-side is never resurrected as a seed', () async {
+        // The load-bearing case. A naive `_lastSeen[key] = value` keeps the
+        // last good value forever, and the next remount would paint a record
+        // the server no longer has.
+        const id = 'p_1';
+        await repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: id,
+          serverResponse: fixture.buildApiModel(id: id, displayValue: 'A'),
+        );
+        await fixture.watch(repo, companyId: 'co', id: id).first;
+        expect(repo.peek(companyId: 'co', id: id), isNotNull);
+
+        await repo.deleteLocalById(companyId: 'co', id: id);
+        final gone = await fixture.watch(repo, companyId: 'co', id: id).first;
+
+        expect(gone, isNull);
+        expect(repo.peek(companyId: 'co', id: id), isNull);
+      });
+
+      test('clearPeekCache drops everything (the logout path)', () async {
+        const id = 'p_1';
+        await repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: id,
+          serverResponse: fixture.buildApiModel(id: id, displayValue: 'A'),
+        );
+        await fixture.watch(repo, companyId: 'co', id: id).first;
+
+        repo.clearPeekCache();
+
+        expect(repo.peek(companyId: 'co', id: id), isNull);
+      });
+
+      test('evicts the least recently observed past the cap', () async {
+        // Seed cap + 1 distinct ids; the first observed must fall out.
+        const limit = BaseEntityRepository.peekCacheLimit;
+        for (var i = 0; i <= limit; i++) {
+          final id = 'p_$i';
+          await repo.applyCreateResponse(
+            companyId: 'co',
+            tempId: id,
+            serverResponse: fixture.buildApiModel(id: id, displayValue: 'A'),
+          );
+          await fixture.watch(repo, companyId: 'co', id: id).first;
+        }
+
+        expect(repo.peek(companyId: 'co', id: 'p_0'), isNull);
+        expect(repo.peek(companyId: 'co', id: 'p_$limit'), isNotNull);
+      });
+    });
+
     test('applyUpdateResponse clears is_dirty so the "Unsynced" chip '
         'disappears after the round-trip', () async {
       // Seed via applyCreateResponse (clean), then dirty via save(), then

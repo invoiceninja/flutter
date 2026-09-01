@@ -54,6 +54,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Client>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.clients.ensureLoaded(companyId: _companyId, id: widget.id),

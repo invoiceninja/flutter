@@ -120,21 +120,35 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
   /// Watch the active company. Decodes the `settings` JSON blob on every
   /// emission; the UI binds to this directly.
   ///
-  /// Distinct from [BaseEntityRepository.watch] because company is a
-  /// settings-only entity — there is no separate `(companyId, id)` tuple,
-  /// the company *is* the row keyed by `companyId`. The generic `watch`
-  /// machinery (tmp-id remap, id_remap subscription) doesn't apply.
-  Stream<Company?> watchCompany(String companyId) {
-    return db.companiesDao.watchById(companyId).map(_fromRow);
-  }
+  /// Company is a settings-only entity — there is no separate `(companyId, id)`
+  /// tuple, the company *is* the row keyed by `companyId`, and the generic
+  /// `watch` machinery's tmp-id remap doesn't apply. It still routes through
+  /// [BaseEntityRepository.watch] with the id doubled, because that is what
+  /// mirrors emissions into the first-frame seed cache: without it every
+  /// company-gated widget in the detail pane (custom-field cards, surcharge
+  /// rows, the e-invoice actions) has `initialData: null` on every row click
+  /// and materialises a frame late, shifting the layout.
+  Stream<Company?> watchCompany(String companyId) =>
+      watch(companyId: companyId, id: companyId);
 
+  /// Only ever called by [watchCompany] via the base's [watch].
+  ///
+  /// Reads by `companyId`, NOT by `id`: the assert is stripped in release, and
+  /// reading by a mismatched `id` would file another company's row under
+  /// `_lastSeen['$companyId/$id']` — a cross-company leak. Degrading to the
+  /// documented invariant is the safe direction.
   @override
   Stream<Company?> watchByRealId({
     required String companyId,
     required String id,
-  }) => throw UnsupportedError(
-    'CompanyRepository is settings-only; use watchCompany(companyId) instead.',
-  );
+  }) {
+    assert(
+      id == companyId,
+      'CompanyRepository is settings-only: the company IS the row keyed by '
+      'companyId, so there is no separate id. Use watchCompany(companyId).',
+    );
+    return db.companiesDao.watchById(companyId).map(_fromRow);
+  }
 
   Future<Company?> get(String companyId) async {
     final row = await db.companiesDao.byId(companyId);

@@ -54,6 +54,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Expense>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.expenses.ensureLoaded(companyId: _companyId, id: widget.id),

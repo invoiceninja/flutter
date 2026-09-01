@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/recurring_schedule_date.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
@@ -69,6 +70,7 @@ class _RecurringInvoiceDetailScreenState
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<RecurringInvoice>(
+      id: widget.id,
       vm: _vm,
       hydrate: () => _services.recurringInvoices.ensureLoaded(
         companyId: _companyId,
@@ -427,8 +429,13 @@ class _Header extends StatelessWidget {
             spacing: 24,
             runSpacing: 12,
             children: [
-              StreamBuilder<Client?>(
-                stream: services.clients.watch(
+              WatchBuilder<Client?>(
+                cacheKey: (companyId, recurringInvoice.clientId),
+                initialData: services.clients.peek(
+                  companyId: companyId,
+                  id: recurringInvoice.clientId,
+                ),
+                create: () => services.clients.watch(
                   companyId: companyId,
                   id: recurringInvoice.clientId,
                 ),

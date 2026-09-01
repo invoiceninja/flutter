@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 
 /// "Click to navigate to a related entity" card used on detail screens.
 ///
@@ -24,6 +26,7 @@ class EntityLinkCard<T> extends StatelessWidget {
     required this.routePath,
     required this.permissionKey,
     required this.watchBuilder,
+    this.repo,
     required this.displayNameOf,
     this.module,
   });
@@ -44,13 +47,23 @@ class EntityLinkCard<T> extends StatelessWidget {
   /// row is non-tappable and the chevron hides.
   final String permissionKey;
 
-  /// Builder for the watch stream. A thunk so the stream is constructed in
-  /// `build()` and re-subscribed only when the widget identity changes —
-  /// not on every parent rebuild.
+  /// Builder for the watch stream. A thunk, so [WatchBuilder] can own the
+  /// subscription and re-run it only when the (company, entity) it watches
+  /// actually changes — a repo `watch*` returns a fresh stream per call, so
+  /// calling this straight into a `StreamBuilder` would re-subscribe on every
+  /// parent rebuild and blank the name each time.
   final Stream<T?> Function() watchBuilder;
 
   /// Display-name projection for the resolved entity.
   final String Function(T) displayNameOf;
+
+  /// The repository backing [watchBuilder], used ONLY to read a first-frame
+  /// seed (`peek`) so a fresh mount doesn't paint the raw id for a frame.
+  ///
+  /// A repo rather than a plain `initialData` value: the card derives the seed
+  /// from its own [entityId], so a caller cannot hand it a seed for one id next
+  /// to a stream for another. Omit it and the card behaves exactly as before.
+  final BaseEntityRepository<T, dynamic>? repo;
 
   /// When set, the whole card is hidden if this module is disabled for the
   /// active company — for cross-entity links into module-gated entities.
@@ -70,6 +83,7 @@ class EntityLinkCard<T> extends StatelessWidget {
     final canView =
         services.auth.session.value?.currentCompany?.can(permissionKey) ??
         false;
+    final companyId = services.auth.session.value?.currentCompanyId;
     return Container(
       decoration: BoxDecoration(
         color: tokens.surface,
@@ -110,16 +124,36 @@ class EntityLinkCard<T> extends StatelessWidget {
                 Icon(icon, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: StreamBuilder<T?>(
-                    stream: watchBuilder(),
+                  child: WatchBuilder<T?>(
+                    // The real guard against a company switch is route-level:
+                    // `companySafeLocation` rewrites `/x/<id>` → `/x` and
+                    // `BranchCompanyGate` resets offstage branches, so this
+                    // card is unmounted before company B's data exists. The
+                    // companyId component here is belt-and-braces ONLY — it
+                    // cannot do more, because `watchBuilder` is opaque to us
+                    // and every call site's thunk closes over its screen's
+                    // `initState`-captured `_companyId`. Re-running `create`
+                    // on a live-id change would hand back the same
+                    // old-company stream. Hoist companyId into the
+                    // constructor if that ever needs to be load-bearing.
+                    cacheKey: (companyId, entityId),
+                    initialData: repo?.peek(
+                      companyId: companyId ?? '',
+                      id: entityId,
+                    ),
+                    create: watchBuilder,
                     builder: (context, snapshot) {
                       final entity = snapshot.data;
-                      final name = entity == null
-                          ? entityId
-                          : displayNameOf(entity);
-                      return Text(
-                        name.isEmpty ? entityId : name,
-                        overflow: TextOverflow.ellipsis,
+                      final name = entity == null ? '' : displayNameOf(entity);
+                      // Never the raw hashid — see `ClientNameLabel`. The row
+                      // still links to the record either way; the id stays
+                      // available to screen readers.
+                      return Semantics(
+                        label: name.isEmpty ? entityId : null,
+                        child: Text(
+                          name.isEmpty ? '—' : name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       );
                     },
                   ),

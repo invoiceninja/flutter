@@ -21,6 +21,10 @@ class _FakeUserRepo implements UserRepository {
   @override
   Stream<User?> watch({required String companyId, required String id}) =>
       Stream<User?>.value(byId[id]);
+  // Cold peek cache: keeps these tests on the async watch path,
+  // exactly as before `BaseEntityRepository.peek` existed.
+  @override
+  User? peek({required String companyId, required String id}) => null;
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

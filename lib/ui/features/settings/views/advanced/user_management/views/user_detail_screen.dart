@@ -14,6 +14,7 @@ import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/activity/widgets/activity_feed_row.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 import 'package:admin/ui/features/settings/views/advanced/user_management/widgets/unconfirmed_email_banner.dart';
@@ -72,8 +73,9 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     return SettingsScreenScaffold(
       titleKey: 'user',
       leading: const BackButton(),
-      body: StreamBuilder<User?>(
-        stream: services.user.watch(companyId: companyId, id: widget.id),
+      body: WatchBuilder<User?>(
+        cacheKey: (companyId, widget.id),
+        create: () => services.user.watch(companyId: companyId, id: widget.id),
         builder: (context, snapshot) {
           final user = snapshot.data;
           if (user == null) {
@@ -493,8 +495,9 @@ class _UserCustomFieldsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
       builder: (context, snapshot) {
         final rows = customFieldDetailRows(
           company: snapshot.data,

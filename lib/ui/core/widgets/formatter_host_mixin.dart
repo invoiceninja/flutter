@@ -43,6 +43,24 @@ mixin FormatterHostMixin<T extends StatefulWidget> on State<T> {
   /// matches the in-progress request) are dropped.
   void loadFormatter(Services services, String companyId) {
     _formatterLoadingFor = companyId;
+    // Fast path. `Services` memoizes the per-company Formatter and the list
+    // scaffold warms it in its own `initState` (`wantsFormatter`), so a detail
+    // screen opened from a list almost always resolves right here — no async
+    // gap, so no frame where money renders as `—` and no FormatterScope
+    // mount/unmount. `_formatterReady` is cleared in lockstep with the future
+    // cache by `invalidateFormatter`, so this can never be staler than the
+    // async path.
+    //
+    // `setState`, not a plain assign: `clearFormatter()` early-returns without
+    // marking dirty when nothing was loaded yet, so a caller doing
+    // `clearFormatter(); loadFormatter(...)` would otherwise get the new value
+    // with no rebuild scheduled. It is a provable no-op from `initState` (the
+    // element is already dirty for its first build).
+    final ready = services.formatterIfReady(companyId);
+    if (ready != null) {
+      setState(() => _formatter = ready);
+      return;
+    }
     services.formatterFor(companyId).then((f) {
       // Discard if the widget is gone or the user switched company while
       // the future was in flight — otherwise the new company would briefly

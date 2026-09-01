@@ -112,8 +112,9 @@ bool isInvoiceLockedBy({
     InvoiceLockReason.none;
 
 /// Resolves the settings cascade for [invoice]'s client and applies the pure
-/// policy. The cascade resolver is async (`SettingsRepository.resolved`) and
-/// is the only correct path; there is no sync alternative.
+/// policy. `SettingsRepository.resolved` always hits Drift, so this is the
+/// authoritative path — every gate that ACTS on the lock uses it.
+/// [peekInvoiceLockReason] is the seed-only sibling for first-frame rendering.
 Future<InvoiceLockReason> resolveInvoiceLockReason({
   required SettingsRepository settings,
   required String companyId,
@@ -121,14 +122,49 @@ Future<InvoiceLockReason> resolveInvoiceLockReason({
 }) async {
   final resolved = await settings.resolved(
     companyId: companyId,
-    clientId: invoice.clientId.isEmpty ? null : invoice.clientId,
+    clientId: _cascadeClientId(invoice),
   );
-  return invoiceLockReason(
-    invoice: invoice,
-    lockInvoicesSetting: resolved['lock_invoices'] as String?,
-    veriFactuActive: resolved['e_invoice_type'] == 'VERIFACTU',
-  );
+  return _reasonFrom(invoice, resolved);
 }
+
+/// Synchronous first-frame approximation of [resolveInvoiceLockReason].
+///
+/// Null when the cascade has never been resolved for this company this session
+/// — the caller then starts where it always did, at [InvoiceLockReason.none].
+///
+/// A **seed**, never a source of truth: the caller MUST still run
+/// [resolveInvoiceLockReason] and let its answer win. Exists because the
+/// master-detail pane re-keys its subtree per `:id`, so the banner is mounted
+/// fresh on every row click and two awaited Drift reads later is far too late
+/// to decide whether ~44 px of chrome exists.
+///
+/// Typed as a reason rather than handing back the settings map on purpose: it
+/// keeps `SettingsRepository.resolvedIfReady` from drifting into use as a
+/// general synchronous settings source.
+InvoiceLockReason? peekInvoiceLockReason({
+  required SettingsRepository settings,
+  required String companyId,
+  required Invoice invoice,
+}) {
+  final resolved = settings.resolvedIfReady(
+    companyId: companyId,
+    clientId: _cascadeClientId(invoice),
+  );
+  if (resolved == null) return null;
+  return _reasonFrom(invoice, resolved);
+}
+
+String? _cascadeClientId(Invoice invoice) =>
+    invoice.clientId.isEmpty ? null : invoice.clientId;
+
+/// The two keys the lock policy reads, in one place so the sync and async
+/// paths cannot pick up different ones.
+InvoiceLockReason _reasonFrom(Invoice invoice, Map<String, dynamic> resolved) =>
+    invoiceLockReason(
+      invoice: invoice,
+      lockInvoicesSetting: resolved['lock_invoices'] as String?,
+      veriFactuActive: resolved['e_invoice_type'] == 'VERIFACTU',
+    );
 
 /// Resolves the cascade and returns whether [invoice] is locked.
 Future<bool> resolveInvoiceLocked({

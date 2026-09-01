@@ -20,6 +20,10 @@ class _FakeDesignRepo implements DesignRepository {
   @override
   Stream<Design?> watch({required String companyId, required String id}) =>
       Stream<Design?>.value(byId[id]);
+  // Cold peek cache: keeps these tests on the async watch path,
+  // exactly as before `BaseEntityRepository.peek` existed.
+  @override
+  Design? peek({required String companyId, required String id}) => null;
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

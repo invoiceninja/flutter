@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
@@ -35,6 +36,7 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
     required this.emptyHintKey,
     required this.refreshAll,
     required this.stream,
+    required this.streamKey,
     required this.isArchivedOf,
     required this.isDeletedOf,
     this.rowBuilder,
@@ -83,6 +85,14 @@ class SettingsEntityListScaffold<T> extends StatefulWidget {
   /// (invoiceninja/flutter#63). Callers wire as
   /// `() => services.[repo].watchAllIncludingArchived(companyId: ...)`.
   final Stream<List<T>> Function() stream;
+
+  /// Everything [stream]'s closure depends on, so [WatchBuilder] knows when to
+  /// re-subscribe. Required, and supplied by the caller rather than derived
+  /// here, because [stream] is opaque to this widget: a key computed from our
+  /// own view of the active company could disagree with the company the thunk
+  /// actually closed over. Usually `companyId`; `tags_screen` passes
+  /// `(companyId, entityType)` because its query is scoped by both.
+  final Object? streamKey;
 
   /// Predicates used to split the stream into active vs archived sections.
   final bool Function(T) isArchivedOf;
@@ -192,8 +202,9 @@ class _SettingsEntityListScaffoldState<T>
     // (invoiceninja/flutter#63). Reading the superset costs nothing here:
     // every caller is a bundled settings entity with a handful of rows, and
     // the split below was already local.
-    return StreamBuilder<List<T>>(
-      stream: widget.stream(),
+    return WatchBuilder<List<T>>(
+      cacheKey: widget.streamKey,
+      create: widget.stream,
       builder: (context, snapshot) {
         final loading =
             snapshot.connectionState == ConnectionState.waiting &&

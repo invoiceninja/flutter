@@ -9,6 +9,7 @@ import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/domain/gateway_constants.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/system_log_row.dart';
 
@@ -98,8 +99,9 @@ class _CompanyGatewaySystemLogsCardState
         onPressed: _refreshing ? null : _refresh,
       ),
       children: [
-        StreamBuilder<List<SystemLog>>(
-          stream: services.systemLogs.watch(widget.companyId),
+        WatchBuilder<List<SystemLog>>(
+          cacheKey: widget.companyId,
+          create: () => services.systemLogs.watch(widget.companyId),
           builder: (context, snap) {
             final rows = (snap.data ?? const <SystemLog>[])
                 .where((l) => l.categoryId == 1 && typeIds.contains(l.typeId))

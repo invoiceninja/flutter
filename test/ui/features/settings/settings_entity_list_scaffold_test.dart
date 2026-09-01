@@ -41,6 +41,7 @@ void main() {
             emptyHintKey: 'no_schedules_hint',
             supportsArchive: supportsArchive,
             refreshAll: () async {},
+            streamKey: 'test',
             stream: () => Stream.value(rows),
             isArchivedOf: (r) => r.archived,
             isDeletedOf: (r) => r.deleted,

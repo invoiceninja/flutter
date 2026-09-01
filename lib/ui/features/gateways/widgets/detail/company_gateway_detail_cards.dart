@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -117,8 +118,9 @@ class _WebhookRow extends StatelessWidget {
     final baseUrl = services.auth.session.value?.baseUrl ?? '';
     if (baseUrl.isEmpty || gateway.id.isEmpty) return const SizedBox.shrink();
     final tokens = context.inTheme;
-    return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
       builder: (context, snap) {
         final key = snap.data?.companyKey ?? '';
         if (key.isEmpty) return const SizedBox.shrink();

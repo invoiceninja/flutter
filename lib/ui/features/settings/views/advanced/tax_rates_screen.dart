@@ -43,6 +43,7 @@ class TaxRatesScreen extends StatelessWidget {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
+      streamKey: companyId,
       stream: () => repo.watchAll(companyId: companyId),
       isArchivedOf: (t) => t.archivedAt != null,
       isDeletedOf: (t) => t.isDeleted,

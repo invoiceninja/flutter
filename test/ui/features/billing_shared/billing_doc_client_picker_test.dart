@@ -77,6 +77,10 @@ class _FakeClientRepo implements ClientRepository {
   @override
   Stream<Client?> watch({required String companyId, required String id}) =>
       _watched.stream;
+  // Cold peek cache: keeps these tests on the async watch path,
+  // exactly as before `BaseEntityRepository.peek` existed.
+  @override
+  Client? peek({required String companyId, required String id}) => null;
 
   @override
   Stream<List<Client>> watchPage({

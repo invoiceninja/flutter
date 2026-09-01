@@ -1172,6 +1172,12 @@ class Services implements SidebarBadgeContext {
       onSettingsWritten: (companyId) {
         services.invalidateFormatter(companyId);
         services.appLocale.onSettingsWritten();
+        // Re-WARM, not invalidate: the settings mirror is a first-frame seed,
+        // so clearing it would guarantee the layout jump it exists to prevent.
+        // This fires after the `updateCompany` transaction commits, so the
+        // re-read sees the new blob. Covers the likeliest way `lock_invoices`
+        // ever changes — the user changing it in this app.
+        unawaited(services.settings.resolved(companyId: companyId));
       },
     );
     final quickbooksRepo = QuickbooksRepository(
@@ -1437,6 +1443,19 @@ class Services implements SidebarBadgeContext {
       // account that was signed in when it arrived. Replaying it into the next
       // session would navigate the new user by the old one's ids.
       services.deepLinks.reset();
+      // Drop every repo's first-frame seed cache. Those hold display names —
+      // user data — and a second user signing in on the same install must not
+      // inherit the previous one's. Also `invalidateAllFormatters`, whose doc
+      // has always claimed it was called here but which had no caller at all.
+      for (final repo in entities.repos.values) {
+        repo.clearPeekCache();
+      }
+      userRepo.clearPeekCache();
+      // Built standalone, so it isn't in `entities.repos` above.
+      companyRepo.clearPeekCache();
+      services.invalidateAllFormatters();
+      // Client-level setting overrides are user data.
+      services.settings.clearResolvedCache();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
     // Only on the destructive logout path — an idle-timeout re-lock keeps the
@@ -1459,6 +1478,13 @@ class Services implements SidebarBadgeContext {
       // future resolves. Memoized + non-blocking; the company row and statics
       // are already loaded by the time this hook fires.
       unawaited(services.formatterFor(companyId));
+      // Warm the settings cascade for the same reason, so
+      // `SettingsRepository.resolvedIfReady` can answer on the FIRST invoice
+      // opened in a session rather than the second. Without it the invoice
+      // lock banner resolves two Drift reads after mount and pushes the whole
+      // detail header down. Memoized layers + non-blocking; the company row is
+      // already loaded by the time this hook fires.
+      unawaited(services.settings.resolved(companyId: companyId));
       // Tags aren't bundled into the login envelope, so refresh them per
       // company here (both entity types). Fire-and-forget; the picker +
       // Settings → Tags read from the resulting `tags` Drift table. The

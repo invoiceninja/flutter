@@ -47,6 +47,7 @@ class TransactionRuleListScreen extends StatelessWidget {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
+      streamKey: companyId,
       stream: () => repo.watchAllIncludingArchived(companyId: companyId),
       isArchivedOf: (r) => r.archivedAt != null,
       isDeletedOf: (r) => r.isDeleted,

@@ -58,6 +58,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Payment>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.payments.ensureLoaded(companyId: _companyId, id: widget.id),

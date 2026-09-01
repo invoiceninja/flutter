@@ -172,4 +172,122 @@ void main() {
       },
     );
   });
+
+  group('the first-frame seed mirror', () {
+    // ─── The first-frame seed mirror ────────────────────────────────────
+    //
+    // `resolvedIfReady` exists so the invoice lock banner can decide on frame 1
+    // whether ~44px of chrome exists, instead of resolving two Drift reads
+    // after mount and pushing the whole detail header down. It is allowed to be
+    // stale; `resolved()` must not be.
+
+    test('resolvedIfReady is null before anything has resolved', () async {
+      await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+
+      expect(repo.resolvedIfReady(companyId: 'co'), isNull);
+    });
+
+    test('resolvedIfReady mirrors what resolved returned', () async {
+      await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+      final async = await repo.resolved(companyId: 'co');
+
+      expect(repo.resolvedIfReady(companyId: 'co'), async);
+    });
+
+    test('a company-only warm seeds every client — the layered property that '
+        'makes ONE warm cover the whole list', () async {
+      // If the mirror keyed merged (company, client) tuples instead of layers,
+      // the seed would be cold on the first click of each client, which is most
+      // clicks — the bug would look fixed and mostly not be.
+      await seedCompany(jsonEncode({'lock_invoices': 'end_of_month'}));
+      await repo.resolved(companyId: 'co');
+
+      expect(repo.resolvedIfReady(companyId: 'co', clientId: 'never-seen'), {
+        'lock_invoices': 'end_of_month',
+      });
+    });
+
+    test(
+      'a client override composes with the same precedence as resolved',
+      () async {
+        await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+        await seedClient({
+          'settings': {'lock_invoices': 'off'},
+        });
+        await repo.resolved(companyId: 'co', clientId: 'cl1');
+
+        expect(repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'), {
+          'lock_invoices': 'off',
+        });
+      },
+    );
+
+    test('one company never leaks into another', () async {
+      await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+      await repo.resolved(companyId: 'co');
+
+      expect(repo.resolvedIfReady(companyId: 'other'), isNull);
+    });
+
+    test('clearResolvedCache empties both layers (the logout path)', () async {
+      await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+      await seedClient({
+        'settings': {'lock_invoices': 'off'},
+      });
+      await repo.resolved(companyId: 'co', clientId: 'cl1');
+
+      repo.clearResolvedCache();
+
+      expect(repo.resolvedIfReady(companyId: 'co'), isNull);
+      expect(repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'), isNull);
+    });
+
+    test('the client layer evicts past seedCacheLimit', () async {
+      await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+      const limit = SettingsRepository.seedCacheLimit;
+      for (var i = 0; i <= limit; i++) {
+        await seedClient({
+          'settings': {'lock_invoices': 'off'},
+        }, id: 'cl$i');
+        await repo.resolved(companyId: 'co', clientId: 'cl$i');
+      }
+
+      // Evicted entries fall back to the company layer, not to null — the
+      // company layer is what makes the seed useful at all.
+      expect(repo.resolvedIfReady(companyId: 'co', clientId: 'cl0'), {
+        'lock_invoices': 'when_sent',
+      });
+      expect(repo.resolvedIfReady(companyId: 'co', clientId: 'cl$limit'), {
+        'lock_invoices': 'off',
+      });
+    });
+
+    test('resolved() itself is NEVER cached', () async {
+      // The single most important test here. Every gate that ACTS on the lock
+      // — InvoiceActions.dispatch, the edit guard, InvoiceRepository.save's
+      // backstop — awaits `resolved`. Memoizing it would make those read stale
+      // policy, which is a correctness bug rather than a rendering one.
+      await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+      expect(await repo.resolved(companyId: 'co'), {
+        'lock_invoices': 'when_sent',
+      });
+
+      await seedCompany(jsonEncode({'lock_invoices': 'off'}));
+
+      expect(await repo.resolved(companyId: 'co'), {'lock_invoices': 'off'});
+    });
+
+    test(
+      'a caller mutating a resolved map cannot corrupt the mirror',
+      () async {
+        await seedCompany(jsonEncode({'lock_invoices': 'when_sent'}));
+        final result = await repo.resolved(companyId: 'co');
+        result['lock_invoices'] = 'tampered';
+
+        expect(repo.resolvedIfReady(companyId: 'co'), {
+          'lock_invoices': 'when_sent',
+        });
+      },
+    );
+  });
 }

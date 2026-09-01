@@ -80,6 +80,10 @@ class _CategoryNameLabelState extends State<CategoryNameLabel> {
       return _text(context, widget.categoryId);
     }
     return StreamBuilder<ExpenseCategory?>(
+      initialData: services.expenseCategories.peek(
+        companyId: companyId,
+        id: widget.categoryId,
+      ),
       stream: services.expenseCategories.watch(
         companyId: companyId,
         id: widget.categoryId,

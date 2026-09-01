@@ -27,6 +27,10 @@ class _FakeTaskStatusRepo implements TaskStatusRepository {
   @override
   Stream<TaskStatus?> watch({required String companyId, required String id}) =>
       Stream<TaskStatus?>.value(byId[id]);
+  // Cold peek cache: keeps these tests on the async watch path,
+  // exactly as before `BaseEntityRepository.peek` existed.
+  @override
+  TaskStatus? peek({required String companyId, required String id}) => null;
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

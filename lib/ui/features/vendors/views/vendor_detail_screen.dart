@@ -59,6 +59,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Vendor>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.vendors.ensureLoaded(companyId: _companyId, id: widget.id),

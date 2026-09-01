@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_header.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/gateways/gateway_order_writer.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -66,8 +67,9 @@ class CompanyGatewayDetailHeader extends StatelessWidget {
   Widget _pills(BuildContext context) {
     final services = context.read<Services>();
     final tokens = context.inTheme;
-    return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
       builder: (context, snap) {
         final csv = snap.data?.settings.companyGatewayIds ?? '';
         final isDefault =

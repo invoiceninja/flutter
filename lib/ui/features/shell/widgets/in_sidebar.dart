@@ -279,6 +279,21 @@ class _InSidebarState extends State<InSidebar> {
             final hideHeader = !canCollapse && session.companies.length <= 1;
             // One callback, two possible mount points for the Sync button.
             void onSync() => unawaited(SettingsActions.forceResync(context));
+            final showSearch = touch && !collapsed;
+            // macOS hoists the arrows into the window-caption row beside the
+            // traffic lights (see below). Only where such a row exists, and
+            // only on the expanded persistent rail: the collapsed 64-px rail is
+            // narrower than the traffic-light span itself, and the drawer has
+            // no caption row of its own. `showSearch` / `hideHeader` can't be
+            // true on a macOS desktop rail — both are touch- or drawer-only —
+            // but gating on them keeps the "arrows alone in the row" invariant
+            // explicit rather than incidental.
+            final captionHostsArrows =
+                widget.width != null &&
+                !collapsed &&
+                !showSearch &&
+                !hideHeader &&
+                WindowCaptionStrip.hostsCaptionRow();
             // SafeArea (top-only): both hosts reach the window's top edge
             // with no AppBar — the mobile drawer (Flutter's `Drawer` adds no
             // inset of its own) and the iPad persistent rail (Positioned at
@@ -291,12 +306,14 @@ class _InSidebarState extends State<InSidebar> {
             // collapsed 64px rail to zero usable width. Bottom is already
             // handled by SidebarFooterActions' own SafeArea(top: false). On
             // macOS every inset is 0, so desktop layout is unchanged.
-            final navHistory = NavHistoryButtons(
-              compact: collapsed,
-              popDrawerFirst: widget.width == null,
-              touch: touch,
-            );
-            final showSearch = touch && !collapsed;
+            NavHistoryButtons navHistoryOfHeight(double? height) =>
+                NavHistoryButtons(
+                  compact: collapsed,
+                  popDrawerFirst: widget.width == null,
+                  touch: touch,
+                  height: height,
+                );
+            final navHistory = navHistoryOfHeight(null);
             final content = SafeArea(
               left: false,
               right: false,
@@ -309,103 +326,116 @@ class _InSidebarState extends State<InSidebar> {
                   // (width == null) sits below the narrow-layout strip, so it
                   // needs none.
                   if (widget.width != null)
-                    WindowCaptionStrip(controller: services.screenshotWindow),
+                    WindowCaptionStrip(
+                      controller: services.screenshotWindow,
+                      // Trailing-aligned in the caption row: level with the
+                      // traffic lights, clear of them, and lined up with the
+                      // Sync button in the header row below. The strip hands
+                      // down the height, since it owns the measured band — the
+                      // pair must fit it or it grows the band and drops below
+                      // the buttons it should sit level with.
+                      trailingBuilder: captionHostsArrows
+                          ? navHistoryOfHeight
+                          : null,
+                    ),
                   // Browser-style back/forward — the visible handle on the
-                  // Cmd/Alt+←/→ history. Top-left like a browser toolbar
-                  // (on macOS: right under the traffic lights).
+                  // Cmd/Alt+←/→ history. Top-left like a browser toolbar.
+                  // Its own row only where the caption row above didn't take
+                  // them (everywhere but the expanded macOS rail).
                   //
                   // Load-bearing on touch: the shortcuts need a hardware
                   // keyboard and `NavHistoryMouseListener` needs thumb
                   // buttons, so without these a tablet/phone user who follows
                   // a cross-entity link has no way back.
-                  Padding(
-                    // left 10 is an alignment, not a leftover: with touch
-                    // sizing the back arrow's 18-px glyph starts at
-                    // 10 + (44 − 18) / 2 = 23 — exactly the company avatar's
-                    // left edge below it (14 outer + 1 border + 8 padding).
-                    //
-                    // The right inset has two answers because both of the
-                    // things it used to line up with move under `hideHeader`:
-                    // 14 lines the search box's trailing edge up with the Sync
-                    // button *in the header row below*, but with no header
-                    // below there is nothing to line up with — so the merged
-                    // row takes the nav list's own 12 instead, which is both
-                    // the correct alignment and 2 px the search label needs
-                    // (see the width note on the row itself). The bottom inset
-                    // likewise only exists when this row is the last thing
-                    // before the divider.
-                    padding: collapsed
-                        ? const EdgeInsets.only(top: 4)
-                        : EdgeInsets.fromLTRB(
-                            10,
-                            4,
-                            hideHeader ? 12 : 14,
-                            hideHeader ? 8 : 0,
-                          ),
-                    // Global search (issue #101) shares this row when there is
-                    // room for it. Touch-only: desktop reaches the palette via
-                    // ⌘/ and the Dashboard row's hover icon. Absent from the
-                    // collapsed rail — 2×32 arrows fill its 64 px exactly.
-                    //
-                    // Sync joins it under `hideHeader` (issue #104), and the
-                    // label slot is the thing to watch: at 280 the row is
-                    // 258 wide, arrows take 88 and Sync 44, leaving the box
-                    // 122 and its label 84 px — a hair more than the 232-px
-                    // rail's 82, which `sidebar_search_box.dart` calls the
-                    // tightest surface in the app. Don't spend those pixels.
-                    // `InSpacing.xs`, not `sm`: two bordered boxes need *some*
-                    // daylight (unlike the bare-glyph arrows, which carry 13 px
-                    // of optical separation inside their own 44-px boxes), but
-                    // 4 is enough and 8 would put the label under the rail.
-                    //
-                    // The arrows stay a *direct* child when nothing shares the
-                    // row rather than always sitting in a `Row`. A Row hands a
-                    // non-flex child an unbounded main axis, which makes
-                    // `NavHistoryButtons` shrink-wrap and leaves its own
-                    // `mainAxisAlignment: compact ? center : start` with no
-                    // free space to work in — so the collapsed rail's centring
-                    // would silently become a no-op that only looks right
-                    // because 2×32 == 64 exactly.
-                    child: showSearch || hideHeader
-                        ? Row(
-                            children: [
-                              navHistory,
-                              // Deliberately no gap widget: `_HistoryButton`
-                              // centres an 18-px glyph in a 44-px box, so 13 px
-                              // of optical separation is already built in, and
-                              // the box needs every pixel it can get on the
-                              // 232-px rail.
-                              if (showSearch)
-                                Expanded(
-                                  child: SidebarSearchBox(
-                                    // Unlike Sync this *does* pop the mobile
-                                    // drawer first — the palette is a modal the
-                                    // user then types into, and leaving the
-                                    // drawer open behind it stacks two overlays.
-                                    onTap: () {
-                                      widget.onBeforeModal?.call();
-                                      showCommandPalette(context);
-                                    },
+                  if (!captionHostsArrows)
+                    Padding(
+                      // left 10 is an alignment, not a leftover: with touch
+                      // sizing the back arrow's 18-px glyph starts at
+                      // 10 + (44 − 18) / 2 = 23 — exactly the company avatar's
+                      // left edge below it (14 outer + 1 border + 8 padding).
+                      //
+                      // The right inset has two answers because both of the
+                      // things it used to line up with move under `hideHeader`:
+                      // 14 lines the search box's trailing edge up with the Sync
+                      // button *in the header row below*, but with no header
+                      // below there is nothing to line up with — so the merged
+                      // row takes the nav list's own 12 instead, which is both
+                      // the correct alignment and 2 px the search label needs
+                      // (see the width note on the row itself). The bottom inset
+                      // likewise only exists when this row is the last thing
+                      // before the divider.
+                      padding: collapsed
+                          ? const EdgeInsets.only(top: 4)
+                          : EdgeInsets.fromLTRB(
+                              10,
+                              4,
+                              hideHeader ? 12 : 14,
+                              hideHeader ? 8 : 0,
+                            ),
+                      // Global search (issue #101) shares this row when there is
+                      // room for it. Touch-only: desktop reaches the palette via
+                      // ⌘/ and the Dashboard row's hover icon. Absent from the
+                      // collapsed rail — 2×32 arrows fill its 64 px exactly.
+                      //
+                      // Sync joins it under `hideHeader` (issue #104), and the
+                      // label slot is the thing to watch: at 280 the row is
+                      // 258 wide, arrows take 88 and Sync 44, leaving the box
+                      // 122 and its label 84 px — a hair more than the 232-px
+                      // rail's 82, which `sidebar_search_box.dart` calls the
+                      // tightest surface in the app. Don't spend those pixels.
+                      // `InSpacing.xs`, not `sm`: two bordered boxes need *some*
+                      // daylight (unlike the bare-glyph arrows, which carry 13 px
+                      // of optical separation inside their own 44-px boxes), but
+                      // 4 is enough and 8 would put the label under the rail.
+                      //
+                      // The arrows stay a *direct* child when nothing shares the
+                      // row rather than always sitting in a `Row`. A Row hands a
+                      // non-flex child an unbounded main axis, which makes
+                      // `NavHistoryButtons` shrink-wrap and leaves its own
+                      // `mainAxisAlignment: compact ? center : start` with no
+                      // free space to work in — so the collapsed rail's centring
+                      // would silently become a no-op that only looks right
+                      // because 2×32 == 64 exactly.
+                      child: showSearch || hideHeader
+                          ? Row(
+                              children: [
+                                navHistory,
+                                // Deliberately no gap widget: `_HistoryButton`
+                                // centres an 18-px glyph in a 44-px box, so 13 px
+                                // of optical separation is already built in, and
+                                // the box needs every pixel it can get on the
+                                // 232-px rail.
+                                if (showSearch)
+                                  Expanded(
+                                    child: SidebarSearchBox(
+                                      // Unlike Sync this *does* pop the mobile
+                                      // drawer first — the palette is a modal the
+                                      // user then types into, and leaving the
+                                      // drawer open behind it stacks two overlays.
+                                      onTap: () {
+                                        widget.onBeforeModal?.call();
+                                        showCommandPalette(context);
+                                      },
+                                    ),
                                   ),
-                                ),
-                              if (hideHeader) ...[
-                                SizedBox(width: InSpacing.xs),
-                                // Left-aligned beside the arrows on a pointer
-                                // drawer (no search box to push it out): three
-                                // controls in a row read as a toolbar, whereas
-                                // a lone button pinned 150 px away at the right
-                                // edge reads as a stray.
-                                SidebarSyncButton(
-                                  progress: services.resync,
-                                  companyId: session.currentCompanyId,
-                                  touch: touch,
-                                  onSync: onSync,
-                                ),
+                                if (hideHeader) ...[
+                                  SizedBox(width: InSpacing.xs),
+                                  // Left-aligned beside the arrows on a pointer
+                                  // drawer (no search box to push it out): three
+                                  // controls in a row read as a toolbar, whereas
+                                  // a lone button pinned 150 px away at the right
+                                  // edge reads as a stray.
+                                  SidebarSyncButton(
+                                    progress: services.resync,
+                                    companyId: session.currentCompanyId,
+                                    touch: touch,
+                                    onSync: onSync,
+                                  ),
+                                ],
                               ],
-                            ],
-                          )
-                        : navHistory,
-                  ),
+                            )
+                          : navHistory,
+                    ),
                   // Dropped entirely by `hideHeader` — the switcher then lives
                   // in the footer and Sync in the row above. Deliberately not
                   // wrapped in an `AnimatedSize`: the 1 -> 2 transition never

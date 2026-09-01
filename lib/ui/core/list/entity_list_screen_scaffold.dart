@@ -1000,19 +1000,34 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
             );
           });
         }
-        // Push the visible row ids + URL-derived selection to the
-        // master-detail nav controller so the pane's J/K shortcuts can
-        // walk the same ordering the user sees. Called every rebuild —
-        // cheap (one List<String> alloc), and the controller stores
-        // refs without notifying so it doesn't trigger a loop.
+        // Push the visible row ids + row objects + URL-derived selection to
+        // the master-detail nav controller, so the pane's J/K shortcuts walk
+        // the same ordering the user sees and the detail pane can seed its
+        // first frame from the row that was just clicked (`itemById`).
+        // Called every rebuild — cheap (two list allocs), and the controller
+        // stores refs without notifying so it doesn't trigger a loop.
+        //
+        // Never from an embedded list. A related-entity list rendered inside
+        // a detail tab resolves the *outer* layout's controller, so pushing
+        // its rows overwrites the outer list's snapshot with ids of a
+        // different entity: the pane's J/K then routes those under the outer
+        // basePath (`/clients/<invoiceId>`), and the seed lookup misses.
         final selectedId = selectedIdFromRoute(context);
         final navController = MasterDetailNavScope.maybeOf(context);
-        if (navController != null) {
+        if (navController != null && !widget.embedded) {
           navController.update(
             selectedId: selectedId,
             itemIds: [
               for (var i = 0; i < _vm.items.length; i++)
                 if (!_vm.isRowHidden(i)) _vm.idOf(_vm.items[i]),
+            ],
+            // Index-aligned with `itemIds` by construction: same bounds, same
+            // visibility predicate. Deliberately a second literal
+            // comprehension rather than one shared local — `list_grouping_
+            // wiring_test` asserts on this source text.
+            items: [
+              for (var i = 0; i < _vm.items.length; i++)
+                if (!_vm.isRowHidden(i)) _vm.items[i],
             ],
           );
         }
@@ -1108,9 +1123,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                         wide: wide,
                         selecting: selecting,
                       );
-                      final f = formatter;
-                      return (widget.wantsFormatter && f != null)
-                          ? FormatterScope(formatter: f, child: body)
+                      return widget.wantsFormatter
+                          ? FormatterScope(formatter: formatter, child: body)
                           : body;
                     }(),
                   ),
@@ -1213,9 +1227,8 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                 // instead of locale-blind numbers. Reuses the
                 // FormatterHostMixin-resolved instance (already
                 // invalidated on company-switch); only wraps once.
-                final f = formatter;
-                if (widget.wantsFormatter && f != null) {
-                  return FormatterScope(formatter: f, child: body);
+                if (widget.wantsFormatter) {
+                  return FormatterScope(formatter: formatter, child: body);
                 }
                 return body;
               }(),

@@ -8,10 +8,22 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 
 /// Resolves the client display name from the local Drift cache and
-/// renders it as a `Text` (or a link when [link]). Falls back to the
-/// raw `clientId` while the watch is empty; on a cache miss it triggers
+/// renders it as a `Text` (or a link when [link]). On a cache miss it triggers
 /// a lazy per-id hydrate (`ClientRepository.ensureLoaded`) so the name
 /// resolves even when the client isn't on the prefetched first page.
+///
+/// **Never renders the raw `clientId`.** A hashid is meaningless to the user in
+/// every state — loading, deleted, or permission-denied — and it used to be
+/// painted on every master-detail row click (the pane re-keys its subtree per
+/// `:id`, so each click MOUNTS this label afresh), producing a
+/// `Wpmbk5ezJn` → `Acme Corp` flash in the same style slot. Unresolved renders
+/// the muted em-dash instead, matching the empty-id branch below and
+/// `UserNameLabel` / `UserAvatar`, which reached the same conclusion first:
+/// a blank frame beats a flash of raw hashed id. The id stays available to
+/// screen readers and `debugDumpApp` via [Semantics].
+///
+/// The first frame after a remount is usually not blank at all —
+/// `ClientRepository.peek` seeds it from what the list already resolved.
 ///
 /// Drift dedupes identical watch queries (and the repo dedupes the
 /// hydrate fetch), so N rows for the same client share one subscription
@@ -77,19 +89,41 @@ class _ClientNameLabelState extends State<ClientNameLabel> {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId == null || companyId.isEmpty) {
-      return _text(context, widget.clientId);
+      return _unresolved(context, tokens);
     }
     return StreamBuilder<Client?>(
+      // First-frame seed. The detail pane re-keys per `:id`, so every row click
+      // MOUNTS this label afresh and `StreamBuilder` would otherwise start at
+      // `AsyncSnapshot.nothing()` and paint the raw hashid for a frame. The
+      // datatable's own Client column resolved this client moments ago, so the
+      // value is already in memory. Derived from the same two locals as
+      // `stream:` below, so the seed and the stream cannot disagree.
+      initialData: services.clients.peek(
+        companyId: companyId,
+        id: widget.clientId,
+      ),
       stream: services.clients.watch(companyId: companyId, id: widget.clientId),
       builder: (context, snapshot) {
         final client = snapshot.data;
-        final name = client == null || client.displayName.isEmpty
-            ? widget.clientId
-            : client.displayName;
-        return _text(context, name);
+        if (client == null || client.displayName.isEmpty) {
+          return _unresolved(context, tokens);
+        }
+        return _text(context, client.displayName);
       },
     );
   }
+
+  /// Shown while the name is resolving AND when it never will (deleted client,
+  /// no permission). Deliberately the same in both: the user can act on
+  /// neither, and distinguishing them would just be a second thing that
+  /// flickers. The id rides along in [Semantics] so it stays debuggable.
+  Widget _unresolved(BuildContext context, InTheme tokens) => Semantics(
+    label: widget.clientId,
+    child: Text(
+      '—',
+      style: widget.style ?? TextStyle(fontSize: 13, color: tokens.ink3),
+    ),
+  );
 
   Widget _text(BuildContext context, String text) => linkOrText(
     link: widget.link,

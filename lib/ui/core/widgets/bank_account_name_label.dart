@@ -80,6 +80,10 @@ class _BankAccountNameLabelState extends State<BankAccountNameLabel> {
       return _text(context, widget.bankAccountId);
     }
     return StreamBuilder<BankAccount?>(
+      initialData: services.bankAccounts.peek(
+        companyId: companyId,
+        id: widget.bankAccountId,
+      ),
       stream: services.bankAccounts.watch(
         companyId: companyId,
         id: widget.bankAccountId,

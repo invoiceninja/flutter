@@ -201,6 +201,7 @@ class WiredEntities {
     required this.bundleAppliers,
     required this.countWatchers,
     required this.firstPagePrefetchers,
+    required this.repos,
   });
 
   final ClientsApi clientsApi;
@@ -280,6 +281,12 @@ class WiredEntities {
   /// subsequent fires do a cheap delta rather than a full re-pull.
   final Map<EntityType, Future<bool> Function(String companyId)>
   firstPagePrefetchers;
+
+  /// Every wired repo by type. Surfaced so a cross-cutting sweep can reach all
+  /// of them generically — today that's `clearPeekCache()` on logout (display
+  /// names are user data; a second user on the same install must not inherit
+  /// the previous one's seeds).
+  final Map<EntityType, BaseEntityRepository<dynamic, dynamic>> repos;
 }
 
 /// Builds every CRUD-list entity wired into the sync engine, so adding one
@@ -2254,6 +2261,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
   };
 
   return WiredEntities(
+    repos: reg.repos,
     clientsApi: clientsApi,
     clients: clientRepo,
     productsApi: productsApi,

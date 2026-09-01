@@ -57,6 +57,7 @@ class _RecurringExpenseDetailScreenState
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<RecurringExpense>(
+      id: widget.id,
       vm: _vm,
       hydrate: () => _services.recurringExpenses.ensureLoaded(
         companyId: _companyId,

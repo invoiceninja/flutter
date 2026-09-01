@@ -31,6 +31,9 @@ Future<void> _pump(
     localizationsDelegates: kTestLocalizationsDelegates,
     supportedLocales: kTestSupportedLocales,
     home: EntityDetailScaffold<String>(
+      // No MasterDetailNavScope above these pumps, so the seed lookup finds
+      // nothing and the spinner / empty-state contract below is unaffected.
+      id: 'x',
       vm: vm,
       hydrate: hydrate,
       emptyAction: emptyAction,

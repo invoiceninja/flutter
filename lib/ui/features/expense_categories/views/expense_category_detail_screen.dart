@@ -52,6 +52,7 @@ class _ExpenseCategoryDetailScreenState
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<ExpenseCategory>(
+      id: widget.id,
       vm: _vm,
       hydrate: () => _services.expenseCategories.ensureLoaded(
         companyId: _companyId,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/list/master_detail_nav_scope.dart';
 
 /// One tab in an [EntityDetailTabs] strip. `label` is the rendered string
 /// (already localized + optionally suffixed with a count badge); the body
@@ -50,7 +51,29 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
         // its controller the same way) uses the plural mixin for the same reason.
         with
         TickerProviderStateMixin {
-  late TabController _controller = _newController(widget.initialIndex);
+  late TabController _controller = _newController(
+    // Restore the tab the user last picked on this entity's pane, so clicking
+    // down a list doesn't snap back to the first tab on every row. The router
+    // re-keys this subtree per `:id`, so the memory has to live outside it —
+    // `MasterDetailNavController` already outlives the swap. Null (and so
+    // `initialIndex`) outside a master-detail layout, e.g. the settings-hosted
+    // detail screens. No caller passes `initialIndex` today; if one ever needs
+    // to deep-link to a tab, make it nullable so an explicit value can outrank
+    // the memory.
+    _restoredIndex() ?? widget.initialIndex,
+  );
+
+  /// Null when there's no master-detail layout above us.
+  MasterDetailNavController? get _tabMemory =>
+      MasterDetailNavScope.maybeOf(context);
+
+  /// The remembered index, but only when it still means the same tab — see
+  /// [MasterDetailNavController.lastTab].
+  int? _restoredIndex() {
+    final last = _tabMemory?.lastTab;
+    if (last == null || last.count != widget.tabs.length) return null;
+    return last.index;
+  }
 
   /// Build a controller and wire it up. Every construction goes through here so
   /// the `_onTabChanged` subscription can never be forgotten — without it
@@ -114,6 +137,7 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
   }
 
   void _onTabChanged() {
+    _tabMemory?.lastTab = (index: _controller.index, count: widget.tabs.length);
     if (_activated.add(_controller.index)) setState(() {});
   }
 

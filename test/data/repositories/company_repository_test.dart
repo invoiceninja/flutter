@@ -71,6 +71,45 @@ void main() {
     ]);
   }
 
+  group('watchCompany seeds the first-frame cache', () {
+    // `watchCompany` routes through `BaseEntityRepository.watch` with the id
+    // doubled, so its emissions populate `peek`. Without that, every
+    // company-gated widget in a detail pane (custom-field cards, surcharge
+    // rows, the e-invoice actions) has `initialData: null` on every row click
+    // and materialises a frame late, shifting the layout.
+
+    test('an emission becomes peekable under the doubled id', () async {
+      const companyId = 'co1';
+      await seedCompany(companyId, name: 'Acme');
+      final repo = makeRepo();
+
+      expect(repo.peek(companyId: companyId, id: companyId), isNull);
+      final watched = await repo.watchCompany(companyId).first;
+
+      expect(watched, isNotNull);
+      expect(repo.peek(companyId: companyId, id: companyId), watched);
+    });
+
+    test('one company never leaks into another', () async {
+      await seedCompany('co1');
+      final repo = makeRepo();
+      await repo.watchCompany('co1').first;
+
+      expect(repo.peek(companyId: 'co2', id: 'co2'), isNull);
+    });
+
+    test('clearPeekCache drops it (the logout path)', () async {
+      const companyId = 'co1';
+      await seedCompany(companyId);
+      final repo = makeRepo();
+      await repo.watchCompany(companyId).first;
+
+      repo.clearPeekCache();
+
+      expect(repo.peek(companyId: companyId, id: companyId), isNull);
+    });
+  });
+
   group('updateCompany', () {
     test(
       'writes the new settings JSON and enqueues an update outbox row',

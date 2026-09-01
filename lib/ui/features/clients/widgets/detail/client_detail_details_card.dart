@@ -8,6 +8,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 
 /// "Details" card on the client detail screen — website, phone, vat / id
@@ -140,8 +141,9 @@ class _DetailsWithCustomFields extends StatelessWidget {
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
     final yes = context.tr('yes');
     final no = context.tr('no');
-    return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
       builder: (context, snapshot) {
         final customRows = customFieldDetailRows(
           company: snapshot.data,

@@ -45,6 +45,10 @@ class CompanyGatewayNameLabel extends StatelessWidget {
       return _text(context, gatewayId);
     }
     return StreamBuilder<CompanyGateway?>(
+      initialData: services.companyGateways.peek(
+        companyId: companyId,
+        id: gatewayId,
+      ),
       stream: services.companyGateways.watch(
         companyId: companyId,
         id: gatewayId,

@@ -53,6 +53,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Product>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.products.ensureLoaded(companyId: _companyId, id: widget.id),

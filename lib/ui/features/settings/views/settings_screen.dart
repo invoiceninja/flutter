@@ -34,8 +34,8 @@ class SettingsListSidebar extends StatefulWidget {
   /// this widget renders only the section list / results.
   ///
   /// Leave null — the wide 280 px pane, which has no AppBar of its own — and
-  /// this widget owns the state *and* the affordance: a search icon on a
-  /// "Basic Settings" header pinned above the scroll area, plus the field row
+  /// this widget owns the state *and* the affordance: a "Settings" title row
+  /// carrying the search icon, pinned above the scroll area, plus the field row
   /// that replaces the pane while searching. Those go together on purpose: the
   /// controller is the ownership token, so there is exactly one trigger and
   /// exactly one field at any width.
@@ -82,22 +82,34 @@ class _SettingsListSidebarState extends State<SettingsListSidebar> {
     // stays reachable at any scroll position — issue #42 in the layout that has
     // no AppBar to host it.
     //
-    // Icon only, deliberately: the strip is pinned, so carrying the "Basic
-    // Settings" label up here would leave it claiming Basic while the user has
-    // scrolled into Advanced. Both group headers stay inside the list, exactly
-    // as they render on narrow.
+    // The screen title rides along, `titleLarge` to match what M3's AppBar
+    // gives the narrow layout — so both widths open on the same "Settings"
+    // heading above "Basic Settings", and this pane isn't the one layout that
+    // starts cold on a group header. A *group* label would not belong up here:
+    // the strip is pinned, so hoisting "Basic Settings" would leave it claiming
+    // Basic while the user has scrolled into Advanced. Both group headers stay
+    // inside the list, exactly as they render on narrow.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
-            child: IconButton(
-              icon: const Icon(Icons.search),
-              tooltip: context.tr('search_settings'),
-              onPressed: _search.open,
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.tr('settings'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: context.tr('search_settings'),
+                onPressed: _search.open,
+              ),
+            ],
           ),
         ),
         const Divider(height: 1),

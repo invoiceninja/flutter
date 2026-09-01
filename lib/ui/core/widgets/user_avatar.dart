@@ -50,6 +50,7 @@ class UserAvatar extends StatelessWidget {
     if (company.isEmpty) return _Unassigned(size: size);
 
     return StreamBuilder<User?>(
+      initialData: services.user.peek(companyId: company, id: userId),
       stream: services.user.watch(companyId: company, id: userId),
       builder: (context, snapshot) {
         // Blank only when there is genuinely nothing yet. A resubscribe (any

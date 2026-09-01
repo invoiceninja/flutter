@@ -8,6 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -48,8 +49,9 @@ class ProductDetailKpiStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
       builder: (context, snap) {
         final tracksInventory = snap.data?.trackInventory ?? false;
         return _Strip(

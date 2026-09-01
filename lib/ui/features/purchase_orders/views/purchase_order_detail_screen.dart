@@ -21,6 +21,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
@@ -65,6 +66,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<PurchaseOrder>(
+      id: widget.id,
       vm: _vm,
       hydrate: () => _services.purchaseOrders.ensureLoaded(
         companyId: _companyId,
@@ -73,10 +75,14 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
       emptyAction: entityListEmptyAction(context, EntityType.purchaseOrder),
       emptyIcon: Icons.shopping_bag_outlined,
       emptyTitle: context.tr('purchase_order_not_found'),
-      actionsForItem: (context, po) => StreamBuilder<Company?>(
+      actionsForItem: (context, po) => WatchBuilder<Company?>(
         // Cheap local Drift watch — the e-PO download gate needs the
         // company's e-invoice type (mirrors invoice_detail_screen).
-        stream: _services.company.watchCompany(_companyId),
+        // WatchBuilder, not StreamBuilder: `watchCompany` returns a fresh
+        // stream per call, so building it inline would re-subscribe on every
+        // rebuild and blank the action row for a frame each time.
+        cacheKey: _companyId,
+        create: () => _services.company.watchCompany(_companyId),
         builder: (context, companySnap) =>
             EntityDetailActionsRow<PurchaseOrderAction>(
               items: PurchaseOrderActions.itemsFor(

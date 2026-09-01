@@ -35,6 +35,7 @@ class TaskStatusesScreen extends StatelessWidget {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
+      streamKey: companyId,
       stream: () => repo.watchAllIncludingArchived(companyId: companyId),
       isArchivedOf: (s) => s.archivedAt != null,
       isDeletedOf: (s) => s.isDeleted,

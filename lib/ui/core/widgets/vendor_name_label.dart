@@ -79,6 +79,10 @@ class _VendorNameLabelState extends State<VendorNameLabel> {
       return _text(context, widget.vendorId);
     }
     return StreamBuilder<Vendor?>(
+      initialData: services.vendors.peek(
+        companyId: companyId,
+        id: widget.vendorId,
+      ),
       stream: services.vendors.watch(companyId: companyId, id: widget.vendorId),
       builder: (context, snapshot) {
         final vendor = snapshot.data;

@@ -24,6 +24,7 @@ class NavHistoryButtons extends StatelessWidget {
     this.compact = false,
     this.popDrawerFirst = false,
     this.touch = false,
+    this.height,
     super.key,
   });
 
@@ -41,6 +42,13 @@ class NavHistoryButtons extends StatelessWidget {
   /// navigating (same order as `AppDrawer.onSelectBranch` — the route change
   /// would otherwise happen invisibly underneath the open drawer).
   final bool popDrawerFirst;
+
+  /// Pins each arrow's box to exactly this height instead of letting it size
+  /// itself. Set by the macOS window-caption row, which must fit the pair
+  /// inside the 28-px titlebar band so they land on the traffic lights' own
+  /// centre line — a taller box would grow the band and drop them below it.
+  /// Null everywhere else, keeping the default/touch sizing untouched.
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +68,7 @@ class NavHistoryButtons extends StatelessWidget {
           enabled: history.canGoBack,
           touch: touch,
           compact: compact,
+          height: height,
           onPressed: () => _navigate(context, history.back),
         ),
         _HistoryButton(
@@ -69,6 +78,7 @@ class NavHistoryButtons extends StatelessWidget {
           enabled: history.canGoForward,
           touch: touch,
           compact: compact,
+          height: height,
           onPressed: () => _navigate(context, history.forward),
         ),
       ],
@@ -95,6 +105,7 @@ class _HistoryButton extends StatelessWidget {
     required this.onPressed,
     this.touch = false,
     this.compact = false,
+    this.height,
   });
 
   final IconData icon;
@@ -104,21 +115,37 @@ class _HistoryButton extends StatelessWidget {
   final VoidCallback onPressed;
   final bool touch;
   final bool compact;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final button = IconButton(
-      style: IconButton.styleFrom(
-        // Touch grows the height always, the width only off the collapsed
-        // rail: the pair is centred in 64 px with no horizontal padding, so
-        // 2×32 already fills it exactly and 2×44 would overflow.
-        minimumSize: touch
-            ? Size(compact ? 32 : InSizes.touchTarget, InSizes.touchTarget)
-            : const Size(32, 32),
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
+      // A caller-supplied height is *pinned*, not floored: `fixedSize` is
+      // clamped by the min/max pair, and M3's own `minimumSize` default would
+      // otherwise win — see the `IconButton` sizing trap in CLAUDE.md. Without
+      // a height the button keeps its own sizing, where a floor is the point.
+      style: height == null
+          ? IconButton.styleFrom(
+              // Touch grows the height always, the width only off the collapsed
+              // rail: the pair is centred in 64 px with no horizontal padding,
+              // so 2×32 already fills it exactly and 2×44 would overflow.
+              minimumSize: touch
+                  ? Size(
+                      compact ? 32 : InSizes.touchTarget,
+                      InSizes.touchTarget,
+                    )
+                  : const Size(32, 32),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            )
+          : IconButton.styleFrom(
+              fixedSize: Size(32, height!),
+              minimumSize: Size.zero,
+              maximumSize: Size.infinite,
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
       icon: Icon(
         icon,
         size: 18,

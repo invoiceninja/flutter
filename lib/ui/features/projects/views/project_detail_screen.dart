@@ -53,6 +53,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Project>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.projects.ensureLoaded(companyId: _companyId, id: widget.id),

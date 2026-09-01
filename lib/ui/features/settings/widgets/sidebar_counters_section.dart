@@ -9,6 +9,7 @@ import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_badge.dart';
 
@@ -46,8 +47,9 @@ class SidebarCountersSection extends StatelessWidget {
     ];
     if (rows.isEmpty) return const SizedBox.shrink();
 
-    return StreamBuilder<CompanyRow?>(
-      stream: services.db.companiesDao.watchById(companyId),
+    return WatchBuilder<CompanyRow?>(
+      cacheKey: companyId,
+      create: () => services.db.companiesDao.watchById(companyId),
       builder: (context, snap) {
         final trackInventory = snap.data?.trackInventory ?? false;
         return ListenableBuilder(

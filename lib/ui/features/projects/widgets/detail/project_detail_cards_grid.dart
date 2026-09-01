@@ -19,6 +19,7 @@ import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/utils/formatting.dart';
@@ -124,6 +125,7 @@ class ProjectDetailCardsGrid extends StatelessWidget {
       entityId: p.clientId,
       routePath: '/clients/${p.clientId}',
       permissionKey: 'view_client',
+      repo: context.read<Services>().clients,
       watchBuilder: () => context.read<Services>().clients.watch(
         companyId: companyId,
         id: p.clientId,
@@ -319,8 +321,9 @@ class _TasksCard extends StatelessWidget {
         label: context.tr('add_task'),
         onTap: () => context.go('/tasks/new?project=${project.id}'),
       ),
-      child: StreamBuilder<List<Task>>(
-        stream: services.tasks.watchForProject(
+      child: WatchBuilder<List<Task>>(
+        cacheKey: (companyId, project.id),
+        create: () => services.tasks.watchForProject(
           companyId: companyId,
           projectId: project.id,
         ),
@@ -419,8 +422,9 @@ class _CustomFieldsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final yes = context.tr('yes');
     final no = context.tr('no');
-    return StreamBuilder<Company?>(
-      stream: context.read<Services>().company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => context.read<Services>().company.watchCompany(companyId),
       builder: (context, snapshot) {
         final rows = customFieldDetailRows(
           company: snapshot.data,

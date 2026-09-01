@@ -12,13 +12,15 @@ import 'package:admin/data/models/domain/user.dart';
 /// (ex-employee, revoked access) can never resolve, so showing the raw id
 /// would just be permanent "random letters" in the column.
 ///
-/// This deliberately diverges from [ClientNameLabel], which keeps the raw id
-/// pre-data: the client label lazily hydrates per id, so its id is
-/// transitional. Users have no hydrate path — the company roster is seeded up
-/// front by `UserRepository.applyBundle` from the `/login` / `/refresh`
-/// envelope (`GET /users/{id}` is 412 password-gated, so a single-user fetch
-/// isn't available). Drift dedupes identical watch queries, so N rows
-/// referencing the same user share one subscription.
+/// [ClientNameLabel] now follows the same rule — it used to keep the raw id
+/// pre-data on the grounds that a client's id is "transitional" because the
+/// label hydrates per id, but the master-detail pane re-mounts it on every row
+/// click, so that transitional state was on screen constantly. Users still have
+/// no hydrate path at all: the company roster is seeded up front by
+/// `UserRepository.applyBundle` from the `/login` / `/refresh` envelope
+/// (`GET /users/{id}` is 412 password-gated, so a single-user fetch isn't
+/// available). Drift dedupes identical watch queries, so N rows referencing the
+/// same user share one subscription.
 class UserNameLabel extends StatelessWidget {
   const UserNameLabel({
     super.key,
@@ -44,6 +46,7 @@ class UserNameLabel extends StatelessWidget {
       return _muted(context);
     }
     return StreamBuilder<User?>(
+      initialData: services.user.peek(companyId: companyId, id: userId),
       stream: services.user.watch(companyId: companyId, id: userId),
       builder: (context, snapshot) {
         // Only blank out when there is genuinely nothing yet — a resubscribe

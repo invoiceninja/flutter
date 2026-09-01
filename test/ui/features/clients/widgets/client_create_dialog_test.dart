@@ -45,6 +45,10 @@ class _CapturingClientRepo implements ClientRepository {
       Stream<Client?>.value(
         created.isEmpty ? null : created.last.copyWith(id: id),
       );
+  // Cold peek cache: keeps these tests on the async watch path,
+  // exactly as before `BaseEntityRepository.peek` existed.
+  @override
+  Client? peek({required String companyId, required String id}) => null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

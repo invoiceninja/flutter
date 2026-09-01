@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
+
+final _log = Logger('GenericDetailViewModel');
 
 /// Read-only entity-detail ViewModel. Subscribes to a repo watch stream and
 /// exposes the latest value through [item]. Anything that mutates the row —
@@ -44,15 +47,33 @@ class GenericDetailViewModel<T> extends ChangeNotifier {
 
   /// Subscribe to [stream]. Replaces any prior subscription. Each emission
   /// updates [item] and clears [isResolving].
+  ///
+  /// A throw inside the watch pipeline (e.g. `_fromRow` failing to map a
+  /// newly-shaped row) must NOT be swallowed — mirrors the `onError` on
+  /// `GenericListViewModel`'s page subscription, for a sharper reason here:
+  /// [isResolving] is what bounds the detail pane's first-frame seed
+  /// (`EntityDetailScaffold._resolveItem`). Left true forever, the pane would
+  /// keep painting a plausible, fully-populated record from the list snapshot
+  /// that never updates for the rest of the session, with the actions row and
+  /// the `e` shortcut operating on that frozen object. A silent wrong-data
+  /// state is worse than the stuck spinner this used to produce, so clear the
+  /// flag and let the empty state through.
   @protected
   void bindStream(Stream<T?> stream) {
     _sub?.cancel();
     _isResolving = true;
-    _sub = stream.listen((value) {
-      _item = value;
-      _isResolving = false;
-      notifyListeners();
-    });
+    _sub = stream.listen(
+      (value) {
+        _item = value;
+        _isResolving = false;
+        notifyListeners();
+      },
+      onError: (Object e, StackTrace st) {
+        _log.warning('detail watch stream failed', e, st);
+        _isResolving = false;
+        notifyListeners();
+      },
+    );
   }
 
   @override

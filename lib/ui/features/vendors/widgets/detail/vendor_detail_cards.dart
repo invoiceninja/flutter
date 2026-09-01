@@ -13,8 +13,9 @@ import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
-import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/address_format.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -148,8 +149,9 @@ class VendorDetailDetailsCard extends StatelessWidget {
     final yes = context.tr('yes');
     final no = context.tr('no');
     final websiteUri = _parseWebsite(vendor.website);
-    return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
       builder: (context, snapshot) {
         final customRows = customFieldDetailRows(
           company: snapshot.data,

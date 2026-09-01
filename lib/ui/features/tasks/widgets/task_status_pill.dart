@@ -42,6 +42,10 @@ class TaskStatusPill extends StatelessWidget {
       return _label(context, status: null, tokens: tokens);
     }
     return StreamBuilder<TaskStatus?>(
+      initialData: services.taskStatuses.peek(
+        companyId: companyId,
+        id: statusId,
+      ),
       stream: services.taskStatuses.watch(companyId: companyId, id: statusId),
       builder: (context, snapshot) =>
           _label(context, status: snapshot.data, tokens: tokens),

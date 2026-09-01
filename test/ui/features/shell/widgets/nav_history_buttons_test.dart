@@ -9,6 +9,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/nav_history_controller.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
+import 'package:admin/app/native_window.dart';
 
 /// Targets the visible affordances for [NavHistoryController] — the sidebar
 /// back/forward buttons and the mouse thumb-button listener. The controller
@@ -83,6 +84,26 @@ void main() {
     // Two 32-px buttons fill the rail exactly; a RenderFlex overflow here
     // would throw and fail the test.
     expect(find.byType(IconButton), findsNWidgets(2));
+  });
+
+  // The macOS window-caption row hosts the pair beside the traffic lights, and
+  // AppKit centres those in a 28-px titlebar. The pair therefore has to *fit*
+  // 28 — at its own sizing it measures 32 and grows the band, which drops it
+  // 2 px below the buttons it is supposed to sit level with.
+  testWidgets('an explicit height is pinned, not merely floored', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(const NavHistoryButtons(height: kFallbackCaptionHeight)),
+    );
+
+    for (final icon in [Icons.arrow_back, Icons.arrow_forward]) {
+      final size = tester.getSize(find.widgetWithIcon(IconButton, icon));
+      // 28, not the 32 the default `minimumSize` would otherwise win.
+      expect(size.height, kFallbackCaptionHeight);
+      // Width is unchanged — only the band constrains the height.
+      expect(size.width, 32);
+    }
   });
 
   group('touch density (issue #11)', () {

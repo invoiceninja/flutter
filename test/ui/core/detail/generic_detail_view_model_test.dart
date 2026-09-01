@@ -166,6 +166,47 @@ void main() {
       expect(calls, 0);
     });
   });
+
+  group('a failing watch stream', () {
+    // `isResolving` is what bounds the detail pane's first-frame seed
+    // (`EntityDetailScaffold._resolveItem`). Without an `onError` a stream
+    // that throws before its first emission leaves the flag true forever, and
+    // the pane keeps painting a plausible, fully-populated record from the
+    // list snapshot that never updates again — with the actions row and the
+    // `e` shortcut operating on that frozen object. A silent wrong-data state
+    // is worse than the stuck spinner this used to produce.
+    test('clears isResolving and notifies', () async {
+      final rows = StreamController<String?>();
+      addTearDown(rows.close);
+      final vm = _ReboundViewModel(rows.stream);
+      addTearDown(vm.dispose);
+      var calls = 0;
+      vm.addListener(() => calls++);
+
+      expect(vm.isResolving, isTrue);
+      rows.addError(StateError('bad row'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.isResolving, isFalse);
+      expect(vm.item, isNull);
+      expect(calls, 1);
+    });
+
+    test('does not throw out of the subscription', () async {
+      final rows = StreamController<String?>();
+      addTearDown(rows.close);
+      final vm = _ReboundViewModel(rows.stream);
+      addTearDown(vm.dispose);
+
+      rows.addError(StateError('bad row'));
+      await Future<void>.delayed(Duration.zero);
+
+      // A later good emission still lands — the subscription survives.
+      rows.add('Acme');
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.item, 'Acme');
+    });
+  });
 }
 
 /// Exposes the protected `bindStream` so the rebinding contract is testable —

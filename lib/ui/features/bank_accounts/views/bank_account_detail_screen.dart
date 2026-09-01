@@ -82,6 +82,7 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
       builder: (context, snapshot) {
         final formatter = snapshot.data;
         return EntityDetailScaffold<BankAccount>(
+          id: widget.id,
           vm: _vm,
           hydrate: () => _services.bankAccounts.ensureLoaded(
             companyId: _companyId,

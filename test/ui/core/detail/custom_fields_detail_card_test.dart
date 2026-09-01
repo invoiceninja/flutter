@@ -21,6 +21,12 @@ class _FakeCompanyRepo implements CompanyRepository {
   @override
   Stream<Company?> watchCompany(String companyId) => Stream.value(_company);
 
+  // Cold seed cache: keeps these tests on the async watch path, exactly as
+  // before `BaseEntityRepository.peek` existed. The `company is still loading
+  // (null)` case below depends on it staying cold.
+  @override
+  Company? peek({required String companyId, required String id}) => null;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

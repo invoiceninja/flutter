@@ -9,6 +9,7 @@ import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/clients/views/client_list_screen.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/group_setting_edit_view_model.dart';
@@ -117,8 +118,10 @@ class _GroupEditTabsState extends State<_GroupEditTabs> {
     final services = context.read<Services>();
     final vm = widget.vm;
     final id = widget.groupId;
-    return StreamBuilder<GroupSetting?>(
-      stream: services.groupSettings.watch(companyId: widget.companyId, id: id),
+    return WatchBuilder<GroupSetting?>(
+      cacheKey: (widget.companyId, id),
+      create: () =>
+          services.groupSettings.watch(companyId: widget.companyId, id: id),
       initialData: vm.original,
       builder: (context, snapshot) {
         final documents = (snapshot.data ?? vm.original!).documents;

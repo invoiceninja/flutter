@@ -11,6 +11,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 
 /// Invoice-detail tab: the client's payments that still have **unapplied
 /// funds**, with a one-tap "Apply" that allocates min(unapplied, balance) to
@@ -30,8 +31,9 @@ class InvoiceUnappliedPaymentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Payment>>(
-      stream: services.payments.watchForClient(
+    return WatchBuilder<List<Payment>>(
+      cacheKey: (companyId, invoice.clientId),
+      create: () => services.payments.watchForClient(
         companyId: companyId,
         clientId: invoice.clientId,
       ),

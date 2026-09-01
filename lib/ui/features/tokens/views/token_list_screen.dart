@@ -59,6 +59,7 @@ class TokenListScreen extends StatelessWidget {
         if (companyId.isEmpty) return;
         await repo.refreshAll(companyId: companyId);
       },
+      streamKey: companyId,
       stream: () => repo
           .watchPage(
             companyId: companyId,

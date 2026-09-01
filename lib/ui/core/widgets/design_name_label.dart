@@ -46,6 +46,7 @@ class DesignNameLabel extends StatelessWidget {
       return _text(context, designId);
     }
     return StreamBuilder<Design?>(
+      initialData: services.designs.peek(companyId: companyId, id: designId),
       stream: services.designs.watch(companyId: companyId, id: designId),
       builder: (context, snapshot) {
         final design = snapshot.data;

@@ -44,6 +44,7 @@ class GroupSettingsScreen extends StatelessWidget {
         await repo.refreshAll(companyId: companyId);
       },
       supportsArchive: true,
+      streamKey: companyId,
       stream: () => repo.watchAllIncludingArchived(companyId: companyId),
       isArchivedOf: (g) => g.archivedAt != null,
       isDeletedOf: (g) => g.isDeleted,

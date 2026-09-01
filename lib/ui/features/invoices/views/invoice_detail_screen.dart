@@ -13,7 +13,6 @@ import 'package:admin/data/db/app_database.dart' show OutboxRow;
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/invoice.dart';
-import 'package:admin/domain/billing/invoice_lock.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -26,11 +25,13 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_detail_view_model.dart';
+import 'package:admin/ui/features/invoices/widgets/detail/invoice_lock_banner.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_reminders_summary.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_unapplied_payments_section.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_payment_schedule_tab.dart';
@@ -84,6 +85,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<Invoice>(
+      id: widget.id,
       vm: _vm,
       hydrate: () =>
           _services.invoices.ensureLoaded(companyId: _companyId, id: widget.id),
@@ -101,8 +103,10 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
           services: _services,
           companyId: _companyId,
         );
-        final f = formatter;
-        return f != null ? FormatterScope(formatter: f, child: body) : body;
+        // Always mounted, even while `formatter` is still null: branching
+        // here would change the tree shape and remount the whole body when
+        // the formatter lands.
+        return FormatterScope(formatter: formatter, child: body);
       },
     );
   }
@@ -206,15 +210,21 @@ class _InvoiceActionsRowState extends State<_InvoiceActionsRow> {
         // watch) — the send/validate gate needs it for any e-invoiced
         // invoice, not just Verifactu. The client watch (for rectify) is
         // still only added when the cheap rectify pre-gate passes.
-        return StreamBuilder<Company?>(
-          stream: widget.services.company.watchCompany(widget.companyId),
+        return WatchBuilder<Company?>(
+          cacheKey: widget.companyId,
+          create: () => widget.services.company.watchCompany(widget.companyId),
           builder: (context, companySnap) {
             final eInvoiceType = companySnap.data?.settings.eInvoiceType;
             if (!rectifyPreGate(inv)) {
               return _row(context, false, eInvoiceType, sendPending);
             }
-            return StreamBuilder<Client?>(
-              stream: widget.services.clients.watch(
+            return WatchBuilder<Client?>(
+              cacheKey: (widget.companyId, inv.clientId),
+              initialData: widget.services.clients.peek(
+                companyId: widget.companyId,
+                id: inv.clientId,
+              ),
+              create: () => widget.services.clients.watch(
                 companyId: widget.companyId,
                 id: inv.clientId,
               ),
@@ -265,7 +275,7 @@ class _Body extends StatelessWidget {
                 label: invoice.number.isEmpty
                     ? context.tr('invoice')
                     : '#${invoice.number}',
-                child: _Header(invoice: invoice),
+                child: _Header(invoice: invoice, companyId: companyId),
               ),
               SizedBox(height: InSpacing.lg(context)),
               EntityDetailTabs(
@@ -361,61 +371,16 @@ class _Body extends StatelessWidget {
   }
 }
 
-class _Header extends StatefulWidget {
-  const _Header({required this.invoice});
+class _Header extends StatelessWidget {
+  const _Header({required this.invoice, required this.companyId});
   final Invoice invoice;
-
-  @override
-  State<_Header> createState() => _HeaderState();
-}
-
-class _HeaderState extends State<_Header> {
-  /// Client-computed lock (correct offline / when the server `isLocked` flag
-  /// is stale, which it is on list-sourced rows and offline edits). The
-  /// authoritative edit gate lives in InvoiceActions.dispatch / the edit
-  /// guard; this just keeps the banner honest. Recomputed when the watched
-  /// invoice changes status/date/client.
-  InvoiceLockReason _reason = InvoiceLockReason.none;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_resolve());
-  }
-
-  @override
-  void didUpdateWidget(_Header old) {
-    super.didUpdateWidget(old);
-    final a = old.invoice, b = widget.invoice;
-    if (a.id != b.id ||
-        a.statusId != b.statusId ||
-        a.isLocked != b.isLocked ||
-        a.date != b.date ||
-        a.clientId != b.clientId) {
-      unawaited(_resolve());
-    }
-  }
-
-  Future<void> _resolve() async {
-    final services = context.read<Services>();
-    final companyId = services.auth.currentCompanyId ?? '';
-    final reason = await resolveInvoiceLockReason(
-      settings: services.settings,
-      companyId: companyId,
-      invoice: widget.invoice,
-    );
-    if (mounted && reason != _reason) {
-      setState(() => _reason = reason);
-    }
-  }
+  final String companyId;
 
   @override
   Widget build(BuildContext context) {
-    final invoice = widget.invoice;
     final tokens = context.inTheme;
     final formatter = FormatterScope.maybeOf(context);
     final services = context.read<Services>();
-    final companyId = services.auth.currentCompanyId ?? '';
     final effectiveDue = invoice.partialDueDate ?? invoice.dueDate;
     return Container(
       padding: EdgeInsets.all(InSpacing.lg(context)),
@@ -427,11 +392,9 @@ class _HeaderState extends State<_Header> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_reason != InvoiceLockReason.none)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _LockedBanner(reason: _reason),
-            ),
+          // Unconditional on purpose: it collapses to `SizedBox.shrink()`
+          // itself, so the tree shape doesn't change when the reason resolves.
+          InvoiceLockBanner(invoice: invoice, companyId: companyId),
           Row(
             children: [
               Flexible(
@@ -495,8 +458,13 @@ class _HeaderState extends State<_Header> {
                 : null,
           ),
           const SizedBox(height: 16),
-          StreamBuilder<Client?>(
-            stream: services.clients.watch(
+          WatchBuilder<Client?>(
+            cacheKey: (companyId, invoice.clientId),
+            initialData: services.clients.peek(
+              companyId: companyId,
+              id: invoice.clientId,
+            ),
+            create: () => services.clients.watch(
               companyId: companyId,
               id: invoice.clientId,
             ),
@@ -535,11 +503,14 @@ class _Overview extends StatelessWidget {
     final formatter = FormatterScope.maybeOf(context);
     final services = context.read<Services>();
     final companyId = services.auth.currentCompanyId ?? '';
-    return StreamBuilder<Client?>(
-      stream: services.clients.watch(
+    return WatchBuilder<Client?>(
+      cacheKey: (companyId, invoice.clientId),
+      initialData: services.clients.peek(
         companyId: companyId,
         id: invoice.clientId,
       ),
+      create: () =>
+          services.clients.watch(companyId: companyId, id: invoice.clientId),
       builder: (context, clientSnap) {
         final currencyId = clientSnap.data?.currencyId;
         final precision =
@@ -631,39 +602,6 @@ class _PdfPane extends StatelessWidget {
                 (invoice.designId.isEmpty ? null : invoice.designId),
             deliveryNote: deliveryNote,
           ),
-    );
-  }
-}
-
-class _LockedBanner extends StatelessWidget {
-  const _LockedBanner({required this.reason});
-  final InvoiceLockReason reason;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: InSpacing.md(context),
-        vertical: 8,
-      ),
-      decoration: BoxDecoration(
-        color: tokens.surfaceAlt,
-        borderRadius: BorderRadius.circular(InRadii.r2),
-        border: Border.all(color: tokens.border),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.lock_outline, size: 16, color: tokens.ink2),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              context.tr(invoiceLockMessageKey(reason)),
-              style: TextStyle(color: tokens.ink2, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

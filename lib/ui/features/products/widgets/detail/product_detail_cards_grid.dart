@@ -18,6 +18,7 @@ import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/products/widgets/detail/product_detail_kpi_strip.dart'
     show formatProductAmount;
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 
 /// Detail-card grid for a single [Product]. Replaces the legacy
 /// `ProductDetailCards`. At ≥1000 px renders a two-column grid (Details
@@ -40,8 +41,9 @@ class ProductDetailCardsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return StreamBuilder<Company?>(
-      stream: services.company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      create: () => services.company.watchCompany(companyId),
       builder: (context, snap) {
         final company = snap.data;
         final tracksInventory = company?.trackInventory ?? false;

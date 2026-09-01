@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -37,8 +38,9 @@ class VendorDetailKpiStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return StreamBuilder<List<Expense>>(
-      stream: services.expenses.watchForVendor(
+    return WatchBuilder<List<Expense>>(
+      cacheKey: (companyId, vendor.id),
+      create: () => services.expenses.watchForVendor(
         companyId: companyId,
         vendorId: vendor.id,
       ),

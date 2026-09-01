@@ -23,6 +23,7 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 class EntityDetailScaffold<T> extends StatefulWidget {
   const EntityDetailScaffold({
     super.key,
+    required this.id,
     required this.vm,
     required this.bodyBuilder,
     required this.emptyTitle,
@@ -33,6 +34,12 @@ class EntityDetailScaffold<T> extends StatefulWidget {
     this.actionsForItem,
     this.embedded = false,
   });
+
+  /// The record's id. Used ONLY to look up a synchronous first-frame seed
+  /// from the master-detail list snapshot (see [_EntityDetailScaffoldState.
+  /// _seed]) — the screen still binds its own VM from its own id, and
+  /// nothing else here reads this.
+  final String id;
 
   final GenericDetailViewModel<T> vm;
   final Widget Function(BuildContext context, T item) bodyBuilder;
@@ -85,9 +92,30 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
   /// True while [EntityDetailScaffold.hydrate] is in flight.
   bool _hydrating = false;
 
+  /// The row the user just clicked, read synchronously from the list's last
+  /// snapshot so a row-to-row swap in the master-detail pane paints the new
+  /// record in the SAME frame.
+  ///
+  /// Without it the pane blinks on every click: the router re-keys this
+  /// subtree per `:id` (`router.dart`), so a click builds a fresh VM whose
+  /// item is null until Drift's first (asynchronous) emission — which means
+  /// a full-pane spinner, and a header that collapses to bare padding and
+  /// re-grows as the action cluster leaves and returns.
+  ///
+  /// Null when the list never rendered this row (deep link, command palette,
+  /// cold start) or when there's no master-detail layout at all (the
+  /// settings-hosted detail screens); those keep the spinner.
+  T? _seed;
+
   @override
   void initState() {
     super.initState();
+    // `maybeOf` uses `getInheritedWidgetOfExactType`, which registers no
+    // dependency and is therefore legal here. `is T` rather than a cast:
+    // the scope is per entity branch, but a bad seed must degrade to "no
+    // seed", never throw.
+    final seed = MasterDetailNavScope.maybeOf(context)?.itemById(widget.id);
+    _seed = seed is T ? seed : null;
     final hydrate = widget.hydrate;
     if (hydrate == null) return;
     _hydrating = true;
@@ -97,9 +125,37 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
     // entry and a Sentry report from a screen that merely didn't warm up).
     // A cache hit is fast but not synchronous: it still awaits one Drift read.
     hydrate().catchError((_) {}).whenComplete(() {
-      if (mounted) setState(() => _hydrating = false);
+      if (!mounted) return;
+      // `_hydrating` is read by the spinner gate ONLY while the item is null.
+      // Once content has painted, a setState here changes nothing visible but
+      // re-runs every descendant that builds a Drift stream inside `build` —
+      // each fresh stream resets its StreamBuilder to `AsyncSnapshot.nothing()`
+      // and blanks rows that were already correct.
+      if (_resolveItem() == null) {
+        setState(() => _hydrating = false);
+      } else {
+        _hydrating = false;
+      }
     });
   }
+
+  @override
+  void didUpdateWidget(EntityDetailScaffold<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The seed is valid only for the VM's FIRST resolving cycle, so the
+    // condition that actually matters is a new `vm` — a caller handing over a
+    // fresh one (same id) would restart `isResolving` and re-show the stale
+    // seed. An id change implies it; both are checked because neither happens
+    // today (both route trees re-key on `:id`, so a change arrives as a fresh
+    // State) and the cheap guard is the one that survives that changing.
+    if (oldWidget.id != widget.id || oldWidget.vm != widget.vm) _seed = null;
+  }
+
+  /// The record to render. [_seed] is consulted ONLY before the watch
+  /// stream's first emission, so a record that genuinely resolves to null
+  /// (deleted server-side, no permission) still falls through to the empty
+  /// state instead of being resurrected from the list snapshot.
+  T? _resolveItem() => widget.vm.item ?? (widget.vm.isResolving ? _seed : null);
 
   @override
   void dispose() {
@@ -124,7 +180,7 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
           // navigating to the edit screen.
           _EditCurrentIntent: GuardedShortcutAction<_EditCurrentIntent>(
             onInvoke: (_) {
-              if (widget.vm.item == null) return null;
+              if (_resolveItem() == null) return null;
               // Universal: detail routes follow `/<entity>/:id`, edit is
               // the sibling `/<entity>/:id/edit`. Appending `/edit` to
               // the current URL is correct for every entity that goes
@@ -140,7 +196,7 @@ class _EntityDetailScaffoldState<T> extends State<EntityDetailScaffold<T>> {
         child: ListenableBuilder(
           listenable: widget.vm,
           builder: (context, _) {
-            final item = widget.vm.item;
+            final item = _resolveItem();
             if (widget.embedded || inPane) {
               return _embeddedBody(context, item);
             }

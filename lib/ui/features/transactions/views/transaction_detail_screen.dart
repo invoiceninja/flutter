@@ -61,6 +61,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen>
   @override
   Widget build(BuildContext context) {
     return EntityDetailScaffold<BankTransaction>(
+      id: widget.id,
       vm: _vm,
       hydrate: () => _services.bankTransactions.ensureLoaded(
         companyId: _companyId,

@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Read-only list of the payments applied to this invoice — each with the
@@ -34,8 +35,9 @@ class InvoiceAppliedPaymentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Payment>>(
-      stream: services.payments.watchForInvoice(
+    return WatchBuilder<List<Payment>>(
+      cacheKey: (companyId, invoice.id),
+      create: () => services.payments.watchForInvoice(
         companyId: companyId,
         invoiceId: invoice.id,
       ),

@@ -191,6 +191,11 @@ class MainFlutterWindow: NSWindow {
           return
         }
         self.performContentResize(width: width, height: height, result: result)
+      case "windowChrome":
+        // Pulled once by Dart at boot. The push below can't cover launch: the
+        // restore-fullscreen toggle in setUpWindowStatePersistence runs before
+        // Dart installs its handler (and before this channel even exists).
+        result(self.windowChromeMetrics())
       case "setWindowButtonsHidden":
         guard let args = call.arguments as? [String: Any],
               let hidden = args["hidden"] as? Bool
@@ -201,6 +206,9 @@ class MainFlutterWindow: NSWindow {
         }
         self.windowButtonsHidden = hidden
         self.reapplyWindowButtonsHidden()
+        // The buttons just appeared or vanished — what the caption row has to
+        // reserve space for changed with them.
+        self.publishWindowChrome()
         result(nil)
       default:
         result(FlutterMethodNotImplemented)
@@ -312,6 +320,56 @@ class MainFlutterWindow: NSWindow {
     } else {
       apply(false)
     }
+  }
+
+  // Everything Flutter has to lay its caption row out around, MEASURED rather
+  // than assumed. macOS 26 enlarged the traffic lights (14 pt, 23 pt apart) and
+  // grew the titlebar to ~31 pt; through macOS 15 they were 12 pt and 20 pt
+  // apart in a 28 pt bar. `MACOSX_DEPLOYMENT_TARGET` is 10.15, so no hardcoded
+  // figure is right everywhere — a 28 baked into the Dart side is exactly what
+  // put the sidebar's arrows 2 pt above the buttons they sit beside.
+  //
+  // All values are points measured from the window's TOP-left corner, which is
+  // where Flutter's origin is under `.fullSizeContentView`. Zero means "no
+  // buttons are floating over the content" (fullscreen, or the Debug Panel hid
+  // them), which Dart reads as "reserve nothing".
+  private func windowChromeMetrics() -> [String: Any] {
+    let isFullscreen = styleMask.contains(.fullScreen)
+    var captionHeight = 0.0
+    var buttonsCenterY = 0.0
+    var buttonsTrailingX = 0.0
+    if !isFullscreen, let content = contentView {
+      captionHeight = content.bounds.height - contentLayoutRect.height
+      let buttons: [NSView] =
+        [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
+        .compactMap { standardWindowButton($0) }
+        .filter { !$0.isHidden }
+      if let first = buttons.first {
+        var union = first.convert(first.bounds, to: content)
+        for button in buttons.dropFirst() {
+          union = union.union(button.convert(button.bounds, to: content))
+        }
+        // AppKit's content view is bottom-left origin; Flutter is top-left.
+        buttonsCenterY = content.bounds.height - union.midY
+        buttonsTrailingX = union.maxX
+      }
+    }
+    return [
+      "fullscreen": isFullscreen,
+      "captionHeight": captionHeight,
+      "buttonsCenterY": buttonsCenterY,
+      "buttonsTrailingX": buttonsTrailingX,
+    ]
+  }
+
+  // Tell Flutter the chrome moved: fullscreen shifts the traffic lights into the
+  // auto-hiding menu bar and the Debug Panel can hide them outright, both of
+  // which leave the caption strip nothing to reserve space for. Silently a no-op
+  // before the channel exists — Dart pulls the state itself once its handler is
+  // installed ("windowChrome").
+  private func publishWindowChrome() {
+    windowControlChannel?.invokeMethod(
+      "windowChromeChanged", arguments: windowChromeMetrics())
   }
 
   // The traffic lights are real AppKit views that fullscreen transitions can
@@ -520,10 +578,12 @@ extension MainFlutterWindow: NSWindowDelegate {
     // Fullscreen rebuilds the titlebar buttons into the auto-hiding bar;
     // keep them hidden there too when the screenshot flag is on.
     reapplyWindowButtonsHidden()
+    publishWindowChrome()
   }
   func windowDidExitFullScreen(_ notification: Notification) {
     UserDefaults.standard.set(false, forKey: Self.fullscreenKey)
     reapplyWindowButtonsHidden()
+    publishWindowChrome()
     // Run a resize that was parked while the window was fullscreen.
     isExitingFullScreenForResize = false
     if let pending = pendingWindowResize {

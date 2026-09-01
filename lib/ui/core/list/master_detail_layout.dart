@@ -7,90 +7,15 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/list/master_detail_nav_scope.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/widgets/hidden_shell_navigator.dart';
 
-/// Lightweight shared state between `MasterDetailLayout` and the list
-/// scaffold mounted inside it. The list scaffold writes the visible
-/// item ids + the URL-derived `selectedId` here on every rebuild; the
-/// pane's keyboard shortcuts (`J` / `K` / `↓` / `↑`) read it to compute
-/// the next / previous row to navigate to.
-///
-/// Why a controller instead of a callback: the layout doesn't have
-/// access to the list's VM (the list is an opaque widget), and the
-/// scaffold doesn't know about the layout's keyboard handlers. A
-/// shared object pushed into the InheritedWidget tree lets each side
-/// touch only what it needs.
-class MasterDetailNavController {
-  String? _selectedId;
-  List<String> _itemIds = const <String>[];
-
-  /// Animated close hook bound by the layout's State in `initState`.
-  /// Called by list tiles via [MasterDetailNavScope.requestClose] so
-  /// row-click-deselect plays the same slide-out as the X button —
-  /// the URL only changes after the reverse animation finishes.
-  Future<void> Function()? closePane;
-
-  void update({required String? selectedId, required List<String> itemIds}) {
-    _selectedId = selectedId;
-    _itemIds = itemIds;
-  }
-
-  String? nextId() {
-    if (_itemIds.isEmpty) return null;
-    if (_selectedId == null) return _itemIds.first;
-    final i = _itemIds.indexOf(_selectedId!);
-    if (i < 0 || i >= _itemIds.length - 1) return null;
-    return _itemIds[i + 1];
-  }
-
-  String? prevId() {
-    if (_itemIds.isEmpty) return null;
-    if (_selectedId == null) return _itemIds.last;
-    final i = _itemIds.indexOf(_selectedId!);
-    if (i <= 0) return null;
-    return _itemIds[i - 1];
-  }
-}
-
-/// InheritedWidget that publishes the layout's
-/// [MasterDetailNavController] to descendants without triggering
-/// rebuilds — descendants read the controller object once and call
-/// methods on it; the controller's internal state isn't observable
-/// (the keyboard handlers don't need to react to changes, they just
-/// need the latest value at key-press time).
-class MasterDetailNavScope extends InheritedWidget {
-  const MasterDetailNavScope({
-    super.key,
-    required this.controller,
-    required super.child,
-  });
-
-  final MasterDetailNavController controller;
-
-  static MasterDetailNavController? maybeOf(BuildContext context) {
-    final scope = context.getInheritedWidgetOfExactType<MasterDetailNavScope>();
-    return scope?.controller;
-  }
-
-  /// Close the pane from a descendant (e.g. a list tile's
-  /// click-to-deselect). Runs the layout's animated close when hosted
-  /// inside a master-detail pane; falls back to plain
-  /// `GoRouter.go(basePath)` otherwise (narrow viewports, tests).
-  static void requestClose(BuildContext context, {required String basePath}) {
-    final close = maybeOf(context)?.closePane;
-    if (close != null) {
-      close();
-    } else {
-      GoRouter.of(context).go(basePath);
-    }
-  }
-
-  // Marker only — descendants treat the controller as a stable ref.
-  @override
-  bool updateShouldNotify(MasterDetailNavScope oldWidget) =>
-      controller != oldWidget.controller;
-}
+// Re-exported so existing `master_detail_layout.dart` imports of these two
+// keep working; they live in their own leaf so the detail scaffold and tab
+// strip can read them without pulling in this file's graph.
+export 'package:admin/ui/core/list/master_detail_nav_scope.dart'
+    show MasterDetailNavController, MasterDetailNavScope;
 
 /// Slide-over master-detail used by every entity route block on wide
 /// desktop windows. The list **always** renders at full width; the

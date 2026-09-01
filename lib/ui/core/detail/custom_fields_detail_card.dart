@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
+import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -51,8 +52,15 @@ class CustomFieldsDetailCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final yes = context.tr('yes');
     final no = context.tr('no');
-    return StreamBuilder<Company?>(
-      stream: context.read<Services>().company.watchCompany(companyId),
+    return WatchBuilder<Company?>(
+      cacheKey: companyId,
+      // Seeded so the card doesn't materialise a frame late and push the rest
+      // of the detail body down — it presence-gates on `rows.isEmpty` below.
+      initialData: context.read<Services>().company.peek(
+        companyId: companyId,
+        id: companyId,
+      ),
+      create: () => context.read<Services>().company.watchCompany(companyId),
       builder: (context, snapshot) {
         final rows = customFieldDetailRows(
           company: snapshot.data,

@@ -1101,12 +1101,24 @@ class Services implements SidebarBadgeContext {
       // sessions" on another device, removed from the company). The default
       // `logout()` is DESTRUCTIVE — it wipes the whole Drift database, and
       // `outbox` is one of the tables — so handing `auth.logout` straight to
-      // ApiClient silently destroyed every queued offline edit. Consult the
-      // same predicate the idle-timeout re-lock uses: with unsynced work
-      // pending, keep the encrypted DB (and set the re-lock gate) so the rows
-      // survive to drain after re-auth.
-      onUnauthorized: () async =>
-          auth.logout(preserveLocalData: await sync.hasUnsyncedWork()),
+      // ApiClient silently destroyed every queued offline edit.
+      //
+      // Always preserve on this path. An involuntary 401 is the same user,
+      // who will almost certainly sign straight back in; destroying their
+      // local data over a server-side token change is not a trade worth
+      // making, and it used to happen whenever `hasUnsyncedWork()` said false.
+      // The cross-user-leak protection does NOT depend on the wipe:
+      // `onSessionReset` and `onBeforeLogout` (which carries the
+      // `clearPeekCache` / `invalidateAllFormatters` fan-out below) both run
+      // on the preserve path too. Only `onBeforeDataWipe` is
+      // destructive-path-only, and that is contacts sync, which should
+      // survive a re-lock. `logout()` still writes the re-lock gate, so
+      // re-entry requires re-auth.
+      onUnauthorized: () async => auth.logout(preserveLocalData: true),
+      // Consulted first: a 401 under a company token the user *just* switched
+      // into fails the switch (roll back + heal) instead of the session.
+      onUnauthorizedCandidate: auth.handleUnauthorized,
+      onAuthenticatedResponse: auth.markCredentialProven,
       onServerVersion: (v) => serverVersion.value = v,
       onClientTooOld: (info) => clientTooOld.value = info,
       httpClient: httpClient,

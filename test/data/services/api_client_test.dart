@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:logging/logging.dart';
 
 /// Helpers — these tests target ApiClient's behavioral contract, not http or
 /// Drift. Each test exercises an invariant that other layers (sync engine,
@@ -115,6 +116,235 @@ void main() {
         expect(unauthorizedCalls, 2);
       },
     );
+  });
+
+  group('ApiClient 401 veto (onUnauthorizedCandidate)', () {
+    // The company-switch remedy: a 401 under a token the user just switched
+    // into must fail the SWITCH, not the session. `ApiClient` delegates that
+    // call to the auth layer through the veto; these tests pin the seam.
+
+    test('veto returning false suppresses logout but still throws', () async {
+      var unauthorizedCalls = 0;
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async => unauthorizedCalls++,
+        onUnauthorizedCandidate: (_) async => false,
+        httpClient: MockClient((_) async => http.Response('nope', 401)),
+      );
+
+      // Still throws: the outbox drain relies on the exception to unwind and
+      // clear its `_inFlight` slot (see the self-deadlock comment in
+      // `_postFlight`), so absorbing the 401 must not swallow the throw.
+      await expectLater(
+        client.getOne('/api/v1/x'),
+        throwsA(isA<UnauthorizedException>()),
+      );
+      expect(unauthorizedCalls, 0);
+    });
+
+    test('veto returning true still logs out', () async {
+      var unauthorizedCalls = 0;
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async => unauthorizedCalls++,
+        onUnauthorizedCandidate: (_) async => true,
+        httpClient: MockClient((_) async => http.Response('nope', 401)),
+      );
+
+      await client.getOne('/api/v1/x').catchError((_) => null);
+      expect(unauthorizedCalls, 1);
+    });
+
+    test('a null veto preserves the default behavior', () async {
+      // Pins that the ~33 existing ApiClient construction sites are unaffected.
+      var unauthorizedCalls = 0;
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async => unauthorizedCalls++,
+        httpClient: MockClient((_) async => http.Response('nope', 401)),
+      );
+
+      await client.getOne('/api/v1/x').catchError((_) => null);
+      expect(unauthorizedCalls, 1);
+    });
+
+    test('a throwing veto falls through to logout (fail-safe)', () async {
+      // Absorbing a 401 must be an affirmative decision, never a side effect
+      // of an error — otherwise a keychain write failure inside the remedy
+      // would strand the app authenticated with a token the server rejects.
+      var unauthorizedCalls = 0;
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async => unauthorizedCalls++,
+        onUnauthorizedCandidate: (_) async => throw StateError('keychain'),
+        httpClient: MockClient((_) async => http.Response('nope', 401)),
+      );
+
+      await client.getOne('/api/v1/x').catchError((_) => null);
+      expect(unauthorizedCalls, 1);
+    });
+
+    test('parallel 401s consult the veto exactly once', () async {
+      // Load-bearing, not an optimization: a rejected company token is
+      // discovered by a ~14-request prefetch fan-out, so many 401s land within
+      // milliseconds. If each re-entered the veto, the second would undo the
+      // first one's rollback.
+      var vetoCalls = 0;
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        onUnauthorizedCandidate: (_) async {
+          vetoCalls++;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          return false;
+        },
+        httpClient: MockClient((_) async => http.Response('nope', 401)),
+      );
+
+      await Future.wait([
+        for (var i = 0; i < 5; i++)
+          client.getOne('/api/v1/x').catchError((_) => null),
+      ]);
+
+      expect(vetoCalls, 1);
+    });
+
+    test('the veto receives the requesting company id', () async {
+      // Asserts `companyId` survives _send -> _postFlight -> _handleUnauthorized.
+      String? seen;
+      final client = ApiClient(
+        credentials: _creds(
+          const ApiCredentials(
+            baseUrl: 'https://test',
+            token: 't',
+            companyId: 'co_b',
+          ),
+        ),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        onUnauthorizedCandidate: (creds) async {
+          seen = creds.companyId;
+          return false;
+        },
+        httpClient: MockClient((_) async => http.Response('nope', 401)),
+      );
+
+      await client.getOne('/api/v1/x').catchError((_) => null);
+      expect(seen, 'co_b');
+    });
+
+    test('a 2xx reports the proven credentials', () async {
+      // Backs `AuthRepository.markCredentialProven`, which retires probation.
+      final proven = <String>[];
+      final client = ApiClient(
+        credentials: _creds(
+          const ApiCredentials(
+            baseUrl: 'https://test',
+            token: 't',
+            companyId: 'co_a',
+          ),
+        ),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        onAuthenticatedResponse: (creds) => proven.add(creds.companyId),
+        httpClient: MockClient((_) async => http.Response('{"data":{}}', 200)),
+      );
+
+      await client.getOne('/api/v1/x');
+      expect(proven, ['co_a']);
+    });
+
+    test('a 401 does not report proven credentials', () async {
+      final proven = <String>[];
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        onAuthenticatedResponse: (creds) => proven.add(creds.companyId),
+        httpClient: MockClient((_) async => http.Response('nope', 401)),
+      );
+
+      await client.getOne('/api/v1/x').catchError((_) => null);
+      expect(proven, isEmpty);
+    });
+  });
+
+  group('ApiClient 401 diagnostics', () {
+    // The forced-logout branch used to log NOTHING, so the only involuntary
+    // session-ending path in the app left no trace in the WARNING+ diagnostics
+    // log — it surfaced only as the unattributable downstream failures of
+    // whatever ran next. These pin the log line and its redaction.
+
+    late List<LogRecord> records;
+    late StreamSubscription<LogRecord> sub;
+
+    setUp(() {
+      records = [];
+      sub = Logger.root.onRecord.listen(records.add);
+    });
+
+    tearDown(() => sub.cancel());
+
+    test('a forced logout logs method, path and company at WARNING', () async {
+      final client = ApiClient(
+        credentials: _creds(
+          const ApiCredentials(
+            baseUrl: 'https://test',
+            token: 'secret-token-value',
+            companyId: 'co_a',
+          ),
+        ),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: MockClient(
+          (_) async => http.Response('{"message":"Invalid token"}', 401),
+        ),
+      );
+
+      await client.getOne('/api/v1/clients').catchError((_) => null);
+
+      final warning = records.firstWhere(
+        (r) => r.level >= Level.WARNING && r.message.contains('forced logout'),
+      );
+      expect(warning.message, contains('GET'));
+      expect(warning.message, contains('/api/v1/clients'));
+      expect(warning.message, contains('co_a'));
+      expect(warning.message, contains('Invalid token'));
+      // The token itself must never reach the log — only a fingerprint.
+      expect(warning.message, isNot(contains('secret-token-value')));
+    });
+
+    test('a stale-credential 401 stays below WARNING', () async {
+      // Deliberate: switch-race noise must stay off the on-disk log.
+      final credentials = ValueNotifier<ApiCredentials?>(
+        const ApiCredentials(baseUrl: 'https://test', token: 'old'),
+      );
+      final client = ApiClient(
+        credentials: credentials,
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        httpClient: MockClient((_) async {
+          credentials.value = const ApiCredentials(
+            baseUrl: 'https://test',
+            token: 'new',
+          );
+          return http.Response('nope', 401);
+        }),
+      );
+
+      await client.getOne('/api/v1/x').catchError((_) => null);
+
+      expect(
+        records.where((r) => r.level >= Level.WARNING),
+        isEmpty,
+        reason: 'a stale-credential 401 is an expected race, not a defect',
+      );
+    });
   });
 
   group('ApiClient mutation headers', () {

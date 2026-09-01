@@ -139,6 +139,22 @@ class AuthRepository {
   /// company re-activates.
   String? _lastActivatedCompanyId;
 
+  /// A company activated from a *cached* per-company token that the server has
+  /// not yet accepted, plus the company to fall back to if it turns out to be
+  /// dead. Null once proven, once rolled back, or on [logout].
+  ///
+  /// Exists because a company switch installs a token that has never been
+  /// validated and then immediately fans out ~14 requests. Before this, the
+  /// first 401 from that fan-out arrived under the *live* credential set, so
+  /// `ApiClient` could not tell it apart from a genuine revocation and
+  /// escalated it to a destructive global logout — wiping the Drift database,
+  /// outbox included, because one workspace's token had rotated.
+  ///
+  /// [healed] records that the self-heal refresh has already been spent on
+  /// this switch, which bounds the remedy to a single heal attempt.
+  ({String companyId, String fallbackCompanyId, bool healed})?
+  _unprovenActivation;
+
   /// Wired by DI to fan-out the per-entity `applyBundle` calls (task
   /// statuses, company gateways, …). Invoked once per company in the
   /// `/login` or `/refresh` envelope, *after* the user / company / settings
@@ -207,6 +223,17 @@ class AuthRepository {
 
   ValueListenable<ApiCredentials?> get credentials => _credentials;
   ValueListenable<bool> get requiresBiometricUnlock => _requiresBiometricUnlock;
+
+  /// Set to the company id of a switch that was rolled back because the server
+  /// rejected that company's token. The shell listens and raises the existing
+  /// `failed_to_switch_company` toast; nothing else reads it. Consumers must
+  /// null it after showing — a silent rollback is exactly the "looks like the
+  /// app ignored the tap" failure issue #16 was about.
+  final ValueNotifier<String?> _companySwitchRejected = ValueNotifier<String?>(
+    null,
+  );
+
+  ValueNotifier<String?> get companySwitchRejected => _companySwitchRejected;
 
   bool get isAuthenticated => _credentials.value?.isAuthenticated ?? false;
 
@@ -439,22 +466,47 @@ class AuthRepository {
         _log.warning('switchCompany($companyId): still no token after refresh');
         return SwitchCompanyResult.noToken;
       }
-      return _activateCompany(healed, companyId, token);
+      return _activateCompany(
+        healed,
+        companyId,
+        token,
+        provisional: true,
+        // The heal has already been spent getting this token.
+        healed: true,
+      );
     }
-    return _activateCompany(s, companyId, token);
+    return _activateCompany(s, companyId, token, provisional: true);
   }
 
+  /// [provisional] arms [_unprovenActivation] so a 401 under this token fails
+  /// the *switch* rather than the session. Only the [switchCompany] paths pass
+  /// true: at cold-start [restore] a 401 genuinely means the stored token is
+  /// dead, and logging out is the right answer there.
+  ///
+  /// [healed] marks that the self-heal refresh has already run for this switch.
   Future<SwitchCompanyResult> _activateCompany(
     AuthSession s,
     String companyId,
-    String token,
-  ) async {
+    String token, {
+    bool provisional = false,
+    bool healed = false,
+  }) async {
+    // Read the outgoing company BEFORE the copyWith below overwrites it.
+    final previousCompanyId = s.currentCompanyId;
+    _unprovenActivation = provisional
+        ? (
+            companyId: companyId,
+            fallbackCompanyId: previousCompanyId,
+            healed: healed,
+          )
+        : null;
     _session.value = s.copyWith(currentCompanyId: companyId);
     _credentials.value = ApiCredentials(
       baseUrl: s.baseUrl,
       token: token,
       apiSecret: '',
       isHosted: s.isHosted,
+      companyId: companyId,
     );
     await _secure.write(kAuthCurrentCompanyIdKey, companyId);
     // Session + credentials have already flipped, so a throw out of the
@@ -467,6 +519,115 @@ class AuthRepository {
       _log.warning('onActiveCompanyChanged($companyId) threw', e, st);
     }
     return SwitchCompanyResult.ok;
+  }
+
+  /// Decide whether a 401 that arrived under the *live* credential set should
+  /// actually end the session. Called detached by [ApiClient] from inside its
+  /// 401 single-flight; returning false absorbs the 401.
+  ///
+  /// It refuses exactly one case: a company the user just switched into, whose
+  /// cached token turns out to be dead (rotated server-side, or the user was
+  /// removed from that company). That token says nothing about the other
+  /// companies' tokens, and ending the session — which wipes the whole Drift
+  /// database, outbox included — is wildly disproportionate to one workspace
+  /// being unreachable. Roll back to the company we came from, drop the bad
+  /// token, and spend one self-heal refresh trying to get a good one.
+  ///
+  /// The rollback MUST complete before this returns. Once it does,
+  /// `_logoutFuture` clears, and the only thing protecting the rest of the
+  /// ~14-request fan-out is that `_credentials` no longer holds the rejected
+  /// token — which makes their 401s stale-credential ones that `ApiClient`
+  /// swallows on its own. Make the rollback lazy and the next 401 logs the
+  /// user out anyway.
+  Future<bool> handleUnauthorized(ApiCredentials creds) async {
+    final s = _session.value;
+    final probation = _unprovenActivation;
+    if (s == null || probation == null) return true;
+    // Not the company on probation — a genuine revocation, "end all sessions",
+    // or the user being removed from the company they were already in.
+    if (creds.companyId.isEmpty || creds.companyId != probation.companyId) {
+      return true;
+    }
+    final fallbackId = probation.fallbackCompanyId;
+    if (fallbackId.isEmpty || fallbackId == creds.companyId) return true;
+    final fallbackToken = _tokensByCompany[fallbackId] ?? '';
+    // Nowhere safe to land (single-company account, or the fallback's token is
+    // gone too) — let the session end rather than invent a destination.
+    if (fallbackToken.isEmpty) return true;
+
+    _log.warning(
+      'unproven token for company ${creds.companyId} was rejected; rolling '
+      'back to $fallbackId instead of ending the session',
+    );
+    // Drop the dead token and persist that, so a restart doesn't reinstall it
+    // and the next switchCompany takes its existing heal path at the top of
+    // [switchCompany]. Safe even if the 401 was a transient server hiccup.
+    final pruned = Map<String, String>.from(_tokensByCompany)
+      ..remove(creds.companyId);
+    _tokensByCompany = pruned;
+    await _secure.write(kAuthTokensKey, jsonEncode(pruned));
+    // `provisional: false` — we came from there, that token was working.
+    await _activateCompany(s, fallbackId, fallbackToken);
+    if (probation.healed) {
+      // The heal was already spent on this switch. Stop, and say so.
+      _companySwitchRejected.value = creds.companyId;
+    } else {
+      // Kick the heal OUT of band: it makes a network call, and running it
+      // here would put its own 401 inside the same `_logoutFuture` that is
+      // still settling, where it would be silently coalesced. A `Future(...)`
+      // lands on a later event-loop turn, after `whenComplete` has cleared it.
+      unawaited(Future(() => _healAndRetrySwitch(creds.companyId)));
+    }
+    return false;
+  }
+
+  /// A 2xx under [creds] proves that token, so it no longer needs the
+  /// company-switch rollback protection. Without this, probation would linger
+  /// until the next switch / refresh / logout, and a token revoked later in
+  /// the session would cost one spurious rollback before the logout. Called on
+  /// every successful response — keep it a field compare.
+  void markCredentialProven(ApiCredentials creds) {
+    final probation = _unprovenActivation;
+    if (probation != null && probation.companyId == creds.companyId) {
+      _unprovenActivation = null;
+    }
+  }
+
+  /// Second half of [handleUnauthorized]: one full refresh to try to obtain a
+  /// working token for [companyId], then one retry of the switch. Runs
+  /// detached, after the rollback has settled.
+  Future<void> _healAndRetrySwitch(String companyId) async {
+    final s = _session.value;
+    if (s == null) return;
+    try {
+      await _refreshSession(
+        preserveActiveCompanyId: s.currentCompanyId,
+        fullSync: true,
+      );
+    } catch (e, st) {
+      _log.warning('heal after rejected switch to $companyId failed', e, st);
+    }
+    // The refresh may have logged us out (a 401 under the *fallback* token
+    // means the account really is gone) — re-read rather than reusing the
+    // pre-refresh snapshot.
+    final healed = _session.value;
+    if (healed == null) return;
+    final token = _tokensByCompany[companyId] ?? '';
+    if (token.isEmpty) {
+      _log.warning('no usable token for $companyId after heal; switch failed');
+      _companySwitchRejected.value = companyId;
+      return;
+    }
+    // `healed: true` bounds this to a single heal attempt: if the fresh token
+    // is rejected too, [handleUnauthorized] rolls back and reports instead of
+    // healing again.
+    await _activateCompany(
+      healed,
+      companyId,
+      token,
+      provisional: true,
+      healed: true,
+    );
   }
 
   /// Create a new company under the current account. Mirrors admin-portal's
@@ -689,6 +850,19 @@ class AuthRepository {
   /// offline edits, so instead the data survives to drain on the next login or
   /// cold-start [restore]. Default `false` = full destructive logout.
   Future<void> logout({bool preserveLocalData = false}) async {
+    // Ending a session is the most destructive thing this app does, and until
+    // now it left NO trace: an involuntary logout (ApiClient's 401 handler)
+    // surfaced only as the downstream `UnauthorizedException: Not
+    // authenticated` failures of whatever ran next, which name neither the
+    // cause nor the company. `warning`, not `info` — INFO never reaches the
+    // on-disk diagnostics log (`main.dart`). The stack is the payload: it is
+    // what distinguishes a 401 from the idle timeout from a user tap.
+    _log.warning(
+      'logout(preserveLocalData: $preserveLocalData) '
+      'company=${_session.value?.currentCompanyId} '
+      'companies=${_session.value?.companies.length ?? 0}\n'
+      '${StackTrace.current}',
+    );
     // Invalidate any refresh whose `/refresh` call is already in flight. Bump
     // BEFORE awaiting onBeforeLogout (which can take a while draining the
     // outbox) so a response landing during that await is rejected too — see
@@ -715,6 +889,7 @@ class AuthRepository {
     // Re-arm the activation guard so a fresh login (even to the same company)
     // re-fires onActiveCompanyChanged and re-runs the sidebar prefetch.
     _lastActivatedCompanyId = null;
+    _unprovenActivation = null;
     _passwordCache.clear();
     // Reset app-lifetime per-session repo state (e.g. the calendar connection)
     // so the next user on this install starts unread. Synchronous + defensive.
@@ -1018,6 +1193,7 @@ class AuthRepository {
       baseUrl: baseUrl,
       token: activeToken,
       isHosted: isHosted,
+      companyId: session.currentCompanyId,
     );
     _attachCompaniesWatcher();
     // If the user backgrounded the app with pending outbox rows and the
@@ -1632,7 +1808,7 @@ class AuthRepository {
         liveCompanyId.isNotEmpty &&
         liveCompanyId != activeCompanyIdAtRequest &&
         liveCompanyId != currentId &&
-        tokens.containsKey(liveCompanyId)) {
+        hasUsableToken(liveCompanyId)) {
       _log.info(
         'company switch raced /refresh; keeping live $liveCompanyId '
         'over snapshot $currentId',
@@ -1659,6 +1835,9 @@ class AuthRepository {
         (await _secure.read(kAuthBiometricEnabledKey)) == 'true';
 
     _tokensByCompany = tokens;
+    // A 200 from /refresh proves whatever token carried it; nothing on
+    // probation survives a successful round-trip.
+    _unprovenActivation = null;
     final firstUser = response.data.first.user;
     // A full snapshot's `data` is the authoritative company set. A delta is
     // scoped to the active company, so its `data` omits the others — source
@@ -1730,8 +1909,18 @@ class AuthRepository {
     );
     _credentials.value = ApiCredentials(
       baseUrl: baseUrl,
-      token: tokens[currentId] ?? response.data.first.token.token,
+      // `??` does NOT catch the empty string a token-less company-user carries
+      // (see [hasUsableToken] and the `missingTokenIds` warning above): an
+      // empty entry would install a blank `X-API-Token`, `isAuthenticated`
+      // goes false, every call then throws locally at `_requireCreds`, and the
+      // router bounces to /login with no server 401 anywhere in the log. The
+      // sibling `currentId` selections above already guard with
+      // [hasUsableToken]; this fallback was the one place that didn't.
+      token: hasUsableToken(currentId)
+          ? tokens[currentId]!
+          : response.data.first.token.token,
       isHosted: isHosted,
+      companyId: currentId,
     );
     _attachCompaniesWatcher();
     _fireActiveCompanyChanged(currentId);
@@ -1846,5 +2035,6 @@ class AuthRepository {
     _session.dispose();
     _credentials.dispose();
     _requiresBiometricUnlock.dispose();
+    _companySwitchRejected.dispose();
   }
 }

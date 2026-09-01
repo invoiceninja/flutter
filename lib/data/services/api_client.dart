@@ -34,6 +34,18 @@ class ApiClient {
     required ValueListenable<ApiCredentials?> credentials,
     required PasswordCache passwordCache,
     required Future<void> Function() onUnauthorized,
+    // Consulted (detached, inside the 401 single-flight) BEFORE
+    // [onUnauthorized] fires. Return `false` to absorb this 401 — the callback
+    // has already applied a non-destructive remedy and the session must
+    // survive. Optional so the ~33 test files that build an ApiClient, and any
+    // caller with no notion of company-scoped tokens, keep today's behavior.
+    Future<bool> Function(ApiCredentials creds)? onUnauthorizedCandidate,
+    // Called on every 2xx. Lets the auth layer retire the "this token is
+    // unproven" state that [onUnauthorizedCandidate] keys on, so a token
+    // revoked LATER in the session logs out immediately instead of costing one
+    // spurious company rollback first. Hot path — keep implementations to a
+    // field compare.
+    void Function(ApiCredentials creds)? onAuthenticatedResponse,
     ValueSetter<String>? onServerVersion,
     void Function(({String minRequired, String current}))? onClientTooOld,
     http.Client? httpClient,
@@ -52,6 +64,8 @@ class ApiClient {
   }) : _credentialsListenable = credentials,
        _passwordCache = passwordCache,
        _onUnauthorized = onUnauthorized,
+       _onUnauthorizedCandidate = onUnauthorizedCandidate,
+       _onAuthenticatedResponse = onAuthenticatedResponse,
        _onServerVersion = onServerVersion,
        _onClientTooOld = onClientTooOld,
        _http = httpClient ?? http.Client(),
@@ -63,6 +77,8 @@ class ApiClient {
   final ValueListenable<ApiCredentials?> _credentialsListenable;
   final PasswordCache _passwordCache;
   final Future<void> Function() _onUnauthorized;
+  final Future<bool> Function(ApiCredentials creds)? _onUnauthorizedCandidate;
+  final void Function(ApiCredentials creds)? _onAuthenticatedResponse;
   final ValueSetter<String>? _onServerVersion;
   final void Function(({String minRequired, String current}))? _onClientTooOld;
   final http.Client _http;
@@ -227,7 +243,7 @@ class ApiClient {
       headers: headers,
       body: encoded,
     );
-    await _postFlight(response, creds);
+    await _postFlight(response, creds, method: 'POST', uri: uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final ct = response.headers['content-type'] ?? '';
       final actualType = ct.split(';').first.trim().toLowerCase();
@@ -270,7 +286,7 @@ class ApiClient {
       uri: uri,
       headers: headers,
     );
-    await _postFlight(response, creds);
+    await _postFlight(response, creds, method: 'GET', uri: uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final ct = response.headers['content-type'] ?? '';
       final actualType = ct.split(';').first.trim().toLowerCase();
@@ -316,7 +332,7 @@ class ApiClient {
       headers: headers,
       body: encoded,
     );
-    await _postFlight(response, creds);
+    await _postFlight(response, creds, method: 'POST', uri: uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final ct = response.headers['content-type'] ?? '';
       final actualType = ct.split(';').first.trim().toLowerCase();
@@ -405,7 +421,7 @@ class ApiClient {
         'Unexpected redirect (Location: ${response.headers['location'] ?? '<none>'})',
       );
     }
-    await _postFlight(response, creds);
+    await _postFlight(response, creds, method: 'POST', uri: uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
     }
@@ -525,7 +541,7 @@ class ApiClient {
           'Unexpected redirect (Location: ${response.headers['location'] ?? '<none>'})',
         );
       }
-      await _postFlight(response, creds);
+      await _postFlight(response, creds, method: 'POST', uri: uri);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         _raiseFromResponse(response);
       }
@@ -590,7 +606,7 @@ class ApiClient {
       responseBody: response.body,
       responseHeaders: response.headers,
     );
-    await _postFlight(response, creds);
+    await _postFlight(response, creds, method: method.toUpperCase(), uri: uri);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response.body;
     }
@@ -646,7 +662,17 @@ class ApiClient {
     }
   }
 
-  Future<void> _postFlight(http.Response response, ApiCredentials creds) async {
+  /// [method] + [uri] are threaded in purely so a forced logout can name the
+  /// request that caused it — see the 401 branch below.
+  Future<void> _postFlight(
+    http.Response response,
+    ApiCredentials creds, {
+    required String method,
+    required Uri uri,
+  }) async {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      _onAuthenticatedResponse?.call(creds);
+    }
     final appVersion = response.headers['x-app-version'];
     if (appVersion != null && _onServerVersion != null) {
       _onServerVersion(appVersion);
@@ -717,7 +743,25 @@ class ApiClient {
         // proceeds to wipe the DB — so the logout-before-wipe ordering still
         // holds. `_handleUnauthorized` coalesces parallel 401s and swallows its
         // own errors, so the detached future is safe to drop.
-        unawaited(_handleUnauthorized());
+        //
+        // Log BEFORE firing: this is the only involuntary session-ending path
+        // in the app, and it used to be completely silent — a forced logout
+        // showed up in the diagnostics log only as the downstream
+        // `Not authenticated` failures of whatever ran next, naming neither
+        // the endpoint nor the company. The query string is deliberately
+        // dropped (it can carry a user's `filter=` search term) and tokens
+        // are fingerprinted, never written out; the body is the single most
+        // diagnostic field, since the server's own 401 message distinguishes
+        // an invalid token from a permissions rejection.
+        final body = response.body;
+        _log.warning(
+          'forced logout on 401: $method ${uri.host}${uri.path} '
+          'company=${creds.companyId.isEmpty ? '<unknown>' : creds.companyId} '
+          'reqToken=${_tokenFingerprint(creds.token)} '
+          'liveToken=${_tokenFingerprint(current?.token)} '
+          'body=${body.length > 200 ? '${body.substring(0, 200)}…' : body}',
+        );
+        unawaited(_handleUnauthorized(creds));
       }
       throw isStaleCredential
           ? const UnauthorizedException.staleCredential()
@@ -725,12 +769,45 @@ class ApiClient {
     }
   }
 
-  Future<void> _handleUnauthorized() {
+  /// Stable, non-reversible 8-char id for a token, for logs only. Enough to
+  /// answer "did this request go out under the token we still hold?" without
+  /// ever writing a credential to disk.
+  static String _tokenFingerprint(String? t) => (t == null || t.isEmpty)
+      ? '<none>'
+      : sha256.convert(utf8.encode(t)).toString().substring(0, 8);
+
+  Future<void> _handleUnauthorized(ApiCredentials creds) {
     // Coalesce parallel 401s into a single onUnauthorized call. Clear the
     // future when it completes so a subsequent session (after re-login) can
     // trigger a fresh logout if its token also goes stale.
+    //
+    // The coalescing is load-bearing for the company-switch remedy, not just
+    // an optimization: a rejected token is discovered by a ~14-request
+    // prefetch fan-out, so many 401s land within milliseconds. Those arriving
+    // while the veto runs share this future instead of re-entering it; those
+    // arriving after it carry a token that is no longer live, so the
+    // stale-credential branch above swallows them without reaching here.
     return _logoutFuture ??= () async {
       try {
+        final candidate = _onUnauthorizedCandidate;
+        if (candidate != null) {
+          // Fail SAFE: absorbing a 401 must be an affirmative decision, never
+          // a side effect of an error. If the veto itself throws (its remedy
+          // writes to the keychain), fall through to the logout rather than
+          // leaving the app authenticated with a token the server rejects.
+          bool shouldEnd;
+          try {
+            shouldEnd = await candidate(creds);
+          } catch (e, st) {
+            _log.warning(
+              'onUnauthorizedCandidate threw; proceeding to logout',
+              e,
+              st,
+            );
+            shouldEnd = true;
+          }
+          if (!shouldEnd) return;
+        }
         await _onUnauthorized();
       } catch (e, st) {
         _log.warning('onUnauthorized threw', e, st);

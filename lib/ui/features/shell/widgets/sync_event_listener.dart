@@ -39,6 +39,7 @@ class SyncEventListener extends StatefulWidget {
 class _SyncEventListenerState extends State<SyncEventListener> {
   StreamSubscription<SyncEvent>? _sub;
   StreamSubscription<FreshTokenSecret>? _secretSub;
+  ValueNotifier<String?>? _switchRejected;
   bool _dialogOpen = false;
   bool _secretDialogShowing = false;
 
@@ -74,12 +75,41 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       );
       unawaited(_drainTokenSecrets());
     }
+    // A company switch whose token the server rejected is rolled back
+    // asynchronously, long after `switchCompany` already returned `ok` — so
+    // `switchCompanyGuarded` can't report it and this is the only place that
+    // can. Silence here is the issue-#16 failure mode: the sidebar snaps back
+    // and the tap looks ignored.
+    _switchRejected ??= services.auth.companySwitchRejected
+      ..addListener(_onCompanySwitchRejected);
+  }
+
+  void _onCompanySwitchRejected() {
+    final notifier = _switchRejected;
+    final companyId = notifier?.value;
+    if (companyId == null) return;
+    // Consume it, so a later rejection of the same company notifies again.
+    notifier!.value = null;
+    if (!mounted) return;
+    final services = context.read<Services>();
+    final name = services.auth.session.value?.companies
+        .where((c) => c.id == companyId)
+        .map((c) => c.displayName)
+        .firstOrNull;
+    Notify.error(
+      context,
+      context.tr('failed_to_switch_company', {
+        'company': name ?? context.tr('company'),
+      }),
+      detail: context.tr('failed_to_switch_company_help'),
+    );
   }
 
   @override
   void dispose() {
     _sub?.cancel();
     _secretSub?.cancel();
+    _switchRejected?.removeListener(_onCompanySwitchRejected);
     super.dispose();
   }
 

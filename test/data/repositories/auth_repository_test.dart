@@ -999,6 +999,270 @@ void main() {
     );
   });
 
+  group('a rejected company token fails the switch, not the session', () {
+    // The bug: a company switch installs a token that has never been
+    // validated, then immediately fans out ~14 requests. The first 401 came
+    // back under the *live* credential set, so ApiClient could not tell it
+    // apart from a genuine revocation and escalated it to a destructive
+    // global logout — wiping the Drift database over one workspace's token
+    // having rotated. The user landed on /login on every single switch.
+
+    LoginResponseApi twoCompanies({String tokenB = 'tok_b'}) => _envelope(
+      companies: [
+        (
+          id: 'co_a',
+          name: 'Acme',
+          token: 'tok_a',
+          isAdmin: false,
+          isOwner: false,
+        ),
+        (
+          id: 'co_b',
+          name: 'Beta',
+          token: tokenB,
+          isAdmin: false,
+          isOwner: false,
+        ),
+      ],
+      defaultCompanyId: 'co_a',
+    );
+
+    /// Mirrors the production wiring in `services.dart`.
+    ApiClient wired(MockClient http) => ApiClient(
+      credentials: repo.credentials,
+      passwordCache: PasswordCache(),
+      onUnauthorized: () async => repo.logout(preserveLocalData: true),
+      onUnauthorizedCandidate: repo.handleUnauthorized,
+      onAuthenticatedResponse: repo.markCredentialProven,
+      httpClient: http,
+    );
+
+    Future<void> loginTwo() async {
+      authService.queueLogin(twoCompanies());
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a',
+        password: 'b',
+      );
+    }
+
+    test('rolls back to the previous company instead of logging out', () async {
+      await loginTwo();
+      // Everything 401s, and the heal can't reach the server either.
+      final client = wired(
+        MockClient(
+          (req) async => req.url.path == '/api/v1/refresh'
+              ? http.Response('boom', 500)
+              : http.Response('{"message":"Invalid token"}', 401),
+        ),
+      );
+      repo.apiClient = client;
+
+      expect(await repo.switchCompany('co_b'), SwitchCompanyResult.ok);
+      expect(repo.session.value!.currentCompanyId, 'co_b');
+
+      try {
+        await client.getOne('/api/v1/clients');
+      } catch (_) {}
+      await pumpEventQueue();
+
+      expect(
+        repo.credentials.value,
+        isNotNull,
+        reason: 'one company\'s dead token must not end the whole session',
+      );
+      expect(repo.session.value!.currentCompanyId, 'co_a');
+      expect(repo.credentials.value!.token, 'tok_a');
+    });
+
+    test(
+      'drops the rejected token so a restart does not reinstall it',
+      () async {
+        await loginTwo();
+        final client = wired(
+          MockClient(
+            (req) async => req.url.path == '/api/v1/refresh'
+                ? http.Response('boom', 500)
+                : http.Response('nope', 401),
+          ),
+        );
+        repo.apiClient = client;
+        await repo.switchCompany('co_b');
+        try {
+          await client.getOne('/api/v1/clients');
+        } catch (_) {}
+        await pumpEventQueue();
+
+        final stored =
+            jsonDecode(await storage.read('invoiceninja.tokens.v1') ?? '{}')
+                as Map<String, dynamic>;
+        expect(stored.containsKey('co_b'), isFalse);
+        expect(stored['co_a'], 'tok_a');
+      },
+    );
+
+    test(
+      'reports the failed switch so the tap is never silently ignored',
+      () async {
+        await loginTwo();
+        final client = wired(
+          MockClient(
+            (req) async => req.url.path == '/api/v1/refresh'
+                ? http.Response('boom', 500)
+                : http.Response('nope', 401),
+          ),
+        );
+        repo.apiClient = client;
+        await repo.switchCompany('co_b');
+        try {
+          await client.getOne('/api/v1/clients');
+        } catch (_) {}
+        await pumpEventQueue();
+
+        expect(repo.companySwitchRejected.value, 'co_b');
+      },
+    );
+
+    test('a successful heal retries the switch with the fresh token', () async {
+      await loginTwo();
+      // /refresh hands back a rotated token for co_b; everything else 401s
+      // until we hold it.
+      final client = wired(
+        MockClient((req) async {
+          if (req.url.path == '/api/v1/refresh') {
+            return http.Response(
+              jsonEncode(twoCompanies(tokenB: 'tok_b2').toJson()),
+              200,
+            );
+          }
+          return http.Response('nope', 401);
+        }),
+      );
+      repo.apiClient = client;
+
+      await repo.switchCompany('co_b');
+      try {
+        await client.getOne('/api/v1/clients');
+      } catch (_) {}
+      await pumpEventQueue();
+
+      expect(repo.credentials.value, isNotNull);
+      expect(
+        repo.session.value!.currentCompanyId,
+        'co_b',
+        reason: 'the heal recovered a working token, so the switch stands',
+      );
+      expect(repo.credentials.value!.token, 'tok_b2');
+    });
+
+    test(
+      'the heal is spent once — a second rejection reports, not logs out',
+      () async {
+        await loginTwo();
+        // The heal returns a fresh token, but the server rejects that too.
+        final client = wired(
+          MockClient((req) async {
+            if (req.url.path == '/api/v1/refresh') {
+              return http.Response(
+                jsonEncode(twoCompanies(tokenB: 'tok_b2').toJson()),
+                200,
+              );
+            }
+            return http.Response('nope', 401);
+          }),
+        );
+        repo.apiClient = client;
+
+        await repo.switchCompany('co_b');
+        try {
+          await client.getOne('/api/v1/clients');
+        } catch (_) {}
+        await pumpEventQueue();
+        // Now on co_b with the healed token — reject that one too.
+        try {
+          await client.getOne('/api/v1/clients');
+        } catch (_) {}
+        await pumpEventQueue();
+
+        expect(
+          repo.credentials.value,
+          isNotNull,
+          reason: 'a twice-rejected company still must not end the session',
+        );
+        expect(repo.session.value!.currentCompanyId, 'co_a');
+        expect(repo.companySwitchRejected.value, 'co_b');
+      },
+    );
+
+    test('a 401 outside any company switch still logs out', () async {
+      // The genuine revocation path — token revoked, "end all sessions",
+      // removed from the company. Must be untouched.
+      await loginTwo();
+      final client = wired(MockClient((_) async => http.Response('nope', 401)));
+      repo.apiClient = client;
+
+      try {
+        await client.getOne('/api/v1/clients');
+      } catch (_) {}
+      await pumpEventQueue();
+
+      expect(repo.credentials.value, isNull);
+    });
+
+    test('a 401 after the token is proven logs out', () async {
+      await loginTwo();
+      var ok = true;
+      final client = wired(
+        MockClient(
+          (_) async => ok
+              ? http.Response('{"data":{}}', 200)
+              : http.Response('nope', 401),
+        ),
+      );
+      repo.apiClient = client;
+
+      await repo.switchCompany('co_b');
+      // One 2xx retires probation.
+      await client.getOne('/api/v1/clients');
+      ok = false;
+      try {
+        await client.getOne('/api/v1/clients');
+      } catch (_) {}
+      await pumpEventQueue();
+
+      expect(
+        repo.credentials.value,
+        isNull,
+        reason: 'a token that worked and then stopped is a real revocation',
+      );
+    });
+
+    test('a single-company account has nowhere to roll back to, so it '
+        'logs out', () async {
+      authService.queueLogin(_envelope());
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a',
+        password: 'b',
+      );
+      final only = repo.session.value!.currentCompanyId;
+      final client = wired(MockClient((_) async => http.Response('nope', 401)));
+      repo.apiClient = client;
+
+      // Re-activating the company you are already in leaves the fallback
+      // equal to the target — there is no safe destination.
+      await repo.switchCompany(only);
+      try {
+        await client.getOne('/api/v1/clients');
+      } catch (_) {}
+      await pumpEventQueue();
+
+      expect(repo.credentials.value, isNull);
+    });
+  });
+
   group('logout', () {
     test('clears session, credentials, secure storage, and Drift', () async {
       authService.queueLogin(_envelope());

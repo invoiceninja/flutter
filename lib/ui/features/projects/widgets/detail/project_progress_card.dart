@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/ui/core/detail/kpi_strip_layout.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/project.dart';
@@ -134,7 +135,6 @@ class _CardBody extends StatelessWidget {
   final Formatter? formatter;
   final DateTime now;
 
-  static const double _wideBreakpoint = 1100;
   static const double _chartBreakpoint = 600;
 
   @override
@@ -175,7 +175,6 @@ class _CardBody extends StatelessWidget {
             budgeted: budgeted,
             projected: projected,
             tokens: tokens,
-            wideBreakpoint: _wideBreakpoint,
           ),
           SizedBox(height: InSpacing.md(context)),
           if (tasks.isEmpty)
@@ -238,14 +237,12 @@ class _HeroStrip extends StatelessWidget {
     required this.budgeted,
     required this.projected,
     required this.tokens,
-    required this.wideBreakpoint,
   });
 
   final double logged;
   final double budgeted;
   final double? projected;
   final InTheme tokens;
-  final double wideBreakpoint;
 
   @override
   Widget build(BuildContext context) {
@@ -285,76 +282,7 @@ class _HeroStrip extends StatelessWidget {
         tokens: tokens,
       ),
     ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= wideBreakpoint) {
-          return _HorizontalStrip(cells: cells, tokens: tokens);
-        }
-        return _Grid2x2(cells: cells);
-      },
-    );
-  }
-}
-
-class _HorizontalStrip extends StatelessWidget {
-  const _HorizontalStrip({required this.cells, required this.tokens});
-  final List<Widget> cells;
-  final InTheme tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    final children = <Widget>[];
-    for (var i = 0; i < cells.length; i++) {
-      if (i > 0) {
-        children.add(
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: InSpacing.lg(context)),
-            child: SizedBox(
-              width: 1,
-              height: 36,
-              child: ColoredBox(color: tokens.border),
-            ),
-          ),
-        );
-      }
-      children.add(Expanded(child: cells[i]));
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: children,
-    );
-  }
-}
-
-class _Grid2x2 extends StatelessWidget {
-  const _Grid2x2({required this.cells});
-  final List<Widget> cells;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: cells[0]),
-            SizedBox(width: InSpacing.md(context)),
-            Expanded(child: cells[1]),
-          ],
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: cells[2]),
-            SizedBox(width: InSpacing.md(context)),
-            Expanded(child: cells[3]),
-          ],
-        ),
-      ],
-    );
+    return KpiStripLayout(cells: cells);
   }
 }
 

@@ -206,6 +206,13 @@ extension PaymentStatusExt on Payment {
   /// Amount still available to refund.
   Decimal get refundable => amount - refunded;
 
+  /// Whether a refund has actually been recorded — the gate on the detail
+  /// strip's Refunded / Refundable pair. `!= zero`, deliberately not
+  /// `> zero`: a negative `refunded` is a server/data anomaly, and hiding it
+  /// would repeat the mistake invoiceninja/flutter#112 fixed — a figure the
+  /// user can't see is worse than an odd one.
+  bool get hasRefund => refunded != Decimal.zero;
+
   /// Funds present but not yet allocated to an invoice.
   Decimal get unapplied => amount - applied;
 

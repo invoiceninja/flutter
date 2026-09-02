@@ -82,4 +82,23 @@ void main() {
       },
     );
   });
+
+  // The payment detail strip hides its Refunded / Refundable pair on this
+  // predicate (invoiceninja/flutter#113), so what counts as "a refund exists"
+  // is load-bearing for what the user can see.
+  group('hasRefund — the detail strip\'s refund-pair gate', () {
+    test('no refund recorded', () {
+      expect(payment(amount: '100').hasRefund, isFalse);
+    });
+
+    test('a refund recorded', () {
+      expect(payment(amount: '100', refunded: '25').hasRefund, isTrue);
+    });
+
+    test('a negative refunded figure still counts', () {
+      // `!= zero`, not `> zero`: a negative is a data anomaly, and hiding it
+      // would leave the user staring at a strip that silently omits it.
+      expect(payment(amount: '100', refunded: '-25').hasRefund, isTrue);
+    });
+  });
 }

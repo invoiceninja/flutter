@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/ui/core/detail/kpi_strip_layout.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/expense.dart';
@@ -32,8 +33,6 @@ class VendorDetailKpiStrip extends StatelessWidget {
   final Vendor vendor;
   final String companyId;
   final Formatter? formatter;
-
-  static const double _wideBreakpoint = 1100;
 
   @override
   Widget build(BuildContext context) {
@@ -112,76 +111,7 @@ class _Strip extends StatelessWidget {
         horizontal: InSpacing.lg(context),
         vertical: InSpacing.lg(context),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth >= VendorDetailKpiStrip._wideBreakpoint) {
-            return _HorizontalStrip(cells: cells, tokens: tokens);
-          }
-          return _Grid2x2(cells: cells);
-        },
-      ),
-    );
-  }
-}
-
-class _HorizontalStrip extends StatelessWidget {
-  const _HorizontalStrip({required this.cells, required this.tokens});
-  final List<Widget> cells;
-  final InTheme tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    final children = <Widget>[];
-    for (var i = 0; i < cells.length; i++) {
-      if (i > 0) {
-        children.add(
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: InSpacing.lg(context)),
-            child: SizedBox(
-              width: 1,
-              height: 36,
-              child: ColoredBox(color: tokens.border),
-            ),
-          ),
-        );
-      }
-      children.add(Expanded(child: cells[i]));
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: children,
-    );
-  }
-}
-
-/// Narrow layout: cells laid out two-per-row. Handles any cell count (an odd
-/// final cell takes the left slot and the right slot stays empty).
-class _Grid2x2 extends StatelessWidget {
-  const _Grid2x2({required this.cells});
-  final List<Widget> cells;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <Widget>[];
-    for (var i = 0; i < cells.length; i += 2) {
-      if (rows.isNotEmpty) rows.add(SizedBox(height: InSpacing.md(context)));
-      rows.add(
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: cells[i]),
-            SizedBox(width: InSpacing.md(context)),
-            Expanded(
-              child: i + 1 < cells.length ? cells[i + 1] : const SizedBox(),
-            ),
-          ],
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: rows,
+      child: KpiStripLayout(cells: cells),
     );
   }
 }

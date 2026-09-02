@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
+import 'package:admin/ui/core/detail/kpi_strip_layout.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/l10n/localization.dart';
@@ -8,9 +9,18 @@ import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Full-width KPI strip at the top of the payment Overview tab.
-/// Cells: amount / applied / refunded / refundable. "Unapplied" lives in a
-/// dedicated inline band below the strip (visible only when there's a
-/// non-zero unapplied amount).
+/// Cells: amount / applied, plus refunded / refundable once a refund exists.
+/// "Unapplied" lives in a dedicated inline band below the strip (visible only
+/// when there's a non-zero unapplied amount).
+///
+/// The refund pair is gated on [PaymentStatusExt.hasRefund] because a zero
+/// there is the overwhelming default, and the *label* was the distraction —
+/// people read the word "Refunded" on a payment they just recorded and
+/// double-took before their eye reached the `0.00` (invoiceninja/flutter#113).
+/// Refundable leaves with it: it is `amount - refunded`, so with no refund it
+/// reprints Amount two cells away — on a payment the Refund action often won't
+/// even offer, since that is gated on `canRefund` **and**
+/// `hasInvoiceAllocations` (`payment_actions.dart`), not on `canRefund` alone.
 class PaymentDetailKpiStrip extends StatelessWidget {
   const PaymentDetailKpiStrip({
     super.key,
@@ -20,8 +30,6 @@ class PaymentDetailKpiStrip extends StatelessWidget {
 
   final Payment payment;
   final Formatter? formatter;
-
-  static const double _wideBreakpoint = 1100;
 
   @override
   Widget build(BuildContext context) {
@@ -55,26 +63,28 @@ class PaymentDetailKpiStrip extends StatelessWidget {
         ),
         tokens: tokens,
       ),
-      _KpiCell(
-        label: context.tr('refunded'),
-        value: Text(
-          fmt(p.refunded),
-          style: theme.textTheme.titleLarge
-              ?.copyWith(color: tokens.ink, fontWeight: FontWeight.w600)
-              .merge(moneyTextStyle()),
+      if (p.hasRefund) ...[
+        _KpiCell(
+          label: context.tr('refunded'),
+          value: Text(
+            fmt(p.refunded),
+            style: theme.textTheme.titleLarge
+                ?.copyWith(color: tokens.ink, fontWeight: FontWeight.w600)
+                .merge(moneyTextStyle()),
+          ),
+          tokens: tokens,
         ),
-        tokens: tokens,
-      ),
-      _KpiCell(
-        label: context.tr('refundable'),
-        value: Text(
-          fmt(p.refundable),
-          style: theme.textTheme.titleLarge
-              ?.copyWith(color: tokens.ink, fontWeight: FontWeight.w600)
-              .merge(moneyTextStyle()),
+        _KpiCell(
+          label: context.tr('refundable'),
+          value: Text(
+            fmt(p.refundable),
+            style: theme.textTheme.titleLarge
+                ?.copyWith(color: tokens.ink, fontWeight: FontWeight.w600)
+                .merge(moneyTextStyle()),
+          ),
+          tokens: tokens,
         ),
-        tokens: tokens,
-      ),
+      ],
     ];
 
     return DashboardCardShell(
@@ -82,76 +92,7 @@ class PaymentDetailKpiStrip extends StatelessWidget {
         horizontal: InSpacing.lg(context),
         vertical: InSpacing.lg(context),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth >= _wideBreakpoint) {
-            return _HorizontalStrip(cells: cells, tokens: tokens);
-          }
-          return _Grid2x2(cells: cells);
-        },
-      ),
-    );
-  }
-}
-
-class _HorizontalStrip extends StatelessWidget {
-  const _HorizontalStrip({required this.cells, required this.tokens});
-  final List<Widget> cells;
-  final InTheme tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    final children = <Widget>[];
-    for (var i = 0; i < cells.length; i++) {
-      if (i > 0) {
-        children.add(
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: InSpacing.lg(context)),
-            child: SizedBox(
-              width: 1,
-              height: 36,
-              child: ColoredBox(color: tokens.border),
-            ),
-          ),
-        );
-      }
-      children.add(Expanded(child: cells[i]));
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: children,
-    );
-  }
-}
-
-class _Grid2x2 extends StatelessWidget {
-  const _Grid2x2({required this.cells});
-  final List<Widget> cells;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: cells[0]),
-            SizedBox(width: InSpacing.md(context)),
-            Expanded(child: cells[1]),
-          ],
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: cells[2]),
-            SizedBox(width: InSpacing.md(context)),
-            Expanded(child: cells[3]),
-          ],
-        ),
-      ],
+      child: KpiStripLayout(cells: cells),
     );
   }
 }

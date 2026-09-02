@@ -67,6 +67,22 @@ void main() {
     isPrimary: true,
   );
 
+  /// A contact whose ONLY content is the address the **server** minted when it
+  /// first reached the portal (`Str::random(15) . '@example.com'`) — blanked by
+  /// `Contact.fromApi`, so this row carries no user content at all
+  /// (invoiceninja/flutter#116).
+  Contact placeholderOnly({
+    String id = 'minted',
+    String email = 'dq9GHaI6Dncm0Zd@example.com',
+  }) => contact(
+    id: id,
+    firstName: '',
+    lastName: '',
+    email: email,
+    phone: '',
+    isPrimary: true,
+  );
+
   /// [n] real contacts, named `Person 1`… so "+N more" can be counted.
   List<Contact> people(int n) => [
     for (var i = 1; i <= n; i++)
@@ -193,6 +209,22 @@ void main() {
     test('a real contact beside the blank one', () {
       expect(ClientDetailContactsCard.hasContent([blank(), contact()]), isTrue);
     });
+
+    test('a server-minted portal placeholder is not content', () {
+      expect(ClientDetailContactsCard.hasContent([placeholderOnly()]), isFalse);
+    });
+
+    test('a REAL example.com address is still content', () {
+      // Every contact in the seeded demo dataset lives at example.com; a
+      // blanket rule would empty this card across the public demo build.
+      expect(
+        ClientDetailContactsCard.hasContent([
+          placeholderOnly(email: 'cboyle@example.com'),
+        ]),
+        isTrue,
+        reason: 'real contact in the demo dataset',
+      );
+    });
   });
 
   testWidgets('a client whose only contact is blank shows no card', (
@@ -214,6 +246,47 @@ void main() {
     await pump(tester, [blank(email: ' ')]);
 
     expect(find.byType(DashboardCardShell), findsNothing);
+  });
+
+  testWidgets(
+    'a named contact keeps its name but never shows the minted email',
+    (tester) async {
+      // The issue's screenshot: "Jimmy" over `dq9GHaI6Dncm0Zd@example.com`,
+      // an address the user never typed.
+      await pump(tester, [
+        contact(
+          firstName: 'Jimmy',
+          lastName: '',
+          email: 'dq9GHaI6Dncm0Zd@example.com',
+        ),
+      ]);
+
+      expect(find.text('Jimmy'), findsOneWidget);
+      expect(find.textContaining('@example.com'), findsNothing);
+    },
+  );
+
+  testWidgets('a real example.com address is still rendered', (tester) async {
+    // The over-match guard, at the widget layer: the demo dataset's contacts
+    // all live at example.com and must keep their addresses.
+    await pump(tester, [
+      contact(
+        firstName: 'Luigi',
+        lastName: 'Collier',
+        email: 'cboyle@example.com',
+      ),
+    ]);
+
+    expect(find.text('cboyle@example.com'), findsOneWidget);
+  });
+
+  testWidgets('a contact whose only email was minted shows no card', (
+    tester,
+  ) async {
+    await pump(tester, [placeholderOnly()]);
+
+    expect(find.byType(DashboardCardShell), findsNothing);
+    expect(find.text('(no name)'), findsNothing);
   });
 
   testWidgets('a blank contact is dropped, the real one is kept', (

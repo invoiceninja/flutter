@@ -21,6 +21,14 @@ abstract class VendorContact with _$VendorContact {
     required String email,
     required String phone,
     required String password,
+    // Twin of `Contact.portalPlaceholderEmail` — the address the server minted
+    // for a vendor contact that had none, stripped out of [email] on the way in
+    // and re-emitted by [toApiJson] rather than cleared. Full rationale (and
+    // why omitting the key instead is wrong) lives on the client-side field in
+    // `contact.dart`; the vendor portal mints these from
+    // `VendorPortal/InvitationController.php:58` and
+    // `Middleware/VendorContactKeyLogin.php`.
+    @Default('') String portalPlaceholderEmail,
     required bool sendEmail,
     // Server-managed / optional flags default so call sites that don't care
     // can omit them; mirror the optional fields on `Contact`.
@@ -44,7 +52,10 @@ abstract class VendorContact with _$VendorContact {
     id: a.id,
     firstName: a.firstName,
     lastName: a.lastName,
-    email: a.email,
+    // Server-minted junk for an email-less contact: blank it and carry the raw
+    // value, the same shape as the `**********` password sentinel below.
+    email: isPortalPlaceholderEmail(a.email) ? '' : a.email,
+    portalPlaceholderEmail: isPortalPlaceholderEmail(a.email) ? a.email : '',
     phone: a.phone,
     // Server sends `**********` when a password is set; treat it as "no
     // password entered" so it's never echoed back (see [kMaskedPassword]).
@@ -75,7 +86,23 @@ extension VendorContactPayload on VendorContact {
     if (preserveTempId || (!id.startsWith('tmp_') && id.isNotEmpty)) 'id': id,
     'first_name': firstName,
     'last_name': lastName,
-    'email': email,
+    // Re-emit the placeholder the user was never shown rather than clearing the
+    // server's value on an unrelated save. A real address the user cleared
+    // carries no placeholder, so that edit still goes out as ''.
+    //
+    // `id.isNotEmpty` is the clone guard, not a formality: `ClientAction.clone`
+    // / `VendorAction.clone` copy each contact with `id: ''` and keep every
+    // other field, so without it a clone would POST a **new** contact carrying
+    // the *source* contact's minted address — invisible, since the form shows
+    // the email field blank. There is nothing to preserve for a contact the
+    // server has never seen; it mints a fresh one if that contact ever reaches
+    // the portal.
+    'email':
+        id.isNotEmpty &&
+            email.trim().isEmpty &&
+            portalPlaceholderEmail.isNotEmpty
+        ? portalPlaceholderEmail
+        : email,
     'phone': phone,
     if (password.isNotEmpty && password != kMaskedPassword)
       'password': password,

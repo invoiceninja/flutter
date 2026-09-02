@@ -208,9 +208,29 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
   /// shared `ClientFilterKey` (suggestion menu + chip display name) on
   /// every list screen that filters by client (invoices, quotes, credits,
   /// recurring invoices, payments, expenses, projects).
+  ///
+  /// A row whose name resolves to nothing falls back to its **id** — the
+  /// denormalized column can be empty for a record with no name of its own
+  /// (a nameless vendor's seeded blank contact, or one whose only contact
+  /// email was a minted placeholder, invoiceninja/flutter#116), and these
+  /// rows are ordered by that column, so an empty one is a blank,
+  /// unselectable-looking row sorted to the top of every picker. The id and
+  /// not `(no name)`: this seam has no `BuildContext`, it is what the rest of
+  /// the app already shows for an unresolvable name in this position
+  /// (`VendorNameLabel`, `_RecordMembershipFilterKey`, the line-item picker's
+  /// `?? id` maps), and in a *picker* an id tells two nameless records apart
+  /// where a repeated `(no name)` would not. A name **label** is the opposite
+  /// case and reads `(no name)` — see `ClientNameLabel`.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
-  }) => db.clientDao.watchActiveNames(companyId: companyId);
+  }) => db.clientDao
+      .watchActiveNames(companyId: companyId)
+      .map(
+        (rows) => [
+          for (final r in rows)
+            (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
+        ],
+      );
 
   /// One page of clients for the contacts-sync reconcile, decoded to domain
   /// objects. See [ClientDao.pageForContactSync] for why this is paged and
@@ -832,7 +852,7 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
       name: a.name,
       number: a.number,
       email: _primaryEmailOf(a.contacts, (c) => c.isPrimary, (c) => c.email),
-      displayName: a.displayName.isNotEmpty ? a.displayName : a.name,
+      displayName: clientDisplayNameOf(a),
       balance: a.balance.toString(),
       updatedAt: a.updatedAt,
       createdAt: Value(a.createdAt),
@@ -1085,7 +1105,14 @@ String _primaryEmailOf<T>(
 ) {
   if (contacts.isEmpty) return '';
   for (final c in contacts) {
-    if (isPrimary(c)) return email(c);
+    if (isPrimary(c)) return _scrubbed(email(c));
   }
-  return email(contacts.first);
+  return _scrubbed(email(contacts.first));
 }
+
+/// The API caller passes `ContactApi`, which never goes through
+/// `Contact.fromApi` — so the server-minted-placeholder scrub has to happen
+/// here too, or the `clients.email` column that backs the list's free-text
+/// search and the `contact_email` sort keeps a value the cell no longer shows,
+/// and disagrees with the local-save path (which passes the blanked domain).
+String _scrubbed(String email) => isPortalPlaceholderEmail(email) ? '' : email;

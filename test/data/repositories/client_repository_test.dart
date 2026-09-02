@@ -1341,6 +1341,92 @@ void main() {
     );
 
     test(
+      'email column drops a server-minted portal placeholder — and the API and '
+      'local-save writers agree (invoiceninja/flutter#116)',
+      () async {
+        Map<String, dynamic> json() => {
+          'id': 'c1',
+          'name': 'Acme',
+          'balance': '0',
+          'contacts': [
+            {
+              'id': 'b',
+              'first_name': 'Jimmy',
+              'email': 'dq9GHaI6Dncm0Zd@example.com',
+              'is_primary': true,
+            },
+          ],
+        };
+
+        // The API path: `_apiToCompanion` projects straight from `ClientApi`,
+        // which never passes through `Contact.fromApi` — so the scrub has to
+        // live in the shared `_primaryEmailOf` walk, not only at the model
+        // seam. Otherwise the list's free-text search matches "example" and
+        // the `contact_email` sort orders by a value the cell no longer shows.
+        final fromApi = makeRepo(
+          pages: {
+            1: [ClientApi.fromJson(json())],
+          },
+        );
+        await fromApi.repo.ensurePageLoaded(companyId: 'co', page: 1);
+        final apiRow = await db.clientDao
+            .watchById(companyId: 'co', id: 'c1')
+            .first;
+        expect(apiRow!.email, isEmpty);
+
+        // The local-save path, which passes the already-blanked domain.
+        final (:repo, :api) = makeRepo();
+        await repo.save(
+          companyId: 'co',
+          client: Client.fromApi(ClientApi.fromJson(json())),
+        );
+        final savedRow = await db.clientDao
+            .watchById(companyId: 'co', id: 'c1')
+            .first;
+        expect(
+          savedRow!.email,
+          apiRow.email,
+          reason: 'the two writers to clients.email must not disagree',
+        );
+      },
+    );
+
+    test(
+      'watchActiveNames falls back to the id when the display name is blank',
+      () async {
+        // Same reason as the vendor twin: `clients.display_name` can be empty
+        // for a nameless client whose server-computed value was a minted
+        // placeholder (invoiceninja/flutter#116), and the pickers order by it
+        // and render it verbatim.
+        final (:repo, :api) = makeRepo();
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: ClientApi.fromJson({
+            'id': 'c_blank',
+            'name': '',
+            'display_name': 'dq9GHaI6Dncm0Zd@example.com',
+            'balance': '0',
+            'updated_at': 1700000000,
+          }),
+        );
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: ClientApi.fromJson({
+            'id': 'c_named',
+            'name': 'Acme',
+            'balance': '0',
+            'updated_at': 1700000000,
+          }),
+        );
+
+        final rows = await repo.watchActiveNames(companyId: 'co').first;
+        final byId = {for (final r in rows) r.id: r.name};
+        expect(byId['c_blank'], 'c_blank', reason: 'never an empty label');
+        expect(byId['c_named'], 'Acme');
+      },
+    );
+
+    test(
       'Decimal balance survives the storage round-trip without precision loss',
       () async {
         final (:repo, :api) = makeRepo();

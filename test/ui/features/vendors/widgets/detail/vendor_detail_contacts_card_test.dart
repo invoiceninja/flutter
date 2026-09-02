@@ -51,6 +51,13 @@ void main() {
   /// The row the server seeds and the user never touches.
   VendorContact blank() => contact(isPrimary: true);
 
+  /// A contact whose ONLY content is the address the **server** minted when it
+  /// first reached the vendor portal (`Str::random(15) . '@example.com'`) —
+  /// blanked by `VendorContact.fromApi` (invoiceninja/flutter#116).
+  VendorContact placeholderOnly({
+    String email = 'dq9GHaI6Dncm0Zd@example.com',
+  }) => contact(email: email, isPrimary: true);
+
   Future<void> pump(WidgetTester tester, List<VendorContact> contacts) async {
     await tester.binding.setSurfaceSize(const Size(500, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -101,6 +108,22 @@ void main() {
         isFalse,
       );
     });
+
+    test('a server-minted portal placeholder is not content', () {
+      expect(VendorDetailContactsCard.hasContent([placeholderOnly()]), isFalse);
+    });
+
+    test('a REAL example.com address is still content', () {
+      // Every contact in the seeded demo dataset lives at example.com; a
+      // blanket rule would empty this card across the public demo build.
+      expect(
+        VendorDetailContactsCard.hasContent([
+          placeholderOnly(email: 'cboyle@example.com'),
+        ]),
+        isTrue,
+        reason: 'real contact in the demo dataset',
+      );
+    });
   });
 
   testWidgets('a vendor whose only contact is blank shows no card', (
@@ -111,6 +134,27 @@ void main() {
     expect(find.text('(no name)'), findsNothing);
     expect(find.text('Contacts'), findsNothing);
     expect(find.byType(DashboardCardShell), findsNothing);
+  });
+
+  testWidgets(
+    'a named contact keeps its name but never shows the minted email',
+    (tester) async {
+      await pump(tester, [
+        contact(firstName: 'Jimmy', email: 'dq9GHaI6Dncm0Zd@example.com'),
+      ]);
+
+      expect(find.text('Jimmy'), findsOneWidget);
+      expect(find.textContaining('@example.com'), findsNothing);
+    },
+  );
+
+  testWidgets('a contact whose only email was minted shows no card', (
+    tester,
+  ) async {
+    await pump(tester, [placeholderOnly()]);
+
+    expect(find.byType(DashboardCardShell), findsNothing);
+    expect(find.text('(no name)'), findsNothing);
   });
 
   testWidgets('several blank contacts still show no card', (tester) async {

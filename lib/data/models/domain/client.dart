@@ -117,7 +117,7 @@ abstract class Client with _$Client {
     return Client(
       id: a.id,
       name: a.name,
-      displayName: a.displayName.isNotEmpty ? a.displayName : a.name,
+      displayName: clientDisplayNameOf(a),
       number: a.number,
       idNumber: a.idNumber,
       vatNumber: a.vatNumber,
@@ -276,3 +276,15 @@ extension ClientPayload on Client {
     };
   }
 }
+
+/// The server computes `display_name` through `ClientPresenter::name()`, whose
+/// last fallback for a nameless client is its first contact's **email** — so
+/// for a client with no name the wire value can itself be a server-minted
+/// placeholder (see [isPortalPlaceholderEmail]). Fall through to `name` in that
+/// case rather than labelling the client with junk in the list, the picker and
+/// every `*_name_label` widget. Safe to drop: `display_name` is not in the
+/// server's `Client::$fillable`, so the copy `toApiJson` sends is already inert.
+String clientDisplayNameOf(ClientApi a) =>
+    a.displayName.isNotEmpty && !isPortalPlaceholderEmail(a.displayName)
+    ? a.displayName
+    : a.name;

@@ -23,6 +23,22 @@ abstract class Contact with _$Contact {
     // company has the relevant module enabled (React parity).
     @Default(false) bool canSign,
     @Default('') String password,
+    // The address the **server** minted for a contact that had none (see
+    // [isPortalPlaceholderEmail]) — stripped out of [email] on the way in so
+    // nothing renders it, kept here so [ContactCopy.toApiJson] can put it back.
+    // Clearing it instead would be a write the user never asked for, on an
+    // unrelated save, to the field the portal guard authenticates this contact
+    // by — and it would never settle, since the next portal visit mints a
+    // different address. Empty for every contact whose address is real, which
+    // is what keeps a genuine "user cleared their email" edit going out as ''.
+    //
+    // Deliberately not a Drift column: it is re-derived by [Contact.fromApi] on
+    // every read, because a local save's stored payload *is* `toApiJson`'s
+    // output and that re-emits the raw value. Omitting the key there instead
+    // would look equivalent on the wire but round-trip to '' through
+    // `_domainToCompanion` → `_fromRow`, so the second offline save would clear
+    // the server's value after all.
+    @Default('') String portalPlaceholderEmail,
     required DateTime updatedAt,
     required bool isDeleted,
     @Default('') String link,
@@ -42,7 +58,10 @@ abstract class Contact with _$Contact {
     id: a.id,
     firstName: a.firstName,
     lastName: a.lastName,
-    email: a.email,
+    // Server-minted junk for an email-less contact: blank it and carry the raw
+    // value, the same shape as the `**********` password sentinel below.
+    email: isPortalPlaceholderEmail(a.email) ? '' : a.email,
+    portalPlaceholderEmail: isPortalPlaceholderEmail(a.email) ? a.email : '',
     phone: a.phone,
     isPrimary: a.isPrimary,
     sendEmail: a.sendEmail,
@@ -69,7 +88,23 @@ extension ContactCopy on Contact {
     if (id.isNotEmpty) 'id': id,
     'first_name': firstName,
     'last_name': lastName,
-    'email': email,
+    // Re-emit the placeholder the user was never shown rather than clearing the
+    // server's value on an unrelated save. A real address the user cleared
+    // carries no placeholder, so that edit still goes out as ''.
+    //
+    // `id.isNotEmpty` is the clone guard, not a formality: `ClientAction.clone`
+    // / `VendorAction.clone` copy each contact with `id: ''` and keep every
+    // other field, so without it a clone would POST a **new** contact carrying
+    // the *source* contact's minted address — invisible, since the form shows
+    // the email field blank. There is nothing to preserve for a contact the
+    // server has never seen; it mints a fresh one if that contact ever reaches
+    // the portal.
+    'email':
+        id.isNotEmpty &&
+            email.trim().isEmpty &&
+            portalPlaceholderEmail.isNotEmpty
+        ? portalPlaceholderEmail
+        : email,
     'phone': phone,
     'is_primary': isPrimary,
     'send_email': sendEmail,
@@ -112,6 +147,15 @@ extension ContactCopy on Contact {
 /// prompt misses a custom-value-only edit — a pre-existing gap this predicate
 /// inherited unchanged from the two `_isBlankContact` twins it replaced. A card
 /// that starts rendering them must widen its own `hasContent`, never this.
+///
+/// invoiceninja/flutter#116 widened what this hides: [Contact.email] is blanked
+/// when the server minted it (see `isPortalPlaceholderEmail`), so a contact
+/// whose *only* content was such an address now reads as blank and its card row
+/// — including its own "View portal" button — is filtered out. Deliberate. For
+/// a **non-primary** contact that link becomes unreachable from the app, since
+/// `ClientAction.clientPortal` resolves the primary contact only; the record it
+/// costs is one with no name, no phone and no real email, and the alternative —
+/// counting [Contact.link] — is exactly what the paragraph above rules out.
 extension ContactIdentity on Contact {
   bool get isBlank =>
       firstName.trim().isEmpty &&

@@ -23,6 +23,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**R**, § F5; the field is unusable until both are fixed).
 - Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
+- Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -1782,3 +1783,77 @@ literals (`lib/domain/date_placeholders.dart`) for *display only*, matching the
 server where the server is right and deliberately leaving every arithmetic form
 as the raw token rather than reproducing defects 2–4. If 1–6 ship, the client's
 `_rangePattern` / `_literalPattern` can widen to match.
+
+---
+
+## Client / vendor contacts — portal login persists a `<random>@example.com` address — **O (data pollution; client now hides it)**
+
+**Symptom.** A contact the user left without an email comes back from the API
+carrying one — `dq9GHaI6Dncm0Zd@example.com` — which then renders in every admin
+client as if the user had typed it (invoiceninja/flutter#116). It is not
+transient: it is written to `client_contacts.email` and returned on every
+subsequent `GET`, for ever.
+
+**Where it is minted.** Fourteen sites, each of them followed by a `save()`:
+
+| File | Lines | Generator |
+|---|---|---|
+| `app/Http/Controllers/ClientPortal/InvitationController.php` | 112 | `Str::random(15) . "@example.com"` |
+| `app/Http/Controllers/VendorPortal/InvitationController.php` | 58 | `Str::random(15)` (note the `save()` is outside the `if`) |
+| `app/Http/Middleware/ContactKeyLogin.php` | 57 (15); 77, 97, 115, 129, 144 (6) | magic-link, contact-key, `client_hash` logins |
+| `app/Http/Middleware/VendorContactKeyLogin.php` | 55 (15); 71, 86, 104, 118, 129 (6) | vendor twin |
+
+The condition is `empty($contact->email)`, evaluated on **every** portal visit,
+not just at creation. A contact reaches an empty email trivially:
+`contacts.*.email` is `bail|nullable|distinct|sometimes|email`
+(`StoreClientRequest.php:59`, `UpdateClientRequest.php:72`) and
+`ClientContactFactory::create()` never sets one. (The separate "always keep one
+blank contact" row in `ClientContactRepository.php:126` writes a literal single
+space, and `empty(' ')` is false, so that row is *immune* — these are two
+different behaviours.)
+
+**Why it looks like a bug rather than a convention.** The server already treats
+these as junk everywhere except the admin API:
+
+- `app/Utils/HtmlEngine.php:568-570` and `VendorHtmlEngine.php:272-274` blank
+  `$email` when it contains `example.com`, before rendering a PDF.
+- `app/Jobs/Mail/NinjaMailerJob.php:814-817` refuses to send to one — but only
+  inside `if (Ninja::isHosted())` (opened at :808).
+- `app/Transformers/ClientContactTransformer.php:36` returns it **raw**.
+
+So the PDF hides it and the API does not. That asymmetry is the whole defect.
+
+**Second-order problem — self-hosted really does mail these.**
+`app/Services/Email/Email.php:468-480` returns early for `Ninja::isSelfHost()`
+*before* reaching `hasInValidEmails()` (:525-537, which rejects `@example.`), so
+a self-hosted install sends invoice mail to a documentation-reserved domain:
+guaranteed hard bounces against the customer's own sending reputation and SMTP
+quota, for an address the customer never entered.
+
+**There is no schema reason for it.** `client_contacts.email` is
+`->string('email', 100)->nullable()`
+(`database/migrations/2014_10_13_000000_create_users_table.php:373`).
+
+**Requested change**, in order of preference:
+
+1. Stop persisting. Keep the value in memory for the login if the `contact`
+   guard needs a non-null username, and drop the `->save()`.
+2. Failing that, scrub on the way out — apply the `HtmlEngine.php:568` test in
+   `ClientContactTransformer` / `VendorContactTransformer` so the API and the
+   PDF agree.
+3. Move the `@example.` guard in `Email.php` **above** the `isSelfHost()`
+   early return, so self-hosted installs stop bouncing mail at `example.com`.
+4. Either way a **backfill** is needed: a forward fix leaves every address
+   already written into existing databases in place.
+
+**Client status.** `admin` (v2) hides these client-side as of
+invoiceninja/flutter#116 — `isPortalPlaceholderEmail`
+(`lib/data/models/value/parsing.dart`) matches the generator's exact shape (6 or
+15 `[A-Za-z0-9]` with at least one uppercase, at `example.com`) at the
+`Contact.fromApi` / `VendorContact.fromApi` seam, and **re-emits the raw value
+on save** rather than clearing it. Deliberately narrow: the seeded demo dataset
+is Faker data whose every contact sits at `example.com`/`.net`/`.org`, so a
+blanket rule would blank 96 real addresses. The client fix is a mitigation, not
+a substitute for 1–4 — it cannot help the React client, the portal profile form,
+or anyone reading the database directly.
+

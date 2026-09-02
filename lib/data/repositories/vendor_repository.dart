@@ -133,9 +133,29 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
 
   /// Stream `(id, name)` pairs for active vendors. Powers the vendor picker
   /// on the Expense edit screen.
+  ///
+  /// A row whose name resolves to nothing falls back to its **id** — the
+  /// denormalized column can be empty for a record with no name of its own
+  /// (a nameless vendor's seeded blank contact, or one whose only contact
+  /// email was a minted placeholder, invoiceninja/flutter#116), and these
+  /// rows are ordered by that column, so an empty one is a blank,
+  /// unselectable-looking row sorted to the top of every picker. The id and
+  /// not `(no name)`: this seam has no `BuildContext`, it is what the rest of
+  /// the app already shows for an unresolvable name in this position
+  /// (`VendorNameLabel`, `_RecordMembershipFilterKey`, the line-item picker's
+  /// `?? id` maps), and in a *picker* an id tells two nameless records apart
+  /// where a repeated `(no name)` would not. A name **label** is the opposite
+  /// case and reads `(no name)` — see `ClientNameLabel`.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
-  }) => db.vendorDao.watchActiveNames(companyId: companyId);
+  }) => db.vendorDao
+      .watchActiveNames(companyId: companyId)
+      .map(
+        (rows) => [
+          for (final r in rows)
+            (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
+        ],
+      );
 
   @override
   Stream<Vendor?> watchByRealId({
@@ -616,7 +636,11 @@ String _displayNameFor({
   final c = contacts.first;
   final composed = ('${c.firstName} ${c.lastName}').trim();
   if (composed.isNotEmpty) return composed;
-  return c.email;
+  // `VendorContactApi` never goes through `VendorContact.fromApi`, so the
+  // server-minted-placeholder scrub has to happen here too — this feeds the
+  // `vendors.display_name` column that `VendorDao.watchActiveNames` reads
+  // straight out of Drift for the vendor picker.
+  return isPortalPlaceholderEmail(c.email) ? '' : c.email;
 }
 
 /// Domain-side mirror of [_displayNameFor]. Kept separate because the
@@ -630,5 +654,8 @@ String _displayNameForDomain({
   final c = contacts.first;
   final composed = ('${c.firstName} ${c.lastName}').trim();
   if (composed.isNotEmpty) return composed;
-  return c.email as String;
+  // Already blanked by `VendorContact.fromApi`; scrubbed again so the two
+  // writers to `vendors.display_name` can never disagree.
+  final email = c.email as String;
+  return isPortalPlaceholderEmail(email) ? '' : email;
 }

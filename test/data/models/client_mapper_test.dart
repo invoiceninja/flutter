@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/gateway_token_api_model.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/data/models/domain/gateway_token.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -109,6 +112,139 @@ void main() {
           .cast<Map<String, dynamic>>();
       expect(contactsJson[0]['cc_only'], isTrue);
       expect(contactsJson[1]['cc_only'], isFalse);
+    });
+
+    test('blanks the server-minted portal placeholder email and carries it '
+        'back out untouched (invoiceninja/flutter#116)', () {
+      const minted = 'dq9GHaI6Dncm0Zd@example.com';
+      final api = ClientApi.fromJson({
+        'id': 'a',
+        'name': 'Acme',
+        'contacts': [
+          {'id': 'c1', 'first_name': 'Jimmy', 'email': minted},
+          {'id': 'c2', 'first_name': 'Real', 'email': 'real@acme.test'},
+        ],
+      });
+
+      final c = Client.fromApi(api);
+      expect(c.contacts[0].email, isEmpty, reason: 'never shown to the user');
+      expect(c.contacts[0].portalPlaceholderEmail, minted);
+      expect(c.contacts[1].email, 'real@acme.test');
+      expect(
+        c.contacts[1].portalPlaceholderEmail,
+        isEmpty,
+        reason: 'a real address carries nothing',
+      );
+
+      final contactsJson = (c.toApiJson()['contacts'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(
+        contactsJson[0]['email'],
+        minted,
+        reason: 'an unrelated save must not clear the server value',
+      );
+      expect(contactsJson[1]['email'], 'real@acme.test');
+    });
+
+    test('a CLONED contact drops the placeholder instead of inheriting it', () {
+      // `ClientAction.clone` copies each contact with `id: ''` and keeps every
+      // other field. Without the `id.isNotEmpty` guard in `toApiJson` the clone
+      // would POST a brand-new contact carrying the SOURCE contact's minted
+      // address — and the form shows the email field blank, so nobody could see
+      // or clear it.
+      const minted = 'dq9GHaI6Dncm0Zd@example.com';
+      final c = Client.fromApi(
+        ClientApi.fromJson({
+          'id': 'a',
+          'name': 'Acme',
+          'contacts': [
+            {'id': 'c1', 'first_name': 'Jimmy', 'email': minted},
+          ],
+        }),
+      );
+      expect(
+        c.contacts[0].toApiJson()['email'],
+        minted,
+        reason: 'the original',
+      );
+
+      final cloned = c.contacts[0].copyWith(id: '');
+      expect(
+        cloned.portalPlaceholderEmail,
+        minted,
+        reason: 'copyWith carries it — the guard is in toApiJson, not here',
+      );
+      expect(cloned.toApiJson()['email'], isEmpty);
+    });
+
+    test('a user clearing a REAL email still transmits as empty', () {
+      final api = ClientApi.fromJson({
+        'id': 'a',
+        'name': 'Acme',
+        'contacts': [
+          {'id': 'c1', 'email': 'real@acme.test'},
+        ],
+      });
+      final c = Client.fromApi(api);
+      final cleared = c.copyWith(
+        contacts: [c.contacts.first.copyWith(email: '')],
+      );
+
+      final contactsJson = (cleared.toApiJson()['contacts'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(contactsJson[0]['email'], isEmpty);
+    });
+
+    test('the placeholder survives the local-save payload round-trip', () {
+      // `_domainToCompanion` stores `toApiJson(preserveTempId: true)` in the
+      // Drift `payload` column and `_fromRow` re-reads the domain from it. If
+      // `toApiJson` omitted the key instead of re-emitting the raw value, one
+      // local save would round-trip the carried value to '' and the *second*
+      // save would clear the server's address after all.
+      const minted = 'dq9GHaI6Dncm0Zd@example.com';
+      var c = Client.fromApi(
+        ClientApi.fromJson({
+          'id': 'a',
+          'name': 'Acme',
+          'contacts': [
+            {'id': 'c1', 'first_name': 'Jimmy', 'email': minted},
+          ],
+        }),
+      );
+
+      for (var save = 0; save < 2; save++) {
+        final stored = jsonDecode(
+          jsonEncode(c.toApiJson(preserveTempId: true)),
+        );
+        c = Client.fromApi(ClientApi.fromJson(stored as Map<String, dynamic>));
+        expect(c.contacts[0].email, isEmpty, reason: 'save ${save + 1}');
+        expect(c.contacts[0].portalPlaceholderEmail, minted);
+      }
+      final contactsJson = (c.toApiJson()['contacts'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(contactsJson[0]['email'], minted);
+    });
+
+    test('a display_name the server derived from a placeholder falls back to '
+        'the client name', () {
+      // `ClientPresenter::name()` falls back to the first contact's email for a
+      // nameless client, so `display_name` on the wire can be the junk address.
+      final c = Client.fromApi(
+        ClientApi.fromJson({
+          'id': 'a',
+          'name': '',
+          'display_name': 'dq9GHaI6Dncm0Zd@example.com',
+          'contacts': [
+            {'id': 'c1', 'email': 'dq9GHaI6Dncm0Zd@example.com'},
+          ],
+        }),
+      );
+      expect(c.displayName, isEmpty, reason: 'list tile renders (no name)');
+
+      final real = Client.fromApi(
+        ClientApi.fromJson({'id': 'b', 'name': '', 'display_name': 'Acme Ltd'}),
+      );
+      expect(real.displayName, 'Acme Ltd');
     });
 
     test(

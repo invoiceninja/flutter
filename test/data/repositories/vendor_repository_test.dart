@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -159,6 +161,89 @@ void main() {
     );
 
     test(
+      'server-minted portal placeholder email is blanked on read and carried '
+      'back out untouched (invoiceninja/flutter#116)',
+      () {
+        const minted = 'dq9GHaI6Dncm0Zd@example.com';
+        final api = VendorApi.fromJson({
+          'id': 'v_1',
+          'name': 'Acme Co',
+          'contacts': [
+            {'id': 'vc_1', 'first_name': 'Jimmy', 'email': minted},
+            {'id': 'vc_2', 'first_name': 'Real', 'email': 'b@acme.test'},
+          ],
+        });
+        final domain = Vendor.fromApi(api);
+
+        expect(domain.contacts[0].email, isEmpty);
+        expect(domain.contacts[0].portalPlaceholderEmail, minted);
+        expect(
+          domain.contacts[0].toApiJson()['email'],
+          minted,
+          reason: 'an unrelated save must not clear the server value',
+        );
+
+        expect(domain.contacts[1].email, 'b@acme.test');
+        expect(domain.contacts[1].portalPlaceholderEmail, isEmpty);
+        expect(
+          domain.contacts[1].copyWith(email: '').toApiJson()['email'],
+          isEmpty,
+          reason: 'a user clearing a real address still transmits as empty',
+        );
+      },
+    );
+
+    test('a CLONED vendor contact drops the placeholder', () {
+      // `VendorAction.clone` clears `id` and keeps everything else; the guard
+      // in `toApiJson` is what stops the new contact inheriting the source
+      // contact's minted portal-login address.
+      const minted = 'dq9GHaI6Dncm0Zd@example.com';
+      final domain = Vendor.fromApi(
+        VendorApi.fromJson({
+          'id': 'v_1',
+          'name': 'Acme Co',
+          'contacts': [
+            {'id': 'vc_1', 'first_name': 'Jimmy', 'email': minted},
+          ],
+        }),
+      );
+      expect(domain.contacts[0].toApiJson()['email'], minted);
+      expect(domain.contacts[0].copyWith(id: '').toApiJson()['email'], isEmpty);
+    });
+
+    test(
+      'the vendor placeholder survives the local-save payload round-trip',
+      () {
+        // `_domainToCompanion` stores `toApiJson(preserveTempId: true)` in the
+        // Drift payload and `_fromRow` re-reads the domain from it. Omitting
+        // the key instead of re-emitting the raw value would round-trip the
+        // carried address to '' on the first save.
+        const minted = 'dq9GHaI6Dncm0Zd@example.com';
+        var v = Vendor.fromApi(
+          VendorApi.fromJson({
+            'id': 'v_1',
+            'name': 'Acme Co',
+            'contacts': [
+              {'id': 'vc_1', 'first_name': 'Jimmy', 'email': minted},
+            ],
+          }),
+        );
+
+        for (var save = 0; save < 2; save++) {
+          final stored = jsonDecode(
+            jsonEncode(v.toApiJson(preserveTempId: true)),
+          );
+          v = Vendor.fromApi(
+            VendorApi.fromJson(stored as Map<String, dynamic>),
+          );
+          expect(v.contacts[0].email, isEmpty, reason: 'save ${save + 1}');
+          expect(v.contacts[0].portalPlaceholderEmail, minted);
+        }
+        expect(v.contacts[0].toApiJson()['email'], minted);
+      },
+    );
+
+    test(
       'vendor + contact extended fields round-trip through fromApi/toApiJson — '
       'including read-only last_login so the local Drift payload preserves it',
       () {
@@ -263,6 +348,43 @@ void main() {
       final repo = VendorRepository(db: db, api: _FakeVendorsApi());
       expect(repo.entityTypeName, 'vendor');
     });
+
+    test(
+      'watchActiveNames falls back to the id when the display name is blank',
+      () async {
+        // `vendors.display_name` is empty for a vendor with no name of its own
+        // — its seeded blank contact contributes nothing, and a contact whose
+        // only email was a minted placeholder is scrubbed to '' too
+        // (invoiceninja/flutter#116). The pickers order by this column and
+        // render it verbatim, so an empty value is a blank, unselectable-
+        // looking row sorted to the top.
+        final repo = VendorRepository(db: db, api: _FakeVendorsApi());
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: VendorApi.fromJson({
+            'id': 'v_blank',
+            'name': '',
+            'updated_at': 1700000000,
+            'contacts': [
+              {'id': 'vc_1', 'email': 'dq9GHaI6Dncm0Zd@example.com'},
+            ],
+          }),
+        );
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: VendorApi.fromJson({
+            'id': 'v_named',
+            'name': 'Acme Co',
+            'updated_at': 1700000000,
+          }),
+        );
+
+        final rows = await repo.watchActiveNames(companyId: 'co').first;
+        final byId = {for (final r in rows) r.id: r.name};
+        expect(byId['v_blank'], 'v_blank', reason: 'never an empty label');
+        expect(byId['v_named'], 'Acme Co');
+      },
+    );
   });
 
   // `ensureLoaded` is the lazy single-id hydrate that backs the

@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 
 /// Resolves the client display name from the local Drift cache and
@@ -105,8 +106,15 @@ class _ClientNameLabelState extends State<ClientNameLabel> {
       stream: services.clients.watch(companyId: companyId, id: widget.clientId),
       builder: (context, snapshot) {
         final client = snapshot.data;
-        if (client == null || client.displayName.isEmpty) {
-          return _unresolved(context, tokens);
+        if (client == null) return _unresolved(context, tokens);
+        // Resolved but nameless is NOT unresolved. `Client.displayName` is
+        // empty only when the client has no name of its own AND the server's
+        // computed `display_name` was dropped as a minted placeholder
+        // (`clientDisplayNameOf`, invoiceninja/flutter#116) — the record loaded
+        // fine, so claiming it can't be resolved is a lie the user can't act
+        // on. Same distinction `ClientListTile._displayName` makes.
+        if (client.displayName.isEmpty) {
+          return _text(context, context.tr('no_name_fallback'));
         }
         return _text(context, client.displayName);
       },

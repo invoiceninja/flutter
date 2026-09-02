@@ -72,6 +72,13 @@ dependencies:
   sign_in_with_apple: ^8.1.0
   sqlite3: ^3.3.2
   super_editor: any
+  # IANA tzdb, for the callee's real local time on a phone number
+  # (docs/tap-to-call.md). The server's `timezones.utc_offset` is STANDARD-time
+  # only, so comparing it against the device's DST-aware offset made a New York
+  # client look foreign to a New York user for eight months a year, and printed
+  # a clock an hour behind. `Timezone.name` is the IANA id and this resolves it.
+  # `main.dart` loads the 10-year table, not the full one — see the note there.
+  timezone: ^0.10.0
   url_launcher: ^6.3.0
   uuid: ^4.4.0
   web: ^1.1.0

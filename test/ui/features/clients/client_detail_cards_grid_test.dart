@@ -15,10 +15,13 @@ Client _client({String phone = ''}) => Client.fromApi(
   ClientApi(id: 'c1', name: 'Acme', phone: phone, updatedAt: 1),
 );
 
+// `phoneActions: true` — the Details card's phone row is a tap-to-call link
+// now, and `PhoneActionsScope` reads `Provider<Services>`.
 Future<void> _pump(WidgetTester tester, Client client, double width) => pumpAt(
   tester,
   width,
   ClientDetailCardsGrid(client: client, formatter: null),
+  phoneActions: true,
 );
 
 void main() {

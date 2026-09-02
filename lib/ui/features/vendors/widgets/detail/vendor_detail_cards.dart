@@ -13,6 +13,7 @@ import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
+import 'package:admin/ui/core/widgets/phone_number_value.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
@@ -187,7 +188,13 @@ class VendorDetailDetailsCard extends StatelessWidget {
                   : () => _openWebsite(context, websiteUri),
             ),
           if (vendor.phone.isNotEmpty)
-            DetailInfoRow(label: context.tr('phone'), value: vendor.phone),
+            // No `clientId` — a vendor has no settings cascade of its own, so
+            // the out-of-hours check falls back to the company's timezone.
+            PhoneDetailRow(
+              label: context.tr('phone'),
+              phone: vendor.phone,
+              subject: vendor.name,
+            ),
           if (vendor.vatNumber.isNotEmpty)
             DetailInfoRow(
               label: context.tr('vat_number'),
@@ -310,8 +317,12 @@ class _ContactRow extends StatelessWidget {
   const _ContactRow(this.contact);
   final VendorContact contact;
 
+  // Scoped at the row, not at the number — see the same note on the client
+  // card's `_ContactRow`: the Call / Message buttons are built here.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PhoneActionsScope(builder: _buildRow);
+
+  Widget _buildRow(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
     final name = ('${contact.firstName} ${contact.lastName}').trim();
@@ -330,6 +341,14 @@ class _ContactRow extends StatelessWidget {
     final subStyle = theme.textTheme.bodySmall?.copyWith(color: tokens.ink3);
     // The email shows as a secondary line only when a name occupies the title.
     final secondaryEmail = hasName ? contact.email : '';
+
+    final actions = contact.phone.isEmpty
+        ? const <Widget>[]
+        : phoneActionButtons(
+            context,
+            contact.phone,
+            subject: _vendorContactSubject(context, contact),
+          );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
@@ -358,10 +377,17 @@ class _ContactRow extends StatelessWidget {
                 ],
                 if (contact.phone.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  CopyableValue(
-                    value: contact.phone,
-                    child: Text(contact.phone, style: subStyle),
+                  PhoneNumberValue(
+                    phone: contact.phone,
+                    style: subStyle,
+                    subject: _vendorContactSubject(context, contact),
                   ),
+                  // This card had no action row before; Call / Message is the
+                  // first thing to need one.
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(height: InSpacing.xs),
+                    Wrap(spacing: InSpacing.sm, children: actions),
+                  ],
                 ],
               ],
             ),
@@ -477,3 +503,11 @@ Uri? _parseWebsite(String raw) {
 
 Future<void> _openWebsite(BuildContext context, Uri uri) =>
     openExternalUrl(context, uri.toString());
+
+/// Who the confirmation prompt names when this vendor contact is called.
+String _vendorContactSubject(BuildContext context, VendorContact contact) {
+  final name = ('${contact.firstName} ${contact.lastName}').trim();
+  if (name.isNotEmpty) return name;
+  if (contact.email.isNotEmpty) return contact.email;
+  return context.tr('no_name_fallback');
+}

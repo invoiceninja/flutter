@@ -122,9 +122,69 @@ String formatSize(int size) => size > 1000000
     ? '${round(size / 1000000, 1).toInt()} MB'
     : '${round(size / 1000, 0).toInt()} KB';
 
-/// Strip every non-digit from a phone number for tel: / sms: URIs.
-String cleanPhoneNumber(String phoneNumber) =>
-    phoneNumber.replaceAll(RegExp(r'\D'), '');
+/// Normalise a stored phone number into the RFC 3966 *global number* form a
+/// `tel:` / `sms:` URI wants: an optional leading `+` followed by digits.
+/// Returns `''` when nothing dialable is left, so callers can render plain
+/// text instead of offering a dead tap.
+///
+/// Three rules, each of which exists because breaking it dials the WRONG
+/// number rather than failing visibly:
+///
+///  * **A `+` before the first digit survives.** Without it `+1 415 555 2671`
+///    is handed to the dialer as `14155552671`, which every carrier reads as a
+///    *national* number. "Before the first digit", not "at position 0":
+///    `(+1) 415-555-2671` and `Mobile: +44 20 7946 0018` are both ordinary
+///    stored formats, and testing `startsWith('+')` drops the `+` from each.
+///    (This function used to strip it unconditionally — it had no callers in
+///    `lib/`, so that bug never shipped.)
+///  * **An extension suffix is cut, not flattened.** `555-1234 x22` must not
+///    become `555123422`. Dialers disagree on extension syntax (`,` pause,
+///    `;ext=`, `w`), so the extension is dropped and the user dials it by
+///    hand — a short call to the switchboard beats a wrong number.
+///  * **A bracketed national trunk prefix after a country code is removed.**
+///    `+44 (0)20 7946 0018` means "dial 020… domestically, +44 20… from
+///    abroad"; keeping the `0` produces `+44020…`, which is not a number.
+///
+/// Finally, a result under [_minDialableDigits] digits is discarded. Free-text
+/// in a phone field is common — `1-800-FLOWERS`, `Reception, dial 9 first` —
+/// and stripping non-digits turns those into `1800` and `9`. That never
+/// mattered while nothing dialled; now it would render an accent-coloured link
+/// that hands the dialer a wrong number, so the floor is what keeps them
+/// inert text.
+String cleanPhoneNumber(String phoneNumber) {
+  // `(0)` is only a trunk prefix when it follows a country code — a bare
+  // `(0)` elsewhere is just punctuation and falls out with the rest below.
+  final head = phoneNumber
+      .trim()
+      // `replaceFirstMapped`, not `replaceFirst` — Dart takes a String
+      // replacement literally, so `r'$1'` would insert the two characters
+      // `$1` and destroy the country code.
+      .replaceFirstMapped(
+        RegExp(r'^(\+\s*\d+)\s*\(\s*0\s*\)'),
+        (m) => m.group(1)!,
+      )
+      // No `\b` before `x`: in `5551234x22` the digit and the `x` are both
+      // word characters, so a boundary assertion never matches there.
+      .split(RegExp(r'(?:ext\.?|x|#)\s*\d', caseSensitive: false))
+      .first;
+  final firstDigit = head.indexOf(RegExp(r'\d'));
+  if (firstDigit < 0) return '';
+  // A `+` anywhere ahead of the first digit is the international marker —
+  // brackets, spaces and a `Mobile:` label all legitimately sit in front of it.
+  final international = head.substring(0, firstDigit).contains('+');
+  final digits = head.replaceAll(RegExp(r'\D'), '');
+  if (digits.length < _minDialableDigits) return '';
+  return international ? '+$digits' : digits;
+}
+
+/// Fewer digits than this and we assume the field holds prose, not a number.
+///
+/// Five is chosen to sit below every real subscriber number (the shortest
+/// national ones run to six) and above what free text leaves behind once the
+/// letters are stripped. It does mean a bare four-digit internal extension
+/// won't be offered as a link — the right trade in a *client* phone field,
+/// where dialling a truncated number is the worse outcome.
+const int _minDialableDigits = 5;
 
 /// Self-hosted users paste a base URL; this canonicalises it by stripping
 /// trailing slashes and any pre-existing `/api/v1` suffix.

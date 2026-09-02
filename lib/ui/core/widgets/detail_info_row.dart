@@ -20,6 +20,9 @@ class DetailInfoRow extends StatelessWidget {
     this.onTap,
     this.copyable = true,
     this.copyText,
+    this.trailing,
+    this.semanticsLabel,
+    this.tooltip,
   });
 
   final String label;
@@ -45,6 +48,24 @@ class DetailInfoRow extends StatelessWidget {
   /// when the displayed text differs from what's useful to copy.
   final String? copyText;
 
+  /// A small annotation rendered immediately after the value, *inside* the
+  /// copy wrapper — so the desktop hover-copy icon keeps its own trailing
+  /// column and [copyText] stays the bare value. Meant for dimmed context
+  /// (the callee's local time beside a phone number), not for a button: a
+  /// touch-sized control here would drive the row's cross axis and stack on
+  /// top of its padding (see CLAUDE.md § Design system, trap 4).
+  final Widget? trailing;
+
+  /// Announces the row's value as an actionable button to a screen reader.
+  /// [LinkText] emits no semantics of its own, so without this a tappable
+  /// value is read out as plain text with no hint that it does anything.
+  final String? semanticsLabel;
+
+  /// Hover hint naming what [onTap] does. Pointer platforms only — pass null
+  /// on touch, where there is no hover and the tooltip only fires on a
+  /// long-press that is usually already taken by copy.
+  final String? tooltip;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -55,7 +76,7 @@ class DetailInfoRow extends StatelessWidget {
       fontWeight: FontWeight.w500,
       fontFeatures: monospace ? const [FontFeature.tabularFigures()] : null,
     );
-    final Widget display = onTap == null
+    Widget display = onTap == null
         ? Text(value, style: valueStyle)
         : LinkText(
             label: value,
@@ -63,6 +84,29 @@ class DetailInfoRow extends StatelessWidget {
             color: tokens.accent,
             onTap: onTap,
           );
+    if (tooltip != null) {
+      display = Tooltip(message: tooltip!, child: display);
+    }
+    if (semanticsLabel != null) {
+      // `excludeSemantics` so the child's own text node doesn't merge in and
+      // announce the value twice.
+      display = Semantics(
+        button: true,
+        label: semanticsLabel,
+        excludeSemantics: true,
+        child: display,
+      );
+    }
+    if (trailing != null) {
+      display = Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Flexible(child: display),
+          trailing!,
+        ],
+      );
+    }
     // Copy affordance: hover icon (desktop/web) or tap-to-copy (mobile). A row
     // with its own onTap (e.g. a website launch) keeps tap for that action and
     // exposes copy via the hover icon / a mobile long-press instead.

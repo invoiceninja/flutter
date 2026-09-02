@@ -765,8 +765,70 @@ void main() {
       expect(formatSize(3_400_000), '3 MB');
     });
 
-    test('cleanPhoneNumber strips everything but digits', () {
-      expect(cleanPhoneNumber('+1 (415) 555-2671'), '14155552671');
+    test('cleanPhoneNumber keeps the leading + and drops punctuation', () {
+      // The `+` is the whole difference between an international dial and a
+      // wrong national one, so it survives where every other symbol doesn't.
+      expect(cleanPhoneNumber('+1 (415) 555-2671'), '+14155552671');
+      expect(cleanPhoneNumber('(415) 555-2671'), '4155552671');
+      expect(cleanPhoneNumber('  +44 20 7946 0018  '), '+442079460018');
+      expect(cleanPhoneNumber('415.555.2671'), '4155552671');
+    });
+
+    test('cleanPhoneNumber finds a + that is not the first character', () {
+      // Both are ordinary stored formats. Testing `startsWith('+')` drops the
+      // marker from each and dials an international number nationally.
+      expect(cleanPhoneNumber('(+1) 415-555-2671'), '+14155552671');
+      expect(cleanPhoneNumber('Mobile: +44 20 7946 0018'), '+442079460018');
+      expect(cleanPhoneNumber('  +1-415-555-2671'), '+14155552671');
+      // A `+` *after* the digits start is punctuation, not a country marker.
+      expect(cleanPhoneNumber('415 555 2671+'), '4155552671');
+    });
+
+    test(
+      'cleanPhoneNumber rejects free text that leaves a few stray digits',
+      () {
+        // These used to render as inert text; a link that hands the dialer
+        // `tel:1800` is worse than no link at all.
+        expect(cleanPhoneNumber('1-800-FLOWERS'), '');
+        expect(cleanPhoneNumber('Reception, dial 9 first'), '');
+        expect(cleanPhoneNumber('ext 4521'), '');
+        // …but a real number keeps working.
+        expect(cleanPhoneNumber('555-1234'), '5551234');
+      },
+    );
+
+    test('cleanPhoneNumber cuts an extension instead of inlining it', () {
+      // Inlining would dial 555123422 — a different number entirely.
+      expect(cleanPhoneNumber('555-1234 x22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 ext 22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 ext. 22'), '5551234');
+      expect(cleanPhoneNumber('+1 415 555 2671 X9'), '+14155552671');
+      expect(cleanPhoneNumber('555-1234#22'), '5551234');
+      // A trailing `#` with no digits after it is not an extension marker, so
+      // it isn't a cut point — but `*123#` is a 3-digit USSD code, which the
+      // minimum-digit floor discards anyway (Android blocks USSD from an
+      // ACTION_VIEW `tel:` regardless).
+      expect(cleanPhoneNumber('*123#'), '');
+    });
+
+    test('cleanPhoneNumber drops a bracketed trunk prefix after a +cc', () {
+      // `+44 (0)20 …` means "020… domestically"; keeping the 0 yields
+      // +44020…, which is not a dialable number.
+      expect(cleanPhoneNumber('+44 (0)20 7946 0018'), '+442079460018');
+      expect(cleanPhoneNumber('+44(0)2079460018'), '+442079460018');
+      // Only after a country code — a bare (0) elsewhere is just punctuation
+      // and its digit is part of the number.
+      expect(cleanPhoneNumber('(0)20 7946 0018'), '02079460018');
+    });
+
+    test('cleanPhoneNumber returns empty when there is nothing to dial', () {
+      // Callers use the empty string to render plain text rather than offer a
+      // link that can only fail.
+      expect(cleanPhoneNumber(''), '');
+      expect(cleanPhoneNumber('   '), '');
+      expect(cleanPhoneNumber('call the office'), '');
+      expect(cleanPhoneNumber('+'), '');
+      expect(cleanPhoneNumber('9'), '');
     });
 
     test('formatApiUrl / cleanApiUrl strip trailing /api/v1 + slash', () {

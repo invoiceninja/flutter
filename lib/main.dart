@@ -12,6 +12,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:admin/app/app_deep_links.dart';
 import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/design_tokens.dart';
+import 'package:timezone/data/latest_10y.dart' as tz;
 import 'package:admin/app/diagnostics_log.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/idle_timeout_controller.dart';
@@ -108,6 +109,19 @@ DebugCaptureStore? _debugCaptureStoreRef;
 Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   initLogging();
+  // IANA tzdb, for the callee's real local time beside a phone number and for
+  // the outside-business-hours warning (`docs/tap-to-call.md`). Synchronous and
+  // web-safe — the data is compiled-in Dart, not an asset fetch — so it costs a
+  // few ms here rather than a null check at every call site. Must run before
+  // any `tz.getLocation`; `contactClock` degrades to the server's fixed
+  // standard-time offset if it somehow hasn't.
+  //
+  // `latest_10y`, not `latest_all`: 86 KB of transition data instead of 444 KB,
+  // across six platforms. The only question this app asks the tzdb is "what is
+  // the offset *now*", and the 10-year window is regenerated on every package
+  // release, so each app release refreshes it. Switch to `latest_all` if
+  // something ever needs a historical or far-future date.
+  tz.initializeTimeZones();
   // Dart hot-restart preserves static fields, so without this reset the iOS
   // SplashOverlay would see `dismissed` already true on the second run and
   // skip its entry. Stripped from release builds via `assert`.
@@ -164,6 +178,7 @@ Future<void> _bootstrap() async {
     services.sidebar.restore(),
     services.confirmActions.restore(),
     services.statusTabs.restore(),
+    services.phoneActions.restore(),
     services.sidebarBadgeModes.restore(),
     services.recentlyViewed.restore(),
     services.contactsSync.restore(),

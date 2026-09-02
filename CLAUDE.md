@@ -45,6 +45,7 @@ Plus two non-negotiables carried from admin-portal:
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
 | Sharing a link to a record, or handling an incoming one | § Deep links |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
+| Tap-to-call / SMS on a phone number, or its business-hours warning | `docs/tap-to-call.md` |
 | Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
 | Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
 | Working around an open upstream (Flutter/pub) bug — or undoing one later | `docs/upstream-workarounds.md` |
@@ -382,6 +383,44 @@ A one-tap status strip above every entity list — `All / Draft / Unpaid / Overd
 - Counts are **active-only**, so the badges stand down (tabs keep filtering) when the list is showing archived / deleted rows, and they carry the same local-cache under-reporting caveat as the rail. A zero renders in the neutral palette whatever the bucket's tone — a red `0` would claim urgency about the one outcome that means there's nothing to do.
 - Device-toggleable, default **on**: Settings → Device Settings → Status tabs (`nav_state.status_tabs`, schema v6, `StatusTabsController`).
 
+## Tap to call
+
+Tapping a phone number on a detail screen or contact card opens the platform dialer
+(invoiceninja/flutter#109). Device-local preference, five fields in one blob
+(`nav_state.phone_actions_json`, schema v7); full rationale in `docs/tap-to-call.md`. Four things
+here are not obvious:
+
+- **The `tapToCall` default is `Env.isTouchPrimary`, not `true`** — which is *why* it is a JSON blob
+  and not typed columns. The app cannot ask whether a `tel:` handler exists (`canLaunchUrl` is
+  banned — see `test/lint/no_can_launch_url_test.dart`), so on a Windows/Linux desktop with no
+  dialer an on-by-default link would stop the number selecting as text **and** report "Couldn't open
+  the link" to someone who never asked for the feature. A null column means "ask this device"; a SQL
+  `withDefault` could only pick one answer for a phone and a desktop alike. A *stored* blob is then
+  taken literally — the platform must never re-decide for a user who already chose.
+- **`tel:` / `sms:` deliberately bypass `isSafeWebUrl`.** That predicate stops a *server-supplied*
+  URL becoming a `javascript:` / `file:` / `intent:` launch and rejects `tel:` by design; here the
+  scheme is a compile-time constant and `cleanPhoneNumber` has already reduced the payload to
+  `[+]?\d+`. Use `launchExternalUri(Uri)`, not `openExternalUrl(String)`. Android also needs
+  `<queries>` `<intent>` entries for both schemes, asserted by `android_url_queries_test`;
+  `CALL_PHONE` in that manifest is for `ACTION_CALL` and stays unused, because `ACTION_VIEW` keeps
+  the OS's own confirm step — which is what lets the in-app "Confirm before calling" switch default
+  **off** instead of double-prompting.
+- **`cleanPhoneNumber` is where a wrong number comes from.** A `+` **before the first digit**
+  survives — `startsWith('+')` is the wrong test, since `(+1) 415…` and `Mobile: +44 …` are ordinary
+  stored formats — it cuts at an extension marker rather than inlining its digits (`555-1234 x22`
+  must not dial `555123422`), drops a bracketed trunk prefix after a country code
+  (`+44 (0)20 …` → `+4420…`), and discards anything under five digits so a field holding
+  `1-800-FLOWERS` stays inert text instead of becoming a link to `tel:1800`.
+- **Every phone surface listens via `PhoneActionsScope`.** A detail screen stays mounted behind the
+  `/settings/**` route while the switch is flipped, so a build-time read with no listener leaves it
+  styling numbers with the old value until an unrelated rebuild. The out-of-hours warning resolves
+  the callee's zone through the settings cascade (client override → company) and **skips itself when
+  no timezone resolves** rather than judging against the caller's own clock. The clock comes from
+  `package:timezone` via the IANA `Timezone.name`, **not** the server's `utc_offset`: that field is
+  standard-time only, and comparing it against the DST-aware `DateTime.now().timeZoneOffset` told a
+  New York user their New York client was in a foreign zone for eight months a year, then showed
+  them a clock an hour behind.
+
 ## Localization
 
 - Source of truth: **Transifex** (`explore.transifex.com/invoice-ninja/invoice-ninja`).
@@ -392,6 +431,14 @@ A one-tap status strip above every entity list — `All / Draft / Unpaid / Overd
 - Adding a locale = (a) add it to `kSupportedLocales`, (b) re-run the importer.
 - **The upstream PHP is HTML-escaped — the importer decodes entities, don't bypass it.** Transifex ships `&#39;`, `&quot;`, `&gt;`, `&amp;`, `&eacute;` inside translated strings, and Flutter's `Text` has no HTML layer to undo them, so whatever lands in the JSON is literally what the user reads: Italian Settings showed `Colore dell&#39;accento`, French `Cl&eacute; d&#39;acc&egrave;s`. 504 strings across 7 locales shipped that way, invisible to the team because **English has zero entities**. `TransifexPhpParser.parse` now runs values through `decodeHtmlEntities` (`lib/l10n/transifex_php_parser.dart`, mirrored in the importer's own inline copy — keep them in sync). It is deliberately a **single pass** so `&amp;#39;` stays the literal text `&#39;` rather than double-decoding to an apostrophe, and it leaves unrecognized entities, bare `&`, and markup tags (`<p>`, `<br>`) alone. `test/l10n/no_html_entities_test.dart` fails the build if an escaped string reaches `assets/i18n/`.
 - **`_app_pending.json` can only *add* a key, never override one.** Lookup order is active locale → `en.json` → pending → raw key, so a pending entry whose key already has a non-blank `en.json` value is dead and never renders. 41 such entries had accumulated — one of them (`fees_sample`) left the gateway fee preview naming the *total* as the fee. `no_unsubstituted_placeholders_test` now fails the build on a shadowed entry; give deliberate rewordings a distinct name (`*_label` / `*_short` / `*_detailed`).
+- **A placeholder name that prefixes another needs no care — because `lookup` sorts longest-first.**
+  `":time in :timezone"` substituted in map-insertion order rewrites the second token to
+  `"<value>zone"`, which then never matches: rendered garbage, not a missing string, so no `tr()`
+  lint sees it, and which token wins depends on the caller's literal map order. `Localization.lookup`
+  therefore replaces the longest name first (the single-param hot path returns before the sort).
+  Five bundled keys have this shape — `activity_10`/`_39`/`_40`/`_41` (`:payment` + `:payment_amount`)
+  and `entity_number_placeholder` (`:entity` + `:entity_number`); the activity templates dodge it
+  only because `activity_description.dart` tokenizes with a regex instead of coming through `lookup`.
 - **Never render a string carrying a `:placeholder` without filling it.** Many Transifex keys ship in two flavours: a parameterised one for when the app knows the value (`add_to_invoice` = "Add to invoice :invoice") and a plain verb for when it doesn't (`action_add_to_invoice` = "Add To Invoice"). Pointing a menu label at the former leaks the raw token (invoiceninja/flutter#35). Fix one, in this order: **(1) pass the params** — usually possible and always keeps the translation (`copyToClipboard` fills `:value` this way, with a `label:` when the payload is a blob); **(2) point at a placeholder-free Transifex sibling** (`action_add_to_invoice`, `invoice_sent_notification_label`, `min_amount`); **(3) last resort, add a distinctly-named app-local key** — that file is English-only, so this costs every non-English user their translation, and it's only right when the bundle has no clean variant (`view_expense_label`, `download_documents_label`). **Don't blank the token and `.trim()`**: German and Japanese put `:invoice` mid-string, so that leaves a double space. `test/lint/no_unsubstituted_placeholders_test.dart` fails the build on a leak it can see; keys reached through a variable, a const list, or a positional arg are invisible to it, so a renderer that looks up keys from a structure needs the invariant asserted in that structure's own test (`settings_search_catalog_test` does this).
 
 ## Rich text editing

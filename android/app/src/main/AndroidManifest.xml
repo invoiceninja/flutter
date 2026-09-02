@@ -94,9 +94,8 @@
 
              `http` alongside `https`: self-hosted portals on internal networks
              are a real case, which is why `isSafeWebUrl`
-             (lib/utils/url_safety.dart) permits it. Every other scheme is
-             rejected before it ever reaches `launchUrl`, so no `mailto:` /
-             `tel:` intents are needed here.
+             (lib/utils/url_safety.dart) permits it. `mailto:` is still absent
+             because nothing in the app launches one.
 
              Guarded by test/lint/android_url_queries_test.dart. -->
         <intent>
@@ -106,6 +105,23 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="http"/>
+        </intent>
+
+        <!-- Tap-to-call / tap-to-message on phone numbers, added for
+             invoiceninja/flutter#109 (see docs/tap-to-call.md). These launch
+             as ACTION_VIEW, NOT ACTION_CALL: ACTION_VIEW hands the number to
+             the dialer pre-filled and the user still presses the call button,
+             which is both permission-free and the reason the in-app "Confirm
+             before calling" switch can default off — the OS is already asking.
+             The `android.permission.CALL_PHONE` declared at the top of this
+             file is for ACTION_CALL and is deliberately NOT used. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tel"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="sms"/>
         </intent>
     </queries>
 </manifest>

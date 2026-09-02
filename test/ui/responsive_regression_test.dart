@@ -4,11 +4,14 @@
 // a stray full-width `Expanded` / unconstrained `Row` doesn't silently break
 // the mobile (or wide) layout — exactly the gap the foundation audit flagged.
 //
-// Scope: Services-free widgets only. Full feature screens (list / edit /
-// settings) need the `Provider<Services>` harness; pulling each through here
-// is the documented follow-up (see the plan's C3 reasoning — the VM-level
-// pattern is the cheaper canonical edit/list assertion). New responsive bugs
-// in pure layout widgets belong here; add the widget + a width sweep.
+// Scope: Services-free widgets only, with one exception — ClientDetailCardsGrid
+// renders phone numbers, and tap-to-call's `PhoneActionsScope` reads
+// `Provider<Services>`, so it opts into `pumpAt(phoneActions: true)`'s minimal
+// harness. Full feature screens (list / edit / settings) need the real
+// `Provider<Services>` harness; pulling each through here is the documented
+// follow-up (see the plan's C3 reasoning — the VM-level pattern is the cheaper
+// canonical edit/list assertion). New responsive bugs in pure layout widgets
+// belong here; add the widget + a width sweep.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,6 +61,11 @@ void main() {
           tester,
           width,
           ClientDetailCardsGrid(client: client, formatter: null),
+          // The one widget here that isn't Services-free: its phone rows go
+          // through `PhoneActionsScope`. The minimal harness also hands it a
+          // foreign timezone, so the local-time suffix and the contact row's
+          // Call / Message buttons are part of what this sweep measures.
+          phoneActions: true,
         );
         expectNoOverflow(tester);
       });

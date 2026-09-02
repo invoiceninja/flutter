@@ -6,6 +6,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
+import 'package:admin/ui/core/widgets/phone_number_value.dart';
 import 'package:admin/ui/features/clients/widgets/client_portal.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 
@@ -28,6 +29,7 @@ class ClientDetailContactsCard extends StatefulWidget {
     super.key,
     required this.contacts,
     required this.clientHash,
+    required this.clientId,
   });
 
   final List<Contact> contacts;
@@ -35,6 +37,11 @@ class ClientDetailContactsCard extends StatefulWidget {
   /// Client-level auth token appended to each contact's portal silent-login
   /// URL (`?silent=true&client_hash=…`).
   final String clientHash;
+
+  /// The client's own id — **not** [clientHash], which is a portal token.
+  /// Resolves this client's `settings.timezone_id` override so a call placed
+  /// from here knows what time it is where the phone will ring.
+  final String clientId;
 
   @override
   State<ClientDetailContactsCard> createState() =>
@@ -63,7 +70,7 @@ class _ClientDetailContactsCardState extends State<ClientDetailContactsCard> {
         children: [
           DetailRowStack(
             children: visible
-                .map((c) => _ContactRow(c, widget.clientHash))
+                .map((c) => _ContactRow(c, widget.clientHash, widget.clientId))
                 .toList(),
           ),
           if (hiddenCount > 0)
@@ -121,7 +128,13 @@ class _ClientDetailContactsCardState extends State<ClientDetailContactsCard> {
                   child: SingleChildScrollView(
                     child: DetailRowStack(
                       children: widget.contacts
-                          .map((c) => _ContactRow(c, widget.clientHash))
+                          .map(
+                            (c) => _ContactRow(
+                              c,
+                              widget.clientHash,
+                              widget.clientId,
+                            ),
+                          )
                           .toList(),
                     ),
                   ),
@@ -136,12 +149,21 @@ class _ClientDetailContactsCardState extends State<ClientDetailContactsCard> {
 }
 
 class _ContactRow extends StatelessWidget {
-  const _ContactRow(this.contact, this.clientHash);
+  const _ContactRow(this.contact, this.clientHash, this.clientId);
   final Contact contact;
   final String clientHash;
+  final String clientId;
 
+  // `PhoneActionsScope` wraps the WHOLE row, not just the number: the Call /
+  // Message buttons are built here, one level above `PhoneNumberValue`'s own
+  // scope, so without this they hold whatever the preference was when the card
+  // was last built. A detail screen stays mounted behind `/settings/**`, so
+  // flipping the switch there left a live Call button beside a number that had
+  // already gone inert.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PhoneActionsScope(builder: _buildRow);
+
+  Widget _buildRow(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.inTheme;
     final name = ('${contact.firstName} ${contact.lastName}').trim();
@@ -158,6 +180,36 @@ class _ContactRow extends StatelessWidget {
     final subStyle = theme.textTheme.bodySmall?.copyWith(color: tokens.ink3);
     // The email shows as a secondary line only when a name occupies the title.
     final secondaryEmail = hasName ? contact.email : '';
+
+    final actions = <Widget>[
+      if (contact.phone.isNotEmpty)
+        ...phoneActionButtons(
+          context,
+          contact.phone,
+          subject: _contactSubject(context, contact),
+          clientId: clientId,
+        ),
+      if (contact.link.isNotEmpty) ...[
+        TextButton.icon(
+          style: contactActionButtonStyle,
+          icon: const Icon(Icons.open_in_new, size: 14),
+          label: Text(context.tr('view_portal')),
+          onPressed: () => launchClientPortal(
+            context,
+            clientPortalUrl(contactLink: contact.link, clientHash: clientHash),
+          ),
+        ),
+        TextButton.icon(
+          style: contactActionButtonStyle,
+          icon: const Icon(Icons.content_copy, size: 14),
+          label: Text(context.tr('copy_link')),
+          onPressed: () => copyToClipboard(
+            context,
+            clientPortalUrl(contactLink: contact.link, clientHash: clientHash),
+          ),
+        ),
+      ],
+    ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: InSpacing.sm),
@@ -186,42 +238,21 @@ class _ContactRow extends StatelessWidget {
                 ],
                 if (contact.phone.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  CopyableValue(
-                    value: contact.phone,
-                    child: Text(contact.phone, style: subStyle),
+                  PhoneNumberValue(
+                    phone: contact.phone,
+                    style: subStyle,
+                    subject: _contactSubject(context, contact),
+                    clientId: clientId,
                   ),
                 ],
-                if (contact.link.isNotEmpty) ...[
+                // One `Wrap` for every row action. It used to be gated on
+                // `contact.link.isNotEmpty`, which was fine while both buttons
+                // inside it were portal ones — as the home for Call / Message
+                // too, that gate would have hidden them from any contact
+                // without a portal link.
+                if (actions.isNotEmpty) ...[
                   const SizedBox(height: InSpacing.xs),
-                  Wrap(
-                    spacing: InSpacing.sm,
-                    children: [
-                      TextButton.icon(
-                        style: _portalButtonStyle,
-                        icon: const Icon(Icons.open_in_new, size: 14),
-                        label: Text(context.tr('view_portal')),
-                        onPressed: () => launchClientPortal(
-                          context,
-                          clientPortalUrl(
-                            contactLink: contact.link,
-                            clientHash: clientHash,
-                          ),
-                        ),
-                      ),
-                      TextButton.icon(
-                        style: _portalButtonStyle,
-                        icon: const Icon(Icons.content_copy, size: 14),
-                        label: Text(context.tr('copy_link')),
-                        onPressed: () => copyToClipboard(
-                          context,
-                          clientPortalUrl(
-                            contactLink: contact.link,
-                            clientHash: clientHash,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  Wrap(spacing: InSpacing.sm, children: actions),
                 ],
               ],
             ),
@@ -252,9 +283,12 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
-final ButtonStyle _portalButtonStyle = TextButton.styleFrom(
-  minimumSize: const Size(0, 32),
-  padding: const EdgeInsets.symmetric(horizontal: 8),
-  visualDensity: VisualDensity.compact,
-  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-);
+/// Who the confirmation prompt names when this contact is called. Falls back
+/// through name → email → the client-level "blank contact" label, so the
+/// dialog never asks the user to confirm calling nobody.
+String _contactSubject(BuildContext context, Contact contact) {
+  final name = ('${contact.firstName} ${contact.lastName}').trim();
+  if (name.isNotEmpty) return name;
+  if (contact.email.isNotEmpty) return contact.email;
+  return context.tr('no_name_fallback');
+}

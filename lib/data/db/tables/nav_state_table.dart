@@ -75,6 +75,20 @@ class NavState extends Table {
   TextColumn get contactsSyncJson =>
       text().named('contacts_sync_json').nullable()();
 
+  /// Device-local tap-to-call preference (Settings → Device Settings → Phone
+  /// numbers), as a JSON object:
+  /// `{"tapToCall":bool,"confirmBeforeCall":bool,
+  ///   "warnOutsideBusinessHours":bool,"startMinutes":480,"endMinutes":1200}`.
+  /// Null column = the user has never opened the card, and the defaults are
+  /// then resolved *per device* (`PhoneActionsSettings.deviceDefaults()` reads
+  /// `Env.isTouchPrimary`) — which is the reason this is a blob and not five
+  /// columns: a SQL `withDefault` would have to pick one answer for a phone
+  /// and a Linux desktop alike. Same one-blob reasoning as [contactsSyncJson]
+  /// otherwise; none of it is ever queried by SQL. Added in schema v7.
+  /// See `docs/tap-to-call.md`.
+  TextColumn get phoneActionsJson =>
+      text().named('phone_actions_json').nullable()();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

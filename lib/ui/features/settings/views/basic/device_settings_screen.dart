@@ -15,6 +15,7 @@ import 'package:admin/ui/features/settings/widgets/confirm_actions_tile.dart';
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
+import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/list_status_tabs_section.dart';
 import 'package:admin/ui/features/settings/widgets/sidebar_counters_section.dart';
@@ -38,6 +39,7 @@ const kDeviceSettingsSearchKeys = <String>[
   'confirm_actions',
   'confirm_actions_help',
   'biometric_authentication',
+  ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
   ...kListStatusTabsSearchKeys,
   ...kSidebarCountersSearchKeys,
@@ -99,6 +101,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
                   if (showBiometric) const BiometricToggleTile(),
                 ],
               ),
+              // Outgoing calls above, incoming below: the two phone cards sit
+              // together deliberately.
+              const PhoneActionsSection(),
               // Native mobile only — hides itself where the app can't write
               // the address book (desktop, web).
               const ContactsSyncSection(),

@@ -78,6 +78,7 @@ class ClientDetailCardsGrid extends StatelessWidget {
           child: ClientDetailContactsCard(
             contacts: c.contacts,
             clientHash: c.clientHash,
+            clientId: c.id,
           ),
         ),
       ],
@@ -115,7 +116,11 @@ class ClientDetailCardsGrid extends StatelessWidget {
       ClientDetailAddressCard(client: c),
       if (ClientDetailShippingAddressCard.hasContent(c))
         ClientDetailShippingAddressCard(client: c),
-      ClientDetailContactsCard(contacts: c.contacts, clientHash: c.clientHash),
+      ClientDetailContactsCard(
+        contacts: c.contacts,
+        clientHash: c.clientHash,
+        clientId: c.id,
+      ),
       if (ClientDetailPaymentMethodsCard.hasContent(c))
         ClientDetailPaymentMethodsCard(client: c),
       if (c.privateNotes.isNotEmpty || c.publicNotes.isNotEmpty)

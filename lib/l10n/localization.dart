@@ -51,9 +51,27 @@ class Localization {
         _nonBlank(_pending[key]) ??
         key;
     if (params == null || params.isEmpty) return raw;
+    if (params.length == 1) {
+      final only = params.entries.first;
+      return raw.replaceAll(':${only.key}', only.value);
+    }
+    // LONGEST NAME FIRST. `replaceAll` in map-insertion order is silently
+    // wrong whenever one placeholder name prefixes another: substituting
+    // `:time` into ":time in :timezone" first rewrites the *second* token to
+    // "<value>zone", and the intended `:timezone` never matches. The result is
+    // rendered garbage, not a missing string, so no `tr()` lint catches it —
+    // and which of the two wins depends on the caller's literal map order.
+    // Five bundled keys have colliding names today (`activity_10`, `_39`,
+    // `_40`, `_41` pair `:payment` with `:payment_amount`;
+    // `entity_number_placeholder` pairs `:entity` with `:entity_number`); the
+    // activity templates dodge it only because they tokenize with a regex
+    // instead of coming through here. Sorting costs nothing on the common
+    // single-param path, which returned above.
+    final names = params.keys.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
     var out = raw;
-    for (final entry in params.entries) {
-      out = out.replaceAll(':${entry.key}', entry.value);
+    for (final name in names) {
+      out = out.replaceAll(':$name', params[name]!);
     }
     return out;
   }

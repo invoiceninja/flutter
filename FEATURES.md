@@ -141,6 +141,7 @@ the honest default.
 | Client — multiple contacts | ✅ | ✅ | ✅ | ✅ | |
 | Client — import contact from device address book (iOS + Android) | ❌ | ✅ | ✅ | | |
 | Client contacts — sync out to the device address book (caller ID) | ❌ | ❌ | ✅ | | |
+| Phone numbers — tap to call, plus a Message (SMS) action on contact rows | ❌ | 🟡 | ✅ | | |
 | Client/Vendor — contact CC-only | ✅ | ✅ | ✅ | — | — |
 | Client — multiple shipping / billing locations | ✅ | ✅ | ✅ | ✅ | |
 | Client — shipping address on the record (billing + shipping, Copy Billing) | ✅ | ✅ | ✅ | ✅ | |
@@ -1077,6 +1078,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
 | Contacts sync — push client contacts to the device address book, under a label, with an All / Assigned-to-me scope (mobile only, local, off by default) | — | — | ✅ | | |
+| Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop) | — | — | ✅ | | |
 
 ---
 

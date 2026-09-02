@@ -8,6 +8,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/detail_info_row.dart';
+import 'package:admin/ui/core/widgets/phone_number_value.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 
@@ -71,7 +72,13 @@ class ClientDetailDetailsCard extends StatelessWidget {
             ? null
             : () => _openWebsite(context, websiteUri),
       ),
-      stdRow(context.tr('phone'), client.phone),
+      if (client.phone.isNotEmpty)
+        PhoneDetailRow(
+          label: context.tr('phone'),
+          phone: client.phone,
+          subject: client.displayName,
+          clientId: client.id,
+        ),
       stdRow(context.tr('vat_number'), client.vatNumber),
       stdRow(context.tr('id_number'), client.idNumber),
       // Per-client settings + classification surfaced read-side (mirror of the

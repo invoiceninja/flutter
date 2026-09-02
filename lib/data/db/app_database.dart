@@ -186,7 +186,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -231,6 +231,14 @@ class AppDatabase extends _$AppDatabase {
     // `confirm_actions`: non-nullable with a `true` default, so SQLite's
     // `ADD COLUMN ... DEFAULT 1` backfills installed databases and existing
     // users get the strip switched on, matching a fresh install.
+    //
+    // v6 → v7: add `nav_state.phone_actions_json` (device-local tap-to-call
+    // preference, invoiceninja/flutter#109). Nullable with no backfill, and
+    // deliberately NOT the `confirm_actions` bool shape: null has to mean
+    // "ask this device", because the tap-to-call default follows
+    // `Env.isTouchPrimary` (on for a phone, off for a desktop with no `tel:`
+    // handler) and a SQL default can only pick one. See
+    // `PhoneActionsSettings.deviceDefaults` and `docs/tap-to-call.md`.
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
@@ -247,6 +255,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 6) {
         await m.addColumn(navState, navState.statusTabs);
+      }
+      if (from < 7) {
+        await m.addColumn(navState, navState.phoneActionsJson);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

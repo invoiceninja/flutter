@@ -19,6 +19,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 
 import '_localization_helper.dart';
+import '_support/phone_actions_test_services.dart';
 
 /// Standard responsive breakpoints to sweep: narrow (mobile / sidebar),
 /// medium (split), wide (desktop).
@@ -37,11 +38,16 @@ Future<void> pumpAt(
   double height = 1400,
   bool scroll = true,
   double textScale = 1.0,
+  bool phoneActions = false,
 }) async {
   await tester.binding.setSurfaceSize(Size(width, height));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  final body = scroll ? SingleChildScrollView(child: child) : child;
+  // Opt-in `Provider<Services>`: a widget that renders a phone number goes
+  // through `PhoneActionsScope`, which reads it. Off by default so the sweep
+  // stays a Services-free layout net for everything else.
+  final scoped = phoneActions ? withPhoneActionsServices(child) : child;
+  final body = scroll ? SingleChildScrollView(child: scoped) : scoped;
   await tester.pumpWidget(
     MaterialApp(
       theme: buildInTheme(InTheme.light),

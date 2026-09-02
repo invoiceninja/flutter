@@ -164,6 +164,23 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Phone-actions-only update — [PhoneActionsController] calls this when the
+  /// user changes anything on the "Phone numbers" card. Same partial-write
+  /// pattern as [saveContactsSync]; the whole preference is one blob, so there
+  /// is a single writer.
+  Future<void> savePhoneActions({
+    required String? json,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        phoneActionsJson: Value(json),
+        updatedAt: now,
+      ),
+    );
+  }
+
   /// Contacts-sync-only update — [ContactsSyncController] calls this when the
   /// user flips the toggle, changes scope, or a reconcile finishes. Leaves the
   /// other fields untouched, same partial-write pattern as [saveFilters].

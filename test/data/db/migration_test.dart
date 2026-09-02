@@ -40,6 +40,7 @@ void main() {
     4: '54be9c4ef437fcd6e5a7d8927eca8737f1f582b26b225211a5274d563e3c7eef',
     5: '5ec0013e47f74da5e433b736a3bdc3c040eb09219358d3c08ab693d387870f91',
     6: 'c54173a0059bf0eb1f550c09081e7c59f50673588b7bda1d969b79425401ce90',
+    7: '13773cfe170d086a17c91ce69d08c5914f065a8773202859009d0ccad74dc196',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB

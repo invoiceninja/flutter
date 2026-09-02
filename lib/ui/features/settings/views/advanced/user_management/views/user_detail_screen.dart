@@ -14,6 +14,7 @@ import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
+import 'package:admin/ui/core/widgets/phone_number_value.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/activity/widgets/activity_feed_row.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
@@ -112,7 +113,17 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   ),
                   _SummaryRow(labelKey: 'email', value: user.email),
                   if (user.phone.isNotEmpty)
-                    _SummaryRow(labelKey: 'phone', value: user.phone),
+                    _SummaryRow(
+                      labelKey: 'phone',
+                      value: user.phone,
+                      // A team member has no settings cascade, so the
+                      // out-of-hours check uses the company timezone.
+                      valueWidget: PhoneNumberValue(
+                        phone: user.phone,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        subject: user.displayName,
+                      ),
+                    ),
                   _SummaryRow(
                     labelKey: 'role',
                     value: context.tr(
@@ -435,18 +446,27 @@ class _UserActivitySectionState extends State<_UserActivitySection> {
 }
 
 class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.labelKey, required this.value})
-    : _literalLabel = null;
+  const _SummaryRow({
+    required this.labelKey,
+    required this.value,
+    this.valueWidget,
+  }) : _literalLabel = null;
 
   /// Variant for a label that is already resolved text (not a localization
   /// key) — used for configured custom-field labels.
   const _SummaryRow.literal({required String label, required this.value})
     : labelKey = '',
-      _literalLabel = label;
+      _literalLabel = label,
+      valueWidget = null;
 
   final String labelKey;
   final String? _literalLabel;
   final String value;
+
+  /// Replaces the plain value text — used for the phone row, which renders a
+  /// tap-to-call link. [value] is still what a screen reader and the layout
+  /// branch below see, so pass both.
+  final Widget? valueWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -456,7 +476,8 @@ class _SummaryRow extends StatelessWidget {
       _literalLabel ?? context.tr(labelKey),
       style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink3),
     );
-    final valueText = Text(value, style: theme.textTheme.bodyMedium);
+    final valueText =
+        valueWidget ?? Text(value, style: theme.textTheme.bodyMedium);
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 6, horizontal: InSpacing.sm),
       child: LayoutBuilder(

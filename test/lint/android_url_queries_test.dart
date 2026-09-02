@@ -20,11 +20,15 @@ import 'package:flutter_test/flutter_test.dart';
 /// declaration is free, plugins and any future `canLaunch` still read it, and
 /// removing it is a silent-on-CI regression by construction.
 ///
-/// Only `http` / `https` are required — `isSafeWebUrl` (lib/utils/url_safety.dart)
-/// rejects every other scheme before it reaches `launchUrl`, so there is
-/// deliberately no `mailto:` / `tel:` intent to assert here. If a future change
-/// starts launching one of those, it needs both a new `<intent>` and a new case
-/// below.
+/// `http` / `https` cover every link routed through `isSafeWebUrl`
+/// (lib/utils/url_safety.dart), which rejects any other scheme before it
+/// reaches `launchUrl`. `tel:` / `sms:` are the deliberate exception — the
+/// tap-to-call affordance on phone numbers builds those URIs itself from a
+/// normalised number rather than from a server-supplied string, so it bypasses
+/// that predicate (invoiceninja/flutter#109, docs/tap-to-call.md) and needs its
+/// own declarations. There is still no `mailto:` intent, because nothing
+/// launches one. A future change that starts launching a new scheme needs both
+/// a new `<intent>` and a new case below.
 void main() {
   test('AndroidManifest declares browser intents for url_launcher', () {
     final file = File('android/app/src/main/AndroidManifest.xml');
@@ -51,7 +55,7 @@ void main() {
       r'<intent>.*?</intent>',
     ).allMatches(xml).map((m) => m.group(0)!).toList();
 
-    for (final scheme in const ['https', 'http']) {
+    for (final scheme in const ['https', 'http', 'tel', 'sms']) {
       // The action and the scheme must live in the *same* <intent>: an
       // ACTION_VIEW intent with no matching <data> scheme does not grant
       // visibility of a browser for that scheme. The closing quote in the
@@ -69,7 +73,7 @@ void main() {
             'android.intent.action.VIEW with android:scheme="$scheme". '
             'Without it canLaunchUrl returns false on Android 11+ and every '
             'external link in the app fails with "failed to open URL". '
-            'See issue #12.',
+            'See issues #12 and #109.',
       );
     }
   });

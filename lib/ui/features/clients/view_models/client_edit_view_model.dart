@@ -84,7 +84,7 @@ class ClientEditViewModel extends GenericEditViewModel<Client> {
         // The blank primary contact we seed on a new client is all-empty, so
         // it doesn't count — but a contact the user actually filled in does,
         // so navigating away from contact-only entry still prompts to discard.
-        d.contacts.any((c) => !_isBlankContact(c));
+        d.contacts.any((c) => !c.isBlank);
   }
 
   @override
@@ -403,7 +403,7 @@ class ClientEditViewModel extends GenericEditViewModel<Client> {
       if (_findDuplicateContact(contacts, email, phone, first, last) >= 0) {
         contactWasDuplicate = true;
       } else {
-        final blankIdx = contacts.indexWhere(_isBlankContact);
+        final blankIdx = contacts.indexWhere((c) => c.isBlank);
         final filledContact =
             (blankIdx >= 0 ? contacts[blankIdx] : _emptyContact()).copyWith(
               firstName: first,
@@ -557,12 +557,6 @@ String _clientNameFrom(DeviceContactImport c) {
   if (parts.length == 1) return (parts.first, '');
   return (parts.first, parts.sublist(1).join(' '));
 }
-
-bool _isBlankContact(Contact c) =>
-    c.firstName.trim().isEmpty &&
-    c.lastName.trim().isEmpty &&
-    c.email.trim().isEmpty &&
-    c.phone.trim().isEmpty;
 
 /// Index of an existing contact that duplicates the import — by email, then by
 /// phone (digits only), then by a **full** first+last match. Returns -1 when

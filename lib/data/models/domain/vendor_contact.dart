@@ -90,3 +90,21 @@ extension VendorContactPayload on VendorContact {
     'custom_value4': customValue4,
   };
 }
+
+/// Twin of `ContactIdentity.isBlank` on `Contact` — see that doc comment for
+/// why `link`, `isPrimary` and `customValue1..4` stay out of the predicate.
+///
+/// The blank row is the **server's**, not the edit screen's — `_emptyVendor`
+/// seeds `contacts: const []`, and `VendorContactRepository::save` then creates
+/// one (`//always made sure we have one blank contact to maintain state`) for
+/// any vendor that has none. The detail card rendered it as `(no name)` beside
+/// a primary star (invoiceninja/flutter#115). Unlike the client factory this
+/// one leaves `email` at `''` rather than `' '`, but keep the `trim()` in step
+/// with the twin regardless.
+extension VendorContactIdentity on VendorContact {
+  bool get isBlank =>
+      firstName.trim().isEmpty &&
+      lastName.trim().isEmpty &&
+      email.trim().isEmpty &&
+      phone.trim().isEmpty;
+}

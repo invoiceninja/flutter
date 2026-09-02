@@ -14,9 +14,10 @@ import 'package:admin/ui/features/vendors/view_models/vendor_edit_view_model.dar
 /// Two behaviours matter. `validate()` must block an empty-name create before
 /// the optimistic Drift write, so the user gets an inline error instead of a
 /// dead outbox row (`StoreVendorRequest` requires `name`). And
-/// `draftIsNonEmpty()` drives the discard-changes prompt: the blank primary
-/// contact seeded on a new vendor must NOT count as user input, but a contact
-/// the user actually typed into must.
+/// `draftIsNonEmpty()` drives the discard-changes prompt: an all-empty contact
+/// must NOT count as user input, but a contact the user actually typed into
+/// must. (A *new* vendor starts with no contacts at all — unlike a client — so
+/// the blank row comes from adding one and leaving it, or from the server.)
 class _FakeVendorsApi implements VendorsApi {
   @override
   Object? noSuchMethod(Invocation i) => throw UnimplementedError();

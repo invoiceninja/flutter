@@ -15,8 +15,12 @@ import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 ///   - ≥[Breakpoints.wide] screen width (tablet/desktop): expands inline within the same card.
 ///   - below: opens a bottom sheet listing every contact.
 ///
-/// Hides entirely when the client has no contacts (matches the React
-/// "hide-if-empty" behavior).
+/// Hides entirely when no contact has a name, email or phone. `contacts` is
+/// never empty in practice — the API enforces at least one contact per client,
+/// so a client the user never gave contact details to still carries an
+/// all-blank one — which is why the question is [ContactIdentity.isBlank] per
+/// row rather than `contacts.isEmpty` (invoiceninja/flutter#115). React's
+/// `clients/show/components/Contacts.tsx` filters rows the same way.
 ///
 /// The wide/narrow decision uses `MediaQuery.sizeOf(context).width` rather than
 /// `LayoutBuilder`. The grid above this card uses `IntrinsicHeight` so cards
@@ -43,10 +47,23 @@ class ClientDetailContactsCard extends StatefulWidget {
   /// from here knows what time it is where the phone will ring.
   final String clientId;
 
+  /// Whether [build] renders at least one row — the grid gates both its wide
+  /// column and its stacked entry on this. Takes the contact list rather than
+  /// the `Client` (unlike the sibling cards' `hasContent(Client)`) because
+  /// that is what this card is constructed from.
+  static bool hasContent(List<Contact> contacts) =>
+      contacts.any((c) => !c.isBlank);
+
   @override
   State<ClientDetailContactsCard> createState() =>
       _ClientDetailContactsCardState();
 }
+
+/// The contacts worth rendering. A blank one has nothing to show but
+/// `(no name)`, a primary star, and portal buttons for a link the server mints
+/// for it regardless — the portal stays reachable from `ClientAction.clientPortal`.
+List<Contact> _visibleContacts(List<Contact> contacts) =>
+    contacts.where((c) => !c.isBlank).toList(growable: false);
 
 class _ClientDetailContactsCardState extends State<ClientDetailContactsCard> {
   static const int _inlineLimit = 3;
@@ -55,9 +72,12 @@ class _ClientDetailContactsCardState extends State<ClientDetailContactsCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.contacts.isEmpty) return const SizedBox.shrink();
+    // Filter BEFORE the early return, and count "+N more" off the filtered
+    // list: an overflow button offering to reveal rows that paint nothing is
+    // the same bug as the blank row itself.
+    final all = _visibleContacts(widget.contacts);
+    if (all.isEmpty) return const SizedBox.shrink();
     final wide = MediaQuery.sizeOf(context).width >= Breakpoints.wide;
-    final all = widget.contacts;
     final showAll = _expanded || all.length <= _inlineLimit;
     final visible = showAll ? all : all.take(_inlineLimit).toList();
     final hiddenCount = all.length - visible.length;
@@ -127,7 +147,7 @@ class _ClientDetailContactsCardState extends State<ClientDetailContactsCard> {
                 Flexible(
                   child: SingleChildScrollView(
                     child: DetailRowStack(
-                      children: widget.contacts
+                      children: _visibleContacts(widget.contacts)
                           .map(
                             (c) => _ContactRow(
                               c,

@@ -19,19 +19,27 @@ import 'package:admin/utils/formatting.dart';
 ///
 /// - **≥1000 px**: three equal-width columns — Details · Address · Contacts —
 ///   with Notes spanning the full width on a second row when it has content.
-///   If Contacts is empty, drops to two equal-width columns so Details and
-///   Address don't get stretched by a zero-width sibling.
-/// - **<1000 px**: single centered column (≤820 px), all cards stacked.
+///   If Contacts has no row to show, drops to two equal-width columns so
+///   Details and Address don't get stretched by a zero-width sibling.
+/// - **<1000 px**: single centered column (≤820 px), all cards stacked. Every
+///   entry there is gated on its card's `hasContent`, because the gap loop
+///   below pays `InSpacing.md` per *entry*, not per painted card — a card that
+///   returns `SizedBox.shrink()` from its own `build` would leave a doubled
+///   gap between its neighbours.
 ///
 /// The KPI/Standing card has moved up into `ClientDetailKpiStrip` (rendered
 /// by the screen above this grid), so this widget no longer owns it.
 ///
-/// Most cards return `SizedBox.shrink()` from `build` when they have no data,
-/// so empty cards collapse out of the layout naturally. The Details card is
-/// the exception: it's kept in the ≥1000 px grid even when empty (so the
-/// three `Expanded` columns stay aligned and no gap appears), but dropped
-/// from the stacked single-column layout — mobile and the master-detail
-/// sidebar preview pane — where an empty box is just wasted space.
+/// Most cards return `SizedBox.shrink()` from `build` when they have no data.
+/// In the ≥1000 px grid that collapses a card's *height* but not its column —
+/// an `Expanded` keeps its share of the row either way, which is the point:
+/// the Details card is deliberately kept there even when empty so the three
+/// columns stay aligned. It is dropped from the stacked single-column layout
+/// (mobile and the master-detail sidebar preview pane), where an empty box is
+/// just wasted space. Anywhere cards stack — the whole stacked list, and the
+/// Address / Shipping pair inside the wide grid's middle column — the entry
+/// must be gated, because the gap is paid per entry rather than per painted
+/// card.
 class ClientDetailCardsGrid extends StatelessWidget {
   const ClientDetailCardsGrid({
     super.key,
@@ -54,8 +62,14 @@ class ClientDetailCardsGrid extends StatelessWidget {
   }
 
   Widget _wide(BuildContext context, Client c) {
-    final hasContacts = c.contacts.isNotEmpty;
+    final hasContacts = ClientDetailContactsCard.hasContent(c.contacts);
     final hasNotes = c.privateNotes.isNotEmpty || c.publicNotes.isNotEmpty;
+    // The middle column stacks two cards, so it pays the same per-entry gap the
+    // stacked layout does: a client with a shipping address but no billing one
+    // left the Address card collapsed and its gap behind, pushing Shipping
+    // ~12 px below the cards beside it.
+    final hasAddress = ClientDetailAddressCard.hasContent(c);
+    final hasShipping = ClientDetailShippingAddressCard.hasContent(c);
     final columns = <Widget>[
       Expanded(child: ClientDetailDetailsCard(client: c)),
       SizedBox(width: InSpacing.md(context)),
@@ -64,9 +78,9 @@ class ClientDetailCardsGrid extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            ClientDetailAddressCard(client: c),
-            if (ClientDetailShippingAddressCard.hasContent(c)) ...[
-              SizedBox(height: InSpacing.md(context)),
+            if (hasAddress) ClientDetailAddressCard(client: c),
+            if (hasShipping) ...[
+              if (hasAddress) SizedBox(height: InSpacing.md(context)),
               ClientDetailShippingAddressCard(client: c),
             ],
           ],
@@ -113,14 +127,16 @@ class ClientDetailCardsGrid extends StatelessWidget {
     final cards = <Widget>[
       if (ClientDetailDetailsCard.hasContent(c))
         ClientDetailDetailsCard(client: c),
-      ClientDetailAddressCard(client: c),
+      if (ClientDetailAddressCard.hasContent(c))
+        ClientDetailAddressCard(client: c),
       if (ClientDetailShippingAddressCard.hasContent(c))
         ClientDetailShippingAddressCard(client: c),
-      ClientDetailContactsCard(
-        contacts: c.contacts,
-        clientHash: c.clientHash,
-        clientId: c.id,
-      ),
+      if (ClientDetailContactsCard.hasContent(c.contacts))
+        ClientDetailContactsCard(
+          contacts: c.contacts,
+          clientHash: c.clientHash,
+          clientId: c.id,
+        ),
       if (ClientDetailPaymentMethodsCard.hasContent(c))
         ClientDetailPaymentMethodsCard(client: c),
       if (c.privateNotes.isNotEmpty || c.publicNotes.isNotEmpty)

@@ -46,10 +46,12 @@ class VendorEditViewModel extends GenericEditViewModel<Vendor> {
         d.address1.isNotEmpty ||
         d.privateNotes.isNotEmpty ||
         d.publicNotes.isNotEmpty ||
-        // The blank primary contact we seed on a new vendor is all-empty, so it
-        // doesn't count — but a contact the user actually filled in does, so
-        // navigating away from contact-only entry still prompts to discard.
-        d.contacts.any((c) => !_isBlankContact(c));
+        // An all-empty contact doesn't count — a new vendor starts with none
+        // (unlike a client — `_emptyVendor` seeds `const []`), but the user can
+        // add a row and leave it blank, and a vendor loaded for edit carries
+        // whatever the server made. A contact actually filled in does count,
+        // so navigating away from contact-only entry still prompts to discard.
+        d.contacts.any((c) => !c.isBlank);
   }
 
   @override
@@ -230,12 +232,3 @@ VendorContact _emptyContact() => VendorContact(
   updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
   isDeleted: false,
 );
-
-/// A contact with no user-entered identity fields — the seeded blank primary
-/// doesn't count toward [VendorEditViewModel.draftIsNonEmpty]. Mirrors the
-/// client VM's `_isBlankContact`.
-bool _isBlankContact(VendorContact c) =>
-    c.firstName.trim().isEmpty &&
-    c.lastName.trim().isEmpty &&
-    c.email.trim().isEmpty &&
-    c.phone.trim().isEmpty;

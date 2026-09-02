@@ -31,7 +31,13 @@ import 'package:admin/utils/formatting.dart';
 ///
 /// - **≥1000 px**: three equal-width columns — Details · Address · Contacts —
 ///   with Notes spanning the full width on a second row when it has content.
-/// - **<1000 px**: single centered column (≤820 px), all cards stacked.
+///   If Contacts has no row to show, drops to two equal-width columns so
+///   Details and Address don't get stretched by a zero-width sibling.
+/// - **<1000 px**: single centered column (≤820 px), all cards stacked. Every
+///   entry there is gated on its card's `hasContent`, because the gap loop
+///   below pays `InSpacing.md` per *entry*, not per painted card — a card that
+///   returns `SizedBox.shrink()` from its own `build` would leave a doubled
+///   gap between its neighbours.
 ///
 /// The KPI strip has moved up into `VendorDetailKpiStrip` (rendered by the
 /// screen above this grid), so this widget no longer owns it. Mirror of
@@ -58,7 +64,7 @@ class VendorDetailCardsGrid extends StatelessWidget {
   }
 
   Widget _wide(BuildContext context) {
-    final hasContacts = vendor.contacts.isNotEmpty;
+    final hasContacts = VendorDetailContactsCard.hasContent(vendor.contacts);
     final hasNotes =
         vendor.privateNotes.isNotEmpty || vendor.publicNotes.isNotEmpty;
     final columns = <Widget>[
@@ -96,9 +102,12 @@ class VendorDetailCardsGrid extends StatelessWidget {
 
   Widget _stacked(BuildContext context) {
     final cards = <Widget>[
-      VendorDetailDetailsCard(vendor: vendor, formatter: formatter),
-      VendorDetailAddressCard(vendor: vendor),
-      VendorDetailContactsCard(contacts: vendor.contacts),
+      if (VendorDetailDetailsCard.hasContent(vendor))
+        VendorDetailDetailsCard(vendor: vendor, formatter: formatter),
+      if (VendorDetailAddressCard.hasContent(vendor))
+        VendorDetailAddressCard(vendor: vendor),
+      if (VendorDetailContactsCard.hasContent(vendor.contacts))
+        VendorDetailContactsCard(contacts: vendor.contacts),
       if (vendor.privateNotes.isNotEmpty || vendor.publicNotes.isNotEmpty)
         VendorDetailNotesCard(vendor: vendor),
       if (vendor.tagIds.isNotEmpty) _TagsCard(vendor: vendor),
@@ -143,6 +152,34 @@ class VendorDetailDetailsCard extends StatelessWidget {
   final Vendor vendor;
   final Formatter? formatter;
 
+  /// Whether any field this card renders is populated. Mirrors the set shown
+  /// in [build] so the stacked layout can omit a wholly-empty card — unlike
+  /// its rows, the card itself never self-hides, so without this a vendor with
+  /// only a name renders an empty bordered "Details" box.
+  ///
+  /// One known over-inclusion, inherited from
+  /// `ClientDetailDetailsCard.hasContent`: a `customValueN` whose company slot
+  /// has no configured label renders nothing, so a vendor still holding a
+  /// value after an admin clears that label keeps an empty card. Rare — values
+  /// only get set through slots the edit screen shows. Currency and language
+  /// are **not** in that category, because [build] falls back to the raw id
+  /// rather than dropping the row.
+  static bool hasContent(Vendor v) =>
+      v.website.isNotEmpty ||
+      v.phone.isNotEmpty ||
+      v.vatNumber.isNotEmpty ||
+      v.idNumber.isNotEmpty ||
+      v.classification.isNotEmpty ||
+      v.routingId.isNotEmpty ||
+      v.isTaxExempt ||
+      v.currencyId.isNotEmpty ||
+      v.languageId.isNotEmpty ||
+      v.lastLogin != null ||
+      v.customValue1.isNotEmpty ||
+      v.customValue2.isNotEmpty ||
+      v.customValue3.isNotEmpty ||
+      v.customValue4.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
@@ -168,12 +205,18 @@ class VendorDetailDetailsCard extends StatelessWidget {
           no: no,
         );
         final statics = services.statics;
+        // Fall back to the raw id when the statics map can't resolve it — it
+        // loads at sign-in, so the first frame after a cold start (or a deep
+        // link straight to a vendor) can find it empty. Dropping the row there
+        // instead would make [hasContent] a superset of what `build` renders,
+        // and this card never self-hides, so the grid would keep an empty
+        // bordered "Details" box. Same fallback as `ClientDetailDetailsCard`.
         final currencyName = vendor.currencyId.isEmpty
             ? ''
-            : (statics.currency(vendor.currencyId)?.name ?? '');
+            : (statics.currency(vendor.currencyId)?.name ?? vendor.currencyId);
         final languageName = vendor.languageId.isEmpty
             ? ''
-            : (statics.language(vendor.languageId)?.name ?? '');
+            : (statics.language(vendor.languageId)?.name ?? vendor.languageId);
         final lastLoginText = vendor.lastLogin == null
             ? ''
             : (formatter?.date(vendor.lastLogin!.toIso8601String()) ??
@@ -259,6 +302,17 @@ class VendorDetailAddressCard extends StatelessWidget {
 
   final Vendor vendor;
 
+  /// Whether any address field is populated. The card also self-hides, but the
+  /// stacked layout has to know *before* building it — see the gap note on
+  /// [VendorDetailCardsGrid]. Mirrors `ClientDetailShippingAddressCard.hasContent`.
+  static bool hasContent(Vendor v) =>
+      v.address1.isNotEmpty ||
+      v.address2.isNotEmpty ||
+      v.city.isNotEmpty ||
+      v.state.isNotEmpty ||
+      v.postalCode.isNotEmpty ||
+      v.countryId.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final countryObj = vendor.countryId.isEmpty
@@ -298,20 +352,40 @@ class VendorDetailAddressCard extends StatelessWidget {
 
 // ───────────────────────── Contacts ─────────────────────────
 
+/// "Contacts" card on the vendor detail screen.
+///
+/// Hides entirely when no contact has a name, email or phone. `contacts` is
+/// never empty in practice — a vendor carries an all-blank contact the user
+/// never filled in — so the question is [VendorContactIdentity.isBlank] per
+/// row, not `contacts.isEmpty` (invoiceninja/flutter#115). Mirror of
+/// `ClientDetailContactsCard` (which additionally caps its inline rows).
 class VendorDetailContactsCard extends StatelessWidget {
   const VendorDetailContactsCard({super.key, required this.contacts});
 
   final List<VendorContact> contacts;
 
+  /// Whether [build] renders at least one row — the grid gates both its wide
+  /// column and its stacked entry on this. Takes the contact list rather than
+  /// the `Vendor` (unlike the sibling cards' `hasContent(Vendor)`) because
+  /// that is what this card is constructed from.
+  static bool hasContent(List<VendorContact> contacts) =>
+      contacts.any((c) => !c.isBlank);
+
   @override
   Widget build(BuildContext context) {
-    if (contacts.isEmpty) return const SizedBox.shrink();
+    final rows = _visibleContacts(contacts);
+    if (rows.isEmpty) return const SizedBox.shrink();
     return DashboardCardShell(
       title: context.tr('contacts'),
-      child: DetailRowStack(children: contacts.map(_ContactRow.new).toList()),
+      child: DetailRowStack(children: rows.map(_ContactRow.new).toList()),
     );
   }
 }
+
+/// The contacts worth rendering. A blank one has nothing to show but
+/// `(no name)` and a primary star.
+List<VendorContact> _visibleContacts(List<VendorContact> contacts) =>
+    contacts.where((c) => !c.isBlank).toList(growable: false);
 
 class _ContactRow extends StatelessWidget {
   const _ContactRow(this.contact);

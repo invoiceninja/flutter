@@ -85,3 +85,37 @@ extension ContactCopy on Contact {
     'custom_value4': customValue4,
   };
 }
+
+/// Whether the user has given this contact any identity at all.
+///
+/// The server creates one all-blank contact for every client — literally
+/// `//always made sure we have one blank contact to maintain state` in
+/// `ClientContactRepository::save` — so a client the user never gave contact
+/// details to still carries a row the detail card used to render
+/// (invoiceninja/flutter#115). Read as "nothing was typed here" by both that
+/// card (which filters these out) and `ClientEditViewModel`'s discard prompt.
+///
+/// **The `trim()` is load-bearing, not defensive.** That server-side factory
+/// sets `email = ' '` — a literal single space — and nothing between the wire
+/// and here trims it, so without the trim every seeded client contact reads as
+/// non-blank. (The vendor twin gets `''`, which is why the same row showed
+/// `(no name)` on a vendor but a blank title on a client.)
+///
+/// Otherwise deliberately narrow. [link] stays out even though the detail row
+/// builds portal buttons from it: the server mints a portal link for the blank
+/// contact too, so counting it would filter nothing at all (React's
+/// `clients/show/components/Contacts.tsx` omits it from the same test, and the
+/// portal is still reachable from `ClientAction.clientPortal`). [isPrimary] is
+/// the flag that same factory sets on the row it created. `customValue1..4`
+/// are out because the **detail cards** don't render them; the contact
+/// *editors* do (`client_edit_contacts_section.dart`), so the edit VMs' discard
+/// prompt misses a custom-value-only edit — a pre-existing gap this predicate
+/// inherited unchanged from the two `_isBlankContact` twins it replaced. A card
+/// that starts rendering them must widen its own `hasContent`, never this.
+extension ContactIdentity on Contact {
+  bool get isBlank =>
+      firstName.trim().isEmpty &&
+      lastName.trim().isEmpty &&
+      email.trim().isEmpty &&
+      phone.trim().isEmpty;
+}

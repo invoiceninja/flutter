@@ -17,6 +17,19 @@ class ClientDetailAddressCard extends StatelessWidget {
 
   final Client client;
 
+  /// Whether any address field is populated. The card also self-hides, but the
+  /// stacked layout has to know *before* building it — see the gap note on
+  /// `ClientDetailCardsGrid` — which needs it in the stacked layout *and* in
+  /// the wide grid's middle column, where this card stacks above Shipping.
+  /// Mirrors `ClientDetailShippingAddressCard.hasContent`.
+  static bool hasContent(Client c) =>
+      c.address1.isNotEmpty ||
+      c.address2.isNotEmpty ||
+      c.city.isNotEmpty ||
+      c.state.isNotEmpty ||
+      c.postalCode.isNotEmpty ||
+      c.countryId.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     // Resolve the country once — its name AND its swap_postal_code flag, which

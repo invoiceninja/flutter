@@ -16,8 +16,9 @@ import '../../../../_support/phone_actions_test_services.dart';
 /// The narrow vendor row's call button (invoiceninja/flutter#111) — the
 /// `ClientListTile` twin. Deliberately lighter: the shared behaviour is pinned
 /// in `client_list_tile_test.dart` and `party_call_button_test.dart`; what is
-/// worth asserting here is that the wiring reached this tile at all, and that
-/// the picker doesn't claim to know a vendor's local time.
+/// worth asserting here is that the wiring reached this tile at all, that the
+/// picker doesn't claim to know a vendor's local time, and that the subtitle's
+/// blank fallback (invoiceninja/flutter#112) didn't stay behind on this side.
 void main() {
   late FakeUrlLauncher launcher;
   late PhoneActionsTestServices services;
@@ -87,6 +88,34 @@ void main() {
   ) async {
     await pumpRow(tester, vendor());
     expect(callIcon(), findsNothing);
+  });
+
+  testWidgets('a subtitle with nothing to say is blank, not dashed', (
+    tester,
+  ) async {
+    // `vendor()` has no contact, city or number — the only path to
+    // `_SubtitleLine`'s fallback. The client twin carried this change too, and
+    // without an assertion here the em dash could come back on one side while
+    // the other stayed green.
+    await pumpRow(tester, vendor());
+    expect(find.text('—'), findsNothing);
+    final bareNameDy = tester.getCenter(find.text('Globex Supplies')).dy;
+
+    await pumpRow(
+      tester,
+      Vendor.fromApi(
+        const VendorApi(id: 'v1', name: 'Globex Supplies', city: 'Springfield'),
+      ),
+    );
+
+    // The name's position, not the row height: the 44 px `…` button floors the
+    // row at 72 either way, so a height assertion would pass even if the blank
+    // subtitle collapsed — which is the one thing this forbids.
+    expect(
+      tester.getCenter(find.text('Globex Supplies')).dy,
+      bareNameDy,
+      reason: 'the blank subtitle must keep its line box',
+    );
   });
 
   testWidgets('is absent in multi-select and on the wide table row', (

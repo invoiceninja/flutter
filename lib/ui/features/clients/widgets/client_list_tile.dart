@@ -56,7 +56,8 @@ class ClientListTile extends StatefulWidget {
   /// Built from `Services.formatterFor(companyId)` by the parent screen.
   /// Resolves per-client currency overrides via `client.currencyId`. Null
   /// while the screen's `formatterFor` future is still resolving — in that
-  /// transient state the money columns render as `—`.
+  /// transient state the narrow row's money lines render nothing at all, so
+  /// no placeholder flashes in before the real value lands.
   final Formatter? formatter;
 
   /// Columns to render in wide mode. Empty list falls back to the legacy
@@ -131,17 +132,27 @@ class _ClientListTileState extends State<ClientListTile> {
     final tokens = context.inTheme;
     final displayName = _displayName(w.client);
     final state = _stateFor(w.client);
+    // `outstandingPositive` drives styling only — a *negative* balance is a
+    // credit, not an overdue debt, so it renders in plain ink rather than the
+    // bold `overdue` red.
     final outstandingPositive = w.client.balance > Decimal.zero;
+    // `zeroIsNull` is what hides an empty money line (invoiceninja/flutter#112):
+    // it blanks exactly zero while formatting a negative normally, so a client
+    // in credit renders and one with no activity renders nothing. One predicate
+    // for both lines, and it covers the transient null-formatter state for
+    // free — see `_money`.
     final formattedOutstanding =
         w.formatter?.money(
           w.client.balance,
           clientCurrencyId: w.client.currencyId,
+          zeroIsNull: true,
         ) ??
         '';
     final formattedPaid =
         w.formatter?.money(
           w.client.paidToDate,
           clientCurrencyId: w.client.currencyId,
+          zeroIsNull: true,
         ) ??
         '';
 
@@ -219,39 +230,51 @@ class _ClientListTileState extends State<ClientListTile> {
     required Widget? callButton,
   }) {
     final w = widget;
+    final outstandingLine = _money(
+      formattedOutstanding,
+      bold: outstandingPositive,
+      color: outstandingPositive ? tokens.overdue : tokens.ink,
+    );
+    final paidLine = _money(formattedPaid, color: tokens.ink3, fontSize: 11);
+    final moneyLines = <Widget>[
+      if (outstandingLine != null) outstandingLine,
+      if (paidLine != null) paidLine,
+    ];
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _leading(displayName),
         const SizedBox(width: 12),
         Expanded(child: _identity(context, tokens, displayName)),
+        // Stays unconditional even when the money block collapses: it is the
+        // identity column's right margin, and without it a long ellipsized
+        // name would sit 4 px from the `…` icon on a row that has neither
+        // money nor a pill.
         const SizedBox(width: 12),
         // Cap the money column so a pathological amount (huge balance in a
         // wide currency) ellipsizes instead of overflowing the row. The cap is
         // generous — realistic balances render in full, so the identity
         // (Expanded above) keeps its normal width; only extreme values clip.
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 160),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _money(
-                formattedOutstanding,
-                isZero: !outstandingPositive,
-                bold: outstandingPositive,
-                color: outstandingPositive ? tokens.overdue : tokens.ink3,
-              ),
-              const SizedBox(height: 2),
-              _money(
-                formattedPaid,
-                isZero: w.client.paidToDate == Decimal.zero,
-                color: tokens.ink3,
-                fontSize: 11,
-              ),
-            ],
+        //
+        // The block is already variable-width (`min` under a 160 cap), so
+        // dropping it entirely on a client with no activity only widens a
+        // range the row already had — and hands the longest names the space.
+        if (moneyLines.isNotEmpty)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 160),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                moneyLines.first,
+                // The 2 px gap exists only *between* two present lines.
+                if (moneyLines.length == 2) ...[
+                  const SizedBox(height: 2),
+                  moneyLines.last,
+                ],
+              ],
+            ),
           ),
-        ),
         if (state != null) ...[
           const SizedBox(width: 8),
           _Pill(state: state, tokens: tokens),
@@ -366,15 +389,26 @@ class _ClientListTileState extends State<ClientListTile> {
     );
   }
 
-  Widget _money(
+  /// One money line, or null when there is nothing to show.
+  ///
+  /// The narrow row omits an empty line entirely rather than rendering the `—`
+  /// the wide table uses (invoiceninja/flutter#112). Don't "unify" the two: the
+  /// dash is right in a table cell, where the column header says what the value
+  /// is and a column of blanks would read as broken — same for the detail KPI
+  /// strip's labelled tiles. Here the two figures carry no labels at all, so a
+  /// stacked `— / —` beside the `…` menu is pure noise.
+  ///
+  /// [text] arrives already blank for zero (the caller passes `zeroIsNull`), so
+  /// visibility has one source of truth rather than two that can disagree.
+  Widget? _money(
     String text, {
-    required bool isZero,
     Color? color,
     bool bold = false,
     double fontSize = 13,
   }) {
+    if (text.isEmpty) return null;
     return Text(
-      isZero ? '—' : text,
+      text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       // Tabular figures align decimal columns row-to-row.
@@ -449,7 +483,13 @@ class _SubtitleLine extends StatelessWidget {
       text = client.number;
       color = tokens.ink3;
     } else {
-      text = '—';
+      // Blank rather than a dash (invoiceninja/flutter#112), but still a
+      // rendered `Text`: an empty one occupies a full line box at the current
+      // text scale, so the name above keeps its vertical position and the name
+      // column doesn't zigzag down a scrolled list — which is what dropping the
+      // widget would cause. A fixed-height `SizedBox` would hold the space too
+      // and clip descenders past ~1.14x text scale.
+      text = '';
       color = tokens.ink4;
     }
 
@@ -545,6 +585,13 @@ String _semanticsLabel({
   parts.add(displayName);
   if (outstandingPositive) {
     parts.add('outstanding $outstanding');
+  } else if (outstanding.isNotEmpty) {
+    // A credit. `outstanding` is blank for exactly zero (the caller passes
+    // `zeroIsNull`), so a non-empty string here can only be a negative balance
+    // — which the row now renders instead of hiding behind a dash, and which
+    // the summary would otherwise drop. `balance`, not `credit`: the formatted
+    // string already carries the sign, so the latter reads "credit -$100.00".
+    parts.add('balance $outstanding');
   } else {
     parts.add('no outstanding balance');
   }

@@ -48,8 +48,9 @@ class VendorListTile extends StatefulWidget {
   final Vendor vendor;
 
   /// Built from `Services.formatterFor(companyId)` by the parent screen.
-  /// Null while the screen's `formatterFor` future is still resolving — in
-  /// that transient state money columns render as `—`.
+  /// Null while the screen's `formatterFor` future is still resolving. The
+  /// narrow row has no money at all (see the class doc), so this only reaches
+  /// the wide table's column cells, which format through `FormatterScope`.
   final Formatter? formatter;
 
   /// Columns to render in wide mode. The narrow layout ignores this — mobile
@@ -317,7 +318,11 @@ class _SubtitleLine extends StatelessWidget {
       text = vendor.number;
       color = tokens.ink3;
     } else {
-      text = '—';
+      // Blank rather than a dash, matching `ClientListTile`'s subtitle
+      // (invoiceninja/flutter#112). Still a rendered `Text`: an empty one keeps
+      // its full line box at the current text scale, so the name above holds
+      // its vertical position instead of zigzagging down a scrolled list.
+      text = '';
       color = tokens.ink4;
     }
 

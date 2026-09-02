@@ -15,6 +15,7 @@ import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
@@ -261,10 +262,17 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          ClientNameLabel(
-            clientId: credit.clientId,
-            link: true,
-            style: TextStyle(color: tokens.ink3),
+          Row(
+            children: [
+              Flexible(
+                child: ClientNameLabel(
+                  clientId: credit.clientId,
+                  link: true,
+                  style: TextStyle(color: tokens.ink3),
+                ),
+              ),
+              PartyCallButton(clientId: credit.clientId),
+            ],
           ),
           const SizedBox(height: 12),
           BillingDatesCaption(

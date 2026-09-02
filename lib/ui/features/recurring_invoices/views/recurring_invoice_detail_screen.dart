@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/recurring_schedule_date.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/domain/recurring_frequency.dart';
@@ -419,10 +420,17 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          ClientNameLabel(
-            clientId: recurringInvoice.clientId,
-            link: true,
-            style: TextStyle(color: tokens.ink3),
+          Row(
+            children: [
+              Flexible(
+                child: ClientNameLabel(
+                  clientId: recurringInvoice.clientId,
+                  link: true,
+                  style: TextStyle(color: tokens.ink3),
+                ),
+              ),
+              PartyCallButton(clientId: recurringInvoice.clientId),
+            ],
           ),
           const SizedBox(height: 16),
           Wrap(

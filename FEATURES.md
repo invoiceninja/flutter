@@ -176,6 +176,7 @@ the honest default.
 | Line item — tax columns follow `enabled_item_tax_rates` instead of always showing one | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — items-section FAB → tabbed multi-select picker (Products / Tasks / Expenses; tasks+expenses client-scoped to uninvoiced; exclude already-attached; Select All per tab; projectId carry-over) — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — picker Tasks tab grouped by project with per-project select-all | ❌ | ❌ | ✅ | | |
+| Billing-doc detail — call the client/vendor from the header: one tap for a single number, a contact picker when there are several — invoice / quote / credit / recurring / PO | ❌ | ❌ | ✅ | | |
 | Billing-doc edit — document-level tax rates (1–3) + custom surcharges (1–4) + inclusive-taxes toggle, gated on company `enabled_tax_rates` / surcharge custom-fields — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | | |
 | Invoice — create | ✅ | ✅ | ✅ | ✅ | |
 | Edit/create screen action bar (Save & mark sent/paid/cancel/auto-bill via save query-param; email/clone/etc. after-save) — all entities | ✅ | ✅ | ✅ | | |
@@ -1078,7 +1079,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
 | Contacts sync — push client contacts to the device address book, under a label, with an All / Assigned-to-me scope (mobile only, local, off by default) | — | — | ✅ | | |
-| Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop) | — | — | ✅ | | |
+| Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop). Also gates the billing-doc header call button | — | — | ✅ | | |
 
 ---
 

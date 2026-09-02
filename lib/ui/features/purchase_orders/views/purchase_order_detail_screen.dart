@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
@@ -283,10 +284,17 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          VendorNameLabel(
-            vendorId: purchaseOrder.vendorId,
-            link: true,
-            style: TextStyle(color: tokens.ink3),
+          Row(
+            children: [
+              Flexible(
+                child: VendorNameLabel(
+                  vendorId: purchaseOrder.vendorId,
+                  link: true,
+                  style: TextStyle(color: tokens.ink3),
+                ),
+              ),
+              PartyCallButton(vendorId: purchaseOrder.vendorId),
+            ],
           ),
           const SizedBox(height: 16),
           // Purchase orders are denominated in the *vendor's* currency, not the
@@ -515,16 +523,23 @@ class _ExpenseLink extends StatelessWidget {
           style: TextStyle(fontSize: 11, color: tokens.ink3),
         ),
         const SizedBox(height: 2),
-        InkWell(
-          onTap: () => context.go('/expenses/$expenseId'),
-          child: Text(
-            // `view_expense_label`: `view_expense` is "View expense # :expense"
-            // and no number is substituted here.
-            context.tr('view_expense_label'),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.primary,
+        // Transparent `Material` so the ink has a host: the enclosing header
+        // is an opaque `Container`, which would otherwise paint over a splash
+        // hosted by the Scaffold above it (same reason as
+        // `DashboardCardShell` and `PartyCallButton`).
+        Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: () => context.go('/expenses/$expenseId'),
+            child: Text(
+              // `view_expense_label`: `view_expense` is
+              // "View expense # :expense" and no number is substituted here.
+              context.tr('view_expense_label'),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
         ),

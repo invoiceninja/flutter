@@ -1,9 +1,11 @@
 # Tap to call — dialling a phone number from the app
 
 Settings → Device Settings → **Phone numbers**. Tapping a phone number opens the platform dialer;
-contact rows also get a Message button. Device-local, with two optional guards. From
+contact rows also get a Message button, and a billing document's header offers a call button beside
+the client's name. Device-local, with two optional guards. From
 [invoiceninja/flutter#109](https://github.com/invoiceninja/flutter/issues/109), where field workers
-were copy-pasting numbers into the phone app.
+were copy-pasting numbers into the phone app, extended by
+[#110](https://github.com/invoiceninja/flutter/issues/110).
 
 ## The shape
 
@@ -16,25 +18,87 @@ callPhoneNumber()               guards, then launch                   lib/ui/cor
   ├─ showConfirmActionDialog()       the one prompt
   └─ launchExternalUri(Uri)          tel: / sms:
 PhoneDetailRow / PhoneNumberValue / ContactLocalTime   lib/ui/core/widgets/phone_number_value.dart
+PartyCallButton / PhoneCallButton    the billing-doc header glyph + picker   lib/ui/core/widgets/party_call_button.dart
+  └─ clientPhoneCandidates()         which numbers, in what order            lib/domain/phone/phone_candidates.dart
 ```
 
 ## Where it applies
 
-Detail screens and contact cards only: client detail (its own phone + every contact), vendor detail
-(same), and a team member's User Details row.
+Detail screens and contact cards: client detail (its own phone + every contact), vendor detail
+(same), a team member's User Details row, and — from
+[#110](https://github.com/invoiceninja/flutter/issues/110) — the header of every billing-doc detail
+screen (see below).
 
 **Not list table cells.** A phone cell that dials would swallow the row tap that opens the record —
 on a phone, exactly the mis-tap the issue was worried about. Numbers in a list stay inert text with
 the usual hover-copy.
 
-Two surfaces are deliberately left out, and both would need work beyond wiring:
+Three surfaces are deliberately left out:
 
-- **A "Call" entity action** in the row / detail actions menu would reach list rows without stealing
-  the row tap, but a client with several contacts has no unambiguous single number — it needs a
-  picker first.
+- **A "Call" entity action** in the row / detail actions menu. #110 built the picker this was
+  waiting on, so it is now only a wiring job (per-entity `EntityActionItem`, `guardedOnTap`, keys) —
+  but it is still not built.
+- **`payment_detail_header.dart`**, which also names a client. It goes through the shared
+  `EntityDetailHeaderHost` rather than a bespoke `_Header`, so it is a different edit; a field
+  worker on a payment has the same problem.
 - **The billing-doc Contacts tab** (invoice / quote / PO) renders name + email only:
   `BillingContact` (`lib/data/models/domain/billing/billing_contact.dart`) carries no phone field,
   so there is no number there to link.
+
+## The billing-doc header button (#110)
+
+`PartyCallButton` / `PhoneCallButton` (`lib/ui/core/widgets/party_call_button.dart`) put a discrete
+phone glyph beside the client (or vendor) name on the Invoice / Quote / Credit / Recurring-invoice /
+Purchase-order detail headers, so a call doesn't cost a trip to the client screen.
+
+**One tap for a single number; a picker otherwise** — and the picker is the *main* path, not the
+edge case: a client with an office line and one contact mobile already has two candidates. Don't
+describe the feature as "one-tap dial".
+
+`clientPhoneCandidates` / `vendorPhoneCandidates` (`lib/domain/phone/phone_candidates.dart`) build
+the list: **primary contact, then the remaining contacts in declaration order, then the party's own
+top-level `phone`**, dropping deleted contacts and anything `cleanPhoneNumber` refuses, deduped on
+the normalised form (a client whose office line is repeated on its primary contact is the common
+case). It is deliberately **not** ordered by the document's `invitations` — an invitation is an
+email-delivery fact, and primary-first is both more predictable and stable from one document to the
+next. A "was sent this document" *marker* on the matching picker rows is the one thing this surface
+knows that the client screen doesn't, and is the obvious next increment.
+
+Six things here are load-bearing, and most of them fail silently:
+
+- **The trigger's box is `actionButtonSize()` wide and only as tall as the name row's line box**
+  (20 px), never the 44 px touch floor. That is CLAUDE.md's touch-target **trap 4** — *cap trailing
+  widgets to the row's content box, not the target* — and it is what keeps the affordance from
+  pushing the dates + KPI strip down ~24 px on five screens, and from doing it *a frame or two late*
+  once the party resolves from Drift. `party_call_button_test.dart`'s `layout` group pins the row
+  height against a no-icon baseline at 1.0× and `kTextScaleMax`.
+- **`Semantics` sits *inside* the `InkWell`, with no `excludeSemantics`.** That flag prunes all
+  descendant semantics, and `InkWell` contributes its tap action as a descendant — wrapping from
+  outside yields a node a screen reader announces and cannot activate. (`PhoneNumberValue` still has
+  this shape; its test only asserts the label.)
+- **The picker returns a candidate; the caller dials afterwards.** `callPhoneNumber` re-checks
+  `context.mounted` only *after* awaiting the timezone cascade, so dialling from the picker's own
+  mid-pop context is a race against the exit animation that silently drops the call **and** its
+  confirm dialog. The button dials with its own context.
+- **The picker re-provides `Services`.** It is a route, so its subtree hangs off a `Navigator` that
+  may sit above the caller's `Provider<Services>`; `ContactLocalTime` reads it.
+- **The local-time line is omitted on the vendor picker.** With a null `clientId` the cascade
+  resolves the *company's* zone — a fair per-number fallback, but a false claim about the vendor's
+  local time once hoisted under "Call Acme Supplies", which is exactly the confident lie this
+  feature refuses to tell.
+- **A bottom sheet on touch, a centered dialog with a pointer** — the split
+  `showLineItemPickerSheet` already makes. `showModalBottomSheet` defaults to
+  `useRootNavigator: false`, so on a wide layout it mounts on the master-detail pane's nested
+  navigator and would be a full-width slab pinned to the bottom of a ~500 px column.
+
+Smaller, but deliberate: the gap between the name and the glyph lives *inside* the button so it
+vanishes with it, and it exists because the name is a `LinkText` whose `GestureDetector` is
+`HitTestBehavior.opaque` — two adjacent targets that do opposite things (dial vs. navigate away).
+Long-press copies on touch and right-click copies with a pointer, because on desktop the detail body
+sits in a `SelectionArea` and the tooltip already claims long-press. The glyph grows a `▾` when
+there is more than one number, so one icon never hides two behaviours. And the picker's footer links
+to the party's own screen — the only way a user can tell "no number stored" from "a number
+`cleanPhoneNumber` refused".
 
 ## The preference
 

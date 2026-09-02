@@ -45,7 +45,7 @@ Plus two non-negotiables carried from admin-portal:
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
 | Sharing a link to a record, or handling an incoming one | § Deep links |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
-| Tap-to-call / SMS on a phone number, or its business-hours warning | `docs/tap-to-call.md` |
+| Tap-to-call / SMS on a phone number, its business-hours warning, or the billing-doc header call button | `docs/tap-to-call.md` |
 | Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
 | Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
 | Working around an open upstream (Flutter/pub) bug — or undoing one later | `docs/upstream-workarounds.md` |
@@ -420,6 +420,20 @@ here are not obvious:
   standard-time only, and comparing it against the DST-aware `DateTime.now().timeZoneOffset` told a
   New York user their New York client was in a foreign zone for eight months a year, then showed
   them a clock an hour behind.
+- **The billing-doc header call button is sized on the axis that has room** (#110). `PartyCallButton`
+  puts a phone glyph beside the client / vendor name on all five billing-doc detail headers: one tap
+  for a single number, a picker otherwise (the picker is the *common* path — an office line plus a
+  contact mobile is already two). Its box is `actionButtonSize()` **wide** and only as tall as the
+  name row's 20 px line box, never the 44 px floor — touch-target **trap 4** ("cap trailing widgets
+  to the row's content box, not the target"), and the thing that stops a 44 px box pushing the dates
+  + KPI strip down on five screens *a frame or two late*, once the party resolves from Drift. Three
+  more silent failure modes it already avoids: `Semantics` goes **inside** the `InkWell` (an
+  outer `excludeSemantics: true` prunes the ink's own tap action, leaving a button a screen reader
+  can announce but not activate); the picker **returns** a candidate and the button dials with its
+  own context (`callPhoneNumber` re-checks `context.mounted` only *after* an await, so dialling from
+  a mid-pop route silently drops the call and its confirm dialog); and the picker re-provides
+  `Services`, since a route's subtree can hang off a `Navigator` above the caller's provider. Zero
+  candidates or `tapToCall: false` collapse it to nothing **before** the Drift watch is mounted.
 
 ## Localization
 

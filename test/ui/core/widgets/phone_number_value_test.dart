@@ -2,11 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-// ignore: depend_on_referenced_packages
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:provider/provider.dart';
-// ignore: depend_on_referenced_packages
-import 'package:url_launcher_platform_interface/link.dart';
 // ignore: depend_on_referenced_packages
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
@@ -25,23 +21,7 @@ import 'package:admin/ui/core/widgets/phone_number_value.dart';
 import 'package:admin/utils/formatting.dart';
 
 import '../../../_localization_helper.dart';
-
-class _FakeLauncher extends UrlLauncherPlatform
-    with MockPlatformInterfaceMixin {
-  final List<String> launched = <String>[];
-
-  @override
-  final LinkDelegate? linkDelegate = null;
-
-  @override
-  Future<bool> canLaunch(String url) async => false;
-
-  @override
-  Future<bool> launchUrl(String url, LaunchOptions options) async {
-    launched.add(url);
-    return true;
-  }
-}
+import '../../../_support/fake_url_launcher.dart';
 
 class _FakeAuth implements AuthRepository {
   @override
@@ -111,7 +91,7 @@ void main() {
   late AppDatabase db;
   late PhoneActionsController phoneActions;
   late _FakeServices services;
-  late _FakeLauncher launcher;
+  late FakeUrlLauncher launcher;
   late UrlLauncherPlatform originalLauncher;
 
   /// Far from every DST boundary and every midnight, so the offsets below
@@ -132,7 +112,7 @@ void main() {
       statics: _FakeStatics(const {'1': utcPlus2}),
     );
     originalLauncher = UrlLauncherPlatform.instance;
-    launcher = _FakeLauncher();
+    launcher = FakeUrlLauncher();
     UrlLauncherPlatform.instance = launcher;
   });
 

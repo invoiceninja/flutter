@@ -1,53 +1,20 @@
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-// ignore: depend_on_referenced_packages
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-// ignore: depend_on_referenced_packages
-import 'package:url_launcher_platform_interface/link.dart';
 // ignore: depend_on_referenced_packages
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 import '../../../_localization_helper.dart';
+import '../../../_support/fake_url_launcher.dart';
 
 /// Payment Links' View button reported "Couldn't open the link" for a URL that
 /// pasted into a browser fine, because every external link in the app gated on
 /// `canLaunchUrl` — a package-visibility query that answers false on plenty of
 /// Android devices where the launch itself works (invoiceninja/flutter#80).
-class _FakeLauncher extends UrlLauncherPlatform
-    with MockPlatformInterfaceMixin {
-  _FakeLauncher({this.results = const [true], this.throwOnLaunch = false});
-
-  /// One entry per `launchUrl` call, in order. The last value repeats.
-  final List<bool> results;
-  final bool throwOnLaunch;
-
-  final List<String> launched = <String>[];
-  final List<PreferredLaunchMode?> modes = <PreferredLaunchMode?>[];
-  int canLaunchCalls = 0;
-
-  @override
-  final LinkDelegate? linkDelegate = null;
-
-  @override
-  Future<bool> canLaunch(String url) async {
-    canLaunchCalls++;
-    // Android 11+ without matching manifest <queries>: always false.
-    return false;
-  }
-
-  @override
-  Future<bool> launchUrl(String url, LaunchOptions options) async {
-    launched.add(url);
-    modes.add(options.mode);
-    if (throwOnLaunch) throw PlatformException(code: 'boom');
-    return results[launched.length.clamp(1, results.length) - 1];
-  }
-}
-
+/// That is why `FakeUrlLauncher.canLaunch` returns a flat false and why
+/// `canLaunchCalls` is asserted to be 0 below.
 void main() {
   late UrlLauncherPlatform original;
 
@@ -56,7 +23,7 @@ void main() {
 
   group('launchExternalUri', () {
     test('launches without ever consulting canLaunchUrl', () async {
-      final fake = _FakeLauncher();
+      final fake = FakeUrlLauncher();
       UrlLauncherPlatform.instance = fake;
 
       expect(await launchExternalUri(Uri.parse('https://example.com/x')), true);
@@ -67,7 +34,7 @@ void main() {
     });
 
     test('falls back to the platform default when external fails', () async {
-      final fake = _FakeLauncher(results: [false, true]);
+      final fake = FakeUrlLauncher(results: [false, true]);
       UrlLauncherPlatform.instance = fake;
 
       expect(await launchExternalUri(Uri.parse('https://example.com')), true);
@@ -78,7 +45,7 @@ void main() {
     });
 
     test('reports failure when every mode fails', () async {
-      final fake = _FakeLauncher(results: [false]);
+      final fake = FakeUrlLauncher(results: [false]);
       UrlLauncherPlatform.instance = fake;
 
       expect(await launchExternalUri(Uri.parse('https://example.com')), false);
@@ -86,7 +53,7 @@ void main() {
     });
 
     test('swallows a thrown launch and reports failure', () async {
-      final fake = _FakeLauncher(throwOnLaunch: true);
+      final fake = FakeUrlLauncher(throwOnLaunch: true);
       UrlLauncherPlatform.instance = fake;
 
       expect(await launchExternalUri(Uri.parse('https://example.com')), false);
@@ -124,7 +91,7 @@ void main() {
     }
 
     testWidgets('opens a safe URL and shows no toast', (tester) async {
-      final fake = _FakeLauncher();
+      final fake = FakeUrlLauncher();
       UrlLauncherPlatform.instance = fake;
       final context = await pumpContext(tester);
 
@@ -136,7 +103,7 @@ void main() {
     });
 
     testWidgets('toasts when the launch fails', (tester) async {
-      final fake = _FakeLauncher(results: [false]);
+      final fake = FakeUrlLauncher(results: [false]);
       UrlLauncherPlatform.instance = fake;
       final context = await pumpContext(tester);
 
@@ -150,7 +117,7 @@ void main() {
     });
 
     testWidgets('never launches an unsafe scheme', (tester) async {
-      final fake = _FakeLauncher();
+      final fake = FakeUrlLauncher();
       UrlLauncherPlatform.instance = fake;
       final context = await pumpContext(tester);
 

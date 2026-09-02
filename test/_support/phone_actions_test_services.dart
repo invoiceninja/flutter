@@ -28,9 +28,12 @@ const kTestForeignTimezone = Timezone(
 /// `Provider<Services>` on every phone surface, so a card carrying a number no
 /// longer renders under a bare `MaterialApp`.
 ///
-/// Everything else throws — this is a harness for *layout* tests, not a
-/// stand-in for the real graph. Behaviour lives in
-/// `test/ui/core/widgets/phone_number_value_test.dart`.
+/// Everything else throws — this is a harness for widgets whose only dependency
+/// on `Services` is the phone-actions slice, not a stand-in for the real graph.
+/// That now includes behaviour tests: `party_call_button_test.dart` and the
+/// two list-tile tests dial, open the picker and assert on the launcher through
+/// it. A widget that needs a repository still wants the shell fixture
+/// (`test/ui/features/shell/_shell_test_helpers.dart`).
 class PhoneActionsTestServices implements Services {
   PhoneActionsTestServices._(this.phoneActions, this._zone);
 
@@ -71,8 +74,34 @@ Widget withPhoneActionsServices(Widget child, {Timezone? timezone}) =>
     );
 
 class _Auth implements AuthRepository {
+  /// Signed in to company `co` with an empty roster.
+  ///
+  /// Two things reach through the auth repo here: `currentCompanyId` (the
+  /// settings cascade's company key) and the admin/owner gate in
+  /// `ClientActions.itemsFor` / `VendorActions.itemsFor`, which a list tile
+  /// builds for its `…` menu. `AuthSession.currentCompany` walks [companies]
+  /// and returns null for an empty one, so the gate reads "not an admin" and
+  /// the admin-only verbs stay out of the menu.
+  ///
+  /// A *null* session with a non-null [currentCompanyId] would be the smaller
+  /// change and is what this fake used to do, but the pair is unreachable in
+  /// production (`AuthRepository.currentCompanyId` is derived from the session)
+  /// and it fails in the wrong direction: `PartyCallButton` resolves its
+  /// company through `session.value`, so it would render `SizedBox.shrink()`
+  /// and let a `findsNothing` pass vacuously instead of throwing.
   @override
-  String? get currentCompanyId => 'co';
+  final ValueListenable<AuthSession?> session = ValueNotifier<AuthSession?>(
+    const AuthSession(
+      baseUrl: 'https://example.test',
+      isHosted: false,
+      accountId: 'acct',
+      companies: [],
+      currentCompanyId: 'co',
+    ),
+  );
+
+  @override
+  String? get currentCompanyId => session.value?.currentCompanyId;
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

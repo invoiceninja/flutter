@@ -720,7 +720,7 @@
   "phone_landscape": "Phone landscape",
   "phone_number": "Phone number",
   "phone_numbers": "Phone numbers",
-  "phone_numbers_help": "Tap or click a phone number to open your dialer. Contact rows also get a Message button.",
+  "phone_numbers_help": "Tap or click a phone number to open your dialer. Contact rows also get a Message button, and on a phone each client and vendor row gets a call button.",
   "phone_portrait": "Phone portrait",
   "php_exec_not_enabled": "PHP Exec Not Enabled",
   "php_info": "PHP Info",

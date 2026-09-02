@@ -141,6 +141,7 @@ the honest default.
 | Client — multiple contacts | ✅ | ✅ | ✅ | ✅ | |
 | Client — import contact from device address book (iOS + Android) | ❌ | ✅ | ✅ | | |
 | Client contacts — sync out to the device address book (caller ID) | ❌ | ❌ | ✅ | | |
+| Client — call from the list row on a phone: one tap for a single number, a contact picker when there are several | ❌ | ❌ | ✅ | | |
 | Phone numbers — tap to call, plus a Message (SMS) action on contact rows | ❌ | 🟡 | ✅ | | |
 | Client/Vendor — contact CC-only | ✅ | ✅ | ✅ | — | — |
 | Client — multiple shipping / billing locations | ✅ | ✅ | ✅ | ✅ | |
@@ -419,6 +420,7 @@ the honest default.
 | Vendor — "New expense / purchase order / recurring expense" shortcuts (prefill vendor) | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — merge into another vendor | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — portal link (open primary contact portal) | ✅ | ✅ | ✅ | ✅ | |
+| Vendor — call from the list row on a phone: one tap for a single number, a contact picker when there are several | ❌ | ❌ | ✅ | | |
 | Vendor — currency / language / classification / tax-exempt / routing id | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — custom fields | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — view vendor expenses / POs / recurring expenses | ✅ | ✅ | ✅ | ✅ | |
@@ -1079,7 +1081,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Confirm actions — "Are you sure?" before Approve / Mark Sent / Cancel / Send Now / Archive / Delete etc. (local, on by default) | — | — | ✅ | | |
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
 | Contacts sync — push client contacts to the device address book, under a label, with an All / Assigned-to-me scope (mobile only, local, off by default) | — | — | ✅ | | |
-| Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop). Also gates the billing-doc header call button | — | — | ✅ | | |
+| Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop). Also gates the billing-doc header and list-row call buttons | — | — | ✅ | | |
 
 ---
 

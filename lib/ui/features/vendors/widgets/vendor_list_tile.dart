@@ -5,6 +5,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/vendor_columns.dart';
+import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
@@ -12,6 +13,7 @@ import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/initials_avatar.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
+import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_actions.dart';
 import 'package:admin/utils/formatting.dart';
@@ -36,6 +38,7 @@ class VendorListTile extends StatefulWidget {
     this.onAction,
     this.onLongPress,
     this.onSelectTap,
+    this.onViewRecord,
     this.selecting = false,
     this.selected = false,
     this.urlSelected = false,
@@ -56,6 +59,12 @@ class VendorListTile extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onSelectTap;
+
+  /// Navigates to this vendor's record, unconditionally — unlike [onTap],
+  /// which toggles selection in multi-select mode and *closes* the pane when
+  /// the row is already URL-selected. Feeds the "View vendor" footer of the
+  /// narrow row's call-button picker. See `ClientListTile.onViewRecord`.
+  final VoidCallback? onViewRecord;
   final bool wide;
 
   /// False when the row is archived/soft-deleted; greys the wide-table
@@ -92,7 +101,13 @@ class _VendorListTileState extends State<VendorListTile> {
       padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
       child: w.wide
           ? _wide(context, tokens, displayName: displayName, state: state)
-          : _narrow(context, tokens, displayName: displayName, state: state),
+          : _narrow(
+              context,
+              tokens,
+              displayName: displayName,
+              state: state,
+              callButton: _callButton(displayName),
+            ),
     );
 
     return Semantics(
@@ -114,11 +129,33 @@ class _VendorListTileState extends State<VendorListTile> {
     );
   }
 
+  /// The narrow row's dial affordance (invoiceninja/flutter#111) — the
+  /// `ClientListTile._callButton` twin; see there for why the candidate walk
+  /// runs before the preference check and why it hides in multi-select.
+  ///
+  /// No `clientId:`: a vendor has no settings cascade of its own, so the
+  /// picker correctly omits the local-time line rather than quoting the
+  /// *company's* zone under `Call <vendor>`.
+  Widget? _callButton(String displayName) {
+    final w = widget;
+    if (w.selecting) return null;
+    final candidates = vendorPhoneCandidates(w.vendor);
+    if (candidates.isEmpty) return null;
+    return PhoneCallButton(
+      variant: PhoneCallButtonVariant.listRow,
+      candidates: candidates,
+      partyName: displayName,
+      onViewParty: w.onViewRecord,
+      viewPartyLabelKey: 'view_vendor',
+    );
+  }
+
   Widget _narrow(
     BuildContext context,
     InTheme tokens, {
     required String displayName,
     required _RowState? state,
+    required Widget? callButton,
   }) {
     final w = widget;
     return Row(
@@ -131,8 +168,13 @@ class _VendorListTileState extends State<VendorListTile> {
           const SizedBox(width: 8),
           _Pill(state: state, tokens: tokens),
         ],
+        // Trailing action cluster — see `ClientListTile._narrow` for why both
+        // controls hang off the row's right edge, why the gap below widens to 8
+        // only when the call button is present, and why it is `InSpacing.sm`
+        // rather than the wide table's `kColActionsClusterGap`.
+        if (callButton != null) callButton,
         if (w.onAction != null) ...[
-          const SizedBox(width: 4),
+          SizedBox(width: callButton != null ? InSpacing.sm : 4),
           EntityActionsPopupButton<VendorAction>(
             items: VendorActions.itemsFor(context, w.vendor, w.onAction!),
           ),

@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/columns/client_columns.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
@@ -13,6 +14,7 @@ import 'package:admin/ui/core/list/selectable_list_row.dart';
 import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/initials_avatar.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
+import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/clients/widgets/client_actions.dart';
 import 'package:admin/utils/formatting.dart';
@@ -42,6 +44,7 @@ class ClientListTile extends StatefulWidget {
     this.onAction,
     this.onLongPress,
     this.onSelectTap,
+    this.onViewRecord,
     this.selecting = false,
     this.selected = false,
     this.urlSelected = false,
@@ -74,6 +77,17 @@ class ClientListTile extends StatefulWidget {
   /// this row toggled. In selection mode the checkbox is always visible
   /// and tapping it likewise toggles.
   final VoidCallback? onSelectTap;
+
+  /// Navigates to this client's record, unconditionally — unlike [onTap],
+  /// which toggles selection in multi-select mode and *closes* the pane when
+  /// the row is already URL-selected.
+  ///
+  /// Feeds the "View client" footer of the narrow row's call-button picker,
+  /// the escape hatch for a number `cleanPhoneNumber` refused to offer. Lives
+  /// on the screen rather than in here because `goEntityRecord` needs a
+  /// `GoRouter`, and the tile is the one piece of this that stays pumpable
+  /// without one.
+  final VoidCallback? onViewRecord;
 
   /// True for the wide table-style row; false for the narrow stacked tile.
   final bool wide;
@@ -143,6 +157,7 @@ class _ClientListTileState extends State<ClientListTile> {
               formattedOutstanding: formattedOutstanding,
               formattedPaid: formattedPaid,
               outstandingPositive: outstandingPositive,
+              callButton: _callButton(displayName),
             ),
     );
 
@@ -167,6 +182,32 @@ class _ClientListTileState extends State<ClientListTile> {
     );
   }
 
+  /// The narrow row's dial affordance (invoiceninja/flutter#111), or null when
+  /// there is nothing to offer — in which case the row mounts no phone widget
+  /// at all, not even the `PhoneActionsScope` listener inside one.
+  ///
+  /// The candidate walk runs *before* any preference check, deliberately: it is
+  /// a short list walk over data the row already holds, whereas a
+  /// `ListenableBuilder` on every row is the heavier of the two. A row that
+  /// does have a number keeps its scope even while `tapToCall` is off, so
+  /// flipping the switch in Settings brings the icons back in place.
+  ///
+  /// Hidden in multi-select for the same reason the `…` menu is: the row's tap
+  /// means "toggle" there, and a dial target inside it is a mis-tap magnet.
+  Widget? _callButton(String displayName) {
+    final w = widget;
+    if (w.selecting) return null;
+    final candidates = clientPhoneCandidates(w.client);
+    if (candidates.isEmpty) return null;
+    return PhoneCallButton(
+      variant: PhoneCallButtonVariant.listRow,
+      candidates: candidates,
+      partyName: displayName,
+      clientId: w.client.id,
+      onViewParty: w.onViewRecord,
+    );
+  }
+
   Widget _narrow(
     BuildContext context,
     InTheme tokens, {
@@ -175,6 +216,7 @@ class _ClientListTileState extends State<ClientListTile> {
     required String formattedOutstanding,
     required String formattedPaid,
     required bool outstandingPositive,
+    required Widget? callButton,
   }) {
     final w = widget;
     return Row(
@@ -214,8 +256,26 @@ class _ClientListTileState extends State<ClientListTile> {
           const SizedBox(width: 8),
           _Pill(state: state, tokens: tokens),
         ],
+        // Trailing action cluster, after the money column and the status pill.
+        // Both controls hang off the row's right edge, so both boxes land at
+        // the same x down the list; what moves instead is the money block's
+        // right edge, by 52 (the button plus the leading gap it carries), on a
+        // row that has no number to dial. The status pill already shifts it
+        // further than that, and of the two the *interactive* columns are the
+        // ones a thumb needs to find in the same place every row.
+        if (callButton != null) callButton,
         if (w.onAction != null) ...[
-          const SizedBox(width: 4),
+          // 8 rather than the usual 4 only when the call button is there:
+          // Material wants >= 8 dp between adjacent *tap targets*, which is
+          // what these two now are. With no button the neighbour is an inert
+          // status pill and 4 stays, matching the other narrow tiles.
+          //
+          // `InSpacing.sm`, NOT `kColActionsClusterGap` — same value, but that
+          // constant is load-bearing for the *wide* table: `colWMoreMenu()`
+          // derives from it and `computeTableMinWidth` from that, so turning it
+          // to retune this narrow cluster would silently move every entity's
+          // column headers. `task_list_tile.dart` makes the same call.
+          SizedBox(width: callButton != null ? InSpacing.sm : 4),
           EntityActionsPopupButton<ClientAction>(
             items: ClientActions.itemsFor(context, w.client, w.onAction!),
           ),

@@ -74,6 +74,9 @@ class VendorListScreen extends StatelessWidget {
               : () => goEntityRecord(context, vm.entityType, vendor.id),
           onLongPress: () => vm.toggleSelected(vendor.id),
           onSelectTap: () => vm.toggleSelected(vendor.id),
+          // Always *to* the record, unlike `onTap` above — this feeds the call
+          // picker's "View vendor" footer.
+          onViewRecord: () => goEntityRecord(context, vm.entityType, vendor.id),
           onAction: options.selecting
               ? null
               : (action) => VendorActions.dispatch(

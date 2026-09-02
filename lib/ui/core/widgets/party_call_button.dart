@@ -18,8 +18,8 @@ import 'package:admin/ui/core/widgets/detail_info_row.dart';
 import 'package:admin/ui/core/widgets/phone_number_value.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 
-/// Height of the trigger's layout box: the `bodyMedium` line box of the name
-/// row it sits in, at text scale 1.0.
+/// Height of the [PhoneCallButtonVariant.inline] trigger's layout box: the
+/// `bodyMedium` line box of the name row it sits in, at text scale 1.0.
 ///
 /// **Not** [InSizes.touchTarget], and that is the whole point. A 44 px-tall
 /// box would drive the row's cross axis and push the dates + KPI strip down
@@ -35,10 +35,53 @@ import 'package:admin/ui/core/widgets/watch_builder.dart';
 /// `party_call_button_test.dart`'s `layout` group pins that at 1.0x and at
 /// `kTextScaleMax`, so bumping the app's base font size will fail there rather
 /// than silently shifting five screens.
+///
+/// [PhoneCallButtonVariant.listRow] deliberately does **not** use it — see
+/// there for why the same trade points the other way in a list row.
 const double _kTriggerHeight = 20;
 
 /// Extra width for the `▾` affordance when there is more than one number.
+///
+/// [PhoneCallButtonVariant.inline] only. `listRow` fits the caret *inside* its
+/// larger target instead of widening the box — see there.
 const double _kCaretWidth = 12;
+
+/// Where a [PhoneCallButton] is being rendered, which is the one thing that
+/// decides its box, its alignment, its weight and whether it claims the
+/// secondary gesture. Four knobs that always move together, so one parameter
+/// rather than four booleans a caller could mix incoherently.
+enum PhoneCallButtonVariant {
+  /// Beside a party's name in a detail header (invoiceninja/flutter#110).
+  ///
+  /// [_kTriggerHeight] tall so it can never drive the name row's cross axis;
+  /// glyph start-aligned so it reads as attached to the name it acts on;
+  /// 16/14 px icons, sized to sit with 14 px body text; long-press (touch) or
+  /// right-click (pointer) copies the number.
+  inline,
+
+  /// A standalone control in an entity-list row's trailing action cluster
+  /// (invoiceninja/flutter#111).
+  ///
+  /// Four deliberate differences from [inline], each the mirror image of a
+  /// header constraint that doesn't apply here:
+  ///
+  ///  * **An [actionButtonSize()]-tall box** — square on touch (44), and on a
+  ///    pointer as wide as its glyphs need (see the `math.max` in `_build`).
+  ///    Trap 4 says reclaim the target on the axis that has room; in a header
+  ///    that axis is horizontal, in a list row it is *vertical* — the row is
+  ///    already floored at [kEntityListRowHeight] and the sibling `…` menu is
+  ///    already [actionButtonSize()] tall, so 44 px adds no height at all.
+  ///  * **Centred glyph**, because the `…` beside it is a centred `IconButton`
+  ///    and a start-aligned one sits ~14 px off its neighbour's axis.
+  ///  * **20/18 px icons in `ink2`.** That `…` is an M3 `IconButton`: 24 px in
+  ///    `onSurfaceVariant`, which `theme.dart` maps to `ink2`. At the inline
+  ///    16 px `ink3` the call glyph reads as a faint afterthought next to it.
+  ///  * **No secondary gesture.** The row owns long-press (enter multi-select);
+  ///    a copy toast where the user expected selection is the wrong trade. With
+  ///    no child `LongPressGestureRecognizer` the gesture falls straight
+  ///    through to the row.
+  listRow,
+}
 
 /// The phone affordance beside a billing document's client / vendor name
 /// (invoiceninja/flutter#110).
@@ -166,9 +209,14 @@ class PhoneCallButton extends StatefulWidget {
     this.clientId,
     this.onViewParty,
     this.viewPartyLabelKey = 'view_client',
+    this.variant = PhoneCallButtonVariant.inline,
   });
 
   final List<PhoneCandidate> candidates;
+
+  /// Box, alignment, icon weight and secondary gesture. See
+  /// [PhoneCallButtonVariant] — the five billing-doc headers take the default.
+  final PhoneCallButtonVariant variant;
 
   /// Names the party in the picker's title. Not a fallback for a contact name.
   final String partyName;
@@ -205,6 +253,22 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
 
     final tokens = context.inTheme;
     final multi = candidates.length > 1;
+    final listRow = widget.variant == PhoneCallButtonVariant.listRow;
+    final idle = listRow ? tokens.ink2 : tokens.ink3;
+    final glyph = listRow ? 20.0 : 16.0;
+    final caret = listRow ? 18.0 : 14.0;
+    // `listRow` fits the caret *inside* the target rather than bolting
+    // [_kCaretWidth] on beside it: a 44 px box already has room for 20 + 18,
+    // and in a list row those 12 px come straight out of the client's name.
+    // The `max` is the pointer case, where the target is only 32 and the
+    // glyphs genuinely need more. Icons don't scale with text (`Icon`
+    // defaults `applyTextScaling` to false), so this is a fixed comparison.
+    final width = listRow
+        ? math.max(actionButtonSize(), glyph + (multi ? caret : 0))
+        : actionButtonSize() + (multi ? _kCaretWidth : 0);
+    // Touch keeps the secondary gesture only on the inline variant; in a list
+    // row the long-press belongs to the row (enter multi-select).
+    final secondary = listRow ? null : () => _onSecondary(context);
 
     Widget button = Material(
       // The header card is an opaque `Container` and `EntityDetailScaffold`
@@ -218,8 +282,8 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
         // and the tooltip below already claims long-press, so an unconditional
         // handler would put three consumers in one subtree — and no test would
         // see it, since `flutter test` reports android.
-        onLongPress: Env.isTouchPrimary ? () => _onSecondary(context) : null,
-        onSecondaryTap: Env.isTouchPrimary ? null : () => _onSecondary(context),
+        onLongPress: Env.isTouchPrimary ? secondary : null,
+        onSecondaryTap: Env.isTouchPrimary ? null : secondary,
         onHover: (value) {
           if (value != _hovering) setState(() => _hovering = value);
         },
@@ -233,28 +297,34 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
           button: true,
           label: _semanticsLabel(context, multi: multi),
           child: SizedBox(
-            width: actionButtonSize() + (multi ? _kCaretWidth : 0),
-            height: _kTriggerHeight,
+            width: width,
+            height: listRow ? actionButtonSize() : _kTriggerHeight,
             child: Row(
-              // Start-aligned, not centred: the box is 44 px wide for the
-              // finger, but the *glyph* has to sit next to the name it acts
-              // on — centring it strands the icon ~22 px out in the slack and
-              // it reads as unattached. The extra width extends rightwards
-              // into empty row space instead.
-              mainAxisAlignment: MainAxisAlignment.start,
+              // Inline: start-aligned, not centred — the box is 44 px wide for
+              // the finger, but the *glyph* has to sit next to the name it acts
+              // on, and centring it strands the icon ~22 px out in the slack
+              // where it reads as unattached. The extra width extends
+              // rightwards into empty row space instead.
+              //
+              // In a list row there is no name to attach to and the `…` next
+              // to it is a centred `IconButton`, so centring is what puts the
+              // two glyphs on one axis.
+              mainAxisAlignment: listRow
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
               children: [
                 Icon(
                   Icons.call_outlined,
-                  size: 16,
-                  color: _hovering ? tokens.accent : tokens.ink3,
+                  size: glyph,
+                  color: _hovering ? tokens.accent : idle,
                 ),
                 // The house "this opens a list" marker. Without it, one glyph
                 // would hide two different behaviours.
                 if (multi)
                   Icon(
                     Icons.arrow_drop_down,
-                    size: 14,
-                    color: _hovering ? tokens.accent : tokens.ink3,
+                    size: caret,
+                    color: _hovering ? tokens.accent : idle,
                   ),
               ],
             ),
@@ -270,12 +340,14 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
       );
     }
     // The gap lives here, not at the call site, so it disappears along with
-    // the button when there is nothing to dial. It is not decorative: the
-    // name beside this is a `LinkText`, whose `GestureDetector` is
-    // `HitTestBehavior.opaque` and runs right up to our edge — two adjacent
-    // targets that do opposite things (dial the party vs. navigate away from
-    // this document). Same rule `kColActionsClusterGap` states for the list
-    // table's action cluster.
+    // the button when there is nothing to dial. It is not decorative, in
+    // either variant: inline, the name beside this is a `LinkText` whose
+    // `GestureDetector` is `HitTestBehavior.opaque` and runs right up to our
+    // edge; in a list row the whole row is a tap target that opens the record.
+    // Two adjacent targets that do opposite things (dial the party vs.
+    // navigate away) — the same rule `kColActionsClusterGap` states for the
+    // list table's action cluster, and the reason the tile puts that constant
+    // on our other side.
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: InSpacing.sm),
       child: button,

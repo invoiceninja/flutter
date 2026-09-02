@@ -45,7 +45,7 @@ Plus two non-negotiables carried from admin-portal:
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
 | Sharing a link to a record, or handling an incoming one | § Deep links |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
-| Tap-to-call / SMS on a phone number, its business-hours warning, or the billing-doc header call button | `docs/tap-to-call.md` |
+| Tap-to-call / SMS on a phone number, its business-hours warning, or a call button (billing-doc header, list row) | `docs/tap-to-call.md` |
 | Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
 | Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
 | Working around an open upstream (Flutter/pub) bug — or undoing one later | `docs/upstream-workarounds.md` |
@@ -434,6 +434,31 @@ here are not obvious:
   a mid-pop route silently drops the call and its confirm dialog); and the picker re-provides
   `Services`, since a route's subtree can hang off a `Navigator` above the caller's provider. Zero
   candidates or `tapToCall: false` collapse it to nothing **before** the Drift watch is mounted.
+- **The list-row call button reclaims the touch target on the axis the *row* has** (#111). The same
+  `PhoneCallButton` sits in a **narrow** Clients / Vendors row that has a number to dial, after the
+  money column and status pill and before the `…` menu, selected by
+  `PhoneCallButtonVariant.listRow` — the mirror image of trap 4 above: a
+  header had no vertical room so the box stayed 20 px tall and grew sideways, while a row is already
+  floored at `kEntityListRowHeight` and its sibling `…` is already `actionButtonSize()` tall, so the
+  box is **square** and the *width* is what must not grow (the caret is fitted inside the 44 px
+  target instead of adding 12 px, which is worth 7.2 px of overflow at the 500 px sweep floor at
+  1.4× text). Icons go 20/18 in **`ink2`**, not 16/14 in `ink3`, because the `…` beside it is an M3
+  `IconButton` — 24 px in `onSurfaceVariant`, which `theme.dart` maps to `ink2`. Four more rules,
+  each silent if broken: the variant **drops the secondary gesture** so long-press falls through to
+  the row (it enters multi-select — a copy toast there is the wrong trade); the button is **hidden
+  in multi-select**, like the `…` menu, because the row's tap means "toggle"; a row with no dialable
+  number **mounts nothing at all**, so the candidate walk deliberately runs *before* the preference
+  check (a listener per row is heavier than the walk, and a row that has a number keeps its scope
+  while `tapToCall` is off so flipping the switch heals it in place); and the picker's "View client"
+  footer is wired from the **screen** (`onViewRecord`), not the tile, because it must navigate
+  unconditionally where `onTap` toggles or closes, and because `goEntityRecord` needs a `GoRouter`
+  the tile is otherwise pumpable without. The 8 px it needs beside the `…` (Material's floor between
+  adjacent tap targets, widened from the tiles' usual 4 only when the button is there) is
+  **`InSpacing.sm`, never `kColActionsClusterGap`** — identical value, but that constant feeds
+  `colWMoreMenu()` and through it `computeTableMinWidth`, so borrowing it to retune a *narrow*
+  cluster would silently move every entity's wide column headers. Narrow only — a wide-table slot
+  would have to be mirrored into that same shared strip, so a landscape phone and every tablet get
+  no button.
 
 ## Localization
 

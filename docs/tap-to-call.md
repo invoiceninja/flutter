@@ -1,11 +1,13 @@
 # Tap to call — dialling a phone number from the app
 
 Settings → Device Settings → **Phone numbers**. Tapping a phone number opens the platform dialer;
-contact rows also get a Message button, and a billing document's header offers a call button beside
-the client's name. Device-local, with two optional guards. From
+contact rows also get a Message button, a billing document's header offers a call button beside the
+client's name, and on a phone a Clients / Vendors row with a number stored carries one too. Device-local, with two
+optional guards. From
 [invoiceninja/flutter#109](https://github.com/invoiceninja/flutter/issues/109), where field workers
 were copy-pasting numbers into the phone app, extended by
-[#110](https://github.com/invoiceninja/flutter/issues/110).
+[#110](https://github.com/invoiceninja/flutter/issues/110) and
+[#111](https://github.com/invoiceninja/flutter/issues/111).
 
 ## The shape
 
@@ -18,8 +20,10 @@ callPhoneNumber()               guards, then launch                   lib/ui/cor
   ├─ showConfirmActionDialog()       the one prompt
   └─ launchExternalUri(Uri)          tel: / sms:
 PhoneDetailRow / PhoneNumberValue / ContactLocalTime   lib/ui/core/widgets/phone_number_value.dart
-PartyCallButton / PhoneCallButton    the billing-doc header glyph + picker   lib/ui/core/widgets/party_call_button.dart
+PartyCallButton / PhoneCallButton    the glyph + picker                      lib/ui/core/widgets/party_call_button.dart
+  ├─ PhoneCallButtonVariant          .inline (detail header) / .listRow
   └─ clientPhoneCandidates()         which numbers, in what order            lib/domain/phone/phone_candidates.dart
+ClientListTile._callButton / VendorListTile._callButton   callers, not children: the narrow list row
 ```
 
 ## Where it applies
@@ -27,17 +31,22 @@ PartyCallButton / PhoneCallButton    the billing-doc header glyph + picker   lib
 Detail screens and contact cards: client detail (its own phone + every contact), vendor detail
 (same), a team member's User Details row, and — from
 [#110](https://github.com/invoiceninja/flutter/issues/110) — the header of every billing-doc detail
-screen (see below).
+screen (see below). From [#111](https://github.com/invoiceninja/flutter/issues/111), also the
+**narrow Clients and Vendors list rows** (see below).
 
-**Not list table cells.** A phone cell that dials would swallow the row tap that opens the record —
-on a phone, exactly the mis-tap the issue was worried about. Numbers in a list stay inert text with
-the usual hover-copy.
+**Still not list table *cells*.** A phone cell whose *text* dials would swallow the row tap that
+opens the record — on a phone, exactly the mis-tap #109 was worried about — so numbers in a list
+stay inert text with the usual hover-copy. That rule is about the cell, not about the row: the call
+button #111 added is a discrete icon with its own hit target in the row's trailing action cluster,
+and the row tap is only suppressed inside that box — 44 px on touch, 32 with a pointer — which is
+the point of it.
 
 Three surfaces are deliberately left out:
 
 - **A "Call" entity action** in the row / detail actions menu. #110 built the picker this was
   waiting on, so it is now only a wiring job (per-entity `EntityActionItem`, `guardedOnTap`, keys) —
-  but it is still not built.
+  but it is still not built. It is also the only thing that would reach the **wide** list table,
+  which #111 deliberately did not (see below).
 - **`payment_detail_header.dart`**, which also names a client. It goes through the shared
   `EntityDetailHeaderHost` rather than a bespoke `_Header`, so it is a different edit; a field
   worker on a payment has the same problem.
@@ -100,13 +109,92 @@ there is more than one number, so one icon never hides two behaviours. And the p
 to the party's own screen — the only way a user can tell "no number stored" from "a number
 `cleanPhoneNumber` refused".
 
+## The list-row button (#111)
+
+Every **narrow** Clients and Vendors row with a dialable number carries the same trigger in its
+trailing action cluster — after the money column and the status pill, immediately before the `…`
+menu — so a call costs one tap from the list instead of a trip into the record to hunt for a
+number. `ClientListTile._callButton` / `VendorListTile._callButton` build it
+straight from the `Client` / `Vendor` the row already holds, so there is no `PartyCallButton` and no
+second Drift watch per row.
+
+`PhoneCallButtonVariant.listRow` is the whole difference, and each of its four deltas is the mirror
+image of a header constraint that doesn't apply in a row:
+
+- **A square `actionButtonSize()` box, not the header's 20 px.** Trap 4 says reclaim the target on
+  the axis that has room; in a header that axis is horizontal, in a list row it is *vertical* — the
+  row is floored at `kEntityListRowHeight` (72) and the sibling `…` is already `actionButtonSize()`
+  tall, so 44 px adds no height at all.
+- **A centred glyph**, because the `…` next to it is a centred `IconButton`.
+- **20/18 px icons in `ink2`.** That `…` is an M3 `IconButton`: 24 px in `onSurfaceVariant`, which
+  `theme.dart` maps to `ink2`. At the inline 16 px `ink3` the call glyph read as a faint
+  afterthought beside it.
+- **No secondary gesture.** The row owns long-press — it enters multi-select — and a copy toast
+  where the user expected selection is the wrong trade. With no child `LongPressGestureRecognizer`
+  the gesture falls straight through to the row; `client_list_tile_test.dart` pins that.
+
+Four more things are load-bearing:
+
+- **The caret fits *inside* the target rather than widening it.** A 44 px box already holds 20 + 18,
+  and in a list row an extra 12 px comes straight out of the client's name — enough that the fullest
+  possible row overflowed by 7.2 px at 500 px / 1.4× text before this was fixed. The `math.max`
+  against the glyph pair is for the pointer case, where the target is only 32 and the glyphs really
+  do need more.
+- **A row with no dialable number mounts nothing** — not even the `PhoneActionsScope`
+  `ListenableBuilder` inside the button. The candidate walk therefore runs *before* any preference
+  check: it is a short walk over data the row already holds, while a listener per row is the heavier
+  of the two. A row that *does* have a number keeps its scope even with `tapToCall` off, so flipping
+  the switch brings the icons back in place.
+- **It hides in multi-select**, exactly as the `…` menu does. The row's tap means "toggle" there and
+  a dial target inside it is a mis-tap magnet.
+- **`onViewRecord` comes from the screen, not the tile.** The picker's "View client" footer has to
+  navigate to the record unconditionally — unlike the row's own `onTap`, which toggles selection in
+  multi-select and *closes* the pane when the row is already URL-selected. It lives on the screen
+  because `goEntityRecord` needs a `GoRouter`, and the tile is the one piece of this that stays
+  pumpable without one.
+
+**Only the narrow row, and that is a real gap worth knowing.** A trailing slot in the wide data
+table would have to be mirrored into the shared `EntityListColumnHeaders` strip and
+`computeTableMinWidth`, which every entity reads — a framework change to serve one entity. Since
+`Breakpoints.isWide` is 600 px of *pane* width, that means a **phone in landscape** and every tablet
+get the wide table and no button. `tapToCall` defaults off on desktop, so the pointer audience is
+small either way; the "Call" entity action above is the thing that would close this properly.
+
+**What it costs the row.** Exactly 52 px off the identity column (the button plus its leading
+`InSpacing.sm`). Measured at 390 px in a throwaway golden with the bundled TTFs
+loaded through a `FontLoader`, since the substituted test font is useless for this: a name that had
+177 px keeps 125, and one on a row that also shows a status pill drops from 96 px to 44. The pill is the visibly tight
+case, and it is also the rare one: the Clients list filters to active records by default, so
+`Deleted` / `Archived` only appear behind a status filter and `Unsynced` only with a queued offline
+edit. Two consequences were weighed and accepted:
+
+- **The money block's right edge jogs** by that 52 px between a row that has a number and one that
+  doesn't. Putting the button *before* the money column would fix that and make the ☎ column ragged
+  instead; the interactive columns are the ones a thumb needs to find in the same place every row,
+  and the status pill already shifts money further than this. Reserving a fixed empty slot on
+  numberless rows would hold both alignments but taxes every row of an account that stores no
+  numbers — including the phone user, for whom `tapToCall` is on by default.
+- **Overflow.** `client_list_tile_test.dart`'s `layout` group pins the fullest row the tile can
+  build (status pill + `▾` + a balance wide enough to hit the narrow money cap) at the app's own
+  responsive floor of 500 px, at 1.0× and `kTextScaleMax`. That case has teeth: before the caret was
+  moved inside the target it overflowed there by 7.2 px at 1.4×.
+
+  It does **not** pin that fixture at a handset width, for two reasons. `flutter test` substitutes a
+  font whose every glyph is a full em square, so text measures far wider than it ever will on a
+  device — a 10-character amount is 132.5 px under it against 80.5 px of the bundled JetBrains Mono
+  the money column actually uses (`moneyTextStyle` → `kMonoFontFamily`; the identity column is Inter
+  Tight, and neither is what the test process renders). And under that same substituted font a
+  nine-figure balance overflows a 390 px row *without* the call button at all — 22 px at 1.0×, 53 px
+  at 1.4× measured on the pre-#111 tile — so pinning it would assert a pre-existing limit rather
+  than this change. The handset case uses an ordinary row instead.
+
 ## The preference
 
 Five fields in one JSON blob, `nav_state.phone_actions_json` (schema v7).
 
 | Field | Default | Why |
 |---|---|---|
-| `tapToCall` | `Env.isTouchPrimary` | see below. Gates the call link **and** the Call / Message buttons, checked both where they're drawn and again at fire time. Deliberately **not** the local-time suffix, which is contact context rather than part of the calling flow — so "off" is not quite the pre-#109 rendering. |
+| `tapToCall` | `Env.isTouchPrimary` | see below. Gates the call link, the Call / Message buttons, the billing-doc header glyph **and** the list-row button, checked both where they're drawn and again at fire time. Deliberately **not** the local-time suffix, which is contact context rather than part of the calling flow — so "off" is not quite the pre-#109 rendering. |
 | `confirmBeforeCall` | off | the OS already confirms |
 | `warnOutsideBusinessHours` | on | the only guard the OS can't give you |
 | `startMinutes` / `endMinutes` | 08:00 / 20:00 | generous — it exists to catch a 2 a.m. mis-tap, not to police a working day |

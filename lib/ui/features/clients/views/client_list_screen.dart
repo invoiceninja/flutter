@@ -107,6 +107,10 @@ class ClientListScreen extends StatelessWidget {
           // slot, click here enters multi-select. Same handler as
           // long-press (touch entry).
           onSelectTap: () => vm.toggleSelected(client.id),
+          // Always *to* the record, unlike `onTap` above — this feeds the call
+          // picker's "View client" footer, which exists for exactly the case
+          // where none of the offered numbers is the one the user wanted.
+          onViewRecord: () => goEntityRecord(context, vm.entityType, client.id),
           onAction: options.selecting
               ? null
               : (action) => ClientActions.dispatch(

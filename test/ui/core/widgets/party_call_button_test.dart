@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-// ignore: depend_on_referenced_packages
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:provider/provider.dart';
-// ignore: depend_on_referenced_packages
-import 'package:url_launcher_platform_interface/link.dart';
 // ignore: depend_on_referenced_packages
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
@@ -17,36 +13,18 @@ import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/contact_api_model.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 
 import '../../../_localization_helper.dart';
 import '../../../_responsive_helper.dart';
 import '../../../_support/phone_actions_test_services.dart';
+import '../../../_support/fake_url_launcher.dart';
 import '../../features/shell/_shell_test_helpers.dart';
-
-/// Deliberately local rather than lifted into
-/// `test/_support/phone_actions_test_services.dart` — that file's own doc
-/// scopes it to *layout* tests and points behaviour here.
-class _FakeLauncher extends UrlLauncherPlatform
-    with MockPlatformInterfaceMixin {
-  final List<String> launched = <String>[];
-
-  @override
-  final LinkDelegate? linkDelegate = null;
-
-  @override
-  Future<bool> canLaunch(String url) async => false;
-
-  @override
-  Future<bool> launchUrl(String url, LaunchOptions options) async {
-    launched.add(url);
-    return true;
-  }
-}
 
 void main() {
   late PhoneActionsTestServices services;
-  late _FakeLauncher launcher;
+  late FakeUrlLauncher launcher;
   late UrlLauncherPlatform originalLauncher;
   late List<String> copied;
 
@@ -76,7 +54,7 @@ void main() {
     // for a large slice of the day — a launch assertion under it flakes.)
     services = PhoneActionsTestServices(timezone: null);
     originalLauncher = UrlLauncherPlatform.instance;
-    launcher = _FakeLauncher();
+    launcher = FakeUrlLauncher();
     UrlLauncherPlatform.instance = launcher;
 
     copied = <String>[];
@@ -485,6 +463,166 @@ void main() {
 
       expect(find.text('Jane Smith'), findsOneWidget);
       expectNoOverflow(tester);
+    });
+  });
+
+  // The list-row variant (invoiceninja/flutter#111) inverts the header's
+  // trade: the row has vertical room the header didn't, and it owns the
+  // long-press.
+  group('the listRow variant', () {
+    Future<void> pumpVariant(
+      WidgetTester tester,
+      List<PhoneCandidate> candidates, {
+      required PhoneCallButtonVariant variant,
+      VoidCallback? onLongPress,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(500, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        Provider<Services>.value(
+          value: services,
+          child: MaterialApp(
+            theme: buildInTheme(InTheme.light),
+            localizationsDelegates: kTestLocalizationsDelegates,
+            supportedLocales: kTestSupportedLocales,
+            home: Scaffold(
+              body: Center(
+                // A row-shaped ancestor gesture, so the fall-through below is
+                // asserted against something that would actually receive it.
+                child: GestureDetector(
+                  onLongPress: onLongPress,
+                  child: PhoneCallButton(
+                    variant: variant,
+                    candidates: candidates,
+                    partyName: 'Acme Corporation',
+                    clientId: 'c1',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Size boxOf(WidgetTester tester) => tester.getSize(
+      find.ancestor(of: trigger(), matching: find.byType(SizedBox)).first,
+    );
+
+    testWidgets('is actionButtonSize tall, not the 20 px inline box', (
+      tester,
+    ) async {
+      await pumpVariant(tester, const [
+        jane,
+      ], variant: PhoneCallButtonVariant.inline);
+      expect(boxOf(tester).height, 20);
+
+      await pumpVariant(tester, const [
+        jane,
+      ], variant: PhoneCallButtonVariant.listRow);
+      expect(
+        boxOf(tester).height,
+        actionButtonSize(),
+        reason: 'the row has vertical room the header did not',
+      );
+    });
+
+    // Two candidates, deliberately: with one there is no caret and both
+    // variants are trivially `actionButtonSize()` wide, so a single-candidate
+    // assertion here cannot fail. The 12 px this saves is the whole reason the
+    // fullest client row stops overflowing at the 500 px sweep floor.
+    testWidgets('fits the caret inside the target instead of widening it', (
+      tester,
+    ) async {
+      await pumpVariant(tester, const [
+        jane,
+        bob,
+      ], variant: PhoneCallButtonVariant.inline);
+      expect(find.byIcon(Icons.arrow_drop_down), findsOneWidget);
+      expect(boxOf(tester).width, actionButtonSize() + 12);
+
+      await pumpVariant(tester, const [
+        jane,
+        bob,
+      ], variant: PhoneCallButtonVariant.listRow);
+      expect(find.byIcon(Icons.arrow_drop_down), findsOneWidget);
+      expect(
+        boxOf(tester).width,
+        actionButtonSize(),
+        reason: 'the caret rides inside the 44 px touch target',
+      );
+    });
+
+    testWidgets('carries the heavier glyph that pairs with the … menu', (
+      tester,
+    ) async {
+      final tokens = InTheme.light;
+
+      await pumpVariant(tester, const [
+        jane,
+      ], variant: PhoneCallButtonVariant.inline);
+      var icon = tester.widget<Icon>(trigger());
+      expect(icon.size, 16);
+      expect(icon.color, tokens.ink3);
+
+      await pumpVariant(tester, const [
+        jane,
+      ], variant: PhoneCallButtonVariant.listRow);
+      icon = tester.widget<Icon>(trigger());
+      // The `…` beside it is an M3 `IconButton`: 24 px in `onSurfaceVariant`,
+      // which `theme.dart` maps to `ink2`. At 16 px `ink3` this read as a faint
+      // afterthought next to it.
+      expect(icon.size, 20);
+      expect(icon.color, tokens.ink2);
+    });
+
+    testWidgets('long-press falls through to the row instead of copying', (
+      tester,
+    ) async {
+      var rowLongPressed = false;
+      await pumpVariant(
+        tester,
+        const [jane],
+        variant: PhoneCallButtonVariant.listRow,
+        onLongPress: () => rowLongPressed = true,
+      );
+
+      await tester.longPress(trigger());
+      await tester.pump();
+
+      expect(
+        copied,
+        isEmpty,
+        reason: 'the row owns long-press, not the button',
+      );
+      expect(rowLongPressed, isTrue);
+      expect(launcher.launched, isEmpty);
+    });
+
+    testWidgets('inline still copies on long-press', (tester) async {
+      await pumpVariant(
+        tester,
+        const [jane],
+        variant: PhoneCallButtonVariant.inline,
+        onLongPress: () {},
+      );
+
+      await tester.longPress(trigger());
+      await tester.pump();
+
+      expect(copied, ['+1 415 555 2671']);
+    });
+
+    testWidgets('a tap still dials', (tester) async {
+      await pumpVariant(tester, const [
+        jane,
+      ], variant: PhoneCallButtonVariant.listRow);
+      await tester.tap(trigger());
+      await tester.pump();
+      await tester.pump();
+
+      expect(launcher.launched, ['tel:+14155552671']);
     });
   });
 }

@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/columns/client_columns.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/contact_label.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
@@ -130,7 +131,7 @@ class _ClientListTileState extends State<ClientListTile> {
   Widget build(BuildContext context) {
     final w = widget;
     final tokens = context.inTheme;
-    final displayName = _displayName(w.client);
+    final displayName = _displayName(context, w.client);
     final state = _stateFor(w.client);
     // `outstandingPositive` drives styling only — a *negative* balance is a
     // credit, not an overdue debt, so it renders in plain ink rather than the
@@ -384,7 +385,11 @@ class _ClientListTileState extends State<ClientListTile> {
           ),
         ),
         const SizedBox(height: 2),
-        _SubtitleLine(client: widget.client, tokens: tokens),
+        _SubtitleLine(
+          client: widget.client,
+          tokens: tokens,
+          partyName: displayName,
+        ),
       ],
     );
   }
@@ -459,14 +464,30 @@ class _CellSlot extends StatelessWidget {
 // ─── Subtitle line ─────────────────────────────────────────────────────
 
 class _SubtitleLine extends StatelessWidget {
-  const _SubtitleLine({required this.client, required this.tokens});
+  const _SubtitleLine({
+    required this.client,
+    required this.tokens,
+    required this.partyName,
+  });
   final Client client;
   final InTheme tokens;
+
+  /// The title rendered directly above this line. Passed in rather than
+  /// recomputed so the two can be compared: for an individual the client's
+  /// `display_name` *is* the primary contact's name, and the row printed it
+  /// twice (invoiceninja/flutter#118).
+  final String partyName;
 
   @override
   Widget build(BuildContext context) {
     final contact = _primaryContact(client);
-    final contactLabel = _contactLabel(contact);
+    final contactLabel = contact == null
+        ? ''
+        : contactSubtitleLabel(
+            contactName: '${contact.firstName} ${contact.lastName}',
+            contactEmail: contact.email,
+            partyName: partyName,
+          );
     final city = client.city.trim();
 
     final pieces = <String>[
@@ -546,10 +567,28 @@ class _Pill extends StatelessWidget {
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
-String _displayName(Client c) {
+/// The row's title, and the string [_SubtitleLine] dedupes against.
+///
+/// Falls through to the primary contact for the same reason `clientPickerLabel`
+/// and the vendor twin do: `ClientCreateDialog` accepts a client name **or** a
+/// contact name (`please_enter_a_client_or_contact_name`) and seeds
+/// `copyWith(name:, displayName:)` from the former alone, so a client saved with
+/// only a contact name has both empty — and the row titled it `(no name)`
+/// directly above that very contact's name, which is invoiceninja/flutter#118
+/// inverted (and not something the dedupe can catch, the two strings differing
+/// genuinely). Convergent, not divergent: `ClientPresenter::name()` performs the
+/// identical fallback, so this is what the round-trip will send back, and the
+/// title no longer flips on sync.
+String _displayName(BuildContext context, Client c) {
   if (c.displayName.isNotEmpty) return c.displayName;
   if (c.name.isNotEmpty) return c.name;
-  return '(no name)';
+  final contact = _primaryContact(c);
+  if (contact != null) {
+    final composed = ('${contact.firstName} ${contact.lastName}').trim();
+    if (composed.isNotEmpty) return composed;
+    if (contact.email.isNotEmpty) return contact.email;
+  }
+  return context.tr('no_name_fallback');
 }
 
 Contact? _primaryContact(Client c) {
@@ -558,13 +597,6 @@ Contact? _primaryContact(Client c) {
     if (ct.isPrimary) return ct;
   }
   return c.contacts.first;
-}
-
-String _contactLabel(Contact? c) {
-  if (c == null) return '';
-  final name = ('${c.firstName} ${c.lastName}').trim();
-  if (name.isNotEmpty) return name;
-  return c.email.trim();
 }
 
 String _semanticsLabel({

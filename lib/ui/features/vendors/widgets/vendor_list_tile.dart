@@ -5,6 +5,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/vendor_columns.dart';
+import 'package:admin/domain/contact_label.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
@@ -95,7 +96,7 @@ class _VendorListTileState extends State<VendorListTile> {
   Widget build(BuildContext context) {
     final w = widget;
     final tokens = context.inTheme;
-    final displayName = _displayName(w.vendor);
+    final displayName = _displayName(context, w.vendor);
     final state = _stateFor(w.vendor);
 
     final content = Padding(
@@ -257,7 +258,11 @@ class _VendorListTileState extends State<VendorListTile> {
           ),
         ),
         const SizedBox(height: 2),
-        _SubtitleLine(vendor: widget.vendor, tokens: tokens),
+        _SubtitleLine(
+          vendor: widget.vendor,
+          tokens: tokens,
+          partyName: displayName,
+        ),
       ],
     );
   }
@@ -294,14 +299,31 @@ class _CellSlot extends StatelessWidget {
 }
 
 class _SubtitleLine extends StatelessWidget {
-  const _SubtitleLine({required this.vendor, required this.tokens});
+  const _SubtitleLine({
+    required this.vendor,
+    required this.tokens,
+    required this.partyName,
+  });
   final Vendor vendor;
   final InTheme tokens;
+
+  /// The title rendered directly above this line. The client twin gets its
+  /// duplicate from the server; here [_displayName] runs the same
+  /// name -> contact-name -> contact-email cascade itself, so a nameless vendor
+  /// printed its contact's name twice with no help at all
+  /// (invoiceninja/flutter#118).
+  final String partyName;
 
   @override
   Widget build(BuildContext context) {
     final contact = _firstContact(vendor);
-    final contactLabel = _contactLabel(contact);
+    final contactLabel = contact == null
+        ? ''
+        : contactSubtitleLabel(
+            contactName: '${contact.firstName} ${contact.lastName}',
+            contactEmail: contact.email,
+            partyName: partyName,
+          );
     final city = vendor.city.trim();
 
     final pieces = <String>[
@@ -375,7 +397,7 @@ class _Pill extends StatelessWidget {
   }
 }
 
-String _displayName(Vendor v) {
+String _displayName(BuildContext context, Vendor v) {
   if (v.name.isNotEmpty) return v.name;
   final c = _firstContact(v);
   if (c != null) {
@@ -383,7 +405,7 @@ String _displayName(Vendor v) {
     if (composed.isNotEmpty) return composed;
     if (c.email.isNotEmpty) return c.email;
   }
-  return '(no name)';
+  return context.tr('no_name_fallback');
 }
 
 VendorContact? _firstContact(Vendor v) {
@@ -392,13 +414,6 @@ VendorContact? _firstContact(Vendor v) {
     if (c.isPrimary) return c;
   }
   return v.contacts.first;
-}
-
-String _contactLabel(VendorContact? c) {
-  if (c == null) return '';
-  final name = ('${c.firstName} ${c.lastName}').trim();
-  if (name.isNotEmpty) return name;
-  return c.email.trim();
 }
 
 String _semanticsLabel({

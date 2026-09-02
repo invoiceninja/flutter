@@ -248,7 +248,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       // The number, not the name: the row's own subtitle line already shows
-      // the primary contact's name.
+      // the primary contact's name — when it isn't the client's own, which is
+      // why this fixture pairs `Acme Corporation` with `Jane Smith`
+      // (invoiceninja/flutter#118 made that conditional).
       expect(find.text('+1 415 555 2671'), findsOneWidget);
       expect(find.text('+1 800 555 0100'), findsOneWidget);
       expect(launcher.launched, isEmpty, reason: 'not until a row is picked');
@@ -502,6 +504,241 @@ void main() {
         findsNWidgets(2),
         reason: 'the deliberate narrow/wide asymmetry — do not "unify" these',
       );
+    });
+  });
+
+  group('the subtitle identity', () {
+    // invoiceninja/flutter#118. `ClientPresenter::name()` returns the first
+    // contact's full name whenever `client.name` is blank *or one character*,
+    // so `display_name` IS the primary contact's name for every sole trader —
+    // and the row stacked it on itself. These pin the *wiring*: that the
+    // comparison runs against the string actually rendered on the line above.
+    // The fold itself is unit-tested in `test/domain/contact_label_test.dart`.
+    //
+    // Contact emails stay at 4-character local parts: `isPortalPlaceholderEmail`
+    // blanks 6- or 15-char alphanumeric locals with an uppercase at
+    // `@example.com`, which would hollow these cases out silently (#116).
+    late PhoneActionsTestServices services;
+    setUp(() => services = PhoneActionsTestServices(timezone: null));
+
+    Client individual({
+      String displayName = 'Jane Smith',
+      String name = '',
+      String email = '',
+      String city = '',
+      String number = '',
+      String firstName = 'Jane',
+      String lastName = 'Smith',
+      bool withContact = true,
+    }) => Client.fromApi(
+      ClientApi(
+        id: 'c1',
+        name: name,
+        displayName: displayName,
+        city: city,
+        number: number,
+        contacts: withContact
+            ? [
+                ContactApi(
+                  id: '1',
+                  firstName: firstName,
+                  lastName: lastName,
+                  email: email,
+                  isPrimary: true,
+                ),
+              ]
+            : const [],
+      ),
+    );
+
+    Future<void> pumpRow(
+      WidgetTester tester,
+      Client c, {
+      bool wide = false,
+      List<ClientColumn> columns = const <ClientColumn>[],
+      double width = 500,
+    }) => pumpAt(
+      tester,
+      width,
+      Provider<Services>.value(
+        value: services,
+        child: ClientListTile(
+          client: c,
+          formatter: null,
+          wide: wide,
+          columns: columns,
+          onAction: (_) {},
+          onTap: () {},
+        ),
+      ),
+    );
+
+    testWidgets('the contact email takes the redundant name\'s place', (
+      tester,
+    ) async {
+      await pumpRow(
+        tester,
+        individual(email: 'jane@example.com', city: 'New York'),
+      );
+
+      expect(
+        find.text('Jane Smith'),
+        findsOneWidget,
+        reason: 'the title, and nothing under it',
+      );
+      expect(find.text('jane@example.com · New York'), findsOneWidget);
+    });
+
+    testWidgets('with no email the city stands alone', (tester) async {
+      await pumpRow(tester, individual(city: 'New York'));
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(find.text('New York'), findsOneWidget);
+    });
+
+    testWidgets('with nothing else the number takes the line', (tester) async {
+      await pumpRow(tester, individual(number: '0009'));
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(find.text('0009'), findsOneWidget);
+    });
+
+    testWidgets('a client typed with its contact\'s name dedupes too', (
+      tester,
+    ) async {
+      // Not the server's doing: the user typed the same name into both. The
+      // wire then carries `name` AND `display_name`, so a fix keyed on "is
+      // `client.name` empty" would miss this — which is most of the issue.
+      await pumpRow(
+        tester,
+        individual(
+          name: 'Jane Smith',
+          email: 'jane@example.com',
+          city: 'New York',
+        ),
+      );
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(find.text('jane@example.com · New York'), findsOneWidget);
+    });
+
+    testWidgets('a one-character name compares against the rendered title', (
+      tester,
+    ) async {
+      // The server keeps `client.name` only at `strlen() > 1`, so a client
+      // named `A` is *titled* with its contact's name while `client.name`
+      // still says `A`. This is the case that fails if the comparison is
+      // simplified to `client.name`.
+      await pumpRow(tester, individual(name: 'A', email: 'jane@example.com'));
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(find.text('jane@example.com'), findsOneWidget);
+    });
+
+    testWidgets('a client saved with only a contact name is titled by it', (
+      tester,
+    ) async {
+      // `ClientCreateDialog` accepts a client name OR a contact name, so both
+      // `name` and `display_name` stay empty until the server round-trip fills
+      // `display_name` in. The row used to title that `(no name)` directly
+      // above `Jane Smith` — #118 inverted, and not something the dedupe can
+      // catch, the two strings differing genuinely. Pins the fallback AND the
+      // dedupe firing on its result.
+      await pumpRow(
+        tester,
+        individual(displayName: '', email: 'jane@example.com'),
+      );
+
+      expect(find.text('(no name)'), findsNothing);
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(find.text('jane@example.com'), findsOneWidget);
+    });
+
+    testWidgets('an email that is itself the title is dropped as well', (
+      tester,
+    ) async {
+      // Neither the client nor the contact has a name, so `display_name` fell
+      // through to the address — printing it underneath says nothing twice.
+      await pumpRow(
+        tester,
+        individual(
+          displayName: 'jane@example.com',
+          firstName: '',
+          lastName: '',
+          email: 'jane@example.com',
+          city: 'New York',
+        ),
+      );
+
+      expect(find.text('jane@example.com'), findsOneWidget);
+      expect(find.text('New York'), findsOneWidget);
+    });
+
+    testWidgets('case and spacing differences still count as the same', (
+      tester,
+    ) async {
+      await pumpRow(
+        tester,
+        individual(
+          firstName: 'jane',
+          lastName: ' smith',
+          email: 'jane@example.com',
+        ),
+      );
+
+      expect(find.text('jane@example.com'), findsOneWidget);
+    });
+
+    testWidgets('a differently-named contact is untouched', (tester) async {
+      // The no-regression case. Without it an over-eager predicate passes
+      // every assertion above.
+      await pumpRow(
+        tester,
+        individual(displayName: 'Acme Corporation', city: 'New York'),
+      );
+
+      expect(find.text('Acme Corporation'), findsOneWidget);
+      expect(find.text('Jane Smith · New York'), findsOneWidget);
+    });
+
+    testWidgets('deduped down to nothing, the line box survives', (
+      tester,
+    ) async {
+      // #112's invariant, now reachable far more often: any individual with no
+      // email, city or number lands on the blank branch. The NAME's dy, not the
+      // row height — the 44 px `…` floors the row at 72 either way, so a height
+      // assertion would pass even if the subtitle collapsed.
+      await pumpRow(tester, individual(withContact: false));
+      final bareNameDy = tester.getCenter(find.text('Jane Smith')).dy;
+
+      await pumpRow(tester, individual());
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(
+        tester.getCenter(find.text('Jane Smith')).dy,
+        bareNameDy,
+        reason: 'the deduped subtitle must keep its line box',
+      );
+    });
+
+    testWidgets('the wide table still prints both — its columns are labelled', (
+      tester,
+    ) async {
+      // The deliberate narrow/wide asymmetry, the twin of the money column's
+      // em-dash case above. `contact_name` is in `kDefaultClientColumns` and a
+      // labelled cell that blanks itself reads as broken.
+      await pumpRow(
+        tester,
+        individual(email: 'jane@example.com'),
+        wide: true,
+        width: 1200,
+        columns: [
+          clientColumnsById[ClientFieldIds.name]!,
+          clientColumnsById[ClientFieldIds.contactName]!,
+        ],
+      );
+
+      expect(find.text('Jane Smith'), findsNWidgets(2));
     });
   });
 

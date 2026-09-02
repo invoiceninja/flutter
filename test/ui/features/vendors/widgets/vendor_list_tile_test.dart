@@ -118,6 +118,92 @@ void main() {
     );
   });
 
+  group('the subtitle identity', () {
+    // invoiceninja/flutter#118, the client twin's case with a sharper edge:
+    // `VendorApi` carries no `display_name` at all, so `_displayName` runs the
+    // name -> contact-name -> contact-email cascade itself. For a nameless
+    // vendor the title and this line are the same string *by construction* —
+    // no server involved — and the dedupe is the only thing stopping it
+    // printing twice. Lighter than the client group on purpose: the fold is
+    // unit-tested in `test/domain/contact_label_test.dart` and the shared
+    // wiring in `client_list_tile_test.dart`.
+    Vendor nameless({
+      String firstName = 'Jane',
+      String lastName = 'Smith',
+      String email = '',
+      String city = '',
+      bool withContact = true,
+    }) => Vendor.fromApi(
+      VendorApi(
+        id: 'v1',
+        city: city,
+        contacts: withContact
+            ? [
+                VendorContactApi(
+                  id: '1',
+                  firstName: firstName,
+                  lastName: lastName,
+                  email: email,
+                  isPrimary: true,
+                ),
+              ]
+            : const [],
+      ),
+    );
+
+    testWidgets('a nameless vendor prints its contact once, not twice', (
+      tester,
+    ) async {
+      await pumpRow(tester, nameless(email: 'jane@example.com', city: 'Reno'));
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(find.text('jane@example.com · Reno'), findsOneWidget);
+    });
+
+    testWidgets('with nothing to substitute the line box survives', (
+      tester,
+    ) async {
+      // The vendor half of #112's invariant, now reachable through the dedupe.
+      await pumpRow(tester, nameless(withContact: false));
+      // No contact at all, so `_displayName` bottoms out at the fallback.
+      final bareNameDy = tester.getCenter(find.text('(no name)')).dy;
+
+      await pumpRow(tester, nameless());
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      expect(
+        tester.getCenter(find.text('Jane Smith')).dy,
+        bareNameDy,
+        reason: 'the deduped subtitle must keep its line box',
+      );
+    });
+
+    testWidgets('a named vendor keeps its contact name', (tester) async {
+      // The no-regression case: `Globex Supplies` never folds to `Jane Smith`.
+      await pumpRow(
+        tester,
+        Vendor.fromApi(
+          const VendorApi(
+            id: 'v1',
+            name: 'Globex Supplies',
+            city: 'Reno',
+            contacts: [
+              VendorContactApi(
+                id: '1',
+                firstName: 'Jane',
+                lastName: 'Smith',
+                isPrimary: true,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('Globex Supplies'), findsOneWidget);
+      expect(find.text('Jane Smith · Reno'), findsOneWidget);
+    });
+  });
+
   testWidgets('is absent in multi-select and on the wide table row', (
     tester,
   ) async {

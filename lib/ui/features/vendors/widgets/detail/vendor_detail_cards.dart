@@ -6,6 +6,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/domain/vendor_contact.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
@@ -75,7 +76,12 @@ class VendorDetailCardsGrid extends StatelessWidget {
       Expanded(child: VendorDetailAddressCard(vendor: vendor)),
       if (hasContacts) ...[
         SizedBox(width: InSpacing.md(context)),
-        Expanded(child: VendorDetailContactsCard(contacts: vendor.contacts)),
+        Expanded(
+          child: VendorDetailContactsCard(
+            contacts: vendor.contacts,
+            vendorId: vendor.id,
+          ),
+        ),
       ],
     ];
     return Column(
@@ -107,7 +113,10 @@ class VendorDetailCardsGrid extends StatelessWidget {
       if (VendorDetailAddressCard.hasContent(vendor))
         VendorDetailAddressCard(vendor: vendor),
       if (VendorDetailContactsCard.hasContent(vendor.contacts))
-        VendorDetailContactsCard(contacts: vendor.contacts),
+        VendorDetailContactsCard(
+          contacts: vendor.contacts,
+          vendorId: vendor.id,
+        ),
       if (vendor.privateNotes.isNotEmpty || vendor.publicNotes.isNotEmpty)
         VendorDetailNotesCard(vendor: vendor),
       if (vendor.tagIds.isNotEmpty) _TagsCard(vendor: vendor),
@@ -237,6 +246,11 @@ class VendorDetailDetailsCard extends StatelessWidget {
               label: context.tr('phone'),
               phone: vendor.phone,
               subject: vendor.name,
+              logTarget: (
+                type: EntityType.vendor,
+                id: vendor.id,
+                subject: vendor.name,
+              ),
             ),
           if (vendor.vatNumber.isNotEmpty)
             DetailInfoRow(
@@ -360,9 +374,17 @@ class VendorDetailAddressCard extends StatelessWidget {
 /// row, not `contacts.isEmpty` (invoiceninja/flutter#115). Mirror of
 /// `ClientDetailContactsCard` (which additionally caps its inline rows).
 class VendorDetailContactsCard extends StatelessWidget {
-  const VendorDetailContactsCard({super.key, required this.contacts});
+  const VendorDetailContactsCard({
+    super.key,
+    required this.contacts,
+    required this.vendorId,
+  });
 
   final List<VendorContact> contacts;
+
+  /// The vendor these contacts belong to — a call placed from a row here is
+  /// logged against it (invoiceninja/flutter#120).
+  final String vendorId;
 
   /// Whether [build] renders at least one row — the grid gates both its wide
   /// column and its stacked entry on this. Takes the contact list rather than
@@ -377,7 +399,9 @@ class VendorDetailContactsCard extends StatelessWidget {
     if (rows.isEmpty) return const SizedBox.shrink();
     return DashboardCardShell(
       title: context.tr('contacts'),
-      child: DetailRowStack(children: rows.map(_ContactRow.new).toList()),
+      child: DetailRowStack(
+        children: rows.map((c) => _ContactRow(c, vendorId)).toList(),
+      ),
     );
   }
 }
@@ -388,8 +412,9 @@ List<VendorContact> _visibleContacts(List<VendorContact> contacts) =>
     contacts.where((c) => !c.isBlank).toList(growable: false);
 
 class _ContactRow extends StatelessWidget {
-  const _ContactRow(this.contact);
+  const _ContactRow(this.contact, this.vendorId);
   final VendorContact contact;
+  final String vendorId;
 
   // Scoped at the row, not at the number — see the same note on the client
   // card's `_ContactRow`: the Call / Message buttons are built here.
@@ -422,6 +447,11 @@ class _ContactRow extends StatelessWidget {
             context,
             contact.phone,
             subject: _vendorContactSubject(context, contact),
+            logTarget: (
+              type: EntityType.vendor,
+              id: vendorId,
+              subject: _vendorContactSubject(context, contact),
+            ),
           );
 
     return Padding(
@@ -454,6 +484,11 @@ class _ContactRow extends StatelessWidget {
                   PhoneNumberValue(
                     phone: contact.phone,
                     style: subStyle,
+                    logTarget: (
+                      type: EntityType.vendor,
+                      id: vendorId,
+                      subject: _vendorContactSubject(context, contact),
+                    ),
                     subject: _vendorContactSubject(context, contact),
                   ),
                   // This card had no action row before; Call / Message is the

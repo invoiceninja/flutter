@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/vendor_contact.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/vendor_columns.dart';
 import 'package:admin/domain/contact_label.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
@@ -149,6 +150,11 @@ class _VendorListTileState extends State<VendorListTile> {
       partyName: displayName,
       onViewParty: w.onViewRecord,
       viewPartyLabelKey: 'view_vendor',
+      logTarget: (
+        type: EntityType.vendor,
+        id: w.vendor.id,
+        subject: displayName,
+      ),
     );
   }
 

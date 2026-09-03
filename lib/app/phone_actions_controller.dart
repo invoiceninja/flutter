@@ -62,6 +62,9 @@ class PhoneActionsController extends ChangeNotifier {
   Future<void> setWarnOutsideBusinessHours(bool value) =>
       _update(_value.copyWith(warnOutsideBusinessHours: value));
 
+  Future<void> setOfferToLogCalls(bool value) =>
+      _update(_value.copyWith(offerToLogCalls: value));
+
   Future<void> setBusinessHours({int? startMinutes, int? endMinutes}) =>
       _update(
         _value.copyWith(startMinutes: startMinutes, endMinutes: endMinutes),

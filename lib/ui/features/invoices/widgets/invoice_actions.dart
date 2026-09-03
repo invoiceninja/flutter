@@ -18,13 +18,13 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/billing/invoice_lock.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/mark_paid_confirm_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
@@ -84,6 +84,7 @@ enum InvoiceAction {
   sendEInvoice,
   validateEInvoice,
   addComment,
+  logCall,
   copyLink,
   archive,
   restore,
@@ -429,6 +430,13 @@ class InvoiceActions {
           enabled: true,
           onTap: () => onTap(InvoiceAction.addComment),
         ),
+        EntityActionItem(
+          kind: InvoiceAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(InvoiceAction.logCall),
+        ),
       ],
       ?copyLinkActionItem(
         context: context,
@@ -746,16 +754,28 @@ class InvoiceActions {
           }
         }
 
-      case InvoiceAction.addComment:
-        if (tmpGate()) return;
-        final text = await showAddCommentPrompt(context);
-        if (text == null || !context.mounted) return;
-        await services.invoices.addComment(
+      case InvoiceAction.logCall:
+        await promptLogCallFor(
+          context,
           companyId: companyId,
-          invoiceId: invoice.id,
-          text: text,
+          entityId: invoice.id,
+          subject: _confirmSubject(invoice),
+          submit: (text) => services.invoices.addComment(
+            companyId: companyId,
+            invoiceId: invoice.id,
+            text: text,
+          ),
         );
-
+      case InvoiceAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: invoice.id,
+          submit: (text) => services.invoices.addComment(
+            companyId: companyId,
+            invoiceId: invoice.id,
+            text: text,
+          ),
+        );
       case InvoiceAction.copyLink:
         await copyEntityLink(context, EntityType.invoice, invoice.id);
       case InvoiceAction.archive:

@@ -7,6 +7,15 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 /// or null when the user cancels. The caller is responsible for the actual
 /// repo call — keeps a failed mutation's snackbar against the underlying
 /// detail screen instead of a dismissed dialog.
+///
+/// The **only** add-comment dialog. There used to be a second, near-identical
+/// one under `billing_shared/actions/`, and the two diverged in ways a user
+/// could see: 3 lines vs 4-6, `notes` vs `comment` as the hint, an underline
+/// vs an outline border, and — the one that mattered — no Save gate, so the
+/// billing copy let you save an empty comment. Everything now routes through
+/// `promptAddCommentFor` (`lib/ui/core/detail/activity_note_actions.dart`),
+/// which calls this. It lives under `clients/` only because that is where it
+/// was written; it is not client-specific.
 Future<String?> showAddCommentDialog(BuildContext context) {
   return showDialog<String>(
     context: context,

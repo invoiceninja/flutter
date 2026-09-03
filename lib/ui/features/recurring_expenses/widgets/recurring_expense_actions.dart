@@ -7,8 +7,8 @@ import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/expense_recurring_conversion.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
-import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -31,6 +31,7 @@ enum RecurringExpenseAction {
   clone,
   cloneToExpense,
   addComment,
+  logCall,
   copyLink,
   archive,
   restore,
@@ -121,6 +122,13 @@ class RecurringExpenseActions {
         enabled: true,
         onTap: () => onTap(RecurringExpenseAction.addComment),
       ),
+      EntityActionItem(
+        kind: RecurringExpenseAction.logCall,
+        icon: Icons.phone_in_talk_outlined,
+        label: context.tr('log_call'),
+        enabled: true,
+        onTap: () => onTap(RecurringExpenseAction.logCall),
+      ),
       ?copyLinkActionItem(
         context: context,
         kind: RecurringExpenseAction.copyLink,
@@ -206,8 +214,28 @@ class RecurringExpenseActions {
           '/expenses',
           extra: recurringExpense.toExpenseClone(),
         );
+      case RecurringExpenseAction.logCall:
+        await promptLogCallFor(
+          context,
+          companyId: companyId,
+          entityId: recurringExpense.id,
+          subject: _confirmSubject(recurringExpense),
+          submit: (text) => services.recurringExpenses.addComment(
+            companyId: companyId,
+            recurringExpenseId: recurringExpense.id,
+            text: text,
+          ),
+        );
       case RecurringExpenseAction.addComment:
-        await _promptAddComment(context, services, companyId, recurringExpense);
+        await promptAddCommentFor(
+          context,
+          entityId: recurringExpense.id,
+          submit: (text) => services.recurringExpenses.addComment(
+            companyId: companyId,
+            recurringExpenseId: recurringExpense.id,
+            text: text,
+          ),
+        );
       case RecurringExpenseAction.copyLink:
         await copyEntityLink(
           context,
@@ -252,21 +280,4 @@ class RecurringExpenseActions {
         );
     }
   }
-}
-
-Future<void> _promptAddComment(
-  BuildContext context,
-  Services services,
-  String companyId,
-  RecurringExpense recurringExpense,
-) async {
-  // Shared dialog — it owns its controller in a State so disposal cannot
-  // race the exit transition (see `showAddCommentPrompt`).
-  final text = await showAddCommentPrompt(context);
-  if (text == null || text.isEmpty) return;
-  await services.recurringExpenses.addComment(
-    companyId: companyId,
-    recurringExpenseId: recurringExpense.id,
-    text: text,
-  );
 }

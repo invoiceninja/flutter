@@ -118,6 +118,31 @@ void main() {
     });
   });
 
+  testWidgets('log call sits beside add comment and is not confirm-gated', (
+    tester,
+  ) async {
+    // Both write the same activity note through the same repo method, so they
+    // travel together. `logCall` opens its own capture form, which is exactly
+    // the shape CLAUDE.md § Action confirmations says not to put a second
+    // prompt in front of.
+    final items = await resolveItems(tester, client: _client());
+    final kinds = kindsOf(items);
+    expect(kinds, contains(ClientAction.addComment));
+    expect(kinds, contains(ClientAction.logCall));
+    final logCall = items.firstWhere((i) => i.kind == ClientAction.logCall);
+    expect(logCall.confirm, isFalse);
+  });
+
+  testWidgets('a soft-deleted client offers neither note action', (
+    tester,
+  ) async {
+    final kinds = kindsOf(
+      await resolveItems(tester, client: _client(isDeleted: true)),
+    );
+    expect(kinds, isNot(contains(ClientAction.logCall)));
+    expect(kinds, isNot(contains(ClientAction.addComment)));
+  });
+
   testWidgets('copy link is offered on a saved record', (tester) async {
     final items = await resolveItems(tester, client: _client());
     expect(kindsOf(items), contains(ClientAction.copyLink));

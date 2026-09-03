@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:admin/data/models/api/activity_api_model.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/phone/call_note.dart';
 
 part 'activity.freezed.dart';
 
@@ -55,6 +56,16 @@ abstract class Activity with _$Activity {
   }) = _Activity;
 
   bool get isComment => activityTypeId == kCommentActivityTypeId;
+
+  /// A comment this app composed for a manually-logged phone call
+  /// (invoiceninja/flutter#120).
+  ///
+  /// There is no wire field for a note subtype — a logged call and a typed
+  /// comment are the same `activity_type_id = 141` row — so the only signal is
+  /// the marker [composeCallNote] writes at the head of the text. That makes
+  /// this a **display hint**: it drives the row's phone icon and the Calls lens
+  /// on `/activity`, and nothing else may depend on it. See `call_note.dart`.
+  bool get isCallNote => isComment && isCallNoteText(notes);
 
   /// Back-compat accessors for callers/tests that predate [refs].
   String? get userLabel => refs['user']?.label;

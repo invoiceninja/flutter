@@ -27,6 +27,7 @@ import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -305,6 +306,28 @@ class _Body extends StatelessWidget {
                       companyId: companyId,
                       activitiesApi: services.activities,
                       outboxDao: services.db.outboxDao,
+                      onAddComment: () => promptAddCommentFor(
+                        context,
+                        entityId: invoice.id,
+                        submit: (text) => services.invoices.addComment(
+                          companyId: companyId,
+                          invoiceId: invoice.id,
+                          text: text,
+                        ),
+                      ),
+                      onLogCall: () => promptLogCallFor(
+                        context,
+                        companyId: companyId,
+                        entityId: invoice.id,
+                        subject: invoice.number.isEmpty
+                            ? ''
+                            : '#${invoice.number}',
+                        submit: (text) => services.invoices.addComment(
+                          companyId: companyId,
+                          invoiceId: invoice.id,
+                          text: text,
+                        ),
+                      ),
                     ),
                   ),
                   EntityDetailTab(
@@ -427,7 +450,18 @@ class _Header extends StatelessWidget {
                   style: TextStyle(color: tokens.ink3),
                 ),
               ),
-              PartyCallButton(clientId: invoice.clientId),
+              PartyCallButton(
+                clientId: invoice.clientId,
+                // Filed against the *document*, not the party: the
+                // server stamps `client_id` on it anyway, so it still
+                // reaches the client's feed — and this way the note
+                // also says which document the call was about.
+                logTarget: (
+                  type: EntityType.invoice,
+                  id: invoice.id,
+                  subject: invoice.number.isEmpty ? '' : '#${invoice.number}',
+                ),
+              ),
             ],
           ),
           // Link to the recurring invoice that generated this invoice.

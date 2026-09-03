@@ -7,7 +7,9 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/services/activities_api.dart';
+import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
@@ -19,9 +21,11 @@ import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_v
 /// Shared Activity tab body for billing-doc detail screens (invoice,
 /// quote, credit, purchase order, recurring invoice). Mirrors the client
 /// activity tab — renders pending outbox `addComment` rows above the
-/// synced activity stream. `onAddComment` is optional; pass null to hide
-/// the add-comment affordance (the action is also reachable via the
-/// per-entity actions menu).
+/// synced activity stream. `onAddComment` and `onLogCall` are optional; pass
+/// null to hide that affordance (both actions are also reachable via the
+/// per-entity actions menu). Task and Project mount this tab but must pass
+/// null for both: neither repository has an `addComment`, so there is nothing
+/// for the buttons to call.
 class BillingDocActivityTab extends StatefulWidget {
   const BillingDocActivityTab({
     super.key,
@@ -32,6 +36,7 @@ class BillingDocActivityTab extends StatefulWidget {
     required this.outboxDao,
     this.formatter,
     this.onAddComment,
+    this.onLogCall,
   });
 
   final String entityWireName;
@@ -49,6 +54,12 @@ class BillingDocActivityTab extends StatefulWidget {
   /// When null, the add-comment button is hidden — comments still flow
   /// through the entity's actions menu.
   final Future<void> Function()? onAddComment;
+
+  /// Callback that opens the log-a-call form + enqueues the mutation
+  /// (invoiceninja/flutter#120). Same contract as [onAddComment]; a logged
+  /// call is an ordinary comment carrying a marker, so it rides the identical
+  /// outbox kind and shows the same optimistic pending row.
+  final Future<void> Function()? onLogCall;
 
   @override
   State<BillingDocActivityTab> createState() => _BillingDocActivityTabState();
@@ -84,20 +95,12 @@ class _BillingDocActivityTabState extends State<BillingDocActivityTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (widget.onAddComment != null) ...[
-            Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(64, 40),
-                ),
-                onPressed: widget.onAddComment,
-                icon: const Icon(Icons.add_comment_outlined, size: 18),
-                label: Text(context.tr('add_comment')),
-              ),
-            ),
+          ActivityNoteButtons(
+            onLogCall: widget.onLogCall,
+            onAddComment: widget.onAddComment,
+          ),
+          if (widget.onLogCall != null || widget.onAddComment != null)
             SizedBox(height: InSpacing.md(context)),
-          ],
           AnimatedBuilder(
             animation: _vm,
             builder: (context, _) => StreamBuilder<List<OutboxRow>>(
@@ -198,8 +201,14 @@ class _PendingCommentRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // The same two-tier body the synced row will use — the
+                  // outbox payload is the raw composed note, so printing it
+                  // flat made a logged call change shape as it landed.
                   if (notes.isNotEmpty)
-                    Text(notes, style: theme.textTheme.bodyMedium),
+                    if (isCallNoteText(notes))
+                      ...callNoteBody(context, notes)
+                    else
+                      Text(notes, style: theme.textTheme.bodyMedium),
                   const SizedBox(height: 2),
                   Text(
                     context.tr('in_flight'),

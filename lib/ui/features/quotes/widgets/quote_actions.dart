@@ -15,13 +15,13 @@ import 'package:admin/data/models/domain/quote_status.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 
@@ -49,6 +49,7 @@ enum QuoteAction {
   cancel,
   runTemplate,
   addComment,
+  logCall,
   copyLink,
   archive,
   restore,
@@ -287,6 +288,13 @@ class QuoteActions {
           enabled: true,
           onTap: () => onTap(QuoteAction.addComment),
         ),
+        EntityActionItem(
+          kind: QuoteAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(QuoteAction.logCall),
+        ),
       ],
       ?copyLinkActionItem(
         context: context,
@@ -485,16 +493,28 @@ class QuoteActions {
           extra: cloneToPurchaseOrder(billingCloneFromQuote(quote)),
         );
 
-      case QuoteAction.addComment:
-        if (tmpGate()) return;
-        final text = await showAddCommentPrompt(context);
-        if (text == null || !context.mounted) return;
-        await services.quotes.addComment(
+      case QuoteAction.logCall:
+        await promptLogCallFor(
+          context,
           companyId: companyId,
-          quoteId: quote.id,
-          text: text,
+          entityId: quote.id,
+          subject: _confirmSubject(quote),
+          submit: (text) => services.quotes.addComment(
+            companyId: companyId,
+            quoteId: quote.id,
+            text: text,
+          ),
         );
-
+      case QuoteAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: quote.id,
+          submit: (text) => services.quotes.addComment(
+            companyId: companyId,
+            quoteId: quote.id,
+            text: text,
+          ),
+        );
       case QuoteAction.copyLink:
         await copyEntityLink(context, EntityType.quote, quote.id);
       case QuoteAction.archive:

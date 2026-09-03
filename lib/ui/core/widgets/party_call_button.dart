@@ -9,6 +9,7 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/vendor.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
@@ -95,10 +96,24 @@ enum PhoneCallButtonVariant {
 /// scope inside [PhoneCallButton] would still render correctly and still
 /// subscribe on every billing-doc detail screen.
 class PartyCallButton extends StatefulWidget {
-  const PartyCallButton({super.key, this.clientId, this.vendorId});
+  const PartyCallButton({
+    super.key,
+    this.clientId,
+    this.vendorId,
+    this.logTarget,
+  });
 
   final String? clientId;
   final String? vendorId;
+
+  /// Record a completed call can be logged against (invoiceninja/flutter#120).
+  ///
+  /// The billing-doc headers pass their **document** rather than letting this
+  /// default to the party: the server stamps `client_id` on a note filed
+  /// against an invoice, so it shows up on the client's feed either way, and
+  /// filing it on the invoice keeps the one detail the party-level note loses —
+  /// which document the call was about. Null falls back to the client/vendor.
+  final CallLogTarget? logTarget;
 
   @override
   State<PartyCallButton> createState() => _PartyCallButtonState();
@@ -170,6 +185,15 @@ class _PartyCallButtonState extends State<PartyCallButton> {
             onViewParty: () =>
                 goEntityFullDetail(context, '/vendors', vendorId),
             viewPartyLabelKey: 'view_vendor',
+            logTarget:
+                widget.logTarget ??
+                (vendor == null
+                    ? null
+                    : (
+                        type: EntityType.vendor,
+                        id: vendorId,
+                        subject: vendor.name,
+                      )),
           );
         },
       );
@@ -189,6 +213,15 @@ class _PartyCallButtonState extends State<PartyCallButton> {
           clientId: clientId,
           onViewParty: () => goEntityFullDetail(context, '/clients', clientId),
           viewPartyLabelKey: 'view_client',
+          logTarget:
+              widget.logTarget ??
+              (client == null
+                  ? null
+                  : (
+                      type: EntityType.client,
+                      id: clientId,
+                      subject: client.displayName,
+                    )),
         );
       },
     );
@@ -210,6 +243,7 @@ class PhoneCallButton extends StatefulWidget {
     this.onViewParty,
     this.viewPartyLabelKey = 'view_client',
     this.variant = PhoneCallButtonVariant.inline,
+    this.logTarget,
   });
 
   final List<PhoneCandidate> candidates;
@@ -229,6 +263,9 @@ class PhoneCallButton extends StatefulWidget {
   /// stored number — including ones `cleanPhoneNumber` deliberately rejects.
   final VoidCallback? onViewParty;
   final String viewPartyLabelKey;
+
+  /// Record a completed call can be logged against. Null = don't offer.
+  final CallLogTarget? logTarget;
 
   @override
   State<PhoneCallButton> createState() => _PhoneCallButtonState();
@@ -409,6 +446,7 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
         picked.phone,
         subject: _labelOf(context, picked),
         clientId: widget.clientId,
+        logTarget: widget.logTarget,
       );
     } finally {
       _busy = false;

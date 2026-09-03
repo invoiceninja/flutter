@@ -4,13 +4,17 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/pending_call_controller.dart';
 import 'package:admin/app/phone_actions_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/value/company_format_settings.dart';
+import 'package:admin/data/models/value/datetime_format.dart';
 import 'package:admin/data/models/value/timezone.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// UTC+13:45 — not an offset any real machine runs at, so the
@@ -59,12 +63,51 @@ class PhoneActionsTestServices implements Services {
   @override
   late final StaticsRepository statics = _Statics(_zone);
 
+  /// Deliberately still null. `formatterIfReady` is what
+  /// `phone_actions_section.dart` reads for its business-hours fields, and
+  /// handing it a 12-hour formatter would silently flip those from `08:00` to
+  /// `8:00 AM` — re-pointing that file's 320 px overflow sweep at ~40 % wider
+  /// strings without anyone asking. Only `formatterFor` (which the log-call
+  /// sheet awaits) resolves.
   @override
   Formatter? formatterIfReady(String companyId) => null;
 
   @override
+  Future<Formatter> formatterFor(String companyId) async => testFormatter;
+
+  @override
+  late final PendingCallController pendingCall = PendingCallController();
+
+  /// A real controller, not a throwing stub: `Notify` swallowed the failure
+  /// and dropped every toast silently before. Consequence for new tests — a
+  /// test that copies to the clipboard, or that makes the fake launcher fail,
+  /// now queues a real toast and must let its timer expire (6 s) or the harness
+  /// fails with "A Timer is still pending".
+  @override
+  late final ToastController toasts = ToastController();
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
+
+/// A company that prints `d/MMM/yyyy` and 12-hour clocks — enough for
+/// `InDateField` / `InTimeField` and the log-call form's composed timestamp.
+const kTestFormatSettings = CompanyFormatSettings(
+  currencyId: '1',
+  countryId: '840',
+  dateFormatId: 'X',
+  useCommaAsDecimalPlace: false,
+  showCurrencyCode: false,
+  enableMilitaryTime: false,
+  locale: '',
+);
+
+final Formatter testFormatter = Formatter(
+  settings: kTestFormatSettings,
+  currencies: const {},
+  countries: const {},
+  dateFormats: const {'X': DatetimeFormat(id: 'X', format: 'd/MMM/yyyy')},
+);
 
 /// Wraps [child] in the minimal `Provider<Services>` above.
 Widget withPhoneActionsServices(Widget child, {Timezone? timezone}) =>

@@ -139,29 +139,62 @@ class _FilterBody extends StatelessWidget {
                           },
                         ),
                         SizedBox(height: InSpacing.lg(context)),
-                        // Comments-only subsumes the type filter, so it sits
-                        // above it and visibly disables it — see
-                        // `ActivityFilters.commentsOnly`.
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(context.tr('comments')),
-                          value: f.commentsOnly,
-                          onChanged: vm.setCommentsOnly,
+                        // The human-written lens subsumes the type filter, so
+                        // it sits above it and visibly disables it — see
+                        // `ActivityFilters.lens`. A `SegmentedButton`, never a
+                        // `RadioGroup`: this body is a `showModalBottomSheet`
+                        // below 600 px, and `RadioGroup` mutates its subtree
+                        // mid-frame and crashes that layout (the reason
+                        // `entity_sort_filter_sheet.dart` hand-rolls a list).
+                        // Horizontal scroll, not `width: double.infinity`.
+                        // `SegmentedButton` clamps each child to
+                        // `maxWidth / childCount`, so a full-width box does not
+                        // overflow — it silently *clips* the labels, and
+                        // "Comments" is one unbreakable word that already
+                        // exceeds its ~78 px share on a 320 px sheet at
+                        // `kTextScaleMax` (worse in de/fr). Scrolling keeps the
+                        // labels whole, which is what `debug_panel_section.dart`
+                        // and `segmented_setting_row.dart` both do for their own
+                        // three-segment controls.
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SegmentedButton<ActivityLens>(
+                              segments: [
+                                ButtonSegment(
+                                  value: ActivityLens.all,
+                                  label: Text(context.tr('all')),
+                                ),
+                                ButtonSegment(
+                                  value: ActivityLens.comments,
+                                  label: Text(context.tr('comments')),
+                                ),
+                                ButtonSegment(
+                                  value: ActivityLens.calls,
+                                  label: Text(context.tr('calls')),
+                                ),
+                              ],
+                              selected: {f.lens},
+                              showSelectedIcon: false,
+                              onSelectionChanged: (v) => vm.setLens(v.first),
+                            ),
+                          ),
                         ),
                         SizedBox(height: InSpacing.sm),
                         AnimatedOpacity(
                           duration: const Duration(milliseconds: 150),
-                          opacity: f.commentsOnly ? 0.4 : 1,
+                          opacity: f.lens != ActivityLens.all ? 0.4 : 1,
                           // All three, not just `IgnorePointer`: that blocks
                           // pointer events only, leaving the greyed-out picker
                           // reachable by Tab and announced to a screen reader as
                           // an enabled control that silently does nothing.
                           child: IgnorePointer(
-                            ignoring: f.commentsOnly,
+                            ignoring: f.lens != ActivityLens.all,
                             child: ExcludeFocus(
-                              excluding: f.commentsOnly,
+                              excluding: f.lens != ActivityLens.all,
                               child: ExcludeSemantics(
-                                excluding: f.commentsOnly,
+                                excluding: f.lens != ActivityLens.all,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,

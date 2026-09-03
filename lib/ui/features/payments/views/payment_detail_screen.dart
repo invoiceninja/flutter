@@ -9,6 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
@@ -156,6 +157,26 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
                         activitiesApi: _services.activities,
                         outboxDao: _services.db.outboxDao,
                         formatter: formatter,
+                        onAddComment: () => promptAddCommentFor(
+                          context,
+                          entityId: p.id,
+                          submit: (text) => _services.payments.addComment(
+                            companyId: _companyId,
+                            paymentId: p.id,
+                            text: text,
+                          ),
+                        ),
+                        onLogCall: () => promptLogCallFor(
+                          context,
+                          companyId: _companyId,
+                          entityId: p.id,
+                          subject: p.number.isEmpty ? '' : '#${p.number}',
+                          submit: (text) => _services.payments.addComment(
+                            companyId: _companyId,
+                            paymentId: p.id,
+                            text: text,
+                          ),
+                        ),
                       ),
                     ),
                   ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/contact.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
@@ -208,6 +209,13 @@ class _ContactRow extends StatelessWidget {
           contact.phone,
           subject: _contactSubject(context, contact),
           clientId: clientId,
+          // Titled with the contact, filed against the client: this row is the
+          // one place the app knows *which person* was rung.
+          logTarget: (
+            type: EntityType.client,
+            id: clientId,
+            subject: _contactSubject(context, contact),
+          ),
         ),
       if (contact.link.isNotEmpty) ...[
         TextButton.icon(
@@ -263,6 +271,11 @@ class _ContactRow extends StatelessWidget {
                     style: subStyle,
                     subject: _contactSubject(context, contact),
                     clientId: clientId,
+                    logTarget: (
+                      type: EntityType.client,
+                      id: clientId,
+                      subject: _contactSubject(context, contact),
+                    ),
                   ),
                 ],
                 // One `Wrap` for every row action. It used to be gated on

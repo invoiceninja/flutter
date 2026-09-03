@@ -6,15 +6,39 @@ import 'package:flutter/scheduler.dart';
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/nav_state_dao.dart';
+import 'package:admin/data/models/api/activity_api_model.dart'
+    show kCommentActivityTypeId;
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
+import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
+
+// `kCommentActivityTypeId` is re-exported for the screen + tests that already
+// import it off this file. The constant itself lives beside the DTO that reads
+// it (`activity_api_model.dart`) — it used to be declared here as well, and a
+// third copy is exactly how two would drift apart.
+export 'package:admin/data/models/api/activity_api_model.dart'
+    show kCommentActivityTypeId;
 
 final _log = Logger('ActivityViewModel');
 
-/// `activity_type_id` the server writes for a user comment posted through
-/// `POST /api/v1/activities/notes` (see `ActivitiesApi.addNote`).
-const int kCommentActivityTypeId = 141;
+/// Which slice of the feed the human-written lens is showing.
+///
+/// One enum rather than two booleans because the buckets **nest**: every logged
+/// call is a comment (both are `activity_type_id == 141`; the wire has no note
+/// subtype, so `calls` tests the marker in the text — see `call_note.dart`).
+/// Two independent switches would let a user ask for "calls but not comments",
+/// which selects nothing and looks like a bug.
+enum ActivityLens {
+  /// No narrowing — the type picker is live.
+  all,
+
+  /// Anything a person typed: comments and logged calls alike.
+  comments,
+
+  /// Logged calls only.
+  calls,
+}
 
 /// The four client-side predicates the `/activity` screen narrows with.
 ///
@@ -28,47 +52,55 @@ class ActivityFilters {
     this.userId,
     this.typeIds = const <int>{},
     this.search = '',
-    this.commentsOnly = false,
+    this.lens = ActivityLens.all,
   });
 
   final String? userId;
   final Set<int> typeIds;
   final String search;
 
-  /// Restricts to comment rows. ANDs with the rest, and the screen **disables**
-  /// the type picker while it is on — otherwise picking types here would be
-  /// silently discarded by the `activity_type_id == 141` test.
-  final bool commentsOnly;
+  /// Restricts to human-written rows. ANDs with the rest, and the screen
+  /// **disables** the type picker while it is not [ActivityLens.all] —
+  /// otherwise picking types here would be silently discarded by the
+  /// `activity_type_id == 141` test.
+  final ActivityLens lens;
 
   bool get isActive =>
       userId != null ||
       typeIds.isNotEmpty ||
       search.trim().isNotEmpty ||
-      commentsOnly;
+      lens != ActivityLens.all;
 
   int get activeCount =>
       (userId != null ? 1 : 0) +
       (typeIds.isNotEmpty ? 1 : 0) +
       (search.trim().isNotEmpty ? 1 : 0) +
-      (commentsOnly ? 1 : 0);
+      (lens != ActivityLens.all ? 1 : 0);
 
   ActivityFilters copyWith({
     String? Function()? userId,
     Set<int>? typeIds,
     String? search,
-    bool? commentsOnly,
+    ActivityLens? lens,
   }) => ActivityFilters(
     userId: userId != null ? userId() : this.userId,
     typeIds: typeIds ?? this.typeIds,
     search: search ?? this.search,
-    commentsOnly: commentsOnly ?? this.commentsOnly,
+    lens: lens ?? this.lens,
   );
 
   Map<String, dynamic> toJson() => {
     if (userId != null) 'user': userId,
     if (typeIds.isNotEmpty) 'types': typeIds.toList()..sort(),
     if (search.isNotEmpty) 'search': search,
-    if (commentsOnly) 'comments': true,
+    // `comments` predates the lens and is still what a `nav_state` blob written
+    // by an older build carries, so the comments case keeps writing it and a
+    // downgrade doesn't silently drop that filter. The two keys are
+    // **exclusive**: a `calls` blob carries no `comments`, so an older build
+    // ignores the key it doesn't know and lands on `all` — a wider result
+    // rather than a wrong one, which is the safe direction to fail.
+    if (lens == ActivityLens.comments) 'comments': true,
+    if (lens == ActivityLens.calls) 'calls': true,
   };
 
   static ActivityFilters fromJson(Map<String, dynamic> json) {
@@ -84,7 +116,11 @@ class ActivityFilters {
                 .toSet()
           : const <int>{},
       search: json['search'] is String ? json['search'] as String : '',
-      commentsOnly: json['comments'] == true,
+      lens: json['calls'] == true
+          ? ActivityLens.calls
+          : (json['comments'] == true
+                ? ActivityLens.comments
+                : ActivityLens.all),
     );
   }
 }
@@ -287,14 +323,18 @@ class ActivityViewModel extends ChangeNotifier {
 
   bool matches(DashboardActivity a) {
     final f = _filters;
-    if (f.commentsOnly && a.activityTypeId != kCommentActivityTypeId) {
+    if (f.lens != ActivityLens.all &&
+        a.activityTypeId != kCommentActivityTypeId) {
       return false;
     }
+    // Calls are a content slice of the same activity type, not a type of their
+    // own — the marker in the note is the only signal the wire carries.
+    if (f.lens == ActivityLens.calls && !isCallNoteText(a.notes)) return false;
     if (f.userId != null && a.userId != f.userId) return false;
-    // The type picker is inert while comments-only is on (see
-    // [ActivityFilters.commentsOnly]) — honour that here too, so a persisted
+    // The type picker is inert under a narrowed lens (see
+    // [ActivityFilters.lens]) — honour that here too, so a persisted
     // combination can't resurrect a filter the UI is hiding.
-    if (!f.commentsOnly &&
+    if (f.lens == ActivityLens.all &&
         f.typeIds.isNotEmpty &&
         !f.typeIds.contains(a.activityTypeId)) {
       return false;
@@ -352,8 +392,7 @@ class ActivityViewModel extends ChangeNotifier {
 
   void setSearch(String search) => _apply(_filters.copyWith(search: search));
 
-  void setCommentsOnly(bool value) =>
-      _apply(_filters.copyWith(commentsOnly: value));
+  void setLens(ActivityLens lens) => _apply(_filters.copyWith(lens: lens));
 
   void clearFilters() => _apply(const ActivityFilters());
 

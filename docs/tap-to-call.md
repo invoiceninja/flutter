@@ -190,7 +190,7 @@ edit. Two consequences were weighed and accepted:
 
 ## The preference
 
-Five fields in one JSON blob, `nav_state.phone_actions_json` (schema v7).
+Six fields in one JSON blob, `nav_state.phone_actions_json` (schema v7).
 
 | Field | Default | Why |
 |---|---|---|
@@ -198,6 +198,10 @@ Five fields in one JSON blob, `nav_state.phone_actions_json` (schema v7).
 | `confirmBeforeCall` | off | the OS already confirms |
 | `warnOutsideBusinessHours` | on | the only guard the OS can't give you |
 | `startMinutes` / `endMinutes` | 08:00 / 20:00 | generous — it exists to catch a 2 a.m. mis-tap, not to police a working day |
+| `offerToLogCalls` | on | the post-call offer, below. Costs a dismissible toast and nothing else; the *platform* gate is separate |
+
+The sixth field landed after schema v7 shipped and cost **no migration** — which is the blob paying
+for itself a second time.
 
 **The default is per-device, and that is the reason this is a blob rather than five typed columns.**
 The app cannot ask whether a `tel:` handler exists — `canLaunchUrl` is banned by
@@ -213,6 +217,52 @@ for a user who has already chosen.
 dialer *pre-filled* and the user still presses the call button, and iOS shows its own `Call …?`
 alert. An in-app prompt on top of that is the double-prompt CLAUDE.md warns against under
 § Action confirmations. The switch exists because the issue asked for it.
+
+## Logging a call (invoiceninja/flutter#120)
+
+The other half of the loop #119 started: find the client to chase, ring them, write down what was
+said. Two entry points, one form, and no new storage.
+
+**Where a logged call lives.** Nowhere new. `POST /api/v1/activities/notes` writes an `Activity`
+row with `activity_type_id = 141` (`Activity::USER_NOTE`), rendered from the already-translated
+`activity_141` — *"User :user entered note: :notes"*. The app reaches it through the existing
+`MutationKind.addComment` outbox path, so a call logged offline queues and syncs like anything
+else and gets the optimistic "Syncing…" row for free. This is not a workaround: Invoice Ninja's own
+Pancake importer stores imported phone-call logs the same way
+(`app/Import/Pancake/DatabaseSource.php`, the `contact_log` branch), and `composeCallNote` mirrors
+its shape.
+
+**The form.** `showLogCallSheet` (`lib/ui/core/dialogs/log_call_sheet.dart`) — direction, date +
+time, contact, duration, summary — resolves with the **composed note string**. Every entry point
+goes through `promptLogCallFor` / `promptAddCommentFor`
+(`lib/ui/core/detail/activity_note_actions.dart`), which own the `requireSynced` gate, the prompt
+and the success/error toast; a caller supplies only its own `repo.addComment`. That is reachable
+from the record's `⋯` menu on all ten comment-capable entities and from the
+`Log call` / `Add comment` pair (`ActivityNoteButtons`) on nine Activity tabs — the same edit that
+finally switched on `onAddComment`, which had shipped as a declared-but-never-passed parameter.
+Task and Project mount the same tab and pass null for both: neither repository has an
+`addComment`. `test/lint/call_note_wiring_test.dart` pins those call sites, because a dark button
+is silent.
+
+Routing everything through the two helpers is not tidiness. Before it, five billing `⋯` arms
+awaited the repo bare — no success toast, no Retry — while the Activity tab on the same screen
+toasted; three more used private helpers that skipped `requireSynced` entirely; and Vendor showed
+two visibly different Add-comment dialogs depending on the entry point. There is now one
+add-comment dialog (`clients/widgets/detail/add_comment_dialog.dart`); the near-identical
+`billing_shared/actions/add_comment_prompt.dart` is gone.
+
+**After a call.** `callPhoneNumber` takes an optional `logTarget` and, on a successful launch,
+parks a `PendingCallLog` on `Services.pendingCall`. `CallLogPrompter` — mounted beside `ToastHost`
+in `main.dart` — watches the app lifecycle and raises a dismissible toast with a `Log Call` action
+when the user comes back. The billing-doc headers target their **document** rather than the party,
+so the note also records which document the call was about; it still reaches the party's feed
+either way, because the server stamps `client_id` (invoice / quote / credit / recurring invoice)
+or `vendor_id` (purchase order — its `client_id` is null for an ordinary vendor-facing PO).
+
+**What the marker is and is not.** The composed note starts with `📞`, and that is the only thing
+separating a logged call from a typed comment — the wire carries no note subtype. It drives exactly
+two things: the phone icon on the activity row, and the Calls lens on `/activity`. It is a display
+hint, not a data model; nothing else may key off it, and the header is **never parsed back**.
 
 ## The out-of-hours warning
 
@@ -288,6 +338,36 @@ burst dedupe and not a cache — `SettingsRepository.resolved` stays uncached, a
 - **Every phone surface listens to the controller** via `PhoneActionsScope`. A detail screen stays
   mounted behind the `/settings/**` route while the switch is flipped, so a plain build-time read
   would leave it styling numbers with the old value until an unrelated rebuild.
+- **A logged call's note is append-only and frozen at compose time.** The server exposes no `PUT`
+  or `DELETE` for an activity and `activities` has no `deleted_at`, so whatever `composeCallNote`
+  writes is permanent, in the author's locale and the company's date format of that moment, for
+  every client that ever reads it. Get the string right the first time; do not parse it back
+  (a contact name may contain the ` · ` separator).
+- **Compose the time with `formatTimeOfDay`, never `Formatter.date(..., showTime: true)`.** That
+  path assumes a *server UTC* string — it appends `Z` and calls `.toLocal()` — while the form holds
+  a local wall clock. Passing one to the other shifts the printed time by the device's offset, and
+  reads correct on CI (which runs in UTC) while being wrong on every developer machine.
+- **A `SegmentedButton` clips its labels rather than overflowing.** It clamps each child to
+  `maxWidth / childCount`, so a full-width box never throws — it silently truncates, and
+  `Comments` is one unbreakable word that already exceeds its share on a 320 px sheet at
+  `kTextScaleMax` (worse in de/fr). Wrap it in a horizontal `SingleChildScrollView`, as
+  `debug_panel_section.dart` and `segmented_setting_row.dart` both do.
+- **The direction control is a `SegmentedButton`, never a `RadioGroup`.** `RadioGroup` installs a
+  `Shortcuts.manager` + `FocusTraversalGroup` and runs a post-frame single-selection check, which
+  mutates the subtree mid-frame and crashes inside `showModalBottomSheet`'s size-listening layout —
+  the reason `entity_sort_filter_sheet.dart` and `tax_category_dialog.dart` both hand-roll a
+  selectable list. The design rule ("two choices stay visible") is about the affordance, not that
+  widget. `log_call_sheet_test.dart` pins it in both presentations.
+- **The contact field is a plain `TextField`, never a `SearchableDropdownField`.** That widget sets
+  `TextInputType.none` for a list of six or fewer, so the soft keyboard never opens, and renders a
+  *disabled* field when `items` is empty — between them they make it impossible to log a call to a
+  number that isn't already on the record, which is the ordinary shape of an inbound call.
+- **The post-call offer is gated on `Env.isMobile`, not `Env.isTouchPrimary`.** The latter includes
+  a mobile *browser*, where `AppLifecycleState` follows page visibility and every tab switch would
+  look like a finished call. Only `paused` / `detached` → `resumed` counts as a round trip, for the
+  same reason `SyncLifecycleObserver` says so: iOS fires `inactive` for a notification-shade peek.
+  And `launchExternalUri` returning `true` means the *intent started*, never that a call connected —
+  which is why the copy reads "Log call" and never "Call completed".
 - **`Localization.lookup` substitutes the longest placeholder name first.** `contact_local_time` is
   `":time in :timezone"`, and in map-insertion order `:time` rewrites the second token to
   `"<value>zone"`, which then never matches — rendered garbage that no `tr()` lint catches. Five

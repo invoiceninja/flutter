@@ -2,13 +2,26 @@ import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/timezone.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/phone/pending_call_log.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
+import 'package:admin/ui/core/utils/call_note_sink.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/utils/formatting.dart';
+
+/// The record a placed call can be logged against, threaded from whichever
+/// surface owns the call button (invoiceninja/flutter#120).
+///
+/// A record, not an object: it exists only to be copied into a
+/// [PendingCallLog] and held across the dialer round trip. `subject` is the
+/// title the log form shows — a party's display name, or a document's
+/// `#number`.
+typedef CallLogTarget = ({EntityType type, String id, String subject});
 
 /// The `tel:` URI for a stored phone number, or null when there is nothing
 /// dialable in it (a placeholder like "call the office", an empty field).
@@ -39,6 +52,12 @@ Uri? _contactUri(String scheme, String phone) {
 /// per-client timezone override for the out-of-hours check (omit for a vendor
 /// or a user, which have no settings cascade and fall back to the company's).
 ///
+/// [logTarget] is the record a completed call can be logged against. When it is
+/// supplied and the launch succeeds, the call is parked on
+/// `Services.pendingCall` for `CallLogPrompter` to offer when the app next
+/// resumes. Omit it (a team member's number on User Details, say) and nothing
+/// is parked — there is no activity feed to write to.
+///
 /// The order below is load-bearing: the quiet-hours state is resolved *before*
 /// anything is shown so that a user with both guards on sees **one** dialog,
 /// not a generic "Are you sure?" followed by an out-of-hours one.
@@ -47,6 +66,7 @@ Future<void> callPhoneNumber(
   String phone, {
   String? subject,
   String? clientId,
+  CallLogTarget? logTarget,
 }) async {
   final uri = telUri(phone);
   if (uri == null) return;
@@ -90,7 +110,36 @@ Future<void> callPhoneNumber(
     if (!confirmed) return;
   }
 
-  if (!await launchExternalUri(uri)) toasts?.error(failedMessage);
+  if (!await launchExternalUri(uri)) {
+    toasts?.error(failedMessage);
+    return;
+  }
+
+  // Parked, not prompted: the app is on its way to the background and the user
+  // is about to make a call. `CallLogPrompter` picks this up when they come
+  // back. A `true` here means the *intent started*, never that a call
+  // connected — which is why the offer is worded "Log call" and is dismissible.
+  final target = logTarget;
+  if (target == null || !prefs.offerToLogCalls) return;
+  // `isMobile`, not `isTouchPrimary`: the offer hangs off an app-lifecycle
+  // round trip, and only a native phone reliably backgrounds the app for a
+  // call. On mobile *web* `AppLifecycleState` follows page visibility, so every
+  // tab switch would look like a finished call; on desktop the dialer may not
+  // background the app at all, which would leave this parked for ever.
+  if (!Env.isMobile) return;
+  if (!canLogCallAgainst(target.type)) return;
+  final companyId = services.auth.session.value?.currentCompanyId;
+  if (companyId == null || companyId.isEmpty) return;
+  services.pendingCall.record(
+    PendingCallLog(
+      entityType: target.type,
+      entityId: target.id,
+      subject: target.subject,
+      companyId: companyId,
+      contactLabel: (subject ?? '').trim(),
+      phone: phone.trim(),
+    ),
+  );
 }
 
 /// Opens the platform SMS composer for [phone].

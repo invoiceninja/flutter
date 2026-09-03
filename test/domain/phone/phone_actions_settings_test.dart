@@ -58,6 +58,7 @@ void main() {
         tapToCall: false,
         confirmBeforeCall: true,
         warnOutsideBusinessHours: false,
+        offerToLogCalls: false,
         startMinutes: 9 * 60 + 30,
         endMinutes: 17 * 60 + 45,
       );
@@ -69,6 +70,9 @@ void main() {
       expect(restored.tapToCall, isTrue);
       expect(restored.confirmBeforeCall, isFalse);
       expect(restored.warnOutsideBusinessHours, isTrue);
+      // A blob written before this field existed must not silently switch the
+      // offer off — the blob is taken literally only for keys it *has*.
+      expect(restored.offerToLogCalls, isTrue);
       expect(restored.startMinutes, PhoneActionsSettings.defaultStartMinutes);
       expect(restored.endMinutes, PhoneActionsSettings.defaultEndMinutes);
     });
@@ -119,6 +123,9 @@ void main() {
       expect(defaults.confirmBeforeCall, isFalse);
       // On: the only guard the OS cannot provide.
       expect(defaults.warnOutsideBusinessHours, isTrue);
+      // On: it costs a dismissible toast and nothing else. The *platform* gate
+      // lives at the call site (`Env.isMobile`), not here.
+      expect(defaults.offerToLogCalls, isTrue);
     });
   });
 }

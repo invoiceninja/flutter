@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
+import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/ui/features/activity/view_models/activity_view_model.dart';
 
 import '../dashboard/_fake_dashboard_repo.dart';
@@ -92,10 +93,35 @@ void main() {
     expect(repo.refreshActivitiesCalls, 1);
   });
 
+  group('lens persistence', () {
+    test('a blob written before the lens existed still decodes', () {
+      // `nav_state.filters_json` on disk today carries `{'comments': true}`.
+      // Dropping that key would silently clear the user's filter on upgrade.
+      final f = ActivityFilters.fromJson(const {'comments': true});
+      expect(f.lens, ActivityLens.comments);
+      expect(f.isActive, isTrue);
+    });
+
+    test('calls round-trips, and still writes nothing when unset', () {
+      const calls = ActivityFilters(lens: ActivityLens.calls);
+      expect(ActivityFilters.fromJson(calls.toJson()).lens, ActivityLens.calls);
+      expect(const ActivityFilters().toJson(), isEmpty);
+    });
+
+    test('calls does NOT write the legacy key — an older build widens to All '
+        'rather than lying', () {
+      expect(
+        const ActivityFilters(lens: ActivityLens.calls).toJson()['comments'],
+        isNull,
+      );
+    });
+  });
+
   group('filters', () {
     late DashboardActivity byAlice;
     late DashboardActivity byBob;
     late DashboardActivity comment;
+    late DashboardActivity call;
 
     setUp(() async {
       byAlice = _activity(
@@ -118,12 +144,22 @@ void main() {
         userLabel: 'Alice',
         notes: 'chasing the renewal',
       );
-      await emit([byAlice, byBob, comment]);
+      call = _activity(
+        id: '4',
+        type: kCommentActivityTypeId,
+        userId: 'bob',
+        userLabel: 'Bob',
+        // A logged call is the same activity type as a comment; only the
+        // marker in the text tells them apart, which is why the lens is a
+        // content filter and not a type one.
+        notes: '$kCallNoteMarker Outgoing · 3 Sep 2026\nrang, will pay Friday',
+      );
+      await emit([byAlice, byBob, comment, call]);
     });
 
     test('no filter keeps every row', () {
-      expect(rowsOf(vm).map((a) => a.id), ['1', '2', '3']);
-      expect(vm.matchCount, 3);
+      expect(rowsOf(vm).map((a) => a.id), ['1', '2', '3', '4']);
+      expect(vm.matchCount, 4);
       expect(vm.filters.isActive, isFalse);
     });
 
@@ -138,9 +174,25 @@ void main() {
       expect(rowsOf(vm).map((a) => a.id), ['2']);
     });
 
-    test('comments-only keeps just the comment rows', () {
-      vm.setCommentsOnly(true);
-      expect(rowsOf(vm).map((a) => a.id), ['3']);
+    test('comments keeps everything a person wrote, calls included', () {
+      vm.setLens(ActivityLens.comments);
+      expect(rowsOf(vm).map((a) => a.id), ['3', '4']);
+    });
+
+    test('calls narrows to the marker-bearing notes', () {
+      vm.setLens(ActivityLens.calls);
+      expect(rowsOf(vm).map((a) => a.id), ['4']);
+    });
+
+    test('the two lenses nest — calls are a subset of comments', () {
+      // Modelled as one enum rather than two booleans for exactly this: two
+      // switches would let a user ask for "calls but not comments", which
+      // selects nothing and reads as a bug.
+      vm.setLens(ActivityLens.calls);
+      final calls = rowsOf(vm).map((a) => a.id).toSet();
+      vm.setLens(ActivityLens.comments);
+      final comments = rowsOf(vm).map((a) => a.id).toSet();
+      expect(comments.containsAll(calls), isTrue);
     });
 
     test('comments-only overrides the type filter rather than colliding', () {
@@ -148,8 +200,8 @@ void main() {
       // predicate has to agree, or a *persisted* pair would resurrect a filter
       // the UI is hiding and silently return nothing.
       vm.setTypeIds({6});
-      vm.setCommentsOnly(true);
-      expect(rowsOf(vm).map((a) => a.id), ['3']);
+      vm.setLens(ActivityLens.comments);
+      expect(rowsOf(vm).map((a) => a.id), ['3', '4']);
     });
 
     test('search matches the rendered sentence', () {
@@ -176,16 +228,16 @@ void main() {
 
     test('clearFilters restores the full window', () {
       vm.setUser('alice');
-      vm.setCommentsOnly(true);
+      vm.setLens(ActivityLens.comments);
       vm.clearFilters();
-      expect(rowsOf(vm).map((a) => a.id), ['1', '2', '3']);
+      expect(rowsOf(vm).map((a) => a.id), ['1', '2', '3', '4']);
       expect(vm.filters.isActive, isFalse);
     });
 
     test('windowCount reports the unfiltered size', () {
       vm.setUser('alice');
       expect(vm.matchCount, 2);
-      expect(vm.windowCount, 3);
+      expect(vm.windowCount, 4);
     });
   });
 
@@ -332,7 +384,7 @@ void main() {
       await saver.hydration;
       saver
         ..setUser('alice')
-        ..setCommentsOnly(true)
+        ..setLens(ActivityLens.comments)
         ..setSearch('renewal');
       await Future<void>.delayed(const Duration(milliseconds: 20));
       saver.dispose();
@@ -344,7 +396,7 @@ void main() {
       )..setTitleResolver(title);
       await restored.hydration;
       expect(restored.filters.userId, 'alice');
-      expect(restored.filters.commentsOnly, isTrue);
+      expect(restored.filters.lens, ActivityLens.comments);
       expect(restored.filters.search, 'renewal');
       restored.dispose();
     });

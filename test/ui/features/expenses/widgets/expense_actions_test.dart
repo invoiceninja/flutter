@@ -148,6 +148,7 @@ void main() {
 
       expect(enabled(items, ExpenseAction.clone), isTrue);
       expect(enabled(items, ExpenseAction.addComment), isTrue);
+      expect(enabled(items, ExpenseAction.logCall), isTrue);
     });
   });
 

@@ -104,6 +104,16 @@ class ActivityFeedRow extends StatelessWidget {
               children: [
                 Text(
                   render.title,
+                  // The dashboard card only. A logged call's note is
+                  // deliberately multi-line (a metadata header, then what was
+                  // said), and five unbounded ones grew the card to fill its
+                  // column. The full-page feed and the User Details audit
+                  // section stay unclamped on purpose: a typed comment can run
+                  // to six lines (`add_comment_dialog.dart`), the row's tap
+                  // deep-links to the *entity* rather than to the note, and
+                  // there is no other place on those screens to read the rest.
+                  maxLines: _isCard ? 2 : null,
+                  overflow: _isCard ? TextOverflow.ellipsis : null,
                   style: _isCard
                       ? TextStyle(
                           fontSize: 12.5,

@@ -9,16 +9,16 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/notify_async.dart';
 import 'package:admin/ui/features/clients/widgets/client_portal.dart';
-import 'package:admin/ui/features/clients/widgets/detail/add_comment_dialog.dart';
 import 'package:admin/ui/features/clients/widgets/detail/assign_group_dialog.dart';
 import 'package:admin/ui/features/clients/widgets/detail/merge_client_dialog.dart';
 import 'package:admin/ui/features/clients/widgets/detail/purge_client_dialog.dart';
@@ -43,6 +43,7 @@ enum ClientAction {
   settings,
   assignGroup,
   addComment,
+  logCall,
   clone,
   newGroup,
   newInvoice,
@@ -177,6 +178,13 @@ class ClientActions {
           label: context.tr('add_comment'),
           enabled: true,
           onTap: () => onTap(ClientAction.addComment),
+        ),
+        EntityActionItem(
+          kind: ClientAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(ClientAction.logCall),
         ),
         EntityActionItem(
           kind: ClientAction.clone,
@@ -409,18 +417,28 @@ class ClientActions {
             Notify.error(context, context.tr('could_not_save'), error: e);
           }
         }
-      case ClientAction.addComment:
-        if (!requireSynced(context, client.id)) return;
-        final text = await showAddCommentDialog(context);
-        if (text == null || text.isEmpty || !context.mounted) return;
-        await runMutationWithNotify(
+      case ClientAction.logCall:
+        await promptLogCallFor(
           context,
-          () => services.clients.addComment(
+          companyId: companyId,
+          entityId: client.id,
+          subject: _confirmSubject(client),
+          candidates: clientPhoneCandidates(client),
+          submit: (text) => services.clients.addComment(
             companyId: companyId,
             clientId: client.id,
             text: text,
           ),
-          successMsg: context.tr('added_comment'),
+        );
+      case ClientAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: client.id,
+          submit: (text) => services.clients.addComment(
+            companyId: companyId,
+            clientId: client.id,
+            text: text,
+          ),
         );
       case ClientAction.delete:
         // `tmp_` ids only exist locally — the server has no row to delete

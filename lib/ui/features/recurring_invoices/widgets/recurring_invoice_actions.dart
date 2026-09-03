@@ -15,13 +15,13 @@ import 'package:admin/data/models/domain/recurring_invoice_status.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 
@@ -46,6 +46,7 @@ enum RecurringInvoiceAction {
   cloneToPurchaseOrder,
   runTemplate,
   addComment,
+  logCall,
   copyLink,
   archive,
   restore,
@@ -260,6 +261,13 @@ class RecurringInvoiceActions {
           enabled: true,
           onTap: () => onTap(RecurringInvoiceAction.addComment),
         ),
+        EntityActionItem(
+          kind: RecurringInvoiceAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(RecurringInvoiceAction.logCall),
+        ),
       ],
       ?copyLinkActionItem(
         context: context,
@@ -442,16 +450,28 @@ class RecurringInvoiceActions {
           extra: cloneToPurchaseOrder(billingCloneFromRecurringInvoice(ri)),
         );
 
-      case RecurringInvoiceAction.addComment:
-        if (tmpGate()) return;
-        final text = await showAddCommentPrompt(context);
-        if (text == null || !context.mounted) return;
-        await services.recurringInvoices.addComment(
+      case RecurringInvoiceAction.logCall:
+        await promptLogCallFor(
+          context,
           companyId: companyId,
-          recurringInvoiceId: ri.id,
-          text: text,
+          entityId: ri.id,
+          subject: _confirmSubject(ri),
+          submit: (text) => services.recurringInvoices.addComment(
+            companyId: companyId,
+            recurringInvoiceId: ri.id,
+            text: text,
+          ),
         );
-
+      case RecurringInvoiceAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: ri.id,
+          submit: (text) => services.recurringInvoices.addComment(
+            companyId: companyId,
+            recurringInvoiceId: ri.id,
+            text: text,
+          ),
+        );
       case RecurringInvoiceAction.copyLink:
         await copyEntityLink(context, EntityType.recurringInvoice, ri.id);
       case RecurringInvoiceAction.archive:

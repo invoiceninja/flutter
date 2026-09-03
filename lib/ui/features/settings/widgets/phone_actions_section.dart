@@ -20,6 +20,8 @@ const kPhoneActionsSearchKeys = <String>[
   'confirm_before_calling_help',
   'warn_outside_business_hours',
   'warn_outside_business_hours_help',
+  'offer_to_log_calls',
+  'offer_to_log_calls_help',
   'business_hours',
 ];
 
@@ -89,6 +91,20 @@ class PhoneActionsSection extends StatelessWidget {
             ),
             if (prefs.tapToCall && prefs.warnOutsideBusinessHours)
               _BusinessHoursRow(controller: controller, prefs: prefs),
+            // Last, because it is about what happens *after* a call rather
+            // than before it — and greyed with the rest when tapping doesn't
+            // dial, since there is then no dialer round trip to notice.
+            // Native mobile only in effect (see
+            // `PhoneActionsSettings.offerToLogCalls`); the row still renders
+            // everywhere so the state is visible, exactly like the two guards.
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.phone_in_talk_outlined),
+              title: Text(context.tr('offer_to_log_calls')),
+              subtitle: Text(context.tr('offer_to_log_calls_help')),
+              value: prefs.offerToLogCalls,
+              onChanged: prefs.tapToCall ? controller.setOfferToLogCalls : null,
+            ),
           ],
         );
       },

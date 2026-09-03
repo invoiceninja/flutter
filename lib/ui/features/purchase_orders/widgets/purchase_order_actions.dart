@@ -18,13 +18,13 @@ import 'package:admin/data/models/domain/purchase_order_status.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_portal.dart';
@@ -57,6 +57,7 @@ enum PurchaseOrderAction {
   cloneToCredit,
   runTemplate,
   addComment,
+  logCall,
   copyLink,
   archive,
   restore,
@@ -313,6 +314,13 @@ class PurchaseOrderActions {
           enabled: true,
           onTap: () => onTap(PurchaseOrderAction.addComment),
         ),
+        EntityActionItem(
+          kind: PurchaseOrderAction.logCall,
+          icon: Icons.phone_in_talk_outlined,
+          label: context.tr('log_call'),
+          enabled: true,
+          onTap: () => onTap(PurchaseOrderAction.logCall),
+        ),
       ],
       ?copyLinkActionItem(
         context: context,
@@ -530,16 +538,28 @@ class PurchaseOrderActions {
           extra: cloneToCredit(billingCloneFromPurchaseOrder(po)),
         );
 
-      case PurchaseOrderAction.addComment:
-        if (tmpGate()) return;
-        final text = await showAddCommentPrompt(context);
-        if (text == null || !context.mounted) return;
-        await services.purchaseOrders.addComment(
+      case PurchaseOrderAction.logCall:
+        await promptLogCallFor(
+          context,
           companyId: companyId,
-          purchaseOrderId: po.id,
-          text: text,
+          entityId: po.id,
+          subject: _confirmSubject(po),
+          submit: (text) => services.purchaseOrders.addComment(
+            companyId: companyId,
+            purchaseOrderId: po.id,
+            text: text,
+          ),
         );
-
+      case PurchaseOrderAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: po.id,
+          submit: (text) => services.purchaseOrders.addComment(
+            companyId: companyId,
+            purchaseOrderId: po.id,
+            text: text,
+          ),
+        );
       case PurchaseOrderAction.copyLink:
         await copyEntityLink(context, EntityType.purchaseOrder, po.id);
       case PurchaseOrderAction.archive:

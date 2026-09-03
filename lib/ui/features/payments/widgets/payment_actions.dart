@@ -6,8 +6,8 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
-import 'package:admin/ui/features/billing_shared/actions/add_comment_prompt.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
@@ -22,6 +22,7 @@ enum PaymentAction {
   refund,
   sendEmail,
   addComment,
+  logCall,
   copyLink,
   archive,
   restore,
@@ -103,6 +104,13 @@ class PaymentActions {
         enabled: true,
         onTap: () => onTap(PaymentAction.addComment),
       ),
+      EntityActionItem(
+        kind: PaymentAction.logCall,
+        icon: Icons.phone_in_talk_outlined,
+        label: context.tr('log_call'),
+        enabled: true,
+        onTap: () => onTap(PaymentAction.logCall),
+      ),
       ?copyLinkActionItem(
         context: context,
         kind: PaymentAction.copyLink,
@@ -156,8 +164,28 @@ class PaymentActions {
         if (context.mounted) {
           Notify.success(context, context.tr('emailed_payment'));
         }
+      case PaymentAction.logCall:
+        await promptLogCallFor(
+          context,
+          companyId: companyId,
+          entityId: payment.id,
+          subject: _confirmSubject(payment),
+          submit: (text) => services.payments.addComment(
+            companyId: companyId,
+            paymentId: payment.id,
+            text: text,
+          ),
+        );
       case PaymentAction.addComment:
-        await _promptAddComment(context, services, companyId, payment);
+        await promptAddCommentFor(
+          context,
+          entityId: payment.id,
+          submit: (text) => services.payments.addComment(
+            companyId: companyId,
+            paymentId: payment.id,
+            text: text,
+          ),
+        );
       case PaymentAction.copyLink:
         await copyEntityLink(context, EntityType.payment, payment.id);
       case PaymentAction.archive:
@@ -188,21 +216,4 @@ class PaymentActions {
         );
     }
   }
-}
-
-Future<void> _promptAddComment(
-  BuildContext context,
-  Services services,
-  String companyId,
-  Payment payment,
-) async {
-  // Shared dialog — it owns its controller in a State so disposal cannot
-  // race the exit transition (see `showAddCommentPrompt`).
-  final text = await showAddCommentPrompt(context);
-  if (text == null || text.isEmpty) return;
-  await services.payments.addComment(
-    companyId: companyId,
-    paymentId: payment.id,
-    text: text,
-  );
 }

@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/activity.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_record_row.dart';
 
 import '../../../_localization_helper.dart';
@@ -141,5 +142,74 @@ void main() {
     expect(text, contains('Bob Roe'));
     expect(text, contains('PMT-1'));
     expect(text, contains('made payment'));
+  });
+
+  group('a logged call (invoiceninja/flutter#120)', () {
+    // Composed the way the sheet composes it: marker, `·`-joined header,
+    // newline, summary. Nothing parses this back — the row only splits it.
+    final call = _activity(
+      typeId: 141,
+      notes:
+          '$kCallNoteMarker Outgoing · Jane Smith · 12 Minutes · '
+          '3/Sep/2026 2:32 PM\nThey will pay Friday',
+      refs: const {'user': ActivityRef(label: 'Hillel')},
+    );
+
+    testWidgets('gets the phone glyph, not the comment one', (tester) async {
+      await _render(tester, call);
+      final icons = tester
+          .widgetList<Icon>(find.byType(Icon))
+          .map((i) => i.icon)
+          .toList();
+      expect(icons, contains(Icons.phone_in_talk_outlined));
+      expect(icons, isNot(contains(Icons.comment_outlined)));
+    });
+
+    testWidgets('a plain comment keeps the comment glyph', (tester) async {
+      await _render(
+        tester,
+        _activity(typeId: 141, notes: 'Chasing this one up again'),
+      );
+      final icons = tester
+          .widgetList<Icon>(find.byType(Icon))
+          .map((i) => i.icon)
+          .toList();
+      expect(icons, contains(Icons.comment_outlined));
+      expect(icons, isNot(contains(Icons.phone_in_talk_outlined)));
+    });
+
+    testWidgets('renders header and summary as two tiers, marker stripped', (
+      tester,
+    ) async {
+      await _render(tester, call);
+      // Asserted on the string, never on pixels: `flutter test` substitutes its
+      // own font, so the marker glyph is invisible to a golden.
+      expect(
+        find.text('Outgoing · Jane Smith · 12 Minutes · 3/Sep/2026 2:32 PM'),
+        findsOneWidget,
+      );
+      expect(find.text('They will pay Friday'), findsOneWidget);
+      expect(find.textContaining(kCallNoteMarker), findsNothing);
+    });
+
+    testWidgets('keeps naming the actor the templated sentence would have', (
+      tester,
+    ) async {
+      // The call branch bypasses `buildActivitySpans`, which is what supplies
+      // "User :user entered note:" — drop the actor here and a logged call
+      // becomes the one activity row that names nobody.
+      await _render(tester, call);
+      expect(find.textContaining('Hillel'), findsOneWidget);
+    });
+
+    testWidgets('a marked note with no newline renders as the summary', (
+      tester,
+    ) async {
+      await _render(
+        tester,
+        _activity(typeId: 141, notes: '$kCallNoteMarker Rang, no answer'),
+      );
+      expect(find.text('Rang, no answer'), findsOneWidget);
+    });
   });
 }

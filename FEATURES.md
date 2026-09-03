@@ -142,6 +142,8 @@ the honest default.
 | Client — import contact from device address book (iOS + Android) | ❌ | ✅ | ✅ | | |
 | Client contacts — sync out to the device address book (caller ID) | ❌ | ❌ | ✅ | | |
 | Client — call from the list row on a phone: one tap for a single number, a contact picker when there are several | ❌ | ❌ | ✅ | | |
+| Log a phone call against a record — direction, time, contact, duration and a summary, written into the activity feed | ❌ | ❌ | ✅ | | |
+| Offer to log a call on return from the dialer (dismissible toast, device-local preference) | ❌ | ❌ | ✅ | | |
 | Phone numbers — tap to call, plus a Message (SMS) action on contact rows | ❌ | 🟡 | ✅ | | |
 | Client/Vendor — contact CC-only | ✅ | ✅ | ✅ | — | — |
 | Client — multiple shipping / billing locations | ✅ | ✅ | ✅ | ✅ | |
@@ -415,6 +417,7 @@ the honest default.
 | Vendor — clone | ✅ | ❌ | ✅ | ✅ | |
 | Vendor — ledger tab (expenses + POs spend roll-up) | — | — | ✅ | ✅ | |
 | Vendor — comments / internal notes | ✅ | ✅ | ✅ | ✅ | |
+| Vendor — log a phone call into the activity feed | ❌ | ❌ | ✅ | | |
 | Vendor — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — activities | ✅ | ✅ | ✅ | ✅ | |
 | Vendor — "New expense / purchase order / recurring expense" shortcuts (prefill vendor) | ✅ | ✅ | ✅ | ✅ | |
@@ -1552,6 +1555,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Sentry / error-tracking integration | ✅ | ✅ | ✅ | ✅ | |
 | Per-entity activity / audit feed | ✅ | ✅ | ✅ | ✅ | |
 | Per-entity comments / internal notes | ✅ | ✅ | ✅ | ✅ | |
+| Per-entity logged phone calls (a call-shaped activity note, with a Calls lens on the activity feed) | ❌ | ❌ | ✅ | | |
 | Unsaved-changes guard on navigation | ✅ | ✅ | ✅ | ✅ | |
 | Phone-number input with validation | ✅ | ✅ | ✅ | ✅ | |
 | Signature pad | ✅ | ✅ | ✅ | ✅ | |

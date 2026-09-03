@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
 import 'package:admin/ui/core/utils/external_url.dart';
@@ -78,6 +79,11 @@ class ClientDetailDetailsCard extends StatelessWidget {
           phone: client.phone,
           subject: client.displayName,
           clientId: client.id,
+          logTarget: (
+            type: EntityType.client,
+            id: client.id,
+            subject: client.displayName,
+          ),
         ),
       stdRow(context.tr('vat_number'), client.vatNumber),
       stdRow(context.tr('id_number'), client.idNumber),

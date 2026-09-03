@@ -224,5 +224,6 @@ void main() {
     expect(enabled(items, VendorAction.edit), isTrue);
     expect(enabled(items, VendorAction.clone), isTrue);
     expect(enabled(items, VendorAction.addComment), isTrue);
+    expect(enabled(items, VendorAction.logCall), isTrue);
   });
 }

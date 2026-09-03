@@ -8,17 +8,18 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/domain/phone/call_note.dart';
+import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
-import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
-import 'package:admin/ui/core/widgets/notify_async.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_list_card.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_record_row.dart';
 import 'package:admin/ui/features/clients/view_models/client_activity_view_model.dart';
-import 'package:admin/ui/features/clients/widgets/detail/add_comment_dialog.dart';
 
 /// Activity tab content rendered inside `ClientDetailTabs`. Owns its own
 /// [ClientActivityViewModel] so the data fetch is scoped to this tab's
@@ -67,20 +68,26 @@ class _ClientActivityTabBodyState extends State<ClientActivityTabBody> {
     super.dispose();
   }
 
-  Future<void> _onAddComment() async {
-    if (!requireSynced(context, widget.client.id)) return;
-    final text = await showAddCommentDialog(context);
-    if (text == null || text.isEmpty || !mounted) return;
-    await runMutationWithNotify(
-      context,
-      () => _services.clients.addComment(
-        companyId: _companyId,
-        clientId: widget.client.id,
-        text: text,
-      ),
-      successMsg: context.tr('added_comment'),
-    );
-  }
+  /// Both flows go through the shared helpers, exactly as the `⋯` menu and the
+  /// eight billing-doc Activity tabs do — this used to be a fourth hand-rolled
+  /// copy of the same gate/prompt/toast sequence.
+  Future<void> _submit(String text) => _services.clients.addComment(
+    companyId: _companyId,
+    clientId: widget.client.id,
+    text: text,
+  );
+
+  Future<void> _onAddComment() =>
+      promptAddCommentFor(context, entityId: widget.client.id, submit: _submit);
+
+  Future<void> _onLogCall() => promptLogCallFor(
+    context,
+    companyId: _companyId,
+    entityId: widget.client.id,
+    subject: widget.client.displayName,
+    candidates: clientPhoneCandidates(widget.client),
+    submit: _submit,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -90,14 +97,9 @@ class _ClientActivityTabBodyState extends State<ClientActivityTabBody> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              onPressed: _onAddComment,
-              icon: const Icon(Icons.add_comment_outlined, size: 18),
-              label: Text(context.tr('add_comment')),
-            ),
+          ActivityNoteButtons(
+            onLogCall: _onLogCall,
+            onAddComment: _onAddComment,
           ),
           SizedBox(height: InSpacing.md(context)),
           AnimatedBuilder(
@@ -200,8 +202,14 @@ class _PendingCommentRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // The same two-tier body the synced row will use — the
+                  // outbox payload is the raw composed note, so printing it
+                  // flat made a logged call change shape as it landed.
                   if (notes.isNotEmpty)
-                    Text(notes, style: theme.textTheme.bodyMedium),
+                    if (isCallNoteText(notes))
+                      ...callNoteBody(context, notes)
+                    else
+                      Text(notes, style: theme.textTheme.bodyMedium),
                   const SizedBox(height: 2),
                   Text(
                     context.tr('in_flight'),

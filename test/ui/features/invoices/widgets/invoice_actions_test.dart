@@ -292,6 +292,10 @@ void main() {
       expect(present(items, InvoiceAction.edit), isFalse);
       expect(present(items, InvoiceAction.cloneGroup), isFalse);
       expect(present(items, InvoiceAction.addComment), isFalse);
+      // `logCall` writes the same activity note through the same repo method,
+      // so it must sit inside the same `canEditInvoice` block — a divergence
+      // here is a permission hole that nothing else would catch.
+      expect(present(items, InvoiceAction.logCall), isFalse);
       expect(present(items, InvoiceAction.archive), isFalse);
     });
 
@@ -307,6 +311,7 @@ void main() {
 
       expect(present(items, InvoiceAction.edit), isTrue);
       expect(present(items, InvoiceAction.addComment), isTrue);
+      expect(present(items, InvoiceAction.logCall), isTrue);
       expect(
         present(items, InvoiceAction.cloneGroup),
         isFalse,

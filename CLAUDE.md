@@ -45,7 +45,7 @@ Plus two non-negotiables carried from admin-portal:
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
 | Sharing a link to a record, or handling an incoming one | § Deep links |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
-| Tap-to-call / SMS on a phone number, its business-hours warning, or a call button (billing-doc header, list row) | `docs/tap-to-call.md` |
+| Tap-to-call / SMS on a phone number, its business-hours warning, a call button (billing-doc header, list row), or logging a call into Activity | `docs/tap-to-call.md` |
 | Rotating the `is_system` API token (blocked on server) | `docs/token-rotation.md` |
 | Checking what's built vs what's left | `FEATURES.md` (kept current — see § Strict rules) |
 | Working around an open upstream (Flutter/pub) bug — or undoing one later | `docs/upstream-workarounds.md` |
@@ -474,6 +474,37 @@ here are not obvious:
   cluster would silently move every entity's wide column headers. Narrow only — a wide-table slot
   would have to be mirrored into that same shared strip, so a landscape phone and every tablet get
   no button.
+
+- **A logged call is an activity *note*, and the note is the only storage there is** (#120).
+  `POST /api/v1/activities/notes` writes an `activity_type_id = 141` row — the same
+  `MutationKind.addComment` outbox path "Add comment" already used, so offline queueing and the
+  optimistic "Syncing…" row come free, and a note filed against an invoice reaches the client's
+  feed too because the server stamps `client_id`. Invoice Ninja's own Pancake importer stores
+  imported call logs this way, and `composeCallNote` (`lib/domain/phone/call_note.dart`) mirrors
+  its shape. Four things follow, each silent if broken. The note is **append-only** — no `PUT`, no
+  `DELETE`, no `deleted_at` — so a composed string is permanent in the author's locale and date
+  format for every client that ever reads it; get it right once and **never parse it back** (a
+  contact name may contain the ` · ` separator). The leading **`📞` is cosmetic**: it drives the
+  row's phone icon and the Calls lens on `/activity` and nothing else may key off it, because the
+  wire carries no note subtype. Compose the time with **`formatTimeOfDay`, never
+  `Formatter.date(..., showTime: true)`** — that path assumes a server-UTC string (appends `Z`,
+  calls `.toLocal()`) and would shift a locally-picked wall clock by the device's offset, reading
+  correct only on CI. And the capture sheet's direction control is a **`SegmentedButton`, never a
+  `RadioGroup`**: `RadioGroup` mutates its subtree mid-frame and crashes inside sheet/dialog
+  layout, which is why `entity_sort_filter_sheet.dart` and `tax_category_dialog.dart` hand-roll a
+  list; its contact field is a plain `TextField` for the same class of reason — a
+  `SearchableDropdownField` sets `TextInputType.none` at ≤6 options and disables itself at zero,
+  between them making an unstored number impossible to type.
+- **The post-call offer is gated on `Env.isMobile`, not `Env.isTouchPrimary`** (#120).
+  `CallLogPrompter` (mounted beside `ToastHost`) turns a background→foreground round trip into a
+  dismissible "Log call" toast, so it inherits `SyncLifecycleObserver`'s rule that only
+  `paused`/`detached` → `resumed` counts — iOS fires `inactive` for a notification-shade peek. The
+  wider `isTouchPrimary` would arm it on mobile *web*, where `AppLifecycleState` follows page
+  visibility and every tab switch looks like a finished call. `launchExternalUri` returning `true`
+  means the **intent started**, never that a call connected, so the copy says "Log call" and never
+  "Call completed". The pending call is a plain record held **in memory only** — a closure would
+  pin the widget tree across the call, and persisting it would need expiry, company scoping and a
+  logout wipe to avoid offering a note against a workspace the user has left.
 
 ## Localization
 

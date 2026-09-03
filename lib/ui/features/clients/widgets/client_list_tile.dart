@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/columns/client_columns.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/contact_label.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
@@ -217,6 +218,11 @@ class _ClientListTileState extends State<ClientListTile> {
       partyName: displayName,
       clientId: w.client.id,
       onViewParty: w.onViewRecord,
+      logTarget: (
+        type: EntityType.client,
+        id: w.client.id,
+        subject: displayName,
+      ),
     );
   }
 

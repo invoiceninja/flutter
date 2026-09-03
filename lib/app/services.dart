@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/deep_link_router.dart';
+import 'package:admin/app/pending_call_controller.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services_entity_wiring.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
@@ -280,6 +281,7 @@ class Services implements SidebarBadgeContext {
     required this.confirmActions,
     required this.statusTabs,
     required this.phoneActions,
+    required this.pendingCall,
     required this.contactsSync,
     required this.sidebar,
     required this.sidebarBadgeModes,
@@ -600,6 +602,11 @@ class Services implements SidebarBadgeContext {
   /// restyle its numbers when the switch flips, not on the next unrelated
   /// rebuild.
   final PhoneActionsController phoneActions;
+
+  /// The one call awaiting a "log this?" offer, parked by `callPhoneNumber`
+  /// and consumed by `CallLogPrompter` on the next resume
+  /// (invoiceninja/flutter#120). In-memory — see [PendingCallLog].
+  final PendingCallController pendingCall;
 
   /// Device-local "sync client contacts to this device's address book"
   /// preference plus the single-flight guard around a reconcile pass
@@ -1369,6 +1376,7 @@ class Services implements SidebarBadgeContext {
     final confirmActions = ConfirmActionsController(db: db);
     final statusTabs = StatusTabsController(db: db);
     final phoneActions = PhoneActionsController(db: db);
+    final pendingCall = PendingCallController();
     // One instance, shared by the picker (`services.deviceContacts`) and the
     // sync engine below — the native impl caches the device's contacts account,
     // and two of them would probe for it twice.
@@ -1466,6 +1474,10 @@ class Services implements SidebarBadgeContext {
       // account that was signed in when it arrived. Replaying it into the next
       // session would navigate the new user by the old one's ids.
       services.deepLinks.reset();
+      // Same argument for a call parked mid-dial: it names a record in the
+      // outgoing user's company, and offering to log it after a different user
+      // signs in would file a note against ids they never saw.
+      services.pendingCall.clear();
       // Drop every repo's first-frame seed cache. Those hold display names —
       // user data — and a second user signing in on the same install must not
       // inherit the previous one's. Also `invalidateAllFormatters`, whose doc
@@ -1599,6 +1611,7 @@ class Services implements SidebarBadgeContext {
       confirmActions: confirmActions,
       statusTabs: statusTabs,
       phoneActions: phoneActions,
+      pendingCall: pendingCall,
       contactsSync: contactsSync,
       sidebar: sidebar,
       sidebarBadgeModes: sidebarBadgeModes,

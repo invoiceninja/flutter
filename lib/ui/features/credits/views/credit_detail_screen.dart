@@ -17,6 +17,7 @@ import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
@@ -181,6 +182,28 @@ class _Body extends StatelessWidget {
                       companyId: companyId,
                       activitiesApi: services.activities,
                       outboxDao: services.db.outboxDao,
+                      onAddComment: () => promptAddCommentFor(
+                        context,
+                        entityId: credit.id,
+                        submit: (text) => services.credits.addComment(
+                          companyId: companyId,
+                          creditId: credit.id,
+                          text: text,
+                        ),
+                      ),
+                      onLogCall: () => promptLogCallFor(
+                        context,
+                        companyId: companyId,
+                        entityId: credit.id,
+                        subject: credit.number.isEmpty
+                            ? ''
+                            : '#${credit.number}',
+                        submit: (text) => services.credits.addComment(
+                          companyId: companyId,
+                          creditId: credit.id,
+                          text: text,
+                        ),
+                      ),
                     ),
                   ),
                   EntityDetailTab(
@@ -271,7 +294,18 @@ class _Header extends StatelessWidget {
                   style: TextStyle(color: tokens.ink3),
                 ),
               ),
-              PartyCallButton(clientId: credit.clientId),
+              PartyCallButton(
+                clientId: credit.clientId,
+                // Filed against the *document*, not the party: the
+                // server stamps `client_id` on it anyway, so it still
+                // reaches the client's feed — and this way the note
+                // also says which document the call was about.
+                logTarget: (
+                  type: EntityType.credit,
+                  id: credit.id,
+                  subject: credit.number.isEmpty ? '' : '#${credit.number}',
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),

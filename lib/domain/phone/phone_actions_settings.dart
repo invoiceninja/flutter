@@ -5,9 +5,11 @@ import 'package:admin/app/env.dart';
 /// Device-local preferences for the tap-to-call / tap-to-message affordances
 /// on phone numbers (invoiceninja/flutter#109).
 ///
-/// Persisted as one JSON blob in `nav_state.phone_actions_json` — five related
+/// Persisted as one JSON blob in `nav_state.phone_actions_json` — six related
 /// fields, same reasoning as `contacts_sync_json`: none of it is ever queried
-/// by SQL, and one column is one migration instead of five.
+/// by SQL, and one column is one migration instead of six. That is also what
+/// made [offerToLogCalls] free to add after the schema shipped
+/// (invoiceninja/flutter#120).
 ///
 /// Owned by `PhoneActionsController`; the quiet-hours predicate lives here so
 /// it can be unit-tested without Drift, `Services`, or a widget tree.
@@ -17,6 +19,7 @@ class PhoneActionsSettings {
     required this.tapToCall,
     this.confirmBeforeCall = false,
     this.warnOutsideBusinessHours = true,
+    this.offerToLogCalls = true,
     this.startMinutes = defaultStartMinutes,
     this.endMinutes = defaultEndMinutes,
   });
@@ -66,6 +69,19 @@ class PhoneActionsSettings {
   /// will ring*.
   final bool warnOutsideBusinessHours;
 
+  /// After the dialer has been opened from the app, offer — once, in a
+  /// dismissible toast, when the user comes back — to record what was said on
+  /// the record's activity feed (invoiceninja/flutter#120).
+  ///
+  /// On by default, but the *offer itself* is additionally gated on
+  /// [Env.isMobile] at the call site: it hangs off an app-lifecycle round
+  /// trip, and only a phone reliably backgrounds the app for a call. A desktop
+  /// `tel:` handler may never background it at all, and on mobile **web**
+  /// `AppLifecycleState` follows page visibility, so every tab switch would
+  /// look like a finished call. Logging a call by hand stays available
+  /// everywhere, from the record's actions menu and its Activity tab.
+  final bool offerToLogCalls;
+
   /// Minutes past midnight, in the *callee's* zone. Not a `TimeOfDay`: this
   /// type is JSON-serialised and must not depend on `dart:ui`.
   final int startMinutes;
@@ -98,6 +114,7 @@ class PhoneActionsSettings {
     bool? tapToCall,
     bool? confirmBeforeCall,
     bool? warnOutsideBusinessHours,
+    bool? offerToLogCalls,
     int? startMinutes,
     int? endMinutes,
   }) => PhoneActionsSettings(
@@ -105,6 +122,7 @@ class PhoneActionsSettings {
     confirmBeforeCall: confirmBeforeCall ?? this.confirmBeforeCall,
     warnOutsideBusinessHours:
         warnOutsideBusinessHours ?? this.warnOutsideBusinessHours,
+    offerToLogCalls: offerToLogCalls ?? this.offerToLogCalls,
     startMinutes: startMinutes ?? this.startMinutes,
     endMinutes: endMinutes ?? this.endMinutes,
   );
@@ -113,6 +131,7 @@ class PhoneActionsSettings {
     'tapToCall': tapToCall,
     'confirmBeforeCall': confirmBeforeCall,
     'warnOutsideBusinessHours': warnOutsideBusinessHours,
+    'offerToLogCalls': offerToLogCalls,
     'startMinutes': startMinutes,
     'endMinutes': endMinutes,
   };
@@ -144,6 +163,7 @@ class PhoneActionsSettings {
       tapToCall: flag('tapToCall', Env.isTouchPrimary),
       confirmBeforeCall: flag('confirmBeforeCall', false),
       warnOutsideBusinessHours: flag('warnOutsideBusinessHours', true),
+      offerToLogCalls: flag('offerToLogCalls', true),
       startMinutes: minutes('startMinutes', defaultStartMinutes),
       endMinutes: minutes('endMinutes', defaultEndMinutes),
     );
@@ -155,6 +175,7 @@ class PhoneActionsSettings {
       other.tapToCall == tapToCall &&
       other.confirmBeforeCall == confirmBeforeCall &&
       other.warnOutsideBusinessHours == warnOutsideBusinessHours &&
+      other.offerToLogCalls == offerToLogCalls &&
       other.startMinutes == startMinutes &&
       other.endMinutes == endMinutes;
 
@@ -163,6 +184,7 @@ class PhoneActionsSettings {
     tapToCall,
     confirmBeforeCall,
     warnOutsideBusinessHours,
+    offerToLogCalls,
     startMinutes,
     endMinutes,
   );

@@ -5,6 +5,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
@@ -12,6 +13,7 @@ import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/ledger/ledger_tab.dart';
 import 'package:admin/ui/features/expenses/views/expense_list_screen.dart';
@@ -147,6 +149,27 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
                       activitiesApi: _services.activities,
                       outboxDao: _services.db.outboxDao,
                       formatter: formatter,
+                      onAddComment: () => promptAddCommentFor(
+                        context,
+                        entityId: v.id,
+                        submit: (text) => _services.vendors.addComment(
+                          companyId: _companyId,
+                          vendorId: v.id,
+                          text: text,
+                        ),
+                      ),
+                      onLogCall: () => promptLogCallFor(
+                        context,
+                        companyId: _companyId,
+                        entityId: v.id,
+                        subject: v.name,
+                        candidates: vendorPhoneCandidates(v),
+                        submit: (text) => _services.vendors.addComment(
+                          companyId: _companyId,
+                          vendorId: v.id,
+                          text: text,
+                        ),
+                      ),
                     ),
                   ),
                 ],

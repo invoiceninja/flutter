@@ -14,6 +14,7 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
@@ -210,6 +211,28 @@ class _Body extends StatelessWidget {
                       companyId: companyId,
                       activitiesApi: services.activities,
                       outboxDao: services.db.outboxDao,
+                      onAddComment: () => promptAddCommentFor(
+                        context,
+                        entityId: recurringInvoice.id,
+                        submit: (text) => services.recurringInvoices.addComment(
+                          companyId: companyId,
+                          recurringInvoiceId: recurringInvoice.id,
+                          text: text,
+                        ),
+                      ),
+                      onLogCall: () => promptLogCallFor(
+                        context,
+                        companyId: companyId,
+                        entityId: recurringInvoice.id,
+                        subject: recurringInvoice.number.isEmpty
+                            ? ''
+                            : '#${recurringInvoice.number}',
+                        submit: (text) => services.recurringInvoices.addComment(
+                          companyId: companyId,
+                          recurringInvoiceId: recurringInvoice.id,
+                          text: text,
+                        ),
+                      ),
                     ),
                   ),
                   EntityDetailTab(
@@ -429,7 +452,20 @@ class _Header extends StatelessWidget {
                   style: TextStyle(color: tokens.ink3),
                 ),
               ),
-              PartyCallButton(clientId: recurringInvoice.clientId),
+              PartyCallButton(
+                clientId: recurringInvoice.clientId,
+                // Filed against the *document*, not the party: the
+                // server stamps `client_id` on it anyway, so it still
+                // reaches the client's feed — and this way the note
+                // also says which document the call was about.
+                logTarget: (
+                  type: EntityType.recurringInvoice,
+                  id: recurringInvoice.id,
+                  subject: recurringInvoice.number.isEmpty
+                      ? ''
+                      : '#${recurringInvoice.number}',
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),

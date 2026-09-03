@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
+import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 
@@ -210,6 +211,40 @@ void main() {
       // never a bare `:invoice` and never some other row's value.
       final r = await render(tester, _row(4));
       expect(r.title, 'Alice Admin created invoice Invoice');
+    });
+  });
+
+  group('logged calls (invoiceninja/flutter#120)', () {
+    // A logged call and a typed comment are the same `activity_type_id = 141`;
+    // only the marker at the head of the note separates them, and it drives
+    // both the row glyph and the Calls lens on `/activity`.
+    testWidgets('a marker-bearing note gets the phone glyph', (tester) async {
+      final r = await render(
+        tester,
+        _row(141, notes: '$kCallNoteMarker Outgoing · Jane\nThey will pay'),
+      );
+      expect(r.icon, Icons.phone_in_talk_outlined);
+    });
+
+    testWidgets('the glyph is not printed twice', (tester) async {
+      // The row already renders the icon; leaving the marker in the title
+      // showed it again inside the sentence. `stripCallNoteMarker` is a no-op
+      // for every note that has none.
+      final r = await render(
+        tester,
+        _row(141, notes: '$kCallNoteMarker Outgoing · Jane\nThey will pay'),
+      );
+      expect(r.title, isNot(contains(kCallNoteMarker)));
+      expect(r.title, contains('Outgoing · Jane'));
+      expect(r.title, contains('They will pay'));
+    });
+
+    testWidgets('a plain comment keeps the icon it always had', (tester) async {
+      final plain = await render(tester, _row(141, notes: 'Chasing this up'));
+      final blank = await render(tester, _row(141, notes: ''));
+      expect(plain.icon, isNot(Icons.phone_in_talk_outlined));
+      expect(plain.icon, blank.icon);
+      expect(plain.title, contains('Chasing this up'));
     });
   });
 }

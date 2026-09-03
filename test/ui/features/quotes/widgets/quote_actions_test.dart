@@ -273,6 +273,9 @@ void main() {
       QuoteAction.sendEmail,
       QuoteAction.scheduleEmail,
       QuoteAction.addComment,
+      // Opens its own capture form, so a confirm in front of it would be the
+      // second prompt CLAUDE.md § Action confirmations warns against.
+      QuoteAction.logCall,
       QuoteAction.restore,
     };
 

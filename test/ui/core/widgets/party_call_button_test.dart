@@ -12,8 +12,10 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/contact_api_model.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/utils/phone_actions.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 
 import '../../../_localization_helper.dart';
@@ -78,6 +80,7 @@ void main() {
     WidgetTester tester,
     List<PhoneCandidate> candidates, {
     VoidCallback? onViewParty,
+    CallLogTarget? logTarget,
   }) async {
     await tester.binding.setSurfaceSize(const Size(500, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -95,6 +98,7 @@ void main() {
                 partyName: 'Acme Corporation',
                 clientId: 'c1',
                 onViewParty: onViewParty,
+                logTarget: logTarget,
               ),
             ),
           ),
@@ -105,6 +109,13 @@ void main() {
   }
 
   Finder trigger() => find.byIcon(Icons.call_outlined);
+
+  /// Lets a queued toast's dismiss timer expire. `copyToClipboard` raises a
+  /// "Copied" toast, and the harness fails any test that ends with a pending
+  /// timer — the toast used to be swallowed because the fake `Services` had no
+  /// `ToastController` at all.
+  Future<void> drainToasts(WidgetTester tester) =>
+      tester.pump(const Duration(seconds: 7));
 
   group('rendering', () {
     testWidgets('renders nothing when the party has no dialable number', (
@@ -182,6 +193,68 @@ void main() {
       expect(launcher.launched, ['tel:+14155552671']);
     });
 
+    testWidgets('parks the call for the post-call offer when a target is '
+        'supplied', (tester) async {
+      // invoiceninja/flutter#120 — `CallLogPrompter` reads this slot on the
+      // next resume. Parked only on a *successful* launch; the record, not a
+      // closure, so it survives the background trip without pinning the tree.
+      await services.phoneActions.setTapToCall(true);
+      await pump(
+        tester,
+        const [jane],
+        logTarget: (
+          type: EntityType.client,
+          id: 'c1',
+          subject: 'Acme Corporation',
+        ),
+      );
+
+      await tester.tap(trigger());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final parked = services.pendingCall.value;
+      expect(parked, isNotNull);
+      expect(parked!.entityId, 'c1');
+      expect(parked.entityType, EntityType.client);
+      expect(parked.phone, '+1 415 555 2671');
+    });
+
+    testWidgets('parks nothing without a target — a team member has no feed', (
+      tester,
+    ) async {
+      await services.phoneActions.setTapToCall(true);
+      await pump(tester, const [jane]);
+
+      await tester.tap(trigger());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(launcher.launched, isNotEmpty);
+      expect(services.pendingCall.value, isNull);
+    });
+
+    testWidgets('parks nothing when the offer is switched off', (tester) async {
+      await services.phoneActions.setTapToCall(true);
+      await services.phoneActions.setOfferToLogCalls(false);
+      await pump(
+        tester,
+        const [jane],
+        logTarget: (
+          type: EntityType.client,
+          id: 'c1',
+          subject: 'Acme Corporation',
+        ),
+      );
+
+      await tester.tap(trigger());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(launcher.launched, isNotEmpty);
+      expect(services.pendingCall.value, isNull);
+    });
+
     testWidgets('long-press copies and does not dial', (tester) async {
       await services.phoneActions.setTapToCall(true);
       await pump(tester, const [jane]);
@@ -192,6 +265,7 @@ void main() {
 
       expect(copied, ['+1 415 555 2671']);
       expect(launcher.launched, isEmpty);
+      await drainToasts(tester);
     });
   });
 
@@ -243,6 +317,7 @@ void main() {
 
       expect(copied, ['+1 415 555 2671']);
       expect(launcher.launched, isEmpty);
+      await drainToasts(tester);
     });
 
     testWidgets('the footer offers a way to the party screen', (tester) async {
@@ -612,6 +687,7 @@ void main() {
       await tester.pump();
 
       expect(copied, ['+1 415 555 2671']);
+      await drainToasts(tester);
     });
 
     testWidgets('a tap still dials', (tester) async {

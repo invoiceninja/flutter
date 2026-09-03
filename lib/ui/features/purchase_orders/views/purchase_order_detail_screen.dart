@@ -23,6 +23,7 @@ import 'package:admin/ui/core/detail/entity_documents_tab.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
@@ -205,6 +206,28 @@ class _Body extends StatelessWidget {
                       companyId: companyId,
                       activitiesApi: services.activities,
                       outboxDao: services.db.outboxDao,
+                      onAddComment: () => promptAddCommentFor(
+                        context,
+                        entityId: purchaseOrder.id,
+                        submit: (text) => services.purchaseOrders.addComment(
+                          companyId: companyId,
+                          purchaseOrderId: purchaseOrder.id,
+                          text: text,
+                        ),
+                      ),
+                      onLogCall: () => promptLogCallFor(
+                        context,
+                        companyId: companyId,
+                        entityId: purchaseOrder.id,
+                        subject: purchaseOrder.number.isEmpty
+                            ? ''
+                            : '#${purchaseOrder.number}',
+                        submit: (text) => services.purchaseOrders.addComment(
+                          companyId: companyId,
+                          purchaseOrderId: purchaseOrder.id,
+                          text: text,
+                        ),
+                      ),
                     ),
                   ),
                   EntityDetailTab(
@@ -293,7 +316,22 @@ class _Header extends StatelessWidget {
                   style: TextStyle(color: tokens.ink3),
                 ),
               ),
-              PartyCallButton(vendorId: purchaseOrder.vendorId),
+              PartyCallButton(
+                vendorId: purchaseOrder.vendorId,
+                // Filed against the *document*, not the party. Unlike the
+                // invoice / quote / credit headers, what the server stamps
+                // here is `vendor_id` — a purchase order's `client_id` is
+                // nullable and null for an ordinary vendor-facing PO — so the
+                // note reaches the **vendor's** feed, which is the one the
+                // caller was looking at anyway.
+                logTarget: (
+                  type: EntityType.purchaseOrder,
+                  id: purchaseOrder.id,
+                  subject: purchaseOrder.number.isEmpty
+                      ? ''
+                      : '#${purchaseOrder.number}',
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),

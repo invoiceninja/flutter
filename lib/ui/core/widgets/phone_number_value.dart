@@ -68,6 +68,7 @@ class PhoneDetailRow extends StatelessWidget {
     required this.phone,
     this.subject,
     this.clientId,
+    this.logTarget,
   });
 
   final String label;
@@ -78,6 +79,11 @@ class PhoneDetailRow extends StatelessWidget {
 
   /// Resolves the per-client timezone override for the out-of-hours warning.
   final String? clientId;
+
+  /// Record a completed call can be logged against (invoiceninja/flutter#120).
+  /// Null = don't offer to log — a team member's own number, say, which has no
+  /// activity feed of its own.
+  final CallLogTarget? logTarget;
 
   @override
   Widget build(BuildContext context) => PhoneActionsScope(
@@ -92,6 +98,7 @@ class PhoneDetailRow extends StatelessWidget {
                 phone,
                 subject: subject,
                 clientId: clientId,
+                logTarget: logTarget,
               )
             : null,
         // The suffix is a sibling of the value, not part of it, so `copyText`
@@ -116,12 +123,18 @@ class PhoneNumberValue extends StatelessWidget {
     this.style,
     this.subject,
     this.clientId,
+    this.logTarget,
   });
 
   final String phone;
   final TextStyle? style;
   final String? subject;
   final String? clientId;
+
+  /// Record a completed call can be logged against (invoiceninja/flutter#120).
+  /// Null = don't offer to log — a team member's own number, say, which has no
+  /// activity feed of its own.
+  final CallLogTarget? logTarget;
 
   @override
   Widget build(BuildContext context) => PhoneActionsScope(
@@ -138,6 +151,7 @@ class PhoneNumberValue extends StatelessWidget {
                 phone,
                 subject: subject,
                 clientId: clientId,
+                logTarget: logTarget,
               ),
             )
           : Text(phone, style: style);
@@ -185,6 +199,7 @@ List<Widget> phoneActionButtons(
   String phone, {
   String? subject,
   String? clientId,
+  CallLogTarget? logTarget,
 }) {
   if (!canDialPhone(context, phone)) return const [];
   return [
@@ -192,8 +207,13 @@ List<Widget> phoneActionButtons(
       style: contactActionButtonStyle,
       icon: const Icon(Icons.call_outlined, size: 14),
       label: Text(context.tr('call')),
-      onPressed: () =>
-          callPhoneNumber(context, phone, subject: subject, clientId: clientId),
+      onPressed: () => callPhoneNumber(
+        context,
+        phone,
+        subject: subject,
+        clientId: clientId,
+        logTarget: logTarget,
+      ),
     ),
     TextButton.icon(
       style: contactActionButtonStyle,

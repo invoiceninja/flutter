@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/data/models/api/activity_api_model.dart'
+    show kCommentActivityTypeId;
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
+import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -87,7 +90,11 @@ class ActivityFormatter {
       }
       resolved = raw.replaceAllMapped(RegExp(r':([a-z_]+)'), (m) {
         final token = m.group(1)!;
-        if (token == 'notes') return a.notes;
+        // The marker is stripped because the row already renders a phone icon
+        // for it (below) — leaving it in prints the glyph twice. That is
+        // exactly what `stripCallNoteMarker`'s doc says it exists for, and it
+        // is a no-op on every note that has no marker.
+        if (token == 'notes') return stripCallNoteMarker(a.notes);
         // The server's denormalized label (real client / user name, invoice
         // number, …); falls back to the localized noun when the row doesn't
         // name the object, so a bare `:token` never leaks.
@@ -100,7 +107,16 @@ class ActivityFormatter {
     }
 
     final tone = activityToneFor(a.activityTypeId);
-    final icon = activityIconFor(tone);
+    // A logged call is an ordinary user note carrying a marker
+    // (invoiceninja/flutter#120) — the wire has no note subtype — so the glyph
+    // is the only thing that separates "someone rang this client" from the rest
+    // of the feed here. Plain comments keep the tone icon they have always had;
+    // changing those is a different decision.
+    final icon = a.activityTypeId == kCommentActivityTypeId
+        ? (isCallNoteText(a.notes)
+              ? Icons.phone_in_talk_outlined
+              : activityIconFor(tone))
+        : activityIconFor(tone);
     final meta = formatRelativeTime(
       context,
       DateTime.now().difference(

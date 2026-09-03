@@ -11,6 +11,7 @@ import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_detail_view_model.dart';
 import 'package:admin/ui/features/expenses/widgets/detail/expense_detail_actions_row.dart';
@@ -116,6 +117,26 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
                       activitiesApi: _services.activities,
                       outboxDao: _services.db.outboxDao,
                       formatter: formatter,
+                      onAddComment: () => promptAddCommentFor(
+                        context,
+                        entityId: e.id,
+                        submit: (text) => _services.expenses.addComment(
+                          companyId: _companyId,
+                          expenseId: e.id,
+                          text: text,
+                        ),
+                      ),
+                      onLogCall: () => promptLogCallFor(
+                        context,
+                        companyId: _companyId,
+                        entityId: e.id,
+                        subject: e.number.isEmpty ? '' : '#${e.number}',
+                        submit: (text) => _services.expenses.addComment(
+                          companyId: _companyId,
+                          expenseId: e.id,
+                          text: text,
+                        ),
+                      ),
                     ),
                   ),
                 ],

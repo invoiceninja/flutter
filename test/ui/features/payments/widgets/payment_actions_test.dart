@@ -224,6 +224,7 @@ void main() {
 
     expect(enabled(items, PaymentAction.edit), isTrue);
     expect(enabled(items, PaymentAction.addComment), isTrue);
+    expect(enabled(items, PaymentAction.logCall), isTrue);
   });
 
   group('isLifecycle marks exactly the create-screen-hidden actions', () {

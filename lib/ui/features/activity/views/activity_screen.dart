@@ -408,12 +408,14 @@ class _HeaderStrip extends StatelessWidget {
                     label: context.tr('user'),
                     onRemove: () => vm.setUser(null),
                   ),
-                if (f.commentsOnly)
+                if (f.lens != ActivityLens.all)
                   _Chip(
-                    label: context.tr('comments'),
-                    onRemove: () => vm.setCommentsOnly(false),
+                    label: context.tr(
+                      f.lens == ActivityLens.calls ? 'calls' : 'comments',
+                    ),
+                    onRemove: () => vm.setLens(ActivityLens.all),
                   ),
-                if (!f.commentsOnly && f.typeIds.isNotEmpty)
+                if (f.lens == ActivityLens.all && f.typeIds.isNotEmpty)
                   _Chip(
                     label: '${context.tr('type')} (${f.typeIds.length})',
                     onRemove: () => vm.setTypeIds(const <int>{}),

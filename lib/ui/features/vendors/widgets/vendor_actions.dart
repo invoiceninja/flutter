@@ -6,15 +6,15 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
-import 'package:admin/ui/core/widgets/notify_async.dart';
-import 'package:admin/ui/features/clients/widgets/detail/add_comment_dialog.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_edit_view_model.dart';
 import 'package:admin/ui/features/recurring_expenses/view_models/recurring_expense_edit_view_model.dart';
@@ -29,6 +29,7 @@ enum VendorAction {
   edit,
   vendorPortal,
   addComment,
+  logCall,
   clone,
   newExpense,
   newPurchaseOrder,
@@ -110,6 +111,13 @@ class VendorActions {
         label: context.tr('add_comment'),
         enabled: true,
         onTap: () => onTap(VendorAction.addComment),
+      ),
+      EntityActionItem(
+        kind: VendorAction.logCall,
+        icon: Icons.phone_in_talk_outlined,
+        label: context.tr('log_call'),
+        enabled: true,
+        onTap: () => onTap(VendorAction.logCall),
       ),
       EntityActionItem(
         kind: VendorAction.clone,
@@ -211,21 +219,28 @@ class VendorActions {
           op: () =>
               services.vendors.restore(companyId: companyId, id: vendor.id),
         );
-      case VendorAction.addComment:
-        // `tmp_` vendors only exist locally — the server has no row to
-        // attach a comment to yet. Block instead of enqueuing a comment
-        // that the dispatcher would 404 once the create round-trips.
-        if (!requireSynced(context, vendor.id)) return;
-        final text = await showAddCommentDialog(context);
-        if (text == null || text.isEmpty || !context.mounted) return;
-        await runMutationWithNotify(
+      case VendorAction.logCall:
+        await promptLogCallFor(
           context,
-          () => services.vendors.addComment(
+          companyId: companyId,
+          entityId: vendor.id,
+          subject: _confirmSubject(vendor),
+          candidates: vendorPhoneCandidates(vendor),
+          submit: (text) => services.vendors.addComment(
             companyId: companyId,
             vendorId: vendor.id,
             text: text,
           ),
-          successMsg: context.tr('added_comment'),
+        );
+      case VendorAction.addComment:
+        await promptAddCommentFor(
+          context,
+          entityId: vendor.id,
+          submit: (text) => services.vendors.addComment(
+            companyId: companyId,
+            vendorId: vendor.id,
+            text: text,
+          ),
         );
       case VendorAction.clone:
         final draft = vendor.copyWith(

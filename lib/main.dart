@@ -35,6 +35,7 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
+import 'package:admin/ui/core/widgets/call_log_prompter.dart';
 import 'package:admin/ui/core/widgets/shortcut_hint_overlay.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
@@ -718,6 +719,24 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                           child: ShortcutHintOverlay(
                             controller: widget.services.shortcutHints,
                           ),
+                        ),
+                        // Paints nothing — it watches the app lifecycle and
+                        // raises the "log this call?" toast when the user comes
+                        // back from the dialer (invoiceninja/flutter#120). A
+                        // widget rather than a fourth `WidgetsBindingObserver`
+                        // above, because the offer opens a form and enqueues
+                        // through the repositories, so it needs a context under
+                        // the providers.
+                        CallLogPrompter(
+                          services: widget.services,
+                          // A context inside the router's Navigator — this
+                          // widget's own sits above it, so a sheet pushed from
+                          // there would find no Navigator at all. Same supplier
+                          // `deepLinks.attach` takes, for the same reason.
+                          contextOf: () => _router
+                              .routerDelegate
+                              .navigatorKey
+                              .currentContext,
                         ),
                       ],
                     ),

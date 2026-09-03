@@ -70,7 +70,10 @@ void main() {
           supportedLocales: kTestSupportedLocales,
           home: Scaffold(
             body: SingleChildScrollView(
-              child: VendorDetailContactsCard(contacts: contacts),
+              child: VendorDetailContactsCard(
+                contacts: contacts,
+                vendorId: 'v1',
+              ),
             ),
           ),
         ),

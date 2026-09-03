@@ -2,9 +2,14 @@ import 'dart:convert';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
+import 'package:admin/data/models/api/invoice_api_model.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/invoice_repository.dart';
+import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/services/clients_api.dart';
+import 'package:admin/data/services/invoices_api.dart';
 import 'package:admin/domain/columns/client_columns.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/ui/features/clients/view_models/client_list_view_model.dart';
@@ -62,18 +67,77 @@ class _FakeClientsApi implements ClientsApi {
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
+/// Feeds the `overdue` status tab's cross-entity hydration (#119). Records the
+/// query params so the wire shape — and the cursor gate — can be asserted
+/// rather than assumed.
+class _FakeInvoicesApi implements InvoicesApi {
+  final Map<int, List<InvoiceApi>> pages = {};
+  final List<({int page, Map<String, String> filters, int? since})> calls = [];
+  Object? nextError;
+
+  @override
+  Future<({InvoiceListApi data, int? cursorUpdatedAt, String? cursorId})> list({
+    required int page,
+    int perPage = 50,
+    String? search,
+    int? sinceUpdatedAt,
+    String? sinceId,
+    Map<String, String> filters = const {},
+  }) async {
+    calls.add((
+      page: page,
+      filters: Map<String, String>.from(filters),
+      since: sinceUpdatedAt,
+    ));
+    if (nextError != null) {
+      final err = nextError;
+      nextError = null;
+      throw err!;
+    }
+    final rows = pages[page] ?? const <InvoiceApi>[];
+    return (
+      data: InvoiceListApi(data: rows),
+      cursorUpdatedAt: rows.isNotEmpty ? rows.last.updatedAt : null,
+      cursorId: rows.isNotEmpty ? rows.last.id : null,
+    );
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 ClientApi _row(String id, {String name = ''}) =>
     ClientApi(id: id, name: name.isEmpty ? id : name, updatedAt: 100);
+
+/// A sent, part-paid invoice whose due date is in the past — i.e. one that
+/// `invoiceOverdueFilter` counts.
+InvoiceApi _overdueInvoice(String id, {required String clientId}) => InvoiceApi(
+  id: id,
+  number: id,
+  updatedAt: 100,
+  clientId: clientId,
+  statusId: '2',
+  balance: '10',
+  dueDate: Date.today().addDays(-2).toIso(),
+);
 
 void main() {
   late AppDatabase db;
   late _FakeClientsApi api;
   late ClientRepository repo;
+  late _FakeInvoicesApi invoiceApi;
+  late InvoiceRepository invoiceRepo;
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
     api = _FakeClientsApi();
     repo = ClientRepository(db: db, api: api);
+    invoiceApi = _FakeInvoicesApi();
+    invoiceRepo = InvoiceRepository(
+      db: db,
+      api: invoiceApi,
+      settings: SettingsRepository(db: db),
+    );
   });
   tearDown(() async {
     await db.close();
@@ -81,6 +145,7 @@ void main() {
 
   ClientListViewModel vmFor(String companyId) => ClientListViewModel(
     repo: repo,
+    invoices: invoiceRepo,
     navStateDao: db.navStateDao,
     userSettings: UserSettingsRepository(db: db),
     companyId: companyId,
@@ -567,10 +632,195 @@ void main() {
     });
   });
 
+  // invoiceninja/flutter#119. The `overdue` tab's Drift predicate is a subquery
+  // over the LOCAL invoices table, and login prefetches page 1 only — so the
+  // tab read 0 over a false "No records found" on any account whose overdue
+  // invoices weren't among the 50 newest, while the auto-chain paged through
+  // clients for matches that could not appear. The VM pulls that slice itself.
+  group('overdue tab hydration (#119)', () {
+    test(
+      'pulls the overdue slice with the filter the Invoices tab sends',
+      () async {
+        api.pages[1] = [_row('c1')];
+        final vm = vmFor('co');
+        await settle();
+        expect(invoiceApi.calls, isEmpty, reason: 'All tab hydrates nothing');
+
+        await vm.setBadgeMode('overdue');
+        await settle();
+
+        expect(invoiceApi.calls, hasLength(1));
+        expect(invoiceApi.calls.single.filters['overdue'], 'true');
+        expect(
+          invoiceApi.calls.single.filters['status'],
+          'active',
+          reason: 'the client subquery only counts active invoices',
+        );
+        vm.dispose();
+      },
+    );
+
+    test('never reads or advances the shared invoice delta cursor', () async {
+      // A narrowed fetch that moved the watermark would walk it past every
+      // invoice the filter excluded — flutter#32's failure, one entity over.
+      api.pages[1] = [_row('c1')];
+      final vm = vmFor('co');
+      await settle();
+      await vm.setBadgeMode('overdue');
+      await settle();
+
+      expect(invoiceApi.calls.single.since, isNull);
+      final cursor = await db.syncStateDao.read(
+        companyId: 'co',
+        entityType: 'invoice',
+      );
+      expect(cursor.isEmpty, isTrue);
+      vm.dispose();
+    });
+
+    test(
+      'surfaces the client whose invoice the hydration just pulled in',
+      () async {
+        // The regression guard for the whole issue: nothing re-subscribes the
+        // clients watch, so this only passes because drift puts the subquery's
+        // table in the outer query's readsFrom set.
+        api.pages[1] = [_row('c1'), _row('c2')];
+        invoiceApi.pages[1] = [_overdueInvoice('i1', clientId: 'c1')];
+        final vm = vmFor('co');
+        await settle();
+        expect(vm.items.map((c) => c.id), ['c1', 'c2']);
+
+        await vm.setBadgeMode('overdue');
+        await settle();
+
+        expect(vm.items.map((c) => c.id), ['c1']);
+        vm.dispose();
+      },
+    );
+
+    test('is bounded — a server with endless overdue invoices does not page '
+        'forever', () async {
+      api.pages[1] = [_row('c1')];
+      for (var page = 1; page <= 8; page++) {
+        invoiceApi.pages[page] = [
+          for (var i = 0; i < 50; i++)
+            _overdueInvoice('p$page-i$i', clientId: 'c1'),
+        ];
+      }
+      final vm = vmFor('co');
+      await settle();
+      await vm.setBadgeMode('overdue');
+      await settle();
+
+      expect(invoiceApi.calls, hasLength(5));
+      vm.dispose();
+    });
+
+    test(
+      'runs once — a later reset on the same tab does not re-fetch',
+      () async {
+        api.pages[1] = [_row('c1')];
+        final vm = vmFor('co');
+        await settle();
+        await vm.setBadgeMode('overdue');
+        await settle();
+        expect(invoiceApi.calls, hasLength(1));
+
+        final clientCallsBefore = api.calls.length;
+
+        vm.setSearch('acme');
+        await settle();
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        await settle();
+
+        // Prove the reset actually happened before reading anything into the
+        // invoice count — otherwise a debounce that didn't fire would make
+        // this test pass while exercising nothing.
+        expect(api.calls.length, greaterThan(clientCallsBefore));
+        expect(api.calls.last.search, 'acme');
+        expect(invoiceApi.calls, hasLength(1));
+        vm.dispose();
+      },
+    );
+
+    test(
+      'a failing hydration degrades the tab instead of failing the list',
+      () async {
+        api.pages[1] = [_row('c1')];
+        invoiceApi.nextError = Exception('boom');
+        final vm = vmFor('co');
+        await settle();
+        await vm.setBadgeMode('overdue');
+        await settle();
+
+        expect(vm.initialError, isNull);
+        expect(api.calls, isNotEmpty, reason: 'the clients fetch still ran');
+        expect(
+          invoiceApi.calls,
+          hasLength(1),
+          reason: 'the walk stops at the throw rather than trying page 2',
+        );
+        vm.dispose();
+      },
+    );
+
+    test('a failed attempt is retried on the next reset', () async {
+      // The latch is a concurrency guard, not a circuit breaker: the auto-chain
+      // can't reach the hydration (it only ever fetches page >= 2), so there is
+      // no storm to protect against and an offline blip should heal on the
+      // user's next interaction rather than needing a pull-to-refresh.
+      api.pages[1] = [_row('c1')];
+      invoiceApi.nextError = Exception('offline');
+      final vm = vmFor('co');
+      await settle();
+      await vm.setBadgeMode('overdue');
+      await settle();
+      expect(invoiceApi.calls, hasLength(1));
+
+      vm.setSearch('acme');
+      await settle();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await settle();
+
+      expect(api.calls.last.search, 'acme', reason: 'the reset really ran');
+      expect(invoiceApi.calls, hasLength(2));
+      vm.dispose();
+    });
+
+    test('does not fire for the Outstanding tab', () async {
+      api.pages[1] = [_row('c1')];
+      final vm = vmFor('co');
+      await settle();
+      await vm.setBadgeMode('outstanding');
+      await settle();
+
+      expect(invoiceApi.calls, isEmpty);
+      vm.dispose();
+    });
+
+    test('pull-to-refresh re-arms it', () async {
+      // Refreshing Clients refreshes clients, so an invoice settled elsewhere
+      // would otherwise leave its client stuck under Overdue.
+      api.pages[1] = [_row('c1')];
+      final vm = vmFor('co');
+      await settle();
+      await vm.setBadgeMode('overdue');
+      await settle();
+      expect(invoiceApi.calls, hasLength(1));
+
+      await vm.refresh();
+      await settle();
+
+      expect(invoiceApi.calls, hasLength(2));
+      vm.dispose();
+    });
+  });
+
   group('clients-in-group scope (embedded tab)', () {
     ClientListViewModel scopedVm(String companyId, String groupId) =>
         ClientListViewModel(
           repo: repo,
+          invoices: invoiceRepo,
           navStateDao: db.navStateDao,
           userSettings: UserSettingsRepository(db: db),
           companyId: companyId,
@@ -588,6 +838,10 @@ void main() {
       // no ensurePageLoaded call that would corrupt the main list's delta
       // cursor with a `group=` filter.
       expect(api.calls, isEmpty);
+      // Nor may the #119 overdue hydration run here — it sits BELOW the
+      // early return, and moving it above would put a network fetch behind
+      // every client detail page's Clients-in-group tab.
+      expect(invoiceApi.calls, isEmpty);
       vm.dispose();
     });
 

@@ -58,6 +58,11 @@ class ClientListScreen extends StatelessWidget {
       wantsFormatter: true,
       buildVm: (services, companyId) => ClientListViewModel(
         repo: services.clients,
+        // Feeds the `overdue` status tab's cross-entity predicate (#119) —
+        // see `ClientListViewModel._hydrateOverdueInvoices`. Dropping this
+        // line silently reverts that tab to reading its stale local cache,
+        // so `status_tab_wiring_test` pins it.
+        invoices: services.invoices,
         navStateDao: services.db.navStateDao,
         userSettings: services.userSettings,
         savedViews: services.savedViews,

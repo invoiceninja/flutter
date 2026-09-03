@@ -92,6 +92,25 @@ void main() {
     expect(body.contains('badgeModePredicate('), isTrue);
   });
 
+  test('the clients screen still feeds the Overdue tab its invoices', () {
+    // #119. `ClientListViewModel.invoices` is nullable so tests needn't build
+    // an InvoiceRepository, which means deleting this one wiring line is
+    // completely silent: the strip renders, the tab highlights, the count is
+    // "right" — it is just computed against whatever slice of the invoices
+    // table happens to be cached, which after a fresh login is the 50 newest.
+    // Exactly the class of failure this file exists for.
+    final screen = File(
+      'lib/ui/features/clients/views/client_list_screen.dart',
+    ).readAsStringSync();
+    expect(
+      screen.contains('invoices: services.invoices'),
+      isTrue,
+      reason:
+          'ClientListViewModel needs the invoice repo to hydrate the rows its '
+          'overdue predicate subqueries',
+    );
+  });
+
   test('badge_mode never reaches the wire', () {
     // The strip's key is a SidebarBadgeMode id, not a query param. Sending it
     // would also flip isNarrowedFetch and disable the delta cursor for a filter

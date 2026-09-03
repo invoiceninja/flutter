@@ -124,7 +124,8 @@ void main() {
         // costing the delta cursor and the auto-chain.
         (EntityType.payment, 'unapplied'),
         (EntityType.credit, 'unapplied'),
-        (EntityType.client, 'outstanding'),
+        // `client/outstanding` is deliberately absent — it maps EXACTLY onto
+        // `ClientFilters::balance` (`balance=gt:0`), asserted below.
         (EntityType.client, 'overdue'),
         (EntityType.product, 'low_stock'),
         (EntityType.product, 'out_of_stock'),
@@ -169,6 +170,26 @@ void main() {
       }
     });
 
+    test('the clients Outstanding tab sends the exact balance clause', () {
+      // Pinned as a literal because the operator lives in the VALUE, and the
+      // legacy SUFFIX form (`0:gt`) doesn't fail — `QueryFilters::split()`
+      // reads `explode(':')[0]` as the operator, so the server would run
+      // `where('balance', '=', 'gt')`, i.e. roughly "balance is zero": the
+      // exact inverse of this tab, silently. Nothing else in the suite would
+      // catch that.
+      expect(statusTabServerFilters(EntityType.client, 'outstanding'), {
+        'balance': {'gt:0'},
+      });
+      // And it must stay EXACT: marking it widened would switch the auto-chain
+      // back on for a fetch that discards nothing.
+      expect(
+        kListStatusTabs[EntityType.client]!
+            .firstWhere((s) => s.modeId == 'outstanding')
+            .widened,
+        isFalse,
+      );
+    });
+
     test('statusTabNarrowsLocally is true for BOTH unmapped and widened tabs — '
         'a widened fetch still leaves the local predicate throwing rows away, '
         'which is what starves the page and fakes "No records found"', () {
@@ -178,6 +199,9 @@ void main() {
       expect(statusTabNarrowsLocally(EntityType.invoice, 'overdue'), isTrue);
       // Unmapped: the fetch doesn't narrow at all.
       expect(statusTabNarrowsLocally(EntityType.payment, 'unapplied'), isTrue);
+      // Cross-entity subquery — no client-level server dimension exists (#119),
+      // so this one keeps the chain AND hydrates its own invoices.
+      expect(statusTabNarrowsLocally(EntityType.client, 'overdue'), isTrue);
       expect(
         statusTabNarrowsLocally(EntityType.project, 'over_budget'),
         isTrue,
@@ -185,6 +209,10 @@ void main() {
       // Exact: the server returns precisely the tab's rows, so paging is its
       // job and the chain would only burn fetches.
       expect(statusTabNarrowsLocally(EntityType.invoice, 'draft'), isFalse);
+      expect(
+        statusTabNarrowsLocally(EntityType.client, 'outstanding'),
+        isFalse,
+      );
       expect(statusTabNarrowsLocally(EntityType.quote, 'sent'), isFalse);
       expect(
         statusTabNarrowsLocally(EntityType.transaction, 'matched'),

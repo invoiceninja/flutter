@@ -230,10 +230,38 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// the products `stock:` filter and the `tag_ids` post-LIMIT filter each had
   /// to fix. Note this is deliberately NOT "has no server mapping": a widened
   /// mapping narrows the fetch and still needs the chain.
+  ///
+  /// A third case joins those two at runtime — see [statusTabMappingPreempted].
   @protected
   bool get localOnlyBadgeModeActive {
     final mode = activeBadgeModeId;
-    return mode != null && statusTabNarrowsLocally(entityType, mode);
+    if (mode == null) return false;
+    return statusTabNarrowsLocally(entityType, mode) ||
+        statusTabMappingPreempted;
+  }
+
+  /// True when a filter the user set by hand already occupies the selected
+  /// tab's own server key, so [_serverExtraFilters]' `putIfAbsent` kept theirs
+  /// and the tab's mapping never reached the wire.
+  ///
+  /// The spec's `widened` flag can't see this: it describes the mapping the tab
+  /// *would* send, and the preempted fetch is whatever the user asked for —
+  /// which is a superset of the tab's rows whenever their filter is looser on
+  /// that dimension, leaving the local predicate discarding rows again. An
+  /// `exact` tab therefore has to arm the chain too, or a short page dead-ends
+  /// on a false "No records found" with no scroll extent to escape it.
+  ///
+  /// Reachable wherever a tab's server key doubles as a user-facing filter key:
+  /// Clients `balance` (Outstanding + a `balance:` chip) and Invoices
+  /// `status_id` (Draft + a hand-picked status) are the live pairs. Arming the
+  /// chain when it wasn't strictly needed only ever costs a few fetches, so
+  /// this deliberately errs toward arming.
+  @protected
+  bool get statusTabMappingPreempted {
+    final mode = activeBadgeModeId;
+    if (mode == null) return false;
+    final server = statusTabServerFilters(entityType, mode);
+    return server != null && server.keys.any(_extraFilters.containsKey);
   }
 
   /// True while a `tag:` chip is applied. `tag_ids` IS a real server filter and

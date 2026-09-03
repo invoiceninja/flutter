@@ -618,7 +618,7 @@ absent (→ § A).
 | `number=<value>` | ⚠️ exact (`number=000`→0) | LIKE/prefix (§ A) |
 | `id_number=<value>` | ⚠️ exact (`:91`) | LIKE substring (§ A) |
 | `email=<value>` | ⚠️ exact, via `whereHas('contacts', email = v)` relationship (`:71`) | LIKE substring on the contact email |
-| `balance=<n>:gt\|lt\|gte\|lte\|eq` | ✅ suffix-operator (`ClientFilters::balance:43`); `between_balance` uses `min:max` (`:60`) | keep; document both shapes |
+| `balance=gt\|lt\|gte\|lte\|eq:<n>` | ✅ **prefix**-operator (`ClientFilters::balance:43` + `QueryFilters::split` — `explode(':')[0]` is the operator); a value with no `:` is silently dropped, not treated as `=`. `between_balance` uses `min:max` (`:60`) | keep; document both shapes (this row read "suffix-operator" until the Clients status tab started depending on it) |
 | `created_at=<date>` plain | ✅ base `:238` | keep |
 | `created_between` | ✅ base `:389` | keep |
 | `country_id` `industry_id` `size_id` | ❌ no method (real int-FK columns) | § A1 (Required) |

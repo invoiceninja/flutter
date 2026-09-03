@@ -197,6 +197,81 @@ void main() {
     vm.dispose();
   });
 
+  group('clients (#119)', () {
+    test(
+      'Outstanding sends the exact balance clause and leaves the chain off',
+      () async {
+        final vm = await makeVm(EntityType.client);
+        await vm.setBadgeMode('outstanding');
+
+        expect(
+          vm.lastFetchExtraFilters['balance'],
+          {'gt:0'},
+          reason:
+              'the operator lives in the VALUE and the server parses it off the '
+              'PREFIX; a suffix `0:gt` runs where(balance, "=", "gt") instead',
+        );
+        expect(
+          vm.lastFetchExtraFilters.containsKey(kBadgeModeFilterKey),
+          isFalse,
+        );
+        expect(
+          vm.localOnlyForTest,
+          isFalse,
+          reason:
+              'balance=gt:0 IS the badge predicate, so every fetched row renders '
+              'and paging is wholly the server\'s job',
+        );
+        vm.dispose();
+      },
+    );
+
+    test('Overdue still sends nothing and still arms the chain', () async {
+      // No client-level server dimension models "has a past-due invoice"; the
+      // rows come from a subquery over the locally cached invoices, which
+      // `ClientListViewModel` hydrates itself.
+      final vm = await makeVm(EntityType.client);
+      await vm.setBadgeMode('overdue');
+
+      expect(vm.lastFetchExtraFilters, isEmpty);
+      expect(vm.localOnlyForTest, isTrue);
+      vm.dispose();
+    });
+
+    test('a hand-set balance chip wins the Outstanding tab — and re-arms the '
+        'chain, because the fetch is then widened at runtime', () async {
+      // Unlike the invoice `status_id` case above, `balance` is a real
+      // user-facing token filter on Clients, so this collision actually occurs.
+      // `putIfAbsent` keeps the user's value, which means the server sees
+      // `lt:100` — zero and negative balances included — and the local
+      // `balance > 0` predicate goes back to discarding rows. The spec still
+      // says `widened: false` (it describes the mapping the tab WOULD send), so
+      // without `statusTabMappingPreempted` the chain stays off and a short
+      // page dead-ends on a false "No records found".
+      final vm = await makeVm(EntityType.client);
+      await vm.setExtraFilter(serverKey: 'balance', values: {'lt:100'});
+      await vm.setBadgeMode('outstanding');
+
+      expect(vm.lastFetchExtraFilters['balance'], {'lt:100'});
+      expect(vm.localOnlyForTest, isTrue);
+      vm.dispose();
+    });
+
+    test(
+      'the Outstanding tab leaves the chain off when nothing preempts it',
+      () async {
+        // The control for the test above: same tab, no colliding chip.
+        final vm = await makeVm(EntityType.client);
+        await vm.setExtraFilter(serverKey: 'country_id', values: {'840'});
+        await vm.setBadgeMode('outstanding');
+
+        expect(vm.lastFetchExtraFilters['balance'], {'gt:0'});
+        expect(vm.localOnlyForTest, isFalse);
+        vm.dispose();
+      },
+    );
+  });
+
   test('selecting a tab is one reload, and All is one more', () async {
     final vm = await makeVm(EntityType.invoice);
     final before = vm.fetchCount;

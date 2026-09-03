@@ -1539,7 +1539,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | List columns — custom fields under the company's configured label, values formatted by type (date / Yes-No), unconfigured slots hidden | ✅ | 🟡 | ✅ | | |
 | List columns — record metadata on every entity (state, created, archived, deleted, documents, created-by, assigned user) | ✅ | ✅ | ✅ | | |
 | List filter — checkbox multi-select for status / state | — | — | ✅ | ✅ | |
-| List status tabs — one-tap strip above 14 lists (All + per-status live counts), device-toggleable | ❌ | ❌ | ✅ | | |
+| List status tabs — one-tap strip above 14 lists (All + per-status live counts), device-toggleable | ❌ | ❌ | ✅ | | Clients → Outstanding narrows the fetch exactly (`balance=gt:0`); Overdue hydrates the invoices its cross-entity predicate reads (#119) |
 | List filter — client country/industry/size/classification/vat/group/assigned/custom + number/id_number (exact) | ✅ | ✅ | ✅ | ✅ | v5 filter PR (number/id_number exact-match) + denormalized cols |
 | List filter — expense project / vendor | ✅ | ✅ | ✅ | ✅ | v5 `project_ids`/`vendor_ids` |
 | List filter — canonical `date_range` (`column,start,end`) | — | — | ✅ | ✅ | legacy 2-part still parsed |

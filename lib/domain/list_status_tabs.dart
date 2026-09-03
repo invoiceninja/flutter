@@ -305,11 +305,35 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
     ),
   ],
 
-  // -- Local-only: no server dimension models these buckets -----------------
+  // `ClientFilters::balance` is `where('balance', $op, $value)`, with the
+  // operator parsed by `QueryFilters::split()` off the PREFIX
+  // (`explode(':')[0]`, mapped `gt` → `>`), so `balance=gt:0` is the
+  // `outstanding` badge predicate clause-for-clause: EXACT, not widened, which
+  // is why this one leaves the auto-chain off. The operator is NOT optional —
+  // `balance()` returns the builder untouched for a value with no `:`, so a
+  // trimmed `balance=0` is a silent no-op rather than `= 0`.
+  //
+  // Yes, this costs the client delta cursor (`isNarrowedFetch` counts any
+  // extra filter). The "don't map a mode whose only superset is nearly the
+  // whole table" rule is about mappings that buy no narrowing; an EXACT one
+  // discards nothing after it lands, so trading a delta slice for a true
+  // offset page of precisely the tab's rows is the direction we want.
+  //
+  // `overdue` stays local-only: `ClientFilters` models no "has a past-due
+  // invoice" dimension and nothing it does expose is a superset of one. The
+  // predicate is a subquery over the locally cached `invoices` table, which
+  // `ClientListViewModel` hydrates on its own — see #119.
   EntityType.client: [
-    ListStatusTabSpec('outstanding'),
+    ListStatusTabSpec(
+      'outstanding',
+      serverFilters: {
+        'balance': {'gt:0'},
+      },
+    ),
     ListStatusTabSpec('overdue'),
   ],
+
+  // -- Local-only: no server dimension models these buckets -----------------
   EntityType.product: [
     ListStatusTabSpec('low_stock'),
     ListStatusTabSpec('out_of_stock'),

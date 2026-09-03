@@ -1474,6 +1474,13 @@ class Services implements SidebarBadgeContext {
       // account that was signed in when it arrived. Replaying it into the next
       // session would navigate the new user by the old one's ids.
       services.deepLinks.reset();
+      // Per-record activity feeds are cached in memory on the ActivitiesApi
+      // singleton, which outlives a logout. Those rows carry comment bodies,
+      // author names and IP addresses — strictly more than the display names
+      // the peek caches below hold — so a second user on this install must not
+      // inherit them. `clearCache` also bumps a generation, so a request still
+      // on the wire can't write the outgoing user's rows back afterwards.
+      activitiesApi.clearCache();
       // Same argument for a call parked mid-dial: it names a record in the
       // outgoing user's company, and offering to log it after a different user
       // signs in would file a note against ids they never saw.

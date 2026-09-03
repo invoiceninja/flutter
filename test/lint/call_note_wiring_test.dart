@@ -38,41 +38,64 @@ void main() {
   });
 
   test('every Activity tab that can write a note is passed both callbacks', () {
-    // `BillingDocActivityTab.onAddComment` shipped as a declared-but-never-passed
-    // parameter: the button was dark on all eight billing-doc screens for as
-    // long as it existed, and nothing failed. `onLogCall` is the same shape, so
-    // pin the call sites rather than the widget.
+    // `EntityActivityTab.onAddComment` (then `BillingDocActivityTab`) shipped
+    // as a declared-but-never-passed parameter: the button was dark on all
+    // eight billing-doc screens for as long as it existed, and nothing failed.
+    // `onLogCall` is the same shape, so pin the call sites rather than the
+    // widget. The callbacks now travel as one `EntityNoteActions`, but the two
+    // named arguments are still what a screen writes.
     //
     // Task and Project mount the same tab and must NOT be listed — neither
-    // repository has an `addComment` for the callbacks to call.
-    const eligible = <String>[
-      'lib/ui/features/invoices/views/invoice_detail_screen.dart',
-      'lib/ui/features/quotes/views/quote_detail_screen.dart',
-      'lib/ui/features/credits/views/credit_detail_screen.dart',
-      'lib/ui/features/purchase_orders/views/purchase_order_detail_screen.dart',
-      'lib/ui/features/recurring_invoices/views/recurring_invoice_detail_screen.dart',
-      'lib/ui/features/payments/views/payment_detail_screen.dart',
-      'lib/ui/features/expenses/views/expense_detail_screen.dart',
-      'lib/ui/features/vendors/views/vendor_detail_screen.dart',
+    // repository has an `addComment` for the callbacks to call, which is why
+    // they pass `EntityNoteActions.none` rather than spelling the nulls out.
+    //
+    // An entry is a LIST of files, because the screen that builds the
+    // callbacks and the widget that mounts the tab are the same file
+    // everywhere except Client and Project, which extract a
+    // `<Entity>DetailTabs`. The client's `EntityNoteActions` is built in the
+    // screen and handed down, so checking the tabs file alone would demand a
+    // second, duplicate construction — the very thing that type exists to
+    // prevent.
+    const eligible = <List<String>>[
+      [
+        'lib/ui/features/clients/views/client_detail_screen.dart',
+        'lib/ui/features/clients/widgets/detail/client_detail_tabs.dart',
+      ],
+      ['lib/ui/features/invoices/views/invoice_detail_screen.dart'],
+      ['lib/ui/features/quotes/views/quote_detail_screen.dart'],
+      ['lib/ui/features/credits/views/credit_detail_screen.dart'],
+      [
+        'lib/ui/features/purchase_orders/views/purchase_order_detail_screen.dart',
+      ],
+      [
+        'lib/ui/features/recurring_invoices/views/recurring_invoice_detail_screen.dart',
+      ],
+      ['lib/ui/features/payments/views/payment_detail_screen.dart'],
+      ['lib/ui/features/expenses/views/expense_detail_screen.dart'],
+      ['lib/ui/features/vendors/views/vendor_detail_screen.dart'],
     ];
     const ineligible = <String>[
       'lib/ui/features/tasks/views/task_detail_screen.dart',
       'lib/ui/features/projects/widgets/detail/project_detail_tabs.dart',
     ];
 
-    for (final path in eligible) {
-      final src = File(path).readAsStringSync();
+    for (final paths in eligible) {
+      final src = paths
+          .map(File.new)
+          .map((f) => f.readAsStringSync())
+          .join('\n');
+      final label = paths.first;
       expect(
         src,
-        contains('BillingDocActivityTab('),
-        reason: '$path no longer mounts the tab — update this list',
+        contains('EntityActivityTab('),
+        reason: '$label no longer mounts the tab — update this list',
       );
       for (final cb in ['onAddComment:', 'onLogCall:']) {
         expect(
           src,
           contains(cb),
           reason:
-              '$path mounts the Activity tab but never passes $cb, so that '
+              '$label mounts the Activity tab but never passes $cb, so that '
               'button is dark on that screen',
         );
       }
@@ -82,7 +105,7 @@ void main() {
       final src = File(path).readAsStringSync();
       expect(
         src,
-        contains('BillingDocActivityTab('),
+        contains('EntityActivityTab('),
         reason: '$path no longer mounts the tab — update this list',
       );
       for (final cb in ['onAddComment:', 'onLogCall:']) {

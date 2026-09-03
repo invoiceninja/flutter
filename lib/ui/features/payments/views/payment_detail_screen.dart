@@ -16,7 +16,10 @@ import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
-import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/payments/view_models/payment_detail_view_model.dart';
 import 'package:admin/ui/features/payments/widgets/detail/payment_detail_actions_row.dart';
 import 'package:admin/ui/features/payments/widgets/detail/payment_detail_gateway_card.dart';
@@ -38,6 +41,8 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
   late final PaymentDetailViewModel _vm;
   late final Services _services;
   late final String _companyId;
+  late final EntityActivityViewModel _activityVm;
+  final TabSelectionController _selectTab = TabSelectionController();
 
   @override
   void initState() {
@@ -47,11 +52,23 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
     _vm = PaymentDetailViewModel.bound(
       _services.payments.watch(companyId: _companyId, id: widget.id),
     );
+    // Owned here, not by the Activity tab, so the Comments card, the
+    // Comments tab and the Activity tab share one fetch. Armed from
+    // `bodyBuilder`.
+    _activityVm = EntityActivityViewModel(
+      api: _services.activities,
+      outbox: _services.db.outboxDao,
+      companyId: _companyId,
+      entityWireName: 'payment',
+      entityId: widget.id,
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _activityVm.dispose();
+    _selectTab.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -72,6 +89,31 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
             PaymentActions.dispatch(context, _services, _companyId, p, a),
       ),
       bodyBuilder: (context, p) {
+        _activityVm.kick();
+        // Built here, not in `initState`: `promptLogCallFor` needs a
+        // subject off the resolved record.
+        final notes = EntityNoteActions(
+          onAddComment: () => promptAddCommentFor(
+            context,
+            entityId: p.id,
+            submit: (text) => _services.payments.addComment(
+              companyId: _companyId,
+              paymentId: p.id,
+              text: text,
+            ),
+          ),
+          onLogCall: () => promptLogCallFor(
+            context,
+            companyId: _companyId,
+            entityId: p.id,
+            subject: p.number.isEmpty ? '' : '#${p.number}',
+            submit: (text) => _services.payments.addComment(
+              companyId: _companyId,
+              paymentId: p.id,
+              text: text,
+            ),
+          ),
+        );
         return SingleChildScrollView(
           padding: EdgeInsets.all(InSpacing.lg(context)),
           // Whole body capped/centered (820) — not just an overview grid like
@@ -83,8 +125,28 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
               children: [
                 PaymentDetailHeader(payment: p, formatter: formatter),
                 const SizedBox(height: InSpacing.xl),
+                EntityCommentsCard(
+                  vm: _activityVm,
+                  formatter: formatter,
+                  actions: notes,
+                  hostWireName: 'payment',
+                  onViewAll: () => _selectTab.select(0),
+                ),
                 EntityDetailTabs(
+                  initialIndex: 1,
+                  selectTab: _selectTab,
                   tabs: [
+                    EntityDetailTab(
+                      label: context.tr('comments'),
+                      icon: Icons.comment_outlined,
+                      bodyBuilder: (_) => EntityActivityTab(
+                        vm: _activityVm,
+                        formatter: formatter,
+                        actions: notes,
+                        commentsOnly: true,
+                        hostWireName: 'payment',
+                      ),
+                    ),
                     EntityDetailTab(
                       label: context.tr('overview'),
                       icon: Icons.dashboard_outlined,
@@ -150,33 +212,11 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
                     EntityDetailTab(
                       label: context.tr('activity'),
                       icon: Icons.history_outlined,
-                      bodyBuilder: (_) => BillingDocActivityTab(
-                        entityWireName: 'payment',
-                        entityId: p.id,
-                        companyId: _companyId,
-                        activitiesApi: _services.activities,
-                        outboxDao: _services.db.outboxDao,
+                      bodyBuilder: (_) => EntityActivityTab(
+                        vm: _activityVm,
                         formatter: formatter,
-                        onAddComment: () => promptAddCommentFor(
-                          context,
-                          entityId: p.id,
-                          submit: (text) => _services.payments.addComment(
-                            companyId: _companyId,
-                            paymentId: p.id,
-                            text: text,
-                          ),
-                        ),
-                        onLogCall: () => promptLogCallFor(
-                          context,
-                          companyId: _companyId,
-                          entityId: p.id,
-                          subject: p.number.isEmpty ? '' : '#${p.number}',
-                          submit: (text) => _services.payments.addComment(
-                            companyId: _companyId,
-                            paymentId: p.id,
-                            text: text,
-                          ),
-                        ),
+                        actions: notes,
+                        hostWireName: 'payment',
                       ),
                     ),
                   ],

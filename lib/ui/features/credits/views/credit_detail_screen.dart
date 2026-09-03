@@ -18,7 +18,10 @@ import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
-import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
@@ -45,6 +48,8 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
   late final CreditDetailViewModel _vm;
   late final Services _services;
   late final String _companyId;
+  late final EntityActivityViewModel _activityVm;
+  final TabSelectionController _selectTab = TabSelectionController();
 
   @override
   void initState() {
@@ -54,11 +59,23 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
     _vm = CreditDetailViewModel.bound(
       _services.credits.watch(companyId: _companyId, id: widget.id),
     );
+    // Owned here, not by the Activity tab, so the Comments card, the
+    // Comments tab and the Activity tab share one fetch. Armed from
+    // `bodyBuilder`.
+    _activityVm = EntityActivityViewModel(
+      api: _services.activities,
+      outbox: _services.db.outboxDao,
+      companyId: _companyId,
+      entityWireName: 'credit',
+      entityId: widget.id,
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _activityVm.dispose();
+    _selectTab.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -86,6 +103,8 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
           credit: credit,
           services: _services,
           companyId: _companyId,
+          activityVm: _activityVm,
+          selectTab: _selectTab,
         );
         // Always mounted, even while `formatter` is still null: branching
         // here would change the tree shape and remount the whole body when
@@ -101,11 +120,15 @@ class _Body extends StatelessWidget {
     required this.credit,
     required this.services,
     required this.companyId,
+    required this.activityVm,
+    required this.selectTab,
   });
 
   final Credit credit;
   final Services services;
   final String companyId;
+  final EntityActivityViewModel activityVm;
+  final TabSelectionController selectTab;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +136,31 @@ class _Body extends StatelessWidget {
       builder: (context, constraints) {
         final wide =
             Breakpoints.isWide(constraints) && constraints.maxWidth >= 900;
+        activityVm.kick();
+        // Built here, not in the screen's `initState`: `promptLogCallFor`
+        // needs a subject off the resolved record.
+        final notes = EntityNoteActions(
+          onAddComment: () => promptAddCommentFor(
+            context,
+            entityId: credit.id,
+            submit: (text) => services.credits.addComment(
+              companyId: companyId,
+              creditId: credit.id,
+              text: text,
+            ),
+          ),
+          onLogCall: () => promptLogCallFor(
+            context,
+            companyId: companyId,
+            entityId: credit.id,
+            subject: credit.number.isEmpty ? '' : '#${credit.number}',
+            submit: (text) => services.credits.addComment(
+              companyId: companyId,
+              creditId: credit.id,
+              text: text,
+            ),
+          ),
+        );
         final main = SingleChildScrollView(
           padding: EdgeInsets.all(InSpacing.lg(context)),
           child: Column(
@@ -127,8 +175,28 @@ class _Body extends StatelessWidget {
                 child: _Header(credit: credit),
               ),
               SizedBox(height: InSpacing.lg(context)),
+              EntityCommentsCard(
+                vm: activityVm,
+                formatter: FormatterScope.maybeOf(context),
+                actions: notes,
+                hostWireName: 'credit',
+                onViewAll: () => selectTab.select(0),
+              ),
               EntityDetailTabs(
+                initialIndex: 1,
+                selectTab: selectTab,
                 tabs: [
+                  EntityDetailTab(
+                    label: context.tr('comments'),
+                    icon: Icons.comment_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: FormatterScope.maybeOf(context),
+                      actions: notes,
+                      commentsOnly: true,
+                      hostWireName: 'credit',
+                    ),
+                  ),
                   EntityDetailTab(
                     label: context.tr('overview'),
                     icon: Icons.dashboard_outlined,
@@ -176,34 +244,11 @@ class _Body extends StatelessWidget {
                   EntityDetailTab(
                     label: context.tr('activity'),
                     icon: Icons.history_outlined,
-                    bodyBuilder: (_) => BillingDocActivityTab(
-                      entityWireName: 'credit',
-                      entityId: credit.id,
-                      companyId: companyId,
-                      activitiesApi: services.activities,
-                      outboxDao: services.db.outboxDao,
-                      onAddComment: () => promptAddCommentFor(
-                        context,
-                        entityId: credit.id,
-                        submit: (text) => services.credits.addComment(
-                          companyId: companyId,
-                          creditId: credit.id,
-                          text: text,
-                        ),
-                      ),
-                      onLogCall: () => promptLogCallFor(
-                        context,
-                        companyId: companyId,
-                        entityId: credit.id,
-                        subject: credit.number.isEmpty
-                            ? ''
-                            : '#${credit.number}',
-                        submit: (text) => services.credits.addComment(
-                          companyId: companyId,
-                          creditId: credit.id,
-                          text: text,
-                        ),
-                      ),
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: FormatterScope.maybeOf(context),
+                      actions: notes,
+                      hostWireName: 'credit',
                     ),
                   ),
                   EntityDetailTab(

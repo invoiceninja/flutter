@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -19,6 +20,23 @@ class EntityDetailTab {
   final WidgetBuilder bodyBuilder;
 }
 
+/// Host-owned request channel for [EntityDetailTabs.selectTab].
+///
+/// A plain `ValueNotifier` goes silent on a repeat request: tap the Comments
+/// card's `View All`, switch tabs by hand, tap it again — the value never
+/// changed, so nothing happens. [select] notifies either way.
+class TabSelectionController extends ValueNotifier<int> {
+  TabSelectionController([super.initialIndex = 0]);
+
+  void select(int index) {
+    if (value == index) {
+      notifyListeners();
+    } else {
+      value = index;
+    }
+  }
+}
+
 /// Bordered card with a horizontal tab strip on top and an [IndexedStack]
 /// of tab bodies below. Extracted from `ClientDetailTabs` so other entity
 /// detail screens (Product, Invoice, …) can reuse the same scaffolding.
@@ -31,10 +49,32 @@ class EntityDetailTabs extends StatefulWidget {
     super.key,
     required this.tabs,
     this.initialIndex = 0,
+    this.selectTab,
   });
 
   final List<EntityDetailTab> tabs;
+
+  /// Which tab a *fresh* pane opens on, when there is no remembered one.
+  ///
+  /// A structural default, deliberately outranked by
+  /// `MasterDetailNavController.lastTab` — the entities that prepend a Comments
+  /// tab pass 1 so the landing tab stays whatever used to be first, while a
+  /// user who has picked a tab keeps getting it back. A real deep-link-to-a-tab
+  /// would want the opposite precedence and needs this made nullable so an
+  /// explicit value can outrank the memory.
   final int initialIndex;
+
+  /// Pushed-to by a host that wants to move the user to a tab — the Comments
+  /// card's `View All` is the first caller.
+  ///
+  /// A **negative index counts from the end**, so a host whose tab list is
+  /// module-gated can say "second to last" without recomputing the gates. The
+  /// value is clamped, never thrown on.
+  ///
+  /// The *strip* is scrolled into view alongside, without which tapping a link
+  /// on a phone changes a tab several hundred pixels below the fold and
+  /// nothing visibly happens.
+  final ValueListenable<int>? selectTab;
 
   @override
   State<EntityDetailTabs> createState() => _EntityDetailTabsState();
@@ -57,9 +97,7 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
     // re-keys this subtree per `:id`, so the memory has to live outside it —
     // `MasterDetailNavController` already outlives the swap. Null (and so
     // `initialIndex`) outside a master-detail layout, e.g. the settings-hosted
-    // detail screens. No caller passes `initialIndex` today; if one ever needs
-    // to deep-link to a tab, make it nullable so an explicit value can outrank
-    // the memory.
+    // detail screens. See `initialIndex` for why the memory deliberately wins.
     _restoredIndex() ?? widget.initialIndex,
   );
 
@@ -104,6 +142,10 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
   @override
   void didUpdateWidget(EntityDetailTabs oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.selectTab, widget.selectTab)) {
+      oldWidget.selectTab?.removeListener(_onSelectRequested);
+      widget.selectTab?.addListener(_onSelectRequested);
+    }
     if (oldWidget.tabs.length == widget.tabs.length) return;
     // Dispose FIRST, then build — the plural mixin allows both orders, but this
     // is the order `BillingDocItemsTabs` uses and it keeps at most one live
@@ -134,6 +176,23 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
     super.initState();
     // The listener is attached by `_newController`.
     _activated.add(_controller.index);
+    widget.selectTab?.addListener(_onSelectRequested);
+  }
+
+  /// Move to the requested tab and bring the strip into view.
+  void _onSelectRequested() {
+    final requested = widget.selectTab?.value;
+    if (requested == null || widget.tabs.isEmpty || !mounted) return;
+    final resolved = requested < 0 ? widget.tabs.length + requested : requested;
+    final index = resolved.clamp(0, widget.tabs.length - 1);
+    if (_controller.index != index) _controller.animateTo(index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 200),
+      );
+    });
   }
 
   void _onTabChanged() {
@@ -143,6 +202,7 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
 
   @override
   void dispose() {
+    widget.selectTab?.removeListener(_onSelectRequested);
     _controller.removeListener(_onTabChanged);
     _controller.dispose();
     super.dispose();
@@ -237,7 +297,9 @@ class _TabStrip extends StatelessWidget {
                 ),
               ),
               // Trailing fade hinting that more tabs scroll off-screen
-              // (~11 tabs on a client; the strip almost always overflows).
+              // (~15 tabs on a client, and the 440-560 px master-detail pane
+              // shows about three, so the strip almost always overflows).
+              // That count is also why this is a fade rather than a scrollbar.
               Positioned(
                 top: 0,
                 bottom: 0,

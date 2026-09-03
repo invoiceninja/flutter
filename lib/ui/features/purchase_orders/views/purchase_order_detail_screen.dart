@@ -25,7 +25,10 @@ import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/utils/formatting.dart';
-import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
@@ -47,6 +50,8 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   late final PurchaseOrderDetailViewModel _vm;
   late final Services _services;
   late final String _companyId;
+  late final EntityActivityViewModel _activityVm;
+  final TabSelectionController _selectTab = TabSelectionController();
 
   @override
   void initState() {
@@ -56,11 +61,23 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
     _vm = PurchaseOrderDetailViewModel.bound(
       _services.purchaseOrders.watch(companyId: _companyId, id: widget.id),
     );
+    // Owned here, not by the Activity tab, so the Comments card, the
+    // Comments tab and the Activity tab share one fetch. Armed from
+    // `bodyBuilder`.
+    _activityVm = EntityActivityViewModel(
+      api: _services.activities,
+      outbox: _services.db.outboxDao,
+      companyId: _companyId,
+      entityWireName: 'purchase_order',
+      entityId: widget.id,
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _activityVm.dispose();
+    _selectTab.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -106,6 +123,8 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
         services: _services,
         companyId: _companyId,
         formatter: formatter,
+        activityVm: _activityVm,
+        selectTab: _selectTab,
       ),
     );
   }
@@ -117,11 +136,15 @@ class _Body extends StatelessWidget {
     required this.services,
     required this.companyId,
     this.formatter,
+    required this.activityVm,
+    required this.selectTab,
   });
 
   final PurchaseOrder purchaseOrder;
   final Services services;
   final String companyId;
+  final EntityActivityViewModel activityVm;
+  final TabSelectionController selectTab;
   final Formatter? formatter;
 
   @override
@@ -130,6 +153,33 @@ class _Body extends StatelessWidget {
       builder: (context, constraints) {
         final wide =
             Breakpoints.isWide(constraints) && constraints.maxWidth >= 900;
+        activityVm.kick();
+        // Built here, not in the screen's `initState`: `promptLogCallFor`
+        // needs a subject off the resolved record.
+        final notes = EntityNoteActions(
+          onAddComment: () => promptAddCommentFor(
+            context,
+            entityId: purchaseOrder.id,
+            submit: (text) => services.purchaseOrders.addComment(
+              companyId: companyId,
+              purchaseOrderId: purchaseOrder.id,
+              text: text,
+            ),
+          ),
+          onLogCall: () => promptLogCallFor(
+            context,
+            companyId: companyId,
+            entityId: purchaseOrder.id,
+            subject: purchaseOrder.number.isEmpty
+                ? ''
+                : '#${purchaseOrder.number}',
+            submit: (text) => services.purchaseOrders.addComment(
+              companyId: companyId,
+              purchaseOrderId: purchaseOrder.id,
+              text: text,
+            ),
+          ),
+        );
         final main = SingleChildScrollView(
           padding: EdgeInsets.all(InSpacing.lg(context)),
           child: Column(
@@ -147,8 +197,28 @@ class _Body extends StatelessWidget {
                 ),
               ),
               SizedBox(height: InSpacing.lg(context)),
+              EntityCommentsCard(
+                vm: activityVm,
+                formatter: formatter,
+                actions: notes,
+                hostWireName: 'purchase_order',
+                onViewAll: () => selectTab.select(0),
+              ),
               EntityDetailTabs(
+                initialIndex: 1,
+                selectTab: selectTab,
                 tabs: [
+                  EntityDetailTab(
+                    label: context.tr('comments'),
+                    icon: Icons.comment_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: formatter,
+                      actions: notes,
+                      commentsOnly: true,
+                      hostWireName: 'purchase_order',
+                    ),
+                  ),
                   EntityDetailTab(
                     label: context.tr('overview'),
                     icon: Icons.dashboard_outlined,
@@ -200,34 +270,11 @@ class _Body extends StatelessWidget {
                   EntityDetailTab(
                     label: context.tr('activity'),
                     icon: Icons.history_outlined,
-                    bodyBuilder: (_) => BillingDocActivityTab(
-                      entityWireName: 'purchase_order',
-                      entityId: purchaseOrder.id,
-                      companyId: companyId,
-                      activitiesApi: services.activities,
-                      outboxDao: services.db.outboxDao,
-                      onAddComment: () => promptAddCommentFor(
-                        context,
-                        entityId: purchaseOrder.id,
-                        submit: (text) => services.purchaseOrders.addComment(
-                          companyId: companyId,
-                          purchaseOrderId: purchaseOrder.id,
-                          text: text,
-                        ),
-                      ),
-                      onLogCall: () => promptLogCallFor(
-                        context,
-                        companyId: companyId,
-                        entityId: purchaseOrder.id,
-                        subject: purchaseOrder.number.isEmpty
-                            ? ''
-                            : '#${purchaseOrder.number}',
-                        submit: (text) => services.purchaseOrders.addComment(
-                          companyId: companyId,
-                          purchaseOrderId: purchaseOrder.id,
-                          text: text,
-                        ),
-                      ),
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: formatter,
+                      actions: notes,
+                      hostWireName: 'purchase_order',
                     ),
                   ),
                   EntityDetailTab(

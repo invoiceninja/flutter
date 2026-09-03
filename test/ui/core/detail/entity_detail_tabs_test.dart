@@ -94,4 +94,76 @@ void main() {
     expect(find.text('Quotes body'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  group('selectTab', () {
+    // Drives the Comments card's `View All` (invoiceninja/flutter#121).
+    Future<TabSelectionController> pumpStrip(
+      WidgetTester tester, {
+      int count = 4,
+    }) async {
+      final controller = TabSelectionController();
+      addTearDown(controller.dispose);
+      await pumpAt(
+        tester,
+        900,
+        EntityDetailTabs(
+          selectTab: controller,
+          tabs: [
+            for (var i = 0; i < count; i++)
+              EntityDetailTab(
+                label: 'Tab $i',
+                icon: Icons.circle,
+                bodyBuilder: (_) => Text('Body $i'),
+              ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      return controller;
+    }
+
+    testWidgets('moves to the requested tab', (tester) async {
+      final controller = await pumpStrip(tester);
+      expect(find.text('Body 0'), findsOneWidget);
+      controller.select(2);
+      await tester.pumpAndSettle();
+      expect(find.text('Body 2'), findsOneWidget);
+    });
+
+    testWidgets('a negative index counts from the end', (tester) async {
+      // Lets a host whose tab list is module-gated say "second to last"
+      // without recomputing the gates.
+      final controller = await pumpStrip(tester);
+      controller.select(-2);
+      await tester.pumpAndSettle();
+      expect(find.text('Body 2'), findsOneWidget);
+    });
+
+    testWidgets('an out-of-range request clamps rather than throwing', (
+      tester,
+    ) async {
+      final controller = await pumpStrip(tester);
+      controller.select(99);
+      await tester.pumpAndSettle();
+      expect(find.text('Body 3'), findsOneWidget);
+      controller.select(-99);
+      await tester.pumpAndSettle();
+      expect(find.text('Body 0'), findsOneWidget);
+    });
+
+    testWidgets('a repeat request still fires after a manual tab change', (
+      tester,
+    ) async {
+      // A plain `ValueNotifier` would go silent here: the value never changed.
+      final controller = await pumpStrip(tester);
+      controller.select(2);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tab 0'));
+      await tester.pumpAndSettle();
+      expect(find.text('Body 0'), findsOneWidget);
+      controller.select(2);
+      await tester.pumpAndSettle();
+      expect(find.text('Body 2'), findsOneWidget);
+    });
+  });
 }

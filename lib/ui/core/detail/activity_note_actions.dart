@@ -1,6 +1,11 @@
 /// The two "write a note onto this record's activity feed" flows — the single
-/// implementation behind every Activity-tab button **and** every `⋯` menu arm,
-/// on all ten entities that support notes.
+/// implementation behind every Activity-tab button, every comments-only empty
+/// state, every Comments card footer **and** every `⋯` menu arm, on all ten
+/// entities that support notes.
+///
+/// Callers reach these through `EntityNoteActions`
+/// (`activity_note_buttons.dart`), built once per detail screen so the
+/// surfaces on one record cannot drift apart.
 ///
 /// Each caller supplies only [submit] — its own `repo.addComment(...)` — so the
 /// `requireSynced` gate, the prompt and the success/error toast live in one

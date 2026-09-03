@@ -776,6 +776,18 @@ class ApiClient {
       ? '<none>'
       : sha256.convert(utf8.encode(t)).toString().substring(0, 8);
 
+  /// [_tokenFingerprint] of the credentials in force right now.
+  ///
+  /// Exposed so an in-memory response cache can be scoped to the identity that
+  /// produced it. The token is per **(company, user)**, and at least one
+  /// endpoint narrows its result by the acting user rather than 403-ing
+  /// (`POST /activities/entity` does `where('user_id', ...)` for anyone who
+  /// `cannot('view', $entity)`), so a company-scoped key would let one user's
+  /// response be served to another on the same install. A fingerprint rather
+  /// than the token itself: caches get dumped into diagnostics, and a
+  /// credential must never travel with them.
+  String get credentialFingerprint => _tokenFingerprint(_creds?.token);
+
   Future<void> _handleUnauthorized(ApiCredentials creds) {
     // Coalesce parallel 401s into a single onUnauthorized call. Clear the
     // future when it completes so a subsequent session (after re-login) can

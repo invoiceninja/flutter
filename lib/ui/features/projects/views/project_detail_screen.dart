@@ -9,6 +9,9 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/projects/view_models/project_detail_view_model.dart';
@@ -32,6 +35,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   late final ProjectDetailViewModel _vm;
   late final Services _services;
   late final String _companyId;
+  late final EntityActivityViewModel _activityVm;
+  final TabSelectionController _selectTab = TabSelectionController();
 
   @override
   void initState() {
@@ -41,11 +46,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     _vm = ProjectDetailViewModel.bound(
       _services.projects.watch(companyId: _companyId, id: widget.id),
     );
+    // Owned here, not by the Activity tab, so the Comments card, the
+    // Comments tab and the Activity tab share one fetch. Armed from
+    // `bodyBuilder`.
+    _activityVm = EntityActivityViewModel(
+      api: _services.activities,
+      outbox: _services.db.outboxDao,
+      companyId: _companyId,
+      entityWireName: 'project',
+      entityId: widget.id,
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _activityVm.dispose();
+    _selectTab.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -68,6 +85,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         ),
       ),
       bodyBuilder: (context, p) {
+        _activityVm.kick();
         return SingleChildScrollView(
           controller: DetailScrollScope.maybeOf(context),
           padding: EdgeInsets.all(InSpacing.lg(context)),
@@ -82,6 +100,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 formatter: formatter,
               ),
               const SizedBox(height: InSpacing.xl),
+              EntityCommentsCard(
+                vm: _activityVm,
+                formatter: formatter,
+                hostWireName: 'project',
+                // -2: second to last, i.e. the Comments tab beside Activity.
+                onViewAll: () => _selectTab.select(-2),
+                matchFormColumn: true,
+              ),
               // Detail cards sit above the tab strip (Client-style); the
               // tabs are purely the project-scoped related lists.
               ProjectDetailCardsGrid(
@@ -90,7 +116,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 formatter: formatter,
               ),
               const SizedBox(height: InSpacing.xl),
-              ProjectDetailTabs(project: p, formatter: formatter),
+              ProjectDetailTabs(
+                project: p,
+                formatter: formatter,
+                activityVm: _activityVm,
+                selectTab: _selectTab,
+              ),
             ],
           ),
         );

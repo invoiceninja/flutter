@@ -298,7 +298,7 @@ class ActivityViewModel extends ChangeNotifier {
       // The constructor starts a refresh, so this await is in flight every time
       // the screen is first opened — and a company switch or logout inside that
       // window disposes us mid-call. `ChangeNotifier` asserts on a post-dispose
-      // notify, so guard it, exactly as `ClientActivityViewModel.refresh` does.
+      // notify, so guard it, exactly as `EntityActivityViewModel.refresh` does.
       if (!_disposed) notifyListeners();
     }
   }

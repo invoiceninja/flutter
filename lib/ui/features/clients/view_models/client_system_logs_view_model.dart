@@ -7,7 +7,7 @@ import 'package:admin/data/repositories/system_log_repository.dart';
 /// system logs directly (admin/owner only, scoped via the API's `client_id`
 /// filter) and holds them in memory — the per-client feed is read-only
 /// ancillary detail data, so it bypasses Drift, mirroring
-/// [ClientActivityViewModel].
+/// [EntityActivityViewModel].
 class ClientSystemLogsViewModel extends ChangeNotifier {
   ClientSystemLogsViewModel({required this.repo, required this.clientId});
 

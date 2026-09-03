@@ -28,7 +28,10 @@ import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
-import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
@@ -66,6 +69,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
   late final InvoiceDetailViewModel _vm;
   late final Services _services;
   late final String _companyId;
+  late final EntityActivityViewModel _activityVm;
+  final TabSelectionController _selectTab = TabSelectionController();
 
   @override
   void initState() {
@@ -75,11 +80,23 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
     _vm = InvoiceDetailViewModel.bound(
       _services.invoices.watch(companyId: _companyId, id: widget.id),
     );
+    // Owned here, not by the Activity tab, so the Comments card, the
+    // Comments tab and the Activity tab share one fetch. Armed from
+    // `bodyBuilder`.
+    _activityVm = EntityActivityViewModel(
+      api: _services.activities,
+      outbox: _services.db.outboxDao,
+      companyId: _companyId,
+      entityWireName: 'invoice',
+      entityId: widget.id,
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _activityVm.dispose();
+    _selectTab.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -104,6 +121,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
           invoice: invoice,
           services: _services,
           companyId: _companyId,
+          activityVm: _activityVm,
+          selectTab: _selectTab,
         );
         // Always mounted, even while `formatter` is still null: branching
         // here would change the tree shape and remount the whole body when
@@ -251,11 +270,15 @@ class _Body extends StatelessWidget {
     required this.invoice,
     required this.services,
     required this.companyId,
+    required this.activityVm,
+    required this.selectTab,
   });
 
   final Invoice invoice;
   final Services services;
   final String companyId;
+  final EntityActivityViewModel activityVm;
+  final TabSelectionController selectTab;
 
   @override
   Widget build(BuildContext context) {
@@ -266,6 +289,31 @@ class _Body extends StatelessWidget {
         // `/invoices/:id/pdf`.
         final wide =
             Breakpoints.isWide(constraints) && constraints.maxWidth >= 900;
+        activityVm.kick();
+        // Built here, not in the screen's `initState`: `promptLogCallFor`
+        // needs a subject off the resolved record.
+        final notes = EntityNoteActions(
+          onAddComment: () => promptAddCommentFor(
+            context,
+            entityId: invoice.id,
+            submit: (text) => services.invoices.addComment(
+              companyId: companyId,
+              invoiceId: invoice.id,
+              text: text,
+            ),
+          ),
+          onLogCall: () => promptLogCallFor(
+            context,
+            companyId: companyId,
+            entityId: invoice.id,
+            subject: invoice.number.isEmpty ? '' : '#${invoice.number}',
+            submit: (text) => services.invoices.addComment(
+              companyId: companyId,
+              invoiceId: invoice.id,
+              text: text,
+            ),
+          ),
+        );
         final main = SingleChildScrollView(
           padding: EdgeInsets.all(InSpacing.lg(context)),
           child: Column(
@@ -280,8 +328,28 @@ class _Body extends StatelessWidget {
                 child: _Header(invoice: invoice, companyId: companyId),
               ),
               SizedBox(height: InSpacing.lg(context)),
+              EntityCommentsCard(
+                vm: activityVm,
+                formatter: FormatterScope.maybeOf(context),
+                actions: notes,
+                hostWireName: 'invoice',
+                onViewAll: () => selectTab.select(0),
+              ),
               EntityDetailTabs(
+                initialIndex: 1,
+                selectTab: selectTab,
                 tabs: [
+                  EntityDetailTab(
+                    label: context.tr('comments'),
+                    icon: Icons.comment_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: FormatterScope.maybeOf(context),
+                      actions: notes,
+                      commentsOnly: true,
+                      hostWireName: 'invoice',
+                    ),
+                  ),
                   EntityDetailTab(
                     label: context.tr('overview'),
                     icon: Icons.dashboard_outlined,
@@ -300,34 +368,11 @@ class _Body extends StatelessWidget {
                   EntityDetailTab(
                     label: context.tr('activity'),
                     icon: Icons.history_outlined,
-                    bodyBuilder: (_) => BillingDocActivityTab(
-                      entityWireName: 'invoice',
-                      entityId: invoice.id,
-                      companyId: companyId,
-                      activitiesApi: services.activities,
-                      outboxDao: services.db.outboxDao,
-                      onAddComment: () => promptAddCommentFor(
-                        context,
-                        entityId: invoice.id,
-                        submit: (text) => services.invoices.addComment(
-                          companyId: companyId,
-                          invoiceId: invoice.id,
-                          text: text,
-                        ),
-                      ),
-                      onLogCall: () => promptLogCallFor(
-                        context,
-                        companyId: companyId,
-                        entityId: invoice.id,
-                        subject: invoice.number.isEmpty
-                            ? ''
-                            : '#${invoice.number}',
-                        submit: (text) => services.invoices.addComment(
-                          companyId: companyId,
-                          invoiceId: invoice.id,
-                          text: text,
-                        ),
-                      ),
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: FormatterScope.maybeOf(context),
+                      actions: notes,
+                      hostWireName: 'invoice',
                     ),
                   ),
                   EntityDetailTab(

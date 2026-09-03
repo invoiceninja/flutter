@@ -19,6 +19,10 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 Future<String?> showAddCommentDialog(BuildContext context) {
   return showDialog<String>(
     context: context,
+    // A stray tap outside would otherwise destroy a typed comment with no
+    // confirmation — the worst failure a note surface can have, and the most
+    // likely one on a phone. Cancel, Esc and system back still close it.
+    barrierDismissible: false,
     builder: (_) => const _AddCommentDialog(),
   );
 }
@@ -71,6 +75,8 @@ class _AddCommentDialogState extends State<_AddCommentDialog> {
           // app's § Forms rule (no Enter-to-save on `maxLines > 1`).
           maxLines: 6,
           minLines: 4,
+          // Without this every comment typed on a phone starts lowercase.
+          textCapitalization: TextCapitalization.sentences,
           textInputAction: TextInputAction.newline,
           keyboardType: TextInputType.multiline,
           decoration: InputDecoration(

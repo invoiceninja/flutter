@@ -1556,6 +1556,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Per-entity activity / audit feed | ✅ | ✅ | ✅ | ✅ | |
 | Per-entity comments / internal notes | ✅ | ✅ | ✅ | ✅ | |
 | Per-entity logged phone calls (a call-shaped activity note, with a Calls lens on the activity feed) | ❌ | ❌ | ✅ | | |
+| Per-entity comments card + Comments tab (comments surfaced on the record, not only in the activity feed) | — | — | ✅ | | |
 | Unsaved-changes guard on navigation | ✅ | ✅ | ✅ | ✅ | |
 | Phone-number input with validation | ✅ | ✅ | ✅ | ✅ | |
 | Signature pad | ✅ | ✅ | ✅ | ✅ | |

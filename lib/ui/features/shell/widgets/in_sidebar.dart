@@ -656,9 +656,10 @@ class _InSidebarState extends State<InSidebar> {
         compact: compact,
         touch: touch,
         labelKey: 'activity',
-        // No `history_outlined` exists in Material, and `Icons.history` is
-        // already this app's Activity glyph (the client detail tab uses it) —
-        // matching that beats matching the other rows' outlined style.
+        // Deliberately filled where the other rows are outlined: this is the
+        // workspace-level Activity branch, not a detail tab. (The detail tabs
+        // all use `Icons.history_outlined`, which does exist — an older
+        // version of this comment claimed otherwise.)
         icon: Icons.history,
         kind: FixedBranchKind.activity,
       ),

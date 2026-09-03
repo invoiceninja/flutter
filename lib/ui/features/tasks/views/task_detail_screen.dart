@@ -12,7 +12,9 @@ import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
-import 'package:admin/ui/features/billing_shared/activity/billing_doc_activity_tab.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/tasks/view_models/task_detail_view_model.dart';
 import 'package:admin/ui/features/tasks/widgets/detail/task_detail_cards_grid.dart';
 import 'package:admin/ui/features/tasks/widgets/detail/task_detail_header.dart';
@@ -33,6 +35,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
   late final TaskDetailViewModel _vm;
   late final Services _services;
   late final String _companyId;
+  late final EntityActivityViewModel _activityVm;
+  final TabSelectionController _selectTab = TabSelectionController();
 
   @override
   void initState() {
@@ -42,11 +46,23 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
     _vm = TaskDetailViewModel.bound(
       _services.tasks.watch(companyId: _companyId, id: widget.id),
     );
+    // Owned here, not by the Activity tab, so the Comments card, the
+    // Comments tab and the Activity tab share one fetch. Armed from
+    // `bodyBuilder`.
+    _activityVm = EntityActivityViewModel(
+      api: _services.activities,
+      outbox: _services.db.outboxDao,
+      companyId: _companyId,
+      entityWireName: 'task',
+      entityId: widget.id,
+    );
     loadFormatter(_services, _companyId);
   }
 
   @override
   void dispose() {
+    _activityVm.dispose();
+    _selectTab.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -69,6 +85,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
         ),
       ),
       bodyBuilder: (context, t) {
+        _activityVm.kick();
         return SingleChildScrollView(
           padding: EdgeInsets.all(InSpacing.lg(context)),
           child: Column(
@@ -76,7 +93,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
             children: [
               TaskDetailHeader(task: t, formatter: formatter),
               const SizedBox(height: InSpacing.xl),
+              EntityCommentsCard(
+                vm: _activityVm,
+                formatter: formatter,
+                hostWireName: 'task',
+                // -2: second to last, i.e. the Comments tab beside Activity.
+                onViewAll: () => _selectTab.select(-2),
+              ),
               EntityDetailTabs(
+                selectTab: _selectTab,
                 tabs: [
                   EntityDetailTab(
                     label: context.tr('overview'),
@@ -109,16 +134,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                     repo: _services.tasks,
                     formatter: formatter,
                   ),
+                  // Read-only: `TaskRepository` has no `addComment`, so this
+                  // tab sits beside Activity rather than taking first place
+                  // the way the writable entities do.
+                  EntityDetailTab(
+                    label: context.tr('comments'),
+                    icon: Icons.comment_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: _activityVm,
+                      formatter: formatter,
+                      commentsOnly: true,
+                      hostWireName: 'task',
+                    ),
+                  ),
                   EntityDetailTab(
                     label: context.tr('activity'),
                     icon: Icons.history_outlined,
-                    bodyBuilder: (_) => BillingDocActivityTab(
-                      entityWireName: 'task',
-                      entityId: t.id,
-                      companyId: _companyId,
-                      activitiesApi: _services.activities,
-                      outboxDao: _services.db.outboxDao,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: _activityVm,
                       formatter: formatter,
+                      hostWireName: 'task',
                     ),
                   ),
                 ],

@@ -9,7 +9,9 @@ import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/features/billing_shared/ledger/ledger_tab.dart';
 import 'package:admin/utils/formatting.dart';
-import 'package:admin/ui/features/clients/widgets/detail/client_activity_tab.dart';
+import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
+import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_email_history_tab.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_locations_tab.dart';
 import 'package:admin/ui/features/clients/widgets/detail/client_system_logs_tab.dart';
@@ -40,11 +42,24 @@ class ClientDetailTabs extends StatelessWidget {
   const ClientDetailTabs({
     required this.client,
     required this.formatter,
+    required this.activityVm,
+    required this.selectTab,
+    required this.notes,
     super.key,
   });
 
   final Client client;
   final Formatter? formatter;
+
+  /// Owned by `ClientDetailScreen` so the Comments card above this strip and
+  /// the two feed tabs below it share one fetch.
+  final EntityActivityViewModel activityVm;
+  final TabSelectionController selectTab;
+
+  /// Built once by the screen and shared with the Comments card above this
+  /// strip — see `EntityNoteActions`. Building a second one here is what let
+  /// the two surfaces drift the last time.
+  final EntityNoteActions notes;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +72,20 @@ class ClientDetailTabs extends StatelessWidget {
     // Hide related-entity tabs whose module is disabled for this company.
     final me = session.currentCompany;
     return EntityDetailTabs(
+      initialIndex: 1,
+      selectTab: selectTab,
       tabs: [
+        EntityDetailTab(
+          label: context.tr('comments'),
+          icon: Icons.comment_outlined,
+          bodyBuilder: (_) => EntityActivityTab(
+            vm: activityVm,
+            formatter: formatter,
+            actions: notes,
+            commentsOnly: true,
+            hostWireName: 'client',
+          ),
+        ),
         if (me?.moduleEnabled(EntityType.invoice) ?? false)
           EntityDetailTab(
             label: context.tr('invoices'),
@@ -157,9 +185,13 @@ class ClientDetailTabs extends StatelessWidget {
           ),
         EntityDetailTab(
           label: context.tr('activity'),
-          icon: Icons.history,
-          bodyBuilder: (_) =>
-              ClientActivityTabBody(client: client, formatter: formatter),
+          icon: Icons.history_outlined,
+          bodyBuilder: (_) => EntityActivityTab(
+            vm: activityVm,
+            formatter: formatter,
+            actions: notes,
+            hostWireName: 'client',
+          ),
         ),
       ],
     );

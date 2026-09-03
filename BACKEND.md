@@ -22,6 +22,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it).
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**R**, § F5; the field is unusable until both are fixed).
+- `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 
@@ -345,6 +346,76 @@ $user->id)`. The `activities` table has **no `assigned_user_id` column**
 user lacking `view_activity` who hits the non-`reactv2` path should take an
 unknown-column SQL error. Not runtime-confirmed; the column genuinely does not
 exist. Switching to `reactv2` sidesteps it for the v2 client.
+
+### F3b. `POST /activities/entity` — no notes filter, and the window is over *all* activity — **O**
+
+`ActivityController::entityActivity` (`app/Http/Controllers/ActivityController.php:86-104`):
+
+```php
+$default_activities = request()->has('rows') ? request()->input('rows') : 75;
+$activities = $this->activityFeedQuery($default_activities)   // orderBy created_at DESC, take($n)
+                   ->where("{$request->entity}_id", $request->entity_id);
+```
+
+One SQL statement, so the LIMIT applies to the record-scoped query — but there is no way to ask for
+**notes only**. A comment is `activity_type_id = 141` and the client filters for it after the fetch,
+so on a record whose newest rows are all invoice-created / email-sent / payment-applied, an existing
+comment falls out of the window entirely and the app's Comments card and Comments tab both render a
+silent zero. That is the surface invoiceninja/flutter#121 exists to make prominent, so the failure
+is now visible rather than buried.
+
+**Fixed client-side as far as it can be:** `kEntityActivityRows` sends `rows=200`, moving the cliff
+out by 2.7× for one bounded payload. It is not a fix — a busy client can have 200 non-note rows.
+
+**O.** Accept `activity_type_id` (or a `notes_only` flag) on this endpoint and apply it before the
+`take()`, e.g. `->when($request->has('activity_type_id'), fn ($q) => $q->where('activity_type_id',
+$request->activity_type_id))`. The `activities` table already indexes `client_id`.
+- Accept: `POST /activities/entity {entity, entity_id, activity_type_id: 141}` returns only notes,
+  and a record with 500 system rows and one comment returns that comment.
+
+### F3c. `POST /activities/entity` narrows by user instead of 403-ing — **R (client-visible, no signal)**
+
+Same controller: `if ($user->cannot('view', $entity)) { $activities->where('user_id',
+auth()->user()->id); }`, and `ShowActivityRequest::authorize()` returns `true` unconditionally. So a
+staff user without `view_client` gets a **200** carrying only the comments they wrote themselves.
+Nothing on the wire distinguishes that from an empty feed, so no client-side logging can report it
+and the user is told a record has one comment when it has twelve.
+
+This also constrains the client's in-memory feed cache, which must key on the acting user rather
+than the company — a company-scoped key would serve an admin's rows to a restricted user on the
+same install.
+
+**R.** Either 403 (consistent with the rest of the API) or return the narrowing in `meta` so a
+client can say "showing only your own". The current shape is silent under-reporting.
+
+### F3d. A comment can never be edited or deleted — **O**
+
+`routes/api.php:181-184` exposes `activities` (index), `activities/entity`, `activities/notes` and
+`activities/download_entity/{activity}` — and nothing else. There is no update or delete route for
+an activity note, on any client. A typo, or a comment written on the wrong client, is permanent.
+
+That was tolerable while comments were buried in an audit tab. They now sit above the fold on eleven
+detail screens (invoiceninja/flutter#121), so the cost of a mistake is higher and more visible.
+
+**O.** `PUT`/`DELETE /activities/notes/{activity}` gated on `activity_type_id == 141` and the
+authoring `user_id` (or `edit_all`), soft-deleting rather than hard-deleting so the audit trail
+survives.
+
+### F3e. Adding a comment sends no notification — **O (feature request, [flutter#121](https://github.com/invoiceninja/flutter/issues/121))**
+
+`ActivityController::note()` (`:227-338`) validates, saves the `Activity` row, stamps the parent's
+`client_id` / `project_id` / `vendor_id`, and returns `itemResponse`. There is no mail, no
+notification, no event dispatch — so a comment left for a colleague is only seen if they happen to
+open that record.
+
+The reporter of flutter#121 asked for exactly this ("a proper convo system with email
+notifications, ideally (internal and external would be cool)"). The client cannot do it; the app's
+comments empty state now says so in as many words, which is the honest interim answer.
+
+**O.** Dispatch on note creation, respecting the existing notification preferences: internal to the
+company's users (excluding the author), and — if "external" is ever wanted — a separate, explicitly
+opt-in flag, since these notes are internal by every current definition and none of the existing UI
+warns otherwise.
 
 ### F4. No wire field expresses a "pending invite" — **O** (client now under-claims)
 

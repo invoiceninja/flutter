@@ -110,6 +110,17 @@ http.Client _silentNetwork() => MockClient((req) async {
       headers: const {'content-type': 'application/json'},
     );
   }
+  // The only POST a detail screen fires on mount: every detail screen arms a
+  // per-record activity feed for its Comments card (invoiceninja/flutter#121).
+  // `EntityActivityViewModel.refresh` would swallow the bare 500 below, but it
+  // logs a WARNING doing so — which would then land in every CI smoke run.
+  if (req.url.path.endsWith('/activities/entity')) {
+    return http.Response(
+      '{"data": []}',
+      200,
+      headers: const {'content-type': 'application/json'},
+    );
+  }
   return http.Response('', 500);
 });
 

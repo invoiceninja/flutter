@@ -443,6 +443,13 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// Includes `pending` and `in_flight` rows so a row that's mid-send still
   /// shows up; excludes `dead` rows so a 422-failed comment doesn't linger
   /// in the tab (the user will see it on the Outbox screen instead).
+  ///
+  /// That trade was made when the only consumer was the 14th of 14 tabs. It is
+  /// louder now: a rejected comment also leaves the Comments card high on the
+  /// detail body, and if it was the only one the card collapses — so the user
+  /// sees their note appear and then vanish, with the `DeadEvent` toast as the
+  /// only signal. Accepted for now (the text survives on the Outbox screen);
+  /// the fix is a `watchDeadForEntity` sibling feeding a Retry/Discard row.
   Stream<List<OutboxRow>> watchPendingForEntity({
     required String companyId,
     required String entityType,

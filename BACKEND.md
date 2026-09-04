@@ -22,7 +22,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it).
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**R**, § F5; the field is unusable until both are fixed).
-- `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
+- `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 
@@ -388,18 +388,37 @@ same install.
 **R.** Either 403 (consistent with the rest of the API) or return the narrowing in `meta` so a
 client can say "showing only your own". The current shape is silent under-reporting.
 
-### F3d. A comment can never be edited or deleted — **O**
+### F3d. A comment can never be edited or deleted — **O** ([flutter#123](https://github.com/invoiceninja/flutter/issues/123))
 
 `routes/api.php:181-184` exposes `activities` (index), `activities/entity`, `activities/notes` and
-`activities/download_entity/{activity}` — and nothing else. There is no update or delete route for
-an activity note, on any client. A typo, or a comment written on the wrong client, is permanent.
+`activities/download_entity/{activity}` — and nothing else. No `Route::resource`, no bulk route, no
+`PUT`/`PATCH`/`DELETE`. `ActivityController` has eight methods and none of them mutates an existing
+row: every one of the ~22 `$activity->save()` sites in the backend is on a fresh `new Activity()`.
+`Activity` does not use `SoftDeletes` and the `activities` table has neither `deleted_at` nor
+`is_deleted` (`database/schema/mysql-schema.sql:61-92`), so even a soft delete has nowhere to land —
+adding one needs a migration. The only rows that ever disappear go with a client purge, a company
+purge or a company re-import; the only updates are FK rewrites during client/vendor merge and user
+purge. React and the legacy Flutter app are add-only for the same reason (neither has an
+`edit_comment` or `delete_comment` string). A typo, or a comment written on the wrong client, is
+permanent on every client there is.
 
 That was tolerable while comments were buried in an audit tab. They now sit above the fold on eleven
-detail screens (invoiceninja/flutter#121), so the cost of a mistake is higher and more visible.
+detail screens (invoiceninja/flutter#121), so the cost of a mistake is higher and more visible — and
+flutter#123 is a beta user going to look for the buttons.
+
+**Shipped client-side in the meantime** (flutter#123), which is the whole of what the app can do
+honestly: a comment row carries a `⋯` menu with **Copy** (so a typo can be re-posted corrected) and
+**View record**; a comment still queued in the outbox — and only while it has not gone on the wire —
+can really be **deleted**, because dropping the outbox row means the note is never sent; and the Add
+Comment dialog states in one line that a saved comment cannot be edited or deleted. That last line
+exists only because this section is open, and goes when it closes.
 
 **O.** `PUT`/`DELETE /activities/notes/{activity}` gated on `activity_type_id == 141` and the
 authoring `user_id` (or `edit_all`), soft-deleting rather than hard-deleting so the audit trail
-survives.
+survives. Note this needs a `deleted_at` column on `activities` and `SoftDeletes` on the model —
+`ActivityTransformer` exposes no `archived_at`/`is_deleted` today precisely because they don't exist.
+- Accept: `DELETE /activities/notes/{activity}` on someone else's note returns 403; on your own it
+  returns 200 and the row stops appearing in `POST /activities/entity`.
 
 ### F3e. Adding a comment sends no notification — **O (feature request, [flutter#121](https://github.com/invoiceninja/flutter/issues/121))**
 

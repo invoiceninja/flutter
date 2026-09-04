@@ -1505,6 +1505,60 @@ void main() {
       expect(repo.dirtyCleared, [('co', 'c1')]);
     });
 
+    test(
+      'discarding a NON-edit row keeps is_dirty while a dead edit still needs '
+      'it (invoiceninja/flutter#123)',
+      () async {
+        // `hasActiveRowsForEntity` matches only `pending` / `in_flight`, so a
+        // **dead** edit is invisible to it — and a dead edit is the user's
+        // unsaved work, held on screen by `SaveFailedBanner` + Retry.
+        //
+        // "The user abandoned it" is true of the row being discarded, not of
+        // the entity: `add_comment` is enqueued under the PARENT's
+        // entity_type/entity_id, so discarding a queued comment used to release
+        // the dead edit's flag and let the next refresh clobber it. Reachable
+        // in two taps from the comment row's `⋯` menu.
+        final repo = _TestRepo(db: db);
+        final engine = engineWith(repo);
+
+        final deadEdit = await enqueueClient(
+          entityId: 'c1',
+          idempotencyKey: 'edit',
+        );
+        await db.outboxDao.markDead(
+          id: deadEdit,
+          error: '422',
+          statusCode: 422,
+        );
+        final comment = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: 'c1',
+            mutationKind: MutationKind.addComment.wireName,
+            payload: jsonEncode({'entity_id': 'c1', 'notes': 'Chasing'}),
+            idempotencyKey: 'note',
+            nextAttemptAt: 0,
+            createdAt: 0,
+          ),
+        );
+
+        await engine.discardOutboxRow(comment);
+
+        expect(
+          repo.dirtyCleared,
+          isEmpty,
+          reason: 'the dead edit still needs its is_dirty protection',
+        );
+
+        // …and discarding the dead edit itself still clears, as it always has:
+        // the row is deleted before the reconcile runs, so the guard cannot
+        // match the row being discarded.
+        await engine.discardOutboxRow(deadEdit);
+        expect(repo.dirtyCleared, [('co', 'c1')]);
+      },
+    );
+
     Future<int> enqueueReorder(Object payload) => db.outboxDao.enqueue(
       OutboxCompanion.insert(
         companyId: 'co',

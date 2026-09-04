@@ -6,6 +6,7 @@ import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_description.dart';
+import 'package:admin/ui/features/billing_shared/activity/comment_row_menu.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -161,15 +162,22 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
   }
 
   /// The record a note was filed against, when that isn't the one on screen.
-  String _sourceLabel(Activity a) {
+  ///
+  /// Returns the whole [ActivityRef] rather than its label, because two
+  /// surfaces need different halves of it: the meta line prints the label, and
+  /// [CommentRowMenu] turns the same ref into a `View record` item. That menu
+  /// item is the *only* way this ref is reachable — the note bypass below
+  /// strips the templated sentence, and with it the per-token
+  /// `TapGestureRecognizer` a linked ref would need.
+  ActivityRef? _sourceRef(Activity a) {
     final host = widget.hostWireName;
-    if (host == null || !a.isComment) return '';
+    if (host == null || !a.isComment) return null;
     for (final token in _kNoteSourceTokens) {
       if (token == host) continue;
-      final label = a.refs[token]?.label.trim() ?? '';
-      if (label.isNotEmpty) return label;
+      final ref = a.refs[token];
+      if ((ref?.label.trim() ?? '').isNotEmpty) return ref;
     }
-    return '';
+    return null;
   }
 
   /// Relative under a day, an absolute date beyond it.
@@ -219,7 +227,8 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
     // one. The server's own `matchVar(':user')` falls back to a localized
     // "System", so this is effectively always populated.
     final actor = a.isComment ? (a.userLabel ?? '').trim() : '';
-    final source = _sourceLabel(a);
+    final sourceRef = _sourceRef(a);
+    final source = sourceRef?.label.trim() ?? '';
     final meta = [
       if (actor.isNotEmpty) actor,
       _timestamp(a, elapsed),
@@ -227,13 +236,41 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
       if (widget.showIp && a.ip.isNotEmpty) a.ip,
     ].join(' · ');
 
-    // Merged only for a note. A templated sentence carries a
-    // `TapGestureRecognizer` per linked token, and `SemanticsConfiguration`
-    // absorbs them into a single action — so merging there would leave a screen
-    // reader one tap for a row that has two or three destinations. A note has
-    // no links by construction (the bypass above never builds spans), so the
-    // merge is pure gain there: one stop instead of three.
-    final row = MouseRegion(
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (a.isCallNote)
+          ...callNoteBody(context, a.notes, maxLines: widget.bodyMaxLines)
+        else if (a.isComment)
+          _CommentBody(notes: a.notes, maxLines: widget.bodyMaxLines)
+        else
+          Text.rich(
+            TextSpan(children: _spans?.spans ?? const []),
+            style: theme.textTheme.bodyMedium,
+          ),
+        const SizedBox(height: 2),
+        Tooltip(
+          message: absolute,
+          child: Text(
+            meta,
+            style: theme.textTheme.bodySmall?.copyWith(color: tokens.ink3),
+          ),
+        ),
+      ],
+    );
+
+    // Merged only for a note, and merged around the **text column only**. A
+    // templated sentence carries a `TapGestureRecognizer` per linked token, and
+    // `SemanticsConfiguration` absorbs descendant actions into a single one —
+    // so merging there would leave a screen reader one tap for a row that has
+    // two or three destinations. A note has no links by construction (the
+    // bypass above never builds spans), so the merge is pure gain: one stop
+    // instead of two. It must not reach as far as the row, though — the `⋯`
+    // menu is a descendant, and a merge over it would announce the button but
+    // swallow its tap action, exactly the failure this comment describes for
+    // the recognizers. The badge stays outside too, harmlessly: it is a bare
+    // `Icon` with no semantics label.
+    return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: ConstrainedBox(
@@ -267,45 +304,29 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
                 child: Icon(icon, size: 16, color: fg),
               ),
               SizedBox(width: InSpacing.md(context)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (a.isCallNote)
-                      ...callNoteBody(
-                        context,
-                        a.notes,
-                        maxLines: widget.bodyMaxLines,
-                      )
-                    else if (a.isComment)
-                      _CommentBody(
-                        notes: a.notes,
-                        maxLines: widget.bodyMaxLines,
-                      )
-                    else
-                      Text.rich(
-                        TextSpan(children: _spans?.spans ?? const []),
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    const SizedBox(height: 2),
-                    Tooltip(
-                      message: absolute,
-                      child: Text(
-                        meta,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: tokens.ink3,
-                        ),
-                      ),
-                    ),
-                  ],
+              Expanded(child: a.isComment ? MergeSemantics(child: body) : body),
+              // Comment rows only. A templated system sentence has nothing to
+              // copy and nothing to delete, and a menu on every row would put a
+              // `⋯` beside a hundred audit lines to reach two notes. The
+              // ragged right edge that leaves in the Activity tab is the same
+              // trade the narrow list rows make for the call button
+              // (invoiceninja/flutter#111): mount nothing rather than reserve
+              // width for an affordance that would be dead.
+              if (a.isComment)
+                CommentRowMenu(
+                  // What the row displays, not the wire form — a logged
+                  // call's marker is stripped above and must be stripped here
+                  // too, or Copy yields a leading marker glyph nobody typed.
+                  text: a.isCallNote ? stripCallNoteMarker(a.notes) : a.notes,
+                  source: sourceRef,
+                  // No `onDelete`: a synced note is immutable server-side. See
+                  // [CommentRowMenu] and BACKEND.md § F3d.
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
-    return a.isComment ? MergeSemantics(child: row) : row;
   }
 }
 

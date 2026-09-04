@@ -9,9 +9,12 @@ import 'package:admin/data/models/api/activity_api_model.dart';
 import 'package:admin/data/services/activities_api.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_record_row.dart';
+import 'package:admin/ui/features/billing_shared/activity/comment_row_menu.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
+import 'package:admin/ui/features/billing_shared/activity/pending_comment_row.dart';
 
 import '../../../_localization_helper.dart';
 import '../../../_responsive_helper.dart';
@@ -300,5 +303,66 @@ void main() {
       );
       expectNoOverflow(tester);
     }
+  });
+
+  group('row actions (invoiceninja/flutter#123)', () {
+    testWidgets('every row on the card carries its own menu', (tester) async {
+      // The card is where a comment is read, so it is where the report's
+      // "doesn't seem interactive" has to be answered — not only in the tab.
+      await pump(
+        tester,
+        vmWith(
+          _FakeApi([_row(typeId: 141, id: 'c1', notes: 'Will pay Friday')]),
+          outbox: _FakeOutbox([_pending('Chasing this up')]),
+        ),
+        settle: false,
+      );
+      expect(find.byType(PendingCommentRow), findsOne);
+      expect(find.byType(ActivityRecordRow), findsOne);
+      expect(
+        find.byType(EntityActionsPopupButton<CommentRowAction>),
+        findsNWidgets(2),
+      );
+    });
+
+    testWidgets('the menu button sits at the same height on both row types', (
+      tester,
+    ) async {
+      // A pending row is *replaced* by the synced row the moment the note
+      // lands, so a cross-axis mismatch between the two makes the shared `⋯`
+      // visibly jump at exactly that moment. Both centre it.
+      //
+      // The notes have to be long enough to wrap: at one line the row is
+      // exactly the button's own height (`kEntityListRowHeight` 72 − 14/14
+      // padding = 44 = the touch target), so a top-aligned button coincides
+      // with a centred one and the bug hides.
+      const long =
+          'Rang about the overdue balance and they promised to pay on '
+          'Friday once the purchase order clears finance.';
+      await pump(
+        tester,
+        vmWith(
+          _FakeApi([_row(typeId: 141, id: 'c1', notes: long)]),
+          outbox: _FakeOutbox([_pending(long)]),
+        ),
+        width: 420,
+        settle: false,
+      );
+
+      void expectCentred(Finder row) {
+        final button = find.descendant(
+          of: row,
+          matching: find.byType(EntityActionsPopupButton<CommentRowAction>),
+        );
+        expect(button, findsOne);
+        expect(
+          tester.getCenter(button).dy,
+          closeTo(tester.getRect(row).center.dy, 1),
+        );
+      }
+
+      expectCentred(find.byType(PendingCommentRow));
+      expectCentred(find.byType(ActivityRecordRow));
+    });
   });
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -7,10 +9,13 @@ import 'package:admin/data/models/domain/activity.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
+import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_record_row.dart';
+import 'package:admin/ui/features/billing_shared/activity/comment_row_menu.dart';
 import 'package:admin/utils/formatting.dart';
 
 import '../../../_localization_helper.dart';
+import '../../../_responsive_helper.dart';
 
 Activity _activity({
   required int typeId,
@@ -420,6 +425,186 @@ void main() {
         formatter: dateFormatter(),
       );
       expect(text, contains('ago'));
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // The row's `⋯` menu — invoiceninja/flutter#123.
+  //
+  // The report was "seemingly no way to delete or edit a comment … doesn't
+  // seem interactive". Edit and Delete are impossible: the API registers no
+  // PUT/DELETE for an activity and `activities` has no soft-delete column
+  // (BACKEND.md § F3d). So the row offers what it honestly can, and never
+  // pretends otherwise.
+  // ---------------------------------------------------------------------
+  group('comment row menu', () {
+    /// Captures `Clipboard.setData` payloads.
+    ///
+    /// Never `await Clipboard.getData()` in a widget test to read them back —
+    /// it hangs forever under the fake-async zone with no timeout.
+    List<String> spyClipboard(WidgetTester tester) {
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      return copied;
+    }
+
+    Future<void> openMenu(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Actions'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a comment gets one, a system row does not', (tester) async {
+      await _render(tester, _activity(typeId: 141, notes: 'Will pay Friday'));
+      expect(find.byType(EntityActionsPopupButton<CommentRowAction>), findsOne);
+
+      await _render(tester, _activity(typeId: 6));
+      // Deliberately absent rather than empty: a templated sentence has
+      // nothing to copy and nothing to delete, and reserving width for a dead
+      // affordance is what flutter#111 decided against for the call button.
+      expect(
+        find.byType(EntityActionsPopupButton<CommentRowAction>),
+        findsNothing,
+      );
+    });
+
+    testWidgets('a comment with no text mounts no button', (tester) async {
+      // `_CommentBody` prints a placeholder for one of these, but there is
+      // nothing to copy and nothing to view — so the menu would be empty.
+      await _render(tester, _activity(typeId: 141, notes: '   '));
+      expect(
+        find.byType(EntityActionsPopupButton<CommentRowAction>),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Copy writes the note text', (tester) async {
+      final copied = spyClipboard(tester);
+      await _render(
+        tester,
+        _activity(typeId: 141, notes: '  Will pay Friday '),
+      );
+      await openMenu(tester);
+      await tester.tap(find.widgetWithText(MenuItemButton, 'Copy'));
+      await tester.pumpAndSettle();
+      expect(copied, ['Will pay Friday']);
+    });
+
+    testWidgets('Copy strips a logged call marker', (tester) async {
+      // The row displays the stripped form; copying the wire form would hand
+      // the user a leading glyph they never typed.
+      final copied = spyClipboard(tester);
+      const note = '$kCallNoteMarker Outgoing \u00b7 Jane\nLeft a voicemail';
+      await _render(tester, _activity(typeId: 141, notes: note));
+      await openMenu(tester);
+      await tester.tap(find.widgetWithText(MenuItemButton, 'Copy'));
+      await tester.pumpAndSettle();
+      expect(copied, hasLength(1));
+      expect(copied.single, isNot(startsWith(kCallNoteMarker)));
+      expect(copied.single, contains('Left a voicemail'));
+    });
+
+    testWidgets('View record appears only for a note filed elsewhere', (
+      tester,
+    ) async {
+      // On a client's feed a note typed on an invoice carries that invoice's
+      // ref. The meta line prints it as text — the note bypass strips the
+      // linked sentence — so this menu item is the only way to reach it.
+      await _render(
+        tester,
+        _activity(
+          typeId: 141,
+          notes: 'Chased this',
+          refs: {
+            'invoice': const ActivityRef(
+              label: '0013',
+              type: EntityType.invoice,
+              id: 'inv1',
+            ),
+          },
+        ),
+        hostWireName: 'client',
+      );
+      await openMenu(tester);
+      expect(find.widgetWithText(MenuItemButton, 'View Record'), findsOne);
+    });
+
+    testWidgets('View record is absent with no source ref', (tester) async {
+      await _render(
+        tester,
+        _activity(typeId: 141, notes: 'Chased this'),
+        hostWireName: 'client',
+      );
+      await openMenu(tester);
+      expect(find.widgetWithText(MenuItemButton, 'View Record'), findsNothing);
+    });
+
+    testWidgets('Delete is never offered on a synced note', (tester) async {
+      // The server cannot remove it. Only a still-queued note can really be
+      // deleted, and that is `PendingCommentRow`'s job.
+      await _render(tester, _activity(typeId: 141, notes: 'Will pay Friday'));
+      await openMenu(tester);
+      expect(find.widgetWithText(MenuItemButton, 'Delete'), findsNothing);
+      expect(find.widgetWithText(MenuItemButton, 'Copy'), findsOne);
+    });
+
+    testWidgets('the row survives the responsive sweep with a menu on it', (
+      tester,
+    ) async {
+      // The button costs `actionButtonSize()` + a gap out of the row's width,
+      // and the note body is what gives it back. Worth sweeping: the narrow
+      // end is a phone at maximum text scale, where the meta line already
+      // wraps.
+      for (final width in kResponsiveWidths) {
+        await pumpAt(
+          tester,
+          width,
+          ActivityRecordRow(
+            activity: _activity(
+              typeId: 141,
+              notes:
+                  'Rang about the overdue balance and they promised '
+                  'to pay on Friday once the PO clears finance.',
+              refs: {
+                'invoice': const ActivityRef(
+                  label: '0013',
+                  type: EntityType.invoice,
+                  id: 'inv1',
+                ),
+              },
+            ),
+            formatter: null,
+            hostWireName: 'client',
+          ),
+          textScale: kTextScaleMax,
+        );
+        expectNoOverflow(tester);
+      }
+    });
+
+    testWidgets('the menu button is its own semantics node', (tester) async {
+      // Regression guard: the comment row merges its text column for a screen
+      // reader, and a merge stretched over the whole row would absorb the
+      // button's tap action into the sentence — announced, unusable.
+      final handle = tester.ensureSemantics();
+      await _render(tester, _activity(typeId: 141, notes: 'Will pay Friday'));
+      final node = tester.getSemantics(find.byTooltip('Actions'));
+      expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      expect(node.label, isNot(contains('Will pay Friday')));
+      handle.dispose();
     });
   });
 }

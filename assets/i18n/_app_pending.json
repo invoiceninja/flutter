@@ -154,6 +154,7 @@
   "column_mapping": "Column Mapping",
   "coming_soon_subtitle": "Will land in a later milestone.",
   "comma_separated_ids": "Comma-separated ids; leave empty to include all.",
+  "comment_permanent_hint": "Comments can't be edited or deleted.",
   "comments_hint": "Notes you and your team leave on this record. Comments aren't emailed to anyone.",
   "company_created_switch_failed": "Company created, but couldn't switch to it. Pick it from the company list.",
   "company_id_label": "Company id",

@@ -82,6 +82,25 @@ class _AddCommentDialogState extends State<_AddCommentDialog> {
           decoration: InputDecoration(
             hintText: context.tr('comment'),
             border: const OutlineInputBorder(),
+            // Said here because it can be said nowhere else honestly. The API
+            // exposes no update or delete route for an activity note and the
+            // `activities` table has no soft-delete column, so a saved comment
+            // is permanent on every client there is — and
+            // invoiceninja/flutter#123 is someone going looking for the Edit
+            // button that cannot exist. The row's `⋯` menu offers Copy so a
+            // typo can be re-posted corrected; this stops the hunt before it
+            // starts. Delete this line the day BACKEND.md § F3d ships.
+            //
+            // `helperText` rather than a sibling `Text` in a `Column`:
+            // `AlertDialog` gives `content` a `Flexible`, not a scroller, so a
+            // second child is height this dialog may not have on a landscape
+            // phone with the keyboard up. The decoration owns this line's
+            // layout instead. `helperMaxLines` is load-bearing — it defaults
+            // to **1**, which ellipsizes the whole sentence away on a 360 px
+            // phone at 1.4x text scale, where the helper slot is ~209 px wide
+            // and the line wraps several times.
+            helperText: context.tr('comment_permanent_hint'),
+            helperMaxLines: 4,
           ),
         ),
       ),

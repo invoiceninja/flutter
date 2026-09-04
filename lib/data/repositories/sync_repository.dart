@@ -1151,12 +1151,31 @@ class SyncRepository {
       entityType: row.entityType,
       entityId: row.entityId,
     );
-    if (!stillActive) {
-      await registry
-          .byWireName(row.entityType)
-          ?.dispatcher
-          .clearLocalDirty(companyId: row.companyId, id: row.entityId);
-    }
+    if (stillActive) return;
+    // "The user abandoned it" holds when the discarded row IS this entity's
+    // edit. It does not when the row is some *other* mutation keyed to the same
+    // entity — and `add_comment` is exactly that: `ClientRepository.addComment`
+    // enqueues under `entity_type: 'client'`, `entity_id: <client id>`. So
+    // discarding a queued comment used to clear a **dead** edit's `is_dirty`
+    // (invisible to `hasActiveRowsForEntity`, which matches only `pending` /
+    // `in_flight`), `upsertAllPreservingDirty` would stop skipping the id, and
+    // the next refresh would overwrite the edit the `SaveFailedBanner` is still
+    // asking the user to retry. Same guard, same reason, as
+    // [_releaseDeadLifecycleDirty] — see its doc.
+    //
+    // Unconditional because the caller **deletes the row before calling this**,
+    // so the probe can never match the row being discarded: discarding an
+    // entity's only (dead) edit still clears, as it always did.
+    final hasPendingEdit = await db.outboxDao.hasEditRowForEntity(
+      companyId: row.companyId,
+      entityType: row.entityType,
+      entityId: row.entityId,
+    );
+    if (hasPendingEdit) return;
+    await registry
+        .byWireName(row.entityType)
+        ?.dispatcher
+        .clearLocalDirty(companyId: row.companyId, id: row.entityId);
   }
 
   /// Clear the optimistic `is_dirty` flag on every row a reorder touched, once
@@ -1236,8 +1255,11 @@ class SyncRepository {
   /// where the user's unsaved work lives, and the edit screen re-opens onto it
   /// with a `SaveFailedBanner` + Retry. Clearing dirty there would let the next
   /// refresh clobber the very edit the user is being asked to retry. Discard is
-  /// different — there the user has explicitly abandoned it, which is why
-  /// [_reconcileDiscardedDirty] clears every kind.
+  /// different — there the user has explicitly abandoned *the row being
+  /// discarded*, which is why [_reconcileDiscardedDirty] clears every kind.
+  /// (It carries the same `hasEditRowForEntity` guard as this method, because
+  /// "abandoned" says nothing about a *different* mutation on the same entity —
+  /// discarding a queued comment must not release a dead edit's flag.)
   ///
   /// Guarded per-id like its sibling: an id that still has another pending row
   /// keeps its flag so that separate edit stays protected.

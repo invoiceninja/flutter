@@ -41,6 +41,54 @@ const double kInSidebarWidth = 232.0;
 /// wide enough for a centered 18-px icon and a 44-ish-px tap target.
 const double kInSidebarCollapsedWidth = 64.0;
 
+/// Sidebar height below which the footer's white-label upsell card is dropped
+/// (invoiceninja/flutter#124). A phone in landscape is a ~890x412 window, and
+/// the sidebar's fixed chrome already costs ~243 px of that — header 111,
+/// footer 132 — leaving the nav list about three and a half of its ~12 rows.
+/// The card is ~49 px of that footer, so dropping it is worth roughly one row.
+///
+/// 480 is Material 3's compact-height window class, and it clears the whole
+/// reported population: every phone **in landscape** is below it (iPhone SE
+/// 375, Pixel 8 412, iPhone 15 Pro Max 430). Above it the band is mostly
+/// deliberately-short desktop windows (a half-screen 1080p snap is 1920x540),
+/// which is why the gate also requires touch — see [sidebarShowsUpsell].
+///
+/// Deliberately local rather than a `Breakpoints` member: `Breakpoints` holds
+/// *width* thresholds, so `height < wide` would read as nonsense at the call
+/// site, and there is exactly one call site. Nothing is stranded by the gate —
+/// Settings -> Account Management -> Plan renders the same offer through
+/// `showWhiteLabelCard`.
+const double _kUpsellMinHeight = 480.0;
+
+/// Whether the sidebar footer mounts the white-label upsell card.
+///
+/// Extracted as a pure function so the threshold is testable without pumping
+/// `InSidebar` — which deadlocks (`sidebar_search_box_test.dart` records why).
+/// Pinning the gate by scanning the source for its expression is worse than
+/// useless: it goes red on a rename that changes nothing, which is an incident
+/// `sidebar_search_box_test.dart` already has a comment about.
+///
+/// [touch] is `Env.isTouchPrimary` and is what keeps a *pointer* window that
+/// merely happens to be short — a half-screen desktop snap — from losing a CTA
+/// it has room for. It is not a proxy for "handset": `Env.isTouchPrimary` is
+/// true for every `TargetPlatform.android`, which includes ChromeOS containers,
+/// Samsung DeX and Android desktop mode, so a short window there does lose the
+/// card. Accepted: those are rare, resizable, and the offer is still one click
+/// away in Settings -> Account Management -> Plan. The converse gap is Android
+/// vertical split-screen, which can hand a real phone ~450-540 px and so keep
+/// the card on a viewport this rule would rather not have — also accepted, for
+/// the same reason.
+///
+/// [height] is the **window** height (`MediaQuery.sizeOf`), not the sidebar's
+/// own box. They agree on the rail; in the drawer host the offline banner and
+/// the debug panel can make the box shorter. Measuring the box instead would
+/// mean a `LayoutBuilder`, and the rail's box shrinks by `viewInsets.bottom`
+/// when a keyboard opens in the *content* pane — which would drop and restore
+/// the card mid-typing. The window is the stabler of the two wrong answers.
+@visibleForTesting
+bool sidebarShowsUpsell({required bool touch, required double height}) =>
+    !(touch && height < _kUpsellMinHeight);
+
 /// 232 px sidebar used in the wide (desktop / tablet) layout of the
 /// authenticated shell.
 ///
@@ -246,6 +294,12 @@ class _InSidebarState extends State<InSidebar> {
             // shows at >=600 px). Read once and threaded like `compact` so the
             // leaf widgets stay pure and directly pumpable in tests.
             final touch = Env.isTouchPrimary;
+            // See [sidebarShowsUpsell] for why this is the window height and
+            // why it is gated on touch.
+            final showsUpsell = sidebarShowsUpsell(
+              touch: touch,
+              height: MediaQuery.sizeOf(context).height,
+            );
             final collapsed = canCollapse && collapsedPref;
             final effectiveWidth = canCollapse
                 ? (collapsed ? kInSidebarCollapsedWidth : kInSidebarWidth)
@@ -294,18 +348,51 @@ class _InSidebarState extends State<InSidebar> {
                 !showSearch &&
                 !hideHeader &&
                 WindowCaptionStrip.hostsCaptionRow();
-            // SafeArea (top-only): both hosts reach the window's top edge
-            // with no AppBar — the mobile drawer (Flutter's `Drawer` adds no
-            // inset of its own) and the iPad persistent rail (Positioned at
-            // top: 0). The surface decoration below still paints behind the
-            // status bar. Horizontal insets are deliberately OFF: SafeArea
-            // applies *window-level* padding regardless of widget position,
-            // and the rail / drawer widths are pinned (232 / 64 / 280) — on
-            // iPhone landscape (~59px inset per side, and landscape widths
-            // are ≥600 so the rail shows) the defaults would crush the
-            // collapsed 64px rail to zero usable width. Bottom is already
-            // handled by SidebarFooterActions' own SafeArea(top: false). On
-            // macOS every inset is 0, so desktop layout is unchanged.
+            // SafeArea (top AND bottom): the sidebar has no AppBar in either
+            // host — the mobile drawer (Flutter's `Drawer` adds no inset of its
+            // own) and the iPad persistent rail (Positioned at top: 0) — so
+            // this one widget owns both vertical insets. The surface decoration
+            // below still paints behind the status bar and the gesture bar.
+            //
+            // The rail genuinely spans the window. The *drawer* does not: it
+            // belongs to the per-screen Scaffold, which sits in an `Expanded`
+            // with `OfflineBanner` above it and `_DebugPanelBand` below
+            // (`scaffold_with_nav.dart`). So with the banner up the top inset
+            // is paid twice (pre-existing — the banner has its own
+            // `SafeArea(bottom: false)`), and with the debug panel revealed the
+            // drawer's bottom edge is nowhere near the gesture bar and the
+            // gutter below is dead space. Both are cosmetic and confined to
+            // states that are themselves temporary; the alternative — measuring
+            // the box instead of the window — costs a keyboard flicker (see the
+            // note on the height gate above).
+            //
+            // Bottom used to be `false`, ceded to `SidebarFooterActions`' own
+            // SafeArea. That was invoiceninja/flutter#124: the footer renders
+            // three siblings — the icon row, then TrialFooter, then
+            // WhiteLabelFooter — so an inset owned by the *first* of them
+            // padded the middle of the footer instead of the end of it. On a
+            // 24-dp Android gesture bar that put 8 + 24 + 12 = 44 px of dead
+            // space between the icons and the upsell card, and left the card
+            // itself painting inside the gesture strip with only its own 12 px
+            // below it. Geometrically this is identical to wrapping just the
+            // footer group (RenderPadding deflates the constraints, so every
+            // child above keeps its position and the Expanded nav list absorbs
+            // the inset either way) — it is here because one owner is the
+            // whole point, and because a group wrapper stops working the
+            // moment the group renders nothing.
+            //
+            // Consequence to know before adding a SafeArea inside the rail:
+            // `bottom: true` also runs removePadding(removeBottom: true) over
+            // the entire sidebar subtree, so a descendant reading
+            // `padding.bottom` now sees 0. Nothing does today.
+            //
+            // Horizontal insets are deliberately OFF: SafeArea applies
+            // *window-level* padding regardless of widget position, and the
+            // rail / drawer widths are pinned (232 / 64 / 280) — on iPhone
+            // landscape (~59px inset per side, and landscape widths are ≥600 so
+            // the rail shows) the defaults would crush the collapsed 64px rail
+            // to zero usable width. On macOS every inset is 0, so desktop
+            // layout is unchanged.
             NavHistoryButtons navHistoryOfHeight(double? height) =>
                 NavHistoryButtons(
                   compact: collapsed,
@@ -317,7 +404,6 @@ class _InSidebarState extends State<InSidebar> {
             final content = SafeArea(
               left: false,
               right: false,
-              bottom: false,
               child: Column(
                 children: [
                   // Desktop hidden-title-bar caption strip — macOS today:
@@ -515,8 +601,18 @@ class _InSidebarState extends State<InSidebar> {
                           )
                         : null,
                   ),
+                  // An expiring trial is time-critical and has no second home,
+                  // so it is never gated on height; the standing white-label
+                  // offer is, and always reachable from Settings -> Account
+                  // Management -> Plan. (The two are mutually exclusive anyway
+                  // — hosted vs self-hosted — so at most one ever renders.)
                   TrialFooter(compact: collapsed),
-                  WhiteLabelFooter(compact: collapsed),
+                  if (showsUpsell) WhiteLabelFooter(compact: collapsed),
+                  // Nothing goes below this line. The sidebar's bottom inset is
+                  // the outer SafeArea's (see its comment above), so a widget
+                  // appended here would paint inside the Android gesture bar /
+                  // iPhone home indicator — which is exactly the half of
+                  // invoiceninja/flutter#124 that was hardest to see.
                 ],
               ),
             );

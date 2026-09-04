@@ -46,9 +46,15 @@ const String _kDocsBaseUrl = 'https://invoiceninja.github.io/en';
 /// `tokens.ink3` icons rather than the default Material `IconButton` ripple,
 /// which doesn't appear anywhere else in the rail.
 ///
-/// Wrapped in `SafeArea(top: false)` so the row clears the iPhone home
-/// indicator / Android gesture bar on the drawer; the safe-area inset is
-/// zero on the persistent desktop rail.
+/// Owns **no** safe-area inset of its own: the sidebar's single `SafeArea`
+/// (`InSidebar`, top of `content`) pays the top and bottom. It deliberately
+/// does **not** pay left/right — the rail widths are pinned, so an
+/// iPhone-landscape side inset would crush them — so a horizontal inset is
+/// still nobody's, exactly as before.
+/// This widget used to wrap itself in `SafeArea(top: false)`, which was
+/// invoiceninja/flutter#124 — it is not the last thing in the footer
+/// (`TrialFooter` and `WhiteLabelFooter` follow it), so the inset padded the
+/// middle of the footer rather than the end of it. Don't add one back.
 class SidebarFooterActions extends StatelessWidget {
   const SidebarFooterActions({
     this.compact = false,
@@ -158,15 +164,7 @@ class SidebarFooterActions extends StatelessWidget {
       );
     }
 
-    return SafeArea(
-      top: false,
-      left: false,
-      right: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-        child: body,
-      ),
-    );
+    return Padding(padding: const EdgeInsets.fromLTRB(8, 6, 8, 8), child: body);
   }
 }
 

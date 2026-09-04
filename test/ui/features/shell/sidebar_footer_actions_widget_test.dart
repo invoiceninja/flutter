@@ -221,6 +221,42 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('adds no bottom safe-area inset of its own (#124)', (
+    tester,
+  ) async {
+    // The sidebar has three footer children — this row, then `TrialFooter`,
+    // then `WhiteLabelFooter` — so an inset owned by *this* one pads the middle
+    // of the footer rather than the end of it, and leaves the last card
+    // painting inside the gesture strip. The gutter is the sidebar's outer
+    // `SafeArea`'s; `sidebar_footer_wiring_test.dart` pins that call site.
+    //
+    // `FakeViewPadding` is in PHYSICAL px, so scale by the harness dpr to get
+    // a 24-logical-px Android gesture bar. Deliberately not `devicePixelRatio =
+    // 1.0`: `setSurfaceSize` (in `pumpFooter`) only overrides the RenderView's
+    // configuration, while `MediaQueryData.fromView` still divides
+    // `view.physicalSize` by the dpr — so dropping it to 1.0 would silently
+    // report an 2400x1800 `MediaQuery.sizeOf` to a widget laying out in a
+    // 280x400 box. Inert for this widget (it takes `touch` as a parameter and
+    // reads no MediaQuery) and a landmine for the next one that doesn't.
+    tester.view.padding = FakeViewPadding(
+      bottom: 24 * tester.view.devicePixelRatio,
+    );
+    addTearDown(tester.view.resetPadding);
+
+    await pumpFooter(tester, width: drawerWidth, showCollapseToggle: false);
+
+    // 8 is the row's own `Padding(fromLTRB(8, 6, 8, 8))`. Before the fix this
+    // was 8 + 24 = 32. Any action will do — the five are siblings in one `Row`,
+    // so they share a bottom edge; `.first` is simply the one that always
+    // exists.
+    expect(
+      tester.getRect(find.byType(SidebarFooterActions)).bottom -
+          tester.getRect(footerActions().first).bottom,
+      8,
+      reason: 'a SafeArea here would put the gesture-bar inset mid-footer',
+    );
+  });
+
   testWidgets('pointer platforms keep the dense 30-px footer', (tester) async {
     await pumpFooter(
       tester,

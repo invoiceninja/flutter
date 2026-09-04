@@ -134,6 +134,110 @@ void main() {
       expect(find.text('Purchase White Label'), findsNothing);
     });
 
+    // invoiceninja/flutter#124. The card had never painted its fill, its
+    // border or its tap ripple: it used `Ink(decoration:)`, which registers an
+    // `InkDecoration` on the *nearest ancestor* `Material`, and a `Material`
+    // draws its ink features BELOW its whole child subtree. In the app that
+    // ancestor is the Scaffold's / the Drawer's, because `InSidebar` has no
+    // `Material` of its own — so `InSidebar`'s opaque
+    // `AnimatedContainer(color: tokens.surface)` covered the lot.
+    //
+    // The bug is invisible from inside this file's own harness, where the
+    // Scaffold's Material sits directly above the widget with nothing opaque in
+    // between and the card renders perfectly. So assert the *invariant* rather
+    // than the appearance: the ink layer the card paints onto must be its own.
+    testWidgets('paints onto its own Material, not an ancestor ink layer', (
+      tester,
+    ) async {
+      await _pump(tester, _session(isHosted: false));
+
+      final inkWell = find.descendant(
+        of: find.byType(WhiteLabelFooter),
+        matching: find.byType(InkWell),
+      );
+      expect(inkWell, findsOneWidget);
+
+      Element? inkLayer;
+      tester.element(inkWell).visitAncestorElements((e) {
+        if (e.widget is Material) {
+          inkLayer = e;
+          return false;
+        }
+        return true;
+      });
+
+      expect(inkLayer, isNotNull);
+      expect(
+        inkLayer!.findAncestorWidgetOfExactType<WhiteLabelFooter>(),
+        isNotNull,
+        reason:
+            'the nearest Material above the InkWell is outside the card, so '
+            'its fill and ripple render under any opaque widget in between — '
+            'in the sidebar, that is the rail background itself',
+      );
+      expect(
+        (inkLayer!.widget as Material).color,
+        InTheme.light.surfaceAlt,
+        reason: 'the fill must ride on the Material, above its own ink layer',
+      );
+    });
+
+    testWidgets('the card actually paints its fill, and nothing hides it', (
+      tester,
+    ) async {
+      await _pump(tester, _session(isHosted: false));
+
+      // The structural test above says the ink layer is the card's own. This
+      // says the pixels arrive: pre-fix the fill was an `InkDecoration` painted
+      // by an ANCESTOR's `_RenderInkFeatures`, so it did not appear in this
+      // subtree's paint stream at all. `..path`, not `..rrect`, because a
+      // `Material` with a shape goes through `RenderPhysicalShape`, which draws
+      // with `canvas.drawPath`.
+      expect(
+        tester.renderObject(find.byType(WhiteLabelFooter)),
+        paints..path(color: InTheme.light.surfaceAlt),
+      );
+
+      // ...and the load-bearing half the structural test can't see. The border
+      // rides on a COLOURLESS Container inside the InkWell; giving it a `color`
+      // — the obvious "one widget owns the box" simplification — would hide the
+      // ripple under an opaque child again while leaving every other assertion
+      // in this file green.
+      final box = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(WhiteLabelFooter),
+          matching: find.byType(Container),
+        ),
+      );
+      expect(
+        (box.decoration! as BoxDecoration).color,
+        isNull,
+        reason: 'an opaque child inside the InkWell paints over the ripple',
+      );
+    });
+
+    testWidgets('carries no top inset — the footer row above owns the gap', (
+      tester,
+    ) async {
+      await _pump(tester, _session(isHosted: false));
+
+      // `SidebarFooterActions` already ends with 8 px. A 12 here made it 20,
+      // which with the misplaced safe-area inset was the 44 px gap #124 was
+      // filed about.
+      expect(
+        tester
+                .getRect(
+                  find.descendant(
+                    of: find.byType(WhiteLabelFooter),
+                    matching: find.byType(InkWell),
+                  ),
+                )
+                .top -
+            tester.getRect(find.byType(WhiteLabelFooter)).top,
+        0,
+      );
+    });
+
     testWidgets('hidden on the collapsed rail', (tester) async {
       await _pump(tester, _session(isHosted: false), compact: true);
       expect(find.text('Purchase White Label'), findsNothing);
@@ -188,6 +292,19 @@ void main() {
       expect(find.textContaining('days left'), findsOneWidget);
       expect(find.textContaining('5'), findsOneWidget);
       expect(find.text('Purchase White Label'), findsNothing);
+    });
+
+    testWidgets('carries no top inset, like its slot-mate', (tester) async {
+      // The two cards share a slot and must move together — the footer icon row
+      // above already ends with 8 px, so a 12 here would reinstate half of the
+      // #124 gap on whichever of the two happens to render.
+      await _pump(tester, _session(isHosted: true, trialDaysLeft: 5));
+
+      expect(
+        tester.getRect(find.byType(Container).first).top -
+            tester.getRect(find.byType(TrialFooter)).top,
+        0,
+      );
     });
 
     testWidgets('an unlicensed self-host gets the offer, not a trial nag', (

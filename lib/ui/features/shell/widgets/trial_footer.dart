@@ -52,8 +52,11 @@ class TrialFooter extends StatelessWidget {
         final tokens = context.inTheme;
         final days = value.trialDaysRemaining;
         final urgent = days <= 3;
+        // Shares its slot with `WhiteLabelFooter`, so the two must carry the
+        // same insets: no top (the footer icon row above already ends with
+        // 8 px — invoiceninja/flutter#124), 12 at the bottom.
         return Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -89,17 +92,30 @@ class TrialFooter extends StatelessWidget {
                 ),
                 if (urgent) ...[
                   const SizedBox(height: 6),
-                  InkWell(
-                    // Plan is the shell's bare-URL default tab — `/plan` is not
-                    // a matchable route.
-                    onTap: () => context.go('/settings/account_management'),
-                    child: Text(
-                      context.tr('plan_change'),
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: tokens.overdue,
-                        decoration: TextDecoration.underline,
+                  // The `Material` is not decoration: an `InkWell` paints its
+                  // splash and highlight onto the nearest ancestor `Material`,
+                  // which draws its ink features *below* its whole child
+                  // subtree — and there are two opaque boxes between this and
+                  // the Scaffold's: the `Container` just above, and
+                  // `InSidebar`'s `AnimatedContainer(color: tokens.surface)`.
+                  // Without a local ink layer the tap is completely silent.
+                  // Same mechanism as invoiceninja/flutter#124's third defect,
+                  // and the reason every other InkWell in the sidebar carries
+                  // one (`sidebar_nav_item.dart`, `sidebar_footer_actions.dart`).
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      // Plan is the shell's bare-URL default tab — `/plan` is
+                      // not a matchable route.
+                      onTap: () => context.go('/settings/account_management'),
+                      child: Text(
+                        context.tr('plan_change'),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: tokens.overdue,
+                          decoration: TextDecoration.underline,
+                        ),
                       ),
                     ),
                   ),

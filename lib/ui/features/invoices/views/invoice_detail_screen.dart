@@ -336,7 +336,7 @@ class _Body extends StatelessWidget {
                 onViewAll: () => selectTab.select(0),
               ),
               EntityDetailTabs(
-                initialIndex: 1,
+                initialIndex: 2,
                 selectTab: selectTab,
                 tabs: [
                   EntityDetailTab(
@@ -347,6 +347,16 @@ class _Body extends StatelessWidget {
                       formatter: FormatterScope.maybeOf(context),
                       actions: notes,
                       commentsOnly: true,
+                      hostWireName: 'invoice',
+                    ),
+                  ),
+                  EntityDetailTab(
+                    label: context.tr('activity'),
+                    icon: Icons.history_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: FormatterScope.maybeOf(context),
+                      actions: notes,
                       hostWireName: 'invoice',
                     ),
                   ),
@@ -364,16 +374,6 @@ class _Body extends StatelessWidget {
                     entityId: invoice.id,
                     documents: invoice.documents,
                     repo: services.invoices,
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: FormatterScope.maybeOf(context),
-                      actions: notes,
-                      hostWireName: 'invoice',
-                    ),
                   ),
                   EntityDetailTab(
                     label: context.tr('email_history'),

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/list/master_detail_nav_scope.dart';
@@ -37,9 +38,10 @@ class TabSelectionController extends ValueNotifier<int> {
   }
 }
 
-/// Bordered card with a horizontal tab strip on top and an [IndexedStack]
-/// of tab bodies below. Extracted from `ClientDetailTabs` so other entity
-/// detail screens (Product, Invoice, …) can reuse the same scaffolding.
+/// A horizontal tab strip with the active tab's body flush below it (no card
+/// chrome — see `build`, and `_TabStrip` for why the strip scrolls itself).
+/// Extracted from `ClientDetailTabs` so other entity detail screens
+/// (Product, Invoice, …) can reuse the same scaffolding.
 ///
 /// Lazy-mount semantics: a tab body is only built the first time the user
 /// activates it, then stays alive for the rest of the screen's lifetime
@@ -57,11 +59,14 @@ class EntityDetailTabs extends StatefulWidget {
   /// Which tab a *fresh* pane opens on, when there is no remembered one.
   ///
   /// A structural default, deliberately outranked by
-  /// `MasterDetailNavController.lastTab` — the entities that prepend a Comments
-  /// tab pass 1 so the landing tab stays whatever used to be first, while a
-  /// user who has picked a tab keeps getting it back. A real deep-link-to-a-tab
-  /// would want the opposite precedence and needs this made nullable so an
-  /// explicit value can outrank the memory.
+  /// `MasterDetailNavController.lastTab` — all eleven entities that lead with
+  /// the Comments + Activity pair pass 2 so the landing tab stays whatever used
+  /// to be first, while a user who has picked a tab keeps getting it back. A
+  /// real deep-link-to-a-tab would want the opposite precedence and needs this
+  /// made nullable so an explicit value can outrank the memory.
+  ///
+  /// The memory is session-only and keyed on the tab *count*, so reordering a
+  /// strip needs no migration: a fresh process has no memory to be off by one.
   final int initialIndex;
 
   /// Pushed-to by a host that wants to move the user to a tab — the Comments
@@ -69,7 +74,10 @@ class EntityDetailTabs extends StatefulWidget {
   ///
   /// A **negative index counts from the end**, so a host whose tab list is
   /// module-gated can say "second to last" without recomputing the gates. The
-  /// value is clamped, never thrown on.
+  /// value is clamped, never thrown on. No production caller needs it since
+  /// Comments took index 0 on Project and Task too
+  /// (invoiceninja/flutter#122); it stays supported, and pinned by
+  /// `entity_detail_tabs_test.dart`, for the next module-gated host.
   ///
   /// The *strip* is scrolled into view alongside, without which tapping a link
   /// on a phone changes a tab several hundred pixels below the fold and
@@ -218,7 +226,11 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TabStrip(controller: _controller, tabs: widget.tabs),
+        _TabStrip(
+          controller: _controller,
+          tabs: widget.tabs,
+          revealRequest: widget.selectTab,
+        ),
         Divider(height: 1, thickness: 1, color: tokens.border),
         AnimatedBuilder(
           animation: _controller,
@@ -256,11 +268,185 @@ class _EntityDetailTabsState extends State<EntityDetailTabs>
 /// `company_details_shell.dart` but driven by a [TabController] instead.
 /// Active tab gets the `accent` underline + `ink` text; inactive tabs use
 /// `ink2`.
-class _TabStrip extends StatelessWidget {
-  const _TabStrip({required this.controller, required this.tabs});
+///
+/// Stateful only because it owns the horizontal [ScrollController]. With ~15
+/// tabs on a client and about three of them visible in a 440-560 px pane, a tab
+/// can be *selected without being on screen* — by a restored
+/// `MasterDetailNavController.lastTab`, or by the Comments card's `View All`,
+/// whose destination sits at the far left. Until this the strip had no
+/// controller at all and so never moved: the body changed under an unchanged,
+/// un-underlined strip, which is the horizontal twin of the "nothing visibly
+/// happens" bug [_EntityDetailTabsState._onSelectRequested] fixes on the page
+/// axis.
+/// Width of each edge fade, and so also the slack [_TabStripState._revealActive]
+/// leaves around the tab it reveals: land a button flush against the viewport
+/// edge and the fade above it veils the last 24 px of its own label.
+const double _kStripEdgeFade = 32;
+
+class _TabStrip extends StatefulWidget {
+  const _TabStrip({
+    required this.controller,
+    required this.tabs,
+    this.revealRequest,
+  });
 
   final TabController controller;
   final List<EntityDetailTab> tabs;
+
+  /// The host's [EntityDetailTabs.selectTab], listened to *here as well* as in
+  /// the parent. The parent skips `animateTo` when the requested tab is already
+  /// active, so the controller never ticks and a reveal hung off that tick alone
+  /// would not run — which is exactly the repeat request
+  /// [TabSelectionController.select] exists to deliver: tap `View All`, scroll
+  /// the strip away by hand, tap `View All` again.
+  final ValueListenable<int>? revealRequest;
+
+  @override
+  State<_TabStrip> createState() => _TabStripState();
+}
+
+class _TabStripState extends State<_TabStrip> {
+  final ScrollController _scroll = ScrollController();
+
+  /// One per tab index. Positional, so an index keeps naming the button at that
+  /// position however the tab list changes; entries past a shrunken list are
+  /// simply never looked up (`currentContext` would be null anyway).
+  final Map<int, GlobalKey> _keys = <int, GlobalKey>{};
+
+  int _lastIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastIndex = widget.controller.index;
+    widget.controller.addListener(_onControllerTick);
+    widget.revealRequest?.addListener(_onRevealRequested);
+    _scheduleFirstFrame();
+  }
+
+  @override
+  void didUpdateWidget(_TabStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.revealRequest, widget.revealRequest)) {
+      oldWidget.revealRequest?.removeListener(_onRevealRequested);
+      widget.revealRequest?.addListener(_onRevealRequested);
+    }
+    // The parent REPLACES the controller when the tab count changes (toggling a
+    // module in Account Management does exactly that), so re-subscribe or the
+    // auto-scroll dies silently from then on.
+    if (identical(oldWidget.controller, widget.controller)) return;
+    oldWidget.controller.removeListener(_onControllerTick);
+    widget.controller.addListener(_onControllerTick);
+    _lastIndex = widget.controller.index;
+    _scheduleFirstFrame();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerTick);
+    widget.revealRequest?.removeListener(_onRevealRequested);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Reveal the restored tab, then rebuild once so the edge fades can read a
+  /// scroll position that only exists after the first layout — `attach` adds
+  /// the listener but does not itself notify, so without this a strip nobody
+  /// scrolls never paints its trailing fade.
+  void _scheduleFirstFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _revealActive(animate: false);
+      setState(() {});
+    });
+  }
+
+  /// The controller notifies on every animation tick as well; only a change of
+  /// *index* is a reason to move the strip.
+  void _onControllerTick() {
+    if (widget.controller.index == _lastIndex) return;
+    _lastIndex = widget.controller.index;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealActive());
+  }
+
+  /// A host asked for a tab, whether or not that changes the index. Runs after
+  /// the parent's own listener has had its chance to `animateTo`, so the
+  /// post-frame read of `controller.index` sees the destination either way.
+  void _onRevealRequested() =>
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealActive());
+
+  /// Scroll the active tab into view — **minimally**, and only when it is not
+  /// already fully visible.
+  ///
+  /// Neither flavour of `ensureVisible` does this job. The static
+  /// `Scrollable.ensureVisible` walks *every* enclosing scrollable, so on this
+  /// context it would drag the detail page's vertical scroll down to the strip
+  /// on each tab change and on restore. (The parent calls it deliberately, for
+  /// exactly that vertical effect, from
+  /// [_EntityDetailTabsState._onSelectRequested] — but it is the wrong tool
+  /// *here*.) And `ScrollPosition.ensureVisible` always travels to the
+  /// alignment it is given, so centring the way Material's own `TabBar` does
+  /// would centre the **landing** tab and scroll the head of the strip out of
+  /// view: with the Comments + Activity pair leading, `initialIndex: 2` would
+  /// arrive with "Comments" already clipped off the left edge — exactly the
+  /// visibility the pair is there to buy (invoiceninja/flutter#122). The
+  /// `the landing tab leaves the head of the strip visible` test pins that;
+  /// no measurement is quoted here because the widths move with the font,
+  /// the text scale and the locale.
+  void _revealActive({bool animate = true}) {
+    if (!mounted || !_scroll.hasClients) return;
+    final position = _scroll.position;
+    if (!position.hasContentDimensions) return;
+    final ctx = _keys[widget.controller.index]?.currentContext;
+    final box = ctx?.findRenderObject();
+    // A pane that has not been laid out yet (or a key whose tab has just been
+    // gated away) measures nothing; `getOffsetToReveal` would assert.
+    if (box is! RenderBox || !box.hasSize) return;
+    final viewport = RenderAbstractViewport.maybeOf(box);
+    if (viewport == null) return;
+
+    // Reveal the button with a full [_kStripEdgeFade] of slack, not the strip's
+    // 8 px padding: a mid-strip target landed flush against the viewport edge
+    // sits *under* the fade drawn there, which veils the last 24 px of the very
+    // label just revealed (75% opaque at its tail) — invisible in the tests,
+    // which only assert the button is on screen. At the ends the extra slack
+    // costs nothing, because the clamp below pins tab 0 to `minScrollExtent`
+    // (whereupon the leading fade is not drawn at all) and the last tab to
+    // `maxScrollExtent`.
+    final bounds = box.paintBounds;
+    final withGutter = Rect.fromLTRB(
+      bounds.left - _kStripEdgeFade,
+      bounds.top,
+      bounds.right + _kStripEdgeFade,
+      bounds.bottom,
+    );
+    final leading = viewport
+        .getOffsetToReveal(box, 0.0, rect: withGutter)
+        .offset;
+    final trailing = viewport
+        .getOffsetToReveal(box, 1.0, rect: withGutter)
+        .offset;
+    final double? target = position.pixels > leading
+        ? leading
+        : position.pixels < trailing
+        ? trailing
+        : null;
+    if (target == null) return;
+    final clamped = target.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (clamped == position.pixels) return;
+    if (animate) {
+      position.animateTo(
+        clamped,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } else {
+      position.jumpTo(clamped);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -271,68 +457,125 @@ class _TabStrip extends StatelessWidget {
     // embedded mode), so the strip supplies the Material itself.
     return Material(
       type: MaterialType.transparency,
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final activeIndex = controller.index;
-          return Stack(
-            children: [
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: InSpacing.sm),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < tabs.length; i++)
-                      _TabButton(
-                        label: tabs[i].label,
-                        icon: tabs[i].icon,
-                        active: i == activeIndex,
-                        tokens: tokens,
-                        onTap: () {
-                          if (controller.index != i) controller.animateTo(i);
-                        },
-                      ),
-                  ],
+      // The fades below read `min`/`maxScrollExtent`, and a change to those
+      // that leaves `pixels` alone — a window resize, a rotation, the pane
+      // widening until the strip fits — does NOT reach a `ScrollController`
+      // listener: `applyContentDimensions` only schedules a
+      // `ScrollMetricsNotification` (its own comment says listeners "have, by
+      // definition, already been built this frame"). Without this the strip
+      // keeps whichever fades the *previous* width called for, and once it
+      // fits there is no scroll left that could ever correct them.
+      child: NotificationListener<ScrollMetricsNotification>(
+        onNotification: (_) {
+          if (mounted) setState(() {});
+          return false;
+        },
+        child: AnimatedBuilder(
+          animation: widget.controller,
+          builder: (context, _) {
+            final activeIndex = widget.controller.index;
+            return Stack(
+              children: [
+                SingleChildScrollView(
+                  controller: _scroll,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: InSpacing.sm),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < widget.tabs.length; i++)
+                        _TabButton(
+                          boxKey: _keys.putIfAbsent(i, GlobalKey.new),
+                          label: widget.tabs[i].label,
+                          icon: widget.tabs[i].icon,
+                          active: i == activeIndex,
+                          tokens: tokens,
+                          onTap: () {
+                            if (widget.controller.index != i) {
+                              widget.controller.animateTo(i);
+                            }
+                          },
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              // Trailing fade hinting that more tabs scroll off-screen
-              // (~15 tabs on a client, and the 440-560 px master-detail pane
-              // shows about three, so the strip almost always overflows).
-              // That count is also why this is a fade rather than a scrollbar.
-              Positioned(
-                top: 0,
-                bottom: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 32,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [tokens.bg.withValues(alpha: 0), tokens.bg],
-                      ),
+                // Fades hinting that more tabs scroll off-screen (~15 tabs on a
+                // client, and the 440-560 px master-detail pane shows about
+                // three, so the strip almost always overflows). That count is
+                // also why this is a fade rather than a scrollbar. Each edge is
+                // gated on there being something to reveal that way: an
+                // unconditional fade veils the first or last tab's own label
+                // once the strip is scrolled to that end, and both are absent
+                // when the strip fits. Their own builder, so a scroll frame
+                // repaints two gradients rather than fifteen buttons.
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _scroll,
+                      builder: (context, _) {
+                        // `hasContentDimensions`, not just `hasClients`: the
+                        // position is attached on the first build but its
+                        // extents are only set after layout, and reading one
+                        // early throws a null-check straight out of
+                        // `ScrollPosition.minScrollExtent`.
+                        final p =
+                            _scroll.hasClients &&
+                                _scroll.position.hasContentDimensions
+                            ? _scroll.position
+                            : null;
+                        final atStart =
+                            p == null || p.pixels <= p.minScrollExtent;
+                        final atEnd =
+                            p == null || p.pixels >= p.maxScrollExtent;
+                        return Stack(
+                          children: [
+                            if (!atStart) _edgeFade(tokens, leading: true),
+                            if (!atEnd) _edgeFade(tokens, leading: false),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
+
+  Widget _edgeFade(InTheme tokens, {required bool leading}) => Positioned(
+    top: 0,
+    bottom: 0,
+    left: leading ? 0 : null,
+    right: leading ? null : 0,
+    child: Container(
+      width: _kStripEdgeFade,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: leading ? Alignment.centerRight : Alignment.centerLeft,
+          end: leading ? Alignment.centerLeft : Alignment.centerRight,
+          colors: [tokens.bg.withValues(alpha: 0), tokens.bg],
+        ),
+      ),
+    ),
+  );
 }
 
 class _TabButton extends StatelessWidget {
   const _TabButton({
+    required this.boxKey,
     required this.label,
     required this.icon,
     required this.active,
     required this.tokens,
     required this.onTap,
   });
+
+  /// On the [Container], not the [InkWell] — `findRenderObject` has to reach a
+  /// real `RenderBox` for `_TabStripState._revealActive` to measure.
+  final Key boxKey;
 
   final String label;
   final IconData icon;
@@ -349,6 +592,7 @@ class _TabButton extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
+        key: boxKey,
         padding: EdgeInsets.symmetric(
           horizontal: InSpacing.md(context),
           vertical: InSpacing.md(context),

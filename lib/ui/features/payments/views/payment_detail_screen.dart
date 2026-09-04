@@ -133,7 +133,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
                   onViewAll: () => _selectTab.select(0),
                 ),
                 EntityDetailTabs(
-                  initialIndex: 1,
+                  initialIndex: 2,
                   selectTab: _selectTab,
                   tabs: [
                     EntityDetailTab(
@@ -144,6 +144,16 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
                         formatter: formatter,
                         actions: notes,
                         commentsOnly: true,
+                        hostWireName: 'payment',
+                      ),
+                    ),
+                    EntityDetailTab(
+                      label: context.tr('activity'),
+                      icon: Icons.history_outlined,
+                      bodyBuilder: (_) => EntityActivityTab(
+                        vm: _activityVm,
+                        formatter: formatter,
+                        actions: notes,
                         hostWireName: 'payment',
                       ),
                     ),
@@ -208,16 +218,6 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
                       documents: p.documents,
                       repo: _services.payments,
                       formatter: formatter,
-                    ),
-                    EntityDetailTab(
-                      label: context.tr('activity'),
-                      icon: Icons.history_outlined,
-                      bodyBuilder: (_) => EntityActivityTab(
-                        vm: _activityVm,
-                        formatter: formatter,
-                        actions: notes,
-                        hostWireName: 'payment',
-                      ),
                     ),
                   ],
                 ),

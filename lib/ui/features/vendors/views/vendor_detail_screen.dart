@@ -138,7 +138,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
               VendorDetailCardsGrid(vendor: v, formatter: formatter),
               const SizedBox(height: InSpacing.xl),
               EntityDetailTabs(
-                initialIndex: 1,
+                initialIndex: 2,
                 selectTab: _selectTab,
                 tabs: [
                   EntityDetailTab(
@@ -149,6 +149,16 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
                       formatter: formatter,
                       actions: notes,
                       commentsOnly: true,
+                      hostWireName: 'vendor',
+                    ),
+                  ),
+                  EntityDetailTab(
+                    label: context.tr('activity'),
+                    icon: Icons.history_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: _activityVm,
+                      formatter: formatter,
+                      actions: notes,
                       hostWireName: 'vendor',
                     ),
                   ),
@@ -195,16 +205,6 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
                     documents: v.documents,
                     repo: _services.vendors,
                     formatter: formatter,
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: _activityVm,
-                      formatter: formatter,
-                      actions: notes,
-                      hostWireName: 'vendor',
-                    ),
                   ),
                 ],
               ),

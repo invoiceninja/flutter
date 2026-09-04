@@ -33,8 +33,13 @@ import 'package:admin/ui/features/tasks/views/task_list_screen.dart';
 /// (filter + parent-prefilled "New") and grows with the detail page (no
 /// nested scrollbar).
 ///
-/// Tab order mirrors the React reference at
-/// `react/src/pages/clients/show/useTabs.tsx`; Activity sits at the end.
+/// The related-entity tabs keep the order of the React reference at
+/// `react/src/pages/clients/show/hooks/useTabs.tsx`, but the record's own
+/// history leads the strip: Comments then Activity, both views of one feed.
+/// Activity used to sit 15th of 15, which on the 440-560 px pane is four
+/// screens of horizontal scrolling away (invoiceninja/flutter#122). React
+/// diverges here anyway — it puts `History / Activity` 10th of 12, ahead of
+/// Documents and Settings.
 /// Tab scaffolding is delegated to [EntityDetailTabs] in
 /// `lib/ui/core/detail/entity_detail_tabs.dart` so other detail screens
 /// reuse the same strip + lazy-mount semantics.
@@ -72,7 +77,7 @@ class ClientDetailTabs extends StatelessWidget {
     // Hide related-entity tabs whose module is disabled for this company.
     final me = session.currentCompany;
     return EntityDetailTabs(
-      initialIndex: 1,
+      initialIndex: 2,
       selectTab: selectTab,
       tabs: [
         EntityDetailTab(
@@ -83,6 +88,16 @@ class ClientDetailTabs extends StatelessWidget {
             formatter: formatter,
             actions: notes,
             commentsOnly: true,
+            hostWireName: 'client',
+          ),
+        ),
+        EntityDetailTab(
+          label: context.tr('activity'),
+          icon: Icons.history_outlined,
+          bodyBuilder: (_) => EntityActivityTab(
+            vm: activityVm,
+            formatter: formatter,
+            actions: notes,
             hostWireName: 'client',
           ),
         ),
@@ -183,16 +198,6 @@ class ClientDetailTabs extends StatelessWidget {
             icon: Icons.terminal_outlined,
             bodyBuilder: (_) => ClientSystemLogsTab(client: client),
           ),
-        EntityDetailTab(
-          label: context.tr('activity'),
-          icon: Icons.history_outlined,
-          bodyBuilder: (_) => EntityActivityTab(
-            vm: activityVm,
-            formatter: formatter,
-            actions: notes,
-            hostWireName: 'client',
-          ),
-        ),
       ],
     );
   }

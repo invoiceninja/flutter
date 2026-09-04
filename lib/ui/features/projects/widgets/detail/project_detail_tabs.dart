@@ -49,10 +49,34 @@ class ProjectDetailTabs extends StatelessWidget {
     final projectId = project.id;
     // Hide related-entity tabs whose module is disabled for this company.
     final me = services.auth.session.value?.currentCompany;
-    // Built as a local so the Comments tab's index can be derived rather than
-    // guessed: six of these entries are gated, and Comments sits second-to-last
-    // (see the tab itself for why it isn't first).
+    // Built as a local because six of these entries are gated, so the strip's
+    // length is only known here.
     final tabs = <EntityDetailTab>[
+      // The record's own history leads the strip on every entity that has one:
+      // Comments is a filtered view of Activity, and on a project the pair used
+      // to sit 7th and 8th of 8, i.e. behind a horizontal scroll
+      // (invoiceninja/flutter#122). Read-only here — `ProjectRepository` has no
+      // `addComment` — but Activity is read-only everywhere, so that is no
+      // reason to bury it.
+      EntityDetailTab(
+        label: context.tr('comments'),
+        icon: Icons.comment_outlined,
+        bodyBuilder: (_) => EntityActivityTab(
+          vm: activityVm,
+          formatter: formatter,
+          commentsOnly: true,
+          hostWireName: 'project',
+        ),
+      ),
+      EntityDetailTab(
+        label: context.tr('activity'),
+        icon: Icons.history_outlined,
+        bodyBuilder: (_) => EntityActivityTab(
+          vm: activityVm,
+          formatter: formatter,
+          hostWireName: 'project',
+        ),
+      ),
       if (me?.moduleEnabled(EntityType.task) ?? false)
         EntityDetailTab(
           label: context.tr('tasks'),
@@ -102,29 +126,8 @@ class ProjectDetailTabs extends StatelessWidget {
           bodyBuilder: (_) =>
               ProjectAnalyticsTab(projectId: projectId, formatter: formatter),
         ),
-      // Read-only: `ProjectRepository` has no `addComment`, so this tab sits
-      // beside Activity rather than taking first place the way the writable
-      // entities do.
-      EntityDetailTab(
-        label: context.tr('comments'),
-        icon: Icons.comment_outlined,
-        bodyBuilder: (_) => EntityActivityTab(
-          vm: activityVm,
-          formatter: formatter,
-          commentsOnly: true,
-          hostWireName: 'project',
-        ),
-      ),
-      EntityDetailTab(
-        label: context.tr('activity'),
-        icon: Icons.history_outlined,
-        bodyBuilder: (_) => EntityActivityTab(
-          vm: activityVm,
-          formatter: formatter,
-          hostWireName: 'project',
-        ),
-      ),
     ];
-    return EntityDetailTabs(tabs: tabs, selectTab: selectTab);
+    // 2: the pair leads, so the landing tab is still the first content tab.
+    return EntityDetailTabs(initialIndex: 2, tabs: tabs, selectTab: selectTab);
   }
 }

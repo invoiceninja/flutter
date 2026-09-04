@@ -125,7 +125,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
                 onViewAll: () => _selectTab.select(0),
               ),
               EntityDetailTabs(
-                initialIndex: 1,
+                initialIndex: 2,
                 selectTab: _selectTab,
                 tabs: [
                   EntityDetailTab(
@@ -136,6 +136,16 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
                       formatter: formatter,
                       actions: notes,
                       commentsOnly: true,
+                      hostWireName: 'expense',
+                    ),
+                  ),
+                  EntityDetailTab(
+                    label: context.tr('activity'),
+                    icon: Icons.history_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: _activityVm,
+                      formatter: formatter,
+                      actions: notes,
                       hostWireName: 'expense',
                     ),
                   ),
@@ -168,16 +178,6 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
                     documents: e.documents,
                     repo: _services.expenses,
                     formatter: formatter,
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: _activityVm,
-                      formatter: formatter,
-                      actions: notes,
-                      hostWireName: 'expense',
-                    ),
                   ),
                 ],
               ),

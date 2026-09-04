@@ -104,8 +104,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 vm: _activityVm,
                 formatter: formatter,
                 hostWireName: 'project',
-                // -2: second to last, i.e. the Comments tab beside Activity.
-                onViewAll: () => _selectTab.select(-2),
+                onViewAll: () => _selectTab.select(0),
                 matchFormColumn: true,
               ),
               // Detail cards sit above the tab strip (Client-style); the

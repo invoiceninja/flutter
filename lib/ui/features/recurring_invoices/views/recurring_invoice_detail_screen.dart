@@ -201,7 +201,7 @@ class _Body extends StatelessWidget {
                 onViewAll: () => selectTab.select(0),
               ),
               EntityDetailTabs(
-                initialIndex: 1,
+                initialIndex: 2,
                 selectTab: selectTab,
                 tabs: [
                   EntityDetailTab(
@@ -212,6 +212,16 @@ class _Body extends StatelessWidget {
                       formatter: formatter,
                       actions: notes,
                       commentsOnly: true,
+                      hostWireName: 'recurring_invoice',
+                    ),
+                  ),
+                  EntityDetailTab(
+                    label: context.tr('activity'),
+                    icon: Icons.history_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: activityVm,
+                      formatter: formatter,
+                      actions: notes,
                       hostWireName: 'recurring_invoice',
                     ),
                   ),
@@ -270,16 +280,6 @@ class _Body extends StatelessWidget {
                           isPublic: !doc.isPublic,
                         );
                       },
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: activityVm,
-                      formatter: formatter,
-                      actions: notes,
-                      hostWireName: 'recurring_invoice',
                     ),
                   ),
                   EntityDetailTab(

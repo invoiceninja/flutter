@@ -97,12 +97,39 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                 vm: _activityVm,
                 formatter: formatter,
                 hostWireName: 'task',
-                // -2: second to last, i.e. the Comments tab beside Activity.
-                onViewAll: () => _selectTab.select(-2),
+                onViewAll: () => _selectTab.select(0),
               ),
               EntityDetailTabs(
+                // 2: the Comments + Activity pair leads, so the landing tab is
+                // still Overview.
+                initialIndex: 2,
                 selectTab: _selectTab,
                 tabs: [
+                  // The record's own history leads the strip on every entity
+                  // that has one: Comments is a filtered view of Activity, and
+                  // burying either behind a horizontal scroll is what
+                  // invoiceninja/flutter#122 was about. Read-only here —
+                  // `TaskRepository` has no `addComment` — but Activity is
+                  // read-only everywhere, so that is no reason to bury it.
+                  EntityDetailTab(
+                    label: context.tr('comments'),
+                    icon: Icons.comment_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: _activityVm,
+                      formatter: formatter,
+                      commentsOnly: true,
+                      hostWireName: 'task',
+                    ),
+                  ),
+                  EntityDetailTab(
+                    label: context.tr('activity'),
+                    icon: Icons.history_outlined,
+                    bodyBuilder: (_) => EntityActivityTab(
+                      vm: _activityVm,
+                      formatter: formatter,
+                      hostWireName: 'task',
+                    ),
+                  ),
                   EntityDetailTab(
                     label: context.tr('overview'),
                     icon: Icons.dashboard_outlined,
@@ -133,28 +160,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                     documents: t.documents,
                     repo: _services.tasks,
                     formatter: formatter,
-                  ),
-                  // Read-only: `TaskRepository` has no `addComment`, so this
-                  // tab sits beside Activity rather than taking first place
-                  // the way the writable entities do.
-                  EntityDetailTab(
-                    label: context.tr('comments'),
-                    icon: Icons.comment_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: _activityVm,
-                      formatter: formatter,
-                      commentsOnly: true,
-                      hostWireName: 'task',
-                    ),
-                  ),
-                  EntityDetailTab(
-                    label: context.tr('activity'),
-                    icon: Icons.history_outlined,
-                    bodyBuilder: (_) => EntityActivityTab(
-                      vm: _activityVm,
-                      formatter: formatter,
-                      hostWireName: 'task',
-                    ),
                   ),
                 ],
               ),

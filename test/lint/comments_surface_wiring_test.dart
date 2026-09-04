@@ -85,6 +85,108 @@ void main() {
     }
   });
 
+  test('the strip leads with Comments then Activity', () {
+    // invoiceninja/flutter#122: Activity used to sit LAST — 15th of 15 on a
+    // client, four screens of horizontal scrolling away on the 440-560 px
+    // pane — while Comments, which is only a filtered view of the same feed,
+    // sat first. Nothing in the type system notices a twelfth host, or a new
+    // tab, quietly splitting the pair again.
+    //
+    // Anchored on the entry constructors, not on `label: context.tr('…')`:
+    // the billing screens carry unrelated `label:` lines (KPI cells), seven
+    // Documents tabs come from `buildStandardDocumentsTab` and so carry no
+    // label in the host file at all, and the other four compute theirs.
+    final entryPattern = RegExp(
+      r'\b(?:EntityDetailTab|buildStandardDocumentsTab)\(',
+    );
+    for (final path in pairs.keys) {
+      final src = File(path).readAsStringSync();
+      final starts = entryPattern
+          .allMatches(src)
+          .map((m) => m.start)
+          .toList(growable: false);
+      String entry(int i) => src.substring(
+        starts[i],
+        i + 1 < starts.length ? starts[i + 1] : src.length,
+      );
+      expect(
+        starts.length,
+        greaterThanOrEqualTo(2),
+        reason: '$path has fewer than two tabs',
+      );
+      expect(
+        entry(0),
+        contains('commentsOnly: true'),
+        reason: '$path does not lead with its Comments tab',
+      );
+      expect(
+        entry(1),
+        allOf(
+          contains('EntityActivityTab('),
+          isNot(contains('commentsOnly: true')),
+        ),
+        reason:
+            '$path does not put Activity immediately after Comments — the two '
+            'are one feed and belong beside each other at the head',
+      );
+    }
+  });
+
+  test('every View All link targets the Comments tab at index 0', () {
+    // What makes the hardcoded 0 safe. Project and Task used to say `-2`
+    // because Comments sat second-to-last there; a host that reorders its
+    // strip without re-aiming this opens the wrong tab, silently.
+    //
+    // Every `select(…)` argument is checked, not just "the source contains
+    // `select(0)` somewhere" — that weaker form passes a host whose View All
+    // regressed to `select(3)` as long as a stray `select(0)` survives
+    // elsewhere in either paired file.
+    final selectArg = RegExp(r'\.select\((-?\d+)\)');
+    for (final entry in pairs.entries) {
+      final joined = entry.value
+          .map(File.new)
+          .map((f) => f.readAsStringSync())
+          .join('\n');
+      if (!joined.contains('onViewAll:')) continue;
+      final args = selectArg
+          .allMatches(joined)
+          .map((m) => m.group(1))
+          .toList(growable: false);
+      expect(
+        args,
+        isNotEmpty,
+        reason: '${entry.key} renders a View All link that selects no tab',
+      );
+      expect(
+        args.toSet(),
+        {'0'},
+        reason:
+            '${entry.key} aims a tab selection somewhere other than the '
+            'leading Comments tab',
+      );
+    }
+  });
+
+  test('every host keeps its landing tab with initialIndex: 2', () {
+    // The pair takes indices 0 and 1, so the tab the screen used to open on is
+    // now at 2. A host that leads with Comments + Activity and forgets this
+    // opens every record on the comment feed instead of its content — silent,
+    // and only visible to someone who remembers what the screen used to do.
+    for (final entry in pairs.entries) {
+      final joined = entry.value
+          .map(File.new)
+          .map((f) => f.readAsStringSync())
+          .join('\n');
+      expect(
+        joined,
+        contains('initialIndex: 2'),
+        reason:
+            '${entry.key} leads with the Comments + Activity pair but does not '
+            'push its landing tab past them',
+      );
+    }
+  });
+
   test('a ViewModel is always both armed and disposed by its owner', () {
     // Two failures with real blast radius, neither of which throws:
     // forgetting `kick()` leaves the card permanently hidden and the tab

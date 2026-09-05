@@ -261,23 +261,46 @@ class _LogCallFormState extends State<_LogCallForm> {
                     // `tax_category_dialog.dart` both hand-roll a list. The
                     // design rule this satisfies ("two choices stay visible")
                     // is about the affordance, not that widget.
-                    SegmentedButton<CallDirection>(
-                      segments: [
-                        ButtonSegment(
-                          value: CallDirection.outgoing,
-                          icon: const Icon(Icons.call_made, size: 16),
-                          label: Text(context.tr('outgoing')),
-                        ),
-                        ButtonSegment(
-                          value: CallDirection.incoming,
-                          icon: const Icon(Icons.call_received, size: 16),
-                          label: Text(context.tr('incoming')),
-                        ),
-                      ],
-                      selected: {_direction},
-                      showSelectedIcon: false,
-                      onSelectionChanged: (s) =>
-                          setState(() => _direction = s.first),
+                    // The enclosing Column is `crossAxisAlignment: stretch`,
+                    // which hands the button the full sheet width and so
+                    // clamps each segment to half of it. `SegmentedButton`
+                    // CLIPS rather than overflows, so an icon + label that no
+                    // longer fits is simply cut — no exception, no test
+                    // signal, and nothing visible on a wide review screen. It
+                    // bites at 320 px and a large text scale in de/fr
+                    // ("Ausgehend"/"Eingehend", "Sortant"/"Entrant").
+                    //
+                    // A horizontal viewport hands its child `maxWidth:
+                    // infinity` whatever the incoming constraint and paints it
+                    // at offset zero, so this both un-clamps the button (it
+                    // takes its intrinsic width and the overflow becomes
+                    // scrollable) and leaves it left-aligned — no `Align`
+                    // needed, which is why the precedent this copies,
+                    // `settings/widgets/segmented_setting_row.dart`, has none.
+                    // The visible consequence is that the control now hugs its
+                    // content instead of stretching to the dialog's 480 px;
+                    // that is the Material default for a segmented button and
+                    // both choices stay visible either way.
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<CallDirection>(
+                        segments: [
+                          ButtonSegment(
+                            value: CallDirection.outgoing,
+                            icon: const Icon(Icons.call_made, size: 16),
+                            label: Text(context.tr('outgoing')),
+                          ),
+                          ButtonSegment(
+                            value: CallDirection.incoming,
+                            icon: const Icon(Icons.call_received, size: 16),
+                            label: Text(context.tr('incoming')),
+                          ),
+                        ],
+                        selected: {_direction},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (s) =>
+                            setState(() => _direction = s.first),
+                      ),
                     ),
                     SizedBox(height: InSpacing.md(context)),
                     Row(

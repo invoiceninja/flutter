@@ -1027,6 +1027,35 @@ void main() {
       defaultCompanyId: 'co_a',
     );
 
+    /// Three, so "the user moved during the heal" has somewhere to move TO
+    /// that isn't the heal's own target.
+    LoginResponseApi threeCompanies({String tokenB = 'tok_b'}) => _envelope(
+      companies: [
+        (
+          id: 'co_a',
+          name: 'Acme',
+          token: 'tok_a',
+          isAdmin: false,
+          isOwner: false,
+        ),
+        (
+          id: 'co_b',
+          name: 'Beta',
+          token: tokenB,
+          isAdmin: false,
+          isOwner: false,
+        ),
+        (
+          id: 'co_c',
+          name: 'Gamma',
+          token: 'tok_c',
+          isAdmin: false,
+          isOwner: false,
+        ),
+      ],
+      defaultCompanyId: 'co_a',
+    );
+
     /// Mirrors the production wiring in `services.dart`.
     ApiClient wired(MockClient http) => ApiClient(
       credentials: repo.credentials,
@@ -1154,6 +1183,72 @@ void main() {
         reason: 'the heal recovered a working token, so the switch stands',
       );
       expect(repo.credentials.value!.token, 'tok_b2');
+    });
+
+    test('the heal abandons when a newer user switch supersedes it', () async {
+      // The heal is detached and its refresh is a full `first_load` sync, so
+      // it lands seconds after the rollback. In that window the user can pick
+      // a company themselves — through `switchCompanyGuarded`, with the
+      // unsaved-changes and pending-outbox prompts. Completing the original
+      // switch on top of that overrides a newer, deliberate choice with an
+      // older, failed one, and skips every guard doing it.
+      authService.queueLogin(threeCompanies());
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a',
+        password: 'b',
+      );
+
+      final refreshStarted = Completer<void>();
+      final releaseRefresh = Completer<void>();
+      final client = wired(
+        MockClient((req) async {
+          if (req.url.path == '/api/v1/refresh') {
+            if (!refreshStarted.isCompleted) refreshStarted.complete();
+            await releaseRefresh.future;
+            return http.Response(
+              jsonEncode(threeCompanies(tokenB: 'tok_b2').toJson()),
+              200,
+            );
+          }
+          return http.Response('nope', 401);
+        }),
+      );
+      repo.apiClient = client;
+
+      // co_b's token is rejected -> rollback to co_a, heal kicked off.
+      await repo.switchCompany('co_b');
+      try {
+        await client.getOne('/api/v1/clients');
+      } catch (_) {}
+      await refreshStarted.future;
+      expect(repo.session.value!.currentCompanyId, 'co_a');
+
+      // The user does not wait for the heal; they pick a third company.
+      await repo.switchCompany('co_c');
+      expect(repo.session.value!.currentCompanyId, 'co_c');
+
+      releaseRefresh.complete();
+      await pumpEventQueue();
+
+      // Asserted positively. `isNot('co_b')` would also pass if the heal's
+      // refresh had dragged the user back to co_a, which is a different bug
+      // and one this test is well placed to catch: `_persistAndActivate`
+      // keeps the live company over the at-request snapshot, so co_c is the
+      // correct landing spot and anything else is a regression.
+      expect(
+        repo.session.value!.currentCompanyId,
+        'co_c',
+        reason:
+            'the heal completed an abandoned switch, or dragged the user back '
+            'to the company the rollback had left them on',
+      );
+      expect(
+        repo.credentials.value!.token,
+        'tok_c',
+        reason: 'the credentials must match the company the user chose',
+      );
     });
 
     test(

@@ -621,6 +621,98 @@ void main() {
       );
     });
 
+    testWidgets('Enter follows a pasted link before the debounce fires', (
+      tester,
+    ) async {
+      // Attach the real router so the link is followed all the way to a
+      // navigation. Asserting only that the palette closed would stay green
+      // against a `_select` that pops and then drops the link on the floor.
+      final navigations = <String>[];
+      fixture.services.deepLinks.attach(
+        go: navigations.add,
+        contextOf: () => null,
+      );
+      await withPalette(
+        tester,
+        size: desktop,
+        platform: TargetPlatform.macOS,
+        body: () async {
+          expect(
+            find.byType(Dialog),
+            findsOneWidget,
+            reason: 'guard: a palette that never opened would read as a pass',
+          );
+          await tester.enterText(
+            find.byType(TextField),
+            'invoiceninja://app/clients/abc',
+          );
+          // Deliberately NOT pumping past the 250 ms debounce. Paste-then-Enter
+          // is the natural gesture for a shared link, and on web and Linux this
+          // palette is the ONLY way to follow one — the OS never delivers the
+          // custom scheme there. Enter inside the debounce window used to fall
+          // out of `_select` against an empty `_results` and do nothing at all,
+          // so the user had to press it twice with no hint why.
+          await tester.pump();
+          await tester.testTextInput.receiveAction(TextInputAction.done);
+          await tester.pumpAndSettle();
+
+          expect(find.byType(Dialog), findsNothing, reason: 'palette closed');
+          expect(navigations, [
+            '/clients/abc',
+          ], reason: 'the link never reached DeepLinkRouter');
+        },
+      );
+    });
+
+    testWidgets('…and over a stale result set, not the previous query', (
+      tester,
+    ) async {
+      // The nastier half. `_onChanged` arms the debounce without clearing
+      // `_results`, so inside that window the old query's hits are still up
+      // and `_selected` still indexes them. Keying the link fallback on
+      // "`_results` is empty" therefore navigated to a hit from the query the
+      // user had just replaced — worse than the nothing it was fixing, and the
+      // sequence anyone who was already searching will hit.
+      final navigations = <String>[];
+      fixture.services.deepLinks.attach(
+        go: navigations.add,
+        contextOf: () => null,
+      );
+      await withPalette(
+        tester,
+        size: desktop,
+        platform: TargetPlatform.macOS,
+        body: () async {
+          // Populate `_results` with a FIRST link, so the stale set exists
+          // without needing the search backend the shell fixture has no mock
+          // for. `_run` resolves a link locally and synchronously, so after
+          // the debounce `_results` holds exactly one hit and `_selected` is
+          // 0 — the in-range state that made the old guard fall through.
+          await tester.enterText(
+            find.byType(TextField),
+            'invoiceninja://app/invoices/stale',
+          );
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pump();
+
+          // Paste over it and hit Enter inside the debounce.
+          await tester.enterText(
+            find.byType(TextField),
+            'invoiceninja://app/clients/abc',
+          );
+          await tester.pump();
+          await tester.testTextInput.receiveAction(TextInputAction.done);
+          await tester.pumpAndSettle();
+
+          expect(
+            navigations,
+            ['/clients/abc'],
+            reason: 'Enter used the stale results instead of the pasted link',
+          );
+        },
+      );
+    });
+
     testWidgets('a desktop window keeps the floating card', (tester) async {
       await withPalette(
         tester,

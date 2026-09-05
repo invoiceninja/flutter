@@ -446,10 +446,18 @@ here are not obvious:
   **off** instead of double-prompting.
 - **`cleanPhoneNumber` is where a wrong number comes from.** A `+` **before the first digit**
   survives — `startsWith('+')` is the wrong test, since `(+1) 415…` and `Mobile: +44 …` are ordinary
-  stored formats — it cuts at an extension marker rather than inlining its digits (`555-1234 x22`
-  must not dial `555123422`), drops a bracketed trunk prefix after a country code
-  (`+44 (0)20 …` → `+4420…`), and discards anything under five digits so a field holding
-  `1-800-FLOWERS` stays inert text instead of becoming a link to `tel:1800`.
+  stored formats — but only when punctuation alone separates it from that digit, or the `+` in
+  `Tel + Fax 020 …` marks a country code that isn't there. It cuts at an extension marker rather
+  than inlining its digits (`555-1234 x22` must not dial `555123422`), and every spelling has to be
+  covered (`extn`, `ext-`, `;ext=`, `,,`, `w`/`p`) because a miss inlines them. The converse costs a
+  number too: a marker matched inside a **label** cuts away the digits it introduces, which is why
+  `ext`/`x` are anchored on a word boundary (`Fax 555 1234`, `Text: 555-1234`) and `,`/`;` on a
+  preceding digit (`Mobile, 555-1234`) — and why `,` additionally needs a space or a second
+  separator after it, since it is also a thousands separator (`1,800,555,1212`). It drops a
+  bracketed trunk prefix from an **international number wherever it sits**, not only where it abuts
+  the country code (`Mobile: +44 (0)20 …` → `+4420…`; in a national number the same `(0)` is real).
+  And it discards anything under five digits so a field holding `1-800-FLOWERS` stays inert text
+  instead of becoming a link to `tel:1800`.
 - **Every phone surface listens via `PhoneActionsScope`.** A detail screen stays mounted behind the
   `/settings/**` route while the switch is flipped, so a build-time read with no listener leaves it
   styling numbers with the old value until an unrelated rebuild. The out-of-hours warning resolves
@@ -603,7 +611,8 @@ the whole scheme.
 
 Four pieces, deliberately split:
 
-- `lib/app/entity_links.dart` — a **leaf** (imports only the registry) holding
+- `lib/app/entity_links.dart` — a **leaf** (only the registry and the `EntityType` enum it
+  already pulls in) holding
   `buildEntityDeepLink` / `parseAppDeepLink` / `parseCalendarCompleteLink`, plus
   `entityRecordPath`, which lives here and is re-exported from `router.dart` so
   link building doesn't drag in the router's whole UI graph. Build uses
@@ -632,7 +641,11 @@ Five things fail silently if you change this:
    and `_inFlight` serialises two *different* links arriving mid-dialog. Scope
    `_pending` to what is **in flight**, never to history: the palette feeds the
    same `open`, where re-following a link is an ordinary user action, and a
-   history guard silently killed it for the rest of the session.
+   history guard silently killed it for the rest of the session. `reset()`
+   cannot cancel a link already chained onto `_inFlight`, so it bumps
+   `_generation` and `open` captures it — otherwise a queued link runs after
+   logout, finds the gate shut, re-defers itself and replays into the **next**
+   account's session, which is the one thing `reset()` exists to prevent.
 2. **`parseAppDeepLink` drops the entire query string**, not just `company`.
    `stripTransientQuery` only knows `module_off` and `view=full`, so anything
    else would be written into `nav_state.current_route` and replayed on every
@@ -658,7 +671,15 @@ Five things fail silently if you change this:
    back to `/clients`.
 5. **An unvalidated path must never reach `go()`** — go_router's top-level
    `errorBuilder` replaces the whole app with the route-error screen, outside
-   the shell with the sidebar gone.
+   the shell with the sidebar gone. `!disabled && routePath.isNotEmpty` is
+   **not** that validation: `user` (`/settings/account`, which is not a route
+   at all) and `company` (`/settings/company_details`, whose only children are
+   tab slugs) are registered directly in `Services.build`, so they carry
+   neither flag. `kNonRecordRouteEntityTypes` is the guard, applied by BOTH
+   `parseAppDeepLink` and `buildEntityDeepLink` — asymmetry there means Copy
+   Link hands out a URL the app itself refuses. Note the test fixture is what
+   let this ship: it built its registry from the module specs alone, so the
+   two registry-only entries were invisible to it.
 
 Landing on a record the recipient has never opened is the normal case, so every
 detail screen passes `hydrate:` to `EntityDetailScaffold` (`repo.ensureLoaded`)

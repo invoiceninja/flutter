@@ -21,6 +21,15 @@ import 'package:admin/domain/entity_type.dart';
 ///
 /// The Outbox screen has always special-cased this; the sync-failure toasts did
 /// not. Both go through here now so the two can't drift apart again.
+///
+/// The same three types are listed as `kNonRecordRouteEntityTypes` in
+/// `lib/app/entity_links.dart` (not imported here, so this is a plain
+/// reference), which deep-link building and parsing filter on.
+/// Deliberately not shared in one direction or the other: that set answers
+/// "can a record of this type be addressed by id at all" (no — so refuse the
+/// link), while this switch answers "where do we send the user instead" (a
+/// settings screen). Keep them in step — `entity_links_test.dart` asserts the
+/// set covers every registered `routePath` that isn't a record route.
 String entityDestination({
   required EntityHandlers handlers,
   required String entityId,

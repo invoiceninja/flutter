@@ -59,6 +59,10 @@ class _EntityColumnPickerSheetState<T>
   /// and spliced back in by [_applied] so Done doesn't destroy them.
   late List<(int, String)> _unrenderable;
 
+  /// Whether the user has changed the selection in this sheet. Distinguishes
+  /// "cleared it" from "it was already empty on open" — see [_applied].
+  bool _touched = false;
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +79,25 @@ class _EntityColumnPickerSheetState<T>
 
   /// The selection to persist: what the user arranged, with the hidden ids put
   /// back at their original indices.
+  ///
+  /// Empty when the user has *cleared* every column they can see.
+  /// `user_settings.table_columns` is empty-means-default
+  /// (`GenericListViewModel._subscribeColumns`), which is the only thing that
+  /// heals a table the user emptied — splicing the hidden ids back in would
+  /// make the stored list non-empty, so the fallback would never fire and
+  /// `_resolveColumns` (which drops exactly those unrenderable ids) would
+  /// render **zero** columns. Nothing gates Done on a non-empty selection, so
+  /// that is reachable.
+  ///
+  /// [_touched] is what makes this safe, and it is not a formality. `_selected`
+  /// is built in `initState`, so it is **already empty before the user does
+  /// anything** whenever every stored id is unrenderable — precisely the state
+  /// [_unrenderable] exists for. Keying on emptiness alone would make opening
+  /// the sheet and pressing Done erase those ids for good, so re-adding the
+  /// custom-field label would no longer bring the columns back. The user has
+  /// to have actually asked for nothing.
   List<String> get _applied {
+    if (_touched && _selected.isEmpty) return const <String>[];
     final out = List<String>.from(_selected);
     for (final (index, id) in _unrenderable) {
       out.insert(index.clamp(0, out.length), id);
@@ -191,17 +213,24 @@ class _EntityColumnPickerSheetState<T>
 
   void _onReorder(int oldIndex, int newIndex) {
     setState(() {
+      _touched = true;
       final item = _selected.removeAt(oldIndex);
       _selected.insert(newIndex, item);
     });
   }
 
   void _toggleOff(String id) {
-    setState(() => _selected.remove(id));
+    setState(() {
+      _touched = true;
+      _selected.remove(id);
+    });
   }
 
   void _toggleOn(String id) {
-    setState(() => _selected.add(id));
+    setState(() {
+      _touched = true;
+      _selected.add(id);
+    });
   }
 }
 

@@ -20,6 +20,7 @@ class ShortcutTooltip extends StatelessWidget {
     required this.keys,
     this.sequence = false,
     this.waitDuration,
+    this.triggerMode,
     required this.child,
   });
 
@@ -31,6 +32,19 @@ class ShortcutTooltip extends StatelessWidget {
   /// default; pass e.g. 600 ms to match the sidebar's tooltips.
   final Duration? waitDuration;
 
+  /// How a *touch* opens the tooltip. Null keeps Material's default
+  /// (`longPress`); pass [TooltipTriggerMode.manual] when an ancestor owns the
+  /// long press.
+  ///
+  /// This is not cosmetic. On the default, `RawTooltip` registers a
+  /// `LongPressGestureRecognizer` from a `Listener` *below* this widget, so it
+  /// enters the gesture arena ahead of any `onLongPressStart` wrapped around
+  /// the outside and wins the same 500 ms deadline — silently swallowing that
+  /// ancestor's long press. Hover is unaffected either way: trigger mode
+  /// "does not affect mouse devices", which reach the tooltip through a
+  /// `MouseRegion` rather than the arena.
+  final TooltipTriggerMode? triggerMode;
+
   final Widget child;
 
   @override
@@ -38,6 +52,7 @@ class ShortcutTooltip extends StatelessWidget {
     final separator = sequence ? ' ${context.tr('then')} ' : ' ';
     return Tooltip(
       waitDuration: waitDuration,
+      triggerMode: triggerMode,
       richMessage: TextSpan(
         children: [
           TextSpan(text: '$label   '),

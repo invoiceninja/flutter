@@ -1,4 +1,42 @@
 import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/entity_type.dart';
+
+/// Entity types whose `routePath` is a **settings screen, not an addressable
+/// `<root>/<id>` record route**. Both link building and link parsing must
+/// refuse them.
+///
+/// `EntityHandlers.routePath` alone does not tell you which, and
+/// `!disabled && routePath.isNotEmpty` is not the test — `user` and `company`
+/// are registered directly in `Services.build` rather than as
+/// `EntityModuleSpec`s, so they carry neither flag:
+///
+///   * `user` → `/settings/account`, which is **not a route at all** (the
+///     real one is `/settings/account_management`);
+///   * `company` → `/settings/company_details`, whose only children are the
+///     tab slugs `address|logo|defaults|documents`;
+///   * `design` → `/settings/invoice_design/custom_designs`, a tab slug too —
+///     custom designs are edited in a modal (`showDesignEditScreen`). It is
+///     `disabled: true` today, so the old filter happened to catch it; listed
+///     here so promoting it to `kWiredEntityModules` can't silently reopen
+///     this.
+///
+/// Handing any of those to `go()` matches nothing, and go_router's top-level
+/// `errorBuilder` then replaces the WHOLE app with the route-error screen —
+/// outside the shell, sidebar gone. `entityDestination`
+/// (`lib/ui/core/detail/entity_destination.dart`) special-cases the same three
+/// for the same reason; it answers "where should this type go instead", which
+/// is a different question from this one and is why it can't be reused here.
+const Set<EntityType> kNonRecordRouteEntityTypes = {
+  EntityType.user,
+  EntityType.company,
+  EntityType.design,
+};
+
+/// Whether a record of [type] can be addressed as `<routePath>/<id>` — i.e.
+/// whether a deep link to one can exist at all. See
+/// [kNonRecordRouteEntityTypes].
+bool entityTypeHasRecordRoute(EntityType type) =>
+    !kNonRecordRouteEntityTypes.contains(type);
 
 /// The app's custom URL scheme. Registered on iOS/macOS (`CFBundleURLTypes`),
 /// Android (an `<intent-filter>` per host) and Windows (`msix_config`
@@ -57,7 +95,13 @@ String? buildEntityDeepLink({
   required String entityId,
   required String companyId,
 }) {
-  if (handlers == null || handlers.disabled || handlers.routePath.isEmpty) {
+  if (handlers == null ||
+      handlers.disabled ||
+      handlers.routePath.isEmpty ||
+      // Symmetry with `parseAppDeepLink` is the point: building a link the
+      // app itself refuses to open would report success from Copy Link and
+      // hand out a URL that blanks the recipient's app.
+      !entityTypeHasRecordRoute(handlers.type)) {
     return null;
   }
   final id = entityId.trim();
@@ -132,7 +176,17 @@ DeepLinkTarget? parseAppDeepLink(Uri uri, EntityRegistry registry) {
   // `companySafeLocation`.
   final roots =
       registry.all
-          .where((h) => !h.disabled && h.routePath.isNotEmpty)
+          .where(
+            (h) =>
+                !h.disabled &&
+                h.routePath.isNotEmpty &&
+                // Not every registered `routePath` is a record route. Without
+                // this, `/settings/account` and `/settings/company_details/<id>`
+                // parse as valid targets and reach `go()`, which matches
+                // nothing and replaces the whole app with the route-error
+                // screen. See [kNonRecordRouteEntityTypes].
+                entityTypeHasRecordRoute(h.type),
+          )
           .map((h) => h.routePath)
           .toList()
         ..sort((a, b) => b.length.compareTo(a.length));

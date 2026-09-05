@@ -31,6 +31,7 @@ void main() {
   Future<void> open(
     WidgetTester tester, {
     double width = 400,
+    double textScale = 1.0,
     List<PhoneCandidate> candidates = const <PhoneCandidate>[],
     Duration? suggestedDuration,
   }) async {
@@ -45,6 +46,14 @@ void main() {
           theme: buildInTheme(InTheme.light),
           localizationsDelegates: kTestLocalizationsDelegates,
           supportedLocales: kTestSupportedLocales,
+          builder: textScale == 1.0
+              ? null
+              : (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(textScale)),
+                  child: child!,
+                ),
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(
@@ -161,6 +170,40 @@ void main() {
       await open(tester, width: width);
       expect(find.byType(RadioGroup), findsNothing);
       expect(find.byType(SegmentedButton<CallDirection>), findsOneWidget);
+    });
+
+    testWidgets('the direction control is reachable in the $name '
+        'presentation, not clipped', (tester) async {
+      // Measured, not structural. `SegmentedButton` CLIPS rather than
+      // overflows — no exception, no golden difference, nothing a
+      // "a scroll view exists somewhere above it" assertion can distinguish
+      // from a decorative wrapper.
+      //
+      // The observable difference is intrinsic sizing: stretched, each segment
+      // is clamped to half the sheet and the label is silently cut; inside a
+      // horizontal viewport the button takes its intrinsic width, so at a
+      // large text scale it EXCEEDS the sheet and the user can scroll to the
+      // rest. That is what this asserts, at the width and scale where German
+      // and French actually stop fitting.
+      await open(tester, width: width, textScale: 1.8);
+      final button = tester.getSize(
+        find.byType(SegmentedButton<CallDirection>),
+      );
+      final viewport = tester.getSize(
+        find
+            .ancestor(
+              of: find.byType(SegmentedButton<CallDirection>),
+              matching: find.byType(SingleChildScrollView),
+            )
+            .first,
+      );
+      expect(
+        button.width,
+        greaterThan(viewport.width),
+        reason:
+            'the button is still being clamped to the sheet width, so its '
+            'labels are being clipped rather than scrolled to',
+      );
     });
   }
 

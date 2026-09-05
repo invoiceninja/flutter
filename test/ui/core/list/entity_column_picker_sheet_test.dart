@@ -144,4 +144,96 @@ void main() {
       'number',
     ], reason: 'the hidden id comes back at its original index');
   });
+
+  testWidgets('clearing every visible column applies empty, not the hidden '
+      'ids on their own', (tester) async {
+    // `user_settings.table_columns` is empty-means-default, and that fallback
+    // is the only thing that heals a table the user emptied. Splicing the
+    // hidden ids back in here makes the stored list non-empty, so the
+    // fallback never fires — and since `_resolveColumns` drops exactly those
+    // ids, the table renders ZERO columns and only Reset recovers it.
+    List<String>? applied;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Scaffold(
+          body: EntityColumnPickerSheet<_Row>(
+            initial: const ['name', 'custom1'],
+            allColumns: _registry(const {}),
+            onApply: (ids) => applied = ids,
+            onReset: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Untick the one column the picker can show — the Selected rows are the
+    // ones carrying a drag handle. `custom1` is unrenderable, so after this
+    // the user is looking at an empty Selected list.
+    expect(find.byIcon(Icons.drag_handle), findsOneWidget);
+    await tester.tap(
+      find.ancestor(
+        of: find.byIcon(Icons.drag_handle),
+        matching: find.byType(CheckboxListTile),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.drag_handle), findsNothing);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    expect(
+      applied,
+      equals(const <String>[]),
+      reason:
+          'a non-empty list of only-unrenderable ids renders no columns at '
+          'all and defeats the empty-means-default fallback',
+    );
+  });
+
+  testWidgets('Done with no edits keeps hidden ids even when nothing is '
+      'selectable', (tester) async {
+    // The destructive twin of the test above. `_selected` is built in
+    // initState, so it is ALREADY empty on open when every stored id is
+    // unrenderable — the exact state the hidden-id mechanism exists for. A
+    // guard keyed on emptiness alone would treat merely opening the sheet and
+    // pressing Done as "the user asked for nothing" and erase the ids for
+    // good, so re-adding the custom-field label would never bring the columns
+    // back.
+    List<String>? applied;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Scaffold(
+          body: EntityColumnPickerSheet<_Row>(
+            initial: const ['custom1'],
+            allColumns: _registry(const {}),
+            onApply: (ids) => applied = ids,
+            onReset: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // Nothing renderable is selected, so the sheet shows an empty Selected
+    // list — without the user having touched anything.
+    expect(find.byIcon(Icons.drag_handle), findsNothing);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    expect(
+      applied,
+      equals(const ['custom1']),
+      reason: 'opening the sheet and closing it must not destroy the layout',
+    );
+  });
 }

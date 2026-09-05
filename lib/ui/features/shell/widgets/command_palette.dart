@@ -381,6 +381,16 @@ class _CommandPaletteState extends State<_CommandPalette> {
     _revealSelected();
   }
 
+  /// Whether the field currently holds a followable link, i.e. whether Enter
+  /// does something even with no results up. Same resolution [_select] uses,
+  /// so the hint and the key cannot disagree.
+  bool _fieldHoldsLink(BuildContext context) =>
+      deepLinkSearchHit(
+        _controller.text,
+        context.read<Services>().entityRegistry,
+      ) !=
+      null;
+
   Future<void> _select() async {
     // The palette navigates away from whatever is on screen, so it owes the
     // same unsaved-changes prompt the sidebar / branch switcher gives. Without
@@ -394,6 +404,27 @@ class _CommandPaletteState extends State<_CommandPalette> {
       if (!mounted) return;
       Navigator.of(context).pop();
       goEntityRecord(context, r.type, r.id);
+      return;
+    }
+    // Resolve a pasted link from the FIELD, before consulting `_results` —
+    // `_onChanged` only arms the 250 ms debounce, it does not clear the old
+    // hits, so inside that window `_results` still belongs to the *previous*
+    // query and `_selected` still indexes it. Checking the range first meant
+    // paste-then-Enter over an existing search navigated to a hit from the
+    // query the user had just replaced, which is worse than the "Enter does
+    // nothing" it was meant to fix. Reading the field is always current.
+    //
+    // Safe to take precedence: `_run` gives a link query exactly one result
+    // (`:292-299`), so when the text IS a link there is no other hit the user
+    // could have selected, and both paths end in the same `deepLinks.open`.
+    // When it is not a link this returns null and the normal path runs.
+    // Resolution is pure and synchronous, so there is nothing to wait for.
+    final pasted = deepLinkSearchHit(_controller.text, services.entityRegistry);
+    if (pasted != null) {
+      if (!await services.unsavedChangesGuard.confirmIfDirty(context)) return;
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      unawaited(services.deepLinks.open(Uri.parse(pasted.path)));
       return;
     }
     if (_selected < 0 || _selected >= _results.length) return;
@@ -429,10 +460,15 @@ class _CommandPaletteState extends State<_CommandPalette> {
   /// dialog and what `KeyBinding.displayGlyphs` produces for a rebind.
   ///
   /// The nav runs are gated, because a keycap makes a claim that grey 11-px
-  /// text got away with mumbling: [_move] early-returns on an empty list and
-  /// [_select] on an out-of-range index, and this footer renders in the
-  /// "No records found" and loading-from-rest states too, where `↑↓` and
-  /// `Enter` do nothing at all.
+  /// text got away with mumbling: [_move] early-returns on an empty list, and
+  /// this footer renders in the "No records found" and loading-from-rest
+  /// states too, where `↑↓` does nothing at all.
+  ///
+  /// `Enter` is live in one more state than `↑↓` is: [_select] follows a
+  /// pasted link straight off the field, so during the 250 ms debounce — where
+  /// `_results` is still empty — it already works. Hence the extra
+  /// [_fieldHoldsLink] term; without it the footer said Enter was dead in
+  /// exactly the window the paste-a-link flow lives in.
   ///
   /// `Esc` is NOT gated on `Env.isTouchPrimary`, though a tablet reaches this
   /// card (touch, but `shortestSide >= 600`, so not `isPhone`). It stays
@@ -452,12 +488,13 @@ class _CommandPaletteState extends State<_CommandPalette> {
   /// button on every touch device.
   List<Widget> _keyboardHints(BuildContext context) {
     final tokens = context.inTheme;
-    final canNavigate = _recentMode || _results.isNotEmpty;
+    final canMove = _recentMode || _results.isNotEmpty;
+    final canSelect = canMove || _fieldHoldsLink(context);
     final runs = <Widget>[
-      if (canNavigate) ...[
+      if (canMove)
         KeyCapRow(keys: const ['↑', '↓'], label: context.tr('navigate')),
+      if (canSelect)
         KeyCapRow(keys: const ['Enter'], label: context.tr('select')),
-      ],
       KeyCapRow(keys: const ['Esc'], label: context.tr('close')),
     ];
     return [

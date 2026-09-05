@@ -76,10 +76,18 @@ class DeepLinkRouter {
   /// same to a link the user re-tried after cancelling one of its prompts.
   final _pending = <Uri>{};
 
-  /// Serialises [open]. The [_lastHandled] guard only catches an *identical*
+  /// Serialises [open]. The [_pending] guard only catches an *identical*
   /// URI; two different links arriving while a company switch is mid-dialog
   /// would otherwise interleave two modal sequences.
   Future<void> _inFlight = Future.value();
+
+  /// Bumped by [reset]. A link chained onto [_inFlight] behind another one is
+  /// still queued when the session ends — [reset] can clear [_deferred] and
+  /// [_pending], but it cannot cancel an already-scheduled `.then`. Without
+  /// this the queued link runs *after* logout and, finding the gate shut,
+  /// re-defers itself and re-arms the gate listener — surviving into the next
+  /// account's session, which is exactly what [reset] exists to prevent.
+  int _generation = 0;
 
   /// A link that arrived while the app was signed out or biometric-locked,
   /// waiting for the gate to clear. See [_gateIsOpen].
@@ -122,8 +130,14 @@ class DeepLinkRouter {
       return Future<void>.value();
     }
     if (!_pending.add(uri)) return _inFlight;
+    final generation = _generation;
     return _inFlight = _inFlight
-        .then((_) => _open(uri))
+        .then((_) {
+          // Dropped rather than deferred: this link belongs to the session
+          // that ended. See [_generation].
+          if (generation != _generation) return null;
+          return _open(uri);
+        })
         .catchError((Object e, StackTrace st) {
           _log.warning('deep link failed: $uri', e, st);
         })
@@ -291,6 +305,7 @@ class DeepLinkRouter {
   /// session, where its company id is at best meaningless and at worst
   /// somebody else's.
   void reset() {
+    _generation++;
     _deferred = null;
     _pending.clear();
     _stopListeningForGate();

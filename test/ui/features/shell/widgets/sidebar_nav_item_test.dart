@@ -945,6 +945,83 @@ void main() {
       expect(opened, isTrue);
     });
 
+    testWidgets('…including the tiles that also advertise a leader key', (
+      tester,
+    ) async {
+      // The case the test above cannot see. `leaderKey` takes an earlier
+      // branch that used to return a default-trigger `ShortcutTooltip`, so
+      // the manual trigger was skipped for exactly the four entities that
+      // have a leader key — client, invoice, product, task — which are also
+      // exactly the four with >1 badge mode, i.e. the only tiles whose
+      // long-press menu exists at all. Built with `leaderKey` set, this
+      // reproduces the reported failure against the pre-fix widget.
+      var opened = false;
+      await tester.pumpWidget(
+        _wrap(
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onLongPressStart: (_) => opened = true,
+            child: SidebarNavItem(
+              label: 'Clients',
+              icon: Icons.people_outline,
+              active: false,
+              tile: true,
+              leaderKey: 'C',
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.longPress(find.byType(SidebarNavItem));
+      await tester.pumpAndSettle();
+      expect(
+        opened,
+        isTrue,
+        reason:
+            'the tile tooltip swallowed the long press, so the badge-mode '
+            'menu is unreachable — on touch, which has no right-click',
+      );
+    });
+
+    testWidgets('…and when the press lands on the count badge itself', (
+      tester,
+    ) async {
+      // The badge mounts its own "3 Overdue" tooltip INSIDE the tile, so it
+      // registers a competing recognizer deeper still. It covers only the
+      // number, which is why it survived the first fix — and it is present on
+      // exactly the tiles that have a menu, since a non-null countLabel means
+      // a non-total badge mode.
+      var opened = false;
+      await tester.pumpWidget(
+        _wrap(
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onLongPressStart: (_) => opened = true,
+            child: SidebarNavItem(
+              label: 'Invoices',
+              icon: Icons.receipt_long_outlined,
+              active: false,
+              tile: true,
+              leaderKey: 'I',
+              count: 3,
+              countTone: SidebarBadgeTone.danger,
+              countLabel: 'Overdue',
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.longPress(find.byType(SidebarBadge));
+      await tester.pumpAndSettle();
+      expect(
+        opened,
+        isTrue,
+        reason: 'the badge tooltip swallowed the long press',
+      );
+    });
+
     testWidgets('carries the full label as a tooltip', (tester) async {
       // A tile ellipsizes a long single word once the text scale passes Normal,
       // and unlike a row it has no width to grow into.

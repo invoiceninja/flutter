@@ -329,9 +329,34 @@ void main() {
   // top-level `errorBuilder` — which replaces the whole app with the route
   // error screen, outside the shell, sidebar gone.
   group('against the real registry', () {
+    // The module specs are NOT the whole registry. `Services.build` registers
+    // `user` and `company` directly — they exist for sync and have no list /
+    // detail UI — and both carry a `routePath` that is a settings screen
+    // rather than a record route. Leaving them out of this fixture is what
+    // let a link to `/settings/account` (which is not a route at all) reach
+    // `router.go` and replace the whole app with the route-error screen: the
+    // "every path the parser can emit matches a real route" test below was
+    // structurally unable to see them.
+    //
+    // Mirrors `lib/app/services.dart` — keep the routePaths in step.
+    EntityHandlers nonSpecHandlers(EntityType type, String routePath) =>
+        EntityHandlers(
+          type: type,
+          wireName: type.name,
+          apiPath: '/api/v1/${type.name}s',
+          routePath: routePath,
+          icon: Icons.business,
+          dispatcher: DisabledEntityDispatcher(type),
+        );
+
     EntityRegistry realRegistry() => EntityRegistry({
       for (final m in [...kWiredEntityModules, ...kDisabledEntityModules])
         m.type: m.toHandlers(DisabledEntityDispatcher(m.type)),
+      EntityType.company: nonSpecHandlers(
+        EntityType.company,
+        '/settings/company_details',
+      ),
+      EntityType.user: nonSpecHandlers(EntityType.user, '/settings/account'),
     }, branchOrder: kBranchOrder);
 
     test('every wired entity round-trips build -> parse unchanged', () {
@@ -370,9 +395,34 @@ void main() {
         registry: registry,
       );
       addTearDown(router.dispose);
-      for (final module in kWiredEntityModules) {
-        final root = module.routePath;
+      // Drive this from the REGISTRY, not from `kWiredEntityModules`. The
+      // module specs are a subset: `user` and `company` are registered
+      // directly in `Services.build`, and those two are exactly the ones that
+      // carry a non-record `routePath`. Iterating the specs made this test
+      // structurally blind to the only entries that could fail it.
+      //
+      // The filter below is deliberately the BROAD one the parser used to
+      // use, so the assertion is "for every route root the parser might be
+      // offered, either it refuses the link or the path resolves" — which is
+      // the actual invariant ("an unvalidated path must never reach `go()`"),
+      // rather than a restatement of the parser's own filter.
+      final roots = registry.all
+          .where((h) => !h.disabled && h.routePath.isNotEmpty)
+          .toList();
+      expect(
+        roots.map((h) => h.type),
+        containsAll(<EntityType>[EntityType.user, EntityType.company]),
+        reason:
+            'fixture regression: the non-spec registrations are what this '
+            'test exists to cover',
+      );
+      var checked = 0;
+      for (final handlers in roots) {
+        final root = handlers.routePath;
         for (final path in [root, '$root/AbC_123-x', '$root/AbC_123-x/edit']) {
+          final link = Uri.parse('$kAppLinkScheme://$kAppLinkHost$path');
+          if (parseAppDeepLink(link, registry) == null) continue;
+          checked++;
           final match = router.configuration.findMatch(Uri.parse(path));
           expect(
             match.isError,
@@ -380,6 +430,108 @@ void main() {
             reason:
                 '$path parses as a deep link but matches no route — following '
                 'one would blank the app with the route-error screen',
+          );
+        }
+      }
+      // Without this the loop above can go completely silent: `continue` on a
+      // refused path means a parser that started rejecting broadly would
+      // execute zero assertions and still report green.
+      expect(
+        checked,
+        greaterThanOrEqualTo(3 * kWiredEntityModules.length),
+        reason:
+            'the loop asserted almost nothing — is the parser refusing '
+            'paths it should accept?',
+      );
+    });
+
+    test('the fixture still mirrors the real non-spec registrations', () {
+      // `nonSpecHandlers` hand-copies two `routePath`s out of `Services.build`,
+      // and nothing makes that copy follow the original. If one is repointed
+      // (`user` in particular has a real record route at `/settings/users/:id`
+      // that its registry entry does not name) the tests above would keep
+      // guarding a shape the app no longer has.
+      final registry = realRegistry();
+      expect(registry[EntityType.user]!.routePath, '/settings/account');
+      expect(
+        registry[EntityType.company]!.routePath,
+        '/settings/company_details',
+      );
+      // Both must also be types the link layer refuses — the property the
+      // fixture exists to exercise.
+      for (final type in [EntityType.user, EntityType.company]) {
+        expect(
+          entityTypeHasRecordRoute(type),
+          isFalse,
+          reason: '$type must stay in kNonRecordRouteEntityTypes',
+        );
+      }
+    });
+
+    test('the refused settings paths really do match no route', () {
+      // The premise behind the refusal, pinned rather than assumed: these are
+      // the exact paths the parser used to emit and hand to `go()`. If a real
+      // route is ever added at one of them this goes red, which is the moment
+      // to re-examine `kNonRecordRouteEntityTypes` rather than to delete the
+      // expectation.
+      final router = buildRouter(
+        isAuthenticated: () => true,
+        postLoginRoute: () => '/clients',
+        refreshListenable: ValueNotifier<int>(0),
+        registry: realRegistry(),
+      );
+      addTearDown(router.dispose);
+      for (final path in [
+        '/settings/account',
+        '/settings/account/AbC_123-x',
+        '/settings/account/AbC_123-x/edit',
+        '/settings/company_details/AbC_123-x',
+        '/settings/company_details/AbC_123-x/edit',
+      ]) {
+        expect(
+          router.configuration.findMatch(Uri.parse(path)).isError,
+          isTrue,
+          reason: '$path was expected to be a dead route',
+        );
+      }
+      // …while the bare company-details tab host is a real screen, which is
+      // why the type — not the path — is what has to be refused.
+      expect(
+        router.configuration
+            .findMatch(Uri.parse('/settings/company_details'))
+            .isError,
+        isFalse,
+      );
+    });
+
+    test('build and parse both refuse a settings-hosted entity', () {
+      // `user` -> `/settings/account` is not a route at all; `company` ->
+      // `/settings/company_details` has only tab slugs beneath it. Reaching
+      // `go()` with either replaces the whole app with the route-error
+      // screen, outside the shell. Both directions are asserted because an
+      // asymmetry is just as bad: Copy Link reporting success for a URL the
+      // app itself refuses to open.
+      final registry = realRegistry();
+      for (final type in [EntityType.user, EntityType.company]) {
+        final handlers = registry[type]!;
+        expect(
+          buildEntityDeepLink(
+            handlers: handlers,
+            entityId: 'AbC_123-x',
+            companyId: 'co1',
+          ),
+          isNull,
+          reason: '$type has no record route, so no link to one can exist',
+        );
+        final root = handlers.routePath;
+        for (final path in [root, '$root/AbC_123-x', '$root/AbC_123-x/edit']) {
+          expect(
+            parseAppDeepLink(
+              Uri.parse('$kAppLinkScheme://$kAppLinkHost$path'),
+              registry,
+            ),
+            isNull,
+            reason: '$path must not parse as a record link',
           );
         }
       }

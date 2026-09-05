@@ -816,9 +816,96 @@ void main() {
       // +44020…, which is not a dialable number.
       expect(cleanPhoneNumber('+44 (0)20 7946 0018'), '+442079460018');
       expect(cleanPhoneNumber('+44(0)2079460018'), '+442079460018');
-      // Only after a country code — a bare (0) elsewhere is just punctuation
-      // and its digit is part of the number.
+      // Only in an international number — a bare (0) elsewhere is a real
+      // digit and part of the number.
       expect(cleanPhoneNumber('(0)20 7946 0018'), '02079460018');
+    });
+
+    test(
+      'cleanPhoneNumber drops the trunk prefix however the +cc is written',
+      () {
+        // Regression: the strip used to be `^`-anchored while the `+` lookup
+        // deliberately allowed a label or bracket in front of it, so the two
+        // rules disagreed and the `0` survived — dialing +44020…, the exact
+        // "not a number" outcome the rule exists to prevent. Each half is
+        // covered on its own above and in the `+` test; only the combination
+        // failed, which is why testing the documented formats one at a time
+        // hid it.
+        expect(
+          cleanPhoneNumber('Mobile: +44 (0)20 7946 0018'),
+          '+442079460018',
+        );
+        expect(cleanPhoneNumber('(+44) (0)20 7946 0018'), '+442079460018');
+        expect(cleanPhoneNumber('Tel. +44 (0) 20 7946 0018'), '+442079460018');
+      },
+    );
+
+    test('cleanPhoneNumber cuts every extension spelling, not just x22', () {
+      // A marker that slips through does not fail visibly — its digits are
+      // inlined and a DIFFERENT number is dialed. `;ext=` is the RFC 3966
+      // spelling, `,` is the standard dialer pause, `extn` is the UK/IN
+      // shorthand, and `w`/`p` are the dialer pause letters; none of them
+      // abut a digit, which is all the original pattern would match.
+      expect(cleanPhoneNumber('555-1234,,22'), '5551234');
+      expect(cleanPhoneNumber('555-1234;ext=22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 extension 22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 ext: 22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 extn 22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 ext-22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 x-22'), '5551234');
+      expect(cleanPhoneNumber('555 1234 w22'), '5551234');
+      expect(cleanPhoneNumber('555 1234 p22'), '5551234');
+      expect(cleanPhoneNumber('+1 415 555 2671;22'), '+14155552671');
+    });
+
+    test('cleanPhoneNumber does not read a marker inside a label as one', () {
+      // The converse of the rule above, and it costs a number just as surely:
+      // the marker matches inside the LABEL and cuts away the digits it was
+      // introducing, leaving nothing dialable. Each of these is an ordinary
+      // way to annotate a phone field.
+      expect(cleanPhoneNumber('Fax 555 1234'), '5551234');
+      expect(cleanPhoneNumber('Fax: 555-1234'), '5551234');
+      expect(cleanPhoneNumber('Text 555 1234'), '5551234');
+      expect(cleanPhoneNumber('Text: 555-1234'), '5551234');
+      expect(cleanPhoneNumber('Next: 555-1234'), '5551234');
+      expect(cleanPhoneNumber('Context 5551234'), '5551234');
+      expect(cleanPhoneNumber('Alex 555 1234'), '5551234');
+      expect(cleanPhoneNumber('Felix 555-1234'), '5551234');
+      // …while a genuine marker still cuts, abutting a digit or not.
+      expect(cleanPhoneNumber('5551234x22'), '5551234');
+      expect(cleanPhoneNumber('555-1234 x22'), '5551234');
+      // A field holding ONLY an extension stays inert, as it always has.
+      expect(cleanPhoneNumber('Extension 5551234'), '');
+    });
+
+    test('cleanPhoneNumber keeps a comma-grouped number whole', () {
+      // `,` is a thousands separator as well as a dialer pause, so cutting at
+      // every comma reduces this to `1` and the number vanishes from the row
+      // entirely (`phone_candidates` drops anything this returns '' for).
+      // It is only a cut point when a space or a second separator follows.
+      expect(cleanPhoneNumber('1,800,555,1212'), '18005551212');
+      expect(cleanPhoneNumber('Toll-free: 1,800,555,1212'), '18005551212');
+      // A separator that terminates the number still cuts.
+      expect(cleanPhoneNumber('555-1234, 555-5678'), '5551234');
+      expect(cleanPhoneNumber('415-555-2671; 415-555-2672'), '4155552671');
+      expect(cleanPhoneNumber('Tel: 555-1234; Fax: 555-5678'), '5551234');
+      // …and a separator in a LABEL, before any digit, is not one at all.
+      expect(cleanPhoneNumber('Mobile, 555-1234'), '5551234');
+      expect(cleanPhoneNumber('Cell, 555-1234'), '5551234');
+      expect(cleanPhoneNumber('Home; 555-1234'), '5551234');
+    });
+
+    test('cleanPhoneNumber ignores a + that belongs to the label', () {
+      // The `+` marks a country code only if it REACHES the first digit
+      // through punctuation. `Tel + Fax 020 …` otherwise dials `+02079460018`
+      // — a country-code marker with no country code, i.e. the wrong-number
+      // outcome the whole function exists to prevent.
+      expect(cleanPhoneNumber('Tel + Fax 020 7946 0018'), '02079460018');
+      expect(cleanPhoneNumber('Phone + Fax 555-1234'), '5551234');
+      // Punctuation in the gap is fine — these stay international.
+      expect(cleanPhoneNumber('(+1) 415-555-2671'), '+14155552671');
+      expect(cleanPhoneNumber('Mobile: +44 20 7946 0018'), '+442079460018');
+      expect(cleanPhoneNumber('  +1-415-555-2671'), '+14155552671');
     });
 
     test('cleanPhoneNumber returns empty when there is nothing to dial', () {

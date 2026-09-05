@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -229,6 +231,36 @@ void main() {
     h.signIn();
     await pumpEventQueue();
     expect(h.navigations, isEmpty);
+  });
+
+  test('…including a link still QUEUED behind another one at logout', () async {
+    // `reset()` can clear the deferred slot and the pending set, but it cannot
+    // cancel a `.then` already scheduled on the `_inFlight` chain. Such a link
+    // used to run after the wipe, find the gate shut, re-defer itself and
+    // re-arm the gate listener — surviving into the next account's session,
+    // which is the one thing `reset()` exists to prevent.
+    final h = _Harness()..attach();
+    addTearDown(h.dispose);
+
+    // Two links queued in the same turn: neither `.then` has run yet.
+    unawaited(h.router.open(Uri.parse('invoiceninja://app/clients/first')));
+    unawaited(h.router.open(Uri.parse('invoiceninja://app/invoices/second')));
+
+    // Logout, in the order `AuthRepository` does it.
+    h.router.reset();
+    h.session.value = null;
+    h.credentials.value = null;
+    await pumpEventQueue();
+    expect(h.navigations, isEmpty);
+
+    // A different user signs in on the same install.
+    h.signIn();
+    await pumpEventQueue();
+    expect(
+      h.navigations,
+      isEmpty,
+      reason: 'a queued link outlived the session it belonged to',
+    );
   });
 
   test(

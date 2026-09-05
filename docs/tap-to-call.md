@@ -323,8 +323,11 @@ burst dedupe and not a cache — `SettingsRepository.resolved` stays uncached, a
   rules, each because breaking it dials *something*, just not the right thing: a `+` **before the
   first digit** survives (`(+1) 415…` and `Mobile: +44 …` are ordinary stored formats, so
   `startsWith('+')` is not the test); it cuts at an extension marker rather than inlining its digits
-  (`555-1234 x22` must not dial `555123422`); it drops a bracketed trunk prefix after a country code
-  (`+44 (0)20 …` → `+4420…`); and it discards anything under five digits, because a phone field
+  (`555-1234 x22` must not dial `555123422`) while refusing to read a marker inside a *label*
+  (`Fax`, `Text:`, `Mobile,`), which would cut the number away instead; it drops a bracketed trunk
+  prefix from an international number wherever it sits, not only where it abuts the country code
+  (`Mobile: +44 (0)20 …` is an ordinary stored format); and it discards anything under five digits,
+  because a phone field
   holding `1-800-FLOWERS` or `Reception, dial 9 first` otherwise becomes a link that hands the
   dialer `tel:1800`.
 - **`tel:` / `sms:` bypass `isSafeWebUrl` on purpose.** That predicate exists to stop a

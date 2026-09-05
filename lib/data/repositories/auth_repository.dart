@@ -155,6 +155,17 @@ class AuthRepository {
   ({String companyId, String fallbackCompanyId, bool healed})?
   _unprovenActivation;
 
+  /// Counts company switches that actually HAPPEN, so an asynchronous job
+  /// started under one can tell that a newer one has superseded it.
+  ///
+  /// Bumped by [switchCompany] immediately before each of its
+  /// [_activateCompany] calls — not on entry, because its `noSession` /
+  /// `noToken` early returns are switches that did not occur — and never by
+  /// [_activateCompany] itself, which the rejected-token rollback and the
+  /// heal's own retry both go through. Read by [_healAndRetrySwitch] via its
+  /// caller.
+  int _userSwitchEpoch = 0;
+
   /// Wired by DI to fan-out the per-entity `applyBundle` calls (task
   /// statuses, company gateways, …). Invoked once per company in the
   /// `/login` or `/refresh` envelope, *after* the user / company / settings
@@ -466,6 +477,7 @@ class AuthRepository {
         _log.warning('switchCompany($companyId): still no token after refresh');
         return SwitchCompanyResult.noToken;
       }
+      _userSwitchEpoch++;
       return _activateCompany(
         healed,
         companyId,
@@ -475,6 +487,12 @@ class AuthRepository {
         healed: true,
       );
     }
+    // Bumped next to the activation that actually happens, never at the top of
+    // the method: the two early returns above (`noSession`, `noToken`) are
+    // switches that did NOT occur, and counting them would abandon an
+    // unrelated in-flight heal — which returns silently, so the switch that
+    // motivated that heal would then fail with no signal at all.
+    _userSwitchEpoch++;
     return _activateCompany(s, companyId, token, provisional: true);
   }
 
@@ -576,7 +594,15 @@ class AuthRepository {
       // here would put its own 401 inside the same `_logoutFuture` that is
       // still settling, where it would be silently coalesced. A `Future(...)`
       // lands on a later event-loop turn, after `whenComplete` has cleared it.
-      unawaited(Future(() => _healAndRetrySwitch(creds.companyId)));
+      //
+      // The epoch is read HERE, not inside the heal. `Future(...)` is a
+      // macrotask hop, so a user switch landing between this line and the
+      // body running would already have bumped the counter by the time the
+      // heal could read it — the guard would compare equal and complete a
+      // switch the user had walked away from, which is the exact case it
+      // exists for.
+      final epoch = _userSwitchEpoch;
+      unawaited(Future(() => _healAndRetrySwitch(creds.companyId, epoch)));
     }
     return false;
   }
@@ -596,12 +622,16 @@ class AuthRepository {
   /// Second half of [handleUnauthorized]: one full refresh to try to obtain a
   /// working token for [companyId], then one retry of the switch. Runs
   /// detached, after the rollback has settled.
-  Future<void> _healAndRetrySwitch(String companyId) async {
+  ///
+  /// [epoch] is [_userSwitchEpoch] as of the rejected switch, read by the
+  /// caller — see the guard below for why it cannot be read here.
+  Future<void> _healAndRetrySwitch(String companyId, int epoch) async {
     final s = _session.value;
     if (s == null) return;
+    final rolledBackTo = s.currentCompanyId;
     try {
       await _refreshSession(
-        preserveActiveCompanyId: s.currentCompanyId,
+        preserveActiveCompanyId: rolledBackTo,
         fullSync: true,
       );
     } catch (e, st) {
@@ -612,6 +642,32 @@ class AuthRepository {
     // pre-refresh snapshot.
     final healed = _session.value;
     if (healed == null) return;
+    // The user is allowed to move while the refresh is in flight — it is a
+    // full `first_load` sync, so this window is seconds, not milliseconds.
+    // Completing the original switch from here would override a *newer*
+    // choice they made deliberately, and made through `switchCompanyGuarded`,
+    // so with the unsaved-changes and pending-outbox prompts this path has
+    // none of. Abandon quietly instead: the rejected company still has no
+    // token, so the next switch to it takes the heal path at the top of
+    // [switchCompany].
+    //
+    // Keyed on the epoch rather than on `currentCompanyId`, because the id is
+    // not always distinguishable: `_persistAndActivate` keeps the user's live
+    // company over the at-request snapshot only when the merged token map
+    // covers it, so where it cannot, the session reads `rolledBackTo` again
+    // and a comparison would miss the move. The counter answers "did the user
+    // switch" directly, whatever the refresh did with the session.
+    //
+    // [epoch] comes from the caller and MUST: the heal is scheduled through
+    // `Future(...)`, a macrotask hop, so reading `_userSwitchEpoch` here would
+    // already include a switch that landed in that gap and the guard would
+    // compare equal.
+    if (_userSwitchEpoch != epoch) {
+      _log.fine(
+        'abandoning heal for $companyId — a newer company switch superseded it',
+      );
+      return;
+    }
     final token = _tokensByCompany[companyId] ?? '';
     if (token.isEmpty) {
       _log.warning('no usable token for $companyId after heal; switch failed');

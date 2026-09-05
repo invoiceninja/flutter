@@ -130,20 +130,31 @@ String formatSize(int size) => size > 1000000
 /// Three rules, each of which exists because breaking it dials the WRONG
 /// number rather than failing visibly:
 ///
-///  * **A `+` before the first digit survives.** Without it `+1 415 555 2671`
-///    is handed to the dialer as `14155552671`, which every carrier reads as a
-///    *national* number. "Before the first digit", not "at position 0":
+///  * **A `+` that reaches the first digit survives.** Without it
+///    `+1 415 555 2671` is handed to the dialer as `14155552671`, which every
+///    carrier reads as a *national* number. Not "at position 0":
 ///    `(+1) 415-555-2671` and `Mobile: +44 20 7946 0018` are both ordinary
 ///    stored formats, and testing `startsWith('+')` drops the `+` from each.
-///    (This function used to strip it unconditionally — it had no callers in
-///    `lib/`, so that bug never shipped.)
+///    But not "anywhere before the first digit" either — a label can hold one,
+///    and `Tel + Fax 020 7946 0018` then dials `+0…`, a country-code marker
+///    with no country code. Only punctuation may sit in the gap.
 ///  * **An extension suffix is cut, not flattened.** `555-1234 x22` must not
 ///    become `555123422`. Dialers disagree on extension syntax (`,` pause,
 ///    `;ext=`, `w`), so the extension is dropped and the user dials it by
-///    hand — a short call to the switchboard beats a wrong number.
-///  * **A bracketed national trunk prefix after a country code is removed.**
-///    `+44 (0)20 7946 0018` means "dial 020… domestically, +44 20… from
-///    abroad"; keeping the `0` produces `+44020…`, which is not a number.
+///    hand — a short call to the switchboard beats a wrong number. Every
+///    spelling has to be covered: one that slips through inlines its digits,
+///    which is the wrong-number outcome this rule exists to prevent. The
+///    converse costs a number too — a marker that matches inside a *label*
+///    (`Fax`, `Text:`, `Mobile,`) cuts away the digits it was introducing —
+///    so the markers are anchored on a word boundary and the separators on a
+///    preceding digit.
+///  * **A bracketed national trunk prefix is removed from an international
+///    number.** `+44 (0)20 7946 0018` means "dial 020… domestically, +44 20…
+///    from abroad"; keeping the `0` produces `+44020…`, which is not a number.
+///    The condition is the *number* being international, not the `(0)` abutting
+///    the country code — `Mobile: +44 (0)20 …` and `(+44) (0)20 …` are both
+///    ordinary stored formats. In a national number the same `(0)` is real and
+///    survives.
 ///
 /// Finally, a result under [_minDialableDigits] digits is discarded. Free-text
 /// in a phone field is common — `1-800-FLOWERS`, `Reception, dial 9 first` —
@@ -152,30 +163,77 @@ String formatSize(int size) => size > 1000000
 /// that hands the dialer a wrong number, so the floor is what keeps them
 /// inert text.
 String cleanPhoneNumber(String phoneNumber) {
-  // `(0)` is only a trunk prefix when it follows a country code — a bare
-  // `(0)` elsewhere is just punctuation and falls out with the rest below.
+  // Order is load-bearing: cut the extension, THEN read the international
+  // marker, THEN drop the trunk prefix. The trunk-prefix rule is conditioned
+  // on `international`, and that can only be read off the text in front of
+  // the first digit — so it cannot be evaluated first.
   final head = phoneNumber
       .trim()
-      // `replaceFirstMapped`, not `replaceFirst` — Dart takes a String
-      // replacement literally, so `r'$1'` would insert the two characters
-      // `$1` and destroy the country code.
-      .replaceFirstMapped(
-        RegExp(r'^(\+\s*\d+)\s*\(\s*0\s*\)'),
-        (m) => m.group(1)!,
+      // Two kinds of cut point, and they need opposite guards.
+      //
+      // **Markers** (`ext`/`extension`/`extn`, `x`, `#`) introduce the
+      // extension, so they are followed by its digits. Every spelling has to
+      // be covered — one that slips through does not fail visibly, it INLINES
+      // the digits and dials a different number (`555-1234 extn 22` →
+      // `555123422`). `[\s.:=-]*` is what lets `ext. 22`, `ext: 22`, `ext=22`,
+      // `ext-22` and `ext22` all match. Both word markers need
+      // `(?<![A-Za-z])`, or a label swallows the number it belongs to: the
+      // `x` in `Fax 555 1234` and the `ext` in `Text: 555-1234` both cut at
+      // the label, leaving no digits at all.
+      //
+      // **Separators** (`,` `;`) and the dialer pauses (`w` `p`) come AFTER
+      // the number, so they require `(?<=\d)` — without it a label ending in
+      // one eats everything (`Mobile, 555-1234` → nothing). `,` needs more
+      // than that: it is also a thousands separator, so `1,800,555,1212`
+      // would be cut down to `1`. Requiring a space or a second separator
+      // after it keeps the grouped form intact while still catching
+      // `555-1234,,22` and `555-1234, 555-5678`. A `;` is never a grouping
+      // character, so it cuts unconditionally.
+      .split(
+        RegExp(
+          r'(?<![A-Za-z])(?:ext(?:ension|n)?|x)[\s.:=-]*\d'
+          r'|#\s*\d'
+          r'|(?<=\d)\s*;'
+          r'|(?<=\d),(?=[\s,;])'
+          r'|(?<=\d)\s*[wp]\s*\d',
+          caseSensitive: false,
+        ),
       )
-      // No `\b` before `x`: in `5551234x22` the digit and the `x` are both
-      // word characters, so a boundary assertion never matches there.
-      .split(RegExp(r'(?:ext\.?|x|#)\s*\d', caseSensitive: false))
       .first;
   final firstDigit = head.indexOf(RegExp(r'\d'));
   if (firstDigit < 0) return '';
-  // A `+` anywhere ahead of the first digit is the international marker —
-  // brackets, spaces and a `Mobile:` label all legitimately sit in front of it.
-  final international = head.substring(0, firstDigit).contains('+');
-  final digits = head.replaceAll(RegExp(r'\D'), '');
+  // The international marker is a `+` that REACHES the first digit through
+  // punctuation only. "Anywhere before the first digit" is too loose: a label
+  // can contain one, and `Tel + Fax 020 7946 0018` then dials `+02079460018`
+  // — a `+` with no country code behind it, which is the wrong-number outcome
+  // this function exists to prevent. The gap may hold brackets, spaces, dots
+  // and dashes, so `(+1) 415…`, `Mobile: +44 …` and `+1-415-…` all still
+  // read as international; a letter in the gap means the `+` belonged to the
+  // label.
+  final prefix = head.substring(0, firstDigit);
+  final plusAt = prefix.lastIndexOf('+');
+  final international =
+      plusAt >= 0 && _kDialPrefixGap.hasMatch(prefix.substring(plusAt + 1));
+  // In an international number a `(0)` is ALWAYS a national trunk prefix,
+  // wherever it sits — so this keys off `international` rather than trying to
+  // anchor the match to the country code. Anchoring is what broke:
+  // `Mobile: +44 (0)20 …` and `(+44) (0)20 …` are both ordinary stored
+  // formats (a label before the `+`, a bracket around the `+cc`), and an
+  // `^`-anchored pattern matches neither, keeping the `0` and dialing
+  // `+44020…`. In a *national* number the same `(0)` is a real digit and has
+  // to survive: `(0)20 7946 0018` dials `02079460018`.
+  final dialable = international
+      ? head.replaceFirst(RegExp(r'\(\s*0\s*\)'), '')
+      : head;
+  final digits = dialable.replaceAll(RegExp(r'\D'), '');
   if (digits.length < _minDialableDigits) return '';
   return international ? '+$digits' : digits;
 }
+
+/// What may sit between the `+` and the first digit for the `+` to still count
+/// as a country-code marker. Hoisted so it is compiled once rather than per
+/// call. See [cleanPhoneNumber].
+final RegExp _kDialPrefixGap = RegExp(r'^[\s()\-.]*$');
 
 /// Fewer digits than this and we assume the field holds prose, not a number.
 ///

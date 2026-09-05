@@ -128,6 +128,17 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
     return Tooltip(
       message: '${widget.count} $label',
       waitDuration: const Duration(milliseconds: 400),
+      // On a tile, `manual` for the same reason the tile's own tooltip uses it
+      // — and this one is easy to miss, because it sits *inside* the tile and
+      // covers only the badge glyph. A default-trigger tooltip registers its
+      // `LongPressGestureRecognizer` deeper in the tree than the
+      // `_BadgeModeMenuTarget` wrapped around the whole tile, so a long press
+      // landing on the number opens this instead of the counter menu. It hits
+      // exactly the tiles that HAVE a menu: a non-null `countLabel` means a
+      // non-total badge mode, which means the entity offers more than one.
+      // Rows are untouched — there the badge is beside the label, not the
+      // whole target, and hover already explains it.
+      triggerMode: widget.tile ? TooltipTriggerMode.manual : null,
       child: badge,
     );
   }
@@ -367,11 +378,23 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
       // rides along in the shortcut tooltip.
       return ShortcutTooltip(
         // Compact rows fold the count into the label — the collapsed rail's
-        // dot has no number, and this tooltip is the only text it gets.
-        label: widget.compact ? _compactTooltip : widget.label,
+        // dot has no number, and this tooltip is the only text it gets. A
+        // tile does the same: it ellipsizes a long single word and has no
+        // width to grow into, so the full label has to ride the tooltip.
+        label: widget.compact || isTile ? _compactTooltip : widget.label,
         keys: ['G', widget.leaderKey!],
         sequence: true,
         waitDuration: const Duration(milliseconds: 600),
+        // This branch is reached BEFORE the `isTile` one below, so without
+        // this the four entities that have a leader key — client, invoice,
+        // product, task — silently lost the manual trigger that branch
+        // exists to set, and with it the badge-mode long-press menu wrapped
+        // around them. See the comment there for the full mechanism; the
+        // short version is that a default-trigger tooltip registers its own
+        // recognizer deeper in the tree and wins the arena. Those four are
+        // exactly the entities with >1 badge mode, so every grid tile that
+        // HAS a counter menu was the one that couldn't open it.
+        triggerMode: isTile ? TooltipTriggerMode.manual : null,
         child: result,
       );
     }

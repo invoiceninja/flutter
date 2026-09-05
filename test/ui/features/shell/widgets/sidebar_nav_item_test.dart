@@ -725,4 +725,286 @@ void main() {
       },
     );
   });
+
+  group('tile (grid menu layout, invoiceninja/flutter#125)', () {
+    /// The tile's border-only Container — the one carrying a `Border`.
+    Container borderBoxOf(WidgetTester tester) => tester
+        .widgetList<Container>(
+          find.descendant(
+            of: find.byType(SidebarNavItem),
+            matching: find.byType(Container),
+          ),
+        )
+        .firstWhere((c) => (c.decoration as BoxDecoration?)?.border != null);
+
+    testWidgets('stacks the icon above a centred label', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Recurring Invoices',
+            icon: Icons.autorenew_outlined,
+            active: false,
+            tile: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      final icon = tester.getCenter(find.byIcon(Icons.autorenew_outlined));
+      final label = tester.getCenter(find.text('Recurring Invoices'));
+      expect(icon.dy, lessThan(label.dy));
+      expect(icon.dx, moreOrLessEquals(label.dx, epsilon: 1));
+    });
+
+    testWidgets('an active tile takes the accent fill and accent border', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Clients',
+            icon: Icons.people_outline,
+            active: true,
+            tile: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      // The fill rides on the Material so the InkWell's ripple paints above it;
+      // the Container only draws the outline, which is what lets the ripple
+      // show through. Painting the fill on the Container would hide it.
+      final material = tester.widget<Material>(
+        find
+            .descendant(
+              of: find.byType(SidebarNavItem),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      expect(material.color, InTheme.light.accentSoft);
+      final border = (borderBoxOf(tester).decoration as BoxDecoration).border!;
+      expect(border.top.color, InTheme.light.accent);
+      expect(
+        (borderBoxOf(tester).decoration as BoxDecoration).color,
+        isNull,
+        reason: 'the Container must not be opaque, or it hides the ripple',
+      );
+    });
+
+    testWidgets('an inactive tile is outlined, not filled', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Clients',
+            icon: Icons.people_outline,
+            active: false,
+            tile: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      final border = (borderBoxOf(tester).decoration as BoxDecoration).border!;
+      expect(border.top.color, InTheme.light.border);
+    });
+
+    testWidgets('the badge keeps its number, beside the icon', (tester) async {
+      // The rail degrades to an 8-px dot because 64 px has no room for digits.
+      // A tile has room, and dropping to a dot would quietly downgrade the
+      // sidebar-counters feature for anyone who picked the grid.
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Invoices',
+            icon: Icons.receipt_long_outlined,
+            active: false,
+            tile: true,
+            count: 12,
+            countTone: SidebarBadgeTone.danger,
+            countLabel: 'Overdue',
+            onTap: () {},
+          ),
+        ),
+      );
+      expect(find.text('12'), findsOneWidget);
+      expect(find.byKey(const Key('clients-badge-dot')), findsNothing);
+      final iconY = tester
+          .getCenter(find.byIcon(Icons.receipt_long_outlined))
+          .dy;
+      expect(
+        tester.getCenter(find.text('12')).dy,
+        moreOrLessEquals(iconY, epsilon: 2),
+      );
+      expect(tester.getCenter(find.text('Invoices')).dy, greaterThan(iconY));
+    });
+
+    testWidgets('trailing wins the icon-row slot — it is the Reports Pro lock, '
+        'the only signal the destination is gated before you tap it', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Reports',
+            icon: Icons.bar_chart_outlined,
+            active: false,
+            tile: true,
+            trailing: const Icon(Icons.lock_outline, size: 16),
+            onTap: () {},
+          ),
+        ),
+      );
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+      final iconY = tester.getCenter(find.byIcon(Icons.bar_chart_outlined)).dy;
+      expect(
+        tester.getCenter(find.byIcon(Icons.lock_outline)).dy,
+        moreOrLessEquals(iconY, epsilon: 2),
+      );
+    });
+
+    testWidgets('trailingHover is dropped, and so is the MouseRegion that '
+        'would have watched for it', (tester) async {
+      // The visible half of this (no `+` on hover) would pass with or without
+      // the `!tile` guard, because the tile body never renders trailingHover
+      // anyway. The guard is about the *listener*: without it every pointer
+      // crossing over a tile mounts a MouseRegion and calls setState for a
+      // widget that can never appear. Counting them is the only way to see it.
+      int mouseRegions() => tester
+          .widgetList(
+            find.descendant(
+              of: find.byType(SidebarNavItem),
+              matching: find.byType(MouseRegion),
+            ),
+          )
+          .length;
+
+      Widget item({required bool hover, required Key key}) => SidebarNavItem(
+        key: key,
+        label: 'Clients',
+        icon: Icons.people_outline,
+        active: false,
+        tile: true,
+        trailingHover: hover
+            ? const Icon(Icons.add, key: Key('hover-add'))
+            : null,
+        onTap: () {},
+      );
+
+      // Tile against tile, not tile against row: the two layouts happen to
+      // mount the same number for unrelated reasons (the tile's own label
+      // tooltip stands in for the row's hover watcher), so only holding the
+      // layout fixed and varying `trailingHover` isolates the guard.
+      await tester.pumpWidget(
+        _wrap(item(hover: false, key: const Key('bare'))),
+      );
+      final withoutHover = mouseRegions();
+
+      await tester.pumpWidget(
+        _wrap(item(hover: true, key: const Key('hover'))),
+      );
+      expect(mouseRegions(), withoutHover);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byType(SidebarNavItem)));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('hover-add')), findsNothing);
+    });
+
+    testWidgets('a long press still reaches the counter menu wrapped around '
+        'the tile, rather than being eaten by the label tooltip', (
+      tester,
+    ) async {
+      // `_BadgeModeMenuTarget` (private to in_sidebar.dart) wraps each entity
+      // row in exactly this gesture detector. Replicated rather than imported
+      // for the same reason `_savedViewMenuButtonLookalike` is: the shape is
+      // what participates in the arena, and that is what is under test.
+      //
+      // The tile's own tooltip registers a competing LongPressGestureRecognizer
+      // *below* this one unless its trigger mode is manual, and being deeper it
+      // wins the arena — which on touch, the grid's whole audience, would leave
+      // the counter menu unreachable with no right-click to fall back on.
+      var opened = false;
+      await tester.pumpWidget(
+        _wrap(
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onLongPressStart: (_) => opened = true,
+            child: SidebarNavItem(
+              label: 'Transactions',
+              icon: Icons.account_balance_outlined,
+              active: false,
+              tile: true,
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.longPress(find.byType(SidebarNavItem));
+      await tester.pumpAndSettle();
+      expect(opened, isTrue);
+    });
+
+    testWidgets('carries the full label as a tooltip', (tester) async {
+      // A tile ellipsizes a long single word once the text scale passes Normal,
+      // and unlike a row it has no width to grow into.
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Transactions',
+            icon: Icons.account_balance_outlined,
+            active: false,
+            tile: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      expect(find.byTooltip('Transactions'), findsOneWidget);
+    });
+
+    testWidgets('compact wins over tile — the 64-px rail is already denser', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          SidebarNavItem(
+            label: 'Clients',
+            icon: Icons.people_outline,
+            active: false,
+            compact: true,
+            tile: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      expect(find.text('Clients'), findsNothing);
+    });
+
+    testWidgets('the label grows with the text scaler instead of clipping', (
+      tester,
+    ) async {
+      double labelHeight(WidgetTester tester) =>
+          tester.getSize(find.text('Clients')).height;
+      final heights = <double, double>{};
+      for (final scale in [1.0, 1.4]) {
+        await tester.pumpWidget(
+          _wrap(
+            _scaled(
+              scale,
+              SidebarNavItem(
+                label: 'Clients',
+                icon: Icons.people_outline,
+                active: false,
+                tile: true,
+                onTap: () {},
+              ),
+            ),
+          ),
+        );
+        heights[scale] = labelHeight(tester);
+        expect(tester.takeException(), isNull);
+      }
+      expect(heights[1.4]!, greaterThan(heights[1.0]!));
+    });
+  });
 }

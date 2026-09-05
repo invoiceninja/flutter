@@ -200,5 +200,25 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Sidebar-menu-only update — [SidebarMenuController] calls this when the
+  /// user switches the layout, reorders the menu, or hides a row. The layout
+  /// and the ordered entries are one blob with a single writer, same
+  /// partial-write pattern as [savePhoneActions].
+  ///
+  /// Pass `null` for [json] to clear the preference entirely (Reset to
+  /// defaults), which puts the menu back on the app's own order.
+  Future<void> saveSidebarMenu({
+    required String? json,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        sidebarMenuJson: Value(json),
+        updatedAt: now,
+      ),
+    );
+  }
+
   Future<void> clear() => (delete(navState)..where((n) => n.id.equals(0))).go();
 }

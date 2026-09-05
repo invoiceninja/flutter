@@ -185,6 +185,7 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/widgets/phone_actions_section.dart',
       'lib/ui/features/settings/widgets/contacts_sync_section.dart',
       'lib/ui/features/settings/widgets/list_status_tabs_section.dart',
+      'lib/ui/features/settings/widgets/sidebar_menu_section.dart',
       'lib/ui/features/settings/widgets/sidebar_counters_section.dart',
       'lib/domain/sidebar_badge_modes.dart',
     ],

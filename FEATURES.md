@@ -1520,6 +1520,8 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Dark mode / light mode toggle | ✅ | ✅ | ✅ | ✅ | |
 | Sidebar footer theme quick-switch (light/dark/system + settings shortcut) | — | — | ✅ | | |
 | Selectable sidebar counters (per-row: overdue / unpaid / draft / assigned-to-me / low stock / …, colour-coded, right-click or Settings → Device Settings) | — | — | ✅ | | |
+| Menu layout — list or a denser grid of icon-above-label tiles, device-local (Settings → Device Settings → Menu) | — | — | ✅ | | |
+| Customizable main menu — drag to reorder every nav destination, switch to hide the ones you don't use | — | — | ✅ | | |
 | Multi-language UI (40+ locales) | ✅ | ✅ | ✅ | ✅ | |
 | Company switcher | ✅ | ✅ | ✅ | ✅ | |
 | Keyboard shortcuts | ✅ | ✅ | ✅ | ✅ | |

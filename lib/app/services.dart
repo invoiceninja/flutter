@@ -107,6 +107,7 @@ import 'package:admin/app/recently_viewed_controller.dart';
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
+import 'package:admin/app/sidebar_menu_controller.dart';
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/contacts_sync_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
@@ -285,6 +286,7 @@ class Services implements SidebarBadgeContext {
     required this.contactsSync,
     required this.sidebar,
     required this.sidebarBadgeModes,
+    required this.sidebarMenu,
     required this.resync,
     required this.recentlyViewed,
     required this.settingsLevel,
@@ -622,6 +624,12 @@ class Services implements SidebarBadgeContext {
   /// like [theme] / [keyboardShortcuts] — and, like them, does not survive
   /// logout, which wipes every Drift table.
   final SidebarBadgeModeController sidebarBadgeModes;
+
+  /// Device-local main-menu preference — layout (list / grid), order, and which
+  /// rows are shown (Settings → Device Settings → Menu). Read live by
+  /// `InSidebar` through a `ListenableBuilder`, because the sidebar stays
+  /// mounted behind the `/settings/**` route while the user changes it.
+  final SidebarMenuController sidebarMenu;
 
   /// App-wide single-flight + progress state for the user-initiated "Sync" pass
   /// (see [syncNow]). Driven by the sidebar header's Sync button, Settings →
@@ -1404,6 +1412,7 @@ class Services implements SidebarBadgeContext {
     );
     final sidebar = SidebarController(db: db);
     final sidebarBadgeModes = SidebarBadgeModeController(db: db);
+    final sidebarMenu = SidebarMenuController(db: db);
     // Captures the deferred `late final Services services` declared above —
     // same pattern as `companyRepo.onSettingsWritten`. The runner only fires on
     // a user action, long after the assignment below.
@@ -1485,6 +1494,12 @@ class Services implements SidebarBadgeContext {
       // outgoing user's company, and offering to log it after a different user
       // signs in would file a note against ids they never saw.
       services.pendingCall.clear();
+      // The menu order and hidden rows are about to be wiped from `nav_state`,
+      // but the controller holds them in memory and outlives the logout — so a
+      // second user signing in without restarting the app would inherit the
+      // first one's menu, and their first touch of any menu control would
+      // persist that array into their own fresh row.
+      services.sidebarMenu.resetInMemory();
       // Drop every repo's first-frame seed cache. Those hold display names —
       // user data — and a second user signing in on the same install must not
       // inherit the previous one's. Also `invalidateAllFormatters`, whose doc
@@ -1622,6 +1637,7 @@ class Services implements SidebarBadgeContext {
       contactsSync: contactsSync,
       sidebar: sidebar,
       sidebarBadgeModes: sidebarBadgeModes,
+      sidebarMenu: sidebarMenu,
       resync: resync,
       recentlyViewed: recentlyViewed,
       settingsLevel: settingsLevel,

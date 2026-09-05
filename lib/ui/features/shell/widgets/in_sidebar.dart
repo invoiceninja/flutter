@@ -13,6 +13,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
+import 'package:admin/domain/sidebar_menu.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart'
     show goToCreateRoute;
@@ -22,6 +23,8 @@ import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/shell/widgets/command_palette.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_menu_entries.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_nav_grid.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_search_box.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
@@ -31,6 +34,19 @@ import 'package:admin/ui/features/shell/widgets/sidebar_section_header.dart';
 import 'package:admin/ui/features/shell/widgets/trial_footer.dart';
 import 'package:admin/ui/features/shell/widgets/white_label_footer.dart';
 import 'package:admin/ui/features/shell/widgets/window_caption_strip.dart';
+
+/// One destination in the sidebar's reorderable nav block.
+///
+/// [build] takes the display mode rather than the caller building two widgets,
+/// so a row and its tile are provably the same destination with the same tap
+/// handler, badge stream and active state. [type] is null for the three fixed
+/// rows (Dashboard / Reports / Activity) and is what lets the badge-stream
+/// cache learn which entity rows are still on screen.
+typedef _NavEntry = ({
+  String id,
+  EntityType? type,
+  Widget Function({required bool tile}) build,
+});
 
 /// Width of the persistent sidebar used by `ScaffoldWithNav` on wide
 /// layouts. Exposed so overlay-based widgets (e.g. the date-range picker
@@ -251,6 +267,30 @@ class _InSidebarState extends State<InSidebar> {
     if (previous == modeId) return;
     if (previous != null) _badgeStreams.remove((type, previous))?.close();
     _badgeModes[type] = modeId;
+  }
+
+  /// Close the badge stream of every entity row that is no longer rendered.
+  ///
+  /// [_noteBadgeMode] only ever fires for a row that *does* render, which was
+  /// airtight while the only way to lose a row was a module the company had
+  /// switched off: such a row never reaches `_cachedBadge`, so it never opens a
+  /// query in the first place. A row the user **hides** from the menu is
+  /// different — it rendered, opened its Drift query, and only then stopped
+  /// rendering, so without this its subscription would stay live until the next
+  /// company switch or `dispose`.
+  ///
+  /// Only entity keys are considered; the Outbox row's stream is keyed by
+  /// `FixedBranchKind` and never appears in [_badgeModes]. Safe during `build`
+  /// for the same reason [_noteBadgeMode] is — pure memoization, no `setState`.
+  void _noteRenderedEntities(Set<EntityType> rendered) {
+    final stale = [
+      for (final type in _badgeModes.keys)
+        if (!rendered.contains(type)) type,
+    ];
+    for (final type in stale) {
+      final mode = _badgeModes.remove(type);
+      if (mode != null) _badgeStreams.remove((type, mode))?.close();
+    }
   }
 
   /// Memoize a badge stream within the current company generation. Cleared
@@ -552,29 +592,40 @@ class _InSidebarState extends State<InSidebar> {
                       // Counter choices repaint the rail: a badge switching
                       // from a grey total to a red overdue count changes the
                       // row, not just the number.
+                      //
+                      // Menu changes repaint it for a blunter reason: the
+                      // sidebar stays mounted behind the `/settings/**` route
+                      // while the user picks Grid or reorders the menu, so
+                      // without a listener here nothing would move until some
+                      // unrelated rebuild came along. Nested rather than
+                      // `Listenable.merge`, which would mint a new object every
+                      // build and re-subscribe both.
                       child: ListenableBuilder(
-                        listenable: services.sidebarBadgeModes,
-                        builder: (context, _) => StreamBuilder<CompanyRow?>(
-                          stream: _company?.stream,
-                          builder: (context, companySnap) =>
-                              StreamBuilder<SavedView?>(
-                                stream: _activeView?.stream,
-                                builder: (context, snap) => Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: _buildItems(
-                                    context,
-                                    services,
-                                    session.currentCompanyId,
-                                    compact: collapsed,
-                                    touch: touch,
-                                    activeViewId: snap.data?.id,
-                                    trackInventory:
-                                        companySnap.data?.trackInventory ??
-                                        false,
+                        listenable: services.sidebarMenu,
+                        builder: (context, _) => ListenableBuilder(
+                          listenable: services.sidebarBadgeModes,
+                          builder: (context, _) => StreamBuilder<CompanyRow?>(
+                            stream: _company?.stream,
+                            builder: (context, companySnap) =>
+                                StreamBuilder<SavedView?>(
+                                  stream: _activeView?.stream,
+                                  builder: (context, snap) => Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: _buildItems(
+                                      context,
+                                      services,
+                                      session.currentCompanyId,
+                                      compact: collapsed,
+                                      touch: touch,
+                                      activeViewId: snap.data?.id,
+                                      trackInventory:
+                                          companySnap.data?.trackInventory ??
+                                          false,
+                                    ),
                                   ),
                                 ),
-                              ),
+                          ),
                         ),
                       ),
                     ),
@@ -655,6 +706,18 @@ class _InSidebarState extends State<InSidebar> {
     );
   }
 
+  /// The nav list, top to bottom.
+  ///
+  /// The reorderable, griddable block — Dashboard, the entity rows, Reports and
+  /// Activity — comes from [_buildMenuEntries]. Saved views, Settings and
+  /// Outbox deliberately sit outside it: saved-view rows carry arbitrary
+  /// user-typed names that would ellipsize to nothing in a tile, and **Outbox
+  /// is the one row in the whole sidebar whose visibility resolves
+  /// asynchronously** (`hideWhenZero`, inside a `StreamBuilder`). Every entry
+  /// in the block above is gated synchronously at build time, so no grid cell
+  /// can collapse to nothing and strand an empty column — a failure mode
+  /// invoiceninja/flutter#124 paid for once already, and one that keeping
+  /// Outbox out of the grid makes unreachable by construction.
   List<Widget> _buildItems(
     BuildContext context,
     Services services,
@@ -664,104 +727,29 @@ class _InSidebarState extends State<InSidebar> {
     required String? activeViewId,
     required bool trackInventory,
   }) {
-    final registry = services.entityRegistry;
-    // Modules disabled for the active company hide their sidebar row entirely
-    // (mirrors admin-portal — removed, not greyed). Reactive via the outer
-    // `ValueListenableBuilder<AuthSession?>` like the `view_reports` gate below.
-    final enabledModules =
-        services.auth.session.value?.currentCompany?.enabledModules ?? 0;
-    final widgets = <Widget>[
-      // Fixed: Dashboard. Branch index comes from the registry's branchOrder
-      // so reordering the router doesn't desync the sidebar.
-      _fixedNav(
-        context,
-        services,
-        compact: compact,
-        touch: touch,
-        labelKey: 'dashboard',
-        icon: Icons.dashboard_outlined,
-        kind: FixedBranchKind.dashboard,
-        trailingHover: const _DashboardRowSearchButton(),
-      ),
-      // Entities — Clients, Products, and the per-module entities. Rows whose
-      // module is disabled for this company are omitted entirely; client /
-      // product (and any always-on entity) always pass. Order driven by
-      // sidebarOrder.
-      for (final h in registry.sidebarTop)
-        if (isEntityModuleEnabledForCompany(h.type, enabledModules))
-          _entityNav(
-            context,
-            services,
-            h,
-            companyId,
-            compact: compact,
-            touch: touch,
-            activeViewId: activeViewId,
-            trackInventory: trackInventory,
-          ),
-      // Reports — hidden when the active company lacks `view_reports`.
-      // Rendered after the entity list to match the React app's order
-      // (Dashboard → entities → Reports → Settings). Reactivity comes from
-      // the outer `ValueListenableBuilder<AuthSession?>` on
-      // `services.auth.session` (see `build` above) — when the session
-      // changes (sign-out / company switch / permission update),
-      // `_buildItems` is invoked fresh and this check re-evaluates.
-      // The branch index lives at the end of `kBranchOrder`; visual order
-      // here is independent of branch index.
-      if (services.auth.session.value?.currentCompany?.can('view_reports') ??
-          false)
-        _fixedNav(
-          context,
-          services,
-          compact: compact,
-          touch: touch,
-          labelKey: 'reports',
-          icon: Icons.bar_chart_outlined,
-          kind: FixedBranchKind.reports,
-          // Discoverability parity with the settings sidebar: Reports is Pro
-          // on hosted, so show a lock before the user taps in (trial-aware;
-          // no lock once they have access).
-          trailing:
-              (services.auth.session.value?.isHosted ?? false) &&
-                  !(services.auth.session.value?.hasProAccess ?? false)
-              ? Tooltip(
-                  message: context.tr('pro_plan'),
-                  child: Icon(
-                    Icons.lock_outline,
-                    size: 16,
-                    color: context.inTheme.ink3,
-                  ),
-                )
-              : null,
-        ),
-      // Activity — the company-wide feed at `/activity` (invoiceninja/flutter#53).
-      // Deliberately *navigation*, not a feed embedded in this sidebar: the
-      // whitespace above the footer only exists on a tall device with few
-      // modules (every touch row is floored at `InSizes.touchTarget`, so a
-      // full module set already overflows the scroll view on a normal phone),
-      // the drawer closes on the first tap, and the 64 px collapsed rail has
-      // no room at all.
-      //
-      // Ungated. There is no `view_activity` in our permission set, and the
-      // server already scopes the feed for us — `ActivityController::index`
-      // narrows the `?reactv2` branch to `user_id = auth()->user()->id` for a
-      // non-admin, so a staff user simply sees their own rows.
-      _fixedNav(
-        context,
-        services,
-        compact: compact,
-        touch: touch,
-        labelKey: 'activity',
-        // Deliberately filled where the other rows are outlined: this is the
-        // workspace-level Activity branch, not a detail tab. (The detail tabs
-        // all use `Icons.history_outlined`, which does exist — an older
-        // version of this comment claimed otherwise.)
-        icon: Icons.history,
-        kind: FixedBranchKind.activity,
-      ),
+    final entries = _buildMenuEntries(
+      context,
+      services,
+      companyId,
+      compact: compact,
+      touch: touch,
+      activeViewId: activeViewId,
+      trackInventory: trackInventory,
+    );
+    // The collapsed rail ignores the grid: it is already denser than any grid,
+    // and 64 px has no room for a tile's label at all.
+    final grid =
+        !compact && services.sidebarMenu.layout == SidebarMenuLayout.grid;
+    return <Widget>[
+      if (grid)
+        SidebarNavGrid(
+          tiles: [for (final entry in entries) entry.build(tile: true)],
+        )
+      else
+        for (final entry in entries) entry.build(tile: false),
       // Saved views — reactive section that disappears when empty. Owns its
-      // own trailing spacer so the Activity→Settings gap stays uniform with
-      // the rest of the sidebar when there are no saved views.
+      // own trailing spacer so the gap above Settings stays uniform with the
+      // rest of the sidebar when there are no saved views.
       _SavedViewsSection(
         companyId: companyId,
         currentBranch: widget.currentBranch,
@@ -793,7 +781,158 @@ class _InSidebarState extends State<InSidebar> {
         hideWhenZero: true,
       ),
     ];
-    return widgets;
+  }
+
+  /// The user's main menu: the app's default block, permuted and filtered by
+  /// [SidebarMenuController] (invoiceninja/flutter#125).
+  ///
+  /// The default order handed to `entriesFor` holds only what this company can
+  /// actually render — a module the company has switched off contributes no
+  /// entry — which is exactly why the Customize sheet resolves against the full
+  /// set instead and is the only caller of `setEntries`. Resolving there
+  /// against this narrower list would erase the stored position of every
+  /// entity whose module happens to be off.
+  ///
+  /// Hiding is a render-time filter, never a write: the stored entry survives,
+  /// so re-showing a row puts it back exactly where the user left it.
+  List<_NavEntry> _buildMenuEntries(
+    BuildContext context,
+    Services services,
+    String companyId, {
+    required bool compact,
+    required bool touch,
+    required String? activeViewId,
+    required bool trackInventory,
+  }) {
+    final registry = services.entityRegistry;
+    // Modules disabled for the active company hide their sidebar row entirely
+    // (mirrors admin-portal — removed, not greyed). Reactive via the outer
+    // `ValueListenableBuilder<AuthSession?>` like the `view_reports` gate below.
+    final enabledModules =
+        services.auth.session.value?.currentCompany?.enabledModules ?? 0;
+    final session = services.auth.session.value;
+    final defaults = <_NavEntry>[
+      // Fixed: Dashboard. Branch index comes from the registry's branchOrder
+      // so reordering the router doesn't desync the sidebar.
+      (
+        id: kSidebarMenuDashboardId,
+        type: null,
+        build: ({required bool tile}) => _fixedNav(
+          context,
+          services,
+          compact: compact,
+          touch: touch,
+          tile: tile,
+          labelKey: kSidebarMenuDashboardSpec.labelKey,
+          icon: kSidebarMenuDashboardSpec.icon,
+          kind: FixedBranchKind.dashboard,
+          trailingHover: const _DashboardRowSearchButton(),
+        ),
+      ),
+      // Entities — Clients, Products, and the per-module entities. Rows whose
+      // module is disabled for this company are omitted entirely; client /
+      // product (and any always-on entity) always pass. Default order driven by
+      // sidebarOrder; the user's own order is applied below.
+      for (final h in registry.sidebarTop)
+        if (isEntityModuleEnabledForCompany(h.type, enabledModules))
+          (
+            id: h.type.name,
+            type: h.type,
+            build: ({required bool tile}) => _entityNav(
+              context,
+              services,
+              h,
+              companyId,
+              compact: compact,
+              touch: touch,
+              tile: tile,
+              activeViewId: activeViewId,
+              trackInventory: trackInventory,
+            ),
+          ),
+      // Reports — hidden when the active company lacks `view_reports`. It
+      // *defaults* to sitting after the entity list, matching the React app's
+      // order (Dashboard -> entities -> Reports -> Settings); where it actually
+      // lands is now the user's to decide.
+      //
+      // Reactivity comes from the outer `ValueListenableBuilder<AuthSession?>`
+      // on `services.auth.session` (see `build` above) — when the session
+      // changes (sign-out / company switch / permission update), this is
+      // invoked fresh and the check re-evaluates. The branch index lives at the
+      // end of `kBranchOrder`; visual order here is independent of it.
+      if (session?.currentCompany?.can('view_reports') ?? false)
+        (
+          id: kSidebarMenuReportsId,
+          type: null,
+          build: ({required bool tile}) => _fixedNav(
+            context,
+            services,
+            compact: compact,
+            touch: touch,
+            tile: tile,
+            labelKey: kSidebarMenuReportsSpec.labelKey,
+            icon: kSidebarMenuReportsSpec.icon,
+            kind: FixedBranchKind.reports,
+            // Discoverability parity with the settings sidebar: Reports is Pro
+            // on hosted, so show a lock before the user taps in (trial-aware;
+            // no lock once they have access).
+            trailing:
+                (session?.isHosted ?? false) &&
+                    !(session?.hasProAccess ?? false)
+                ? Tooltip(
+                    message: context.tr('pro_plan'),
+                    child: Icon(
+                      Icons.lock_outline,
+                      size: 16,
+                      color: context.inTheme.ink3,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+      // Activity — the company-wide feed at `/activity`
+      // (invoiceninja/flutter#53). Deliberately *navigation*, not a feed
+      // embedded in this sidebar: the whitespace above the footer only exists
+      // on a tall device with few modules, the drawer closes on the first tap,
+      // and the 64 px collapsed rail has no room at all.
+      //
+      // Ungated. There is no `view_activity` in our permission set, and the
+      // server already scopes the feed for us — `ActivityController::index`
+      // narrows the `?reactv2` branch to `user_id = auth()->user()->id` for a
+      // non-admin, so a staff user simply sees their own rows.
+      (
+        id: kSidebarMenuActivityId,
+        type: null,
+        build: ({required bool tile}) => _fixedNav(
+          context,
+          services,
+          compact: compact,
+          touch: touch,
+          tile: tile,
+          // Icon + label come from the shared spec table so the Customize
+          // sheet cannot list this destination under a different glyph.
+          labelKey: kSidebarMenuActivitySpec.labelKey,
+          icon: kSidebarMenuActivitySpec.icon,
+          kind: FixedBranchKind.activity,
+        ),
+      ),
+    ];
+
+    final byId = {for (final entry in defaults) entry.id: entry};
+    final resolved = services.sidebarMenu.entriesFor([
+      for (final entry in defaults) entry.id,
+    ]);
+    final out = <_NavEntry>[];
+    for (final pref in resolved) {
+      if (!pref.visible) continue;
+      final entry = byId[pref.id];
+      if (entry != null) out.add(entry);
+    }
+    _noteRenderedEntities({
+      for (final entry in out)
+        if (entry.type != null) entry.type!,
+    });
+    return out;
   }
 
   Widget _entityNav(
@@ -803,6 +942,7 @@ class _InSidebarState extends State<InSidebar> {
     String companyId, {
     required bool compact,
     required bool touch,
+    required bool tile,
     required String? activeViewId,
     required bool trackInventory,
   }) {
@@ -818,7 +958,7 @@ class _InSidebarState extends State<InSidebar> {
     // Hover affordance — `+` shortcut to the entity's /new route. Only
     // surfaces on rows that have a `newRoute` configured AND in expanded
     // mode (compact rail has no horizontal room).
-    final Widget? hoverAdd = (!compact && handlers.newRoute != null)
+    final Widget? hoverAdd = (!compact && !tile && handlers.newRoute != null)
         ? _HoverAddButton(route: handlers.newRoute!)
         : null;
     final onTap = handlers.disabled || branch == null
@@ -850,6 +990,7 @@ class _InSidebarState extends State<InSidebar> {
       active: isActive,
       disabled: handlers.disabled,
       compact: compact,
+      tile: tile,
       touch: touch,
       count: count,
       countTone: tone,
@@ -918,6 +1059,7 @@ class _InSidebarState extends State<InSidebar> {
     required String labelKey,
     required IconData icon,
     required FixedBranchKind kind,
+    bool tile = false,
     Stream<int> Function(Services, String)? badgeStream,
     bool hideWhenZero = false,
     Widget? trailingHover,
@@ -926,11 +1068,12 @@ class _InSidebarState extends State<InSidebar> {
     final branch = _findFixedBranch(services.entityRegistry, kind);
     final isActive = branch != null && branch == widget.currentBranch;
     final label = context.tr(labelKey);
-    Widget tile({int? count}) => SidebarNavItem(
+    Widget buildTile({int? count}) => SidebarNavItem(
       label: label,
       icon: icon,
       active: isActive,
       compact: compact,
+      tile: tile,
       touch: touch,
       count: count,
       trailing: trailing,
@@ -938,15 +1081,15 @@ class _InSidebarState extends State<InSidebar> {
       onTap: branch == null ? null : () => widget.onSelectBranch(branch),
       leaderKey: branch == null ? null : _fixedLeaderKey(kind),
     );
-    if (badgeStream == null) return tile();
+    if (badgeStream == null) return buildTile();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    if (companyId.isEmpty) return tile();
+    if (companyId.isEmpty) return buildTile();
     return StreamBuilder<int>(
       stream: _cachedBadge(kind, () => badgeStream(services, companyId)),
       builder: (context, snap) {
         final count = snap.data ?? 0;
         if (hideWhenZero && count == 0) return const SizedBox.shrink();
-        return tile(count: count);
+        return buildTile(count: count);
       },
     );
   }

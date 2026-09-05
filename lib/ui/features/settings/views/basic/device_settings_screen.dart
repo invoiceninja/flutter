@@ -17,6 +17,7 @@ import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
+import 'package:admin/ui/features/settings/widgets/sidebar_menu_section.dart';
 import 'package:admin/ui/features/settings/widgets/list_status_tabs_section.dart';
 import 'package:admin/ui/features/settings/widgets/sidebar_counters_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_screen_scaffold.dart';
@@ -42,6 +43,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
   ...kListStatusTabsSearchKeys,
+  ...kSidebarMenuSearchKeys,
   ...kSidebarCountersSearchKeys,
   ...kSidebarBadgeModeSearchKeys,
 ];
@@ -108,6 +110,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // the address book (desktop, web).
               const ContactsSyncSection(),
               const ListStatusTabsSection(),
+              // Both are about the rail, but one is what the rows *are* and the
+              // other is what their numbers count — see ListStatusTabsSection.
+              const SidebarMenuSection(),
               const SidebarCountersSection(),
               const _DataSection(),
             ],

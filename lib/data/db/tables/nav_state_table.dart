@@ -89,6 +89,26 @@ class NavState extends Table {
   TextColumn get phoneActionsJson =>
       text().named('phone_actions_json').nullable()();
 
+  /// Device-local main-menu preference (Settings → Device Settings → Menu), as
+  /// a JSON object:
+  /// `{"layout":"list"|"grid","entries":["&lt;id&gt;|&lt;1|0&gt;", …]}`.
+  /// Null column = never customised, i.e. the list layout in the app's own
+  /// order with everything shown. Added in schema v8 for
+  /// invoiceninja/flutter#125.
+  ///
+  /// One blob rather than a bool plus a table, for the same reason as
+  /// [contactsSyncJson]: the array is open-ended, none of it is ever queried by
+  /// SQL, and the two halves are one card in Settings. Unlike [statusTabs] a
+  /// SQL `withDefault` could not express the interesting part of it at all —
+  /// the default *order* is computed from the entity registry at runtime, so
+  /// there is no literal to put in the column.
+  ///
+  /// Entries are stored sparsely in the sense that matters: the column stays
+  /// null until the user changes something, and `resolveMenuEntries` splices in
+  /// any destination a later release adds. See `lib/domain/sidebar_menu.dart`.
+  TextColumn get sidebarMenuJson =>
+      text().named('sidebar_menu_json').nullable()();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

@@ -30,6 +30,7 @@ class SidebarNavItem extends StatefulWidget {
     this.countLabel,
     this.disabled = false,
     this.compact = false,
+    this.tile = false,
     this.touch = false,
     this.trailingHover,
     this.trailing,
@@ -59,6 +60,20 @@ class SidebarNavItem extends StatefulWidget {
   /// surfaces in a hover tooltip; the optional `count` becomes a small accent
   /// dot at the icon's top-right (numbers don't fit in 64 px).
   final bool compact;
+
+  /// Grid variant for the "pills" menu layout (invoiceninja/flutter#125): a
+  /// bordered card with the icon above a centred two-line label, matching the
+  /// dashboard's quick-action tiles so the two read as one system.
+  ///
+  /// Ignored when [compact] — the 64-px rail is already denser than any grid.
+  /// A tile has no room for a hover slot, so [trailingHover] is dropped; the
+  /// one slot beside the icon carries [trailing] if there is one and the
+  /// [count] badge otherwise (the two never coexist — see [trailing]).
+  ///
+  /// An enabled tile also gains a full-label tooltip, deliberately on
+  /// `TooltipTriggerMode.manual` so it can't swallow the long press that opens
+  /// the row's counter menu — see the comment at the return site.
+  final bool tile;
 
   /// Floors the row at [InSizes.touchTarget] so a finger has something to aim
   /// at. Set from `Env.isTouchPrimary` by `InSidebar` — pointer platforms keep
@@ -91,8 +106,14 @@ class SidebarNavItem extends StatefulWidget {
 class _SidebarNavItemState extends State<SidebarNavItem> {
   bool _hovered = false;
 
+  /// A tile is excluded as well as the rail: there is no room for a hover
+  /// affordance in an 80-px cell, and without this the `MouseRegion` below
+  /// would mount and `setState` on every pointer crossing for nothing.
   bool get _showsTrailingHover =>
-      widget.trailingHover != null && !widget.compact && !widget.disabled;
+      widget.trailingHover != null &&
+      !widget.compact &&
+      !widget.tile &&
+      !widget.disabled;
 
   /// The badge, plus a tooltip naming what it counts when that isn't obvious.
   /// A bare red `3` is only useful if you can find out it means "overdue".
@@ -142,6 +163,7 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
           )
         : widget.onTap;
     final iconWidget = Icon(widget.icon, size: 18, color: iconFg);
+    final isTile = !widget.compact && widget.tile;
     final body = widget.compact
         ? Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -175,6 +197,57 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
                       ],
                     )
                   : iconWidget,
+            ),
+          )
+        : isTile
+        ? Padding(
+            // Same "no fixed height" rule as the row below — the label is free
+            // to grow with the text scaler, and equal heights across a grid run
+            // come from `SidebarNavGrid`'s IntrinsicHeight, never from here.
+            padding: const EdgeInsets.symmetric(
+              horizontal: InSpacing.xs,
+              vertical: InSpacing.sm,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    iconWidget,
+                    // One slot, because a row never sets both `trailing` and
+                    // `count` (see the field docs). `trailing` is not
+                    // decoration here — on the Reports tile it is the Pro lock,
+                    // the only signal the destination is gated before you tap
+                    // it — so it wins, and the badge keeps its *number* rather
+                    // than degrading to the rail's dot, which exists only
+                    // because 64 px has no room for digits.
+                    if (widget.trailing != null) ...[
+                      const SizedBox(width: 4),
+                      widget.trailing!,
+                    ] else if (widget.count != null && widget.count! > 0) ...[
+                      const SizedBox(width: 4),
+                      _badgeWithTooltip(),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: widget.active
+                        ? FontWeight.w600
+                        : FontWeight.w500,
+                    height: 1.2,
+                    color: fg,
+                  ),
+                ),
+              ],
             ),
           )
         : Padding(
@@ -229,7 +302,25 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
               ],
             ),
           );
-    final tile = Material(
+    // The tile's outline. Border-only and *inside* the Material below, never an
+    // `Ink` and never an opaque fill: the Material owns the colour so the
+    // InkWell's ripple paints above it and still shows through this Container.
+    // Painting the fill here instead would hide the ripple entirely — the
+    // idiom `test/lint/no_ink_widget_test.dart` exists to enforce.
+    final Widget shapedBody = isTile
+        ? Container(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: widget.active ? tokens.accent : tokens.border,
+              ),
+              borderRadius: BorderRadius.circular(InRadii.r2),
+            ),
+            child: body,
+          )
+        : body;
+    // The interactive surface: fill + ripple + hit area. Named for what it is
+    // rather than `tile`, which now means the grid variant a few lines up.
+    final surface = Material(
       color: bg,
       borderRadius: BorderRadius.circular(InRadii.r2),
       child: InkWell(
@@ -246,12 +337,12 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
                 constraints: const BoxConstraints(
                   minHeight: InSizes.touchTarget,
                 ),
-                child: body,
+                child: shapedBody,
               )
-            : body,
+            : shapedBody,
       ),
     );
-    Widget result = tile;
+    Widget result = surface;
     if (_showsTrailingHover) {
       result = MouseRegion(
         onEnter: (_) {
@@ -280,6 +371,29 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
         label: widget.compact ? _compactTooltip : widget.label,
         keys: ['G', widget.leaderKey!],
         sequence: true,
+        waitDuration: const Duration(milliseconds: 600),
+        child: result,
+      );
+    }
+    if (isTile) {
+      // A tile ellipsizes a long single word ("Transactions" once the text
+      // scale passes Normal, and far sooner in German), and unlike the row it
+      // has no width to grow into — so the full label rides along here.
+      //
+      // `manual`, and that is load-bearing rather than tidy. The default
+      // (`longPress`) makes `RawTooltip._handlePointerDown` register its own
+      // `LongPressGestureRecognizer` from a `Listener` *below* this widget, so
+      // it enters the gesture arena ahead of `_BadgeModeMenuTarget`'s
+      // `onLongPressStart` wrapped around the outside, wins on the same 500 ms
+      // deadline, and rejects it. On touch — which is the whole audience for
+      // the grid — that would leave every tile answering a long press with its
+      // own label instead of the "what should this count?" menu, and there is
+      // no right-click there to fall back on. Hover is unaffected: trigger mode
+      // "does not affect mouse devices" (`raw_tooltip.dart:352`), which is
+      // reached through a `MouseRegion` rather than the arena.
+      return Tooltip(
+        message: _compactTooltip,
+        triggerMode: TooltipTriggerMode.manual,
         waitDuration: const Duration(milliseconds: 600),
         child: result,
       );

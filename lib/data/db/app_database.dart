@@ -186,7 +186,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -239,6 +239,15 @@ class AppDatabase extends _$AppDatabase {
     // `Env.isTouchPrimary` (on for a phone, off for a desktop with no `tel:`
     // handler) and a SQL default can only pick one. See
     // `PhoneActionsSettings.deviceDefaults` and `docs/tap-to-call.md`.
+    //
+    // v7 → v8: add `nav_state.sidebar_menu_json` (device-local main-menu layout
+    // + order + per-row visibility, invoiceninja/flutter#125). Nullable with no
+    // backfill: null means "the app's own order, list layout, everything
+    // shown", which is exactly what every installed database renders today, so
+    // an upgraded install is byte-identical to a fresh one until the user opens
+    // the card. Not the `status_tabs` bool shape — the interesting half is an
+    // *ordered list* whose default is computed from the entity registry at
+    // runtime, so there is no literal a SQL default could hold.
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
@@ -258,6 +267,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 7) {
         await m.addColumn(navState, navState.phoneActionsJson);
+      }
+      if (from < 8) {
+        await m.addColumn(navState, navState.sidebarMenuJson);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

@@ -1,7 +1,7 @@
 name: admin
 description: 'Client for Invoice Ninja'
 publish_to: 'none'
-version: 5.1.8+11
+version: 5.1.9+12
 
 environment:
   sdk: ^3.11.5

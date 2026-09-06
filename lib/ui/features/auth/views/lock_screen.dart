@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
 import 'package:admin/ui/features/auth/view_models/lock_view_model.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 
@@ -45,13 +46,28 @@ class _LockScreenState extends State<LockScreen> {
   }
 
   Future<void> _onSignOut() async {
+    // Resolved before the first await so the confirm below doesn't push a
+    // `context` read past one (`use_build_context_synchronously`).
+    final services = context.read<Services>();
+    // Cannot delegate to `SettingsActions.signOut`: `LockViewModel.signOut()`
+    // owns the `busy` flag that gates both buttons on this screen.
+    if (!await showConfirmSignOutDialog(context)) return;
+    if (!mounted) return;
+    // The button was enabled when tapped, but the dialog is an await, and
+    // `LocalAuthBiometricService` prompts with `persistAcrossBackgrounding`,
+    // so a resumed app can land back here with `busy` true — and
+    // `LockViewModel.signOut()` opens with `if (_busy) return;`, dropping the
+    // request. This bails early rather than walking the user through the
+    // outbox prompt first and discarding the answer at the end. It does NOT
+    // rescue the sign-out: the request is lost either way, and the user's
+    // signal is the buttons going disabled behind the biometric prompt.
+    if (_vm.busy) return;
     // Signing out here runs a FULL logout, which wipes the whole local DB —
     // including every company's still-pending outbox rows. Quiesce them first
     // with the same prompt every other sign-out entry point uses, or the lock
     // screen silently destroys the offline edits the idle-timeout preserve
     // path deliberately kept alive. Credentials are live on /lock (restore()
     // set them before the gate), so the prompt's "sync now" path works here.
-    final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId != null) {
       final outbox = await confirmPendingOutboxIfAny(

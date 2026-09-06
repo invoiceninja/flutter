@@ -133,6 +133,91 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  // The confirm runs BEFORE both guards, and that order is load-bearing rather
+  // than cosmetic: `confirmIfDirty` fires every dirty editor's `onDiscard` once
+  // the user picks Discard, and `confirmPendingOutboxIfAny` calls `flushNow`
+  // unconditionally when online. Ask second and a Cancel has already reset the
+  // user's drafts and transmitted their queued mutations.
+  testWidgets(
+    'cancelling the confirm runs neither guard and discards nothing',
+    (tester) async {
+      final fixture = await buildFixture(
+        companies: const [
+          FakeCompany(id: 'c1', name: 'Acme Co', token: 'tok-c1'),
+        ],
+        currentCompanyId: 'c1',
+      );
+      addTearDown(fixture.dispose);
+
+      // A pending row too, so BOTH guards would have something to do.
+      await fixture.db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'c1',
+          entityType: 'client',
+          entityId: 'x',
+          mutationKind: 'update',
+          payload: '{}',
+          idempotencyKey: 'k',
+          createdAt: 0,
+          nextAttemptAt: 0,
+          requiresPassword: const Value(false),
+        ),
+      );
+
+      var discarded = false;
+      final source = ValueNotifier<int>(0);
+      addTearDown(source.dispose);
+      final unregister = fixture.services.unsavedChangesGuard.register(
+        isDirty: () => true,
+        source: source,
+        onDiscard: () => discarded = true,
+      );
+      addTearDown(unregister);
+
+      await tester.pumpWidget(
+        wrapWithShell(
+          fixture.services,
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => SettingsActions.signOut(context),
+              child: const Text('trigger-signout'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('trigger-signout'));
+      await tester.pumpAndSettle();
+      expect(find.text('Sign out?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Discard changes?'),
+        findsNothing,
+        reason: 'the dirty guard must not have run',
+      );
+      expect(
+        find.text('Unsynced changes'),
+        findsNothing,
+        reason: 'the outbox guard must not have run',
+      );
+      expect(discarded, isFalse, reason: 'no editor may have been reset');
+      expect(
+        await fixture.db.outboxDao.pendingCountForCompany('c1'),
+        1,
+        reason: 'the queued mutation must still be queued',
+      );
+      expect(fixture.services.auth.session.value?.currentCompanyId, 'c1');
+
+      fixture.services.recentlyViewed.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
   testWidgets(
     'forceResync surfaces a failure toast when the server is unreachable '
     'and leaves the active session intact (orchestration error path)',

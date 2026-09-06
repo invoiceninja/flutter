@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
 
 /// Rendered when the server's `x-minimum-client-version` exceeds our
 /// `kClientVersion`. No Retry — the next request would just bounce the same
@@ -56,15 +57,34 @@ class ClientTooOldScreen extends StatelessWidget {
                         icon: const Icon(Icons.logout),
                         label: Text(context.tr('sign_out')),
                         onPressed: () async {
-                          // Clear the too-old flag first so the router can
-                          // redirect cleanly to /login after logout completes.
-                          services.clientTooOld.value = null;
                           // Same rule as the 401 path: a destructive logout
                           // wipes the outbox, so preserve the local DB while
-                          // unsynced edits are still queued.
+                          // unsynced edits are still queued. Resolved once,
+                          // up front, because it picks the copy as well as
+                          // the call.
+                          final preserve = await services.sync
+                              .hasUnsyncedWork();
+                          if (!context.mounted) return;
+                          // On the preserve path nothing is cleared, so the
+                          // default warning would be false in exactly the
+                          // case that matters.
+                          if (!await showConfirmSignOutDialog(
+                            context,
+                            message: preserve
+                                ? context.tr('sign_out_keep_unsynced_warning')
+                                : null,
+                          )) {
+                            return;
+                          }
+                          if (!context.mounted) return;
+                          // Only now. `clientTooOld` sits in the router's
+                          // refreshListenable, so clearing it redirects off
+                          // /too-old on the next frame — do it before the
+                          // prompt and a CANCEL strands the user on the
+                          // dashboard of a server that rejects every request.
+                          services.clientTooOld.value = null;
                           await services.auth.logout(
-                            preserveLocalData: await services.sync
-                                .hasUnsyncedWork(),
+                            preserveLocalData: preserve,
                           );
                         },
                       ),

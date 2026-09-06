@@ -12,13 +12,15 @@ import 'package:admin/data/repositories/auth/auth_session.dart'
     show CanAddCompanyResult;
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 
 /// Shared user-flow helpers for settings screens. Keeps the confirmation
 /// dialogs / error toasts consistent across the surfaces that expose them —
-/// currently sign-out (`User Details`), sync (`Account Management → Overview`,
+/// currently sign-out (shared by every surface that offers it — the company
+/// picker, `User Details`), sync (`Account Management → Overview`,
 /// `Device Settings → Data`, and the sidebar's Sync button), and add-company
 /// (`Account Management → Overview` and the `CompanyPicker` sheet).
 /// They're called from places that otherwise have no shared state, so static
@@ -31,40 +33,44 @@ class SettingsActions {
   /// Show the sign-out confirmation dialog; if the user confirms, wipe the
   /// session (Drift + secure storage). Caller surfaces the loading state.
   ///
+  /// **The confirm runs first, before both guards, and that order is
+  /// load-bearing**: each guard has a side effect that fires before it renders
+  /// anything. `confirmIfDirty` invokes every dirty editor's `onDiscard` once
+  /// the user picks Discard, and `confirmPendingOutboxIfAny` calls `flushNow`
+  /// unconditionally when online. Ask second and a user who then taps Cancel
+  /// has already had their drafts reset and their queued mutations sent.
+  ///
+  /// [onStart] fires once every guard has passed and immediately before the
+  /// logout — the User Details button uses it to raise its spinner, so the
+  /// spinner means "signing out", not "deciding whether to". Unlike
+  /// [addCompany]'s callback of the same name, [context] stays valid after it:
+  /// nothing here pops.
+  ///
   /// Returns `true` when the user confirmed and the logout completed.
-  static Future<bool> signOut(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(ctx.tr('sign_out_question')),
-        content: Text(ctx.tr('sign_out_warning')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(ctx.tr('cancel')),
-          ),
-          PrimaryDialogAction(
-            variant: DialogActionVariant.tonal,
-            label: ctx.tr('sign_out'),
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !context.mounted) return false;
+  static Future<bool> signOut(
+    BuildContext context, {
+    VoidCallback? onStart,
+  }) async {
     final services = context.read<Services>();
-    // Warn about unsaved in-memory edits before wiping the session — mirrors
-    // the company picker's sign-out guard. No-op (returns true) when nothing
-    // is dirty.
+    // Names the account, not the company: sign-out is account-wide (hence
+    // `checkAllCompanies: true` below), and the picker this is most often
+    // launched from is an account menu that never otherwise says whose it is.
+    final confirmed = await showConfirmSignOutDialog(
+      context,
+      subject: services.auth.session.value?.userEmail,
+    );
+    if (!confirmed || !context.mounted) return false;
+    // Warn about unsaved in-memory edits before wiping the session. No-op
+    // (returns true) when nothing is dirty.
     if (!await services.unsavedChangesGuard.confirmIfDirty(context)) {
       return false;
     }
     if (!context.mounted) return false;
     // Then quiesce the outbox so an unsynced offline edit isn't silently
-    // dropped on logout — same guard the company picker applies. (logout()
-    // settles in-flight requests but does NOT drain still-pending rows before
-    // the Drift wipe, so without this they're lost.) Full logout wipes EVERY
-    // company's rows, so the guard checks all of them (outbox-derived).
+    // dropped on logout. (logout() settles in-flight requests but does NOT
+    // drain still-pending rows before the Drift wipe, so without this they're
+    // lost.) Full logout wipes EVERY company's rows, so the guard checks all
+    // of them (outbox-derived).
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId != null) {
       final outbox = await confirmPendingOutboxIfAny(
@@ -76,6 +82,7 @@ class SettingsActions {
         return false;
       }
     }
+    onStart?.call();
     await services.auth.logout();
     return true;
   }

@@ -293,6 +293,10 @@ void main() {
     expect(find.byType(LockScreen), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('lock_sign_out')));
+    // Every sign-out surface confirms first now; the lock screen is no
+    // exception (a full logout here wipes every company's pending outbox).
+    await _pumpUntilFound(tester, find.text('Sign out?'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
     await _pumpUntilFound(tester, find.byType(LoginScreen));
 
     expect(find.byType(LoginScreen), findsOneWidget);

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/language.dart';
@@ -245,7 +246,14 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
   }
 
   Future<void> _onSignOut() async {
+    // Resolved before the first await so the confirm below doesn't push a
+    // `context` read past one (`use_build_context_synchronously`).
     final services = context.read<Services>();
+    // Note this screen reaches sign-out twice: here, and via
+    // `_onSwitchCompany` -> `showCompanyPicker` -> the picker's Log Out row,
+    // which carries its own confirm through `SettingsActions.signOut`.
+    if (!await showConfirmSignOutDialog(context)) return;
+    if (!mounted) return;
     // Full logout wipes every company's local DB — quiesce pending offline
     // rows first, same guard as every other sign-out entry point.
     final companyId = services.auth.session.value?.currentCompanyId;

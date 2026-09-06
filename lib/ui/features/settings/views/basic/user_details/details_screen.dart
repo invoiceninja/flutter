@@ -7,7 +7,6 @@ import 'package:admin/data/models/value/language.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
-import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/view_models/user_details_view_model.dart';
@@ -203,31 +202,24 @@ class _SignOutSectionState extends State<_SignOutSection> {
   bool _busy = false;
 
   Future<void> _onSignOutPressed() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) {
-        return AlertDialog(
-          title: Text(dialogCtx.tr('sign_out')),
-          content: Text(dialogCtx.tr('are_you_sure')),
-          actions: [
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-              onPressed: () => Navigator.of(dialogCtx).pop(false),
-              child: Text(dialogCtx.tr('cancel')),
-            ),
-            PrimaryDialogAction(
-              variant: DialogActionVariant.destructive,
-              label: dialogCtx.tr('sign_out'),
-              onPressed: () => Navigator.of(dialogCtx).pop(true),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() => _busy = true);
-    await SettingsActions.signOut(context);
-    if (mounted) setState(() => _busy = false);
+    try {
+      // The confirm lives inside SettingsActions.signOut, which every
+      // sign-out surface now shares. This screen used to raise its own
+      // AlertDialog first, so signing out from here cost the user two
+      // prompts back to back.
+      await SettingsActions.signOut(
+        context,
+        // Raised only past the confirm and both guards, so the spinner means
+        // "signing out" rather than "deciding whether to".
+        onStart: () {
+          if (mounted) setState(() => _busy = true);
+        },
+      );
+    } finally {
+      // `logout()` can throw (secure-storage delete). Without the finally the
+      // button latches disabled with no way back.
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override

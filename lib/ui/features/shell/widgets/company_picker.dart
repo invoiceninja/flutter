@@ -12,7 +12,6 @@ import 'package:admin/domain/upgrade/upgrade_launcher.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/shell/widgets/company_avatar.dart';
-import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 import 'package:admin/ui/features/shell/widgets/switch_company_guarded.dart';
 
 /// Overlay content: list of companies, a placeholder "New company" action,
@@ -141,25 +140,26 @@ class _CompanyPickerState extends State<CompanyPicker> {
     if (mounted) setState(() => _busy = false);
   }
 
-  Future<void> _signOut(AuthSession session) async {
+  Future<void> _signOut() async {
     if (_switching) return;
-    final guard = context.read<Services>().unsavedChangesGuard;
-    if (!await guard.confirmIfDirty(context)) return;
-    if (!mounted) return;
-    final result = await confirmPendingOutboxIfAny(
-      context,
-      companyId: session.currentCompanyId,
-      // Full logout wipes every company's rows — check them all.
-      checkAllCompanies: true,
-    );
-    if (result == OutboxConfirmResult.cancelled || !mounted) return;
+    // The flow lives in `SettingsActions.signOut` — confirm, unsaved guard,
+    // outbox quiesce, logout — because Settings -> User Details offers the
+    // same action and the two used to drift (this row had no confirm at all).
+    // Mirrors `_handleNewCompany` above. This row keeps only what is local to
+    // the sheet: the re-entrancy latch and closing itself.
     setState(() => _busy = true);
-    await context.read<Services>().auth.logout();
-    // Router redirects to /login. Close the picker overlay first so it
-    // doesn't sit over the login screen.
-    if (mounted) {
-      setState(() => _busy = false);
-      unawaited(Navigator.of(context).maybePop());
+    try {
+      if (!await SettingsActions.signOut(context)) return;
+      // Router redirects to /login. Close the picker overlay first so it
+      // doesn't sit over the login screen. Deliberately NOT routed through
+      // `onStart`: that fires before the logout, which would race the sheet's
+      // dismiss animation against the redirect. `Navigator.of` is resolved
+      // fresh under `mounted`, never captured — see `_pick`.
+      if (mounted) unawaited(Navigator.of(context).maybePop());
+    } finally {
+      // `logout()` can throw; without this every row stays gated by
+      // `_switching` with no way back.
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -248,7 +248,7 @@ class _CompanyPickerState extends State<CompanyPicker> {
                 _ActionRow(
                   icon: Icons.logout,
                   label: context.tr('logout'),
-                  onTap: _switching ? null : () => _signOut(session),
+                  onTap: _switching ? null : () => _signOut(),
                 ),
               ],
             ),

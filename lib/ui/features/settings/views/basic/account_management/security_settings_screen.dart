@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/company_settings_gate.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -87,11 +88,30 @@ class _AccountManagementSecuritySettingsScreenState
     final messenger = ScaffoldMessenger.maybeOf(context);
     final successMsg = context.tr('ended_all_sessions');
     final errorMsg = context.tr('error_refresh_page');
+    // Confirm FIRST, before either guard: `confirmIfDirty` resets every dirty
+    // editor on Discard and `confirmPendingOutboxIfAny` flushes when online,
+    // so asking second means a Cancel has already done both.
+    //
+    // Its own copy, not the sign-out default: verified against the server,
+    // `LogoutController::index` rotates every `is_system` token on the
+    // *company*, so this signs out every user of it on all their devices —
+    // a wider blast radius than the verb suggests. Unconditional, like every
+    // other sign-out prompt; `showConfirmActionDialog` would be wrong here
+    // because its non-item callers all gate on the Confirm-actions
+    // preference, which must not be able to disable this.
+    if (!await showConfirmSignOutDialog(
+      context,
+      title: context.tr('end_all_sessions'),
+      message: context.tr('end_all_sessions_warning'),
+      destructive: true,
+    )) {
+      return;
+    }
+    if (!mounted) return;
     // endAllSessions() rotates every token server-side BEFORE the local
     // logout wipes Drift — once that POST lands, pending outbox rows can
-    // never be synced. Quiesce unsaved edits and the outbox first, mirroring
-    // SettingsActions.signOut and the company picker (CLAUDE.md: logout with
-    // pending rows must prompt, never silently drop user data).
+    // never be synced. Quiesce unsaved edits and the outbox first (CLAUDE.md:
+    // logout with pending rows must prompt, never silently drop user data).
     if (!await services.unsavedChangesGuard.confirmIfDirty(context)) {
       return;
     }

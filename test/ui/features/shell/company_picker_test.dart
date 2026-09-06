@@ -154,6 +154,93 @@ void main() {
     await _drain(tester, fixture);
   });
 
+  // The Log Out row shipped with NO confirmation: `confirmIfDirty` and
+  // `confirmPendingOutboxIfAny` are both silent no-ops when nothing is dirty,
+  // which is the common case, so one tap wiped every company's local DB.
+  testWidgets('Log Out confirms before touching the session', (tester) async {
+    final fixture = await buildFixture(
+      companies: const [
+        FakeCompany(id: 'c1', name: 'Acme Co', token: 'tok-c1'),
+      ],
+      currentCompanyId: 'c1',
+    );
+    addTearDown(fixture.dispose);
+
+    // Routed, not rooted: `_signOut` pops the picker on success, and rooted at
+    // `home` a `maybePop` finds nothing to pop and the State stays mounted —
+    // so the "still open" assertion below would pass whatever the code did.
+    await _pumpRoutedPicker(tester, fixture);
+
+    await tester.tap(find.text('Log Out'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign out?'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign out?'), findsNothing);
+    expect(
+      fixture.services.auth.session.value?.currentCompanyId,
+      'c1',
+      reason: 'Cancel must leave the session untouched',
+    );
+    expect(
+      find.byType(CompanyPicker),
+      findsOneWidget,
+      reason: 'and must not close the picker',
+    );
+
+    await _drain(tester, fixture);
+  });
+
+  // The picker used to own its guards inline; it now delegates to
+  // `SettingsActions.signOut`. This is what proves the delegation kept them.
+  testWidgets('confirming Log Out still reaches the pending-outbox guard', (
+    tester,
+  ) async {
+    final fixture = await buildFixture(
+      companies: const [
+        FakeCompany(id: 'c1', name: 'Acme Co', token: 'tok-c1'),
+      ],
+      currentCompanyId: 'c1',
+    );
+    addTearDown(fixture.dispose);
+
+    await fixture.db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'c1',
+        entityType: 'client',
+        entityId: 'x',
+        mutationKind: 'update',
+        payload: '{}',
+        idempotencyKey: 'k',
+        createdAt: 0,
+        nextAttemptAt: 0,
+        requiresPassword: const Value(false),
+      ),
+    );
+
+    await tester.pumpWidget(
+      wrapWithShell(fixture.services, const CompanyPicker(fillWidth: true)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Log Out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsynced changes'), findsOneWidget);
+    expect(find.text('Sync first'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(fixture.services.auth.session.value?.currentCompanyId, 'c1');
+
+    await _drain(tester, fixture);
+  });
+
   testWidgets('passes settings.company_logo through to CompanyAvatar', (
     tester,
   ) async {

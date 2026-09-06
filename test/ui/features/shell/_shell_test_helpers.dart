@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/services/biometric_service.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
@@ -132,6 +133,12 @@ Future<ShellFixture> buildFixture({
   // that one reports `canSync == true` and then talks to a method channel that
   // isn't there. Contacts-sync tests must pass a fake.
   DeviceContactsService? deviceContactsService,
+  // Same trap as the address book: left null, `Services.build` picks the
+  // real `local_auth` impl, whose `authenticate()` never completes under
+  // `flutter test` (no plugin on the other end of the channel). Anything
+  // that pumps the lock screen hangs on `busy` forever unless it passes a
+  // fake.
+  BiometricService? biometricService,
 }) async {
   final db = AppDatabase(NativeDatabase.memory());
 
@@ -189,6 +196,7 @@ Future<ShellFixture> buildFixture({
     connectivityWatcher: ConnectivityWatcher.fixed(online: online),
     httpClient: httpClient ?? _failFastClient(),
     deviceContactsService: deviceContactsService,
+    biometricService: biometricService,
   );
   await services.auth.restore();
   // `restore()` starts the Services-owned RefreshScheduler's periodic 5-min

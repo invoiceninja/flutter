@@ -26,6 +26,9 @@ import 'package:admin/utils/formatting.dart';
 /// document's own id in the expense column. The two tables have independent
 /// auto-increment ids, so that frequently resolves to a real but unrelated
 /// expense, and a PO comment would be labelled with its number.
+///
+/// Ordering alone does **not** cover those two on their *own* detail screen —
+/// see [_kExpenseIdAliasHosts].
 const List<String> _kNoteSourceTokens = [
   'invoice',
   'quote',
@@ -37,6 +40,25 @@ const List<String> _kNoteSourceTokens = [
   'recurring_expense',
   'expense',
 ];
+
+/// Hosts whose own id `ActivityController::note()` *also* writes into
+/// `activities.expense_id` (`ActivityController.php`, the `PurchaseOrder` and
+/// `RecurringExpense` cases both do `$activity->expense_id = $entity->id`).
+///
+/// Sorting these ahead of `expense` in [_kNoteSourceTokens] is enough
+/// everywhere the note is read from *another* record's feed — the document's
+/// own token matches first. It is not enough on the document's own screen,
+/// where that token is skipped as the host and the loop falls straight through
+/// to the aliased `expense` ref. There the ref is never a real relation, only
+/// the id collision, so it is dropped outright.
+///
+/// Not a general "skip the parent" rule: `Credit` copies `$entity->invoice_id`,
+/// the credit's *real* invoice, so a credit's comment naming that invoice is
+/// true and stays.
+const Set<String> _kExpenseIdAliasHosts = {
+  'purchase_order',
+  'recurring_expense',
+};
 
 /// One synced activity / comment row, shared by every detail-screen Activity
 /// tab, the comments-only tab, and the Comments card. Renders a tone-colored
@@ -172,8 +194,10 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
   ActivityRef? _sourceRef(Activity a) {
     final host = widget.hostWireName;
     if (host == null || !a.isComment) return null;
+    final aliasesExpense = _kExpenseIdAliasHosts.contains(host);
     for (final token in _kNoteSourceTokens) {
       if (token == host) continue;
+      if (aliasesExpense && token == 'expense') continue;
       final ref = a.refs[token];
       if ((ref?.label.trim() ?? '').isNotEmpty) return ref;
     }

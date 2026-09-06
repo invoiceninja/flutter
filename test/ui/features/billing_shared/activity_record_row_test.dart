@@ -246,6 +246,64 @@ void main() {
       expect(text, contains('PO-7'));
       expect(text, isNot(contains('EXP-999')));
     });
+
+    testWidgets('the poisoned expense ref is dropped on the PO\'s own screen', (
+      tester,
+    ) async {
+      // The sibling test above proves the ORDERING covers another record's
+      // feed. It cannot cover the purchase order's own screen: there
+      // `purchase_order` is skipped as the host, and the loop used to fall
+      // straight through to the `expense` ref `note()` minted from that same
+      // id — so every comment on every PO was labelled with an unrelated
+      // expense's number, and `View Record` navigated to it.
+      final text = await _render(
+        tester,
+        _activity(
+          typeId: 141,
+          notes: 'Chasing',
+          refs: {
+            'user': const ActivityRef(label: 'Jane Doe'),
+            'purchase_order': const ActivityRef(
+              label: 'PO-7',
+              type: EntityType.purchaseOrder,
+              id: 'po1',
+            ),
+            'expense': const ActivityRef(
+              label: 'EXP-999',
+              type: EntityType.expense,
+              id: 'exp1',
+            ),
+          },
+        ),
+        hostWireName: 'purchase_order',
+      );
+      expect(text, isNot(contains('EXP-999')));
+      expect(text, isNot(contains('PO-7')));
+    });
+
+    testWidgets('a real expense ref still shows on an expense-less host', (
+      tester,
+    ) async {
+      // The guard is scoped to the two hosts whose id `note()` aliases — it
+      // must not blind every other screen to a genuine expense reference.
+      final text = await _render(
+        tester,
+        _activity(
+          typeId: 141,
+          notes: 'Chasing',
+          refs: {
+            'user': const ActivityRef(label: 'Jane Doe'),
+            'expense': const ActivityRef(
+              label: 'EXP-42',
+              type: EntityType.expense,
+              id: 'exp1',
+            ),
+          },
+        ),
+        hostWireName: 'client',
+      );
+      expect(text, contains('EXP-42'));
+    });
   });
 
   testWidgets('type 10 picks online template when a contact is present', (
@@ -547,6 +605,35 @@ void main() {
         tester,
         _activity(typeId: 141, notes: 'Chased this'),
         hostWireName: 'client',
+      );
+      await openMenu(tester);
+      expect(find.widgetWithText(MenuItemButton, 'View Record'), findsNothing);
+    });
+
+    testWidgets('View record is absent for a PO note on its own screen', (
+      tester,
+    ) async {
+      // The navigation half of the same bug: the aliased `expense` ref would
+      // have sent `goEntityRecord` to an unrelated expense.
+      await _render(
+        tester,
+        _activity(
+          typeId: 141,
+          notes: 'Chased this',
+          refs: {
+            'purchase_order': const ActivityRef(
+              label: 'PO-7',
+              type: EntityType.purchaseOrder,
+              id: 'po1',
+            ),
+            'expense': const ActivityRef(
+              label: 'EXP-999',
+              type: EntityType.expense,
+              id: 'exp1',
+            ),
+          },
+        ),
+        hostWireName: 'purchase_order',
       );
       await openMenu(tester);
       expect(find.widgetWithText(MenuItemButton, 'View Record'), findsNothing);

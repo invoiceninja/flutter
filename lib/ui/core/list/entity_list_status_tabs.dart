@@ -167,13 +167,14 @@ class _EntityListStatusTabsState extends State<EntityListStatusTabs> {
   /// tearing down and re-subscribing its count stream for nothing.
   final _tabKeys = <GlobalKey>[];
   bool _didRevealSelection = false;
+  bool _didScheduleFirstFrame = false;
 
   @override
   void initState() {
     super.initState();
     _ensureKeys();
     _ensureStreams();
-    _scheduleReveal();
+    _scheduleFirstFrame();
   }
 
   @override
@@ -207,22 +208,42 @@ class _EntityListStatusTabsState extends State<EntityListStatusTabs> {
       );
   }
 
-  void _scheduleReveal() {
+  /// Reveal the restored tab, then rebuild once so the edge fades can read a
+  /// scroll position that only exists after the first layout.
+  ///
+  /// `attach` adds the controller's listener but does not itself notify, so
+  /// without the rebuild a strip nobody scrolls never paints its trailing fade.
+  /// The reveal keeps its own latch — it must fire once, for a restored
+  /// selection — while the rebuild is unconditional (a strip whose selection is
+  /// tab 0 still overflows and still needs the hint).
+  void _scheduleFirstFrame() {
+    if (_didScheduleFirstFrame) return;
+    _didScheduleFirstFrame = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _revealSelection();
+      setState(() {});
+    });
+  }
+
+  void _revealSelection() {
     if (_didRevealSelection || widget.selectedIndex <= 0) return;
     _didRevealSelection = true;
     final index = widget.selectedIndex;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (index >= _tabKeys.length) return;
-      final ctx = _tabKeys[index].currentContext;
-      if (ctx != null && mounted) {
-        Scrollable.ensureVisible(ctx, alignment: 0.5, duration: Duration.zero);
-      }
-    });
+    if (index >= _tabKeys.length) return;
+    final ctx = _tabKeys[index].currentContext;
+    if (ctx == null) return;
+    // `Scrollable.ensureVisible` walks every enclosing scrollable, which is
+    // safe here only because `_bodyWithBanner` mounts this strip as a plain
+    // `Column` sibling of the list — the walk finds nothing but our own
+    // horizontal scroller. Don't move the strip inside a scroll view without
+    // switching to `_scroll.position.ensureVisible`.
+    Scrollable.ensureVisible(ctx, alignment: 0.5, duration: Duration.zero);
   }
 
   @override
   Widget build(BuildContext context) {
-    _scheduleReveal();
+    _scheduleFirstFrame();
     final tokens = context.inTheme;
     // The strip can be hosted without a Scaffold (embedded / test pumps), so it
     // supplies the Material its InkWells need. Transparent = no visual change.
@@ -232,57 +253,116 @@ class _EntityListStatusTabsState extends State<EntityListStatusTabs> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Stack(
-            children: [
-              SingleChildScrollView(
-                controller: _scroll,
-                scrollDirection: Axis.horizontal,
-                padding: widget.contentPadding,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < widget.tabs.length; i++)
-                      _StatusTabButton(
-                        key: _tabKeys[i],
-                        tab: widget.tabs[i],
-                        active: i == widget.selectedIndex,
-                        tokens: tokens,
-                        countStream: widget.showCounts
-                            ? _streams[widget.tabs[i].countModeId]
-                            : null,
-                        onTap: widget.enabled
-                            ? () => widget.onTap(widget.tabs[i])
-                            : null,
-                      ),
-                  ],
+          // A width change that leaves `pixels` alone — a rotation, a window
+          // resize, the pane widening until the strip fits — reaches no
+          // `ScrollController` listener: `applyContentDimensions` only schedules
+          // a `ScrollMetricsNotification`. Without this the strip keeps whichever
+          // fades the previous width called for.
+          NotificationListener<ScrollMetricsNotification>(
+            onNotification: (_) {
+              if (mounted) setState(() {});
+              return false;
+            },
+            child: Stack(
+              children: [
+                SingleChildScrollView(
+                  controller: _scroll,
+                  scrollDirection: Axis.horizontal,
+                  padding: widget.contentPadding,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < widget.tabs.length; i++)
+                        _StatusTabButton(
+                          key: _tabKeys[i],
+                          tab: widget.tabs[i],
+                          active: i == widget.selectedIndex,
+                          tokens: tokens,
+                          countStream: widget.showCounts
+                              ? _streams[widget.tabs[i].countModeId]
+                              : null,
+                          onTap: widget.enabled
+                              ? () => widget.onTap(widget.tabs[i])
+                              : null,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              // Fade hinting that more tabs scroll off-screen. Directional so it
-              // lands on the trailing edge in Arabic / Hebrew too.
-              PositionedDirectional(
-                top: 0,
-                bottom: 0,
-                end: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 24,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: AlignmentDirectional.centerStart,
-                        end: AlignmentDirectional.centerEnd,
-                        colors: [tokens.bg.withValues(alpha: 0), tokens.bg],
-                      ),
+                // Fades hinting that more tabs scroll off-screen, GATED on the
+                // scroll position — the same shape `EntityDetailTabs` uses.
+                // Unconditional, the trailing one veils the last tab's own count
+                // badge as soon as the strip reaches its end: the scroller has no
+                // trailing `contentPadding`, and the badge is the tab's last child
+                // behind only `InSpacing.md` (8 px on a phone), so it sits inside
+                // the 24 px gradient. Reachable by flicking the strip, and by a
+                // `badge_mode` restored from `nav_state` naming the last tab —
+                // `_revealSelection` clamps to `maxScrollExtent` and parks it
+                // flush against that edge. The leading fade was missing outright,
+                // so a scrolled strip gave no hint that "All" was off-screen.
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _scroll,
+                      builder: (context, _) {
+                        // `hasContentDimensions`, not just `hasClients`: the
+                        // position attaches on the first build but its extents
+                        // only exist after layout, and reading one early throws a
+                        // null check straight out of
+                        // `ScrollPosition.minScrollExtent`.
+                        final p =
+                            _scroll.hasClients &&
+                                _scroll.position.hasContentDimensions
+                            ? _scroll.position
+                            : null;
+                        final atStart =
+                            p == null || p.pixels <= p.minScrollExtent;
+                        final atEnd =
+                            p == null || p.pixels >= p.maxScrollExtent;
+                        return Stack(
+                          children: [
+                            if (!atStart) _edgeFade(tokens, leading: true),
+                            if (!atEnd) _edgeFade(tokens, leading: false),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           Divider(height: 1, thickness: 1, color: tokens.border),
         ],
       ),
     );
   }
+
+  /// A gradient hinting that more tabs lie beyond one edge.
+  ///
+  /// `PositionedDirectional` + `AlignmentDirectional` so it lands on the right
+  /// physical edge in Arabic / Hebrew too — the reason this isn't shared with
+  /// `EntityDetailTabs._edgeFade`, which is `Positioned` + `Alignment`.
+  Widget _edgeFade(InTheme tokens, {required bool leading}) =>
+      PositionedDirectional(
+        top: 0,
+        bottom: 0,
+        start: leading ? 0 : null,
+        end: leading ? null : 0,
+        child: Container(
+          width: 24,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: leading
+                  ? AlignmentDirectional.centerEnd
+                  : AlignmentDirectional.centerStart,
+              end: leading
+                  ? AlignmentDirectional.centerStart
+                  : AlignmentDirectional.centerEnd,
+              colors: [tokens.bg.withValues(alpha: 0), tokens.bg],
+            ),
+          ),
+        ),
+      );
 }
 
 class _StatusTabButton extends StatelessWidget {

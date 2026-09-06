@@ -223,4 +223,91 @@ void main() {
     await tester.pumpAndSettle();
     expect(streamsBuilt, afterFirst * 2);
   });
+
+  group('edge fades', () {
+    // The gradients are the only `Container`s in the strip carrying one — the
+    // tab buttons decorate with a border. Counting them beats poking at
+    // geometry, and tells the two edges apart via their gradient direction.
+    Finder fades() => find.byWidgetPredicate(
+      (w) =>
+          w is Container &&
+          w.decoration is BoxDecoration &&
+          (w.decoration! as BoxDecoration).gradient != null,
+    );
+
+    bool isLeading(Container c) =>
+        ((c.decoration! as BoxDecoration).gradient! as LinearGradient).begin ==
+        AlignmentDirectional.centerEnd;
+
+    List<bool> leadingFlags(WidgetTester tester) => tester
+        .widgetList<Container>(fades())
+        .map(isLeading)
+        .toList(growable: false);
+
+    /// A viewport too narrow for the five invoice tabs, so the strip scrolls.
+    Future<void> pumpNarrow(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('at rest only the trailing edge fades', (tester) async {
+      await pumpNarrow(tester);
+      expect(
+        leadingFlags(tester),
+        [false],
+        reason:
+            'a strip parked at offset 0 has nothing off-screen to its left, so '
+            'a leading fade would veil the first tab for no reason',
+      );
+    });
+
+    testWidgets('scrolled to the end only the leading edge fades', (
+      tester,
+    ) async {
+      await pumpNarrow(tester);
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position;
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(
+        leadingFlags(tester),
+        [true],
+        reason:
+            'the last tab is now flush against the trailing edge and its count '
+            'badge sits only InSpacing.md inside it, so an ungated trailing '
+            'fade would veil the number',
+      );
+    });
+
+    testWidgets('mid-scroll both edges fade', (tester) async {
+      await pumpNarrow(tester);
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position;
+      expect(
+        position.maxScrollExtent,
+        greaterThan(0),
+        reason:
+            'the fixture must actually overflow or this group proves '
+            'nothing',
+      );
+      position.jumpTo(position.maxScrollExtent / 2);
+      await tester.pumpAndSettle();
+      final flags = leadingFlags(tester);
+      expect(flags, hasLength(2));
+      expect(flags.toSet(), {true, false});
+    });
+
+    testWidgets('a strip that fits fades neither edge', (tester) async {
+      // The first-frame rebuild exists for exactly this case: nobody scrolls,
+      // so the controller never ticks on its own.
+      await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
+      expect(fades(), findsNothing);
+    });
+  });
 }

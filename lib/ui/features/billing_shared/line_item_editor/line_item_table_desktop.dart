@@ -1457,7 +1457,10 @@ class _NumericCell extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       onChanged: (_) => onChanged(),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
+        signed: true,
+      ),
       textAlign: TextAlign.right,
       textAlignVertical: TextAlignVertical.center,
       style: moneyTextStyle(color: tokens.ink, fontSize: 13),

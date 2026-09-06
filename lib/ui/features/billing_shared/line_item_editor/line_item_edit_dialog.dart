@@ -173,6 +173,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                       ),
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
+                        signed: true,
                       ),
                     ),
                   ),
@@ -183,6 +184,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                       decoration: InputDecoration(labelText: label('quantity')),
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
+                        signed: true,
                       ),
                     ),
                   ),
@@ -195,6 +197,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
                   decoration: InputDecoration(labelText: label('discount')),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
+                    signed: true,
                   ),
                 ),
               ],

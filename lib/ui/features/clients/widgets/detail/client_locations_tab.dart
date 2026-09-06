@@ -308,12 +308,22 @@ class _LocationFormDialogState extends State<_LocationFormDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _field(context, _name, 'name'),
-              _field(context, _address1, 'address1'),
-              _field(context, _address2, 'address2'),
-              _field(context, _city, 'city'),
+              // `words` is opted into per field, never defaulted: `state`
+              // is bimodal ("California" / "CA") and auto-shifting only the
+              // first letter turns the abbreviation into "Ca".
+              _w(context, _name, 'name'),
+              _w(context, _address1, 'address1'),
+              _w(context, _address2, 'address2'),
+              _w(context, _city, 'city'),
               _field(context, _state, 'state'),
-              _field(context, _postalCode, 'postal_code'),
+              // Alphanumeric outside the US — uppercase, never numeric.
+              _field(
+                context,
+                _postalCode,
+                'postal_code',
+                textCapitalization: TextCapitalization.characters,
+                autocorrect: false,
+              ),
               const SizedBox(height: 8),
               ClientEditCountryField(
                 initial: _countryId,
@@ -364,16 +374,30 @@ class _LocationFormDialogState extends State<_LocationFormDialog> {
     );
   }
 
+  /// [_field] with word capitalization — the proper-noun rows.
+  Widget _w(BuildContext context, TextEditingController c, String labelKey) =>
+      _field(
+        context,
+        c,
+        labelKey,
+        textCapitalization: TextCapitalization.words,
+      );
+
   Widget _field(
     BuildContext context,
     TextEditingController c,
-    String labelKey,
-  ) => Padding(
+    String labelKey, {
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    bool autocorrect = true,
+  }) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: TextField(
       controller: c,
       // Single-line: Enter submits the form (matches the § Forms convention).
       textInputAction: TextInputAction.done,
+      textCapitalization: textCapitalization,
+      autocorrect: autocorrect,
+      enableSuggestions: autocorrect,
       onSubmitted: (_) {
         if (!_busy) _save();
       },

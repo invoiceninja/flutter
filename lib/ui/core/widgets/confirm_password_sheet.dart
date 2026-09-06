@@ -138,6 +138,9 @@ class _PasswordField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscure,
+      keyboardType: TextInputType.visiblePassword,
+      autocorrect: false,
+      enableSuggestions: false,
       autofocus: true,
       decoration: InputDecoration(
         labelText: context.tr('password'),

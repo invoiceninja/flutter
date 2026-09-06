@@ -27,12 +27,14 @@ class ExpenseEditBankingSection extends StatelessWidget {
           initial: vm.draft.bankId,
           onChanged: vm.setBankId,
           readOnly: linked,
+          autocorrect: false,
         ),
         EntityEditField(
           label: context.tr('transaction_id'),
           initial: vm.draft.transactionId,
           onChanged: vm.setTransactionId,
           readOnly: linked,
+          autocorrect: false,
         ),
         if (vm.draft.transactionId.isNotEmpty)
           Padding(
@@ -57,6 +59,7 @@ class ExpenseEditBankingSection extends StatelessWidget {
           label: context.tr('transaction_reference'),
           initial: vm.draft.transactionReference,
           onChanged: vm.setTransactionReference,
+          autocorrect: false,
         ),
       ],
     );

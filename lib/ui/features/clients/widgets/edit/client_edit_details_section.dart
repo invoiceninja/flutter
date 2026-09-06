@@ -42,12 +42,14 @@ class ClientEditDetailsSection extends StatelessWidget {
               onChanged: vm.setName,
               autofocus: vm.isCreate,
               errorText: vm.fieldErrorFor('name'),
+              textCapitalization: TextCapitalization.words,
             ),
             right: EntityEditField(
               label: context.tr('number'),
               initial: draft.number,
               onChanged: vm.setNumber,
               errorText: vm.fieldErrorFor('number'),
+              autocorrect: false,
             ),
           ),
           ClientEditFieldPair(
@@ -56,12 +58,14 @@ class ClientEditDetailsSection extends StatelessWidget {
               initial: draft.idNumber,
               onChanged: vm.setIdNumber,
               errorText: vm.fieldErrorFor('id_number'),
+              autocorrect: false,
             ),
             right: EntityEditField(
               label: context.tr('vat_number'),
               initial: draft.vatNumber,
               onChanged: vm.setVatNumber,
               errorText: vm.fieldErrorFor('vat_number'),
+              autocorrect: false,
             ),
           ),
           ClientEditFieldPair(

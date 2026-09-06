@@ -53,6 +53,7 @@ class ProductEditDetailsSection extends StatelessWidget {
                 onChanged: vm.setProductKey,
                 autofocus: vm.isCreate,
                 errorText: vm.fieldErrorFor('product_key'),
+                autocorrect: false,
               ),
               EntityEditField(
                 label: context.tr('price'),
@@ -91,6 +92,7 @@ class ProductEditDetailsSection extends StatelessWidget {
                 onChanged: vm.setNotes,
                 minLines: 2,
                 maxLines: null,
+                textCapitalization: TextCapitalization.sentences,
               ),
               SizedBox(height: InSpacing.md(context)),
               EntityTagsField(

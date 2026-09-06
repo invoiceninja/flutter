@@ -237,6 +237,7 @@ class _IdentitySection extends StatelessWidget {
           initialValue: vm.draft.number,
           decoration: InputDecoration(labelText: context.tr('number')),
           onChanged: vm.setNumber,
+          autocorrect: false,
         ),
         const SizedBox(height: 12),
         InDateField(
@@ -276,6 +277,7 @@ class _PaymentMetaSection extends StatelessWidget {
             labelText: context.tr('transaction_reference'),
           ),
           onChanged: vm.setTransactionReference,
+          autocorrect: false,
         ),
       ],
     );

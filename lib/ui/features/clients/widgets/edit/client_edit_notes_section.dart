@@ -26,6 +26,7 @@ class ClientEditNotesSection extends StatelessWidget {
             onChanged: vm.setPrivateNotes,
             minLines: 3,
             maxLines: null,
+            textCapitalization: TextCapitalization.sentences,
           ),
           EntityEditField(
             label: context.tr('public_notes'),
@@ -33,6 +34,7 @@ class ClientEditNotesSection extends StatelessWidget {
             onChanged: vm.setPublicNotes,
             minLines: 3,
             maxLines: null,
+            textCapitalization: TextCapitalization.sentences,
           ),
         ],
       ),

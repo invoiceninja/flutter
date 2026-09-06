@@ -226,6 +226,12 @@ class _PassphraseRowState extends State<_PassphraseRow> {
           child: TextField(
             controller: _controller,
             obscureText: _obscured,
+            // Stored service credential, not the user's own login: keyboard
+            // hardened, and autofillHints deliberately never set so the OS
+            // password manager can't offer or capture it here.
+            keyboardType: TextInputType.visiblePassword,
+            autocorrect: false,
+            enableSuggestions: false,
             textInputAction: TextInputAction.done,
             decoration: InputDecoration(
               labelText: context.tr('certificate_passphrase'),

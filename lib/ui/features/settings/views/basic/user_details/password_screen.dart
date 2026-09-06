@@ -58,45 +58,61 @@ class _UserDetailsPasswordScreenState extends State<UserDetailsPasswordScreen> {
     final scope = FormSaveScope.maybeOf(context);
     return SettingsFormShell(
       sections: [
-        FormSection(
-          title: context.tr('password'),
-          children: [
-            TextField(
-              controller: _password,
-              obscureText: _obscure,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                labelText: context.tr('new_password'),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscure
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
+        // Correlates the pair so the OS offers to save the new password once,
+        // rather than treating each field as an orphan. Wraps the *section*,
+        // not its children: `FormSection._interleave` returns the list
+        // untouched below two children, so collapsing the three children into
+        // one AutofillGroup silently cut the gap between the fields from
+        // 3x InSpacing.lg to 1x. AutofillGroup builds no RenderObject, so
+        // wrapping out here changes no layout at all.
+        AutofillGroup(
+          child: FormSection(
+            title: context.tr('password'),
+            children: [
+              TextField(
+                controller: _password,
+                obscureText: _obscure,
+                autocorrect: false,
+                enableSuggestions: false,
+                keyboardType: TextInputType.visiblePassword,
+                // `newPassword`, not `password`: this is a change-password form,
+                // so the OS should offer to generate and save a new credential
+                // rather than fill the existing one.
+                autofillHints: const [AutofillHints.newPassword],
+                decoration: InputDecoration(
+                  labelText: context.tr('new_password'),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscure
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    tooltip: _obscure
+                        ? context.tr('show_password')
+                        : context.tr('hide_password'),
+                    onPressed: () => setState(() => _obscure = !_obscure),
                   ),
-                  tooltip: _obscure
-                      ? context.tr('show_password')
-                      : context.tr('hide_password'),
-                  onPressed: () => setState(() => _obscure = !_obscure),
+                  errorText: fieldError ?? _passwordError(),
                 ),
-                errorText: fieldError ?? _passwordError(),
+                textInputAction: TextInputAction.next,
               ),
-              textInputAction: TextInputAction.next,
-            ),
-            SizedBox(height: InSpacing.lg(context)),
-            TextField(
-              controller: _confirm,
-              obscureText: _obscure,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                labelText: context.tr('confirm_password'),
-                errorText: _confirmError(),
+              SizedBox(height: InSpacing.lg(context)),
+              TextField(
+                controller: _confirm,
+                obscureText: _obscure,
+                autocorrect: false,
+                enableSuggestions: false,
+                keyboardType: TextInputType.visiblePassword,
+                autofillHints: const [AutofillHints.newPassword],
+                decoration: InputDecoration(
+                  labelText: context.tr('confirm_password'),
+                  errorText: _confirmError(),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: scope == null ? null : (_) => scope.trySubmit(),
               ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: scope == null ? null : (_) => scope.trySubmit(),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );

@@ -471,6 +471,10 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
                           // onSubmitted so "Done"/"Search" reliably commits
                           // (the `Focus(onKeyEvent:)` path catches only the
                           // hardware key, which IMEs emit inconsistently).
+                          // Search queries are names and numbers, not prose — iOS
+                          // autocorrecting "Acme" to "Acne" mid-search is the failure.
+                          autocorrect: false,
+                          enableSuggestions: false,
                           textInputAction: TextInputAction.search,
                           onSubmitted: (_) => _onSubmit(),
                           decoration: InputDecoration(

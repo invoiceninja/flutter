@@ -219,6 +219,7 @@ class _LimitsAndFeesEditor extends StatelessWidget {
               initialValue: _seed(fees.feeAmount),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
+                signed: true,
               ),
               decoration: InputDecoration(labelText: context.tr('fee_amount')),
               onChanged: (v) =>
@@ -228,6 +229,7 @@ class _LimitsAndFeesEditor extends StatelessWidget {
               initialValue: _seed(fees.feePercent),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
+                signed: true,
               ),
               decoration: InputDecoration(labelText: context.tr('fee_percent')),
               onChanged: (v) =>
@@ -246,6 +248,10 @@ class _LimitsAndFeesEditor extends StatelessWidget {
               ),
             TextFormField(
               initialValue: _seed(fees.feeCap),
+              // NOT signed, unlike the fee amount / percent above: those can
+              // be negative (a discount for using this method), but a ceiling
+              // on a fee has no negative form — same reason min_amount and
+              // max_amount stay unsigned.
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),

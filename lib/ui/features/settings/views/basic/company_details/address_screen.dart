@@ -36,16 +36,35 @@ class CompanyDetailsAddressScreen extends StatelessWidget {
             OverridableTextField(
               label: context.tr('address1'),
               apiKey: 'address1',
+              textCapitalization: TextCapitalization.words,
+              // The signed-in user's own record, so OS autofill is correct here.
+              // A client / vendor / contact field must NEVER carry hints — the
+              // platform would offer the admin's own details for someone else.
+              autofillHints: const [AutofillHints.streetAddressLine1],
             ),
             OverridableTextField(
               label: context.tr('address2'),
               apiKey: 'address2',
+              textCapitalization: TextCapitalization.words,
+              autofillHints: const [AutofillHints.streetAddressLine2],
             ),
-            OverridableTextField(label: context.tr('city'), apiKey: 'city'),
-            OverridableTextField(label: context.tr('state'), apiKey: 'state'),
+            OverridableTextField(
+              label: context.tr('city'),
+              apiKey: 'city',
+              textCapitalization: TextCapitalization.words,
+              autofillHints: const [AutofillHints.addressCity],
+            ),
+            OverridableTextField(
+              label: context.tr('state'),
+              apiKey: 'state',
+              autofillHints: const [AutofillHints.addressState],
+            ),
             OverridableTextField(
               label: context.tr('postal_code'),
               apiKey: 'postal_code',
+              textCapitalization: TextCapitalization.characters,
+              autocorrect: false,
+              autofillHints: const [AutofillHints.postalCode],
             ),
             _CountryField(),
           ],

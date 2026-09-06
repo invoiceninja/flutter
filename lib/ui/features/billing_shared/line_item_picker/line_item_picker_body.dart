@@ -694,6 +694,10 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
               // Skipped on mobile so the on-screen keyboard doesn't pop
               // up uninvited when the sheet slides into view.
               autofocus: MediaQuery.of(context).size.width >= 720,
+              // Search queries are names and numbers, not prose — iOS
+              // autocorrecting "Acme" to "Acne" mid-search is the failure.
+              autocorrect: false,
+              enableSuggestions: false,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search, size: 20),

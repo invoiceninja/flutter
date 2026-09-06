@@ -161,6 +161,7 @@ class _GeneratedNumbersSettingsBodyState
               OverridableTextField(
                 label: context.tr('recurring_prefix'),
                 apiKey: 'recurring_number_prefix',
+                autocorrect: false,
               ),
             if (widget.showSharedQuoteCounter)
               OverridableSwitchField(

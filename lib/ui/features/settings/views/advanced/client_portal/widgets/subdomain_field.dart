@@ -159,6 +159,13 @@ class _SubdomainFieldState extends State<SubdomainField> {
           controller: _controller,
           enabled: widget.enabled,
           textInputAction: TextInputAction.done,
+          // A DNS label. `url` is the closest keyboard — it keeps the
+          // default (no) auto-capitalization and surfaces `.`; it does NOT
+          // lowercase anything, and it offers `/` and `.com`, neither legal
+          // in a single label. The server validates the value regardless.
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          enableSuggestions: false,
           decoration: InputDecoration(
             labelText: context.tr('subdomain'),
             errorText: errorText,

@@ -534,6 +534,10 @@ class _CommandPaletteState extends State<_CommandPalette> {
       return TextField(
         controller: _controller,
         autofocus: true,
+        // Search queries are names and numbers, not prose — iOS
+        // autocorrecting "Acme" to "Acne" mid-search is the failure.
+        autocorrect: false,
+        enableSuggestions: false,
         textInputAction: TextInputAction.search,
         onChanged: _onChanged,
         onSubmitted: (_) => _select(),

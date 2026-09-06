@@ -29,6 +29,8 @@ class PaymentLinkWebhookTab extends StatelessWidget {
               labelKey: 'webhook_url',
               onChanged: vm.setWebhookUrl,
               externalSyncKey: vm.original?.id,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
             ),
             DropdownButtonFormField<String>(
               initialValue: const ['', 'post', 'put'].contains(method)

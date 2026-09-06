@@ -246,6 +246,7 @@ class _IdentitySection extends StatelessWidget {
             decoration: InputDecoration(labelText: context.tr('number')),
             onChanged: vm.setNumber,
             onFieldSubmitted: submit,
+            autocorrect: false,
           ),
           SizedBox(height: InSpacing.md(context)),
           _ClientPicker(vm: vm, locked: locked),

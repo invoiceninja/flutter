@@ -160,6 +160,7 @@ class _IntegrationsAnalyticsScreenState
                               ),
                               keyboardType: TextInputType.text,
                               textInputAction: TextInputAction.next,
+                              autocorrect: false,
                             ),
                             TextField(
                               controller: _matomoIdCtrl,
@@ -171,6 +172,7 @@ class _IntegrationsAnalyticsScreenState
                               ),
                               keyboardType: TextInputType.text,
                               textInputAction: TextInputAction.next,
+                              autocorrect: false,
                             ),
                             TextField(
                               controller: _matomoUrlCtrl,
@@ -181,6 +183,7 @@ class _IntegrationsAnalyticsScreenState
                                 border: const OutlineInputBorder(),
                               ),
                               keyboardType: TextInputType.url,
+                              autocorrect: false,
                               textInputAction: TextInputAction.done,
                               onSubmitted: (_) {
                                 if (canSave) _save();

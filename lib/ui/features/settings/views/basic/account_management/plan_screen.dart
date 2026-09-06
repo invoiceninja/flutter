@@ -461,6 +461,7 @@ Future<String?> _promptLicenseKey(BuildContext context) async {
               ),
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => submit(),
+              autocorrect: false,
             ),
           ),
         ),

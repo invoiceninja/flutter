@@ -369,6 +369,9 @@ class EmailSettingsBody extends StatelessWidget {
               label: context.tr('api_token'),
               apiKey: 'postmark_secret',
               obscureToggle: true,
+              // Stored service credential, never the user's own login —
+              // keyboard hardened, autofillHints deliberately unset.
+              keyboardType: TextInputType.visiblePassword,
             ),
           ],
         ),
@@ -383,10 +386,15 @@ class EmailSettingsBody extends StatelessWidget {
               label: context.tr('api_key'),
               apiKey: 'mailgun_secret',
               obscureToggle: true,
+              // Stored service credential, never the user's own login —
+              // keyboard hardened, autofillHints deliberately unset.
+              keyboardType: TextInputType.visiblePassword,
             ),
             OverridableTextField(
               label: context.tr('domain'),
               apiKey: 'mailgun_domain',
+              keyboardType: TextInputType.url,
+              autocorrect: false,
             ),
             OverridableDropdownField<String>(
               label: context.tr('endpoint'),
@@ -418,6 +426,9 @@ class EmailSettingsBody extends StatelessWidget {
               label: context.tr('secret'),
               apiKey: 'brevo_secret',
               obscureToggle: true,
+              // Stored service credential, never the user's own login —
+              // keyboard hardened, autofillHints deliberately unset.
+              keyboardType: TextInputType.visiblePassword,
             ),
           ],
         ),
@@ -432,14 +443,19 @@ class EmailSettingsBody extends StatelessWidget {
               label: context.tr('secret_key'),
               apiKey: 'ses_secret_key',
               obscureToggle: true,
+              // Stored service credential, never the user's own login —
+              // keyboard hardened, autofillHints deliberately unset.
+              keyboardType: TextInputType.visiblePassword,
             ),
             OverridableTextField(
               label: context.tr('access_key'),
               apiKey: 'ses_access_key',
+              autocorrect: false,
             ),
             OverridableTextField(
               label: context.tr('region'),
               apiKey: 'ses_region',
+              autocorrect: false,
             ),
             OverridableTextField(
               label: context.tr('from_address'),
@@ -449,6 +465,7 @@ class EmailSettingsBody extends StatelessWidget {
             OverridableTextField(
               label: context.tr('topic_arn'),
               apiKey: 'ses_topic_arn',
+              autocorrect: false,
             ),
           ],
         ),

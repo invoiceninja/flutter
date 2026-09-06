@@ -147,6 +147,11 @@ class _ImageBlockPropertiesState extends State<ImageBlockProperties> {
         SizedBox(height: InSpacing.md(context)),
         TextField(
           controller: _source,
+          // Also accepts the `$company.logo` token and a data: URI, so no
+          // formatter — the url keyboard is purely an affordance here.
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          enableSuggestions: false,
           decoration: InputDecoration(
             labelText: context.tr('image_url'),
             hintText: r'$company.logo  or  https://…',

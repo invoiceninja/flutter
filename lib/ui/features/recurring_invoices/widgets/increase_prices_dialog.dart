@@ -77,6 +77,9 @@ class _IncreasePricesDialogState extends State<_IncreasePricesDialog> {
         child: TextField(
           controller: _controller,
           autofocus: true,
+          // NOT signed: the formatter below blocks `-` and `_valid` requires
+          // n > 0 (the server caps at max:100), so a minus key would be
+          // swallowed while costing every user the large iOS decimal pad.
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),

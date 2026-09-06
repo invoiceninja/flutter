@@ -465,6 +465,7 @@ class _NumberCardDesktopState extends State<_NumberCardDesktop> {
             errorText: vm.fieldErrorFor('number'),
           ),
           onChanged: vm.setNumber,
+          autocorrect: false,
         ),
         SizedBox(height: InSpacing.md(context)),
         TextField(
@@ -474,6 +475,7 @@ class _NumberCardDesktopState extends State<_NumberCardDesktop> {
             label: context.tr('po_number'),
           ),
           onChanged: vm.setPoNumber,
+          autocorrect: false,
         ),
         SizedBox(height: InSpacing.md(context)),
         Row(
@@ -930,6 +932,7 @@ class _DetailsTabState extends State<_DetailsTab> {
                     errorText: vm.fieldErrorFor('number'),
                   ),
                   onChanged: vm.setNumber,
+                  autocorrect: false,
                 ),
               ),
               SizedBox(width: InSpacing.md(context)),
@@ -940,6 +943,7 @@ class _DetailsTabState extends State<_DetailsTab> {
                     labelText: context.tr('po_number'),
                   ),
                   onChanged: vm.setPoNumber,
+                  autocorrect: false,
                 ),
               ),
             ],

@@ -143,6 +143,7 @@ class _ExpenseTaxSectionState extends State<ExpenseTaxSection> {
                 onChanged: widget.onAmountChanged,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
+                  signed: true,
                 ),
                 errorText: widget.amountError,
               ),
@@ -402,6 +403,7 @@ class _AmountSlot extends StatelessWidget {
               onChanged: (v) => w.onTaxAmountChanged(slot, v),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
+                signed: true,
               ),
             ),
           ),

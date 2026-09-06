@@ -337,6 +337,7 @@ class _DetailsTab extends StatelessWidget {
               onChanged: vm.setFirstName,
               required: true,
               errorText: vm.fieldErrorFor('first_name'),
+              textCapitalization: TextCapitalization.words,
             ),
             // Required by `StoreUserRequest` just like the other two — the
             // star and the inline error say so now (flutter#66).
@@ -346,6 +347,7 @@ class _DetailsTab extends StatelessWidget {
               onChanged: vm.setLastName,
               required: vm.isCreate,
               errorText: vm.fieldErrorFor('last_name'),
+              textCapitalization: TextCapitalization.words,
             ),
             _LabeledField(
               labelKey: 'email',
@@ -354,6 +356,7 @@ class _DetailsTab extends StatelessWidget {
               required: true,
               errorText: vm.fieldErrorFor('email'),
               keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
             ),
             _LabeledField(
               labelKey: 'phone',
@@ -541,6 +544,8 @@ class _LabeledField extends StatefulWidget {
     this.required = false,
     this.errorText,
     this.keyboardType = TextInputType.text,
+    this.textCapitalization = TextCapitalization.none,
+    this.autocorrect = true,
   });
 
   final String labelKey;
@@ -552,6 +557,8 @@ class _LabeledField extends StatefulWidget {
   /// validation or a server 422 for this field.
   final String? errorText;
   final TextInputType keyboardType;
+  final TextCapitalization textCapitalization;
+  final bool autocorrect;
 
   @override
   State<_LabeledField> createState() => _LabeledFieldState();
@@ -585,6 +592,9 @@ class _LabeledFieldState extends State<_LabeledField> {
           border: const OutlineInputBorder(),
         ),
         keyboardType: widget.keyboardType,
+        textCapitalization: widget.textCapitalization,
+        autocorrect: widget.autocorrect,
+        enableSuggestions: widget.autocorrect,
         textInputAction: TextInputAction.done,
         onChanged: widget.onChanged,
         onSubmitted: (_) => scope?.trySubmit(),

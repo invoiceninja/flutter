@@ -1130,6 +1130,7 @@ class _PaymentScheduleRowTileState extends State<_PaymentScheduleRowTile> {
                 ),
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
+                  signed: true,
                 ),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.,-]')),

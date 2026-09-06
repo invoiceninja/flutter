@@ -24,6 +24,7 @@ class RecurringExpenseEditNotesSection extends StatelessWidget {
             onChanged: vm.setPublicNotes,
             maxLines: 4,
             minLines: 2,
+            textCapitalization: TextCapitalization.sentences,
           ),
           EntityEditField(
             label: context.tr('private_notes'),
@@ -31,6 +32,7 @@ class RecurringExpenseEditNotesSection extends StatelessWidget {
             onChanged: vm.setPrivateNotes,
             maxLines: 4,
             minLines: 2,
+            textCapitalization: TextCapitalization.sentences,
           ),
         ],
       ),

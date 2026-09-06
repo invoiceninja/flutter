@@ -353,6 +353,11 @@ class _LogCallFormState extends State<_LogCallForm> {
                           flex: 2,
                           child: TextField(
                             controller: _contact,
+                            // Holds "<name> · <number>" (see _contactText), so
+                            // NOT TextInputType.phone — that would make the
+                            // name half untypeable. It leads with a name, so
+                            // word capitalization is the right hint.
+                            textCapitalization: TextCapitalization.words,
                             // Free text, never a SearchableDropdownField: that
                             // widget sets `TextInputType.none` for a list of
                             // six or fewer (so the soft keyboard never opens)

@@ -20,6 +20,7 @@ Plus two non-negotiables carried from admin-portal:
 | Adding a new entity | § Adding a new entity + `docs/adding-an-entity.md` |
 | Adding / editing a settings screen | § Settings screens + `docs/settings-screens.md` |
 | Wiring a form field, picker, or Enter-to-save | § Forms |
+| Keyboard type, autofill, capitalization, or a negative amount on touch | § Forms — Input types + `test/lint/field_input_types_test.dart` |
 | Anything money / date / parsing | § Strict rules + § Forms |
 | Dialog buttons rendering stacked | § Design system (v2) |
 | Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules |
@@ -223,6 +224,106 @@ Don't introduce new `DropdownButtonFormField`s for long lists. They're fine only
 **A re-pick of the value the field already holds is a real command, not a no-op.** `RawAutocomplete._select` early-returns on an unchanged selection *before* hiding the overlay, so routing the committed row through it is a dead tap under a popover that stays open. The row calls `onChanged` and unfocuses directly instead — several callers depend on it (re-seeding a payment allocation's auto-filled amount, re-binding a stream, retrying a change their own handler vetoed, re-adding an item whose chip was deleted). Enter / Android "Done" deliberately does **not** do this: it dismisses, so the Done key can't silently re-add a chip-adder's last item.
 
 **A picker that needs inline "create new \<entity\>" can't be a `SearchableDropdownField`.** Two of its properties defeat that, both silently: Flutter's `RawAutocomplete` only mounts the options overlay while the option list is **non-empty** (`_canShowOptionsView`, `autocomplete.dart`), so its `footerBuilder` is unreachable for a name that matches nothing — the one case inline-create exists for; and it renders a **disabled** placeholder when `items` is empty, so an account with no rows yet gets a dead field. Build a dedicated `RawAutocomplete` that appends a synthetic create option (keeping the list non-empty), and route that option from `InkWell.onTap` plus an `onSubmitted` interceptor — **never** through `onSelected`, because `RawAutocomplete._select` early-returns on an unchanged selection and `optionsBuilder` doesn't re-run for unchanged text, so the row goes permanently dead after one cancelled create. References: `ClientPickerField` (`lib/ui/core/widgets/client_picker_field.dart`), `_ProductCell` (`line_item_editor/line_item_table_desktop.dart`, which still has the `onSelected` bug). `searchable_dropdown_field_test.dart` pins the footer limitation.
+
+### Input types
+
+Every text input declares the keyboard, capitalization and autofill its data
+actually needs. None of this is visible under `flutter test` — a soft keyboard
+never renders — so the invariants are pinned by
+`test/lint/field_input_types_test.dart` (a source scan keyed on each field's
+own label / `apiKey` token, with `// lint: allow-input-type <reason>` as the
+opt-out) and by `test/ui/core/edit/entity_edit_field_test.dart`, which reads
+the properties back off the underlying `TextField`.
+
+**`signed:` is checked before `decimal:`, so `decimal: true` alone means no
+minus key.** The iOS engine's `ToUIKeyboardType` (`FlutterTextInputPlugin.mm`)
+tests `signed` first: `signed: true` → `UIKeyboardTypeNumbersAndPunctuation`
+(has `-`), `decimal: true` alone → `UIKeyboardTypeDecimalPad` (big keys, no
+minus), neither → `UIKeyboardTypeNumberPad` (digits only); Android mirrors this
+with `TYPE_NUMBER_FLAG_SIGNED`. Every money field in the app shipped unsigned,
+which made a negative line item — the standard way to put a discount or credit
+row on an invoice — impossible to type on a phone or tablet. Sign a field iff a
+negative is a value the product actually produces: line-item cost / quantity /
+discount (`_NumericCell` covers all three on desktop), custom surcharges,
+expense amount / foreign amount / tax amount, the gateway fee amount and
+percent (a negative fee is a discount for using that method), and the
+payment-schedule amount. Leave payment / refund / allocation amounts,
+`partial`, doc-level discount, tax rates, exchange rates, budgets, stock
+counts, `min_amount` / `max_amount` and the gateway **fee cap** unsigned — a
+minus is meaningless there, and they keep iOS's larger 10-key decimal pad.
+And **never sign a field whose own `inputFormatters` strips `-`**: the
+recurring price-increase dialog filters to `[0-9.,]` and requires `n > 0`, so
+signing it bought a minus key the formatter swallowed while costing every
+user the decimal pad. `field_input_types_test.dart` now fails on that shape.
+Product `price` / `cost` stay unsigned too: those are catalogue values, and the
+negative case is entered on the line item. `parseDecimal` already preserves `-`
+(its strip regex is `[^0-9\.\-]`), so nothing downstream changes.
+
+**Autofill hints go only on the signed-in user's own identity or their own
+company.** Settings → User Details and Settings → Company Details carry them;
+a client / vendor / contact record must **never** — the platform would offer to
+fill the *admin's* own name, phone and address into somebody else's record, and
+offer to save a client's portal password as the admin's. Note Flutter gates on
+**null vs non-null**, so an empty list does *not* opt out (`auth_fields.dart`
+documents this); pass `null`. A "save password" prompt also needs an
+`AutofillGroup` around the correlated fields — login, signup and the
+change-password screen each have one — and a *new* credential wants
+`AutofillHints.newPassword`, not `.password`, or the OS offers the existing
+saved one instead of generating a fresh one.
+
+**`TextInputType.multiline` is derived — never add it.** `TextField`'s
+constructor is `keyboardType ?? (maxLines == 1 ? text : multiline)`, and
+`EntityEditField` / `OverridableTextField` derive `textInputAction: newline`
+the same way, so ~35 notes / terms / footer / description fields are correct
+with no `keyboardType` at all. The corollary is the live bug this rule exists
+for: **setting any `textInputAction` other than `newline` on a multi-line
+field breaks it** — `.next` made Return move focus instead of inserting a
+newline, so the account cancellation feedback box was silently single-line on
+touch. Writing `newline` out explicitly is fine and four sites do
+(`log_call_sheet.dart`, `add_comment_dialog.dart`, `task_edit_layout.dart`,
+`contact_us_dialog.dart`); the lint allows exactly that one value.
+
+**Postal code is `text` + `TextCapitalization.characters`, never `number`.** US
+ZIPs are numeric but UK / CA / NL / PL codes are not, so a numeric keypad makes
+them untypeable.
+
+**A credential is obscured and keyboard-hardened; whether it also gets
+autofill depends on whose credential it is.** All of them take `obscureText`
+(which `EntityEditField` renders with a reveal toggle) plus
+`TextInputType.visiblePassword`. **The user's own** password does get autofill
+— login, signup and Settings → User Details → Password each wrap theirs in an
+`AutofillGroup`. **Another party's credential or a stored service secret never
+does**: the client and vendor **portal password** belongs to the contact, and
+the SMTP / Postmark / Mailgun / Brevo / SES / e-invoice-passphrase / gateway
+config secrets belong to a service, so `autofillHints` stays null on all of
+them. Note the shared widgets derive `autocorrect` from the **declaration**
+(`obscureText` / `obscureToggle`), not from the live reveal state — revealing
+a secret does not make it stop being one, and keying it the other way handed
+the IME a revealed API key the moment the user edited it.
+
+**`autocorrect: false` on identifier-shaped values** — invoice / quote / credit
+/ PO numbers, VAT and registration numbers, transaction references, hostnames,
+license keys, subdomains, and search boxes (iOS turning "Acme" into "Acne"
+mid-search is the failure). It travels with `enableSuggestions`, so the shared
+widgets expose one knob and set both. On iOS an `emailAddress` / `url`
+keyboard already suppresses autocorrection under `UITextAutocorrectionTypeDefault`,
+so the flag is belt-and-braces there — but it is **written out anyway** on
+those fields, because that guarantee is iOS-only and reads as a decision
+rather than an omission. It is load-bearing wherever the keyboard stays
+`text`.
+
+**The three shared widgets take these as plain parameters**, all defaulting to
+Flutter's own defaults: `EntityEditField` (`keyboardType`,
+`textCapitalization`, `autofillHints`, `autocorrect`, `obscureText`), and
+`OverridableTextField` / `SettingsTextField` (the same minus `obscureText`,
+which the first has as `obscureToggle`). `AuthField` / `AuthPasswordField`
+supplied the `autocorrect`-follows-`obscureText` idiom but is **not** a fourth
+member: it exposes `keyboardType`, `obscureText` and `autofillHints` only, and
+hard-codes `autocorrect: !obscureText` — fine for the auth screens, whose only
+non-obscured field is an email (whose keyboard suppresses autocorrect anyway),
+but it cannot take a `textCapitalization`. A local one-off wrapper
+(`_OnboardingField`, `_SmtpTextField`, `_LabeledField`, `client_locations_tab`'s
+`_field`) needs the same hooks rather than hard-coding.
 
 ### Two-choice fields → radio, not dropdown
 

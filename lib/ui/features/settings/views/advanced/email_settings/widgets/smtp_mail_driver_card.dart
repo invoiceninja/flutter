@@ -84,6 +84,8 @@ class _SmtpMailDriverCardState extends State<SmtpMailDriverCard> {
       label: context.tr('host'),
       helper: context.tr('host_help'),
       initial: company.smtpHost,
+      keyboardType: TextInputType.url,
+      autocorrect: false,
       onChanged: (v) => host.updateCompany((c) => c.copyWith(smtpHost: v)),
     );
   }
@@ -138,6 +140,7 @@ class _SmtpMailDriverCardState extends State<SmtpMailDriverCard> {
     return _SmtpTextField(
       label: context.tr('username'),
       initial: company.smtpUsername,
+      autocorrect: false,
       onChanged: (v) => host.updateCompany((c) => c.copyWith(smtpUsername: v)),
     );
   }
@@ -151,6 +154,8 @@ class _SmtpMailDriverCardState extends State<SmtpMailDriverCard> {
       label: context.tr('password'),
       initial: company.smtpPassword,
       obscureToggle: true,
+      keyboardType: TextInputType.visiblePassword,
+      autocorrect: false,
       onChanged: (v) => host.updateCompany((c) => c.copyWith(smtpPassword: v)),
     );
   }
@@ -164,6 +169,8 @@ class _SmtpMailDriverCardState extends State<SmtpMailDriverCard> {
       label: context.tr('local_domain'),
       helper: context.tr('local_domain_help'),
       initial: company.smtpLocalDomain,
+      keyboardType: TextInputType.url,
+      autocorrect: false,
       onChanged: (v) =>
           host.updateCompany((c) => c.copyWith(smtpLocalDomain: v)),
     );
@@ -222,6 +229,7 @@ class _SmtpTextField extends StatefulWidget {
     this.keyboardType,
     this.inputFormatters,
     this.obscureToggle = false,
+    this.autocorrect = true,
   });
 
   final String label;
@@ -231,6 +239,10 @@ class _SmtpTextField extends StatefulWidget {
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
   final bool obscureToggle;
+
+  /// False for the hostname / username / credential rows — none of them is
+  /// prose, and iOS will happily "correct" a mail server name.
+  final bool autocorrect;
 
   @override
   State<_SmtpTextField> createState() => _SmtpTextFieldState();
@@ -270,6 +282,10 @@ class _SmtpTextFieldState extends State<_SmtpTextField> {
       controller: _controller,
       obscureText: _obscured,
       keyboardType: widget.keyboardType,
+      // Keyed on the declaration, not the live reveal state — see
+      // `overridable_text_field.dart`.
+      autocorrect: widget.autocorrect && !widget.obscureToggle,
+      enableSuggestions: widget.autocorrect && !widget.obscureToggle,
       inputFormatters: widget.inputFormatters,
       decoration: InputDecoration(
         labelText: widget.label,

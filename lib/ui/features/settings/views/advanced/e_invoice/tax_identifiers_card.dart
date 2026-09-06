@@ -265,6 +265,7 @@ class _AddIdentifierDialogState extends State<_AddIdentifierDialog> {
                     onSubmitted: scope == null
                         ? null
                         : (_) => scope.trySubmit(),
+                    autocorrect: false,
                   );
                 },
               ),

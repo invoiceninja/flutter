@@ -80,6 +80,7 @@ class _ExpenseEditPaymentSectionState extends State<ExpenseEditPaymentSection>
               initial: vm.draft.transactionReference,
               onChanged: vm.setTransactionReference,
               errorText: vm.fieldErrorFor('transaction_reference'),
+              autocorrect: false,
             ),
           ],
         ],

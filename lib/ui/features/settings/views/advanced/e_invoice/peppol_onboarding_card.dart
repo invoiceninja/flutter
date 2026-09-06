@@ -299,31 +299,38 @@ class _PeppolOnboardingCardState extends State<PeppolOnboardingCard> {
           _OnboardingField(
             controller: _partyName,
             label: context.tr('company_name'),
+            textCapitalization: TextCapitalization.words,
           ),
           if (_isSingapore)
             // UEN is always required for CorpPass (no VAT branch).
             _OnboardingField(
               controller: _idNumber,
               label: context.tr('unique_entity_number'),
+              autocorrect: false,
             )
           else if (_isBusiness)
             _OnboardingField(
               controller: _vatNumber,
               label: context.tr('vat_number'),
+              autocorrect: false,
             )
           else
             _OnboardingField(
               controller: _idNumber,
               label: context.tr('id_number'),
+              autocorrect: false,
             ),
           if (_isSingapore) ...[
             _OnboardingField(
               controller: _signerName,
               label: context.tr('signer_name'),
+              textCapitalization: TextCapitalization.words,
             ),
             _OnboardingField(
               controller: _signerEmail,
               label: context.tr('signer_email'),
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
             ),
           ],
           SearchableDropdownField<Country>(
@@ -334,11 +341,30 @@ class _PeppolOnboardingCardState extends State<PeppolOnboardingCard> {
             idOf: (c) => c.id,
             onChanged: (c) => setState(() => _countryId = c?.id),
           ),
-          _OnboardingField(controller: _line1, label: context.tr('address1')),
-          _OnboardingField(controller: _line2, label: context.tr('address2')),
-          _OnboardingField(controller: _city, label: context.tr('city')),
+          _OnboardingField(
+            controller: _line1,
+            label: context.tr('address1'),
+            textCapitalization: TextCapitalization.words,
+          ),
+          _OnboardingField(
+            controller: _line2,
+            label: context.tr('address2'),
+            textCapitalization: TextCapitalization.words,
+          ),
+          _OnboardingField(
+            controller: _city,
+            label: context.tr('city'),
+            textCapitalization: TextCapitalization.words,
+          ),
           _OnboardingField(controller: _county, label: context.tr('state')),
-          _OnboardingField(controller: _zip, label: context.tr('postal_code')),
+          // Alphanumeric outside the US (UK/CA/NL/PL), so never a numeric
+          // keyboard — uppercase + no autocorrect is the universal choice.
+          _OnboardingField(
+            controller: _zip,
+            label: context.tr('postal_code'),
+            textCapitalization: TextCapitalization.characters,
+            autocorrect: false,
+          ),
           SwitchListTile(
             title: Text(context.tr('act_as_sender')),
             contentPadding: EdgeInsets.zero,
@@ -434,10 +460,19 @@ class _PeppolOnboardingCardState extends State<PeppolOnboardingCard> {
 /// [FormSaveScope] so Enter submits the form. Used for every text input
 /// inside the onboarding card.
 class _OnboardingField extends StatelessWidget {
-  const _OnboardingField({required this.controller, required this.label});
+  const _OnboardingField({
+    required this.controller,
+    required this.label,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+    this.autocorrect = true,
+  });
 
   final TextEditingController controller;
   final String label;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+  final bool autocorrect;
 
   @override
   Widget build(BuildContext context) {
@@ -445,6 +480,10 @@ class _OnboardingField extends StatelessWidget {
     return TextField(
       controller: controller,
       textInputAction: TextInputAction.done,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      autocorrect: autocorrect,
+      enableSuggestions: autocorrect,
       decoration: InputDecoration(labelText: label),
       onSubmitted: scope == null ? null : (_) => scope.trySubmit(),
     );

@@ -287,6 +287,9 @@ class _PortalConfigurationSectionState
           TextField(
             controller: _domainController,
             textInputAction: TextInputAction.done,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            enableSuggestions: false,
             decoration: InputDecoration(labelText: context.tr('domain_url')),
             onChanged: (v) =>
                 host.updateCompany((c) => c.copyWith(portalDomain: v)),

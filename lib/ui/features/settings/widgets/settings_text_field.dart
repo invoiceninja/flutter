@@ -55,6 +55,9 @@ class SettingsTextField extends StatefulWidget {
     this.inputFormatters,
     this.textInputAction = TextInputAction.done,
     this.externalSyncKey,
+    this.textCapitalization = TextCapitalization.none,
+    this.autofillHints,
+    this.autocorrect = true,
   }) : assert(
          (labelKey == null) != (labelText == null),
          'Pass exactly one of labelKey or labelText',
@@ -83,6 +86,23 @@ class SettingsTextField extends StatefulWidget {
   /// a different row repopulates the field. Leave null for plain top-level
   /// fields (the fallback resync rule covers Discard / refresh emissions).
   final Object? externalSyncKey;
+
+  /// Soft-keyboard auto-capitalization. `words` for proper nouns (names,
+  /// cities, streets), `characters` for postal codes. Defaults to Flutter's
+  /// own `none`, so passing nothing changes nothing.
+  final TextCapitalization textCapitalization;
+
+  /// OS autofill hints. **Only ever set these on a field describing the
+  /// signed-in user or their own company** — never on a client / vendor /
+  /// contact record, where the platform would offer the *admin's* own name,
+  /// phone and address. Flutter gates on null vs non-null, so an empty list
+  /// does NOT opt out (see `auth_fields.dart`).
+  final Iterable<String>? autofillHints;
+
+  /// Set false on identifier-shaped values iOS would happily "correct" —
+  /// VAT / registration numbers, hostnames, API keys. Also drives
+  /// `enableSuggestions`, which travels with it.
+  final bool autocorrect;
 
   @override
   State<SettingsTextField> createState() => _SettingsTextFieldState();
@@ -142,6 +162,11 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
         errorText: widget.errorText,
       ),
       keyboardType: widget.keyboardType,
+      textCapitalization: widget.textCapitalization,
+      autofillHints: widget.autofillHints,
+      // One knob, not two — the pairing `AuthField` already uses.
+      autocorrect: widget.autocorrect,
+      enableSuggestions: widget.autocorrect,
       inputFormatters: widget.inputFormatters,
       textInputAction: widget.textInputAction,
       onChanged: widget.onChanged,

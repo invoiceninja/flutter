@@ -27,17 +27,20 @@ class ClientEditAddressSection extends StatelessWidget {
             label: context.tr('address1'),
             initial: draft.address1,
             onChanged: vm.setAddress1,
+            textCapitalization: TextCapitalization.words,
           ),
           EntityEditField(
             label: context.tr('address2'),
             initial: draft.address2,
             onChanged: vm.setAddress2,
+            textCapitalization: TextCapitalization.words,
           ),
           ClientEditFieldPair(
             left: EntityEditField(
               label: context.tr('city'),
               initial: draft.city,
               onChanged: vm.setCity,
+              textCapitalization: TextCapitalization.words,
             ),
             right: EntityEditField(
               label: context.tr('state'),
@@ -50,6 +53,8 @@ class ClientEditAddressSection extends StatelessWidget {
               label: context.tr('postal_code'),
               initial: draft.postalCode,
               onChanged: vm.setPostalCode,
+              textCapitalization: TextCapitalization.characters,
+              autocorrect: false,
             ),
             right: ClientEditCountryField(
               initial: draft.countryId,

@@ -48,6 +48,8 @@ class ProductEditTaxesSection extends StatelessWidget {
                 label: context.tr('product_image'),
                 initial: vm.draft.productImage,
                 onChanged: vm.setProductImage,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),

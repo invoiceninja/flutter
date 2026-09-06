@@ -63,6 +63,7 @@ class PaymentLinkSettingsTab extends StatelessWidget {
               labelKey: 'promo_code',
               onChanged: vm.setPromoCode,
               externalSyncKey: vm.original?.id,
+              autocorrect: false,
             ),
             _PromoDiscountRow(vm: vm),
           ],
@@ -85,6 +86,8 @@ class PaymentLinkSettingsTab extends StatelessWidget {
               labelKey: 'return_url',
               onChanged: vm.setReturnUrl,
               externalSyncKey: vm.original?.id,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
             ),
             _BoolDropdown(
               labelKey: 'allow_query_overrides',

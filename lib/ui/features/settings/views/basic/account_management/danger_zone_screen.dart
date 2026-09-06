@@ -710,11 +710,14 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
                   controller: _feedbackCtrl,
                   minLines: 2,
                   maxLines: 4,
+                  textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
                     labelText: feedbackLabel,
                     errorText: _feedbackError,
                   ),
-                  textInputAction: TextInputAction.next,
+                  // No textInputAction: a multi-line field must keep Return
+                  // for newlines, and Flutter derives `newline` from
+                  // maxLines. `.next` here made Return move focus instead.
                 ),
               ],
               SizedBox(height: InSpacing.md(context)),
@@ -723,6 +726,9 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
                 controller: _passwordCtrl,
                 focusNode: _passwordFocus,
                 obscureText: _obscure,
+                keyboardType: TextInputType.visiblePassword,
+                autocorrect: false,
+                enableSuggestions: false,
                 decoration: InputDecoration(
                   labelText: context.tr('password'),
                   errorText: _passwordError,

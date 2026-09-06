@@ -266,6 +266,7 @@ class _PatternField extends StatelessWidget {
       ),
       onChanged: onChanged,
       onSubmitted: scope == null ? null : (_) => scope.trySubmit(),
+      autocorrect: false,
     );
     return OverridableField.bind(
       apiKey: apiKey,

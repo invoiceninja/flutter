@@ -360,6 +360,7 @@ class _ExpandedFieldEditor extends StatelessWidget {
                 border: const OutlineInputBorder(),
               ),
               onChanged: (v) => onFieldChanged('prefix', v),
+              autocorrect: false,
             ),
             SizedBox(height: InSpacing.md(context)),
             TextFormField(
@@ -369,6 +370,7 @@ class _ExpandedFieldEditor extends StatelessWidget {
                 border: const OutlineInputBorder(),
               ),
               onChanged: (v) => onFieldChanged('suffix', v),
+              autocorrect: false,
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

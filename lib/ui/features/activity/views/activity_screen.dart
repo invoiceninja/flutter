@@ -175,6 +175,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
               controller: _searchController,
+              // Search queries are names and numbers, not prose — iOS
+              // autocorrecting "Acme" to "Acne" mid-search is the failure.
+              autocorrect: false,
+              enableSuggestions: false,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 isDense: true,

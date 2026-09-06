@@ -153,6 +153,7 @@ class _BillingTaxSurchargeSectionState
                 onChanged: widget.surcharges[entry.key].onAmount,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
+                  signed: true,
                 ),
               ),
             ),

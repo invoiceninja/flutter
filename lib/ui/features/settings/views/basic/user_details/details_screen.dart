@@ -78,6 +78,11 @@ class _DetailsForm extends StatelessWidget {
           labelText: context.tr('email'),
           initialValue: user.email,
           keyboardType: TextInputType.emailAddress,
+          autocorrect: false,
+          // The signed-in user's own record, so OS autofill is correct here.
+          // A client / vendor / contact field must NEVER carry hints — the
+          // platform would offer the admin's own details for someone else.
+          autofillHints: const [AutofillHints.email],
           errorText: vm.fieldErrors['email']?.firstOrNull,
           onChanged: (v) => vm.updateUser((u) => u.copyWith(email: v.trim())),
         ),
@@ -86,6 +91,7 @@ class _DetailsForm extends StatelessWidget {
           labelText: context.tr('phone'),
           initialValue: user.phone,
           keyboardType: TextInputType.phone,
+          autofillHints: const [AutofillHints.telephoneNumber],
           errorText: vm.fieldErrors['phone']?.firstOrNull,
           onChanged: (v) => vm.updateUser((u) => u.copyWith(phone: v.trim())),
         ),
@@ -149,12 +155,16 @@ class _NameRow extends StatelessWidget {
       initialValue: user.firstName as String,
       errorText: vm.fieldErrors['first_name']?.firstOrNull,
       onChanged: (v) => vm.updateUser((u) => u.copyWith(firstName: v.trim())),
+      textCapitalization: TextCapitalization.words,
+      autofillHints: const [AutofillHints.givenName],
     );
     final lastField = SettingsTextField(
       labelText: context.tr('last_name'),
       initialValue: user.lastName as String,
       errorText: vm.fieldErrors['last_name']?.firstOrNull,
       onChanged: (v) => vm.updateUser((u) => u.copyWith(lastName: v.trim())),
+      textCapitalization: TextCapitalization.words,
+      autofillHints: const [AutofillHints.familyName],
     );
     return LayoutBuilder(
       builder: (context, constraints) {

@@ -207,6 +207,7 @@ class _ClientBulkUpdateDialogState extends State<_ClientBulkUpdateDialog> {
           minLines: 3,
           maxLines: 6,
           onChanged: (v) => setState(() => _value = v),
+          textCapitalization: TextCapitalization.sentences,
         );
       case 'industry_id':
         final items = services.statics.industries.values.toList()

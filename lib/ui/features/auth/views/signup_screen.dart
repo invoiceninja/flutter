@@ -104,68 +104,79 @@ class _SignupBody extends StatelessWidget {
           child: FormSaveScope(
             onSubmit: () => _onSubmit(context),
             enabled: !vm.busy,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AuthEyebrowLabel(context.tr('create_account').toUpperCase()),
-                AuthField(
-                  label: context.tr('email'),
-                  initialValue: vm.email,
-                  keyboardType: TextInputType.emailAddress,
-                  errorText: vm.fieldErrors['email']?.first,
-                  autofillHints: const [
-                    AutofillHints.username,
-                    AutofillHints.email,
-                  ],
-                  onChanged: vm.setEmail,
-                ),
-                SizedBox(height: InSpacing.md(context)),
-                AuthPasswordField(
-                  label: context.tr('password'),
-                  errorText: vm.fieldErrors['password']?.first,
-                  onChanged: vm.setPassword,
-                ),
-                SizedBox(height: InSpacing.md(context)),
-                AuthPasswordField(
-                  label: context.tr('confirm_password'),
-                  onChanged: vm.setConfirmPassword,
-                  onSubmitted: vm.busy ? null : (_) => _onSubmit(context),
-                ),
-                SizedBox(height: InSpacing.md(context)),
-                _TermsCheckbox(
-                  value: vm.acceptedTerms,
-                  onChanged: vm.setAcceptedTerms,
-                ),
-                const SizedBox(height: InSpacing.xl),
-                FilledButton.icon(
-                  key: const ValueKey('signup_submit'),
-                  onPressed: vm.busy ? null : () => _onSubmit(context),
-                  icon: vm.busy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(Colors.white),
-                          ),
-                        )
-                      : const Icon(Icons.person_add_alt_1, size: 18),
-                  label: Text(context.tr('sign_up')),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: tokens.accent,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(InRadii.r2),
+            // Correlates email + password so the OS / password manager offers
+            // to save them together. Without it the hints below still fill,
+            // but the "save password" prompt never fires — same reasoning as
+            // `login_screen.dart`, which has had this since it shipped.
+            child: AutofillGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AuthEyebrowLabel(context.tr('create_account').toUpperCase()),
+                  AuthField(
+                    label: context.tr('email'),
+                    initialValue: vm.email,
+                    keyboardType: TextInputType.emailAddress,
+                    errorText: vm.fieldErrors['email']?.first,
+                    autofillHints: const [
+                      AutofillHints.username,
+                      AutofillHints.email,
+                    ],
+                    onChanged: vm.setEmail,
+                  ),
+                  SizedBox(height: InSpacing.md(context)),
+                  AuthPasswordField(
+                    label: context.tr('password'),
+                    errorText: vm.fieldErrors['password']?.first,
+                    onChanged: vm.setPassword,
+                    // `newPassword`, not the widget's `password` default: this
+                    // is account creation, so the OS should offer to generate
+                    // and save rather than fill an existing credential.
+                    autofillHints: const [AutofillHints.newPassword],
+                  ),
+                  SizedBox(height: InSpacing.md(context)),
+                  AuthPasswordField(
+                    label: context.tr('confirm_password'),
+                    onChanged: vm.setConfirmPassword,
+                    onSubmitted: vm.busy ? null : (_) => _onSubmit(context),
+                    autofillHints: const [AutofillHints.newPassword],
+                  ),
+                  SizedBox(height: InSpacing.md(context)),
+                  _TermsCheckbox(
+                    value: vm.acceptedTerms,
+                    onChanged: vm.setAcceptedTerms,
+                  ),
+                  const SizedBox(height: InSpacing.xl),
+                  FilledButton.icon(
+                    key: const ValueKey('signup_submit'),
+                    onPressed: vm.busy ? null : () => _onSubmit(context),
+                    icon: vm.busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.person_add_alt_1, size: 18),
+                    label: Text(context.tr('sign_up')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: tokens.accent,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(InRadii.r2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: InSpacing.sm),
-                TextButton(
-                  onPressed: () => context.go('/login'),
-                  child: Text(context.tr('login')),
-                ),
-              ],
+                  const SizedBox(height: InSpacing.sm),
+                  TextButton(
+                    onPressed: () => context.go('/login'),
+                    child: Text(context.tr('login')),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

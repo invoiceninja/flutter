@@ -301,11 +301,13 @@ class _ContactEditor extends StatelessWidget {
           label: context.tr('first_name'),
           initial: contact.firstName,
           onChanged: onFirstName,
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('last_name'),
           initial: contact.lastName,
           onChanged: onLastName,
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('email'),
@@ -335,6 +337,13 @@ class _ContactEditor extends StatelessWidget {
               label: context.tr('password'),
               initial: contact.password,
               onChanged: onPassword,
+              // The contact's portal credential, not the signed-in user's:
+              // obscured behind a reveal toggle, and deliberately NO
+              // autofillHints — the OS must not offer the admin's own saved
+              // password here, nor offer to save this one as theirs.
+              obscureText: true,
+              keyboardType: TextInputType.visiblePassword,
+              autocorrect: false,
             );
           },
         ),

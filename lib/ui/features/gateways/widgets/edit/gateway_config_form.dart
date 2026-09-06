@@ -195,10 +195,32 @@ class _GatewayConfigFormState extends State<GatewayConfigForm> {
         lower.contains('token');
     final isMultiline = name == 'text' || name == 'appleDomainVerification';
     final reveal = _showSensitive[name] ?? false;
+    // Keyboard is derived from the descriptor name, same as `isSensitive`
+    // above — these fields are generated per gateway, so there is no call
+    // site to annotate. Nothing here is prose, so autocorrect stays off
+    // throughout; `autofillHints` is never set, so the OS password manager
+    // can't offer the user's own credentials for a merchant account.
+    final TextInputType? keyboardType;
+    if (isMultiline) {
+      keyboardType = null; // TextField derives multiline from maxLines.
+    } else if (lower.contains('email')) {
+      keyboardType = TextInputType.emailAddress;
+    } else if (lower.contains('url') ||
+        lower.contains('domain') ||
+        lower.contains('endpoint')) {
+      keyboardType = TextInputType.url;
+    } else if (isSensitive) {
+      keyboardType = TextInputType.visiblePassword;
+    } else {
+      keyboardType = null;
+    }
     return TextFormField(
       initialValue: current?.toString() ?? '',
       maxLines: isMultiline ? 5 : 1,
       obscureText: isSensitive && !reveal,
+      keyboardType: keyboardType,
+      autocorrect: false,
+      enableSuggestions: false,
       decoration: InputDecoration(
         labelText: _humanize(name),
         errorText: widget.vm.fieldErrorFor('config.$name'),

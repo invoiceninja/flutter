@@ -70,16 +70,26 @@ class CompanyDetailsScreen extends StatelessWidget {
         FormSection(
           title: context.tr('identification'),
           children: [
-            OverridableTextField(label: context.tr('name'), apiKey: 'name'),
+            OverridableTextField(
+              label: context.tr('name'),
+              apiKey: 'name',
+              textCapitalization: TextCapitalization.words,
+              // The signed-in user's own record, so OS autofill is correct here.
+              // A client / vendor / contact field must NEVER carry hints — the
+              // platform would offer the admin's own details for someone else.
+              autofillHints: const [AutofillHints.organizationName],
+            ),
             OverridableTextField(
               label: context.tr('id_number'),
               apiKey: 'id_number',
               enabled: !legalEntityBound,
+              autocorrect: false,
             ),
             OverridableTextField(
               label: context.tr('vat_number'),
               apiKey: 'vat_number',
               enabled: !legalEntityBound,
+              autocorrect: false,
               // When a legal entity is bound (PEPPOL), the server manages
               // VAT / ID number — explain why the fields are disabled. Mirrors
               // React's note under VAT (Details.tsx).
@@ -92,10 +102,12 @@ class CompanyDetailsScreen extends StatelessWidget {
               OverridableTextField(
                 label: context.tr('qr_iban'),
                 apiKey: 'qr_iban',
+                autocorrect: false,
               ),
               OverridableTextField(
                 label: context.tr('besr_id'),
                 apiKey: 'besr_id',
+                autocorrect: false,
               ),
             ],
           ],
@@ -107,16 +119,20 @@ class CompanyDetailsScreen extends StatelessWidget {
               label: context.tr('website'),
               apiKey: 'website',
               keyboardType: TextInputType.url,
+              autocorrect: false,
             ),
             OverridableTextField(
               label: context.tr('email'),
               apiKey: 'email',
               keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              autofillHints: const [AutofillHints.email],
             ),
             OverridableTextField(
               label: context.tr('phone'),
               apiKey: 'phone',
               keyboardType: TextInputType.phone,
+              autofillHints: const [AutofillHints.telephoneNumber],
             ),
           ],
         ),

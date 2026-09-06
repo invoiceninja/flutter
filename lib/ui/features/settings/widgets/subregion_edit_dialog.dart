@@ -176,6 +176,7 @@ class _SubregionEditDialogState extends State<SubregionEditDialog> {
                 ),
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submit(),
+                autocorrect: false,
               ),
             ],
           ),

@@ -66,7 +66,10 @@ class ExpenseEditCurrencyConversionSection extends StatelessWidget {
           label: context.tr('foreign_amount'),
           initial: decimalInputText(vm.draft.foreignAmount),
           onChanged: vm.setForeignAmount,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
+            signed: true,
+          ),
           errorText: vm.fieldErrorFor('foreign_amount'),
         ),
       ],

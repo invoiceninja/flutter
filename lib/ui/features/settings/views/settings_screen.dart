@@ -361,6 +361,10 @@ class SettingsSearchField extends StatelessWidget {
       child: TextField(
         controller: controller.query,
         focusNode: controller.focus,
+        // Search queries are names and numbers, not prose — iOS
+        // autocorrecting "Acme" to "Acne" mid-search is the failure.
+        autocorrect: false,
+        enableSuggestions: false,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: context.tr('search_settings'),

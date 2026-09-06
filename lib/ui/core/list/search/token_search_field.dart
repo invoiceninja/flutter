@@ -843,6 +843,10 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
                             // send the action key as a TextInputAction, not a
                             // hardware KeyEvent — wire onSubmitted so it
                             // reliably commits, same as the `_handleKey` path.
+                            // Search queries are names and numbers, not prose — iOS
+                            // autocorrecting "Acme" to "Acne" mid-search is the failure.
+                            autocorrect: false,
+                            enableSuggestions: false,
                             textInputAction: TextInputAction.search,
                             onSubmitted: (_) => _commitEnter(),
                             decoration: InputDecoration(

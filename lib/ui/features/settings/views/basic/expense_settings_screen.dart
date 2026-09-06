@@ -154,6 +154,8 @@ class _ExpenseSettingsBody extends StatelessWidget {
                   helperText: context.tr('expense_mailbox_help'),
                   helperMaxLines: 2,
                   initialValue: draft.expenseMailbox,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
                   onChanged: (v) =>
                       vm.updateCompany((c) => c.copyWith(expenseMailbox: v)),
                 ),
@@ -187,6 +189,8 @@ class _ExpenseSettingsBody extends StatelessWidget {
                   helperText: context.tr('inbound_mailbox_whitelist_help'),
                   helperMaxLines: 2,
                   initialValue: draft.inboundMailboxWhitelist,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
                   onChanged: (v) => vm.updateCompany(
                     (c) => c.copyWith(inboundMailboxWhitelist: v),
                   ),
@@ -197,6 +201,8 @@ class _ExpenseSettingsBody extends StatelessWidget {
                   helperText: context.tr('inbound_mailbox_blacklist_help'),
                   helperMaxLines: 2,
                   initialValue: draft.inboundMailboxBlacklist,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
                   onChanged: (v) => vm.updateCompany(
                     (c) => c.copyWith(inboundMailboxBlacklist: v),
                   ),

@@ -30,6 +30,9 @@ class OverridableTextField extends StatefulWidget {
     this.hintText,
     this.helperText,
     this.obscureToggle = false,
+    this.textCapitalization = TextCapitalization.none,
+    this.autofillHints,
+    this.autocorrect = true,
   });
 
   final String label;
@@ -57,6 +60,23 @@ class OverridableTextField extends StatefulWidget {
   /// toggles visibility. Used by SMTP password, postmark/mailgun/brevo/SES
   /// secret fields on Email Settings.
   final bool obscureToggle;
+
+  /// Soft-keyboard auto-capitalization. `words` for proper nouns (names,
+  /// cities, streets), `characters` for postal codes. Defaults to Flutter's
+  /// own `none`, so passing nothing changes nothing.
+  final TextCapitalization textCapitalization;
+
+  /// OS autofill hints. **Only ever set these on a field describing the
+  /// signed-in user or their own company** — never on a client / vendor /
+  /// contact record, where the platform would offer the *admin's* own name,
+  /// phone and address. Flutter gates on null vs non-null, so an empty list
+  /// does NOT opt out (see `auth_fields.dart`).
+  final Iterable<String>? autofillHints;
+
+  /// Set false on identifier-shaped values iOS would happily "correct" —
+  /// VAT / registration numbers, hostnames, API keys. Also drives
+  /// `enableSuggestions`, which travels with it.
+  final bool autocorrect;
 
   @override
   State<OverridableTextField> createState() => _OverridableTextFieldState();
@@ -118,6 +138,15 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
       maxLines: _obscured ? 1 : widget.maxLines,
       obscureText: _obscured,
       keyboardType: widget.keyboardType,
+      textCapitalization: widget.textCapitalization,
+      autofillHints: widget.autofillHints,
+      // One knob, not two — the pairing `AuthField` already uses. A field
+      // declared obscurable never wants either, revealed or not: the four
+      // Email Settings service secrets declare `obscureToggle` and a
+      // visiblePassword keyboard but no `autocorrect: false`, so keying this
+      // on `_obscured` handed the IME a revealed API credential.
+      autocorrect: widget.autocorrect && !widget.obscureToggle,
+      enableSuggestions: widget.autocorrect && !widget.obscureToggle,
       style: widget.style,
       textInputAction: isSingleLine
           ? TextInputAction.done

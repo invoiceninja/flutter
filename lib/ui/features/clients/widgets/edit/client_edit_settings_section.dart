@@ -164,6 +164,7 @@ class ClientEditSettingsSection extends StatelessWidget {
               label: context.tr('routing_id'),
               initial: draft.routingId,
               onChanged: vm.setRoutingId,
+              autocorrect: false,
             ),
           ),
           SizedBox(height: InSpacing.sm),

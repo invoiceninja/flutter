@@ -453,12 +453,14 @@ class _DetailsTab extends StatelessWidget {
           autofocus: true,
           onChanged: vm.setName,
           errorText: vm.fieldErrorFor('name'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('vat_number'),
           initial: draft.vatNumber,
           onChanged: vm.setVatNumber,
           errorText: vm.fieldErrorFor('vat_number'),
+          autocorrect: false,
         ),
         SizedBox(height: InSpacing.md(context)),
         Text(
@@ -472,12 +474,14 @@ class _DetailsTab extends StatelessWidget {
           initial: contact?.firstName ?? '',
           onChanged: (v) => vm.setContactFirstNameAt(0, v),
           errorText: vm.fieldErrorFor('contacts.0.first_name'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('last_name'),
           initial: contact?.lastName ?? '',
           onChanged: (v) => vm.setContactLastNameAt(0, v),
           errorText: vm.fieldErrorFor('contacts.0.last_name'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('email'),
@@ -522,18 +526,21 @@ class _AddressTab extends StatelessWidget {
           initial: draft.address1,
           onChanged: vm.setAddress1,
           errorText: vm.fieldErrorFor('address1'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('address2'),
           initial: draft.address2,
           onChanged: vm.setAddress2,
           errorText: vm.fieldErrorFor('address2'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('city'),
           initial: draft.city,
           onChanged: vm.setCity,
           errorText: vm.fieldErrorFor('city'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('state'),
@@ -546,6 +553,8 @@ class _AddressTab extends StatelessWidget {
           initial: draft.postalCode,
           onChanged: vm.setPostalCode,
           errorText: vm.fieldErrorFor('postal_code'),
+          textCapitalization: TextCapitalization.characters,
+          autocorrect: false,
         ),
         ClientEditCountryField(
           initial: draft.countryId,
@@ -570,18 +579,21 @@ class _ShippingTab extends StatelessWidget {
           initial: draft.shippingAddress1,
           onChanged: vm.setShippingAddress1,
           errorText: vm.fieldErrorFor('shipping_address1'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('shipping_address2'),
           initial: draft.shippingAddress2,
           onChanged: vm.setShippingAddress2,
           errorText: vm.fieldErrorFor('shipping_address2'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('city'),
           initial: draft.shippingCity,
           onChanged: vm.setShippingCity,
           errorText: vm.fieldErrorFor('shipping_city'),
+          textCapitalization: TextCapitalization.words,
         ),
         EntityEditField(
           label: context.tr('state'),
@@ -594,6 +606,8 @@ class _ShippingTab extends StatelessWidget {
           initial: draft.shippingPostalCode,
           onChanged: vm.setShippingPostalCode,
           errorText: vm.fieldErrorFor('shipping_postal_code'),
+          textCapitalization: TextCapitalization.characters,
+          autocorrect: false,
         ),
         ClientEditCountryField(
           initial: draft.shippingCountryId,

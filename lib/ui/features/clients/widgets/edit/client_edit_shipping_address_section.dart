@@ -34,17 +34,20 @@ class ClientEditShippingAddressSection extends StatelessWidget {
             label: context.tr('address1'),
             initial: draft.shippingAddress1,
             onChanged: vm.setShippingAddress1,
+            textCapitalization: TextCapitalization.words,
           ),
           EntityEditField(
             label: context.tr('address2'),
             initial: draft.shippingAddress2,
             onChanged: vm.setShippingAddress2,
+            textCapitalization: TextCapitalization.words,
           ),
           ClientEditFieldPair(
             left: EntityEditField(
               label: context.tr('city'),
               initial: draft.shippingCity,
               onChanged: vm.setShippingCity,
+              textCapitalization: TextCapitalization.words,
             ),
             right: EntityEditField(
               label: context.tr('state'),
@@ -57,6 +60,8 @@ class ClientEditShippingAddressSection extends StatelessWidget {
               label: context.tr('postal_code'),
               initial: draft.shippingPostalCode,
               onChanged: vm.setShippingPostalCode,
+              textCapitalization: TextCapitalization.characters,
+              autocorrect: false,
             ),
             right: ClientEditCountryField(
               initial: draft.shippingCountryId,

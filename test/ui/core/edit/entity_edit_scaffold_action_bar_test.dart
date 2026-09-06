@@ -117,11 +117,12 @@ void main() {
     // The title yields room to the fixed Save + ⋮ cluster, so the header lays
     // out without a RenderFlex overflow (the long title ellipsises instead).
     expect(tester.takeException(), isNull);
-    // Mobile matches the detail header: Save + a label-less vertical ⋮ holding
-    // every action — never the horizontal "More" button.
+    // Mobile matches the detail header: Save + a label-less ⋮ IconButton
+    // holding every action — never the labeled "More" button. Both triggers
+    // carry `Icons.more_vert`, so the widget is what tells them apart.
     expect(find.byType(FilledButton), findsOneWidget);
-    expect(find.byIcon(Icons.more_vert), findsOneWidget);
-    expect(find.byIcon(Icons.more_horiz), findsNothing);
+    expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsOneWidget);
+    expect(find.widgetWithIcon(OutlinedButton, Icons.more_vert), findsNothing);
     expect(find.text('More'), findsNothing);
     // Save is a plain Row child here (not measured inside OverflowView), so it
     // still carries no Tooltip ancestor.

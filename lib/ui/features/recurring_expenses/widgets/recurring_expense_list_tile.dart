@@ -107,7 +107,6 @@ class _RecurringExpenseListTileState extends State<RecurringExpenseListTile> {
               : EntityActionsPopupButton<RecurringExpenseAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: RecurringExpenseActions.itemsFor(
                     context,
                     w.recurringExpense,
@@ -167,7 +166,6 @@ class _RecurringExpenseListTileState extends State<RecurringExpenseListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<RecurringExpenseAction>(
-            icon: Icons.more_horiz,
             items: RecurringExpenseActions.itemsFor(
               context,
               w.recurringExpense,

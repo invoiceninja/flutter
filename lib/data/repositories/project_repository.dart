@@ -256,7 +256,13 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     String? existingTempId,
   }) async {
     final tmpId = existingTempId ?? mintTempId();
-    final stored = draft.copyWith(id: tmpId);
+    // An inline-created tag whose create round-tripped while this form was open
+    // has had its tmp row deleted, so the draft's id names nothing. Rebind it
+    // through `id_remap` before anything reads it — see `canonicalizeTagIds`.
+    final stored = draft.copyWith(
+      id: tmpId,
+      tagIds: await canonicalizeTagIds(draft.tagIds),
+    );
     // Resolved OUTSIDE the transaction — see TagNameResolver.
     final tagNames = await resolveTagNames(companyId, stored.tagIds);
 
@@ -295,6 +301,13 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     // real entity via the remap. Rebind to the real id first.
     final resolvedId = await resolveId(project.id);
     if (resolvedId != project.id) project = project.copyWith(id: resolvedId);
+
+    // Same rebind for the tags it references — see `canonicalizeTagIds`.
+    // Unconditional: a `!=` here would be List *identity*, correct only by an
+    // invariant nothing enforces, and the copy is free when nothing changed.
+    project = project.copyWith(
+      tagIds: await canonicalizeTagIds(project.tagIds),
+    );
 
     // Resolved OUTSIDE the transaction — see TagNameResolver.
     final tagNames = await resolveTagNames(companyId, project.tagIds);

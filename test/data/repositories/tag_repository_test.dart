@@ -5,6 +5,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/tag_api_model.dart';
 import 'package:admin/data/models/api/task_api_model.dart';
 import 'package:admin/data/models/domain/tag.dart';
+import 'package:admin/data/models/domain/tag_lookup.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/services/tags_api.dart';
@@ -45,6 +46,53 @@ void main() {
     late AppDatabase db;
     setUp(() => db = AppDatabase(NativeDatabase.memory()));
     tearDown(() async => db.close());
+
+    /// The end-to-end form of the bug, on real Drift: an inline-created tag
+    /// rendered as `tmp_1f3c…` once its create round-tripped, because
+    /// `applyCreateResponseTemplate` deletes the tmp row while every caller
+    /// still holds the tmp id.
+    ///
+    /// This is the test that pins the fix against a future change to that
+    /// template — the widget test can only prove the picker honours a resolver.
+    test(
+      'watchLookup still resolves a tmp id after the create response swaps it',
+      () async {
+        final repo = TagRepository(db: db, api: _FakeTagsApi());
+        final created = await repo.create(
+          companyId: 'c1',
+          draft: newTagDraft(name: 'vip', entityType: 'task'),
+        );
+        final tmpId = created.entity.id;
+        expect(tmpId, startsWith('tmp_'));
+
+        Future<TagLookup> lookup() =>
+            repo.watchLookup(companyId: 'c1', entityType: 'task').first;
+
+        // Before the drain the tmp row is simply there.
+        expect((await lookup())[tmpId]?.name, 'vip');
+
+        // The drain: real row in, tmp row deleted, id_remap written — all in
+        // one transaction, which is why the alias is the only thing left that
+        // can answer for the id the caller still holds.
+        await repo.applyCreateResponse(
+          companyId: 'c1',
+          tempId: tmpId,
+          serverResponse: const TagApi(
+            id: 'real9',
+            entityType: 'task',
+            name: 'vip',
+          ),
+        );
+
+        final after = await lookup();
+        expect(after.all.map((t) => t.id), ['real9']);
+        expect(after[tmpId]?.name, 'vip', reason: 'resolved through id_remap');
+        expect(after.canonicalId(tmpId), 'real9');
+        // And the id that no longer exists anywhere resolves to nothing, so
+        // callers render a placeholder rather than the raw token.
+        expect(after['tmp_gone'], isNull);
+      },
+    );
 
     test('Tag.fromApi normalizes the FQCN entity_type to the short key', () {
       final fromFqcn = Tag.fromApi(

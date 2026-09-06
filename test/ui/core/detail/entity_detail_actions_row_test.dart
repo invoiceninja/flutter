@@ -162,9 +162,9 @@ void main() {
       expect(find.widgetWithText(FilledButton, 'Edit'), findsOneWidget);
       expect(find.widgetWithText(OutlinedButton, 'Busy'), findsOneWidget);
       // Neither overflow trigger: the compact ⋮ is the narrow branch, and the
-      // "More" menu only appears once something overflows.
+      // "More" menu only appears once something overflows. Both carry
+      // `Icons.more_vert`, so one assertion covers the pair.
       expect(find.byIcon(Icons.more_vert), findsNothing);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
     });
 
     testWidgets('collapses the tail into a labeled "More" menu when actions '
@@ -176,11 +176,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.widgetWithText(FilledButton, 'Edit'), findsOneWidget);
-      // Labeled "More" trigger (more_horiz), not the compact ⋮.
-      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
-      expect(find.byIcon(Icons.more_vert), findsNothing);
+      // The labeled "More" trigger, not the compact ⋮. Both carry
+      // `Icons.more_vert` — the app uses one glyph on every overflow surface —
+      // so the button type is what tells them apart.
+      expect(
+        find.widgetWithIcon(OutlinedButton, Icons.more_vert),
+        findsOneWidget,
+      );
+      expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.widgetWithIcon(OutlinedButton, Icons.more_vert));
       await tester.pumpAndSettle();
       // The last action overflowed into the menu.
       expect(find.text('Action number 7'), findsOneWidget);
@@ -197,7 +202,6 @@ void main() {
       expect(find.byType(FilledButton), findsNothing);
       expect(find.widgetWithText(OutlinedButton, 'Archive'), findsOneWidget);
       expect(find.widgetWithText(OutlinedButton, 'Delete'), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
       expect(find.byIcon(Icons.more_vert), findsNothing);
     });
   });

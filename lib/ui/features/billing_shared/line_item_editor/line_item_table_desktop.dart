@@ -1013,7 +1013,7 @@ class _Row extends StatefulWidget {
   final Services services;
   final ValueChanged<LineItem> onCellCommit;
   final ValueChanged<Product> onProductSelected;
-  final ValueChanged<String> onCreateProduct;
+  final Future<void> Function(String) onCreateProduct;
   final ValueChanged<_RowAction> onMenuAction;
   final VoidCallback onTabFromLastCell;
 
@@ -1045,7 +1045,7 @@ class _RowStateW extends State<_Row> {
   Services get services => widget.services;
   ValueChanged<LineItem> get onCellCommit => widget.onCellCommit;
   ValueChanged<Product> get onProductSelected => widget.onProductSelected;
-  ValueChanged<String> get onCreateProduct => widget.onCreateProduct;
+  Future<void> Function(String) get onCreateProduct => widget.onCreateProduct;
   ValueChanged<_RowAction> get onMenuAction => widget.onMenuAction;
   VoidCallback get onTabFromLastCell => widget.onTabFromLastCell;
   bool get canCreateTask => widget.canCreateTask;
@@ -1534,7 +1534,11 @@ class _ProductCell extends StatefulWidget {
   final FocusNode focusNode;
   final String hintKey;
   final ValueChanged<Product> onSelected;
-  final ValueChanged<String> onCreateRequested;
+
+  /// Creates a product from the typed key and merges it into the row.
+  /// Returns a future so the cell can hold its re-entrancy guard for the
+  /// whole round trip — a void callback left `_creating` latched forever.
+  final Future<void> Function(String) onCreateRequested;
   final VoidCallback onCommitText;
 
   @override
@@ -1553,6 +1557,56 @@ class _ProductCellState extends State<_ProductCell> {
   int _searchSeq = 0;
   // Length of the list the last `optionsBuilder` returned — gates Tab-to-select.
   int _lastOptionsCount = 0;
+
+  /// The live highlight from the options overlay. Captured as the *notifier*
+  /// rather than its value: `AutocompleteHighlightedOption` is an
+  /// `InheritedNotifier`, so an index read during build lags a frame behind the
+  /// arrow keys and a Tab/Enter in the same event batch acts on the wrong row.
+  ValueNotifier<int>? _highlight;
+
+  /// The options the popover last rendered — what is actually on screen, not
+  /// whatever `optionsBuilder` returned (the SDK may discard a stale result).
+  List<_ProductOption> _visibleOptions = const [];
+
+  /// True while the options overlay is mounted.
+  ///
+  /// Load-bearing, and the reason is not obvious. Routing create away from
+  /// `RawAutocomplete._select` also skips the guard *above* it:
+  /// `_onFieldSubmitted` only selects `if (_optionsViewController.isShowing)`.
+  /// Flutter's `DismissIntent` hides the overlay **without touching focus or
+  /// text**, so nothing else here observes an Escape — and `_visibleOptions`,
+  /// `_highlight` and `_lastOptionsCount` all survive it. Without this flag,
+  /// Escape-then-Enter created a product the user had just dismissed.
+  ///
+  /// `_lastOptionsCount` is NOT a substitute: it comes from `optionsBuilder`'s
+  /// return value, which the SDK may discard, and it is never reset on blur or
+  /// dismissal — it answers "did a builder recently return rows", not "is the
+  /// popover open".
+  bool _optionsVisible = false;
+
+  /// Guards the create round-trip against a second trigger.
+  ///
+  /// `_select` used to supply this for free — it latched the selection and
+  /// called `hide()`, so a second Enter or click was a no-op. Routing around it
+  /// removed both, and `onCreateProduct` awaits a network create, so a
+  /// double-click or Enter key-repeat would otherwise POST twice and make two
+  /// products. Mirrors `ClientPickerField._handleCreate`.
+  bool _creating = false;
+
+  /// Whether the keyboard cursor is sitting on the synthetic "Create «x»" row.
+  ///
+  /// Both key paths have to test this and route around
+  /// `RawAutocomplete._select`, which early-returns on an unchanged selection
+  /// *before* hiding the overlay — and `_ProductCreate` has no `operator ==`,
+  /// so after a cancelled create the same instance is still the latched
+  /// selection and the row is dead until the user edits the text.
+  bool get _highlightIsCreateRow {
+    if (!_optionsVisible || _creating || !_canCreateProducts) return false;
+    final i = _highlight?.value ?? 0;
+    if (i < 0 || i >= _visibleOptions.length) return false;
+    return _visibleOptions[i] is _ProductCreate;
+  }
+
   bool _searching = false;
   bool _searchFailed = false;
   // Debounces the background catalog refresh fired from the local-first
@@ -1560,6 +1614,11 @@ class _ProductCellState extends State<_ProductCell> {
   // keystroke (the old 200 ms sleep that used to coalesce them is gone there).
   Timer? _bgRefreshTimer;
   final ScrollController _optionsScrollController = ScrollController();
+
+  /// Whether this user may create products at all. Read here rather than
+  /// assumed: the inline create shipped with no permission check, so a
+  /// view-only user was offered a row whose only possible outcome was a 403.
+  bool _canCreateProducts = false;
 
   @override
   void initState() {
@@ -1577,10 +1636,41 @@ class _ProductCellState extends State<_ProductCell> {
           .ensurePageLoaded(companyId: widget.companyId, page: 1)
           .catchError((_) => false),
     );
+    widget.focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _readPermission();
+  }
+
+  /// Blur closes the overlay, and nothing else tells us — the SDK hides it
+  /// without calling back.
+  void _onFocusChange() {
+    if (!widget.focusNode.hasFocus) _optionsVisible = false;
+  }
+
+  @override
+  void didUpdateWidget(_ProductCell old) {
+    super.didUpdateWidget(old);
+    // Permissions are per company-user, so a company switch has to re-evaluate
+    // — mirrors `ClientPickerField._readPermission`.
+    if (old.companyId != widget.companyId) _readPermission();
+  }
+
+  /// Admin/owner bypass and `create_all` expansion are handled inside `can`.
+  void _readPermission() {
+    _canCreateProducts =
+        context.read<Services>().auth.session.value?.currentCompany?.can(
+          'create_product',
+        ) ??
+        false;
   }
 
   @override
   void dispose() {
+    widget.focusNode.removeListener(_onFocusChange);
     _bgRefreshTimer?.cancel();
     _optionsScrollController.dispose();
     super.dispose();
@@ -1602,6 +1692,15 @@ class _ProductCellState extends State<_ProductCell> {
     final options = <_ProductOption>[
       for (final p in rows.take(20)) _ProductExisting(p),
     ];
+    // Appended for EVERY user, not just those who may create — then rendered
+    // as a muted "no records found" row, and inert, when they may not.
+    //
+    // `RawAutocomplete._canShowOptionsView` is `hasFocus && options.isNotEmpty`,
+    // so an empty list means no overlay at all — and the search spinner and the
+    // `couldnt_load_products` error both live *inside* `optionsViewBuilder`.
+    // Gating the row out of the LIST (rather than out of the interaction) left
+    // a user without `create_product` typing a name, losing the network, and
+    // getting nothing whatsoever: no spinner, no error, no "no results".
     if (query.isNotEmpty &&
         !rows.any((p) => p.productKey.toLowerCase() == query.toLowerCase())) {
       options.add(_ProductCreate(query));
@@ -1661,6 +1760,42 @@ class _ProductCellState extends State<_ProductCell> {
   bool get _hasSelectableOptions =>
       widget.focusNode.hasFocus && _lastOptionsCount > 0;
 
+  /// Fires the inline create when the keyboard cursor is on that row, and
+  /// reports whether it did — so both key paths can return before reaching
+  /// `RawAutocomplete._select`. Shared because Tab and Enter arrive by
+  /// different routes (see the interceptor).
+  bool _acceptedCreateRow() {
+    if (!_highlightIsCreateRow) return false;
+    _startCreate();
+    return true;
+  }
+
+  /// The one way in to the inline create, from every path.
+  ///
+  /// Reads the name off the **live controller**, never the highlighted
+  /// `_ProductCreate.label`: on a miss `optionsBuilder` debounces 200 ms and
+  /// then awaits the server, so that label is the query as it stood when the
+  /// builder last resolved. Typing `widge`, then `t`, then Enter inside that
+  /// window used to create a product called `widge` while the field read
+  /// `widget` — and silently, since `_applyRow` writes the created key back.
+  /// `ClientPickerField` re-derives from the controller for the same reason.
+  ///
+  /// Closes the popover and drops focus first: that is what `_select` used to
+  /// do, and it is half of the double-fire guard.
+  void _startCreate() {
+    if (_creating || !_canCreateProducts) return;
+    final query = widget.controller.text.trim();
+    if (query.isEmpty) return;
+    _creating = true;
+    _optionsVisible = false;
+    widget.focusNode.unfocus();
+    unawaited(
+      widget.onCreateRequested(query).whenComplete(() {
+        if (mounted) _creating = false;
+      }),
+    );
+  }
+
   InputDecoration _decoration(BuildContext context) {
     final tokens = context.inTheme;
     return InputDecoration(
@@ -1692,6 +1827,10 @@ class _ProductCellState extends State<_ProductCell> {
       focusNode: widget.focusNode,
       displayStringForOption: (opt) =>
           opt is _ProductExisting ? opt.product.productKey : opt.label,
+      // Flip above the cell when there is more room there. Left at the `.down`
+      // default, a row near the bottom of a long invoice gets only the space
+      // beneath it, floored at a ~48 px sliver.
+      optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
       // Async builder: RawAutocomplete awaits this and sets its visible options
       // from the result (with its own call-id guard for out-of-order returns).
       // A synchronous builder can't work here because results arrive after the
@@ -1785,9 +1924,14 @@ class _ProductCellState extends State<_ProductCell> {
       onSelected: (opt) {
         if (opt is _ProductExisting) {
           widget.onSelected(opt.product);
-        } else if (opt is _ProductCreate) {
-          widget.onCreateRequested(opt.label);
+          return;
         }
+        // Backstop only. The pointer path calls `_startCreate` from
+        // `InkWell.onTap` and both key paths intercept below, because
+        // `_select` early-returns on an unchanged selection. Handling it here
+        // rather than dropping it matters: `_select` has already latched this
+        // instance as its selection, so ignoring it would strand the row.
+        _startCreate();
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
         // Pure key interceptor (no tab stop of its own) so Tab can accept the
@@ -1798,6 +1942,13 @@ class _ProductCellState extends State<_ProductCell> {
           skipTraversal: true,
           onKeyEvent: (node, event) {
             if (event is! KeyDownEvent) return KeyEventResult.ignored;
+            // Escape hides the overlay through `DismissIntent` without
+            // touching focus or text, so this is the only place that can
+            // observe it. Stay `ignored` — the SDK still needs the event.
+            if (event.logicalKey == LogicalKeyboardKey.escape) {
+              _optionsVisible = false;
+              return KeyEventResult.ignored;
+            }
             if (event.logicalKey != LogicalKeyboardKey.tab) {
               return KeyEventResult.ignored;
             }
@@ -1805,6 +1956,10 @@ class _ProductCellState extends State<_ProductCell> {
               return KeyEventResult.ignored;
             }
             if (!_hasSelectableOptions) return KeyEventResult.ignored;
+            // Tab reaches `onFieldSubmitted` DIRECTLY, never through
+            // `TextField.onSubmitted` — so it needs its own create
+            // interception or it falls through to the dead `_select` path.
+            if (_acceptedCreateRow()) return KeyEventResult.handled;
             // Accept the highlighted option (selection advances focus to the
             // notes cell). `handled` suppresses default traversal so it doesn't
             // race with that focus move.
@@ -1815,7 +1970,10 @@ class _ProductCellState extends State<_ProductCell> {
             controller: controller,
             focusNode: focusNode,
             onChanged: (_) => widget.onCommitText(),
-            onSubmitted: (_) => onFieldSubmitted(),
+            onSubmitted: (_) {
+              if (_acceptedCreateRow()) return;
+              onFieldSubmitted();
+            },
             textAlignVertical: TextAlignVertical.center,
             style: const TextStyle(fontSize: 13),
             decoration: _decoration(context),
@@ -1825,145 +1983,185 @@ class _ProductCellState extends State<_ProductCell> {
       optionsViewBuilder: (context, onSelected, options) {
         final tokens = context.inTheme;
         final highlightedIndex = AutocompleteHighlightedOption.of(context);
+        // Hold the notifier, not the index — see [_highlight].
+        _highlight = context
+            .dependOnInheritedWidgetOfExactType<AutocompleteHighlightedOption>()
+            ?.notifier;
+        _visibleOptions = options.toList(growable: false);
+        _optionsVisible = true;
         _scrollHighlightedIntoView(highlightedIndex, options.length);
-        return Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            elevation: 4,
-            color: tokens.surface,
-            shape: RoundedRectangleBorder(
-              side: BorderSide(color: tokens.border),
-              borderRadius: BorderRadius.circular(InRadii.r2),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 280, maxWidth: 360),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_searching) const LinearProgressIndicator(minHeight: 2),
-                  if (_searchFailed)
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: InSpacing.md(context),
-                        vertical: InSpacing.sm,
-                      ),
-                      child: Text(
-                        context.tr('couldnt_load_products'),
-                        style: TextStyle(color: tokens.ink3, fontSize: 12),
-                      ),
+        // No `Align` of our own: `RawAutocomplete` already wraps this in
+        // `ConstrainedBox(tight) -> Align`, and a bare `Align` shrink-wraps
+        // only under an infinite constraint — so ours would fill the whole
+        // bounding box and leave the SDK's alignment nothing to move.
+        return Material(
+          elevation: 4,
+          color: tokens.surface,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: tokens.border),
+            borderRadius: BorderRadius.circular(InRadii.r2),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 280, maxWidth: 360),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_searching) const LinearProgressIndicator(minHeight: 2),
+                if (_searchFailed)
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: InSpacing.md(context),
+                      vertical: InSpacing.sm,
                     ),
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      controller: _optionsScrollController,
-                      itemExtent: _optionExtent,
-                      itemCount: options.length,
-                      itemBuilder: (context, i) {
-                        final opt = options.elementAt(i);
-                        final isHighlighted = i == highlightedIndex;
-                        if (opt is _ProductCreate) {
-                          return Container(
-                            color: isHighlighted ? tokens.accentSoft : null,
-                            child: InkWell(
-                              onTap: () => onSelected(opt),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: InSpacing.md(context),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.add,
-                                        size: 16,
-                                        color: tokens.accent,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          '${context.tr('create')} "${opt.label}"',
-                                          style: TextStyle(
-                                            color: tokens.accent,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                    child: Text(
+                      context.tr('couldnt_load_products'),
+                      style: TextStyle(color: tokens.ink3, fontSize: 12),
+                    ),
+                  ),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    controller: _optionsScrollController,
+                    itemExtent: _optionExtent,
+                    itemCount: options.length,
+                    itemBuilder: (context, i) {
+                      final opt = options.elementAt(i);
+                      final isHighlighted = i == highlightedIndex;
+                      if (opt is _ProductCreate) {
+                        if (!_canCreateProducts) {
+                          // Same row, no affordance: it exists only to keep the
+                          // option list non-empty so the overlay — and with it
+                          // the spinner / error above — can mount at all.
+                          return Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: InSpacing.md(context),
+                            ),
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: Text(
+                                context.tr('no_records_found'),
+                                style: TextStyle(
+                                  color: tokens.ink3,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
                           );
                         }
-                        final product = (opt as _ProductExisting).product;
                         return Container(
                           color: isHighlighted ? tokens.accentSoft : null,
                           child: InkWell(
-                            onTap: () => onSelected(opt),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: InSpacing.md(context),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            product.productKey,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: tokens.ink,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                        ProductStockLabel(
-                                          quantity: product.inStockQuantity,
-                                          show: widget.showStock,
-                                        ),
-                                      ],
-                                    ),
-                                    if (widget.showProductDetails &&
-                                        product.notes.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 2),
-                                        child: Text(
-                                          // The dates the keyword becomes, as
-                                          // in the picker sheet and the
-                                          // Products list
-                                          // (invoiceninja/flutter#93).
-                                          expandDatePlaceholders(
-                                            product.notes,
-                                            formatter: widget.formatter,
-                                          ).split('\n').first,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: tokens.ink3,
-                                            fontSize: 11,
-                                          ),
-                                        ),
+                            // Straight to the handler, never through
+                            // `onSelected`: that is
+                            // `RawAutocomplete._select`, which early-returns
+                            // on an unchanged selection *before* hiding the
+                            // overlay. `_ProductCreate` has no `operator ==`,
+                            // so after one cancelled create the same instance
+                            // is still latched and the tap was dead until the
+                            // user edited the text.
+                            onTap: _startCreate,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: InSpacing.md(context),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.add,
+                                    size: 16,
+                                    // `accentInk`, not `accent`: `accent`
+                                    // is the same mid blue in BOTH
+                                    // brightnesses and lands at ~3.2:1 on the
+                                    // dark `accentSoft` highlight, under the
+                                    // 4.5:1 floor. `accentInk` lightens for
+                                    // dark themes and clears it either way.
+                                    color: tokens.accentInk,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${context.tr('create')} "${opt.label}"',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: tokens.accentInk,
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                  ],
-                                ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         );
-                      },
-                    ),
+                      }
+                      final product = (opt as _ProductExisting).product;
+                      return Container(
+                        color: isHighlighted ? tokens.accentSoft : null,
+                        child: InkWell(
+                          onTap: () => onSelected(opt),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: InSpacing.md(context),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          product.productKey,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: tokens.ink,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      ProductStockLabel(
+                                        quantity: product.inStockQuantity,
+                                        show: widget.showStock,
+                                      ),
+                                    ],
+                                  ),
+                                  if (widget.showProductDetails &&
+                                      product.notes.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        // The dates the keyword becomes, as
+                                        // in the picker sheet and the
+                                        // Products list
+                                        // (invoiceninja/flutter#93).
+                                        expandDatePlaceholders(
+                                          product.notes,
+                                          formatter: widget.formatter,
+                                        ).split('\n').first,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: tokens.ink3,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -2135,43 +2333,41 @@ class _TaxCellState extends State<_TaxCell> {
               decoration: _decoration(context),
             );
           },
-          optionsViewBuilder: (context, onSelected, options) => Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 4,
-              color: tokens.surface,
-              shape: RoundedRectangleBorder(
-                side: BorderSide(color: tokens.border),
-                borderRadius: BorderRadius.circular(InRadii.r2),
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxHeight: 240,
-                  maxWidth: 280,
-                ),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  itemCount: options.length,
-                  itemBuilder: (context, i) {
-                    final opt = options.elementAt(i);
-                    return InkWell(
-                      onTap: () => onSelected(opt),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: InSpacing.md(context),
-                          vertical: 10,
-                        ),
-                        child: Text(
-                          opt.displayLocalized(widget.formatter).isEmpty
-                              ? context.tr('none')
-                              : opt.displayLocalized(widget.formatter),
-                          style: TextStyle(color: tokens.ink, fontSize: 13),
-                        ),
+          // No `Align` of our own: `RawAutocomplete` already wraps this in
+          // `ConstrainedBox(tight) -> Align`, and a bare `Align` shrink-wraps
+          // only under an infinite constraint — so ours would fill the whole
+          // bounding box and leave the SDK's alignment nothing to move.
+          optionsViewBuilder: (context, onSelected, options) => Material(
+            elevation: 4,
+            color: tokens.surface,
+            shape: RoundedRectangleBorder(
+              side: BorderSide(color: tokens.border),
+              borderRadius: BorderRadius.circular(InRadii.r2),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240, maxWidth: 280),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: options.length,
+                itemBuilder: (context, i) {
+                  final opt = options.elementAt(i);
+                  return InkWell(
+                    onTap: () => onSelected(opt),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: InSpacing.md(context),
+                        vertical: 10,
                       ),
-                    );
-                  },
-                ),
+                      child: Text(
+                        opt.displayLocalized(widget.formatter).isEmpty
+                            ? context.tr('none')
+                            : opt.displayLocalized(widget.formatter),
+                        style: TextStyle(color: tokens.ink, fontSize: 13),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

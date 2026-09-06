@@ -96,7 +96,6 @@ class CompanyGatewayListTile extends StatelessWidget {
               : EntityActionsPopupButton<CompanyGatewayAction>(
                   splitEditAction: true,
                   editEnabled: editable,
-                  icon: Icons.more_horiz,
                   items: CompanyGatewayActions.itemsFor(
                     context,
                     gateway,
@@ -132,7 +131,6 @@ class CompanyGatewayListTile extends StatelessWidget {
         if (onAction != null && !selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<CompanyGatewayAction>(
-            icon: Icons.more_horiz,
             items: CompanyGatewayActions.itemsFor(context, gateway, onAction!),
           ),
         ],

@@ -17,7 +17,7 @@ class ExpenseCategoryEditViewModel
     super.sync,
     super.connectivity,
   }) : super(
-         initialDraft: cloneFrom ?? existing ?? _emptyExpenseCategory(),
+         initialDraft: cloneFrom ?? existing ?? emptyExpenseCategory(),
          original: existing,
          companyId: companyId,
        );
@@ -45,7 +45,7 @@ class ExpenseCategoryEditViewModel
     return repo.save(companyId: companyId, category: draft);
   }
 
-  void resetToEmpty() => reset(emptyDraft: _emptyExpenseCategory());
+  void resetToEmpty() => reset(emptyDraft: emptyExpenseCategory());
 
   // `setStr` lives on the base; each setter just names the `copyWith`
   // projection. Closure params are named `n` (next value) to avoid
@@ -53,15 +53,3 @@ class ExpenseCategoryEditViewModel
   void setName(String v) => setStr((d, n) => d.copyWith(name: n), v);
   void setColor(String v) => setStr((d, n) => d.copyWith(color: n), v);
 }
-
-ExpenseCategory _emptyExpenseCategory() => ExpenseCategory(
-  id: '',
-  userId: '',
-  assignedUserId: '',
-  name: '',
-  color: '',
-  updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-  createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-  archivedAt: null,
-  isDeleted: false,
-);

@@ -250,6 +250,75 @@ void main() {
       expect(row.single.tagNames, '', reason: 'tag removal clears the key');
     });
 
+    /// The quiet half of the `tmp_` tag bug: a tag whose inline create drained
+    /// while the task form was open has had its tmp row deleted, so the draft's
+    /// id names nothing. `resolveTagNames` did `byId[id] ?? ''` and
+    /// `joinTagNames` drops empties, so the row's `tag_names` sort key silently
+    /// lost that tag — and the stored payload kept a token only the sync drain
+    /// could rescue.
+    test('create canonicalizes a tmp tag id whose create already round-tripped '
+        '(tag_names and the stored ids both follow the remap)', () async {
+      final repo = makeRepo();
+      // The post-drain state: real tag row present, tmp row gone, alias written.
+      await db
+          .into(db.tags)
+          .insert(
+            TagsCompanion.insert(
+              id: 'real9',
+              companyId: 'co',
+              entityType: const Value('task'),
+              name: const Value('Design'),
+              updatedAt: 0,
+              payload: '{}',
+            ),
+          );
+      await db.idRemapDao.remember(
+        entityType: 'tag',
+        tempId: 'tmp_1f3c',
+        realId: 'real9',
+        now: 0,
+      );
+
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(tagIds: const ['tmp_1f3c']),
+      );
+
+      final row = await db.taskDao.getByIds(
+        companyId: 'co',
+        ids: [created.entity.id],
+      );
+      expect(row.single.tagNames, 'design', reason: 'sort key keeps the tag');
+      expect(
+        created.entity.tagIds,
+        ['real9'],
+        reason: 'the stored id follows the remap, not just the sort key',
+      );
+    });
+
+    test(
+      'canonicalizing collapses a draft holding both the tmp and real id',
+      () async {
+        // Reachable on rows saved before this shipped: the picker filtered its
+        // pool by raw id, so after the swap it re-offered the just-created tag
+        // under its real id and appended a second entry for the same tag.
+        final repo = makeRepo();
+        await db.idRemapDao.remember(
+          entityType: 'tag',
+          tempId: 'tmp_1f3c',
+          realId: 'real9',
+          now: 0,
+        );
+
+        final created = await repo.create(
+          companyId: 'co',
+          draft: task(tagIds: const ['tmp_1f3c', 'real9']),
+        );
+
+        expect(created.entity.tagIds, ['real9']);
+      },
+    );
+
     test('tag_ids narrows post-decode with OR membership', () async {
       final repo = makeRepo();
       await repo.create(

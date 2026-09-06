@@ -6,12 +6,14 @@ import 'package:drift/drift.dart' show Value;
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/tag_api_model.dart';
 import 'package:admin/data/models/domain/tag.dart';
+import 'package:admin/data/models/domain/tag_lookup.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/services/tags_api.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
+import 'package:admin/utils/combine_latest.dart';
 
 /// Repository for Tags — a small, admin-managed, name+color reference entity
 /// scoped per `(company_id, entity_type)`. Unlike most reference data tags are
@@ -76,6 +78,33 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
           includeGlobal: includeGlobal,
         )
         .map((rows) => rows.map(_fromRow).toList(growable: false));
+  }
+
+  /// The stream for any surface that renders a tag **by id**: every tag for
+  /// [entityType] in all lifecycle states, folded together with the
+  /// `tmp_ -> real` aliases from `id_remap`.
+  ///
+  /// [watchAllAnyState] alone is not enough for those surfaces. A create writes
+  /// its optimistic row under a `tmp_` id and the parent draft keeps that id;
+  /// when the create round-trips, the tmp row is DELETED and the real one
+  /// inserted, so the stored id stops resolving and the chip fell back to
+  /// printing `tmp_1f3c…` as the tag's name. The alias map is what keeps it
+  /// resolving. Surfaces with no id to resolve — Settings → Tags, the list
+  /// filter suggestions — should keep using [watchAll] / [watchAllAnyState].
+  Stream<TagLookup> watchLookup({
+    required String companyId,
+    required String entityType,
+    bool includeGlobal = true,
+  }) {
+    return combineLatest2(
+      watchAllAnyState(
+        companyId: companyId,
+        entityType: entityType,
+        includeGlobal: includeGlobal,
+      ),
+      db.idRemapDao.watchAliases(entityType: entityTypeName),
+      TagLookup.new,
+    );
   }
 
   @override

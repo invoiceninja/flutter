@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/tax_rate.dart';
+import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/data/repositories/invoice_repository.dart';
 import 'package:admin/data/repositories/product_repository.dart';
@@ -87,7 +89,24 @@ class _StubTaxRateRepo implements TaxRateRepository {
       throw UnimplementedError(i.memberName.toString());
 }
 
+/// The product cell reads `create_product` off the session to decide whether to
+/// offer its inline "Create «x»" row, so the fake has to carry one. A null
+/// session is the honest default here: these tests only exercise the cells.
+class _StubAuth implements AuthRepository {
+  @override
+  final ValueListenable<AuthSession?> session = ValueNotifier<AuthSession?>(
+    null,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation i) =>
+      throw UnimplementedError(i.memberName.toString());
+}
+
 class _FakeServices implements Services {
+  @override
+  final AuthRepository auth = _StubAuth();
+
   @override
   final CompanyRepository company = _StubCompanyRepo();
 

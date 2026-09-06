@@ -514,6 +514,9 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
       ),
       if (widget.type.supportsScheduledSend)
         PopupMenuButton<String>(
+          // Explicit: the default is `Icons.adaptive.more`, which is
+          // `more_horiz` on iOS and macOS. CLAUDE.md § Design system (v2).
+          icon: const Icon(Icons.more_vert),
           enabled: _canSend,
           onSelected: (_) => _schedule(),
           itemBuilder: (context) => [

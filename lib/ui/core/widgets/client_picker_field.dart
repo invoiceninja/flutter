@@ -765,7 +765,10 @@ class _CreateRow extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: InSpacing.md(context)),
             child: Row(
               children: [
-                Icon(Icons.add, size: 16, color: tokens.accent),
+                // `accentInk`, not `accent` — `accent` is the same mid
+                // blue in both brightnesses and lands at ~3.2:1 on the
+                // dark `accentSoft` highlight, under the 4.5:1 floor.
+                Icon(Icons.add, size: 16, color: tokens.accentInk),
                 const SizedBox(width: InSpacing.sm),
                 Expanded(
                   child: Text(
@@ -773,7 +776,7 @@ class _CreateRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: tokens.accent,
+                      color: tokens.accentInk,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

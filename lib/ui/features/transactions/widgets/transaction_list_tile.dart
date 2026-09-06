@@ -103,7 +103,6 @@ class _TransactionListTileState extends State<TransactionListTile> {
               : EntityActionsPopupButton<TransactionAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: TransactionActions.itemsFor(
                     context,
                     w.transaction,
@@ -160,7 +159,6 @@ class _TransactionListTileState extends State<TransactionListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<TransactionAction>(
-            icon: Icons.more_horiz,
             items: TransactionActions.itemsFor(context, tx, w.onAction!),
           ),
         ],

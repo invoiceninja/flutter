@@ -503,6 +503,9 @@ class _RowMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
+      // Explicit: the default is `Icons.adaptive.more`, which is `more_horiz`
+      // on iOS and macOS. CLAUDE.md § Design system (v2) — one glyph everywhere.
+      icon: const Icon(Icons.more_vert),
       tooltip: '',
       iconSize: 18,
       onSelected: (action) async {

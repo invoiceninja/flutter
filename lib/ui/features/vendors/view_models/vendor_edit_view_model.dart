@@ -22,7 +22,7 @@ class VendorEditViewModel extends GenericEditViewModel<Vendor> {
     super.sync,
     super.connectivity,
   }) : super(
-         initialDraft: cloneFrom ?? existing ?? _emptyVendor(),
+         initialDraft: cloneFrom ?? existing ?? emptyVendor(),
          original: existing,
          companyId: companyId,
        );
@@ -76,7 +76,7 @@ class VendorEditViewModel extends GenericEditViewModel<Vendor> {
   }
 
   /// Reset back to the original draft (or an empty vendor in create mode).
-  void resetToEmpty() => reset(emptyDraft: _emptyVendor());
+  void resetToEmpty() => reset(emptyDraft: emptyVendor());
 
   void setName(String value) => updateDraft(draft.copyWith(name: value));
   void setNumber(String value) => updateDraft(draft.copyWith(number: value));
@@ -185,36 +185,6 @@ class VendorEditViewModel extends GenericEditViewModel<Vendor> {
     updateDraft(draft.copyWith(contacts: contacts));
   }
 }
-
-Vendor _emptyVendor() => Vendor(
-  id: '',
-  name: '',
-  number: '',
-  idNumber: '',
-  vatNumber: '',
-  website: '',
-  phone: '',
-  address1: '',
-  address2: '',
-  city: '',
-  state: '',
-  postalCode: '',
-  countryId: '',
-  currencyId: '',
-  privateNotes: '',
-  publicNotes: '',
-  userId: '',
-  assignedUserId: '',
-  updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-  createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-  archivedAt: null,
-  isDeleted: false,
-  customValue1: '',
-  customValue2: '',
-  customValue3: '',
-  customValue4: '',
-  contacts: const [],
-);
 
 VendorContact _emptyContact() => VendorContact(
   id: '',

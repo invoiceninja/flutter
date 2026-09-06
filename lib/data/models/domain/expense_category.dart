@@ -51,3 +51,19 @@ extension ExpenseCategoryPayload on ExpenseCategory {
     };
   }
 }
+
+/// An empty draft, for a create form and for inline create.
+///
+/// Lives beside the model rather than in the edit view-model so
+/// `lib/ui/core/**` can build one without importing a feature package.
+ExpenseCategory emptyExpenseCategory() => ExpenseCategory(
+  id: '',
+  userId: '',
+  assignedUserId: '',
+  name: '',
+  color: '',
+  updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  archivedAt: null,
+  isDeleted: false,
+);

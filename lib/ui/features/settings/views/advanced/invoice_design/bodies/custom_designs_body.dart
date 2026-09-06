@@ -326,6 +326,9 @@ class _DesignTile extends StatelessWidget {
               _Pill(label: context.tr('pro_plan'), tone: _PillTone.accent),
             if (row.design != null)
               PopupMenuButton<String>(
+                // Explicit: the default is `Icons.adaptive.more`, which is
+                // `more_horiz` on iOS and macOS. CLAUDE.md § Design system (v2).
+                icon: const Icon(Icons.more_vert),
                 tooltip: '',
                 itemBuilder: (ctx) => [
                   if (showCopy)

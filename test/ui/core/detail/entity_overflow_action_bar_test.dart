@@ -60,16 +60,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Save stays surfaced; the trigger is the label-less vertical ⋮ — never
-      // the horizontal "More" button.
+      // Save stays surfaced; the trigger is the label-less ⋮ IconButton —
+      // never the labeled "More" button. Both carry `Icons.more_vert` (the
+      // app uses one glyph everywhere), so the widget is the discriminator,
+      // not the icon.
       expect(find.byKey(const ValueKey('leading')), findsOneWidget);
-      expect(find.byIcon(Icons.more_vert), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsOneWidget);
+      expect(
+        find.widgetWithIcon(OutlinedButton, Icons.more_vert),
+        findsNothing,
+      );
       expect(find.text('More'), findsNothing);
       // No action renders inline — they all live behind the ⋮.
       expect(find.text('Action 0'), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.more_vert));
       await tester.pumpAndSettle();
       expect(find.text('Action 0'), findsOneWidget);
       expect(find.text('Action 2'), findsOneWidget);
@@ -89,8 +94,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
-      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(
+        find.widgetWithIcon(OutlinedButton, Icons.more_vert),
+        findsOneWidget,
+      );
+      expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsNothing);
     });
   });
 
@@ -107,8 +115,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.more_vert), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsOneWidget);
+      expect(
+        find.widgetWithIcon(OutlinedButton, Icons.more_vert),
+        findsNothing,
+      );
     });
 
     testWidgets('wide width ⇒ spread "More" bar', (tester) async {
@@ -123,8 +134,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
-      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(
+        find.widgetWithIcon(OutlinedButton, Icons.more_vert),
+        findsOneWidget,
+      );
+      expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsNothing);
     });
   });
 
@@ -137,7 +151,10 @@ void main() {
 
     // The compact ⋮ is gated on a pinned leading; without one the bar keeps the
     // labeled overflow at every width (the locked multi-select design).
-    expect(find.byIcon(Icons.more_horiz), findsOneWidget);
-    expect(find.byIcon(Icons.more_vert), findsNothing);
+    expect(
+      find.widgetWithIcon(OutlinedButton, Icons.more_vert),
+      findsOneWidget,
+    );
+    expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsNothing);
   });
 }

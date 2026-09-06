@@ -109,6 +109,55 @@ class SearchableDropdownField<T extends Object> extends StatefulWidget {
       _SearchableDropdownFieldState<T>();
 }
 
+/// What the internal `RawAutocomplete` actually carries.
+///
+/// The widget's public generic stays `T`; this wrapper exists so the option
+/// list can hold something that is **not** a `T` — the synthetic "Create «x»"
+/// row. That row is what keeps the list non-empty, and Flutter's
+/// `RawAutocomplete` only mounts its options overlay while the list is
+/// non-empty (`_canShowOptionsView`), which is why a create affordance living
+/// purely in `optionsViewBuilder` is unreachable for a query that matches
+/// nothing — the one case it exists for.
+///
+/// Introduced ahead of that feature as a pure no-op so the refactor and the
+/// behaviour change can be reviewed apart.
+sealed class _Opt<T extends Object> {
+  const _Opt();
+}
+
+/// A real option.
+///
+/// **`==` delegates to [item], which keeps this a faithful no-op.**
+/// `RawAutocomplete._select` early-returns on `nextSelection == _selection`
+/// (`autocomplete.dart`), and before this wrapper existed that comparison was
+/// the caller's own `T` equality — freezed value equality, `String` equality,
+/// or identity, as each of the ~124 call sites dictates. A wrapper with no `==`
+/// is a fresh instance per build, so the early return would silently stop
+/// firing everywhere.
+///
+/// Delegate to [item], **not** to `idOf(item)`. For `T = String` the two are
+/// the same function — every such call site passes the identity projection — so
+/// that is not the case to reason from. The difference shows on a freezed `T`
+/// with an id-only projection (`Currency`, `Design`, `TaxRate`, `Country`),
+/// where two instances can share an id and differ elsewhere: there `idOf` is
+/// *coarser* and would early-return where `==` would not.
+///
+/// Note what this faithfully preserves rather than fixes: with two options
+/// sharing a display label the SDK's `_selection` can hold A while `_committed`
+/// holds B, and tapping A's row then hits the early return and does nothing.
+/// Pre-existing; out of scope for a no-op refactor.
+final class _ItemOpt<T extends Object> extends _Opt<T> {
+  const _ItemOpt(this.item);
+
+  final T item;
+
+  @override
+  bool operator ==(Object other) => other is _ItemOpt<T> && item == other.item;
+
+  @override
+  int get hashCode => item.hashCode;
+}
+
 class _SearchableDropdownFieldState<T extends Object>
     extends State<SearchableDropdownField<T>> {
   /// Row height at 1.0 text scale on a pointer platform. Touch grows it to
@@ -141,7 +190,7 @@ class _SearchableDropdownFieldState<T extends Object>
 
   /// The options currently rendered in the popover, so [_highlightIsCommitted]
   /// can map the highlight index back to an item.
-  List<T> _visibleOptions = const [];
+  List<_Opt<T>> _visibleOptions = const [];
 
   /// True while the options overlay is mounted; cleared on blur and on commit.
   bool _optionsVisible = false;
@@ -235,6 +284,13 @@ class _SearchableDropdownFieldState<T extends Object>
         .toList(growable: false);
   }
 
+  /// The single place `T` becomes `_Opt<T>`. Keeping it here is what lets
+  /// [_optionsFor] and [_idleOptions] — and the hoist rules they encode — stay
+  /// exactly as they were.
+  List<_Opt<T>> _wrap(List<T> items) => [
+    for (final it in items) _ItemOpt<T>(it),
+  ];
+
   /// Options for an empty query. The committed item leads so it stays visible
   /// even in a 250-country list, and so the default highlight (row 0) is the
   /// CURRENT value — Enter, or Android's soft-keyboard "Done", then lands on
@@ -308,7 +364,14 @@ class _SearchableDropdownFieldState<T extends Object>
     if (committed == null || !_optionsVisible) return false;
     final index = _highlight?.value ?? 0;
     if (index < 0 || index >= _visibleOptions.length) return false;
-    return widget.idOf(_visibleOptions[index]) == widget.idOf(committed);
+    // A `switch`, not an `is` test: this must become a COMPILE error when
+    // `_CreateOpt` lands. Answering `false` for a highlighted create row would
+    // send `_onSubmitted` to `onFieldSubmitted()` -> `_select(createOpt)` — the
+    // one call CLAUDE.md says must never be reached — and an `is` test makes
+    // that wrong answer quietly typecheck.
+    return switch (_visibleOptions[index]) {
+      _ItemOpt<T>(:final item) => widget.idOf(item) == widget.idOf(committed),
+    };
   }
 
   void _onSubmitted(VoidCallback onFieldSubmitted) {
@@ -408,17 +471,31 @@ class _SearchableDropdownFieldState<T extends Object>
         final popoverWidth = math.min(fieldWidth, 360.0);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
-          child: RawAutocomplete<T>(
+          child: RawAutocomplete<_Opt<T>>(
             textEditingController: _controller,
             focusNode: _focusNode,
-            displayStringForOption: widget.displayString,
+            // Read in TWO places, and the second is the one that matters for
+            // the create row: `_select` writes the result into the field, and
+            // `_onChangedField` compares it against the field text on every
+            // keystroke — that comparison is the only thing that ever clears
+            // the SDK's `_selection`, and a pinned `_selection` is exactly
+            // CLAUDE.md's "the row goes permanently dead after one cancelled
+            // create". So this must be total over `_Opt<T>`, cheap, and must
+            // stop equalling the field text as soon as the query moves on: a
+            // non-item row returns the query it was built from, never ''.
+            displayStringForOption: (o) => switch (o) {
+              _ItemOpt<T>(:final item) => widget.displayString(item),
+            },
             // Flip above the field when there's more room there. Left at the
             // `.down` default, a picker low on a phone screen gets whatever
             // space is below it, floored at a 48px sliver — invisible while the
             // popover held one row, useless now that it holds the whole list.
             optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
             optionsBuilder: (value) {
-              final options = _optionsFor(value.text);
+              // `_optionsFor` / `_idleOptions` stay in `T` — wrapping happens
+              // here and nowhere else, so the hoist and its `parentAgrees`
+              // guard are untouched.
+              final options = _wrap(_optionsFor(value.text));
               // An empty list unmounts the overlay, and `optionsViewBuilder`
               // then never runs again to say so — without this `_optionsVisible`
               // latches true, and a later Enter would take the "dismiss the
@@ -430,7 +507,10 @@ class _SearchableDropdownFieldState<T extends Object>
             // setState so the field rebuilds: `_select` doesn't rebuild us, and
             // the leading glyph is read from `_committed` during the field
             // build — without this it lags a parent rebuild behind the text.
-            onSelected: (item) {
+            onSelected: (opt) {
+              final item = switch (opt) {
+                _ItemOpt<T>(:final item) => item,
+              };
               setState(() {
                 _committed = item;
                 _optionsVisible = false;
@@ -568,8 +648,12 @@ class _SearchableDropdownFieldState<T extends Object>
               // would show two "current" rows.
               final committedIndex = committedId == null
                   ? -1
+                  // Exhaustive for the same reason as `_highlightIsCommitted`.
                   : _visibleOptions.indexWhere(
-                      (it) => widget.idOf(it) == committedId,
+                      (o) => switch (o) {
+                        _ItemOpt<T>(:final item) =>
+                          widget.idOf(item) == committedId,
+                      },
                     );
               // No Align of our own: RawAutocomplete already wraps this in a
               // tightly-constrained Align that flips between topStart and
@@ -604,7 +688,10 @@ class _SearchableDropdownFieldState<T extends Object>
                           itemExtent: optionExtent,
                           itemCount: options.length,
                           itemBuilder: (context, i) {
-                            final item = options.elementAt(i);
+                            final opt = options.elementAt(i);
+                            final item = switch (opt) {
+                              _ItemOpt<T>(:final item) => item,
+                            };
                             final isHighlighted = i == highlightedIndex;
                             final label = widget.displayString(item);
                             final isCommitted = i == committedIndex;
@@ -637,7 +724,7 @@ class _SearchableDropdownFieldState<T extends Object>
                                           widget.onChanged(item);
                                           _focusNode.unfocus();
                                         }
-                                      : () => onSelected(item),
+                                      : () => onSelected(opt),
                                   child: Padding(
                                     padding: EdgeInsets.symmetric(
                                       horizontal: InSpacing.md(context),

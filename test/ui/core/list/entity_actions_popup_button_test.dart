@@ -39,7 +39,6 @@ Future<void> _pump(
   WidgetTester tester, {
   required bool splitEditAction,
   bool editEnabled = true,
-  IconData icon = Icons.more_vert,
   required VoidCallback onEdit,
   required VoidCallback onArchive,
 }) async {
@@ -53,7 +52,6 @@ Future<void> _pump(
           child: EntityActionsPopupButton<String>(
             splitEditAction: splitEditAction,
             editEnabled: editEnabled,
-            icon: icon,
             items: _items(onEdit: onEdit, onArchive: onArchive),
           ),
         ),
@@ -138,24 +136,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Edit'), findsOneWidget);
     expect(find.text('Archive'), findsOneWidget);
-  });
-
-  testWidgets('split mode forces the vertical 3-dot overflow icon even when '
-      'a horizontal icon is passed', (tester) async {
-    await _pump(
-      tester,
-      splitEditAction: true,
-      icon: Icons.more_horiz,
-      onEdit: () {},
-      onArchive: () {},
-    );
-
-    expect(find.widgetWithIcon(IconButton, Icons.more_vert), findsOneWidget);
-    expect(find.widgetWithIcon(IconButton, Icons.more_horiz), findsNothing);
-    expect(
-      find.widgetWithIcon(IconButton, MdiIcons.circleEditOutline),
-      findsOneWidget,
-    );
   });
 
   testWidgets('a divider is inserted before the first lifecycle action, '

@@ -553,7 +553,8 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
           projectId: id,
           // Falls back to the raw id only while the names stream is still
           // loading; rows render rather than disappear.
-          name: _projectNames[id] ?? id,
+          // Never the raw id — see `MultiEntityPicker`.
+          name: _projectNames[id] ?? '—',
           tasks: byProject[id]!,
         ),
       if (byProject.containsKey(''))

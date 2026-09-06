@@ -103,7 +103,6 @@ class _TaskListTileState extends State<TaskListTile> {
               : EntityActionsPopupButton<TaskAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: TaskActions.itemsFor(context, w.task, w.onAction!),
                 ),
         ),
@@ -235,7 +234,6 @@ class _TaskListTileState extends State<TaskListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: InSpacing.sm),
           EntityActionsPopupButton<TaskAction>(
-            icon: Icons.more_horiz,
             items: TaskActions.itemsFor(context, w.task, w.onAction!),
           ),
         ],

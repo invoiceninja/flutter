@@ -104,7 +104,6 @@ class _ExpenseListTileState extends State<ExpenseListTile> {
               : EntityActionsPopupButton<ExpenseAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: ExpenseActions.itemsFor(
                     context,
                     w.expense,
@@ -160,7 +159,6 @@ class _ExpenseListTileState extends State<ExpenseListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<ExpenseAction>(
-            icon: Icons.more_horiz,
             items: ExpenseActions.itemsFor(context, w.expense, w.onAction!),
           ),
         ],

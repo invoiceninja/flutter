@@ -17,6 +17,12 @@ Color parseTagColor(String hex, {required Color fallback}) {
   return fallback;
 }
 
+/// Rendered in place of a tag whose id resolves to nothing — a tag another
+/// user deleted, or the frame between the create's tmp row being deleted and
+/// its `id_remap` alias landing (one transaction writes both, and their
+/// watches fire in no guaranteed order). Never render the id itself.
+const String kUnresolvedTagLabel = '—';
+
 /// A single tag chip — colored dot + name on a tinted rounded rectangle
 /// (never a stadium pill — see CLAUDE.md). Pass [onRemove] to show a trailing
 /// "×" (the editable form of the chip, used by the tag picker); omit it for
@@ -27,18 +33,27 @@ class TagPill extends StatelessWidget {
     required this.name,
     this.colorHex = '',
     this.onRemove,
+    this.semanticsLabel,
   });
 
+  /// What the chip shows. An unresolvable tag renders [kUnresolvedTagLabel]
+  /// here — never the raw id, per `ClientNameLabel`'s rule that a hashid is
+  /// meaningless to the user in every state.
   final String name;
   final String colorHex;
   final VoidCallback? onRemove;
+
+  /// Overrides the screen-reader / `debugDumpApp` label. Used when [name] is
+  /// the em-dash placeholder, so the id a sighted user must not see is still
+  /// available to assistive tech and to a debug dump.
+  final String? semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final color = parseTagColor(colorHex, fallback: tokens.ink3);
     return Semantics(
-      label: name,
+      label: semanticsLabel ?? name,
       child: Container(
         padding: EdgeInsets.fromLTRB(8, 3, onRemove == null ? 8 : 4, 3),
         decoration: BoxDecoration(

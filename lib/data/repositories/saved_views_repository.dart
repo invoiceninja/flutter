@@ -10,6 +10,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/saved_view.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/utils/combine_latest.dart';
 
 final _log = Logger('SavedViewsRepository');
 
@@ -106,7 +107,7 @@ class SavedViewsRepository {
     required String companyId,
     required EntityType entityType,
   }) {
-    return _combineLatest(
+    return combineLatest2(
       watchForEntity(companyId, entityType),
       db.navStateDao.watchCurrent(),
       (views, nav) {
@@ -404,48 +405,6 @@ class SavedViewsRepository {
       _log.warning('Failed to decode saved-view payload', e, st);
       return null;
     }
-  }
-
-  /// Two-stream combine-latest: emits once both sources have produced a
-  /// value, then on every subsequent emission from either. Mirrors the
-  /// hand-rolled `_combineOutboxCounts` pattern in `in_sidebar.dart` —
-  /// keeps rxdart out of the dependency surface. Both subscriptions are
-  /// cancelled when the result stream is cancelled.
-  Stream<R> _combineLatest<A, B, R>(
-    Stream<A> a,
-    Stream<B> b,
-    R Function(A, B) combine,
-  ) {
-    late StreamController<R> controller;
-    StreamSubscription<A>? subA;
-    StreamSubscription<B>? subB;
-    A? latestA;
-    B? latestB;
-    var hasA = false;
-    var hasB = false;
-    void emit() {
-      if (hasA && hasB) controller.add(combine(latestA as A, latestB as B));
-    }
-
-    controller = StreamController<R>(
-      onListen: () {
-        subA = a.listen((v) {
-          latestA = v;
-          hasA = true;
-          emit();
-        }, onError: controller.addError);
-        subB = b.listen((v) {
-          latestB = v;
-          hasB = true;
-          emit();
-        }, onError: controller.addError);
-      },
-      onCancel: () async {
-        await subA?.cancel();
-        await subB?.cancel();
-      },
-    );
-    return controller.stream;
   }
 
   EntityType? _entityTypeOrNull(String name) {

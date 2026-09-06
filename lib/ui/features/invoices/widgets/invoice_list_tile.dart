@@ -104,7 +104,6 @@ class _InvoiceListTileState extends State<InvoiceListTile> {
               : EntityActionsPopupButton<InvoiceAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: InvoiceActions.itemsFor(
                     context,
                     w.invoice,
@@ -174,7 +173,6 @@ class _InvoiceListTileState extends State<InvoiceListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<InvoiceAction>(
-            icon: Icons.more_horiz,
             items: InvoiceActions.itemsFor(context, w.invoice, w.onAction!),
           ),
         ],

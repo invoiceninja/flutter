@@ -100,7 +100,6 @@ class _QuoteListTileState extends State<QuoteListTile> {
               : EntityActionsPopupButton<QuoteAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: QuoteActions.itemsFor(context, w.quote, w.onAction!),
                 ),
         ),
@@ -166,7 +165,6 @@ class _QuoteListTileState extends State<QuoteListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<QuoteAction>(
-            icon: Icons.more_horiz,
             items: QuoteActions.itemsFor(context, w.quote, w.onAction!),
           ),
         ],

@@ -16,8 +16,10 @@ import 'package:admin/ui/core/widgets/tag_pill.dart';
 /// `TagPillSelector`; built on `RawAutocomplete` like `SearchableDropdownField`.
 ///
 /// Operates purely on tag ids: [selectedIds] in, [onChanged] out. Names +
-/// colors are resolved from [available] (the active tag cache for the entity
-/// type), so a rename reflects immediately.
+/// colors are resolved through [resolveById], so a rename reflects immediately
+/// — and so does the tmp -> real swap a create makes, which [available] alone
+/// cannot survive (the tmp row is deleted when the create round-trips, and the
+/// draft still holds its id).
 class TagPickerField extends StatefulWidget {
   const TagPickerField({
     super.key,
@@ -26,6 +28,7 @@ class TagPickerField extends StatefulWidget {
     required this.selectedIds,
     required this.onChanged,
     this.onCreate,
+    this.resolveById,
     this.reservedNames = const {},
     this.enabled = true,
   });
@@ -39,6 +42,12 @@ class TagPickerField extends StatefulWidget {
 
   final List<String> selectedIds;
   final ValueChanged<List<String>> onChanged;
+
+  /// Resolves a stored id to its tag, following a `tmp_ -> real` alias when the
+  /// create has already round-tripped. Defaults to a plain lookup over
+  /// [available], which keeps the widget pumpable without `Services`; the app
+  /// passes `TagLookup`'s so a just-created tag keeps its name.
+  final Tag? Function(String id)? resolveById;
 
   /// Admin-only inline create. Returns the created [Tag] (added to the
   /// selection) or null if creation was declined/failed. Null hides the
@@ -78,8 +87,33 @@ class _TagPickerFieldState extends State<TagPickerField> {
     super.dispose();
   }
 
+  /// The tag [id] names, alias-aware. Falls back to a plain scan of
+  /// [TagPickerField.available] so the widget stays pumpable without a repo.
+  Tag? _resolve(String id) {
+    final resolve = widget.resolveById;
+    if (resolve != null) return resolve(id);
+    for (final t in widget.available) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  /// [id] rewritten to the real id when the create has round-tripped.
+  ///
+  /// For COMPARISONS only — "is this already selected", dedupe. Never for
+  /// storage: [_removeTag] must delete exactly the id the draft holds.
+  String _canonical(String id) => _resolve(id)?.id ?? id;
+
+  /// The selection as canonical ids, so a tag held under a dead `tmp_` id is
+  /// still recognised as selected. Without this the dropdown re-offers the tag
+  /// the user just created (its real row is in `available` while the draft
+  /// holds the tmp id) and picking it appends a SECOND id for the same tag.
+  Set<String> get _selectedCanonical => {
+    for (final id in widget.selectedIds) _canonical(id),
+  };
+
   void _addTag(String id) {
-    if (widget.selectedIds.contains(id)) return;
+    if (_selectedCanonical.contains(_canonical(id))) return;
     widget.onChanged([...widget.selectedIds, id]);
   }
 
@@ -121,7 +155,10 @@ class _TagPickerFieldState extends State<TagPickerField> {
     // hides) — the server's UNIQUE rule ignores soft-deletes, so a collision
     // there 422s the create and kills the parent save offline (M1).
     if (widget.reservedNames.contains(lower)) return false;
-    return !widget.available.any((t) => t.name.toLowerCase() == lower);
+    // `.trim()` on both sides: `reservedNames` folds the same way (see
+    // `TagLookup`), and `q` is trimmed above — an asymmetric compare would
+    // let the two halves of this check disagree about the same tag.
+    return !widget.available.any((t) => t.name.trim().toLowerCase() == lower);
   }
 
   Future<void> _handleCreate(String name) async {
@@ -145,20 +182,27 @@ class _TagPickerFieldState extends State<TagPickerField> {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final theme = Theme.of(context);
-    final byId = {for (final t in widget.available) t.id: t};
 
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(InRadii.r1),
       borderSide: BorderSide(color: tokens.border),
     );
 
+    // An unresolvable id keeps its chip even though it renders no name: the ✕
+    // is the only handle that can take a stranded id back out of the draft, and
+    // that id is still going to the server. Read-only surfaces drop it instead
+    // (`EntityTagsView`).
     final chips = [
       for (final id in widget.selectedIds)
-        TagPill(
-          name: byId[id]?.name ?? id,
-          colorHex: byId[id]?.color ?? '',
-          onRemove: widget.enabled ? () => _removeTag(id) : null,
-        ),
+        () {
+          final tag = _resolve(id);
+          return TagPill(
+            name: tag?.name ?? kUnresolvedTagLabel,
+            colorHex: tag?.color ?? '',
+            semanticsLabel: tag == null ? id : null,
+            onRemove: widget.enabled ? () => _removeTag(id) : null,
+          );
+        }(),
     ];
 
     return Padding(
@@ -189,10 +233,14 @@ class _TagPickerFieldState extends State<TagPickerField> {
                 textEditingController: _controller,
                 focusNode: _focusNode,
                 displayStringForOption: (t) => t.name,
+                // Flip above the field when there is more room there. Left at
+                // the `.down` default, a tag field low on a phone gets only the
+                // space beneath it, floored at a ~48 px sliver.
+                optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
                 optionsBuilder: (value) {
                   if (!widget.enabled) return const Iterable<Tag>.empty();
                   final q = value.text.trim().toLowerCase();
-                  final selected = widget.selectedIds.toSet();
+                  final selected = _selectedCanonical;
                   final pool = widget.available.where(
                     (t) => !selected.contains(t.id),
                   );
@@ -276,59 +324,28 @@ class _TagPickerFieldState extends State<TagPickerField> {
                 optionsViewBuilder: (context, onSelected, options) {
                   final query = _controller.text.trim();
                   final showCreate = _canCreate(query);
-                  return Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      elevation: 4,
-                      borderRadius: BorderRadius.circular(InRadii.r2),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: 280,
-                          maxWidth: popoverWidth,
-                        ),
-                        child: ListView(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          children: [
-                            for (final tag in options)
-                              if (!_isCreateOption(tag))
-                                InkWell(
-                                  onTap: () => onSelected(tag),
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: InSpacing.md(context),
-                                      vertical: InSpacing.sm,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 10,
-                                          height: 10,
-                                          decoration: BoxDecoration(
-                                            color: parseTagColor(
-                                              tag.color,
-                                              fallback: tokens.ink3,
-                                            ),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: InSpacing.sm),
-                                        Expanded(
-                                          child: Text(
-                                            tag.name,
-                                            style: theme.textTheme.bodyMedium
-                                                ?.copyWith(color: tokens.ink),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            if (showCreate) ...[
-                              if (options.any((t) => !_isCreateOption(t)))
-                                Divider(height: 1, color: tokens.border),
+                  // No `Align` of our own: `RawAutocomplete` already wraps this
+                  // in `ConstrainedBox(tight) -> Align(topStart|bottomStart)`,
+                  // and a bare `Align` shrink-wraps only under an infinite
+                  // constraint — so ours filled the whole bounding box and left
+                  // the SDK's alignment nothing to move, stranding an
+                  // upward-opening popover at the top of the screen.
+                  return Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(InRadii.r2),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: 280,
+                        maxWidth: popoverWidth,
+                      ),
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        children: [
+                          for (final tag in options)
+                            if (!_isCreateOption(tag))
                               InkWell(
-                                onTap: () => _handleCreate(query),
+                                onTap: () => onSelected(tag),
                                 child: Padding(
                                   padding: EdgeInsets.symmetric(
                                     horizontal: InSpacing.md(context),
@@ -336,28 +353,66 @@ class _TagPickerFieldState extends State<TagPickerField> {
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(
-                                        Icons.add,
-                                        size: 16,
-                                        color: tokens.accent,
+                                      Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          color: parseTagColor(
+                                            tag.color,
+                                            fallback: tokens.ink3,
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
                                       ),
                                       const SizedBox(width: InSpacing.sm),
                                       Expanded(
                                         child: Text(
-                                          context
-                                              .tr('create_tag_named')
-                                              .replaceFirst(':name', query),
+                                          tag.name,
                                           style: theme.textTheme.bodyMedium
-                                              ?.copyWith(color: tokens.accent),
+                                              ?.copyWith(color: tokens.ink),
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
                               ),
-                            ],
+                          if (showCreate) ...[
+                            if (options.any((t) => !_isCreateOption(t)))
+                              Divider(height: 1, color: tokens.border),
+                            InkWell(
+                              onTap: () => _handleCreate(query),
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: InSpacing.md(context),
+                                  vertical: InSpacing.sm,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.add,
+                                      size: 16,
+                                      // `accentInk`, not `accent` — `accent`
+                                      // is the same mid blue in both
+                                      // brightnesses and lands at ~3.2:1 on
+                                      // the dark `accentSoft` highlight.
+                                      color: tokens.accentInk,
+                                    ),
+                                    const SizedBox(width: InSpacing.sm),
+                                    Expanded(
+                                      child: Text(
+                                        context
+                                            .tr('create_tag_named')
+                                            .replaceFirst(':name', query),
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(color: tokens.accentInk),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
-                        ),
+                        ],
                       ),
                     ),
                   );

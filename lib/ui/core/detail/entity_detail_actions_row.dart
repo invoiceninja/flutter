@@ -432,12 +432,13 @@ class _MoreMenu<A> extends StatelessWidget {
       consumeOutsideTap: true,
       menuChildren: EntityActionItem.menuChildrenFor<A>(context, items),
       // Trigger styled as an OutlinedButton so it sits flush with the
-      // other action buttons (same height, border, padding).
+      // other action buttons (same height, border, padding). The `⋮` beside a
+      // label is deliberate and app-wide — CLAUDE.md § Design system (v2).
       builder: (context, controller, _) => OutlinedButton.icon(
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
         style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-        icon: const Icon(Icons.more_horiz, size: 18),
+        icon: const Icon(Icons.more_vert, size: 18),
         label: Text(context.tr('more')),
       ),
     );

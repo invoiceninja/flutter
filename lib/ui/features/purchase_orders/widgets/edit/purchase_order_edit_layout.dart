@@ -14,6 +14,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
+import 'package:admin/ui/core/widgets/entity_picker_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
@@ -954,30 +955,21 @@ class _VendorPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return StreamBuilder<List<Vendor>>(
-      stream: services.vendors.watchPage(
-        companyId: vm.companyId,
-        loadedPages: 100,
-      ),
-      builder: (context, snapshot) {
-        final vendors = snapshot.data ?? const <Vendor>[];
-        Vendor? selected;
-        for (final v in vendors) {
-          if (v.id == vm.draft.vendorId) {
-            selected = v;
-            break;
-          }
-        }
-        return SearchableDropdownField<Vendor>(
-          label: context.tr('vendor'),
-          items: vendors,
-          initialValue: selected,
-          displayString: (v) => v.name,
-          idOf: (v) => v.id,
-          onChanged: (v) => vm.setVendorId(v?.id ?? ''),
-          errorText: vm.fieldErrorFor('vendor_id'),
-        );
-      },
+    return EntityPickerField<Vendor>(
+      label: context.tr('vendor'),
+      cacheKey: vm.companyId,
+      selectedId: vm.draft.vendorId,
+      itemsStream: () =>
+          services.vendors.watchPage(companyId: vm.companyId, loadedPages: 100),
+      watchById: (id) =>
+          services.vendors.watch(companyId: vm.companyId, id: id),
+      // Falls back to the id like its two siblings: now that an out-of-window
+      // or offline-created vendor actually resolves, a nameless one would
+      // otherwise render an empty field with not even an ✕ to signal it.
+      displayString: (v) => v.name.isEmpty ? v.id : v.name,
+      idOf: (v) => v.id,
+      onChanged: (v) => vm.setVendorId(v?.id ?? ''),
+      errorText: vm.fieldErrorFor('vendor_id'),
     );
   }
 }

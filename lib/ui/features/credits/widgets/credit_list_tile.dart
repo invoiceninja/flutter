@@ -100,7 +100,6 @@ class _CreditListTileState extends State<CreditListTile> {
               : EntityActionsPopupButton<CreditAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: CreditActions.itemsFor(context, w.credit, w.onAction!),
                 ),
         ),
@@ -164,7 +163,6 @@ class _CreditListTileState extends State<CreditListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<CreditAction>(
-            icon: Icons.more_horiz,
             items: CreditActions.itemsFor(context, w.credit, w.onAction!),
           ),
         ],

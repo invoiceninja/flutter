@@ -87,7 +87,6 @@ class PaymentLinkListTile extends StatelessWidget {
               : EntityActionsPopupButton<PaymentLinkAction>(
                   splitEditAction: true,
                   editEnabled: editable,
-                  icon: Icons.more_horiz,
                   items: PaymentLinkActions.itemsFor(
                     context,
                     paymentLink,
@@ -154,7 +153,6 @@ class PaymentLinkListTile extends StatelessWidget {
         if (onAction != null && !selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<PaymentLinkAction>(
-            icon: Icons.more_horiz,
             items: PaymentLinkActions.itemsFor(context, paymentLink, onAction!),
           ),
         ],

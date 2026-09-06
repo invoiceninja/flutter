@@ -87,7 +87,6 @@ class ExpenseCategoryListTile extends StatelessWidget {
               : EntityActionsPopupButton<ExpenseCategoryAction>(
                   splitEditAction: true,
                   editEnabled: editable,
-                  icon: Icons.more_horiz,
                   items: ExpenseCategoryActions.itemsFor(
                     context,
                     category,
@@ -124,7 +123,6 @@ class ExpenseCategoryListTile extends StatelessWidget {
         if (onAction != null && !selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<ExpenseCategoryAction>(
-            icon: Icons.more_horiz,
             items: ExpenseCategoryActions.itemsFor(
               context,
               category,

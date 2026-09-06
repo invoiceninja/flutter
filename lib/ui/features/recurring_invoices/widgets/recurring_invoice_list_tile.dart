@@ -102,7 +102,6 @@ class _RecurringInvoiceListTileState extends State<RecurringInvoiceListTile> {
               : EntityActionsPopupButton<RecurringInvoiceAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: RecurringInvoiceActions.itemsFor(
                     context,
                     w.recurringInvoice,
@@ -167,7 +166,6 @@ class _RecurringInvoiceListTileState extends State<RecurringInvoiceListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<RecurringInvoiceAction>(
-            icon: Icons.more_horiz,
             items: RecurringInvoiceActions.itemsFor(
               context,
               w.recurringInvoice,

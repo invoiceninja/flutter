@@ -11,6 +11,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
+import 'package:admin/ui/core/widgets/entity_picker_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
@@ -56,42 +57,30 @@ class _VendorPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return StreamBuilder<List<Vendor>>(
-      stream: services.vendors.watchPage(
-        companyId: vm.companyId,
-        loadedPages: 100,
-      ),
-      builder: (context, snapshot) {
-        final vendors = snapshot.data ?? const <Vendor>[];
-        Vendor? selected;
-        for (final v in vendors) {
-          if (v.id == vm.draft.vendorId) {
-            selected = v;
-            break;
-          }
+    return EntityPickerField<Vendor>(
+      label: context.tr('vendor'),
+      cacheKey: vm.companyId,
+      selectedId: vm.draft.vendorId,
+      itemsStream: () =>
+          services.vendors.watchPage(companyId: vm.companyId, loadedPages: 100),
+      watchById: (id) =>
+          services.vendors.watch(companyId: vm.companyId, id: id),
+      displayString: (v) => v.name.isEmpty ? v.id : v.name,
+      idOf: (v) => v.id,
+      onChanged: (v) {
+        // Don't auto-clear the client when the vendor changes — per
+        // the UX spec a user routinely logs the same expense against
+        // different vendors for the same client. A future toast +
+        // "also clear linked client?" confirm would land here.
+        vm.setVendorId(v?.id ?? '');
+        // Mirror admin-portal: if the new vendor carries a currency,
+        // seed it as the expense currency when the form hasn't yet
+        // picked one.
+        if (v != null && vm.draft.currencyId.isEmpty) {
+          vm.setCurrencyId(v.currencyId);
         }
-        return SearchableDropdownField<Vendor>(
-          label: context.tr('vendor'),
-          items: vendors,
-          initialValue: selected,
-          displayString: (v) => v.name.isEmpty ? v.id : v.name,
-          idOf: (v) => v.id,
-          onChanged: (v) {
-            // Don't auto-clear the client when the vendor changes — per
-            // the UX spec a user routinely logs the same expense against
-            // different vendors for the same client. A future toast +
-            // "also clear linked client?" confirm would land here.
-            vm.setVendorId(v?.id ?? '');
-            // Mirror admin-portal: if the new vendor carries a currency,
-            // seed it as the expense currency when the form hasn't yet
-            // picked one.
-            if (v != null && vm.draft.currencyId.isEmpty) {
-              vm.setCurrencyId(v.currencyId);
-            }
-          },
-          errorText: vm.fieldErrorFor('vendor_id'),
-        );
       },
+      errorText: vm.fieldErrorFor('vendor_id'),
     );
   }
 }
@@ -167,33 +156,27 @@ class _ProjectPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final services = context.read<Services>();
     // Narrow by client when one is picked; otherwise list all active.
-    final stream = vm.draft.clientId.isEmpty
-        ? services.projects.watchPage(companyId: vm.companyId, loadedPages: 100)
-        : services.projects.watchForClient(
-            companyId: vm.companyId,
-            clientId: vm.draft.clientId,
-          );
-    return StreamBuilder<List<Project>>(
-      stream: stream,
-      builder: (context, snapshot) {
-        final projects = snapshot.data ?? const <Project>[];
-        Project? selected;
-        for (final p in projects) {
-          if (p.id == vm.draft.projectId) {
-            selected = p;
-            break;
-          }
-        }
-        return SearchableDropdownField<Project>(
-          label: context.tr('project'),
-          items: projects,
-          initialValue: selected,
-          displayString: (p) => p.name.isEmpty ? p.id : p.name,
-          idOf: (p) => p.id,
-          onChanged: (p) => vm.setProjectId(p?.id ?? ''),
-          errorText: vm.fieldErrorFor('project_id'),
-        );
-      },
+    return EntityPickerField<Project>(
+      label: context.tr('project'),
+      // The list narrows to the picked client, so the client id is part of
+      // what invalidates the stream.
+      cacheKey: (vm.companyId, vm.draft.clientId),
+      selectedId: vm.draft.projectId,
+      itemsStream: () => vm.draft.clientId.isEmpty
+          ? services.projects.watchPage(
+              companyId: vm.companyId,
+              loadedPages: 100,
+            )
+          : services.projects.watchForClient(
+              companyId: vm.companyId,
+              clientId: vm.draft.clientId,
+            ),
+      watchById: (id) =>
+          services.projects.watch(companyId: vm.companyId, id: id),
+      displayString: (p) => p.name.isEmpty ? p.id : p.name,
+      idOf: (p) => p.id,
+      onChanged: (p) => vm.setProjectId(p?.id ?? ''),
+      errorText: vm.fieldErrorFor('project_id'),
     );
   }
 }
@@ -205,47 +188,38 @@ class _CategoryPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return StreamBuilder<List<ExpenseCategory>>(
-      stream: services.expenseCategories.watchActive(companyId: vm.companyId),
-      builder: (context, snapshot) {
-        final cats = snapshot.data ?? const <ExpenseCategory>[];
-        ExpenseCategory? selected;
-        for (final c in cats) {
-          if (c.id == vm.draft.categoryId) {
-            selected = c;
-            break;
-          }
-        }
-        return SearchableDropdownField<ExpenseCategory>(
-          label: context.tr('category'),
-          items: cats,
-          initialValue: selected,
-          displayString: (c) => c.name.isEmpty ? c.id : c.name,
-          idOf: (c) => c.id,
-          onChanged: (c) => vm.setCategoryId(c?.id ?? ''),
-          errorText: vm.fieldErrorFor('category_id'),
-          footerBuilder: (footerContext) {
-            final accent = Theme.of(footerContext).colorScheme.primary;
-            return InkWell(
-              onTap: () => footerContext.go('/settings/expense_categories'),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: InSpacing.md(footerContext),
-                  vertical: InSpacing.sm,
+    return EntityPickerField<ExpenseCategory>(
+      label: context.tr('category'),
+      cacheKey: vm.companyId,
+      selectedId: vm.draft.categoryId,
+      itemsStream: () =>
+          services.expenseCategories.watchActive(companyId: vm.companyId),
+      watchById: (id) =>
+          services.expenseCategories.watch(companyId: vm.companyId, id: id),
+      displayString: (c) => c.name.isEmpty ? c.id : c.name,
+      idOf: (c) => c.id,
+      onChanged: (c) => vm.setCategoryId(c?.id ?? ''),
+      errorText: vm.fieldErrorFor('category_id'),
+      footerBuilder: (footerContext) {
+        final accent = Theme.of(footerContext).colorScheme.primary;
+        return InkWell(
+          onTap: () => footerContext.go('/settings/expense_categories'),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: InSpacing.md(footerContext),
+              vertical: InSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.tune, size: 16, color: accent),
+                SizedBox(width: InSpacing.sm),
+                Text(
+                  footerContext.tr('manage_categories'),
+                  style: TextStyle(color: accent),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.tune, size: 16, color: accent),
-                    SizedBox(width: InSpacing.sm),
-                    Text(
-                      footerContext.tr('manage_categories'),
-                      style: TextStyle(color: accent),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+              ],
+            ),
+          ),
         );
       },
     );

@@ -123,7 +123,6 @@ class _ProductListTileState extends State<ProductListTile> {
               : EntityActionsPopupButton<ProductAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: ProductActions.itemsFor(
                     context,
                     w.product,
@@ -199,7 +198,6 @@ class _ProductListTileState extends State<ProductListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<ProductAction>(
-            icon: Icons.more_horiz,
             items: ProductActions.itemsFor(context, w.product, w.onAction!),
           ),
         ],

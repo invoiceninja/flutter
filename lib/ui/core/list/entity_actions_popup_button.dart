@@ -4,28 +4,36 @@ import 'package:admin/app/mdi_icons.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
-import 'package:admin/ui/core/list/embedded_list_scope.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 
 /// List-row trailing popup that consumes the same [EntityActionItem] list
 /// the detail header renders. Mirrors the disabled-styled menu rows that
 /// the detail header's `_MoreMenu` overflow uses, so the two surfaces feel
 /// identical when an action is a "coming soon" placeholder.
+///
+/// The trigger glyph is always the vertical `⋮` and is deliberately **not** a
+/// parameter. It used to be one, defaulting to `⋮`, and 15 of the 17 entity
+/// tiles passed `Icons.more_horiz` while Clients and Vendors passed nothing —
+/// so the same list rendered a different glyph depending on which entity you
+/// were looking at. Only the **narrow** call sites actually diverged: an
+/// `effectiveIcon` branch here already forced `⋮` under `splitEditAction` and
+/// inside an `EmbeddedListScope`, so half of those arguments were inert, which
+/// is part of why the split went unnoticed. Nothing type-checks the difference
+/// between the two `IconData`s either. `test/lint/no_horizontal_more_icon_test.dart`
+/// now pins the glyph app-wide.
 class EntityActionsPopupButton<A> extends StatelessWidget {
   const EntityActionsPopupButton({
     super.key,
     required this.items,
-    this.icon = Icons.more_vert,
     this.splitEditAction = false,
     this.editEnabled = true,
   });
 
   final List<EntityActionItem<A>> items;
-  final IconData icon;
 
   /// When true (wide data-table rows), the primary "Edit" action is pulled
   /// out of the overflow menu and rendered as a dedicated leading icon
-  /// button to the left of the `…` menu. The detail header (which shares
+  /// button to the left of the `⋮` menu. The detail header (which shares
   /// the same [items] list via a different widget) is unaffected.
   final bool splitEditAction;
 
@@ -73,14 +81,6 @@ class EntityActionsPopupButton<A> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Embedded detail-tab lists adopt the Client-datatable vertical menu
-    // regardless of the icon a tile passes for its standalone screen; split
-    // mode (wide tables) likewise always uses the vertical 3-dot menu next
-    // to the circled pencil, matching the old app.
-    final effectiveIcon = (EmbeddedListScope.of(context) || splitEditAction)
-        ? Icons.more_vert
-        : icon;
-
     // Pull the primary (Edit, by convention) item out into its own button
     // when asked. `isPrimary` is only ever set by `editActionItem`, so this
     // is the Edit action across every entity. Read-only entities have no
@@ -106,7 +106,7 @@ class EntityActionsPopupButton<A> extends StatelessWidget {
       consumeOutsideTap: true,
       menuChildren: EntityActionItem.menuChildrenFor<A>(context, menuItems),
       builder: (context, controller, _) => IconButton(
-        icon: Icon(effectiveIcon),
+        icon: const Icon(Icons.more_vert),
         tooltip: context.tr('actions'),
         style: style,
         onPressed: () =>

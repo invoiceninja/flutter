@@ -95,7 +95,6 @@ class _ProjectListTileState extends State<ProjectListTile> {
               : EntityActionsPopupButton<ProjectAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: ProjectActions.itemsFor(
                     context,
                     w.project,
@@ -147,7 +146,6 @@ class _ProjectListTileState extends State<ProjectListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<ProjectAction>(
-            icon: Icons.more_horiz,
             items: ProjectActions.itemsFor(context, w.project, w.onAction!),
           ),
         ],

@@ -119,9 +119,18 @@ class _ProductChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Never the raw id — see `MultiEntityPicker`. `fallbackId` is kept so the
+    // id stays available to screen readers and `debugDumpApp`.
     final label = product?.productKey.isNotEmpty == true
         ? product!.productKey
-        : fallbackId;
-    return InputChip(label: Text(label), onDeleted: onDeleted);
+        : '—';
+    final named = product?.productKey.isNotEmpty == true;
+    return Semantics(
+      // Keyed on whether a NAME was found, not on whether a product was — a
+      // found-but-nameless product renders `—` too, and that is exactly the
+      // case where the id must survive for screen readers.
+      label: named ? label : fallbackId,
+      child: InputChip(label: Text(label), onDeleted: onDeleted),
+    );
   }
 }

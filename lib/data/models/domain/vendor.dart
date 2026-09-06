@@ -148,3 +148,37 @@ extension VendorPayload on Vendor {
         .toList(),
   };
 }
+
+/// An empty draft, for a create form and for inline create.
+///
+/// Lives beside the model rather than in the edit view-model so
+/// `lib/ui/core/**` can build one without importing a feature package.
+Vendor emptyVendor() => Vendor(
+  id: '',
+  name: '',
+  number: '',
+  idNumber: '',
+  vatNumber: '',
+  website: '',
+  phone: '',
+  address1: '',
+  address2: '',
+  city: '',
+  state: '',
+  postalCode: '',
+  countryId: '',
+  currencyId: '',
+  privateNotes: '',
+  publicNotes: '',
+  userId: '',
+  assignedUserId: '',
+  updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  archivedAt: null,
+  isDeleted: false,
+  customValue1: '',
+  customValue2: '',
+  customValue3: '',
+  customValue4: '',
+  contacts: const [],
+);

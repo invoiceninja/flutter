@@ -100,7 +100,6 @@ class _PaymentListTileState extends State<PaymentListTile> {
               : EntityActionsPopupButton<PaymentAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: PaymentActions.itemsFor(
                     context,
                     w.payment,
@@ -156,7 +155,6 @@ class _PaymentListTileState extends State<PaymentListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<PaymentAction>(
-            icon: Icons.more_horiz,
             items: PaymentActions.itemsFor(context, w.payment, w.onAction!),
           ),
         ],

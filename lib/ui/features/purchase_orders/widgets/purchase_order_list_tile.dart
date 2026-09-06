@@ -100,7 +100,6 @@ class _PurchaseOrderListTileState extends State<PurchaseOrderListTile> {
               : EntityActionsPopupButton<PurchaseOrderAction>(
                   splitEditAction: true,
                   editEnabled: w.editable,
-                  icon: Icons.more_horiz,
                   items: PurchaseOrderActions.itemsFor(
                     context,
                     w.purchaseOrder,
@@ -165,7 +164,6 @@ class _PurchaseOrderListTileState extends State<PurchaseOrderListTile> {
         if (w.onAction != null && !w.selecting) ...[
           const SizedBox(width: 4),
           EntityActionsPopupButton<PurchaseOrderAction>(
-            icon: Icons.more_horiz,
             items: PurchaseOrderActions.itemsFor(
               context,
               w.purchaseOrder,

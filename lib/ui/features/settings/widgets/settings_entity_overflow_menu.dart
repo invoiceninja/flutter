@@ -51,6 +51,9 @@ class SettingsEntityOverflowMenu extends StatelessWidget {
     final canRestore = isArchived || isDeleted;
 
     return PopupMenuButton<String>(
+      // Explicit: the default is `Icons.adaptive.more`, which is `more_horiz`
+      // on iOS and macOS. CLAUDE.md § Design system (v2) — one glyph everywhere.
+      icon: const Icon(Icons.more_vert),
       tooltip: context.tr('more_actions'),
       onSelected: (action) async {
         switch (action) {

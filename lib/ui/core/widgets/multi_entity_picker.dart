@@ -81,11 +81,22 @@ class MultiEntityPicker<T extends Object> extends StatelessWidget {
             runSpacing: InSpacing.sm,
             children: [
               for (final id in selectedIds)
-                InputChip(
-                  label: Text(
-                    byId[id] != null ? displayString(byId[id] as T) : id,
+                Semantics(
+                  // The id stays available to assistive tech: a row of chips
+                  // all reading `—`, each with its own delete button, is worse
+                  // than the raw id it replaced.
+                  label: byId[id] != null ? null : id,
+                  child: InputChip(
+                    label: Text(
+                      // Never the raw id on screen: a hashid is meaningless to
+                      // the user in every state, and after an inline create it
+                      // would be a `tmp_` token. Alias resolution is the
+                      // caller's job — this widget is generic over T with no
+                      // repo access.
+                      byId[id] != null ? displayString(byId[id] as T) : '—',
+                    ),
+                    onDeleted: () => _remove(id),
                   ),
-                  onDeleted: () => _remove(id),
                 ),
             ],
           ),

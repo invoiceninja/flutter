@@ -254,12 +254,10 @@ void main() {
         final decoration = band.decoration as BoxDecoration;
         expect(decoration.color, InTheme.light.surface);
         expect(decoration.color, isNot(InTheme.light.bg));
-        // borderStrong, not border: measured across all six palettes, `border`
-        // on `surface` is 1.17–1.30:1 and effectively invisible in every dark
-        // variant. This rule is the only separation between the window buttons
-        // and the content header below, which is `surface` too.
-        expect(decoration.border?.bottom.color, InTheme.light.borderStrong);
-        expect(decoration.border?.bottom.color, isNot(InTheme.light.border));
+        // `border`, like the app's other 55 dividers. `borderStrong` was tried
+        // and reads visibly heavier than every line around it, including the
+        // content header's own rule directly below.
+        expect(decoration.border?.bottom.color, InTheme.light.border);
       });
     });
 
@@ -300,12 +298,20 @@ void main() {
         await tester.pumpWidget(frame());
 
         expect(find.byType(NavHistoryButtons), findsOneWidget);
-        // Past the rail divider, at the same 10 inset the mark uses on the
-        // other side of it. Inside the segment they would collide with the
-        // wordmark once it grows at a large text scale.
+        // Aligned with the content toolbar's primary action, which sits 24 px
+        // (InSpacing.xl) past the rail — and aligned on the GLYPH, not the box:
+        // each arrow is a 32-px box around an 18-px icon, so the box starts 7
+        // px earlier than the thing the eye lines up.
+        const glyphInset = (32.0 - 18.0) / 2;
         expect(
           tester.getTopLeft(find.byType(NavHistoryButtons)).dx,
-          kInSidebarWidth + 10.0,
+          kInSidebarWidth + 24.0 - glyphInset,
+        );
+        // Stated the other way round, which is the property that matters: the
+        // visible glyph's left edge lands exactly on the toolbar's inset.
+        expect(
+          tester.getTopLeft(find.byIcon(Icons.arrow_back)).dx,
+          kInSidebarWidth + 24.0,
         );
         // Pinned to the band, not floored: a taller box would grow the bar.
         expect(

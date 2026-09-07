@@ -36,11 +36,13 @@ bool FlutterWindow::OnCreate() {
   // With the custom frame the caption is GONE, so DWMWA_CAPTION_COLOR and
   // DWMWA_TEXT_COLOR have nothing left to paint — `titleHex` is structurally
   // dead on Windows, not merely unused. What survives is the 1-px DWM border,
-  // and ApplyImmersiveDarkMode below already matches its brightness to the
-  // app's. DWMWA_BORDER_COLOR could paint it `bgHex` exactly, but deliberately
-  // is not called: the default border goes accent-coloured on focus and grey
-  // when not, which is a focus affordance the app cannot reproduce, and
-  // overriding it would throw that away in both states.
+  // and ApplyImmersiveDarkMode below matches its brightness to the app's.
+  //
+  // `borderHex` IS used: DWMWA_BORDER_COLOR paints that 1-px border. The DWM
+  // default is the user's system accent while the window is focused, so a dark
+  // accent frames a light app in a dark line. Losing the accent-on-focus
+  // affordance is the price; matching the app is worth more, because the border
+  // is the only chrome the OS still draws for us.
   theme_channel_ = std::make_unique<flutter::MethodChannel<>>(
       flutter_controller_->engine()->messenger(),
       "invoice_ninja/native_window_theme",
@@ -53,6 +55,14 @@ bool FlutterWindow::OnCreate() {
         }
         const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
         if (args != nullptr) {
+          // Optional and applied first, so a runner newer than the Dart side
+          // still styles the caption from `brightness` below.
+          const auto border = args->find(flutter::EncodableValue("borderHex"));
+          if (border != args->end()) {
+            if (const auto* hex = std::get_if<std::string>(&border->second)) {
+              SetBorderColor(*hex);
+            }
+          }
           const auto it = args->find(flutter::EncodableValue("brightness"));
           if (it != args->end()) {
             if (const auto* brightness =

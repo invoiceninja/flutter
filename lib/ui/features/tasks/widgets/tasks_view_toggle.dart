@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -10,7 +11,8 @@ import 'package:admin/ui/features/tasks/views/task_list_screen.dart'
 /// Shared AppBar for the custom task views (kanban / calendar / daily /
 /// weekly), which don't use `EntityListScreenScaffold`. Renders the `tasks`
 /// title + the [TasksViewToggle] with [active] highlighted. Wide mirrors the
-/// list view's chrome (64 px toolbar, 24 px gutter) so the toggle's pixel
+/// list view's chrome (the shared `InSizes.headerBand` toolbar, 24 px gutter)
+/// so the toggle's pixel
 /// position is stable as the user flips views; narrow drops to a compact row.
 PreferredSizeWidget buildTasksViewAppBar(
   BuildContext context,
@@ -19,7 +21,9 @@ PreferredSizeWidget buildTasksViewAppBar(
   final wide = MediaQuery.sizeOf(context).width >= Breakpoints.wide;
   if (wide) {
     return AppBar(
-      toolbarHeight: 64,
+      // The shared band, like the list toolbar this mirrors — a second copy of
+      // the number is how the two drift when one of them moves.
+      toolbarHeight: InSizes.headerBand,
       automaticallyImplyLeading: false,
       titleSpacing: 0,
       flexibleSpace: SafeArea(

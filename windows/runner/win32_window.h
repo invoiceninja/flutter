@@ -76,6 +76,11 @@ class Win32Window {
   // theme messages defer to this value instead of the system registry.
   void SetThemeBrightness(bool dark);
 
+  // Paints the 1-px DWM window border the app's own colour, from an "RRGGBB"
+  // string. Without it the border follows the user's system accent while
+  // focused, which is a dark frame around a light app on a dark accent.
+  void SetBorderColor(const std::string& hex);
+
   // --- Window actions driven by the app-painted title bar ------------------
   // The window has no caption of its own once |custom_frame_| is on, so every
   // affordance a caption used to provide is routed back here from Flutter over
@@ -196,6 +201,11 @@ class Win32Window {
   // the system registry, so the caption follows the app's chosen theme.
   bool flutter_pushed_theme_ = false;
   bool pushed_dark_ = false;
+
+  // Set once Flutter pushes a border colour; re-applied on colorization
+  // changes alongside the dark-mode flag.
+  bool has_border_color_ = false;
+  COLORREF border_color_ = 0;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_

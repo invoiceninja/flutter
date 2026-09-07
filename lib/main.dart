@@ -661,6 +661,11 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                   NativeWindowTheme.instance.apply(
                     background: tokens.bg,
                     title: tokens.ink,
+                    // The window's outer edge sits against an arbitrary
+                    // desktop, so it takes the app's stronger hairline — unlike
+                    // the title bar's own internal rule, which matches the
+                    // app's ordinary dividers.
+                    border: tokens.borderStrong,
                     brightness: tokens.brightness,
                   );
                 });

@@ -26,6 +26,12 @@ void main() {
   final dashboardHeader = File(
     'lib/ui/features/dashboard/widgets/dashboard_top_bar.dart',
   ).readAsStringSync();
+  final listHeader = File(
+    'lib/ui/core/list/entity_list_app_bar.dart',
+  ).readAsStringSync();
+  final tasksHeader = File(
+    'lib/ui/features/tasks/widgets/tasks_view_toggle.dart',
+  ).readAsStringSync();
 
   test('the sidebar abstains from the arrows via the SHARED predicate', () {
     // Both sides must ask the same question, or the arrows render twice (in
@@ -128,6 +134,49 @@ void main() {
           'dashboard_top_bar.dart must floor to the shared band height, or it '
           'drifts out of line with the sidebar header.',
     );
+    // The list toolbar is the third: it was the one left on its own 64 after
+    // the sidebar had already been matched to the dashboard's 69, so every
+    // list screen sat 5 px out of line.
+    expect(
+      listHeader,
+      contains('InSizes.headerBand'),
+      reason:
+          'entity_list_app_bar.dart must use the shared band height for its '
+          'wide toolbar, or every list screen drifts from the sidebar header.',
+    );
+    // The multi-select bar and the Tasks view toggle are documented to match
+    // the list toolbar EXACTLY — the body would otherwise jump 5 px on
+    // entering multi-select or flipping Tasks kanban/calendar.
+    expect(
+      tasksHeader,
+      contains('InSizes.headerBand'),
+      reason:
+          'tasks_view_toggle.dart mirrors the list toolbar and must use the '
+          'same constant, or the toggle shifts when the user changes view.',
+    );
+  });
+
+  test('no header keeps a hardcoded 64 beside the shared constant', () {
+    // The trap this exists for: `Scaffold` clamps an app bar to
+    // `AppBar.preferredHeightFor(context, appBar.preferredSize)`, which for a
+    // custom PreferredSizeWidget is that value verbatim. Raising
+    // `toolbarHeight` while leaving `preferredSize` on the old literal renders
+    // the OLD height and looks exactly like a change that did nothing — and a
+    // "references the constant" check above passes happily, because the file
+    // does reference it. Both numbers have to move together.
+    for (final entry in {
+      'entity_list_app_bar.dart': listHeader,
+      'tasks_view_toggle.dart': tasksHeader,
+    }.entries) {
+      expect(
+        entry.value.contains('toolbarHeight: 64') ||
+            entry.value.contains('Size.fromHeight(64)'),
+        isFalse,
+        reason:
+            '${entry.key} still hardcodes 64 somewhere. If that is the '
+            'preferredSize clamp, the toolbarHeight beside it is inert.',
+      );
+    }
   });
 
   test('the frame is mounted inside the screenshot RepaintBoundary', () {

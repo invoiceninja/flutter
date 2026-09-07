@@ -15,6 +15,15 @@ import 'package:admin/ui/features/shell/widgets/window_controls.dart';
 /// the mark up with the company avatar directly below it.
 const double _kBarLeadingInset = 10.0;
 
+/// How far the arrow's visible glyph sits inside its own box.
+///
+/// `NavHistoryButtons` pins each arrow to `fixedSize: Size(32, ...)` around an
+/// 18-px icon, so the glyph starts 7 px in. Aligning the *box* to the content
+/// toolbar's inset would therefore leave the glyph 7 px right of the button it
+/// is supposed to line up with — the box edge is invisible, the glyph is what
+/// the eye measures against.
+const double _kNavGlyphInset = (32.0 - 18.0) / 2;
+
 /// Size of the app mark in the band. Matches the ~16-18 px a Windows caption
 /// draws its icon at; larger reads as content rather than chrome.
 const double _kBarIconSize = 18.0;
@@ -171,21 +180,19 @@ class _TitleBar extends StatelessWidget {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: tokens.surface,
-                        // `borderStrong`, not `border` — the one divider in the
-                        // app that earns it. Measured across all six palettes,
-                        // `border` on `surface` is 1.17–1.30:1 and effectively
-                        // invisible in every dark variant (1.17 on Carbon).
-                        // Elsewhere that is fine, because a divider there also
-                        // separates `surface` from `bg` and the colour change
-                        // carries the line. Here it does not: the content
-                        // pane's own header is `surface` too, so this rule is
-                        // the ONLY thing between the window buttons and the
-                        // header below them. `borderStrong` lifts it to
-                        // 1.39–1.70. The rail divider below deliberately stays
-                        // on `border`, because it has to match the sidebar's
-                        // own edge continuing beneath it.
+                        // `border`, like the app's other 55 dividers — this
+                        // is not the place to be the 56th that is different.
+                        //
+                        // Recorded trade-off, not an oversight: `border` on
+                        // `surface` measures 1.17–1.30:1 and is genuinely faint
+                        // in the dark palettes (1.17 on Carbon). `borderStrong`
+                        // was tried and reads visibly heavier than every line
+                        // around it, including the content header's own rule
+                        // directly below — which ships at that same contrast
+                        // everywhere else and looks right. Matching the app
+                        // beats winning a contrast ratio.
                         border: Border(
-                          bottom: BorderSide(color: tokens.borderStrong),
+                          bottom: BorderSide(color: tokens.border),
                         ),
                       ),
                     ),
@@ -248,7 +255,12 @@ class _TitleBar extends StatelessWidget {
                   // has the segment now, and squeezing both into 232 px overflows
                   // once the wordmark grows at a large text scale.
                   Positioned(
-                    left: leading + _kBarLeadingInset,
+                    // Backed off by the glyph inset so the ARROW lines up
+                    // with the content toolbar's primary action ("New Client"),
+                    // which sits `InSpacing.xl` past the rail
+                    // (`entity_list_app_bar.dart`, the same 24 the table card
+                    // below uses).
+                    left: leading + InSpacing.xl - _kNavGlyphInset,
                     top: 0,
                     bottom: 0,
                     child: const Center(

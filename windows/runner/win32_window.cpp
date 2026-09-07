@@ -18,6 +18,15 @@ namespace {
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
+/// Window attribute that paints the 1-px DWM border around the window.
+///
+/// Redefined for the same reason as the one above — an older Windows SDK will
+/// not declare it. Windows 11 22000+ only; Windows 10 returns E_INVALIDARG and
+/// touches nothing, exactly as it already does for the dark-mode attribute.
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
 /// Registry key for app theme preference.
@@ -119,6 +128,17 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
 // Flips |window|'s caption between the standard light and dark immersive
 // styling. A harmless no-op on Windows versions without dark-mode caption
 // support (DwmSetWindowAttribute just returns a failure HRESULT).
+/// Paints the 1-px DWM border the app's own colour.
+///
+/// Without this the border takes the DWM default, which is the user's SYSTEM
+/// ACCENT while the window is focused — so a dark accent gives a dark frame
+/// around a light app. The accent-on-focus behaviour is a real affordance, but
+/// it loses to matching the app: the border is the only chrome the OS still
+/// draws, and it reads as part of the window.
+void ApplyBorderColor(HWND window, COLORREF color) {
+  DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &color, sizeof(color));
+}
+
 void ApplyImmersiveDarkMode(HWND window, bool dark) {
   BOOL value = dark ? TRUE : FALSE;
   DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, &value,
@@ -407,6 +427,14 @@ Win32Window::MessageHandler(HWND hwnd,
       params->rgrc[0].top = proposed_top;
       if (IsZoomed(hwnd)) {
         ApplyMaximizedInsets(hwnd, &params->rgrc[0]);
+      } else {
+        // Give the top edge back one pixel. Reclaiming the caption in full
+        // leaves DWM no non-client strip to draw the window border in, so the
+        // window ends up bordered on three sides and bare along the top — the
+        // left, right and bottom keep theirs because DefWindowProc's insets
+        // were left alone. A maximized window has no visible border to
+        // preserve, and ApplyMaximizedInsets already owns its top inset.
+        params->rgrc[0].top += 1;
       }
       return 0;
     }
@@ -510,6 +538,9 @@ Win32Window::MessageHandler(HWND hwnd,
         ApplyImmersiveDarkMode(hwnd, pushed_dark_);
       } else {
         UpdateTheme(hwnd);
+      }
+      if (has_border_color_) {
+        ApplyBorderColor(hwnd, border_color_);
       }
       return 0;
   }
@@ -755,6 +786,31 @@ void Win32Window::UpdateTheme(HWND const window) {
 
   if (result == ERROR_SUCCESS) {
     ApplyImmersiveDarkMode(window, light_mode == 0);
+  }
+}
+
+void Win32Window::SetBorderColor(const std::string& hex) {
+  // "RRGGBB" from NativeWindowTheme._hex. COLORREF is 0x00BBGGRR, so the bytes
+  // are swapped rather than copied.
+  if (hex.size() != 6) return;
+  unsigned value = 0;
+  for (char c : hex) {
+    unsigned digit;
+    if (c >= '0' && c <= '9') {
+      digit = static_cast<unsigned>(c - '0');
+    } else if (c >= 'A' && c <= 'F') {
+      digit = static_cast<unsigned>(c - 'A') + 10;
+    } else if (c >= 'a' && c <= 'f') {
+      digit = static_cast<unsigned>(c - 'a') + 10;
+    } else {
+      return;  // not hex — leave the border on whatever it already had
+    }
+    value = (value << 4) | digit;
+  }
+  border_color_ = RGB((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF);
+  has_border_color_ = true;
+  if (window_handle_ != nullptr) {
+    ApplyBorderColor(window_handle_, border_color_);
   }
 }
 

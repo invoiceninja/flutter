@@ -11,9 +11,10 @@ import 'package:flutter/services.dart';
 ///   (via `NSAppearance`) and the centered title NSTextField, and owns the
 ///   `UserDefaults` mirror that prevents a cold-start flash on relaunch — every
 ///   `apply` from here writes those keys on the native side.
-/// - Windows: the runner flips the standard caption between light and dark via
-///   `DWMWA_USE_IMMERSIVE_DARK_MODE`, reading only the `brightness` field; the
-///   `bgHex`/`titleHex` colors are ignored there (standard system styling).
+/// - Windows: the runner flips the window between light and dark via
+///   `DWMWA_USE_IMMERSIVE_DARK_MODE` and paints the 1-px DWM border `borderHex`
+///   via `DWMWA_BORDER_COLOR`. `bgHex`/`titleHex` are ignored there — the
+///   custom frame removed the caption those would have painted.
 ///
 /// macOS and Windows only. On every other platform every method is a no-op.
 class NativeWindowTheme {
@@ -27,27 +28,32 @@ class NativeWindowTheme {
 
   Color? _lastBg;
   Color? _lastTitle;
+  Color? _lastBorder;
   Brightness? _lastBrightness;
 
   Future<void> apply({
     required Color background,
     required Color title,
+    required Color border,
     required Brightness brightness,
   }) async {
     if (!_isSupported) return;
     if (background == _lastBg &&
         title == _lastTitle &&
+        border == _lastBorder &&
         brightness == _lastBrightness) {
       return;
     }
     _lastBg = background;
     _lastTitle = title;
+    _lastBorder = border;
     _lastBrightness = brightness;
 
     try {
       await _channel.invokeMethod<void>('apply', <String, Object>{
         'bgHex': _hex(background),
         'titleHex': _hex(title),
+        'borderHex': _hex(border),
         'brightness': brightness == Brightness.dark ? 'dark' : 'light',
       });
     } catch (e) {

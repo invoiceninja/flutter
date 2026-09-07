@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
@@ -92,29 +93,36 @@ class EntityListNormalAppBar<T> extends StatelessWidget
   /// caller decides whether to pass a wide or narrow flavor.
   final Widget searchField;
 
+  // `preferredSize` is load-bearing, not bookkeeping: `Scaffold` clamps the app
+  // bar to `AppBar.preferredHeightFor(context, appBar.preferredSize)`, and for a
+  // custom PreferredSizeWidget that is this value verbatim. Leave it at 64 while
+  // raising `toolbarHeight` below and the bar still renders 64 — the taller
+  // toolbar is simply clipped back, and the change looks like it did nothing.
   @override
   Size get preferredSize => wide
-      ? const Size.fromHeight(64)
+      ? const Size.fromHeight(InSizes.headerBand)
       : const Size.fromHeight(kToolbarHeight + 56);
 
   @override
   Widget build(BuildContext context) {
     if (wide) {
       return AppBar(
-        toolbarHeight: 64,
+        // The shared header band, so this lines up with the sidebar's company
+        // row across the seam — see InSizes.headerBand. Wide branch only: the
+        // narrow AppBar below is a separate return and keeps its own height.
+        toolbarHeight: InSizes.headerBand,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
         flexibleSpace: SafeArea(
           bottom: false,
-          // `symmetric(horizontal: 24, vertical: 12)` does two things at
-          // once: the horizontal 24 aligns the Row's outer edges with the
-          // table card below (also 24 px from the screen), and the
-          // vertical 12 centers the 40 px Row inside the 64 px toolbar
-          // (12 + 40 + 12 = 64) so the toggle / buttons get breathing
-          // room above and below instead of hugging the AppBar's top
-          // edge. No `Center` wrapper — the Row already fills the padded
-          // width (mainAxisSize.max), and the symmetric vertical padding
-          // is the centering.
+          // The horizontal 24 aligns the Row's outer edges with the table
+          // card below (also 24 px from the screen) — and, on the frameless
+          // desktop runners, is what the title bar's nav arrows align to.
+          // The vertical 12 is now a MINIMUM rather than the centering: the
+          // toolbar is `InSizes.headerBand` tall and the AppBar centres the
+          // Row in it, so the padding only guarantees breathing room if the
+          // Row ever grows past the band. No `Center` wrapper — the Row
+          // already fills the padded width (mainAxisSize.max).
           child: Padding(
             padding: const EdgeInsetsDirectional.symmetric(
               horizontal: 24,
@@ -222,12 +230,13 @@ class EntityListSelectionAppBar<T> extends StatelessWidget
   final List<EntityActionItem<String>> items;
 
   // Match [EntityListNormalAppBar]'s height *exactly* so the body doesn't
-  // jump when the user enters / exits multi-select. Wide is 64; narrow is
+  // jump when the user enters / exits multi-select — which means the shared
+  // band on wide, not a second copy of the number. Narrow is
   // `kToolbarHeight + 56` because the normal narrow AppBar carries the
   // search field in a 56 px `bottom:` — we reserve the same 56 px here.
   @override
   Size get preferredSize => wide
-      ? const Size.fromHeight(64)
+      ? const Size.fromHeight(InSizes.headerBand)
       : const Size.fromHeight(kToolbarHeight + 56);
 
   @override
@@ -248,7 +257,7 @@ class EntityListSelectionAppBar<T> extends StatelessWidget
 
     if (wide) {
       return AppBar(
-        toolbarHeight: 64,
+        toolbarHeight: InSizes.headerBand,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
         flexibleSpace: SafeArea(

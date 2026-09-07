@@ -229,6 +229,19 @@ bool Win32Window::Create(const std::wstring& title,
   // setFrameAutosaveName parity point).
   RestorePlacement();
 
+  // Force one non-client recalculation now that the custom-frame handler is
+  // installed. Without it the window is shown with the caption the ORIGINAL
+  // creation-time frame reserved, so the app starts with the OS title bar AND
+  // the drawn band stacked — and the first maximize or resize silently "fixes"
+  // it, because that is simply the next thing to send WM_NCCALCSIZE. It runs
+  // while the window is still hidden (Show() waits for Flutter's first frame),
+  // so nothing flickers.
+  if (custom_frame_) {
+    SetWindowPos(window, nullptr, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOACTIVATE);
+  }
+
   return OnCreate();
 }
 

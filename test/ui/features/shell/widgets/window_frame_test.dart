@@ -231,7 +231,7 @@ void main() {
   });
 
   group('nav arrows', () {
-    testWidgets('sit at the same leading inset as their own row', (
+    testWidgets('sit just past the segment, clear of the app identity', (
       tester,
     ) async {
       await under(TargetPlatform.windows, () async {
@@ -239,12 +239,22 @@ void main() {
         await tester.pumpWidget(frame());
 
         expect(find.byType(NavHistoryButtons), findsOneWidget);
-        // 10 — what lines the glyph up with the company avatar below.
-        expect(tester.getTopLeft(find.byType(NavHistoryButtons)).dx, 10.0);
+        // Past the rail divider, at the same 10 inset the mark uses on the
+        // other side of it. Inside the segment they would collide with the
+        // wordmark once it grows at a large text scale.
+        expect(
+          tester.getTopLeft(find.byType(NavHistoryButtons)).dx,
+          kInSidebarWidth + 10.0,
+        );
         // Pinned to the band, not floored: a taller box would grow the bar.
         expect(
           tester.getSize(find.byType(NavHistoryButtons)).height,
           kAppTitleBarHeight,
+        );
+        // ...and they must not overlap the identity that now owns the segment.
+        expect(
+          tester.getTopLeft(find.byType(NavHistoryButtons)).dx,
+          greaterThan(tester.getBottomRight(find.text('Invoice Ninja')).dx),
         );
       });
     });
@@ -286,6 +296,71 @@ void main() {
         shellMounted.value = false;
         await tester.pump();
         expect(find.byType(NavHistoryButtons), findsNothing);
+      });
+    });
+  });
+
+  group('app identity', () {
+    testWidgets('shows the mark and wordmark the OS caption used to', (
+      tester,
+    ) async {
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        await tester.pumpWidget(frame());
+
+        expect(find.text('Invoice Ninja'), findsOneWidget);
+        expect(find.byType(Image), findsOneWidget);
+        // Leading edge, where a Windows caption puts it.
+        expect(tester.getTopLeft(find.byType(Image)).dx, 10.0);
+      });
+    });
+
+    testWidgets('drops the wordmark on the collapsed rail, keeps the mark', (
+      tester,
+    ) async {
+      // 64 px has room for the icon and nothing else; ellipsizing the product
+      // name to "In…" would be worse than omitting it.
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        railCollapsed.value = true;
+        await tester.pumpWidget(frame());
+
+        expect(find.byType(Image), findsOneWidget);
+        expect(find.text('Invoice Ninja'), findsNothing);
+      });
+    });
+
+    testWidgets('is present with no shell at all — /login has chrome too', (
+      tester,
+    ) async {
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        shellMounted.value = false;
+        await tester.pumpWidget(frame());
+
+        expect(find.text('Invoice Ninja'), findsOneWidget);
+      });
+    });
+
+    testWidgets('absorbs no pointer — the mark is still a drag handle', (
+      tester,
+    ) async {
+      // A title bar's own name has to drag the window. An Image and a Text
+      // both decline the hit test, so the press falls through to the drag
+      // layer beneath; anything tappable added here would break that.
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        await tester.pumpWidget(frame());
+
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Invoice Ninja')),
+        );
+        await gesture.moveBy(const Offset(40, 0));
+        await tester.pump();
+        await gesture.up();
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(calls, contains('startDrag'));
       });
     });
   });
@@ -333,6 +408,30 @@ void main() {
       });
     });
 
+    testWidgets('the rail-coloured segment drags too', (tester) async {
+      // Regression: the segment is a DecoratedBox, and
+      // RenderDecoratedBox.hitTestSelf returns `decoration.hitTest(...)` —
+      // true anywhere inside a plain rectangle. It therefore swallowed every
+      // press across the rail's 232 px, leaving that whole stretch of title
+      // bar unable to drag the window. The other drag case probes the middle
+      // of the band and cannot see it.
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        await tester.pumpWidget(frame());
+
+        // Inside the segment, clear of both the wordmark and the arrows.
+        final gesture = await tester.startGesture(
+          const Offset(kInSidebarWidth - 8, kAppTitleBarHeight / 2),
+        );
+        await gesture.moveBy(const Offset(40, 0));
+        await tester.pump();
+        await gesture.up();
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(calls, contains('startDrag'));
+      });
+    });
+
     testWidgets('a right-click opens the OS window menu', (tester) async {
       // The band is client area once the frame is custom, so this never
       // reaches the runner as WM_NCRBUTTONUP — it has to be routed from Dart.
@@ -363,6 +462,43 @@ void main() {
         expect(calls, contains('close'));
         expect(calls, isNot(contains('startDrag')));
       });
+    });
+  });
+
+  testWidgets('the band is unchanged when maximized or fullscreen', (
+    tester,
+  ) async {
+    // "Fullscreen" on Windows means maximized — there is no F11 mechanism (see
+    // docs/desktop-window-state.md), and the runner always reports
+    // fullscreen:false. A window manager CAN fullscreen the Linux window,
+    // though, and the band deliberately stays: it is the only window chrome
+    // left, so hiding it could strand someone who does not know their WM's
+    // keybinding. Either way the layout must not shift.
+    await under(TargetPlatform.windows, () async {
+      setWindow(tester, const Size(1200, 800));
+      await tester.pumpWidget(frame());
+      final normalBodyTop = tester
+          .getTopLeft(find.byKey(const ValueKey('body')))
+          .dy;
+
+      NativeWindow.instance.chrome.value = const WindowChrome(
+        maximized: true,
+        fullscreen: true,
+      );
+      await tester.pump();
+
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('body'))).dy,
+        normalBodyTop,
+      );
+      expect(tester.getSize(find.byKey(_kSegment)).width, kInSidebarWidth);
+      expect(find.text('Invoice Ninja'), findsOneWidget);
+      expect(find.byType(NavHistoryButtons), findsOneWidget);
+      // ...and the middle glyph offers "restore", not "maximize".
+      expect(
+        find.byKey(const ValueKey('windowControls.restore')),
+        findsOneWidget,
+      );
     });
   });
 

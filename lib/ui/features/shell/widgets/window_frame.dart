@@ -10,10 +10,17 @@ import 'package:admin/ui/features/shell/widgets/in_sidebar.dart';
 import 'package:admin/ui/features/shell/widgets/nav_history_buttons.dart';
 import 'package:admin/ui/features/shell/widgets/window_controls.dart';
 
-/// Leading inset for the nav arrows in the title bar. The same 10 the sidebar
-/// uses for their own row (`in_sidebar.dart`, `fromLTRB(10, 4, ...)`), which is
-/// what lines the 18-px glyph up with the company avatar directly below it.
-const double _kBarArrowsLeadingInset = 10.0;
+/// Leading inset inside the title bar. The same 10 the sidebar uses for its own
+/// arrow row (`in_sidebar.dart`, `fromLTRB(10, 4, ...)`), which is what lines
+/// the mark up with the company avatar directly below it.
+const double _kBarLeadingInset = 10.0;
+
+/// Size of the app mark in the band. Matches the ~16-18 px a Windows caption
+/// draws its icon at; larger reads as content rather than chrome.
+const double _kBarIconSize = 18.0;
+
+/// Gap between the mark and the wordmark.
+const double _kBarIconGap = 8.0;
 
 /// The app-painted window title bar for the frameless Windows and Linux
 /// runners, wrapped around the whole routed app in `main.dart`.
@@ -111,6 +118,8 @@ class _TitleBar extends StatelessWidget {
         // in its own row, where two 32-px buttons fill it exactly — the same
         // split the macOS caption strip makes.
         final arrows = leading == kInSidebarWidth;
+        // The collapsed 64-px rail has room for the mark but not the words.
+        final showWordmark = leading != kInSidebarCollapsedWidth;
 
         return SizedBox(
           // `Column` hands children LOOSE width (its default crossAxisAlignment
@@ -148,28 +157,61 @@ class _TitleBar extends StatelessWidget {
                   top: 0,
                   bottom: 0,
                   width: leading,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: tokens.surface,
-                      // 1 px inside the box — exactly how `InSidebar` draws its
-                      // own right edge, so the two line up to the pixel.
-                      border: Border(right: BorderSide(color: tokens.border)),
+                  // Purely decorative, and it MUST be pointer-transparent:
+                  // RenderDecoratedBox.hitTestSelf returns
+                  // `decoration.hitTest(...)`, which is true anywhere inside a
+                  // plain rectangle. Without this the segment eats every press
+                  // over the rail's width — 232 px of dead title bar that
+                  // cannot drag the window, and that a drag test probing the
+                  // middle of the band never notices.
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: tokens.surface,
+                        // 1 px inside the box — exactly how `InSidebar` draws
+                        // its own right edge, so the two line up to the pixel.
+                        border: Border(right: BorderSide(color: tokens.border)),
+                      ),
                     ),
-                    child: arrows
-                        ? Row(
-                            textDirection: TextDirection.ltr,
-                            children: [
-                              const SizedBox(width: _kBarArrowsLeadingInset),
-                              const NavHistoryButtons(
-                                height: kAppTitleBarHeight,
-                                // No `Overlay` above the router — a tooltip
-                                // would assert in debug and throw on hover in
-                                // release. Semantics carries the label.
-                                tooltips: false,
-                              ),
-                            ],
-                          )
-                        : null,
+                  ),
+                ),
+              // The app identity the OS caption used to carry. It sits ABOVE
+              // the segment in paint order but absorbs no pointers (an Image
+              // and a Text both decline the hit test), so the whole mark stays
+              // draggable like any other empty stretch of a title bar.
+              Positioned(
+                left: _kBarLeadingInset,
+                top: 0,
+                bottom: 0,
+                // Bounded so a very narrow window ellipsizes the wordmark
+                // rather than sliding it under the window buttons.
+                right: (kWindowControlWidth * 3) + InSpacing.sm,
+                // IgnorePointer is load-bearing, not defensive: `Text` renders
+                // as a RenderParagraph, whose `hitTestSelf` returns true so it
+                // can dispatch TextSpan recognizers. A Stack stops at the first
+                // child that hits, so without this the wordmark swallows the
+                // press and the window cannot be dragged by its own title —
+                // the one part of a title bar everyone grabs.
+                child: IgnorePointer(
+                  child: _TitleBarIdentity(showWordmark: showWordmark),
+                ),
+              ),
+              if (arrows)
+                // Past the segment's divider rather than inside it: the mark
+                // has the segment now, and squeezing both into 232 px overflows
+                // once the wordmark grows at a large text scale.
+                Positioned(
+                  left: leading + _kBarLeadingInset,
+                  top: 0,
+                  bottom: 0,
+                  child: const Center(
+                    child: NavHistoryButtons(
+                      height: kAppTitleBarHeight,
+                      // No `Overlay` above the router — a tooltip would assert
+                      // in debug and throw on hover in release. Semantics
+                      // carries the label.
+                      tooltips: false,
+                    ),
                   ),
                 ),
               Positioned(
@@ -185,6 +227,62 @@ class _TitleBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The app mark and wordmark, restoring what the OS caption used to show once
+/// the window went frameless.
+///
+/// Deliberately inert: no `GestureDetector`, no `Semantics` action. Its caller
+/// wraps it in an `IgnorePointer` so a drag or double-click started on the mark
+/// falls through to the drag layer beneath — which is what a title bar's own
+/// name has to do. (`Text` would otherwise swallow it: `RenderParagraph`
+/// hit-tests itself so it can dispatch `TextSpan` recognizers.)
+class _TitleBarIdentity extends StatelessWidget {
+  const _TitleBarIdentity({required this.showWordmark});
+
+  final bool showWordmark;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Row(
+      // Physical order, like the rail below it — the mark does not swap sides
+      // in Arabic or Hebrew, because the segment it sits on does not either.
+      textDirection: TextDirection.ltr,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/images/icon.png',
+          width: _kBarIconSize,
+          height: _kBarIconSize,
+          // The source is far larger than 18 px, so let the engine do a proper
+          // downsample rather than a nearest-neighbour one.
+          filterQuality: FilterQuality.medium,
+          // Assets can fail to resolve in a test harness or a stripped build;
+          // the band must not become an error box over it.
+          errorBuilder: (_, _, _) =>
+              const SizedBox(width: _kBarIconSize, height: _kBarIconSize),
+        ),
+        if (showWordmark) ...[
+          const SizedBox(width: _kBarIconGap),
+          Flexible(
+            child: Text(
+              // i18n-exempt: a product name, not UI copy — the same literal
+              // `about_dialog.dart` uses.
+              'Invoice Ninja',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: tokens.ink,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

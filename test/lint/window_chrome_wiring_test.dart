@@ -23,6 +23,9 @@ void main() {
     'lib/ui/features/shell/widgets/window_caption_strip.dart',
   ).readAsStringSync();
   final main = File('lib/main.dart').readAsStringSync();
+  final dashboardHeader = File(
+    'lib/ui/features/dashboard/widgets/dashboard_top_bar.dart',
+  ).readAsStringSync();
 
   test('the sidebar abstains from the arrows via the SHARED predicate', () {
     // Both sides must ask the same question, or the arrows render twice (in
@@ -100,6 +103,30 @@ void main() {
       isFalse,
       reason:
           'window_frame.dart must not build a Tooltip: no Overlay ancestor.',
+    );
+  });
+
+  test('both headers floor to the SHARED band height', () {
+    // The rail's company row and the content pane's header sit side by side and
+    // have to line up, but they do not derive their height the same way — 12 +
+    // 44 + 12 + 1 against 8 + 46 + 8. Left to their own arithmetic they drifted
+    // 7 px apart, which is why the constant exists. Nothing else can catch a
+    // regression here: `InSidebar` cannot be widget-tested (pumping it deadlocks
+    // on the saved-views Drift watch), and the seam is only visible on a running
+    // desktop build.
+    expect(
+      sidebar,
+      contains('InSizes.headerBand'),
+      reason:
+          'in_sidebar.dart must floor its header row to the shared band '
+          'height, or it drifts out of line with the content header.',
+    );
+    expect(
+      dashboardHeader,
+      contains('InSizes.headerBand'),
+      reason:
+          'dashboard_top_bar.dart must floor to the shared band height, or it '
+          'drifts out of line with the sidebar header.',
     );
   });
 

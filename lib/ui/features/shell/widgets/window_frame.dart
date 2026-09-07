@@ -127,103 +127,151 @@ class _TitleBar extends StatelessWidget {
           // measure zero wide. `WindowCaptionStrip` documents the same trap.
           width: double.infinity,
           height: kAppTitleBarHeight,
-          child: Stack(
-            children: [
-              // Drag layer FIRST, so it is hit-tested LAST: the arrows and the
-              // window buttons above it get first refusal, and a press on them
-              // never enters the pan arena at all.
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: (_) => NativeWindow.instance.startDrag(),
-                  onDoubleTap: () => NativeWindow.instance.handleDoubleClick(),
-                  // Right-click opens the OS window menu, as a real title bar
-                  // does. The band is client area now, so this never reaches
-                  // the runner as a non-client message — it has to be routed.
-                  // No coordinates: the runner anchors on the cursor, which
-                  // sidesteps the logical-vs-physical / client-vs-screen
-                  // mismatch entirely (see NativeWindow.showSystemMenu).
-                  onSecondaryTap: NativeWindow.instance.showSystemMenu,
-                  child: ColoredBox(color: tokens.bg),
-                ),
-              ),
-              if (leading > 0)
-                // Physical `left`, not `PositionedDirectional`: the shell pins
-                // its rail with a physical `Positioned(left: 0)` and does not
-                // flip in Arabic or Hebrew, so this must not either.
-                Positioned(
-                  key: const ValueKey('windowFrame.leadingSegment'),
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: leading,
-                  // Purely decorative, and it MUST be pointer-transparent:
-                  // RenderDecoratedBox.hitTestSelf returns
-                  // `decoration.hitTest(...)`, which is true anywhere inside a
-                  // plain rectangle. Without this the segment eats every press
-                  // over the rail's width — 232 px of dead title bar that
-                  // cannot drag the window, and that a drag test probing the
-                  // middle of the band never notices.
-                  child: IgnorePointer(
+          // The band mounts in `MaterialApp.builder`, ABOVE the Navigator — so
+          // the only DefaultTextStyle in scope is MaterialApp's `_errorTextStyle`
+          // fallback: 48-px monospace with a yellow double underline, whose own
+          // debugLabel reads "consider putting your text in a Material". A local
+          // `TextStyle` on the Text is not enough, because anything it does not
+          // name (here `fontFamily` and `decoration`) still merges through from
+          // that fallback. Setting it once for the whole band means text added
+          // here later cannot walk into the same trap.
+          child: DefaultTextStyle(
+            style: Theme.of(context).textTheme.bodyMedium ?? const TextStyle(),
+            child: Stack(
+              children: [
+                // Drag layer FIRST, so it is hit-tested LAST: the arrows and the
+                // window buttons above it get first refusal, and a press on them
+                // never enters the pan arena at all.
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: (_) => NativeWindow.instance.startDrag(),
+                    onDoubleTap: () =>
+                        NativeWindow.instance.handleDoubleClick(),
+                    // Right-click opens the OS window menu, as a real title bar
+                    // does. The band is client area now, so this never reaches
+                    // the runner as a non-client message — it has to be routed.
+                    // No coordinates: the runner anchors on the cursor, which
+                    // sidesteps the logical-vs-physical / client-vs-screen
+                    // mismatch entirely (see NativeWindow.showSystemMenu).
+                    onSecondaryTap: NativeWindow.instance.showSystemMenu,
+                    // ONE colour across the whole band, plus a hairline rule
+                    // under it.
+                    //
+                    // It used to be two-tone — `surface` over the rail, `bg`
+                    // over the content — which sounded like it continued the
+                    // columns below. In practice the content pane's own header
+                    // is `surface` too, so the band's right half landed as a
+                    // strip of `bg` sandwiched between `surface` above-left and
+                    // `surface` below: a colour step that reads as a thick,
+                    // accidental border rather than as structure. A title bar
+                    // is one strip, and the rule is what separates it from
+                    // whatever header follows — in light and dark alike, since
+                    // both tokens flip together.
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: tokens.surface,
-                        // 1 px inside the box — exactly how `InSidebar` draws
-                        // its own right edge, so the two line up to the pixel.
-                        border: Border(right: BorderSide(color: tokens.border)),
+                        // `borderStrong`, not `border` — the one divider in the
+                        // app that earns it. Measured across all six palettes,
+                        // `border` on `surface` is 1.17–1.30:1 and effectively
+                        // invisible in every dark variant (1.17 on Carbon).
+                        // Elsewhere that is fine, because a divider there also
+                        // separates `surface` from `bg` and the colour change
+                        // carries the line. Here it does not: the content
+                        // pane's own header is `surface` too, so this rule is
+                        // the ONLY thing between the window buttons and the
+                        // header below them. `borderStrong` lifts it to
+                        // 1.39–1.70. The rail divider below deliberately stays
+                        // on `border`, because it has to match the sidebar's
+                        // own edge continuing beneath it.
+                        border: Border(
+                          bottom: BorderSide(color: tokens.borderStrong),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              // The app identity the OS caption used to carry. It sits ABOVE
-              // the segment in paint order but absorbs no pointers (an Image
-              // and a Text both decline the hit test), so the whole mark stays
-              // draggable like any other empty stretch of a title bar.
-              Positioned(
-                left: _kBarLeadingInset,
-                top: 0,
-                bottom: 0,
-                // Bounded so a very narrow window ellipsizes the wordmark
-                // rather than sliding it under the window buttons.
-                right: (kWindowControlWidth * 3) + InSpacing.sm,
-                // IgnorePointer is load-bearing, not defensive: `Text` renders
-                // as a RenderParagraph, whose `hitTestSelf` returns true so it
-                // can dispatch TextSpan recognizers. A Stack stops at the first
-                // child that hits, so without this the wordmark swallows the
-                // press and the window cannot be dragged by its own title —
-                // the one part of a title bar everyone grabs.
-                child: IgnorePointer(
-                  child: _TitleBarIdentity(showWordmark: showWordmark),
-                ),
-              ),
-              if (arrows)
-                // Past the segment's divider rather than inside it: the mark
-                // has the segment now, and squeezing both into 232 px overflows
-                // once the wordmark grows at a large text scale.
-                Positioned(
-                  left: leading + _kBarLeadingInset,
-                  top: 0,
-                  bottom: 0,
-                  child: const Center(
-                    child: NavHistoryButtons(
-                      height: kAppTitleBarHeight,
-                      // No `Overlay` above the router — a tooltip would assert
-                      // in debug and throw on hover in release. Semantics
-                      // carries the label.
-                      tooltips: false,
+                if (leading > 0)
+                  // Physical `left`, not `PositionedDirectional`: the shell pins
+                  // its rail with a physical `Positioned(left: 0)` and does not
+                  // flip in Arabic or Hebrew, so this must not either.
+                  Positioned(
+                    key: const ValueKey('windowFrame.leadingSegment'),
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: leading,
+                    // Purely decorative, and it MUST be pointer-transparent:
+                    // RenderDecoratedBox.hitTestSelf returns
+                    // `decoration.hitTest(...)`, which is true anywhere inside a
+                    // plain rectangle. Without this the segment eats every press
+                    // over the rail's width — 232 px of dead title bar that
+                    // cannot drag the window, and that a drag test probing the
+                    // middle of the band never notices.
+                    child: IgnorePointer(
+                      // Carries only the divider now that the band is one
+                      // colour — it continues the rail's own right edge up
+                      // through the band, 1 px inside the box exactly as
+                      // `InSidebar` draws it, so the two line up to the pixel.
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(color: tokens.border),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                // The app identity the OS caption used to carry. It sits ABOVE
+                // the segment in paint order but absorbs no pointers (an Image
+                // and a Text both decline the hit test), so the whole mark stays
+                // draggable like any other empty stretch of a title bar.
+                Positioned(
+                  left: _kBarLeadingInset,
+                  top: 0,
+                  bottom: 0,
+                  // Bounded so a very narrow window ellipsizes the wordmark
+                  // rather than sliding it under the window buttons.
+                  right: (kWindowControlWidth * 3) + InSpacing.sm,
+                  // IgnorePointer is load-bearing, not defensive: `Text` renders
+                  // as a RenderParagraph, whose `hitTestSelf` returns true so it
+                  // can dispatch TextSpan recognizers. A Stack stops at the first
+                  // child that hits, so without this the wordmark swallows the
+                  // press and the window cannot be dragged by its own title —
+                  // the one part of a title bar everyone grabs.
+                  child: IgnorePointer(
+                    child: _TitleBarIdentity(showWordmark: showWordmark),
+                  ),
                 ),
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: WindowControls(
-                  controller: screenshotWindow,
-                  height: kAppTitleBarHeight,
+                if (arrows)
+                  // Past the segment's divider rather than inside it: the mark
+                  // has the segment now, and squeezing both into 232 px overflows
+                  // once the wordmark grows at a large text scale.
+                  Positioned(
+                    left: leading + _kBarLeadingInset,
+                    top: 0,
+                    bottom: 0,
+                    child: const Center(
+                      child: NavHistoryButtons(
+                        height: kAppTitleBarHeight,
+                        // No `Overlay` above the router — a tooltip would assert
+                        // in debug and throw on hover in release. Semantics
+                        // carries the label.
+                        tooltips: false,
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: WindowControls(
+                    controller: screenshotWindow,
+                    height: kAppTitleBarHeight,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

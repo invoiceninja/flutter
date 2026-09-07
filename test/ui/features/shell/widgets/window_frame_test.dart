@@ -230,6 +230,67 @@ void main() {
     });
   });
 
+  group('band surface', () {
+    testWidgets('is ONE colour with a hairline rule, not two-tone', (
+      tester,
+    ) async {
+      // Regression: the band used to paint `surface` over the rail and `bg`
+      // over the content. The content pane's own header is `surface` too, so
+      // that left a strip of `bg` sandwiched between `surface` above-left and
+      // `surface` below — a colour step that reads as a thick, accidental
+      // border. One colour plus a rule is what a title bar actually is.
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        await tester.pumpWidget(frame());
+
+        final band = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byType(WindowFrame),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        final decoration = band.decoration as BoxDecoration;
+        expect(decoration.color, InTheme.light.surface);
+        expect(decoration.color, isNot(InTheme.light.bg));
+        // borderStrong, not border: measured across all six palettes, `border`
+        // on `surface` is 1.17–1.30:1 and effectively invisible in every dark
+        // variant. This rule is the only separation between the window buttons
+        // and the content header below, which is `surface` too.
+        expect(decoration.border?.bottom.color, InTheme.light.borderStrong);
+        expect(decoration.border?.bottom.color, isNot(InTheme.light.border));
+      });
+    });
+
+    testWidgets('the rail divider carries no fill of its own', (tester) async {
+      // One source of the band's colour: a second fill here is how a two-tone
+      // band creeps back in.
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        await tester.pumpWidget(frame());
+
+        final segment = tester.widget<DecoratedBox>(
+          find.descendant(
+            of: find.byKey(_kSegment),
+            matching: find.byType(DecoratedBox),
+          ),
+        );
+        final decoration = segment.decoration as BoxDecoration;
+        expect(decoration.color, isNull);
+        // ...and it stays on the WEAKER token, unlike the band's own rule:
+        // this line continues the sidebar's right edge directly beneath it, so
+        // strengthening it here would step visibly at the band's bottom.
+        // `right` lives on Border, not the BoxBorder supertype — which only
+        // declares top/bottom, since BorderDirectional uses start/end.
+        expect(
+          (decoration.border! as Border).right.color,
+          InTheme.light.border,
+        );
+      });
+    });
+  });
+
   group('nav arrows', () {
     testWidgets('sit just past the segment, clear of the app identity', (
       tester,

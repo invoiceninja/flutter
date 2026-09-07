@@ -579,19 +579,35 @@ class _InSidebarState extends State<InSidebar> {
                   // roster that has wrongly shrunk — the issue #16 state, where
                   // the layout changing is information rather than jank.
                   if (!hideHeader)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-                      child: SidebarHeader(
-                        session: session,
-                        onBeforeModal: widget.onBeforeModal,
-                        compact: collapsed,
-                        touch: touch,
-                        resync: services.resync,
-                        // Deliberately does not pop the mobile drawer the way
-                        // the company switcher does: closing it would hide the
-                        // spinner the user just started. The toast host paints
-                        // above the drawer either way.
-                        onSync: onSync,
+                    // Floored to the shared header height so the rail's
+                    // company row and the content pane's header line up across
+                    // the seam — see InSizes.headerBand for why the two cannot
+                    // be left to their own arithmetic.
+                    //
+                    // Minus one because the constant is the TOTAL including the
+                    // rule, and this side draws its rule as the SIBLING
+                    // `Container(height: 1)` below rather than as a border on
+                    // its own box the way `dashboard_top_bar.dart` does. Without
+                    // the subtraction this block is 70 to the content's 69, and
+                    // the seam it exists to close reopens 1 px out.
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: InSizes.headerBand - 1,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                        child: SidebarHeader(
+                          session: session,
+                          onBeforeModal: widget.onBeforeModal,
+                          compact: collapsed,
+                          touch: touch,
+                          resync: services.resync,
+                          // Deliberately does not pop the mobile drawer the way
+                          // the company switcher does: closing it would hide the
+                          // spinner the user just started. The toast host paints
+                          // above the drawer either way.
+                          onSync: onSync,
+                        ),
                       ),
                     ),
                   Container(height: 1, color: tokens.border),

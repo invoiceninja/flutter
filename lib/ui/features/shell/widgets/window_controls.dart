@@ -158,11 +158,18 @@ class _CaptionButtonState extends State<_CaptionButton> {
 
     // An inactive window dims its chrome on both host platforms; a cluster that
     // never changes is the main tell that a title bar is drawn rather than real.
+    //
+    // The dim step is `ink2` -> `ink3`, the app's own secondary-to-muted pair,
+    // rather than an alpha on `ink3`. Measured across all six palettes that is
+    // 9.1–9.7:1 down to 4.0–4.7:1 — unmistakably dimmer, still legible. The
+    // previous `ink3` at 45% landed at 1.7–1.9:1, which on a 1-px stroke inside
+    // a 10-px glyph is barely on the screen at all; "inactive" should read as
+    // receded, not as broken.
     final Color glyphColor = widget.isClose && (_hovered || _pressed)
         ? const Color(0xFFFFFFFF)
         : widget.active
         ? tokens.ink2
-        : tokens.ink3.withValues(alpha: 0.45);
+        : tokens.ink3;
 
     return Semantics(
       button: true,

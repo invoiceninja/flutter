@@ -689,6 +689,26 @@ class InSizes {
   /// inside a phone viewport. Applied only when `Env.isTouchPrimary` — pointer
   /// platforms keep their denser metrics. See issue #11.
   static const double touchTarget = 44;
+
+  /// Total height of the app's top header band — the sidebar's company-switcher
+  /// row and the content pane's header, which sit side by side and must line up
+  /// or the seam between them reads as a mistake.
+  ///
+  /// They do not derive it the same way, which is exactly why it is a shared
+  /// constant rather than a coincidence: the content header is
+  /// `12 + 44 (FilledButton floor) + 12 + 1 (bottom rule) = 69`, while the
+  /// sidebar's is `8 + 46 (CompanySwitcherButton) + 8 = 62`. Left to their own
+  /// arithmetic they drifted 7 px apart.
+  ///
+  /// A **floor**, never a fixed height: content that grows at a large text
+  /// scale must be able to push past it rather than have its descenders sliced.
+  ///
+  /// This is the **total** including the 1-px rule at the bottom. The two sites
+  /// draw that rule differently — the content header as a `Border` inside its
+  /// own constrained box, the sidebar as a sibling `Container(height: 1)` — so
+  /// the sidebar subtracts it. Comparing the constant against a screenshot is
+  /// what it is for, which is why it counts the rule rather than excluding it.
+  static const double headerBand = 69;
 }
 
 /// Brightness-independent dimensions — spacing scale.

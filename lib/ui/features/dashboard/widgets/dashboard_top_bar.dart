@@ -67,6 +67,11 @@ class DashboardTopBar extends StatelessWidget {
     final newInvoiceLabel = context.tr('new_invoice');
 
     return Container(
+      // Floored to the shared header height (the constraint covers padding and
+      // the bottom rule) so this lines up with the sidebar's company row across
+      // the seam. A floor, not a fixed height — a long title or a large text
+      // scale must still be able to grow it.
+      constraints: const BoxConstraints(minHeight: InSizes.headerBand),
       decoration: BoxDecoration(
         color: tokens.surface,
         border: Border(bottom: BorderSide(color: tokens.border)),

@@ -68,11 +68,20 @@ bool paintsAppTitleBar() =>
 /// widths and `in_sidebar.dart` needs this predicate, so putting it on either
 /// one would make them import each other.
 ///
+/// It is gated on [NativeWindow.customFrame] as well as the platform: when a
+/// runner declines the custom frame, `WindowFrame` paints no band, so the
+/// sidebar has to take its arrows back or they would render nowhere at all.
+/// Read without a listener on purpose — the value settles before the shell
+/// mounts (the pull is kicked off ahead of `runApp`, while the shell waits on
+/// the Drift open and the auth restore), and the sidebar cannot subscribe to
+/// `chrome` without rebuilding on every window focus change.
+///
 /// Escape hatch: drop `paintsAppTitleBar()` from this expression to give the
 /// arrows back to the sidebar's own row on Windows and Linux. The title bar
 /// itself is unaffected.
 bool windowChromeHostsNavArrows() =>
-    hostsMacCaptionRow() || paintsAppTitleBar();
+    hostsMacCaptionRow() ||
+    (paintsAppTitleBar() && NativeWindow.instance.customFrame.value);
 
 /// The native window chrome Flutter has to lay itself out around, in logical
 /// points measured from the window's **top-left** corner.
@@ -91,6 +100,7 @@ class WindowChrome {
     this.fullscreen = false,
     this.maximized = false,
     this.active = true,
+    this.customFrame = true,
     this.captionHeight = kFallbackCaptionHeight,
     this.buttonsCenterY = kFallbackCaptionHeight / 2,
     this.buttonsTrailingX = kFallbackButtonsTrailingX,
@@ -111,11 +121,16 @@ class WindowChrome {
     // every window as unfocused. Read the bool if there is one, else keep the
     // default; a malformed value is treated as absent, like every field here.
     final activeRaw = map['active'];
+    // Same shape and the same reason as `active`: a runner that predates the
+    // key, or any platform that never reports, must read as "yes, the app owns
+    // the title bar" — the value the app has always assumed.
+    final customFrameRaw = map['customFrame'];
     final height = positive('captionHeight') ?? kFallbackCaptionHeight;
     return WindowChrome(
       fullscreen: fullscreen,
       maximized: map['maximized'] == true,
       active: activeRaw is bool ? activeRaw : true,
+      customFrame: customFrameRaw is bool ? customFrameRaw : true,
       captionHeight: height,
       buttonsCenterY: positive('buttonsCenterY') ?? height / 2,
       // Zero is meaningful here — no buttons are floating over the content —
@@ -149,6 +164,16 @@ class WindowChrome {
   /// renders as it always did.
   final bool active;
 
+  /// Whether the runner actually dropped its OS title bar.
+  ///
+  /// False when a frameless platform declined the custom frame — on Windows the
+  /// `IN_DISABLE_CUSTOM_FRAME` kill switch or its registry twin, which exist so
+  /// a broken frame can be recovered from without a new build. The app must
+  /// then NOT paint a band of its own: the OS caption is already there, and
+  /// drawing over it produces two stacked title bars that look exactly like the
+  /// frame having failed for some other reason.
+  final bool customFrame;
+
   /// Height of the titlebar band the window controls float over.
   final double captionHeight;
 
@@ -170,6 +195,7 @@ class WindowChrome {
       other.fullscreen == fullscreen &&
       other.maximized == maximized &&
       other.active == active &&
+      other.customFrame == customFrame &&
       other.captionHeight == captionHeight &&
       other.buttonsCenterY == buttonsCenterY &&
       other.buttonsTrailingX == buttonsTrailingX;
@@ -187,7 +213,8 @@ class WindowChrome {
   @override
   String toString() =>
       'WindowChrome(fullscreen: $fullscreen, maximized: $maximized, '
-      'active: $active, captionHeight: $captionHeight, '
+      'active: $active, customFrame: $customFrame, '
+      'captionHeight: $captionHeight, '
       'buttonsCenterY: $buttonsCenterY, buttonsTrailingX: $buttonsTrailingX)';
 }
 
@@ -209,6 +236,23 @@ class NativeWindow {
     const WindowChrome(),
   );
 
+  /// Whether the runner dropped its OS title bar, as a signal that settles
+  /// **once** per process.
+  ///
+  /// Deliberately separate from [chrome] even though it is parsed from the same
+  /// payload. `chrome` changes on every focus toggle (`active`) and every
+  /// maximize, so anything listening to it rebuilds constantly — and the two
+  /// consumers here are `WindowFrame`, which wraps the entire routed app, and
+  /// the sidebar's arrow gate. `ValueNotifier` only notifies on an actual
+  /// change and the runner decides this before the window exists, so this fires
+  /// at most once, shortly after boot.
+  final ValueNotifier<bool> customFrame = ValueNotifier<bool>(true);
+
+  void _setChrome(WindowChrome value) {
+    chrome.value = value;
+    customFrame.value = value.customFrame;
+  }
+
   /// Subscribe to the native -> Dart events on the shared channel. Call once at
   /// boot, before `runApp`.
   ///
@@ -224,7 +268,7 @@ class NativeWindow {
       // back across the channel — a newer runner must not break an older app.
       if (call.method == 'windowChromeChanged') {
         final args = call.arguments as Map<Object?, Object?>?;
-        if (args != null) chrome.value = WindowChrome.fromMap(args);
+        if (args != null) _setChrome(WindowChrome.fromMap(args));
       }
       return null;
     });
@@ -232,7 +276,7 @@ class NativeWindow {
       final map = await _channel.invokeMapMethod<Object?, Object?>(
         'windowChrome',
       );
-      if (map != null) chrome.value = WindowChrome.fromMap(map);
+      if (map != null) _setChrome(WindowChrome.fromMap(map));
       // The one place the measured geometry is observable. Alignment bugs here
       // are invisible in tests (which force `TargetPlatform.android`) and cost
       // a screenshot to spot, so leave a debug-build breadcrumb.

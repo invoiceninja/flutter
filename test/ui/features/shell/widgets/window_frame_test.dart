@@ -230,6 +230,56 @@ void main() {
     });
   });
 
+  group('customFrame gate', () {
+    tearDown(() => NativeWindow.instance.customFrame.value = true);
+
+    testWidgets('a runner that kept its OS caption gets NO band', (
+      tester,
+    ) async {
+      // The kill switch (IN_DISABLE_CUSTOM_FRAME, or its registry twin) leaves
+      // the real title bar in place. Painting over it gives two stacked bars —
+      // indistinguishable from the frame having failed outright, which is how
+      // the startup bug stayed misdiagnosed for so long.
+      await under(TargetPlatform.windows, () async {
+        setWindow(tester, const Size(1200, 800));
+        await tester.pumpWidget(frame());
+        expect(find.byType(WindowControls), findsOneWidget);
+
+        NativeWindow.instance.customFrame.value = false;
+        await tester.pump();
+
+        expect(find.byType(WindowControls), findsNothing);
+        expect(find.text('Invoice Ninja'), findsNothing);
+        // A pure passthrough, like macOS — the child owns the whole box again.
+        expect(
+          tester.getRect(find.byKey(const ValueKey('body'))),
+          tester.getRect(find.byType(WindowFrame)),
+        );
+      });
+    });
+
+    testWidgets('the sidebar takes its arrows back when there is no band', (
+      tester,
+    ) async {
+      // Otherwise the arrows render nowhere at all: the band is gone and the
+      // sidebar is still abstaining on the strength of the platform alone.
+      await under(TargetPlatform.windows, () async {
+        expect(windowChromeHostsNavArrows(), isTrue);
+        NativeWindow.instance.customFrame.value = false;
+        expect(windowChromeHostsNavArrows(), isFalse);
+      });
+    });
+
+    testWidgets('macOS is unaffected — its arrows are not gated on this', (
+      tester,
+    ) async {
+      await under(TargetPlatform.macOS, () async {
+        NativeWindow.instance.customFrame.value = false;
+        expect(windowChromeHostsNavArrows(), isTrue);
+      });
+    });
+  });
+
   group('band surface', () {
     testWidgets('is ONE colour with a hairline rule, not two-tone', (
       tester,

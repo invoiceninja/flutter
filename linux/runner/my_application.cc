@@ -54,6 +54,11 @@ static FlValue* window_chrome_value(MyApplication* self, gboolean maximized,
   // GDK_WINDOW_STATE_TILED, and the drawn glyph must not offer "restore" for it.
   fl_value_set_string_take(map, "maximized", fl_value_new_bool(maximized));
   fl_value_set_string_take(map, "active", fl_value_new_bool(active));
+  // Always true here: the GTK runner has no kill switch — it hides the title
+  // bar unconditionally in `activate`, so there is never an OS caption for the
+  // app's own band to double up on. Sent explicitly all the same, so the field
+  // means the same thing on both frameless platforms.
+  fl_value_set_string_take(map, "customFrame", fl_value_new_bool(TRUE));
   // Explicit zero, and it must be explicit: WindowChrome.fromMap falls back to
   // the macOS default of 70 when the KEY IS ABSENT, and only preserves a zero
   // that was actually sent. No native buttons float over this window's content.

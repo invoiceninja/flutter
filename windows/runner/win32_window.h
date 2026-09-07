@@ -119,6 +119,11 @@ class Win32Window {
   // when the reported payload actually changes — WM_SIZE fires SIZE_RESTORED on
   // every tick of an interactive resize, which would otherwise flood the
   // channel at 60+ Hz.
+  // Whether this window actually dropped its OS caption. Reported to Dart so
+  // the app does not paint a title bar over one that is still there — the kill
+  // switch would otherwise render as two stacked bars.
+  bool custom_frame() const { return custom_frame_; }
+
   virtual void OnWindowChromeChanged() {}
   // Whether |OnWindowChromeChanged| would actually reach Dart. Overridden by
   // FlutterWindow; without it the dedupe cache below would record payloads that

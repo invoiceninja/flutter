@@ -77,10 +77,31 @@ void main() {
       },
     );
 
+    test('customFrame defaults TRUE when absent — same trap as active', () {
+      // A runner predating the key, or any platform that never reports, must
+      // read as "the app owns the title bar" — the value the app has always
+      // assumed. Parsed with `== true` it would invert, and every Windows and
+      // Linux build would silently stop painting its band.
+      expect(WindowChrome.fromMap(const {}).customFrame, isTrue);
+      expect(
+        WindowChrome.fromMap(const {'customFrame': false}).customFrame,
+        isFalse,
+      );
+      expect(
+        WindowChrome.fromMap(const {'customFrame': true}).customFrame,
+        isTrue,
+      );
+      expect(
+        WindowChrome.fromMap(const {'customFrame': 'no'}).customFrame,
+        isTrue,
+      );
+    });
+
     test('the new fields participate in equality and hashCode', () {
       const base = WindowChrome();
       expect(base == const WindowChrome(maximized: true), isFalse);
       expect(base == const WindowChrome(active: false), isFalse);
+      expect(base == const WindowChrome(customFrame: false), isFalse);
       expect(
         const WindowChrome(maximized: true, active: false).hashCode,
         const WindowChrome(maximized: true, active: false).hashCode,

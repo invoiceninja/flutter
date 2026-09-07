@@ -161,6 +161,11 @@ flutter::EncodableMap FlutterWindow::WindowChromePayload() {
        flutter::EncodableValue(IsWindowMaximized())},
       {flutter::EncodableValue("active"),
        flutter::EncodableValue(IsWindowFocused())},
+      // False when the kill switch declined the custom frame. Dart draws no
+      // band of its own in that case, so the stock caption is the only chrome
+      // rather than a second one underneath it.
+      {flutter::EncodableValue("customFrame"),
+       flutter::EncodableValue(custom_frame())},
       // Explicit zero, and it has to be explicit: WindowChrome.fromMap falls
       // back to the macOS default of 70 when the KEY IS ABSENT, and only
       // preserves a zero that was actually sent. No native buttons float over

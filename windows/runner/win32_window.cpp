@@ -249,13 +249,12 @@ bool Win32Window::Create(const std::wstring& title,
   // setFrameAutosaveName parity point).
   RestorePlacement();
 
-  // Force one non-client recalculation now that the custom-frame handler is
-  // installed. Without it the window is shown with the caption the ORIGINAL
-  // creation-time frame reserved, so the app starts with the OS title bar AND
-  // the drawn band stacked — and the first maximize or resize silently "fixes"
-  // it, because that is simply the next thing to send WM_NCCALCSIZE. It runs
-  // while the window is still hidden (Show() waits for Flutter's first frame),
-  // so nothing flickers.
+  // Belt-and-braces, not the fix: with WM_NCCALCSIZE now handling the
+  // creation-time (wParam FALSE) form, the window is already frameless by the
+  // time it is shown. This is kept because it is what the reference
+  // implementations do after creating a custom-framed window, it costs nothing
+  // on a window that is still hidden, and it re-asserts the frame if anything
+  // in the startup path ever changes underneath it.
   if (custom_frame_) {
     SetWindowPos(window, nullptr, 0, 0, 0, 0,
                  SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
@@ -413,28 +412,44 @@ Win32Window::MessageHandler(HWND hwnd,
       // styles is also why the persisted WINDOWPLACEMENT needs no migration:
       // AdjustWindowRectEx is unchanged, so a stored window rect still means
       // what it meant before.
-      if (!custom_frame_ || wparam == FALSE) {
+      if (!custom_frame_) {
         break;  // fall through to DefWindowProc
       }
-      auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
-      // rgrc[0] arrives as the proposed WINDOW rect; remember its top before
-      // the default proc turns rgrc[0] into the client rect.
-      const LONG proposed_top = params->rgrc[0].top;
+      // BOTH forms must be handled, and the wParam == FALSE one is the
+      // important one: it is the ONLY calc `CreateWindow` can send, because the
+      // TRUE form's NCCALCSIZE_PARAMS carries rgrc[1] (old window rect) and
+      // rgrc[2] (old client rect), neither of which exists for a window being
+      // born. Declining it — as this handler used to — left the window created
+      // with the standard caption reserved, and since the Flutter child is
+      // pinned to the client origin by OnCreate, the whole app started one
+      // title bar lower with the real OS caption above it. The first resize
+      // sent the TRUE form, this ran, and it "fixed itself" for good.
+      //
+      // In the FALSE form lParam is a bare RECT*; in the TRUE form it is the
+      // params block whose rgrc[0] plays the same role. DefWindowProc converts
+      // either in place, so the only difference is where the rect lives.
+      // Explicit compare rather than using WPARAM as a bool — /W4 /WX is on.
+      RECT* client =
+          wparam != FALSE
+              ? &reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam)->rgrc[0]
+              : reinterpret_cast<RECT*>(lparam);
+      // Remember the proposed WINDOW top before the default proc turns the rect
+      // into the client rect.
+      const LONG proposed_top = client->top;
       DefWindowProc(hwnd, message, wparam, lparam);
       // Reclaim only the caption. Left/right/bottom keep the default proc's
       // insets, which ARE the invisible resize border — so Windows keeps
       // hit-testing those three edges natively, for free.
-      params->rgrc[0].top = proposed_top;
+      client->top = proposed_top;
       if (IsZoomed(hwnd)) {
-        ApplyMaximizedInsets(hwnd, &params->rgrc[0]);
+        ApplyMaximizedInsets(hwnd, client);
       } else {
         // Give the top edge back one pixel. Reclaiming the caption in full
         // leaves DWM no non-client strip to draw the window border in, so the
-        // window ends up bordered on three sides and bare along the top — the
-        // left, right and bottom keep theirs because DefWindowProc's insets
-        // were left alone. A maximized window has no visible border to
-        // preserve, and ApplyMaximizedInsets already owns its top inset.
-        params->rgrc[0].top += 1;
+        // window ends up bordered on three sides and bare along the top. A
+        // maximized window has no visible border to preserve, and
+        // ApplyMaximizedInsets already owns its top inset.
+        client->top += 1;
       }
       return 0;
     }
@@ -545,7 +560,10 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
   }
 
-  return DefWindowProc(window_handle_, message, wparam, lparam);
+  // `hwnd`, not `window_handle_`: the WM_DESTROY case above nulls the member,
+  // so the WM_NCDESTROY that follows would otherwise be dispatched against a
+  // null HWND. Inherited from the Flutter template.
+  return DefWindowProc(hwnd, message, wparam, lparam);
 }
 
 void Win32Window::ApplyMaximizedInsets(HWND hwnd, RECT* client) {

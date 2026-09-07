@@ -84,15 +84,32 @@ class WindowFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!paintsTitleBar()) return child;
-    return Column(
-      children: [
-        _TitleBar(
-          screenshotWindow: screenshotWindow,
-          railCollapsed: railCollapsed,
-          shellMounted: shellMounted,
-        ),
-        Expanded(child: child),
-      ],
+    // The platform is only half the question — the runner also has to have
+    // actually dropped its OS title bar. It can decline (the
+    // IN_DISABLE_CUSTOM_FRAME kill switch, there so a broken frame can be
+    // recovered from without a new build), and painting a band over a caption
+    // that is still there gives two stacked title bars — which looks exactly
+    // like the frame having failed, and is how the real bug hid for as long as
+    // it did. Declining to draw turns that into a plain stock-caption window.
+    //
+    // `NativeWindow.customFrame`, not `chrome`: this wraps the whole routed
+    // app, and `chrome` changes on every focus toggle. That notifier settles
+    // once per process.
+    return ValueListenableBuilder<bool>(
+      valueListenable: NativeWindow.instance.customFrame,
+      builder: (context, customFrame, _) {
+        if (!customFrame) return child;
+        return Column(
+          children: [
+            _TitleBar(
+              screenshotWindow: screenshotWindow,
+              railCollapsed: railCollapsed,
+              shellMounted: shellMounted,
+            ),
+            Expanded(child: child),
+          ],
+        );
+      },
     );
   }
 }

@@ -6,90 +6,108 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
-import 'package:admin/app/entity_modules.dart';
+import 'package:admin/app/accent_color_controller.dart';
+import 'package:admin/app/app_locale_resolver.dart';
+import 'package:admin/app/confirm_actions_controller.dart';
+import 'package:admin/app/contacts_sync_controller.dart';
+import 'package:admin/app/debug_capture_store.dart';
 import 'package:admin/app/deep_link_router.dart';
+import 'package:admin/app/diagnostics_log.dart';
+import 'package:admin/app/entity_modules.dart';
+import 'package:admin/app/locale_controller.dart';
 import 'package:admin/app/pending_call_controller.dart';
+import 'package:admin/app/phone_actions_controller.dart';
+import 'package:admin/app/recently_viewed_controller.dart';
+import 'package:admin/app/resync_controller.dart';
+import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services_entity_wiring.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/app/shortcuts/keyboard_shortcuts_controller.dart';
+import 'package:admin/app/sidebar_badge_mode_controller.dart';
+import 'package:admin/app/sidebar_controller.dart';
+import 'package:admin/app/sidebar_menu_controller.dart';
+import 'package:admin/app/status_tabs_controller.dart';
+import 'package:admin/app/text_scale_controller.dart';
+import 'package:admin/app/theme_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/bank_account_repository.dart';
 import 'package:admin/data/repositories/bank_transaction_repository.dart';
+import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/calendar_connection_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/company_gateway_repository.dart';
 import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/data/repositories/company_sync_dispatcher.dart';
+import 'package:admin/data/repositories/credit_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
+import 'package:admin/data/repositories/design_repository.dart';
 import 'package:admin/data/repositories/expense_category_repository.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
 import 'package:admin/data/repositories/group_setting_repository.dart';
 import 'package:admin/data/repositories/invoice_repository.dart';
+import 'package:admin/data/repositories/payment_link_repository.dart';
 import 'package:admin/data/repositories/payment_repository.dart';
 import 'package:admin/data/repositories/payment_term_repository.dart';
 import 'package:admin/data/repositories/product_repository.dart';
 import 'package:admin/data/repositories/project_repository.dart';
-import 'package:admin/data/repositories/credit_repository.dart';
 import 'package:admin/data/repositories/purchase_order_repository.dart';
-import 'package:admin/data/repositories/calendar_connection_repository.dart';
 import 'package:admin/data/repositories/quickbooks_repository.dart';
-import 'package:admin/data/repositories/recurring_invoice_repository.dart';
 import 'package:admin/data/repositories/quote_repository.dart';
 import 'package:admin/data/repositories/recurring_expense_repository.dart';
+import 'package:admin/data/repositories/recurring_invoice_repository.dart';
 import 'package:admin/data/repositories/reports_repository.dart';
 import 'package:admin/data/repositories/saved_views_repository.dart';
 import 'package:admin/data/repositories/schedule_repository.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
-import 'package:admin/data/repositories/system_log_repository.dart';
-import 'package:admin/data/repositories/payment_link_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
-import 'package:admin/data/services/refresh_scheduler.dart';
+import 'package:admin/data/repositories/system_log_repository.dart';
 import 'package:admin/data/repositories/tag_repository.dart';
 import 'package:admin/data/repositories/task_repository.dart';
-import 'package:admin/data/services/api_exception.dart';
-import 'package:admin/data/repositories/design_repository.dart';
 import 'package:admin/data/repositories/task_status_repository.dart';
 import 'package:admin/data/repositories/tax_rate_repository.dart';
+import 'package:admin/data/repositories/token_repository.dart';
 import 'package:admin/data/repositories/transaction_rule_repository.dart';
-import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/data/repositories/two_factor_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/repositories/user_settings_sync_dispatcher.dart';
-import 'package:admin/data/repositories/token_repository.dart';
 import 'package:admin/data/repositories/user_sync_dispatcher.dart';
+import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/data/repositories/webhook_repository.dart';
 import 'package:admin/data/services/activities_api.dart';
-import 'package:admin/data/services/search_api.dart';
 import 'package:admin/data/services/api_client.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/biometric_service.dart';
 import 'package:admin/data/services/companies_api.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
+import 'package:admin/data/services/dashboard_api.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
-import 'package:admin/domain/contacts_sync/contacts_sync_service.dart';
 import 'package:admin/data/services/device_contacts_service_factory.dart';
 import 'package:admin/data/services/documents_api.dart';
 import 'package:admin/data/services/emails_api.dart';
-import 'package:admin/data/services/dashboard_api.dart';
-import 'package:admin/data/services/project_charts_api.dart';
-import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/password_cache.dart';
+import 'package:admin/data/services/project_charts_api.dart';
+import 'package:admin/data/services/refresh_scheduler.dart';
+import 'package:admin/data/services/reports_api.dart';
+import 'package:admin/data/services/search_api.dart';
+import 'package:admin/data/services/smtp_api.dart';
 import 'package:admin/data/services/statics_service.dart';
+import 'package:admin/data/services/support_api.dart';
 import 'package:admin/data/services/system_api.dart';
 import 'package:admin/data/services/system_logs_api.dart';
-import 'package:admin/data/services/smtp_api.dart';
 import 'package:admin/data/services/templates_api.dart';
-import 'package:admin/data/services/support_api.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/data/services/token_storage_factory.dart';
 import 'package:admin/data/services/two_factor_api.dart';
 import 'package:admin/data/services/user_settings_api.dart';
 import 'package:admin/data/services/users_api.dart';
+import 'package:admin/domain/contacts_sync/contacts_sync_service.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
@@ -98,23 +116,6 @@ import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/utils/formatting.dart';
-import 'package:admin/app/accent_color_controller.dart';
-import 'package:admin/app/app_locale_resolver.dart';
-import 'package:admin/app/debug_capture_store.dart';
-import 'package:admin/app/diagnostics_log.dart';
-import 'package:admin/app/locale_controller.dart';
-import 'package:admin/app/recently_viewed_controller.dart';
-import 'package:admin/app/resync_controller.dart';
-import 'package:admin/app/screenshot_window_controller.dart';
-import 'package:admin/app/sidebar_badge_mode_controller.dart';
-import 'package:admin/app/sidebar_menu_controller.dart';
-import 'package:admin/app/confirm_actions_controller.dart';
-import 'package:admin/app/contacts_sync_controller.dart';
-import 'package:admin/app/sidebar_controller.dart';
-import 'package:admin/app/phone_actions_controller.dart';
-import 'package:admin/app/status_tabs_controller.dart';
-import 'package:admin/app/text_scale_controller.dart';
-import 'package:admin/app/theme_controller.dart';
 
 final Logger _servicesLog = Logger('Services');
 
@@ -124,8 +125,13 @@ final Logger _servicesLog = Logger('Services');
 /// [Services.prefetchSidebarEntities]. Both call sites use this same body.
 Future<void> _prefetchSidebarOnCompanyChange(
   WiredEntities entities,
-  String companyId,
-) => _runSidebarPrefetch(entities.firstPagePrefetchers, companyId);
+  String companyId, {
+  bool Function()? isStale,
+}) => _runSidebarPrefetch(
+  entities.firstPagePrefetchers,
+  companyId,
+  isStale: isStale,
+);
 
 /// Max sidebar prefetchers running at once. The fan-out used to be an
 /// unbounded `Future.wait` over every sidebar entity; on a company switch
@@ -138,8 +144,9 @@ const _kPrefetchConcurrency = 4;
 
 Future<void> _runSidebarPrefetch(
   Map<EntityType, Future<bool> Function(String companyId)> prefetchers,
-  String companyId,
-) async {
+  String companyId, {
+  bool Function()? isStale,
+}) async {
   if (companyId.isEmpty) return;
   final jobs = <Future<void> Function()>[];
   for (final spec in kWiredEntityModules) {
@@ -158,6 +165,10 @@ Future<void> _runSidebarPrefetch(
             _servicesLog.fine(
               'prefetch skipped for ${spec.type.name}: ${e.message}',
             );
+          } else if (e is CompanySwitchedException) {
+            // Raised BY DESIGN whenever a switch lands mid-sweep. Expected
+            // conditions must stay out of the WARNING+ diagnostics log.
+            _servicesLog.fine('prefetch abandoned for ${spec.type.name}: $e');
           } else {
             _servicesLog.warning(
               'prefetch failed for ${spec.type.name}',
@@ -172,6 +183,13 @@ Future<void> _runSidebarPrefetch(
   var next = 0;
   Future<void> worker() async {
     while (true) {
+      // A superseded sweep must stop claiming jobs: with a concurrency of 4
+      // and ~14 entities, most of a sweep is still queued when the company
+      // changes, and those jobs would run under the NEW company's token while
+      // writing rows stamped with the OLD `companyId`. The repo-level guard
+      // (`BaseEntityRepository.companyStillActive`) catches whatever is already
+      // in flight; this stops the rest from ever being issued.
+      if (isStale?.call() ?? false) return;
       final i = next++;
       if (i >= jobs.length) return;
       await jobs[i]();
@@ -1191,6 +1209,20 @@ class Services implements SidebarBadgeContext {
         dispatchers: dispatchers,
       ),
     );
+    // Bind every repo to the live active company. `ApiClient` resolves
+    // credentials from a notifier at request-build time and takes no company
+    // parameter, so a page fetched for company A can come back after a switch
+    // to B — under B's token — and be stamped `company_id = A`. This closure is
+    // the one thing that ties the two together; see
+    // `BaseEntityRepository.companyStillActive`. Set post-construction rather
+    // than threaded through ~30 constructors.
+    String? liveCompanyId() => auth.credentials.value?.companyId;
+    for (final repo in entities.repos.values) {
+      repo.activeCompanyId = liveCompanyId;
+    }
+    // Same binding for the drain: a pass that outlives a company switch would
+    // otherwise dispatch the old company's mutations under the new token.
+    sync.activeCompanyId = liveCompanyId;
     final companiesApi = CompaniesApi(apiClient);
     // Built at the end of this factory and returned directly, so the closures
     // below capture it via `late final` — they only run at runtime, long after
@@ -1251,6 +1283,9 @@ class Services implements SidebarBadgeContext {
       api: usersApi,
       onEnqueued: kickDrain,
     );
+    // Built standalone, so they miss the `entities.repos` loop above.
+    userRepo.activeCompanyId = liveCompanyId;
+    companyRepo.activeCompanyId = liveCompanyId;
     final savedViewsRepo = SavedViewsRepository(
       db: db,
       userSettings: userSettingsRepo,
@@ -1328,6 +1363,17 @@ class Services implements SidebarBadgeContext {
     // the same install never inherits it (e.g. the previous user's connected
     // calendar email — cross-user leak).
     auth.onSessionReset = calendarConnectionRepo.resetSessionState;
+    // The calendar connection lives on `company_user.settings`, i.e. per
+    // (user, company) — so it is stale after a company switch too, not just
+    // after a logout. `connectionState` is an app-lifetime ValueNotifier and
+    // `loadStatus()`'s `??=` is deliberately non-clobbering, so a failed status
+    // read on the new company left company A's connected account on screen
+    // indefinitely, with a Disconnect button that acted on company B.
+    final priorOnActiveCompanyChangedForCalendar = auth.onActiveCompanyChanged;
+    auth.onActiveCompanyChanged = (companyId) {
+      calendarConnectionRepo.resetSessionState();
+      priorOnActiveCompanyChangedForCalendar?.call(companyId);
+    };
     // Fan-out the bundled per-entity arrays the /refresh envelope carries
     // alongside the company. Each [wireEntities] block contributes its own
     // applier to [entities.bundleAppliers]; this loop runs them in order.
@@ -1479,6 +1525,13 @@ class Services implements SidebarBadgeContext {
       refreshScheduler.stop();
       services.toasts.clearAll();
       services.shortcutHints.reset();
+      // App-lifetime recents survive a logout otherwise: the map is only ever
+      // cleared inside `restore()` (boot), and it is keyed by company — which
+      // makes cross-company isolation structural but does nothing for the
+      // cross-user case, where the company id is the same. Without this, the
+      // next user's command palette lists the previous user's records and
+      // re-persists them into the just-wiped nav_state.
+      services.recentlyViewed.reset();
       // A deep link held at the signed-out / locked gate belongs to the
       // account that was signed in when it arrived. Replaying it into the next
       // session would navigate the new user by the old one's ids.
@@ -1528,7 +1581,27 @@ class Services implements SidebarBadgeContext {
       // entity so the count badges populate before the user opens each
       // list. Errors are caught + logged per entity so a 401 / network
       // blip can't take down login.
-      unawaited(_prefetchSidebarOnCompanyChange(entities, companyId));
+      // Cancel a Sync pass that is mid-sweep: `resyncAllEntities` walks ~20
+      // entities sequentially with `companyId` bound at call time, but each
+      // request picks up whatever token is live when it is *sent* — so a pass
+      // that survives a switch fetches the new company's records and files them
+      // under the old company's id. `ResyncController` used to say a pass
+      // "deliberately survives a company switch (its writes are all company_id
+      // scoped)"; being company_id-scoped is exactly what made the corruption
+      // silent.
+      resync.cancel();
+      // Likewise abandon a prefetch sweep for the company we just left. The
+      // 401-rollback path makes this reachable with no user action at all:
+      // switching A→B starts sweep B, B's token 401s, the rollback re-activates
+      // A and starts sweep A — leaving sweep B's queued jobs to run under A's
+      // token, writing into `company_id = B`.
+      unawaited(
+        _prefetchSidebarOnCompanyChange(
+          entities,
+          companyId,
+          isStale: () => auth.credentials.value?.companyId != companyId,
+        ),
+      );
       // Warm the per-company Formatter cache so `formatterIfReady` is reliably
       // non-null on every screen (product edit, tax-rate edit, …) instead of
       // silently falling back to dot-decimal / default formats while the

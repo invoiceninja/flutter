@@ -24,6 +24,13 @@ const List<Duration> kBackoffSchedule = [
 /// Total attempts (initial + retries) before a row is marked dead.
 const int kMaxAttempts = 5;
 
+/// Re-park delay for a row that failed because the network was unavailable.
+/// Deliberately flat and budget-neutral — see the `NetworkException` arm in
+/// `SyncRepository._attempt`. Long enough not to spin while offline, short
+/// enough that the row goes out promptly once connectivity returns (the
+/// reconnect / resume / enqueue triggers usually beat it anyway).
+const Duration kOfflineRetryDelay = Duration(seconds: 60);
+
 /// Terminal state observed by [SyncRepository.awaitRow] for one outbox row.
 enum SyncRowOutcome {
   /// Row was successfully drained (server returned 2xx; the row was deleted).
@@ -78,6 +85,18 @@ class SyncRepository {
   final AppDatabase db;
   final EntityRegistry registry;
   final DateTime Function() _now;
+
+  /// The company whose token outbound requests are currently carrying —
+  /// `auth.credentials.value?.companyId`, wired by DI. Null (tests, or before
+  /// credentials exist) disables the check.
+  ///
+  /// `ApiClient` builds every request from a live credentials notifier and has
+  /// no notion of which company a drain pass is for, so a pass that outlives a
+  /// company switch dispatches the OLD company's mutations under the NEW
+  /// company's token. The server then can't find those ids, answers 400 "No
+  /// query results", and the row parks a year as a bogus conflict whose only
+  /// forward option hard-deletes a local record that is alive on the server.
+  String? Function()? activeCompanyId;
 
   final StreamController<SyncEvent> _events =
       StreamController<SyncEvent>.broadcast();
@@ -444,6 +463,48 @@ class SyncRepository {
   /// so the guard COUNTS it (never silently proceed past unsynced work) while
   /// Discard leaves it to settle (success = synced anyway; failure re-parks
   /// it pending, where the guard's re-check still catches it).
+  /// Delete dead outbox rows older than [ttl], releasing each one's optimistic
+  /// `is_dirty` flag on the way out. Called once per launch from `main`.
+  ///
+  /// The delete alone used to live in `OutboxDao`, which cannot reach the
+  /// registry — so it ran as a bare `DELETE` with no reconciliation, and that
+  /// orphaned the flag. `_releaseDeadLifecycleDirty` deliberately keeps
+  /// `is_dirty` set for a dead create/update (the local row is the user's
+  /// unsaved work, offered back by `SaveFailedBanner` + Retry), and
+  /// `upsertAllPreservingDirty` skips every dirty id on every fetch,
+  /// `refreshAll` and bundle apply. Once the row explaining the flag was
+  /// pruned, the record was frozen at its stale local value for the life of the
+  /// install — permanently `unsynced` in the list, with nothing left to retry
+  /// from.
+  ///
+  /// The local record is deliberately LEFT IN PLACE, including a never-synced
+  /// `tmp_` create's phantom. Ghost-discarding one is what `discardOutboxRow`
+  /// does, but that runs on an explicit user gesture; this runs unattended at
+  /// boot, and destroying a record nobody asked to destroy is not a trade to
+  /// make there.
+  Future<int> pruneDeadRows({Duration ttl = const Duration(days: 90)}) async {
+    final cutoff = _now().subtract(ttl).millisecondsSinceEpoch;
+    final doomed = await db.outboxDao.deadRowsOlderThan(olderThanMs: cutoff);
+    if (doomed.isEmpty) return 0;
+    final removed = await db.outboxDao.pruneDead(olderThanMs: cutoff);
+    // Delete first, reconcile second: `_reconcileDiscardedDirty` probes for a
+    // surviving edit row for the same entity, and its doc requires the row
+    // being abandoned to be gone already so it cannot match itself.
+    for (final row in doomed) {
+      try {
+        await _reconcileDiscardedDirty(row);
+      } catch (e, st) {
+        _log.warning(
+          'Failed to release is_dirty for a pruned '
+          '${row.entityType}/${row.entityId}',
+          e,
+          st,
+        );
+      }
+    }
+    return removed;
+  }
+
   Future<void> discardPendingFor(String companyId) async {
     final rows = await db.outboxDao.pendingRowsForCompany(companyId);
     for (final row in rows) {
@@ -674,6 +735,17 @@ class SyncRepository {
     final nowMs = _now().millisecondsSinceEpoch;
     final rows = await db.outboxDao.nextReady(companyId: companyId, now: nowMs);
     var successes = 0;
+    // Per-entity ordering. See `OutboxDao.hasEarlierActiveRowForEntity` for
+    // the lost-update this prevents and why parked rows are excluded.
+    //
+    // A per-pass Set is NOT enough on its own: `nextReady` only returns rows
+    // that are DUE, so the row we most need to wait for — one that just failed
+    // and re-parked — is absent from the snapshot entirely. The set still earns
+    // its keep for a row that fails *within* this pass and is re-parked into
+    // the future by it, which the SQL query above (run before that happened)
+    // could not see either. A row this pass KILLS is deliberately not added —
+    // see the dead-row note at the bottom of the loop.
+    final blockedEntities = <(String, String)>{};
     for (final snapshot in rows) {
       if (_cancelRequested) break;
       // Re-read the row immediately before dispatch. An earlier CREATE in THIS
@@ -691,6 +763,21 @@ class SyncRepository {
       // and marked this dependent dead. Skip it; otherwise the tmp_-ref
       // branch below would `scheduleRetry` it straight back to `pending`.
       if (row.state != 'pending') continue;
+      // An earlier row for this same record didn't land in this pass — see
+      // [blockedEntities]. Dispatching this one now would apply mutations out
+      // of order.
+      final entityKey = (row.entityType, row.entityId);
+      if (blockedEntities.contains(entityKey)) continue;
+      if (await db.outboxDao.hasEarlierActiveRowForEntity(
+        companyId: companyId,
+        entityType: row.entityType,
+        entityId: row.entityId,
+        beforeId: row.id,
+        now: _now().millisecondsSinceEpoch,
+      )) {
+        // An older mutation for this record is still going to be sent.
+        continue;
+      }
       var current = row;
       // Materialized once per row (the token scan regexes the full payload
       // JSON — potentially tens of KB for invoices), refreshed only after a
@@ -738,6 +825,8 @@ class SyncRepository {
             'References a discarded unsynced record',
             null,
           );
+          // Deliberately NOT blocked: a dead row will never be sent, so it
+          // imposes no ordering constraint on later rows for the same record.
           continue;
         }
         // Still references a not-yet-created entity — its parent create didn't
@@ -769,10 +858,47 @@ class SyncRepository {
               const Duration(minutes: 1).inMilliseconds,
           error: 'Waiting for an unsynced referenced record to sync first',
         );
+        blockedEntities.add(entityKey);
         continue;
       }
+      // The active company changed under this pass (a switch, or the 401
+      // rollback re-activating the previous company). Dispatching now would
+      // send this row under another workspace's token. Leave it `pending` and
+      // stop the pass — `drainOnce` is per company, so the right pass will
+      // pick these up.
+      final live = activeCompanyId?.call();
+      if (live != null && live != companyId) {
+        // Expected on any company switch with queued rows — not a fault.
+        _log.fine(
+          'Halting the drain for $companyId: $live is now the active company',
+        );
+        break;
+      }
       final dispatched = await _attempt(current);
-      if (dispatched) successes++;
+      if (dispatched) {
+        successes++;
+      } else {
+        // Latch only on a row that will still be SENT. `_attempt` also returns
+        // false when it just killed the row (`_markDead` — a permanent 4xx, a
+        // cancelled password sheet, an exhausted budget), and a row that can
+        // never go out imposes no ordering on anything queued behind it.
+        // Blocking there deferred every later edit of that record by a whole
+        // pass, for as long as the dead row sat in the outbox — and it made
+        // this set STRICTER than the SQL barrier above, which already ignores
+        // `dead`. Two gates that disagree about the same question is the shape
+        // to avoid.
+        //
+        // The synthetic ids (`_sort`, `_bulk`) deliberately still latch. They
+        // name no single record, so the barrier cannot tell an ordered pair
+        // (two reorders of one list — genuinely last-write-wins) from an
+        // independent one (`convertMatched` and `unlinkTransaction` over
+        // disjoint transaction ids). Over-blocking costs one pass;
+        // under-blocking costs a lost update on bank data.
+        final after = await db.outboxDao.byId(current.id);
+        if (after != null && after.state != 'dead') {
+          blockedEntities.add(entityKey);
+        }
+      }
     }
     return successes;
   }
@@ -1064,7 +1190,32 @@ class SyncRepository {
       );
       return false;
     } on NetworkException catch (e) {
-      await _retryWithBackoff(row, e.message, null);
+      // Offline (or an unreachable host) is "wait for an external condition",
+      // not a reason to dead-letter the user's work — the same reasoning the
+      // 429 / 401 / client-too-old arms above already apply by re-parking with
+      // `attempts: row.attempts`. This one used to burn the budget instead, so
+      // a user working offline in the foreground lost every queued mutation to
+      // `dead` in about 25 minutes (one attempt per 5-minute refresh tick, plus
+      // every resume and connectivity flap — nothing gates the drain on
+      // connectivity). A later sign-out then wiped those payloads with NO
+      // prompt at all, because `pendingCountForCompany` and
+      // `companiesWithActiveRows` both exclude `dead`.
+      //
+      // The delay is an explicit constant, NOT `_retryWithBackoff`: with
+      // `attempts` frozen that helper would index `kBackoffSchedule[0]` = 5s
+      // forever, turning an offline session into a 5-second retry loop.
+      //
+      // Trade: a permanently misconfigured host now retries indefinitely rather
+      // than dying, and a network failure no longer raises a `DeadEvent` toast.
+      // The Outbox screen shows these rows as pending with their `lastError`.
+      await db.outboxDao.scheduleRetry(
+        id: row.id,
+        attempts: row.attempts,
+        nextAttemptAt:
+            _now().millisecondsSinceEpoch + kOfflineRetryDelay.inMilliseconds,
+        error: e.message,
+        statusCode: null,
+      );
       return false;
     } on ServerException catch (e) {
       // 4xx client errors are permanent: the identical request will keep
@@ -1237,8 +1388,13 @@ class SyncRepository {
     }
   }
 
-  /// Release the optimistic `is_dirty` flag left by a **lifecycle** mutation
-  /// (delete / archive / restore) that has died permanently.
+  /// Release the optimistic `is_dirty` flag left by a mutation that has died
+  /// permanently and is NOT the entity's own `create` / `update`.
+  ///
+  /// The name is historical: it started as the three lifecycle verbs (delete /
+  /// archive / restore) and now covers every kind but those two — see the
+  /// enumeration note in the body for the `bulk_update` case that forced the
+  /// widening.
   ///
   /// Those three flip the local row before the server has agreed —
   /// `delete()` writes `is_deleted=true, is_dirty=true`, `archive()` writes
@@ -1265,11 +1421,30 @@ class SyncRepository {
   /// keeps its flag so that separate edit stays protected.
   Future<void> _releaseDeadLifecycleDirty(OutboxRow row) async {
     final kind = MutationKind.tryParse(row.mutationKind);
-    if (kind != MutationKind.delete &&
-        kind != MutationKind.archive &&
-        kind != MutationKind.restore) {
+    // Every kind EXCEPT create/update releases. It used to enumerate the three
+    // lifecycle verbs, which left `bulk_update` falling through both this and
+    // `_clearReorderDirty`: a bulk column edit writes `is_dirty = true` on every
+    // selected row, so one permanently-rejected row stayed frozen against
+    // `upsertAllPreservingDirty` forever — rendering the value the server
+    // refused as authoritative, with no way back short of finding the dead row
+    // in the Outbox and discarding it. An inverted test is the safer shape:
+    // a new optimistic non-edit writer is covered on the day it ships.
+    //
+    // create/update stay excluded for the reason in the doc above: their local
+    // row is where the user's unsaved work lives, and the edit screen reopens
+    // onto it with a `SaveFailedBanner` + Retry.
+    if (kind == null ||
+        kind == MutationKind.create ||
+        kind == MutationKind.update) {
       return;
     }
+    // `reorder` is already owned by [_clearReorderDirty], which BOTH callers
+    // run immediately before this one, and which knows how to walk the
+    // reordered ids. A reorder row's `entityId` is the synthetic `_sort`
+    // sentinel, so falling through here only spends a dispatcher round-trip
+    // clearing a record that does not exist. [_reconcileDiscardedDirty] hands
+    // reorder off the same way.
+    if (kind == MutationKind.reorder) return;
     final stillActive = await db.outboxDao.hasActiveRowsForEntity(
       companyId: row.companyId,
       entityType: row.entityType,

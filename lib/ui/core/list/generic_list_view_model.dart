@@ -9,6 +9,7 @@ import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/nav_state_dao.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/saved_views_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/domain/columns/column_definition.dart';
@@ -1510,7 +1511,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       hasMore = more;
     } catch (e) {
       if (_fetchEpoch != epoch) return;
-      initialError = formatNotifyError(e);
+      if (!_isBenign(e)) initialError = formatNotifyError(e);
     } finally {
       if (_fetchEpoch == epoch) {
         isLoadingPage = false;
@@ -1559,7 +1560,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
       // prepends a localized "Failed to load:" prefix when rendering — a
       // bare toString() leaked "NetworkException: ClientException with
       // SocketException: …" into the full-pane error on every entity list.
-      initialError = formatNotifyError(e);
+      if (!_isBenign(e)) initialError = formatNotifyError(e);
     } finally {
       if (_fetchEpoch == epoch) {
         isLoadingPage = false;
@@ -1596,6 +1597,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _watchSub = transformPage(watchPage()).listen(
       _onItems,
       onError: (Object e) {
+        if (_isBenign(e)) return;
         initialError = formatNotifyError(e);
         notifyListeners();
       },
@@ -1793,7 +1795,16 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     });
   }
 
+  /// A page abandoned because the company changed under it is not a failure —
+  /// the rows were fetched under another workspace's token and were correctly
+  /// discarded. Every error sink asks this, so the decision can't be made in
+  /// one place and forgotten in another: it was, and switching company while a
+  /// list's first page was in flight painted an untranslated
+  /// `CompanySwitchedException: …` over the whole pane.
+  static bool _isBenign(Object error) => error is CompanySwitchedException;
+
   void _flashError(String kind, Object error) {
+    if (_isBenign(error)) return;
     _transientError = (kind: kind, message: formatNotifyError(error));
     notifyListeners();
   }

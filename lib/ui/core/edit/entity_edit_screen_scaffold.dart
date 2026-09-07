@@ -54,6 +54,7 @@ class EntityEditScreenScaffold<T, VM extends GenericEditViewModel<T>>
     this.embedded = false,
     this.actionsBuilder,
     this.saveParamFor,
+    this.confirmSaveParam,
     this.onAfterSaveAction,
     this.onAfterSaveActionOnCreate,
   });
@@ -133,6 +134,11 @@ class EntityEditScreenScaffold<T, VM extends GenericEditViewModel<T>>
   /// Per-entity SAVE-PARAM classifier (typically `<E>Actions.saveParamFor`
   /// composed with the action-enum cast). Null => all actions after-save.
   final Map<String, String>? Function(Object action)? saveParamFor;
+
+  /// Confirmation for a SAVE-PARAM action, forwarded to [EntityEditScaffold].
+  /// See its doc for why this is a hook rather than `EntityActionItem.confirm`.
+  final Future<bool> Function(BuildContext context, Object action)?
+  confirmSaveParam;
 
   /// Per-entity AFTER-SAVE dispatcher (typically
   /// `(ctx, saved, a) => InvoiceActions.dispatch(ctx, services,
@@ -282,6 +288,29 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     return row?.id;
   }
 
+  /// The row a "Discard failed save" tap should abandon. Wider than
+  /// [_resolveDeadRowId] — which stays dead-only because [_cleanupPriorDeadRow]
+  /// must delete a SUPERSEDED row after a successful re-save and has no
+  /// business touching one that is still queued.
+  ///
+  /// Discard is the other case: only a 422 kills the row, so a 5xx or a lost
+  /// connection leaves the banner up over a `pending` row and the dead-only
+  /// lookup found nothing — the tap cleared the banner and left the write to
+  /// apply anyway. `findDiscardableForEntity` documents why `in_flight` and
+  /// the non-save mutation kinds are excluded.
+  Future<int?> _resolveDiscardableRowId(Services services, VM vm) async {
+    final cached = vm.deadOutboxRowId;
+    if (cached != null) return cached;
+    final entityId = widget.existingId;
+    if (entityId == null) return null;
+    final row = await services.db.outboxDao.findDiscardableForEntity(
+      companyId: _companyId,
+      entityType: widget.entityTypeName,
+      entityId: entityId,
+    );
+    return row?.id;
+  }
+
   /// Delete a prior 422's `dead` outbox row after a successful re-save (its
   /// payload is now stale) and clear the VM's failed-sync link. Shared by the
   /// plain-Save `onSaved` path and the edit-mode after-save `onSaveCleanup`
@@ -296,7 +325,7 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
 
   Future<void> _discardFailedSync(VM vm) async {
     final services = context.read<Services>();
-    final rowId = await _resolveDeadRowId(services, vm);
+    final rowId = await _resolveDiscardableRowId(services, vm);
     if (rowId == null) {
       vm.clearFailedSync();
       return;
@@ -368,6 +397,7 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
           : (ctx, onTap, saveButton) =>
                 widget.actionsBuilder!(ctx, vm, onTap, saveButton),
       saveParamFor: widget.saveParamFor,
+      confirmSaveParam: widget.confirmSaveParam,
       onAfterSaveAction: widget.onAfterSaveAction,
       onAfterSaveActionOnCreate: widget.onAfterSaveActionOnCreate,
       titleBuilder: (ctx) => widget.titleBuilder(ctx, vm),

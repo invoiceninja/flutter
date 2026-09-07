@@ -38,6 +38,7 @@ typedef SurchargeSpec = ({Decimal amount, ValueChanged<String> onAmount});
 class BillingTaxSurchargeSection extends StatefulWidget {
   const BillingTaxSurchargeSection({
     required this.companyId,
+    this.useCommaAsDecimalPlace = false,
     required this.taxRows,
     required this.usesInclusiveTaxes,
     required this.onInclusiveChanged,
@@ -46,6 +47,13 @@ class BillingTaxSurchargeSection extends StatefulWidget {
   });
 
   final String companyId;
+
+  /// The company's decimal separator, threaded to the numeric fields below.
+  /// Without it a comma-locale user typing `12,5` is fought by the re-seed:
+  /// `parseDecimal('12,5', useComma: false)` strips the comma and yields 125,
+  /// which never equals the parent's canonical `12.5`, so the controller is
+  /// rewritten and the caret jumps — the exact bug `numeric` exists to stop.
+  final bool useCommaAsDecimalPlace;
 
   /// Exactly three tiers (taxName/taxRate 1–3); the widget shows as many as
   /// the company enables (plus any already populated, plus "Add tax").
@@ -121,7 +129,13 @@ class _BillingTaxSurchargeSectionState
 
         final children = <Widget>[];
         for (var i = 0; i < visible && i < 3; i++) {
-          children.add(_TaxRow(index: i + 1, spec: widget.taxRows[i]));
+          children.add(
+            _TaxRow(
+              index: i + 1,
+              spec: widget.taxRows[i],
+              useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
+            ),
+          );
         }
         if (visible < 3) {
           children.add(
@@ -148,6 +162,8 @@ class _BillingTaxSurchargeSectionState
             Padding(
               padding: EdgeInsets.symmetric(vertical: InSpacing.sm),
               child: EntityEditField(
+                numeric: true,
+                useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
                 label: entry.value,
                 initial: decimalInputText(widget.surcharges[entry.key].amount),
                 onChanged: widget.surcharges[entry.key].onAmount,
@@ -180,9 +196,14 @@ class _BillingTaxSurchargeSectionState
 }
 
 class _TaxRow extends StatelessWidget {
-  const _TaxRow({required this.index, required this.spec});
+  const _TaxRow({
+    required this.index,
+    required this.spec,
+    required this.useCommaAsDecimalPlace,
+  });
   final int index;
   final TaxRowSpec spec;
+  final bool useCommaAsDecimalPlace;
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +224,8 @@ class _TaxRow extends StatelessWidget {
           Expanded(
             flex: 2,
             child: EntityEditField(
+              numeric: true,
+              useCommaAsDecimalPlace: useCommaAsDecimalPlace,
               label: context.tr('tax_rate$index'),
               initial: decimalInputText(spec.rate),
               onChanged: spec.onRate,

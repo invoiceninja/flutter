@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// Single labeled text field used across entity edit cards (clients,
 /// products, vendors, …). Owns its own `TextEditingController` so the
@@ -32,6 +33,8 @@ class EntityEditField extends StatefulWidget {
     this.autofillHints,
     this.autocorrect = true,
     this.obscureText = false,
+    this.numeric = false,
+    this.useCommaAsDecimalPlace = false,
   }) : assert(
          !obscureText || maxLines == 1,
          'obscureText requires a single-line field',
@@ -44,6 +47,31 @@ class EntityEditField extends StatefulWidget {
   final int? minLines;
   final bool autofocus;
   final TextInputType? keyboardType;
+
+  /// Whether [initial] carries a NUMBER whose canonical text the parent
+  /// re-derives from the parsed value (`decimalInputText(vm.draft.price)` and
+  /// friends). Set it on every money / quantity / rate field.
+  ///
+  /// It changes how [didUpdateWidget] decides an external change happened: by
+  /// parsed VALUE rather than by string. Typing is lossy in one direction —
+  /// backspacing `12.5` to `12.` parses to `12`, whose canonical text is `12`
+  /// — so the string test saw "the bound value changed AND differs from what I
+  /// hold", rewrote the controller to `12`, and put the caret after it. The
+  /// next keystroke then landed in the integer part: `7` gave **127**, not
+  /// 12.7. Comparing values instead keeps `12.` and `12` equivalent while a
+  /// genuine external change still differs.
+  ///
+  /// Deliberately explicit rather than inferred from [keyboardType]: several
+  /// numeric fields set none, and `TextInputType` equality across the
+  /// `numberWithOptions(decimal:/signed:)` variants is exactly the kind of
+  /// implicit test that silently covers the wrong set.
+  final bool numeric;
+
+  /// The active company's decimal separator, for the [numeric] comparison.
+  /// Without it a comma-locale user typing `12,5` is fought by the re-seed:
+  /// the parent hands back the canonical `12.5`, which differs as a string, so
+  /// the controller was rewritten and the caret jumped mid-number.
+  final bool useCommaAsDecimalPlace;
 
   /// Soft-keyboard auto-capitalization. `words` for proper nouns (names,
   /// cities, streets), `characters` for postal codes, `sentences` for prose.
@@ -109,8 +137,20 @@ class _EntityEditFieldState extends State<EntityEditField> {
     // canonical text is `12`, so a blind reseed would erase the in-progress
     // decimal point (and a leading `0` would clear the field). Only reseed when
     // the bound value genuinely changed underneath us.
-    final reseeded =
-        widget.initial != old.initial && widget.initial != _controller.text;
+    // For a numeric field compare the parsed VALUE, not the string: the
+    // canonical form the parent hands back is not the text the user is part-way
+    // through typing (see [numeric]).
+    final holdsSameValue = widget.numeric
+        ? parseDecimal(
+                widget.initial,
+                useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
+              ) ==
+              parseDecimal(
+                _controller.text,
+                useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
+              )
+        : widget.initial == _controller.text;
+    final reseeded = widget.initial != old.initial && !holdsSameValue;
     if (reseeded) {
       _controller.value = TextEditingValue(
         text: widget.initial,

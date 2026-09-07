@@ -1983,6 +1983,188 @@ void main() {
   // `upsertAllPreservingDirty` skips dirty ids on every page fetch, `refreshAll`
   // and bundle apply. The record stayed invisible locally and refresh-frozen
   // forever while the server still had it, live.
+  group('per-entity ordering barrier', () {
+    // `nextReady` is id-ordered, but a failed row was merely rescheduled and
+    // the loop carried on — so mutation N+1 for the same record could be
+    // applied before mutation N, and the OLDER payload then won on its retry.
+    test('a later row for the same entity is held back when an earlier one '
+        'fails in the same pass', () async {
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(const NetworkException('offline'))
+        ..queueSuccess();
+      final engine = makeEngine(disp);
+      final first = await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+      final second = await enqueueClient(entityId: 'c1', idempotencyKey: 'k2');
+
+      final successes = await engine.drainOnce(companyId: 'co');
+
+      expect(successes, 0, reason: 'the second row must not have dispatched');
+      expect(await rowById(first), isNotNull);
+      expect(
+        await rowById(second),
+        isNotNull,
+        reason:
+            'v2 stays queued behind v1; letting it through would let v1 '
+            'overwrite it on retry',
+      );
+    });
+
+    test('a RE-PARKED earlier row still holds back the later one — the '
+        'scenario the per-pass set alone could not see', () async {
+      // `nextReady` only returns rows that are DUE, so once row1 fails and
+      // re-parks into the future it drops out of the snapshot entirely. A
+      // per-pass Set therefore never learns about it, row2 dispatches, and
+      // row1 overwrites it on its own retry. This is the actual lost-update.
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(const NetworkException('offline'))
+        ..queueSuccess();
+      final engine = makeEngine(disp);
+      final first = await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+      final second = await enqueueClient(entityId: 'c1', idempotencyKey: 'k2');
+
+      // Pass 1: row1 fails and re-parks; row2 is held back by the set.
+      await engine.drainOnce(companyId: 'co');
+      // Pass 2: row1 is parked in the future and so is NOT in the snapshot.
+      final successes = await engine.drainOnce(companyId: 'co');
+
+      expect(
+        successes,
+        0,
+        reason: 'v2 must not go out while v1 is still queued to retry',
+      );
+      expect(await rowById(first), isNotNull);
+      expect(await rowById(second), isNotNull);
+    });
+
+    test(
+      'a row parked beyond the horizon (409 conflict) does NOT block',
+      () async {
+        // A conflict parks a row `pending` a YEAR out while it waits for the
+        // user. Treating that as "still going to be sent" would starve the
+        // record for a year — worse than the reordering it prevents.
+        final disp = _ProgrammableDispatcher()..queueSuccess();
+        final engine = makeEngine(disp);
+        final parked = await enqueueClient(
+          entityId: 'c1',
+          idempotencyKey: 'k1',
+          nextAttemptAt: 1000 + const Duration(days: 365).inMilliseconds,
+        );
+        await enqueueClient(entityId: 'c1', idempotencyKey: 'k2');
+
+        expect(await engine.drainOnce(companyId: 'co'), 1);
+        expect(
+          await rowById(parked),
+          isNotNull,
+          reason:
+              'the parked row is untouched, but it did not gate the later one',
+        );
+      },
+    );
+
+    test('a row for a DIFFERENT entity still dispatches', () async {
+      // The barrier is per record, not a stop-the-world.
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(const NetworkException('offline'))
+        ..queueSuccess();
+      final engine = makeEngine(disp);
+      await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+      await enqueueClient(entityId: 'c2', idempotencyKey: 'k2');
+
+      expect(await engine.drainOnce(companyId: 'co'), 1);
+    });
+  });
+
+  group('offline never dead-letters queued work', () {
+    test(
+      'a NetworkException re-parks without consuming the retry budget',
+      () async {
+        // Working offline in the foreground used to burn one attempt per
+        // five-minute refresh tick (nothing gates the drain on connectivity), so
+        // every queued mutation hit `dead` in ~25 minutes — and a later sign-out
+        // then wiped those payloads with no prompt, because the pending-count
+        // queries exclude `dead`.
+        final disp = _ProgrammableDispatcher();
+        for (var i = 0; i < kMaxAttempts + 3; i++) {
+          disp.queueThrow(const NetworkException('offline'));
+        }
+        final engine = makeEngine(disp);
+        final id = await enqueueClient(entityId: 'c1');
+
+        for (var i = 0; i < kMaxAttempts + 3; i++) {
+          await engine.drainOnce(companyId: 'co');
+          // Re-arm: the row parks into the future, so move it back to due.
+          await db.outboxDao.scheduleRetry(
+            id: id,
+            attempts: (await rowById(id))!.attempts,
+            nextAttemptAt: 0,
+            error: 'retry',
+          );
+        }
+
+        final row = await rowById(id);
+        expect(row, isNotNull, reason: 'the row must survive');
+        expect(row!.state, 'pending');
+        expect(row.attempts, 0, reason: 'offline must not consume the budget');
+      },
+    );
+
+    test(
+      'the re-park delay is the flat offline delay, not the 5s backoff head',
+      () async {
+        // With `attempts` frozen, reusing `_retryWithBackoff` would index
+        // kBackoffSchedule[0] = 5s every time — a 5-second retry hot-loop for as
+        // long as the device is offline.
+        final disp = _ProgrammableDispatcher()
+          ..queueThrow(const NetworkException('offline'));
+        final engine = makeEngine(disp, nowMs: 1000);
+        final id = await enqueueClient(entityId: 'c1');
+
+        await engine.drainOnce(companyId: 'co');
+
+        final row = (await db.select(db.outbox).get()).firstWhere(
+          (r) => r.id == id,
+        );
+        expect(row.nextAttemptAt, 1000 + kOfflineRetryDelay.inMilliseconds);
+      },
+    );
+  });
+
+  group('pruning dead rows releases the dirty flag', () {
+    test('a pruned dead UPDATE clears is_dirty so refreshes resume', () async {
+      // A dead create/update deliberately KEEPS `is_dirty` (the local row is
+      // the user's unsaved work, offered back by SaveFailedBanner + Retry) and
+      // `upsertAllPreservingDirty` skips every dirty id. The boot-time prune
+      // deleted the row explaining that flag with a bare DELETE, so the record
+      // was frozen at its stale local value for the life of the install.
+      final disp = _DirtySpyDispatcher()
+        ..queueThrow(const ValidationException('nope', {}));
+      final engine = makeEngine(disp);
+      await enqueueClient(entityId: 'c1', kind: MutationKind.update);
+      await engine.drainOnce(companyId: 'co');
+      expect(disp.clearedDirty, isEmpty, reason: 'dead edit keeps its flag');
+
+      final removed = await engine.pruneDeadRows(ttl: Duration.zero);
+
+      expect(removed, 1);
+      expect(
+        disp.clearedDirty,
+        ['c1'],
+        reason: 'once the row is gone there is nothing left to retry from',
+      );
+    });
+
+    test('a dead row inside the TTL is left alone', () async {
+      final disp = _DirtySpyDispatcher()
+        ..queueThrow(const ValidationException('nope', {}));
+      final engine = makeEngine(disp);
+      await enqueueClient(entityId: 'c1', kind: MutationKind.update);
+      await engine.drainOnce(companyId: 'co');
+
+      expect(await engine.pruneDeadRows(), 0);
+      expect(disp.clearedDirty, isEmpty);
+    });
+  });
+
   group('a dead LIFECYCLE row releases its optimistic dirty flag', () {
     test(
       'a dead delete clears is_dirty so a refresh can restore the row',

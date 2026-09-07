@@ -112,6 +112,13 @@ class ExpenseListViewModel extends GenericListViewModel<Expense> {
       ...extraFilters,
       if (clientId != null) 'client_id': {clientId!},
       if (vendorId != null) 'vendor_id': {vendorId!},
+      // Project scope reached only `watchPage`'s pre-LIMIT `WHERE project_id`,
+      // never the fetch — so a project's embedded tab pulled the newest page
+      // COMPANY-wide and filtered it locally to nothing: a permanent "No
+      // records found" on a project that has records, with no pull-to-refresh
+      // on an embedded list to escape it. `ExpenseFilters::project_ids` is the server's own
+      // filter for this.
+      if (projectId != null) 'project_ids': {projectId!},
     };
     return repo.ensurePageLoaded(
       companyId: companyId,

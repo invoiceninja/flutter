@@ -6,6 +6,22 @@ const String kAuthBaseUrlKey = 'invoiceninja.base_url.v1';
 const String kAuthIsHostedKey = 'invoiceninja.is_hosted.v1';
 const String kAuthCurrentCompanyIdKey = 'invoiceninja.current_company.v1';
 
+/// Identity of the session whose data is currently on disk. Written on every
+/// login / refresh; read only by the login entry points, which wipe the local
+/// database when a DIFFERENT user or account signs in on this device.
+///
+/// This exists because an involuntary logout (401, or an idle timeout with
+/// unsynced work) deliberately PRESERVES the Drift database — right for the
+/// same user coming back, but it means nothing else stands between one user's
+/// cached invoices/payments/drafts and the next person to sign in on a shared
+/// device. Cross-user isolation used to be in-memory cache clearing alone,
+/// which the UI never reads from; this covers the store it does read from.
+///
+/// Cleared by a destructive `logout()` (the DB is already gone at that point,
+/// so a stale identity would only cause a redundant wipe).
+const String kAuthUserIdKey = 'invoiceninja.user_id.v1';
+const String kAuthAccountIdKey = 'invoiceninja.account_id.v1';
+
 /// Whether the user has opted in to biometric (FaceID / TouchID) gating on
 /// cold launch. Persisted as `'true'` / absent; any other value is treated as
 /// disabled so a corrupt write can't accidentally enable the gate without an
@@ -19,6 +35,45 @@ const String kAuthBiometricEnabledKey = 'invoiceninja.biometric_enabled.v1';
 /// fresh sign-in — instead of silently auto-restoring the prior session. Cleared
 /// on successful re-entry. Persisted as `'true'` / absent.
 const String kAuthSessionLockedKey = 'invoiceninja.session_locked.v1';
+
+/// Reduce a base URL to a form two spellings of the SAME server share, for
+/// the identity comparison in `AuthRepository._wipeIfIdentityChanged`.
+///
+/// Lower-cases the scheme + host, drops a default port and any trailing
+/// slashes, and keeps the path (two installs can legitimately share a host
+/// under `/a` and `/b`). Query and fragment are dropped — they are never part
+/// of an API root.
+///
+/// The asymmetry drives the aggressiveness: a false NEGATIVE leaves one
+/// server's cache visible to another, which is the leak this is closing; a
+/// false POSITIVE wipes a database including its unsent outbox rows. So
+/// normalize generously, and on anything unparseable fall back to a trimmed,
+/// lower-cased, slash-stripped string rather than guessing.
+String canonicalBaseUrl(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return '';
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+    var s = trimmed.toLowerCase();
+    while (s.endsWith('/')) {
+      s = s.substring(0, s.length - 1);
+    }
+    return s;
+  }
+  final scheme = uri.scheme.toLowerCase();
+  final isDefaultPort =
+      !uri.hasPort ||
+      (scheme == 'https' && uri.port == 443) ||
+      (scheme == 'http' && uri.port == 80);
+  var path = uri.path;
+  while (path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  final authority = isDefaultPort
+      ? uri.host.toLowerCase()
+      : '${uri.host.toLowerCase()}:${uri.port}';
+  return '$scheme://$authority$path';
+}
 
 /// Invoice Ninja stores the user-visible company name inside `settings.name`.
 /// The top-level `display_name` / `name` fields are typically empty, so they

@@ -352,20 +352,20 @@ void main() {
           lineItems: [
             item(
               cost: '100',
-              taxName1: 'A',
+              taxName1: 'AA',
               taxRate1: '5',
-              taxName2: 'B',
+              taxName2: 'BB',
               taxRate2: '7',
-              taxName3: 'C',
+              taxName3: 'CC',
               taxRate3: '3',
             ),
           ],
         ),
         2,
       );
-      expect(result.taxBreakdown['A'], d('5.00'));
-      expect(result.taxBreakdown['B'], d('7.00'));
-      expect(result.taxBreakdown['C'], d('3.00'));
+      expect(result.taxBreakdown['AA'], d('5.00'));
+      expect(result.taxBreakdown['BB'], d('7.00'));
+      expect(result.taxBreakdown['CC'], d('3.00'));
     });
 
     test(
@@ -377,9 +377,9 @@ void main() {
             lineItems: [
               item(
                 cost: '1000',
-                taxName1: 'A',
+                taxName1: 'AA',
                 taxRate1: '10',
-                taxName2: 'B',
+                taxName2: 'BB',
                 taxRate2: '10',
               ),
             ],
@@ -387,8 +387,8 @@ void main() {
           ),
           2,
         );
-        expect(result.taxBreakdown['A'], d('83.33'));
-        expect(result.taxBreakdown['B'], d('83.33'));
+        expect(result.taxBreakdown['AA'], d('83.33'));
+        expect(result.taxBreakdown['BB'], d('83.33'));
         expect(result.taxAmount, d('166.66'));
         expect(result.total, d('1000.00'));
       },
@@ -400,12 +400,12 @@ void main() {
       // 100 × 5.12345% — legacy mixin rounds rate to 5.123 first.
       final result = computeTotals(
         input(
-          lineItems: [item(cost: '100', taxName1: 'X', taxRate1: '5.12345')],
+          lineItems: [item(cost: '100', taxName1: 'XX', taxRate1: '5.12345')],
         ),
         2,
       );
       // 100 × 5.123 / 100 = 5.123, rounded to precision 2 = 5.12
-      expect(result.taxBreakdown['X'], d('5.12'));
+      expect(result.taxBreakdown['XX'], d('5.12'));
     });
   });
 
@@ -526,23 +526,27 @@ void main() {
     });
 
     test(
-      'inclusive mode: a taxable surcharge contributes NO tax and is not '
-      'part of the inclusive base (server has those lines commented out)',
+      'inclusive mode: a taxable surcharge IS part of the inclusive tax base',
       () {
-        // Gross line 110 @ 10% inclusive → tax 10.00, and the 20.00 surcharge
-        // rides on top untouched: total 130.00.
+        // Only `multiInclusiveTax()` inside `calculateCustomValues()` is
+        // commented out server-side. The base inflation in
+        // `InvoiceSumInclusive::calculateInvoiceTaxes` is live (guarded on
+        // `> 0`), so the base is 110 + 20 = 130 and the tax is
+        // round(130 * 10 / 110, 2) = 11.82. Verified by `tool/totals_oracle.php`
+        // running the real class; this test previously pinned 10.00 under the
+        // premise that the whole block was commented out.
         final result = computeTotals(
           input(
             lineItems: [item(cost: '110')],
+            taxName1: 'VAT',
+            taxRate1: '10',
             usesInclusiveTaxes: true,
             customSurcharge1: '20',
             customTaxes1: true,
-            taxName1: 'VAT',
-            taxRate1: '10',
           ),
           2,
         );
-        expect(result.taxBreakdown['VAT'], d('10.00'));
+        expect(result.taxBreakdown['VAT'], d('11.82'));
         expect(result.total, d('130.00'));
       },
     );

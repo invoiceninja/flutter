@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
@@ -281,6 +282,125 @@ class AuthRepository {
 
   /// Hot login. Calls `/api/v1/login`, persists everything, and primes
   /// [credentials] so subsequent API calls work.
+  /// Wipe the local database when the credentials being signed in belong to a
+  /// DIFFERENT user or account than the one whose data is still on disk.
+  ///
+  /// An involuntary logout — a 401, or an idle timeout with unsynced work —
+  /// takes `logout(preserveLocalData: true)`, which deliberately returns before
+  /// `_db.wipe()` so the same user's queued outbox rows survive to drain on the
+  /// next sign-in. Nothing on the login path used to reconsider that:
+  /// `_persistAndActivate`'s only destructive step is `pruneExcept`, which
+  /// touches `companies` and `accounts` alone. Every other table is
+  /// `company_id`-scoped, so the next person to sign in to the same company on a
+  /// shared device saw the previous user's invoices, payments, expenses, tasks
+  /// and drafts — and `onActiveCompanyChanged` kicked a drain, sending the
+  /// previous user's queued mutations under the new user's token.
+  ///
+  /// Deliberately called from the four LOGIN entry points only (`login`,
+  /// `oauthLogin`, `loginWithToken`, `signup`), never from
+  /// `_persistAndActivate`: that tail also serves `refresh()`, which runs on a
+  /// five-minute timer, and a `_db.wipe()` reachable from a background pump is
+  /// exactly the shape that turns any envelope quirk into silent data loss. A
+  /// refresh reuses the existing token and so cannot change identity. `restore()`
+  /// needs no check either — it reads its identity from the same disk it would
+  /// be comparing against.
+  ///
+  /// The identity is `(userId, accountId, baseUrl)`. **`baseUrl` is not
+  /// decoration**: self-hosted instances mint hashids from small sequential
+  /// ids, so user #1 / account #1 on two different servers commonly encode to
+  /// the SAME strings — without it, a user 401'd out of server A who signs
+  /// into server B inherits A's entire database, which is the exact leak the
+  /// other two legs exist to stop. It is compared through [canonicalBaseUrl]
+  /// rather than raw, because here a false positive DESTROYS data (the wipe
+  /// takes the outbox with it) while a false negative merely leaves today's
+  /// leak — and `https://acme.com` vs `https://acme.com/` vs `HTTPS://Acme.com`
+  /// are the same server typed three ways.
+  ///
+  /// Conservative by construction: a wipe needs BOTH sides non-empty and
+  /// different, so an install upgrading from a build that never wrote the keys
+  /// keeps its data. The accepted consequence is that a genuinely different user
+  /// signing in destroys the previous user's queued rows — correct, since those
+  /// rows can never be sent under the new token, and the same trade a deliberate
+  /// sign-out already makes.
+  Future<void> _wipeIfIdentityChanged(
+    LoginResponseApi response, {
+    required String baseUrl,
+  }) async {
+    if (response.data.isEmpty) return;
+    final incomingUserId = response.data.first.user.id;
+    final incomingAccountId = response.data.first.account.id;
+    final storedUserId = await _secure.read(kAuthUserIdKey) ?? '';
+    final storedAccountId = await _secure.read(kAuthAccountIdKey) ?? '';
+    final storedBaseUrl = await _secure.read(kAuthBaseUrlKey) ?? '';
+    final userChanged =
+        storedUserId.isNotEmpty &&
+        incomingUserId.isNotEmpty &&
+        storedUserId != incomingUserId;
+    final accountChanged =
+        storedAccountId.isNotEmpty &&
+        incomingAccountId.isNotEmpty &&
+        storedAccountId != incomingAccountId;
+    final serverChanged =
+        storedBaseUrl.isNotEmpty &&
+        baseUrl.isNotEmpty &&
+        canonicalBaseUrl(storedBaseUrl) != canonicalBaseUrl(baseUrl);
+    if (!userChanged && !accountChanged && !serverChanged) return;
+    _log.warning(
+      'A different identity is signing in on this device '
+      '(user changed: $userChanged, account changed: $accountChanged, '
+      'server changed: $serverChanged) — '
+      'wiping local data before activating the new session.',
+    );
+    // The cross-user in-memory fan-out, the same one a destructive `logout()`
+    // runs. Needed here for one specific cold-start shape: `restore()`'s
+    // `sessionLocked && !biometricEnabled` bail returns WITHOUT calling
+    // `logout()`, while boot has already run `recentlyViewed.restore()`
+    // unconditionally — so the outgoing user's recents sit in memory with no
+    // logout having cleared them, survive the Drift wipe below (they are not
+    // in Drift), and the incoming user's first `record()` re-persists them
+    // into the freshly-wiped `nav_state`. Everything else the hook drops
+    // (deep links, the activity cache, the sidebar menu, peek caches) is
+    // already empty on a cold start; running the whole fan-out rather than
+    // cherry-picking recents is what keeps this correct as that list grows.
+    //
+    // Best-effort, like the wipe hook: a throwing listener must not block the
+    // wipe, or the leak it exists to prevent survives.
+    final logoutHook = onBeforeLogout;
+    if (logoutHook != null) {
+      try {
+        await logoutHook();
+      } catch (e, st) {
+        _log.warning('onBeforeLogout failed during an identity wipe', e, st);
+      }
+    }
+    // Same order as the destructive `logout()`: clean up anything mirrored
+    // OUTSIDE the database (today the device address book) while the records
+    // describing it still exist. Best-effort — a failing hook must not block
+    // the wipe, or the leak it is meant to prevent survives.
+    final wipeHook = onBeforeDataWipe;
+    if (wipeHook != null) {
+      try {
+        await wipeHook();
+      } catch (e, st) {
+        _log.warning('onBeforeDataWipe failed', e, st);
+      }
+    }
+    await _db.wipe();
+    // The per-company token map lives in secure storage, not Drift, so
+    // `_db.wipe()` does not touch it and the incoming user would otherwise
+    // activate over the outgoing user's tokens.
+    //
+    // Belt-and-braces, deliberately: no live leak was reproducible, because
+    // two unrelated things already cover it — `logout()` zeroes
+    // `_tokensByCompany` before its preserve return, and `_persistAndActivate`
+    // runs with `isFullSync: true` on every login, which filters the carried
+    // map down to the companies in the new response. Both are incidental to
+    // this method and either could change without anyone connecting it back
+    // here; one delete makes "a wipe leaves nothing of the previous user
+    // behind" true by construction instead of by coincidence.
+    await _secure.delete(kAuthTokensKey);
+  }
+
   Future<void> login({
     required String baseUrl,
     required bool isHosted,
@@ -297,6 +417,9 @@ class AuthRepository {
       oneTimePassword: oneTimePassword,
       secret: secret,
     );
+    // A different user (or a brand-new signup) on this device must not inherit
+    // the previous session's preserved database — see [_wipeIfIdentityChanged].
+    await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -320,6 +443,9 @@ class AuthRepository {
       isHosted: isHosted,
       token: token,
     );
+    // A different user (or a brand-new signup) on this device must not inherit
+    // the previous session's preserved database — see [_wipeIfIdentityChanged].
+    await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -347,6 +473,9 @@ class AuthRepository {
       accessToken: accessToken,
       email: email,
     );
+    // A different user (or a brand-new signup) on this device must not inherit
+    // the previous session's preserved database — see [_wipeIfIdentityChanged].
+    await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -371,6 +500,9 @@ class AuthRepository {
       password: password,
       referralCode: referralCode,
     );
+    // A different user (or a brand-new signup) on this device must not inherit
+    // the previous session's preserved database — see [_wipeIfIdentityChanged].
+    await _wipeIfIdentityChanged(response, baseUrl: baseUrl);
     await _persistAndActivate(
       response: response,
       baseUrl: baseUrl,
@@ -905,7 +1037,20 @@ class AuthRepository {
   /// still holds unsynced rows: wiping would silently destroy the user's
   /// offline edits, so instead the data survives to drain on the next login or
   /// cold-start [restore]. Default `false` = full destructive logout.
-  Future<void> logout({bool preserveLocalData = false}) async {
+  ///
+  /// [setReLockGate] controls whether the preserve path also writes
+  /// `kAuthSessionLockedKey`, the flag that makes the NEXT [restore] demand
+  /// re-auth instead of silently re-entering. Right for every caller that ends
+  /// a live session (the idle timeout, a 401, the too-old screen) and wrong for
+  /// [restore]'s own stale-token bounce: there is no session to re-lock, the
+  /// flag's documented meaning is "the idle timeout locked this", and — because
+  /// [restore] tests it BEFORE reading the token map — setting it there means a
+  /// later cold start returns early and the usable-token fallback can never run
+  /// again. Ignored on the destructive path, which deletes the flag outright.
+  Future<void> logout({
+    bool preserveLocalData = false,
+    bool setReLockGate = true,
+  }) async {
     // Ending a session is the most destructive thing this app does, and until
     // now it left NO trace: an involuntary logout (ApiClient's 401 handler)
     // surfaced only as the downstream `UnauthorizedException: Not
@@ -966,13 +1111,19 @@ class AuthRepository {
       // — otherwise keeping the tokens would defeat the session-timeout's
       // security purpose on a shared/unattended device (esp. web, where
       // biometric is never available). Cleared on successful re-entry.
-      await _secure.write(kAuthSessionLockedKey, 'true');
+      if (setReLockGate) await _secure.write(kAuthSessionLockedKey, 'true');
       return;
     }
     await _secure.delete(kAuthTokensKey);
     await _secure.delete(kAuthBaseUrlKey);
     await _secure.delete(kAuthIsHostedKey);
     await _secure.delete(kAuthCurrentCompanyIdKey);
+    // The database goes with this logout, so the identity that described it is
+    // meaningless; leaving it would only make the next sign-in do a redundant
+    // wipe. (The preserve path returns above and deliberately KEEPS these, which
+    // is what lets a different user's login detect the leftover data.)
+    await _secure.delete(kAuthUserIdKey);
+    await _secure.delete(kAuthAccountIdKey);
     // A logged-out session has nothing left to unlock; leaving the flag on
     // disk would surface a lock prompt on next launch with no session behind
     // it. Clear it alongside the tokens.
@@ -1168,7 +1319,7 @@ class AuthRepository {
     } catch (e, st) {
       _log.warning('restore(): could not recover auth user from Drift', e, st);
     }
-    final session = AuthSession(
+    var session = AuthSession(
       baseUrl: baseUrl,
       isHosted: isHosted,
       accountId: account.id,
@@ -1224,18 +1375,53 @@ class AuthRepository {
       eInvoicingToken: eInvoicingToken,
       reportErrors: reportErrors,
     );
-    final activeToken = tokensMap[session.currentCompanyId];
-    if (activeToken == null || activeToken.isEmpty) {
-      // The secure-storage token map is corrupt or out of sync with the
-      // Drift `companies` table. Surface this loudly and bounce to login
-      // rather than activate a credential-less session that would fail
-      // every API call.
+    final storedToken = tokensMap[session.currentCompanyId];
+    final String activeToken;
+    if (storedToken != null && storedToken.isNotEmpty) {
+      activeToken = storedToken;
+    } else {
+      // The secure-storage token map is out of sync with the persisted current
+      // company. This is reachable without corruption: when the envelope
+      // carries no usable `is_system` token for ANY company,
+      // `_persistAndActivate`'s last-resort branch falls through to
+      // `response.data.first.company.id` and persists it as current while the
+      // map holds no entry for it (the documented issue-#16 condition).
+      //
+      // Prefer any company we *can* authenticate as — the same "present AND
+      // non-empty" rule `restoredCompanyId` applies just above — before giving
+      // up. Landing the user in a working workspace beats bouncing them to
+      // /login over a stale pointer.
+      // The fallback must be a company we can authenticate as AND one this
+      // session actually knows about. A token-map entry with no matching
+      // `companies` row is not a workspace we can restore into — it would
+      // produce a session whose `currentCompanyId` isn't in its own
+      // `companies` list, which every picker and company-scoped query reads.
+      // Such a map is genuinely unusable, and falls through to the logout
+      // below exactly as before.
+      final knownCompanyIds = {for (final c in session.companies) c.id};
+      final fallback = tokensMap.entries.firstWhereOrNull(
+        (e) => e.value.isNotEmpty && knownCompanyIds.contains(e.key),
+      );
+      if (fallback == null) {
+        // Nothing on disk can authenticate. Bounce to login — but PRESERVE:
+        // this used to be a bare `logout()`, whose default reaches `_db.wipe()`
+        // and destroys every company's queued outbox rows, silently, at boot.
+        // The tokens are stale; the user's unsynced edits are not, and signing
+        // back in re-writes the map and drains them.
+        _log.warning(
+          'restore(): no usable token in the map for '
+          '${session.currentCompanyId}; forcing logout (local data preserved)',
+        );
+        await logout(preserveLocalData: true, setReLockGate: false);
+        return;
+      }
       _log.warning(
         'restore(): no token for currentCompanyId=${session.currentCompanyId}; '
-        'forcing logout',
+        'falling back to ${fallback.key}',
       );
-      await logout();
-      return;
+      session = session.copyWith(currentCompanyId: fallback.key);
+      activeToken = fallback.value;
+      await _secure.write(kAuthCurrentCompanyIdKey, fallback.key);
     }
     _session.value = session;
     // Flip the gate BEFORE we hand credentials to the router. Setting
@@ -1875,6 +2061,12 @@ class AuthRepository {
     await _secure.write(kAuthBaseUrlKey, baseUrl);
     await _secure.write(kAuthIsHostedKey, isHosted ? 'true' : 'false');
     await _secure.write(kAuthCurrentCompanyIdKey, currentId);
+    // Remember whose data is now on disk, so a DIFFERENT user signing in on this
+    // device gets a clean database instead of inheriting this one's cached rows
+    // (see [_wipeIfIdentityChanged]). Re-written on every refresh, which is what
+    // heals an install upgrading from a build that never wrote these keys.
+    await _secure.write(kAuthUserIdKey, response.data.first.user.id);
+    await _secure.write(kAuthAccountIdKey, firstAccount.id);
     // A fresh sign-in / token activation is a re-auth — clear any idle-timeout
     // re-lock flag. (A no-op on a normal authenticated refresh, where it's
     // already absent.) Biometric-OFF locked sessions only reach here via an

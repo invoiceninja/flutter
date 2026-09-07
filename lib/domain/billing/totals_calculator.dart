@@ -136,14 +136,39 @@ class BillingTotalsResult {
 /// discount round to 5.
 BillingTotalsResult computeTotals(BillingTotalsInput input, int precision) {
   final subtotal = computeSubtotal(input, precision);
-  final total = _calculateTotal(input, precision);
-  final breakdown = computeTaxBreakdown(input, precision);
-  final taxAmount = breakdown.values.fold<Decimal>(Decimal.zero, _add);
+  // ONE tax computation feeds both the card's rows and the total. Deriving
+  // them from separate walks is how `taxAmount` and `total` came to contradict
+  // each other on any currency whose precision isn't 2.
+  final taxes = _computeTaxes(input, precision);
+
+  var total = subtotal;
+  if (input.discount != Decimal.zero) {
+    // `Discounter::discount` returns an amount discount RAW and rounds a
+    // percent one at 2.
+    total = input.isAmountDiscount
+        ? total - input.discount
+        : total - _round2(_mulRate(total, input.discount));
+  }
+  // Inclusive tax already sits inside the gross line totals, so only exclusive
+  // tax is added on top.
+  if (!input.usesInclusiveTaxes) total = total + taxes.total;
+  // Surcharges are summed RAW (`CustomValuer::valuer` returns them unchanged)
+  // and land after tax, whatever the per-slot taxable flag.
+  total =
+      total +
+      input.customSurcharge1 +
+      input.customSurcharge2 +
+      input.customSurcharge3 +
+      input.customSurcharge4;
+
   return BillingTotalsResult(
     subtotal: subtotal,
+    // NOT rounded at `precision`: the server's `calculateTotals` only adds tax,
+    // and `getTotal()` returns that. The currency round happens later, when the
+    // amount is persisted. Rounding here turned 121.5 into 122.
     total: total,
-    taxAmount: _round(taxAmount, precision),
-    taxBreakdown: breakdown,
+    taxAmount: taxes.total,
+    taxBreakdown: taxes.breakdown,
   );
 }
 
@@ -152,19 +177,10 @@ BillingTotalsResult computeTotals(BillingTotalsInput input, int precision) {
 Decimal computeSubtotal(BillingTotalsInput input, int precision) {
   var total = Decimal.zero;
   for (final item in input.lineItems) {
-    final qty = _round(item.quantity, 5);
-    final cost = _round(item.cost, 5);
-    final itemDiscount = _round(item.discount, 5);
-    var lineTotal = qty * cost;
-    if (itemDiscount != Decimal.zero) {
-      if (input.isAmountDiscount) {
-        lineTotal = lineTotal - itemDiscount;
-      } else {
-        lineTotal =
-            lineTotal - _round(_mulRate(lineTotal, itemDiscount), precision);
-      }
-    }
-    total = total + _round(lineTotal, precision);
+    // `push()` accumulates `round(line_total, currency->precision)` — the
+    // SUBTOTAL rounds at the currency precision even though the line total
+    // itself (and therefore the tax base) is a round-at-2 value.
+    total = total + _round(_serverLineTotal(item, input, precision), precision);
   }
   return total;
 }
@@ -175,123 +191,126 @@ Decimal computeSubtotal(BillingTotalsInput input, int precision) {
 Map<String, Decimal> computeTaxBreakdown(
   BillingTotalsInput input,
   int precision,
-) {
-  var total = computeSubtotal(input, precision);
-  final map = <String, Decimal>{};
+) => _computeTaxes(input, precision).breakdown;
 
+/// The server keeps line taxes and invoice-level taxes in two separate maps and
+/// rounds them at different scales: `setTaxMap` groups the LINE taxes by name
+/// and rounds each group at the currency precision (`InvoiceSum:409`), while
+/// each invoice-level tier goes straight into `total_taxes` from `Taxer::taxer`
+/// at 2 dp and into its own `total_tax_map`.
+///
+/// Folding both into one name-keyed map and rounding the sum was wrong whenever
+/// a line tax and an invoice-level tax share a name — "VAT" on both is the
+/// normal case.
+///
+/// Returns the display breakdown (the two merged, for the totals card) and the
+/// tax total. Both `taxAmount` and `total` are derived from THIS, so they
+/// cannot contradict each other.
+({Map<String, Decimal> breakdown, Decimal total}) _computeTaxes(
+  BillingTotalsInput input,
+  int precision,
+) {
+  final subtotal = computeSubtotal(input, precision);
+
+  // --- line taxes: grouped by name, each group rounded at `precision` ---
+  final lineGroups = <String, Decimal>{};
   for (final item in input.lineItems) {
     final rate1 = _round(item.taxRate1, 3);
     final rate2 = _round(item.taxRate2, 3);
     final rate3 = _round(item.taxRate3, 3);
-    // Σr for this line: the item's own inclusive rates share one divisor
-    // (issue #12072). Zero rates contribute nothing.
     final itemRateSum = rate1 + rate2 + rate3;
-    final lineTotal = getItemTaxable(item, total, input, precision);
-    if (rate1 != Decimal.zero) {
-      final t = _taxAmount(
-        lineTotal,
-        rate1,
-        input.usesInclusiveTaxes,
-        precision,
-        totalRate: itemRateSum,
-      );
-      map.update(item.taxName1, (v) => v + t, ifAbsent: () => t);
-    }
-    if (rate2 != Decimal.zero) {
-      final t = _taxAmount(
-        lineTotal,
-        rate2,
-        input.usesInclusiveTaxes,
-        precision,
-        totalRate: itemRateSum,
-      );
-      map.update(item.taxName2, (v) => v + t, ifAbsent: () => t);
-    }
-    if (rate3 != Decimal.zero) {
-      final t = _taxAmount(
-        lineTotal,
-        rate3,
-        input.usesInclusiveTaxes,
-        precision,
-        totalRate: itemRateSum,
-      );
-      map.update(item.taxName3, (v) => v + t, ifAbsent: () => t);
-    }
-  }
+    final base = getItemTaxable(item, subtotal, input, precision);
+    // Exclusive per-line tax rounds at 2 (`calcAmountLineTax`); the inclusive
+    // back-out uses the currency precision (`InvoiceItemSumInclusive:262`).
+    final scale = input.usesInclusiveTaxes ? precision : 2;
 
-  // Apply invoice-level discount + the surcharges that ARE taxable, then
-  // run the invoice-level tax rates against the resulting taxable amount.
+    // The server gates each line tier on `strlen(tax_name) > 1`
+    // (`InvoiceItemSum:326/334/342`) and drops it from `total_taxes` entirely
+    // otherwise — `getTotalTaxes()` on the item sum is never read. For an
+    // AMOUNT discount `setTaxMap` re-runs `calcTaxesWithAmountDiscount`, which
+    // resets the groups first and uses the looser `strlen > 1 || total != 0`.
+    bool applies(String name) => input.isAmountDiscount || name.length >= 2;
+
+    void addTier(String name, Decimal rate) {
+      if (rate == Decimal.zero || !applies(name)) return;
+      final t = _taxAmount(
+        base,
+        rate,
+        input.usesInclusiveTaxes,
+        scale,
+        totalRate: itemRateSum,
+      );
+      lineGroups.update(name, (v) => v + t, ifAbsent: () => t);
+    }
+
+    addTier(item.taxName1, rate1);
+    addTier(item.taxName2, rate2);
+    addTier(item.taxName3, rate3);
+  }
+  final rounded = {
+    for (final e in lineGroups.entries) e.key: _round(e.value, precision),
+  };
+
+  // --- invoice-level tiers: against the post-discount total, rounded at 2 ---
+  var taxable = subtotal;
   if (input.discount != Decimal.zero) {
-    if (input.isAmountDiscount) {
-      total = total - _round(input.discount, precision);
-    } else {
-      total = total - _round(_mulRate(total, input.discount), precision);
+    taxable = input.isAmountDiscount
+        ? taxable - input.discount
+        : taxable - _round2(_mulRate(taxable, input.discount));
+  }
+  if (input.usesInclusiveTaxes) {
+    // `InvoiceSumInclusive::calculateInvoiceTaxes` folds each TAXABLE surcharge
+    // into the inclusive base — guarded on `> 0`, so a negative surcharge is
+    // excluded (they are first-class here: the field takes a signed keyboard).
+    // Exclusive mode keeps them out of the base and adds a separately-rounded
+    // component per slot instead (see [_surchargeTax]).
+    if (input.customTaxes1 && input.customSurcharge1 > Decimal.zero) {
+      taxable = taxable + input.customSurcharge1;
+    }
+    if (input.customTaxes2 && input.customSurcharge2 > Decimal.zero) {
+      taxable = taxable + input.customSurcharge2;
+    }
+    if (input.customTaxes3 && input.customSurcharge3 > Decimal.zero) {
+      taxable = taxable + input.customSurcharge3;
+    }
+    if (input.customTaxes4 && input.customSurcharge4 > Decimal.zero) {
+      taxable = taxable + input.customSurcharge4;
     }
   }
-  // NOTE: taxable surcharges are deliberately NOT folded into the tax base.
-  // The server keeps them out of `$this->total` (they live in
-  // `total_custom_values`) and instead adds a SEPARATELY ROUNDED tax component
-  // per taxable slot via `InvoiceSum::getSurchargeTaxTotalForKey`. Folding them
-  // in rounded once over the combined base, which differs by a cent once two
-  // taxable surcharges are present — and in INCLUSIVE mode it was plain wrong:
-  // `InvoiceSumInclusive` has the surcharge-tax lines commented out, so a
-  // taxable surcharge must not shrink/inflate the inclusive base at all.
-  // Invoice-level tax tiers require a tax NAME of length >= 2, matching the
-  // server (InvoiceSum: each tier applies only when strlen(tax_nameN) >= 2,
-  // with no rate-only escape hatch). Without this the breakdown shows — and
-  // stampTotalsForSave persists — a tax the server silently drops on sync, so
-  // the local total reads too high until a refresh. Line-item tax is NOT
-  // name-gated server-side (InvoiceItemSum), so the per-line rates above stay
-  // rate-only. (L6)
-  // Σr for invoice-level inclusive tax is built from ALL THREE rates and is
-  // deliberately NOT name-gated: `InvoiceSumInclusive::calculateTaxes` passes
-  // the raw `[tax_rate1, tax_rate2, tax_rate3]` straight into
-  // `InclusiveTax::backout` and applies the name gate only afterwards, when
-  // deciding which component to add to `total_taxes`. So a rate carrying a
-  // blank / 1-char name still shrinks the shared base for the tiers that do
-  // survive the gate. Mirroring that keeps the on-screen total equal to what
-  // the server stores (reachable via API-created or imported invoices — the
-  // tax picker always sets name + rate together). Zero rates contribute
-  // nothing. (issue #12072)
+
+  // Sigma-r is built from all three rates BEFORE the name gate — the server
+  // passes the raw rates into `InclusiveTax::backout` and applies the gate only
+  // when deciding which component reaches `total_taxes` (issue #12072).
   final invoiceRateSum = input.taxRate1 + input.taxRate2 + input.taxRate3;
-  if (input.taxRate1 != Decimal.zero && input.taxName1.length >= 2) {
+  final invoiceTiers = <String, Decimal>{};
+  void addInvoiceTier(String name, Decimal rate) {
+    if (rate == Decimal.zero || name.length < 2) return;
     final t =
         _taxAmount(
-          total,
-          input.taxRate1,
+          taxable,
+          rate,
           input.usesInclusiveTaxes,
-          precision,
+          2,
           totalRate: invoiceRateSum,
         ) +
-        _surchargeTax(input, input.taxRate1, precision);
-    map.update(input.taxName1, (v) => v + t, ifAbsent: () => t);
-  }
-  if (input.taxRate2 != Decimal.zero && input.taxName2.length >= 2) {
-    final t =
-        _taxAmount(
-          total,
-          input.taxRate2,
-          input.usesInclusiveTaxes,
-          precision,
-          totalRate: invoiceRateSum,
-        ) +
-        _surchargeTax(input, input.taxRate2, precision);
-    map.update(input.taxName2, (v) => v + t, ifAbsent: () => t);
-  }
-  if (input.taxRate3 != Decimal.zero && input.taxName3.length >= 2) {
-    final t =
-        _taxAmount(
-          total,
-          input.taxRate3,
-          input.usesInclusiveTaxes,
-          precision,
-          totalRate: invoiceRateSum,
-        ) +
-        _surchargeTax(input, input.taxRate3, precision);
-    map.update(input.taxName3, (v) => v + t, ifAbsent: () => t);
+        _surchargeTax(input, rate);
+    invoiceTiers.update(name, (v) => v + t, ifAbsent: () => t);
   }
 
-  return map;
+  addInvoiceTier(input.taxName1, input.taxRate1);
+  addInvoiceTier(input.taxName2, input.taxRate2);
+  addInvoiceTier(input.taxName3, input.taxRate3);
+
+  final total =
+      rounded.values.fold<Decimal>(Decimal.zero, _add) +
+      invoiceTiers.values.fold<Decimal>(Decimal.zero, _add);
+
+  // Display only: merge the two tiers by name for the totals card.
+  final breakdown = <String, Decimal>{...rounded};
+  for (final e in invoiceTiers.entries) {
+    breakdown.update(e.key, (v) => v + e.value, ifAbsent: () => e.value);
+  }
+  return (breakdown: breakdown, total: total);
 }
 
 /// Taxable amount of a single line item against the invoice's running
@@ -303,196 +322,52 @@ Decimal getItemTaxable(
   BillingTotalsInput input,
   int precision,
 ) {
-  final qty = _round(item.quantity, 5);
-  final cost = _round(item.cost, 5);
-  final itemDiscount = _round(item.discount, 5);
-  var lineTotal = qty * cost;
+  // `InvoiceItemSum::calcTaxes` taxes
+  // `line_total - line_total * (invoice.discount / 100)` — the line total is
+  // already rounded (see [_serverLineTotal]) and the invoice-level deduction is
+  // NOT rounded before `calcAmountLineTax` does its round-at-2. Rounding here
+  // instead made this disagree with the total path by a cent.
+  var lineTotal = _serverLineTotal(item, input, precision);
+
+  if (input.discount == Decimal.zero) return lineTotal;
 
   if (input.isAmountDiscount) {
-    // Item discount FIRST, then prorate the invoice amount-discount across the
-    // post-item-discount line total over the post-item-discount subtotal
-    // (`invoiceTotal` == computeSubtotal) — matching the server's setDiscount →
-    // calcTaxesWithAmountDiscount order and _calculateTotal above. Prorating on
-    // the pre-item-discount line total over-shrinks the tax base.
-    if (itemDiscount != Decimal.zero) lineTotal = lineTotal - itemDiscount;
-    if (input.discount != Decimal.zero && invoiceTotal != Decimal.zero) {
-      // Wide working scale (10) for the ratio — passing the currency precision
-      // (typically 2) would truncate `lineTotal / invoiceTotal` and skew the
-      // per-item tax breakdown (admin-portal's `double` math has no such loss).
+    // `calcTaxesWithAmountDiscount`: prorate the amount discount across the
+    // post-item-discount line totals. Wide working scale for the ratio — the
+    // currency precision would truncate it.
+    if (invoiceTotal != Decimal.zero) {
       lineTotal =
           lineTotal -
           _safeDiv(lineTotal, invoiceTotal, precision: 10) * input.discount;
     }
-  } else {
-    // Percent discounts commute — order is irrelevant.
-    if (input.discount != Decimal.zero) {
-      final factor = (Decimal.fromInt(100) - input.discount);
-      lineTotal = _safeDiv(
-        lineTotal * factor,
-        Decimal.fromInt(100),
-        precision: 10,
-      );
-    }
-    if (itemDiscount != Decimal.zero) {
-      lineTotal = lineTotal - _mulRate(lineTotal, itemDiscount);
-    }
+    return lineTotal;
   }
-
-  return _round(lineTotal, precision);
+  return lineTotal - _mulRate(lineTotal, input.discount);
 }
 
 /// Invoice-level taxable, after item discounts + invoice discount +
 /// taxable surcharges. Mirrors `CalculateInvoiceTotal.getTaxable`. Kept
 /// public for callers that want the pre-tax base independent of the
-/// per-line breakdown.
-Decimal getTaxable(BillingTotalsInput input, int precision) {
-  var total = Decimal.zero;
-  for (final item in input.lineItems) {
-    var lineTotal = item.quantity * item.cost;
-    if (item.discount != Decimal.zero) {
-      if (input.isAmountDiscount) {
-        lineTotal = lineTotal - item.discount;
-      } else {
-        lineTotal =
-            lineTotal - _round(_mulRate(lineTotal, item.discount), precision);
-      }
-    }
-    total = total + lineTotal;
-  }
-  if (input.discount != Decimal.zero) {
-    if (input.isAmountDiscount) {
-      total = total - input.discount;
-    } else {
-      total = _round(
-        _safeDiv(
-          total * (Decimal.fromInt(100) - input.discount),
-          Decimal.fromInt(100),
-          precision: 10,
-        ),
-        precision,
-      );
-    }
-  }
-  if (input.customTaxes1) total = total + input.customSurcharge1;
-  if (input.customTaxes2) total = total + input.customSurcharge2;
-  if (input.customTaxes3) total = total + input.customSurcharge3;
-  if (input.customTaxes4) total = total + input.customSurcharge4;
-  return total;
-}
-
-// -------------------------------------------------------------------------
-
-Decimal _calculateTotal(BillingTotalsInput input, int precision) {
-  var total = computeSubtotal(input, precision);
-  var itemTax = Decimal.zero;
-
-  for (final item in input.lineItems) {
-    final qty = _round(item.quantity, 5);
-    final cost = _round(item.cost, 5);
-    final itemDiscount = _round(item.discount, 5);
-    final rate1 = _round(item.taxRate1, 3);
-    final rate2 = _round(item.taxRate2, 3);
-    final rate3 = _round(item.taxRate3, 3);
-    var lineTotal = qty * cost;
-
-    if (input.isAmountDiscount) {
-      // The server applies the ITEM discount first (setDiscount), THEN prorates
-      // the invoice amount-discount across the ALREADY-reduced line totals
-      // (calcTaxesWithAmountDiscount: amount = line_total − discount×line_total/
-      // sub_total, where line_total and sub_total are both post-item-discount).
-      // Applying the proration on the pre-item-discount line total over-shrinks
-      // the tax base whenever a line also carries its own discount.
-      if (itemDiscount != Decimal.zero) lineTotal = lineTotal - itemDiscount;
-      if (input.discount != Decimal.zero && total != Decimal.zero) {
-        // Wide working scale for the ratio — see getItemTaxable rationale.
-        lineTotal =
-            lineTotal -
-            _round(
-              _safeDiv(lineTotal, total, precision: 10) * input.discount,
-              precision,
-            );
-      }
-    } else {
-      // Percent discounts commute, so order is irrelevant.
-      if (input.discount != Decimal.zero) {
-        lineTotal =
-            lineTotal - _round(_mulRate(lineTotal, input.discount), precision);
-      }
-      if (itemDiscount != Decimal.zero) {
-        lineTotal =
-            lineTotal - _round(_mulRate(lineTotal, itemDiscount), precision);
-      }
-    }
-    lineTotal = _round(lineTotal, precision);
-
-    if (rate1 != Decimal.zero) {
-      itemTax = itemTax + _round(_mulRate(lineTotal, rate1), precision);
-    }
-    if (rate2 != Decimal.zero) {
-      itemTax = itemTax + _round(_mulRate(lineTotal, rate2), precision);
-    }
-    if (rate3 != Decimal.zero) {
-      itemTax = itemTax + _round(_mulRate(lineTotal, rate3), precision);
-    }
-  }
-
-  if (input.discount != Decimal.zero) {
-    if (input.isAmountDiscount) {
-      total = total - _round(input.discount, precision);
-    } else {
-      total = total - _round(_mulRate(total, input.discount), precision);
-    }
-  }
-  if (!input.usesInclusiveTaxes) {
-    // Invoice-level tiers require tax_name length >= 2 (server parity — see
-    // computeTaxBreakdown); `itemTax` (per-line) is name-independent. (L6)
-    // Each tier = round(base × rate) + a separately-rounded component per
-    // taxable surcharge, matching `InvoiceSum::getSurchargeTaxTotalForKey`.
-    // The surcharges themselves stay OUT of the base (server:
-    // `total_custom_values`) and are added after tax, below.
-    final t1 = input.taxName1.length >= 2
-        ? _round(_mulRate(total, input.taxRate1), precision) +
-              _surchargeTax(input, input.taxRate1, precision)
-        : Decimal.zero;
-    final t2 = input.taxName2.length >= 2
-        ? _round(_mulRate(total, input.taxRate2), precision) +
-              _surchargeTax(input, input.taxRate2, precision)
-        : Decimal.zero;
-    final t3 = input.taxName3.length >= 2
-        ? _round(_mulRate(total, input.taxRate3), precision) +
-              _surchargeTax(input, input.taxRate3, precision)
-        : Decimal.zero;
-    total = total + itemTax + t1 + t2 + t3;
-  }
-  // All four surcharges are added AFTER tax (server: `total_custom_values` is
-  // summed into the total once, regardless of the per-slot tax flag).
-  total = total + _round(input.customSurcharge1, precision);
-  total = total + _round(input.customSurcharge2, precision);
-  total = total + _round(input.customSurcharge3, precision);
-  total = total + _round(input.customSurcharge4, precision);
-  return _round(total, precision);
-}
-
 /// Invoice-level tax contributed by the taxable custom surcharges at [rate].
 ///
 /// Mirrors `InvoiceSum::getSurchargeTaxTotalForKey`: each flagged slot's
 /// component is rounded INDEPENDENTLY and summed, rather than taxing the
 /// combined surcharge amount in one go. Inclusive mode contributes nothing —
 /// `InvoiceSumInclusive` has these lines commented out.
-Decimal _surchargeTax(BillingTotalsInput input, Decimal rate, int precision) {
+Decimal _surchargeTax(BillingTotalsInput input, Decimal rate) {
   if (input.usesInclusiveTaxes || rate == Decimal.zero) return Decimal.zero;
   var out = Decimal.zero;
   if (input.customTaxes1) {
-    out = out + _round(_mulRate(input.customSurcharge1, rate), precision);
+    out = out + _round2(_mulRate(input.customSurcharge1, rate));
   }
   if (input.customTaxes2) {
-    out = out + _round(_mulRate(input.customSurcharge2, rate), precision);
+    out = out + _round2(_mulRate(input.customSurcharge2, rate));
   }
   if (input.customTaxes3) {
-    out = out + _round(_mulRate(input.customSurcharge3, rate), precision);
+    out = out + _round2(_mulRate(input.customSurcharge3, rate));
   }
   if (input.customTaxes4) {
-    out = out + _round(_mulRate(input.customSurcharge4, rate), precision);
+    out = out + _round2(_mulRate(input.customSurcharge4, rate));
   }
   return out;
 }
@@ -551,5 +426,52 @@ Decimal _div(Decimal a, Decimal b, int scale) {
 }
 
 Decimal _round(Decimal v, int precision) => v.round(scale: precision);
+
+/// Round at a fixed 2 decimals, regardless of the currency's precision.
+///
+/// The server rounds most INTERMEDIATES at a hard 2 and reserves the currency
+/// precision for the per-tax-name group total (`InvoiceSum:409`) and the final
+/// amount. Threading `precision` through the intermediates instead is invisible
+/// on a 2-decimal currency and wrong on every other one.
+///
+/// Verified scale map (`tool/totals_oracle.php` runs the real classes):
+///
+/// | site                                          | scale     |
+/// |-----------------------------------------------|-----------|
+/// | line total (`sumLineItem`/`setDiscount`)      | 2         |
+/// | per-line tax, exclusive (`calcAmountLineTax`) | 2         |
+/// | per-line tax, inclusive (`InvoiceItemSumInclusive:262`) | precision |
+/// | invoice-level tax, either flavour             | 2         |
+/// | invoice percent discount (`Discounter`)       | 2         |
+/// | surcharge tax component                       | 2         |
+/// | per-tax-name GROUP total (`InvoiceSum:409`)   | precision |
+Decimal _round2(Decimal v) => v.round(scale: 2);
+
+/// One line's `line_total` exactly as the server builds it: `sumLineItem`
+/// rounds `qty x cost` at 2, then `setDiscount` formats the post-discount value
+/// at the currency precision and `setLineTotal` rounds *that* at 2 again.
+///
+/// This is the value both the subtotal and the tax base start from. Deriving
+/// them separately is how the totals card came to disagree with itself.
+Decimal _serverLineTotal(
+  LineItem item,
+  BillingTotalsInput input,
+  int precision,
+) {
+  final qty = _round(item.quantity, 5);
+  final cost = _round(item.cost, 5);
+  final itemDiscount = _round(item.discount, 5);
+  var lineTotal = _round2(qty * cost);
+  if (itemDiscount != Decimal.zero) {
+    // `setDiscount`: an amount discount is formatted at the currency precision
+    // and subtracted; a percent one is applied unrounded and the RESULT is
+    // formatted. Both then pass through `setLineTotal`'s round-at-2.
+    final reduced = input.isAmountDiscount
+        ? lineTotal - _round(itemDiscount, precision)
+        : lineTotal - _mulRate(lineTotal, itemDiscount);
+    lineTotal = _round2(_round(reduced, precision));
+  }
+  return lineTotal;
+}
 
 Decimal _add(Decimal a, Decimal b) => a + b;

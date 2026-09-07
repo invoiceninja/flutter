@@ -1,9 +1,11 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/utils/formatting.dart';
 
 import '../../../_localization_helper.dart';
 
@@ -249,4 +251,163 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Berlin');
     expect(seen, ['Berlin']);
   });
+
+  group('numeric re-seed', () {
+    // Reproduces the shape every money field is wired in: the parent owns a
+    // `Decimal`, `onChanged` parses into it, and `initial` is re-derived from
+    // the parsed value via `decimalInputText`. Typing is lossy in one
+    // direction — "12." parses to 12, whose canonical text is "12" — so the
+    // old string comparison saw "the bound value changed AND differs from
+    // what I hold", rewrote the controller and put the caret at the end. The
+    // next digit then landed in the integer part.
+    Future<void> pumpBound(
+      WidgetTester tester, {
+      required Decimal initialValue,
+      required bool numeric,
+      bool useCommaAsDecimalPlace = false,
+    }) => pump(
+      tester,
+      _BoundNumericField(
+        initialValue: initialValue,
+        numeric: numeric,
+        useCommaAsDecimalPlace: useCommaAsDecimalPlace,
+      ),
+    );
+
+    testWidgets('backspacing a decimal digit keeps the decimal point', (
+      tester,
+    ) async {
+      await pumpBound(
+        tester,
+        initialValue: Decimal.parse('12.5'),
+        numeric: true,
+      );
+      expect(inner(tester).controller!.text, '12.5');
+
+      await tester.enterText(find.byType(TextField), '12.');
+      await tester.pump();
+
+      expect(
+        inner(tester).controller!.text,
+        '12.',
+        reason:
+            'rewriting this to "12" is what made the next keystroke give 127 '
+            'instead of 12.7',
+      );
+    });
+
+    testWidgets('typing on after the backspace produces the intended number', (
+      tester,
+    ) async {
+      await pumpBound(
+        tester,
+        initialValue: Decimal.parse('12.5'),
+        numeric: true,
+      );
+      await tester.enterText(find.byType(TextField), '12.');
+      await tester.pump();
+
+      // The next keystroke appends to whatever the controller now holds —
+      // which is the whole point. Pre-fix it held "12" (the decimal point had
+      // been rewritten away with the caret left at the end), so this typed
+      // 127: a 10x error on a money field.
+      final held = inner(tester).controller!.text;
+      await tester.enterText(find.byType(TextField), '${held}7');
+      await tester.pump();
+
+      final state = tester.state<_BoundNumericFieldState>(
+        find.byType(_BoundNumericField),
+      );
+      expect(state.value, Decimal.parse('12.7'));
+    });
+
+    testWidgets('a genuine external change still re-seeds', (tester) async {
+      // The guard must not become "never re-seed": a row reassigned under a
+      // live element (the contacts section keys unsaved rows positionally)
+      // has to replace what the field shows.
+      await pumpBound(
+        tester,
+        initialValue: Decimal.parse('12.5'),
+        numeric: true,
+      );
+      final state = tester.state<_BoundNumericFieldState>(
+        find.byType(_BoundNumericField),
+      );
+      state.setExternally(Decimal.parse('99'));
+      await tester.pump();
+
+      expect(inner(tester).controller!.text, '99');
+    });
+
+    testWidgets('a comma-locale entry is not rewritten to a dot', (
+      tester,
+    ) async {
+      await pumpBound(
+        tester,
+        initialValue: Decimal.parse('12'),
+        numeric: true,
+        useCommaAsDecimalPlace: true,
+      );
+      await tester.enterText(find.byType(TextField), '12,5');
+      await tester.pump();
+
+      expect(
+        inner(tester).controller!.text,
+        '12,5',
+        reason: 'rewriting to "12.5" jumps the caret mid-number',
+      );
+    });
+
+    testWidgets('a non-numeric field keeps the plain string comparison', (
+      tester,
+    ) async {
+      // Text fields must be untouched by this: their canonical form IS the
+      // string, and positional row reassignment depends on the reseed.
+      await pump(
+        tester,
+        EntityEditField(label: 'Name', initial: 'Acme', onChanged: (_) {}),
+      );
+      expect(inner(tester).controller!.text, 'Acme');
+    });
+  });
+}
+
+/// Parent that mirrors a real edit VM: parses input into a `Decimal` and
+/// re-derives the field's `initial` from it.
+class _BoundNumericField extends StatefulWidget {
+  const _BoundNumericField({
+    required this.initialValue,
+    required this.numeric,
+    required this.useCommaAsDecimalPlace,
+  });
+
+  final Decimal initialValue;
+  final bool numeric;
+  final bool useCommaAsDecimalPlace;
+
+  @override
+  State<_BoundNumericField> createState() => _BoundNumericFieldState();
+}
+
+class _BoundNumericFieldState extends State<_BoundNumericField> {
+  late Decimal value = widget.initialValue;
+
+  void setExternally(Decimal next) => setState(() => value = next);
+
+  @override
+  Widget build(BuildContext context) => EntityEditField(
+    label: 'Price',
+    initial: decimalInputText(value),
+    numeric: widget.numeric,
+    useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    onChanged: (raw) => setState(() {
+      value =
+          parseDecimal(
+            raw,
+            useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
+          ) ??
+          Decimal.zero;
+    }),
+  );
 }

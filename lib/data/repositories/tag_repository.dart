@@ -147,6 +147,19 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
       final byId = <String, TagsCompanion>{
         for (final a in items) a.id: _apiToCompanion(a, companyId),
       };
+      // The company changed while this page was in flight, so these rows came
+      // back under a different workspace's token and stamping them with our
+      // `companyId` would file one workspace's records under another. This repo
+      // hand-rolls `ensurePageLoaded` instead of going through
+      // `ensurePageLoadedTemplate`, so it needs the guard written out.
+      if (!companyStillActive(companyId)) {
+        throw CompanySwitchedException(
+          expected: companyId,
+          active: activeCompanyId?.call(),
+          entityType: entityTypeName,
+        );
+      }
+
       await db.tagDao.upsertAllPreservingDirty(
         companyId: companyId,
         byId: byId,

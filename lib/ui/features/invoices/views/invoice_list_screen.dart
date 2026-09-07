@@ -188,6 +188,13 @@ class InvoiceListScreen extends StatelessWidget {
           singleSuccessKey: 'emailed_invoice',
           pluralSuccessKey: 'emailed_invoices',
           nothingKey: 'nothing_to_email',
+          // A scheduled batch was not emailed. Both branches come back
+          // through the same `applyArg`, so the message has to follow the
+          // result rather than the action.
+          successKeysFor: (arg) =>
+              (arg is BillingEmailResult && arg.scheduledFor != null)
+              ? ('email_scheduled', 'emails_scheduled')
+              : ('emailed_invoice', 'emailed_invoices'),
           prepare: (context) => showBillingDocEmailSheet(
             context,
             entity: BillingDocType.invoice,

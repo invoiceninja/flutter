@@ -144,6 +144,13 @@ class CreditListScreen extends StatelessWidget {
           singleSuccessKey: 'emailed_credit',
           pluralSuccessKey: 'emailed_credits',
           nothingKey: 'nothing_to_email',
+          // A scheduled batch was not emailed. Both branches come back
+          // through the same `applyArg`, so the message has to follow the
+          // result rather than the action.
+          successKeysFor: (arg) =>
+              (arg is BillingEmailResult && arg.scheduledFor != null)
+              ? ('email_scheduled', 'emails_scheduled')
+              : ('emailed_credit', 'emailed_credits'),
           prepare: (context) => showBillingDocEmailSheet(
             context,
             entity: BillingDocType.credit,

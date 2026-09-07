@@ -109,11 +109,23 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
     // standard `extraFilters` plumbing so pagination cursors stay aligned
     // with the on-screen rows.
     final base = extraFilters;
-    final filters = clientId == null
+    final scoped = clientId == null
         ? base
         : {
             ...base,
             'client_id': {clientId!},
+          };
+    // Project scope reached only `watchPage`'s pre-LIMIT `WHERE project_id`,
+    // never the fetch — so a project's embedded tab pulled the newest page
+    // COMPANY-wide and filtered it locally to nothing. On a busy account that
+    // is a permanent "No records found" on a project that has records, with no
+    // pull-to-refresh on an embedded list to escape it. `InvoiceFilters::project_id` is
+    // the server's own filter for this.
+    final filters = projectId == null
+        ? scoped
+        : {
+            ...scoped,
+            'project_id': {projectId!},
           };
     return repo.ensurePageLoaded(
       companyId: companyId,
@@ -138,12 +150,20 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
       delete: (id) => repo.delete(companyId: companyId, id: id),
     ),
     BulkAction<Invoice>(
+      // Outward-facing and hard to reverse over a whole selection — the
+      // single-record twin already prompts. `_onBulk` shows one dialog when
+      // this is set, gated on the device Confirm-actions preference.
+      confirm: true,
       id: 'mark_sent',
       labelKey: 'mark_sent',
       eligible: (i) => i.isDraft && !i.isDeleted,
       apply: (id) => repo.markSent(companyId: companyId, id: id),
     ),
     BulkAction<Invoice>(
+      // Outward-facing and hard to reverse over a whole selection — the
+      // single-record twin already prompts. `_onBulk` shows one dialog when
+      // this is set, gated on the device Confirm-actions preference.
+      confirm: true,
       id: 'mark_paid',
       labelKey: 'mark_paid',
       eligible: (i) =>
@@ -151,6 +171,10 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
       apply: (id) => repo.markPaid(companyId: companyId, id: id),
     ),
     BulkAction<Invoice>(
+      // Outward-facing and hard to reverse over a whole selection — the
+      // single-record twin already prompts. `_onBulk` shows one dialog when
+      // this is set, gated on the device Confirm-actions preference.
+      confirm: true,
       id: 'auto_bill',
       labelKey: 'auto_bill',
       eligible: (i) => i.isSent && !i.isPaid && !i.isDeleted,
@@ -169,9 +193,19 @@ class InvoiceListViewModel extends GenericListViewModel<Invoice> {
             companyId: companyId,
             id: id,
             template: r.template,
-            sendAt: scheduledFor.toUtc().toIso8601String(),
+            // LOCAL, never `.toUtc()`. The server truncates `sendAt` to a
+            // date-only `next_run`, so converting shifts an evening pick to
+            // the next calendar day east of UTC and to the previous one west
+            // of it — firing a day late, or immediately because the date is
+            // already past. `billing_doc_email_screen.dart` fixed exactly this
+            // for the single-document composer and spells out the reason; the
+            // four bulk call sites never got it.
+            sendAt: scheduledFor.toIso8601String(),
             subject: r.subject.isEmpty ? null : r.subject,
             body: r.body.isEmpty ? null : r.body,
+            // Forwarded on the `email` branch below but silently dropped here,
+            // so a CC typed into the bulk compose sheet never reached anyone.
+            ccEmail: r.ccEmail.isEmpty ? null : r.ccEmail,
           );
         }
         return repo.email(

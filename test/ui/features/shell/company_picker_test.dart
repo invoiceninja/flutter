@@ -420,14 +420,20 @@ void main() {
 
   testWidgets('online + pending row that resolves during precheck skips the '
       'dialog and switches', (tester) async {
-    // Setup: online, plus a row primed to die on its next attempt
-    // (attempts = kMaxAttempts - 1). The precheck's silent flushNow will
-    // hit the real ApiClient → http.Client, fail with NetworkException,
-    // trip _retryWithBackoff → _markDead. The row leaves the pending
-    // state, pendingCountFor returns 0, and the dialog stays away.
+    // Setup: online, plus a row the server permanently rejects (422). The
+    // precheck's silent flushNow hits the real ApiClient → http.Client, the
+    // row is marked dead, it leaves the pending state, pendingCountFor
+    // returns 0, and the dialog stays away.
     //
-    // This proves the silent-flush precheck branch — not a Mock of the
-    // sync engine. The actual code path runs end-to-end.
+    // This proves the silent-flush precheck branch — not a Mock of the sync
+    // engine. The actual code path runs end-to-end.
+    //
+    // The rejection is a 422 rather than the fixture's default network
+    // failure: a NetworkException no longer kills a row (it re-parks,
+    // budget-neutral), because burning the retry budget while offline is what
+    // silently destroyed a user's queued work. The sibling test below pins
+    // that half. A permanent 4xx is still terminal, which is the state this
+    // test is actually about.
     final fixture = await buildFixture(
       companies: const [
         FakeCompany(id: 'c1', name: 'Acme Co', token: 'tok-c1'),
@@ -435,6 +441,13 @@ void main() {
       ],
       currentCompanyId: 'c1',
       online: true,
+      httpClient: MockClient(
+        (_) async => http.Response(
+          '{"message":"The given data was invalid.","errors":{}}',
+          422,
+          headers: const {'content-type': 'application/json'},
+        ),
+      ),
     );
     addTearDown(fixture.dispose);
 
@@ -475,6 +488,57 @@ void main() {
     );
 
     await _drain(tester, fixture);
+  });
+
+  testWidgets('offline during precheck keeps the row pending, so the switch '
+      'still prompts instead of silently abandoning the edit', (tester) async {
+    // The mirror image of the test above. A network failure used to consume
+    // the retry budget, so a row primed near `kMaxAttempts` died during the
+    // precheck flush and the switch went through with no dialog — quietly
+    // dead-lettering the user's queued mutation, which a later sign-out then
+    // wiped without a prompt (the pending-count queries exclude `dead`).
+    //
+    // Offline is now budget-neutral: the row stays pending and the user is
+    // asked, which is what CLAUDE.md § Sync requires of every session-ending
+    // and company-switching flow.
+    final fixture = await buildFixture(
+      companies: const [
+        FakeCompany(id: 'c1', name: 'Acme Co', token: 'tok-c1'),
+        FakeCompany(id: 'c2', name: 'Stark Industries', token: 'tok-c2'),
+      ],
+      currentCompanyId: 'c1',
+      online: true,
+    );
+    addTearDown(fixture.dispose);
+
+    await fixture.db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'c1',
+        entityType: 'client',
+        entityId: 'x',
+        mutationKind: 'update',
+        payload: '{}',
+        idempotencyKey: 'k',
+        createdAt: 0,
+        nextAttemptAt: 0,
+        attempts: const Value(kMaxAttempts - 1),
+        requiresPassword: const Value(false),
+      ),
+    );
+
+    await tester.pumpWidget(
+      wrapWithShell(fixture.services, const CompanyPicker(fillWidth: true)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Stark Industries'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Unsynced changes'),
+      findsOneWidget,
+      reason: 'the queued edit survived the failed flush, so ask the user',
+    );
   });
 
   testWidgets('a failed New Company reports the error', (tester) async {

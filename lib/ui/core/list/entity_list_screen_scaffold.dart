@@ -191,6 +191,7 @@ class EntityListBulkAction {
     required this.nothingKey,
     this.prepare,
     this.onSelection,
+    this.successKeysFor,
   });
 
   /// Must match a `BulkAction.id` registered on `vm.bulkActions`. Stable
@@ -222,6 +223,15 @@ class EntityListBulkAction {
 
   /// Locale key shown when no eligible rows were affected (`nothing_to_archive`).
   final String nothingKey;
+
+  /// Optional per-result override of the two success keys, given whatever
+  /// [prepare] returned.
+  ///
+  /// One action can perform two different operations: the billing email sheet
+  /// either sends now or SCHEDULES for a future date, and both come back
+  /// through the same `applyArg`. Reporting "Emailed 20 invoices" for a batch
+  /// that was only scheduled tells the user something that did not happen.
+  final (String single, String plural) Function(Object? arg)? successKeysFor;
 
   /// Selection-level handler — receives the whole eligible selection at once
   /// instead of the per-id loop. For aggregate / navigating / download actions
@@ -748,12 +758,15 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
       }
     }
 
+    final successKeys =
+        action.successKeysFor?.call(prepared) ??
+        (action.singleSuccessKey, action.pluralSuccessKey);
     Notify.success(
       context,
       formatBulkMessage(
         context,
-        singleKey: action.singleSuccessKey,
-        pluralKey: action.pluralSuccessKey,
+        singleKey: successKeys.$1,
+        pluralKey: successKeys.$2,
         nothingKey: action.nothingKey,
         result: result,
       ),

@@ -27,6 +27,8 @@ class ProjectEditBudgetSection extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           EntityEditField(
+            numeric: true,
+            useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
             label: context.tr('budgeted_hours'),
             initial: budgetText,
             onChanged: vm.setBudgetedHours,
@@ -34,6 +36,8 @@ class ProjectEditBudgetSection extends StatelessWidget {
             errorText: vm.fieldErrorFor('budgeted_hours'),
           ),
           EntityEditField(
+            numeric: true,
+            useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
             label: context.tr('budgeted_amount'),
             initial: decimalInputText(vm.draft.budgetedAmount),
             onChanged: vm.setBudgetedAmount,
@@ -41,6 +45,8 @@ class ProjectEditBudgetSection extends StatelessWidget {
             errorText: vm.fieldErrorFor('budgeted_amount'),
           ),
           EntityEditField(
+            numeric: true,
+            useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
             label: context.tr('task_rate'),
             initial: decimalInputText(vm.draft.taskRate),
             onChanged: vm.setTaskRate,

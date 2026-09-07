@@ -135,6 +135,108 @@ void main() {
     });
   });
 
+  group('findDiscardableForEntity', () {
+    // Backs "Discard failed save" on BOTH edit scaffolds. `findDeadForEntity`
+    // was the wrong query there: only a 422 kills a row, so a 5xx or a lost
+    // connection leaves the banner up over a `pending` row the dead-only
+    // lookup cannot see — the tap cleared the banner and left the queued write
+    // to apply anyway.
+    test('finds a still-pending row, which findDeadForEntity cannot', () async {
+      final pending = await enqueue(entityId: 'c1', idempotencyKey: 'k1');
+
+      expect(
+        await db.outboxDao.findDeadForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isNull,
+        reason: 'precondition: the row is retrying, not dead',
+      );
+      final row = await db.outboxDao.findDiscardableForEntity(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: 'c1',
+      );
+      expect(row?.id, pending);
+    });
+
+    test('prefers the newest row, dead or pending', () async {
+      await enqueue(entityId: 'c1', state: 'dead', idempotencyKey: 'k1');
+      final newest = await enqueue(entityId: 'c1', idempotencyKey: 'k2');
+
+      final row = await db.outboxDao.findDiscardableForEntity(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: 'c1',
+      );
+      expect(row?.id, newest);
+    });
+
+    test('never returns an in-flight row', () async {
+      // `discardOutboxRow` deletes an in-flight row while its request stays on
+      // the wire — right for the Outbox screen's explicit Discard, and exactly
+      // the lie the banner exists to avoid.
+      await enqueue(entityId: 'c1', state: 'in_flight', idempotencyKey: 'k1');
+
+      expect(
+        await db.outboxDao.findDiscardableForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isNull,
+      );
+    });
+
+    test('never returns a non-save mutation on the same record', () async {
+      // A discard abandons the ROW, not the ENTITY: an `add_comment` is
+      // enqueued under the PARENT's type + id, and is unrelated user work.
+      await enqueue(entityId: 'c1', kind: 'add_comment', idempotencyKey: 'k1');
+      await enqueue(entityId: 'c1', kind: 'archive', idempotencyKey: 'k2');
+
+      expect(
+        await db.outboxDao.findDiscardableForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isNull,
+      );
+
+      final save = await enqueue(entityId: 'c1', idempotencyKey: 'k3');
+      final row = await db.outboxDao.findDiscardableForEntity(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: 'c1',
+      );
+      expect(
+        row?.id,
+        save,
+        reason: 'the newer comment/archive rows must not shadow the save',
+      );
+    });
+
+    test('is scoped to the company and the record', () async {
+      await enqueue(companyId: 'other', entityId: 'c1', idempotencyKey: 'k1');
+      await enqueue(entityId: 'c2', idempotencyKey: 'k2');
+      await enqueue(
+        entityType: 'invoice',
+        entityId: 'c1',
+        idempotencyKey: 'k3',
+      );
+
+      expect(
+        await db.outboxDao.findDiscardableForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('markDead', () {
     test(
       'persists fieldErrorsJson alongside the message + status code',

@@ -1,4 +1,5 @@
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/invoice_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -230,6 +231,10 @@ class ClientListViewModel extends GenericListViewModel<Client> {
         );
         if (!more) break;
       }
+    } on CompanySwitchedException catch (e) {
+      // The company changed under the hydration — expected, same log policy.
+      _overdueInvoicesHydrated = false;
+      _log.fine('overdue-invoice hydration abandoned: $e');
     } on NetworkException catch (e) {
       // Best-effort, same policy as the sidebar prefetch: an offline blip is
       // expected here and must not pollute the WARNING+ diagnostics log.

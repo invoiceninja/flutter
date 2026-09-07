@@ -52,6 +52,7 @@ class EntityEditScaffold<T> extends StatelessWidget {
     this.embedded = false,
     this.actionsBuilder,
     this.saveParamFor,
+    this.confirmSaveParam,
     this.onAfterSaveAction,
     this.onAfterSaveActionOnCreate,
     this.onSaveCleanup,
@@ -109,6 +110,24 @@ class EntityEditScaffold<T> extends StatelessWidget {
   /// then run [onAfterSaveAction]). Null overall => every action is
   /// after-save (entities with no save-param actions omit this).
   final Map<String, String>? Function(Object action)? saveParamFor;
+
+  /// Confirmation for a SAVE-PARAM action, run before the save is queued.
+  /// Return false to abort. Null (the default) means no extra prompt.
+  ///
+  /// SAVE-PARAM actions short-circuit in [_onAction] and return before
+  /// `<E>Actions.dispatch` is ever reached, so a verb whose confirmation lives
+  /// in `dispatch` has none at all here. Invoice `markPaid` is the one such
+  /// verb: from the detail screen it goes through `dispatch` and prompts, but
+  /// from the edit screen one tap recorded a synthetic payment for the full
+  /// outstanding balance and flipped the invoice to Paid, silently.
+  ///
+  /// Deliberately a hook rather than `EntityActionItem.confirm: true`, which
+  /// would look equivalent and is not: `guardedOnTap` gates that on the device
+  /// "Confirm actions" preference, so tagging it would WEAKEN a prompt that is
+  /// unconditional today on the detail screen — and CLAUDE.md's rule is not to
+  /// tag a verb that already opens its own dialog.
+  final Future<bool> Function(BuildContext context, Object action)?
+  confirmSaveParam;
 
   /// Runs the entity's existing `<E>Actions.dispatch` for an AFTER-SAVE
   /// action against the freshly-saved (or, on the skip-redundant-save
@@ -227,6 +246,13 @@ class EntityEditScaffold<T> extends StatelessWidget {
       // busy case; in create mode still enforce the screen's create-validity
       // gate (e.g. invoice needs a client) since `canSave` carries it.
       if (vm.isCreate && !canSave) return;
+      // Ask BEFORE queueing the save — this branch never reaches `dispatch`,
+      // where a verb like invoice `markPaid` keeps its confirmation.
+      final confirm = confirmSaveParam;
+      if (confirm != null) {
+        final ok = await confirm(context, action);
+        if (!ok || !context.mounted) return;
+      }
       vm.setPendingSaveQuery(query);
       await _onSave(context);
       return;

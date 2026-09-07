@@ -35,6 +35,8 @@ class ProductEditInventorySection extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               EntityEditField(
+                numeric: true,
+                useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
                 label: context.tr('max_quantity'),
                 initial: decimalInputText(vm.draft.maxQuantity),
                 onChanged: vm.setMaxQuantity,
@@ -45,6 +47,8 @@ class ProductEditInventorySection extends StatelessWidget {
               ),
               if (tracksInventory) ...[
                 EntityEditField(
+                  numeric: true,
+                  useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
                   label: context.tr('in_stock_quantity'),
                   initial: decimalInputText(vm.draft.inStockQuantity),
                   onChanged: vm.setInStockQuantity,
@@ -63,6 +67,8 @@ class ProductEditInventorySection extends StatelessWidget {
                   ),
                 ),
                 EntityEditField(
+                  numeric: true,
+                  useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
                   label: context.tr('notification_threshold'),
                   initial: decimalInputText(
                     vm.draft.stockNotificationThreshold,

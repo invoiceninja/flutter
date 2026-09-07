@@ -15,6 +15,7 @@ class ExpenseEditAmountTaxSection extends StatelessWidget {
     final d = vm.draft;
     return ExpenseTaxSection(
       companyId: vm.companyId,
+      useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
       amount: d.amount,
       amountError: vm.fieldErrorFor('amount'),
       taxNames: [d.taxName1, d.taxName2, d.taxName3],

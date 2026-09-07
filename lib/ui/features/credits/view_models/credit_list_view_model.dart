@@ -118,6 +118,10 @@ class CreditListViewModel extends GenericListViewModel<Credit> {
       delete: (id) => repo.delete(companyId: companyId, id: id),
     ),
     BulkAction<Credit>(
+      // Outward-facing and hard to reverse over a whole selection — the
+      // single-record twin already prompts. `_onBulk` shows one dialog when
+      // this is set, gated on the device Confirm-actions preference.
+      confirm: true,
       id: 'mark_sent',
       labelKey: 'mark_sent',
       eligible: (c) => c.isDraft && !isDeleted(c),
@@ -135,9 +139,19 @@ class CreditListViewModel extends GenericListViewModel<Credit> {
             companyId: companyId,
             id: id,
             template: r.template,
-            sendAt: scheduledFor.toUtc().toIso8601String(),
+            // LOCAL, never `.toUtc()`. The server truncates `sendAt` to a
+            // date-only `next_run`, so converting shifts an evening pick to
+            // the next calendar day east of UTC and to the previous one west
+            // of it — firing a day late, or immediately because the date is
+            // already past. `billing_doc_email_screen.dart` fixed exactly this
+            // for the single-document composer and spells out the reason; the
+            // four bulk call sites never got it.
+            sendAt: scheduledFor.toIso8601String(),
             subject: r.subject.isEmpty ? null : r.subject,
             body: r.body.isEmpty ? null : r.body,
+            // Forwarded on the `email` branch below but silently dropped here,
+            // so a CC typed into the bulk compose sheet never reached anyone.
+            ccEmail: r.ccEmail.isEmpty ? null : r.ccEmail,
           );
         }
         return repo.email(

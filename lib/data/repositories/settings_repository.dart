@@ -31,21 +31,46 @@ class SettingsRepository {
     _remember(_companyLayer, companyId, companySettings);
 
     final clientSettings = <String, dynamic>{};
+    final groupSettings = <String, dynamic>{};
     if (clientId != null) {
       final client = await _db.clientDao
           .watchById(companyId: companyId, id: clientId)
           .first;
+      var groupId = '';
       if (client != null) {
         final payload = jsonDecode(client.payload) as Map<String, dynamic>;
         final inner = payload['settings'];
         if (inner is Map<String, dynamic>) clientSettings.addAll(inner);
+        groupId = client.groupSettingsId ?? '';
       }
       // Recorded even when empty: "known to have no overrides" must be
       // distinguishable from "never looked".
-      _remember(_clientLayer, '$companyId/$clientId', clientSettings);
+      _remember(
+        _clientLayer,
+        '$companyId/$clientId',
+        clientSettings,
+        companion: _clientGroup,
+        companionValue: groupId,
+      );
+
+      if (groupId.isNotEmpty) {
+        final group = await _db.groupSettingDao
+            .watchById(companyId: companyId, id: groupId)
+            .first;
+        if (group != null) {
+          final payload = jsonDecode(group.payload) as Map<String, dynamic>;
+          final inner = payload['settings'];
+          if (inner is Map<String, dynamic>) groupSettings.addAll(inner);
+        }
+        _remember(_groupLayer, '$companyId/$groupId', groupSettings);
+      }
     }
 
-    return _merge(company: companySettings, client: clientSettings);
+    return _merge(
+      company: companySettings,
+      group: groupSettings,
+      client: clientSettings,
+    );
   }
 
   // ─── First-frame seed mirror ────────────────────────────────────────────
@@ -67,7 +92,24 @@ class SettingsRepository {
   // any staleness is bounded to one mount and cannot recur.
 
   final Map<String, Map<String, dynamic>> _companyLayer = {};
+  final Map<String, Map<String, dynamic>> _groupLayer = {};
   final Map<String, Map<String, dynamic>> _clientLayer = {};
+
+  /// `'{companyId}/{clientId}' -> groupSettingsId` (empty when ungrouped), so
+  /// the synchronous [resolvedIfReady] can tell "this client has no group"
+  /// from "this client's group layer isn't cached yet".
+  ///
+  /// Its key set is IDENTICAL to [_clientLayer]'s by construction — [_remember]
+  /// writes and evicts both in one call, and nothing else touches it. That is
+  /// load-bearing, not tidiness: a plain map write here grew without bound
+  /// while [_clientLayer] evicted past [seedCacheLimit], so after 129 distinct
+  /// clients the 129th resolve dropped client #1's OVERRIDES while this map
+  /// still named its group — sending [resolvedIfReady] down the group branch to
+  /// return `{company + group}` and claim readiness, with the client tier
+  /// silently missing. A client that overrides its group's
+  /// `lock_invoices: when_sent` back to `off` then seeded as locked. A seed may
+  /// be cold, and it may be stale for one mount; it must never DROP a tier.
+  final Map<String, String> _clientGroup = {};
 
   /// Bound on [_clientLayer]; the company layer is bounded by the roster.
   /// Same insertion-order eviction as `BaseEntityRepository._lastSeen`.
@@ -81,39 +123,88 @@ class SettingsRepository {
   }) {
     final company = _companyLayer[companyId];
     if (company == null) return null;
+    if (clientId == null) {
+      return _merge(company: company, group: const {}, client: const {});
+    }
+    final key = '$companyId/$clientId';
+    final groupId = _clientGroup[key];
+    // A client this mirror has never resolved falls through to the company
+    // layer, exactly as it did before groups existed. That is what makes ONE
+    // company-level warm seed every client in the list — the property the
+    // whole mirror is built on, since the first click on each client is most
+    // clicks. The group tier is missing for that one frame; `resolved()`
+    // follows and wins, and the seed drives rendering only (both invoice-lock
+    // GATES call the async `resolveInvoiceLockReason`).
+    //
+    // Once the client HAS been resolved we know its group, and then a missing
+    // group layer is a real gap rather than a cold cache — answer null there
+    // instead of silently dropping a tier we know applies.
+    if (groupId != null && groupId.isNotEmpty) {
+      final group = _groupLayer['$companyId/$groupId'];
+      if (group == null) return null;
+      return _merge(
+        company: company,
+        group: group,
+        client: _clientLayer[key] ?? const {},
+      );
+    }
     return _merge(
       company: company,
-      client: clientId == null
-          ? const {}
-          : _clientLayer['$companyId/$clientId'] ?? const {},
+      group: const {},
+      client: _clientLayer[key] ?? const {},
     );
   }
 
   /// Drop every layer. Called on logout — client-level overrides are user data.
   void clearResolvedCache() {
     _companyLayer.clear();
+    _groupLayer.clear();
     _clientLayer.clear();
+    _clientGroup.clear();
   }
 
   /// The one cascade walk, shared by [resolved] and [resolvedIfReady] so they
-  /// cannot disagree about precedence. Groups go in the middle in M2.
+  /// cannot disagree about precedence: company, then group, then client.
+  ///
+  /// The group tier used to be missing here (`{...company, ...client}`) long
+  /// after Groups shipped — `client_settings_cascade.dart` walks all three and
+  /// its header records skipping the group as a FIXED bug. This resolver backs
+  /// the gates that *act* on settings: `resolveInvoiceLockReason` /
+  /// `peekInvoiceLockReason` (`lock_invoices`, `e_invoice_type`), the
+  /// add-to-invoice dialog, and tap-to-call's `timezone_id`. So a group-level
+  /// `lock_invoices = when_sent` never locked in the app: no banner, Edit and
+  /// Delete still enabled on a sent invoice, and the write then either 4xx'd
+  /// from the outbox or diverged from what the portal and PDF show.
   Map<String, dynamic> _merge({
     required Map<String, dynamic> company,
+    required Map<String, dynamic> group,
     required Map<String, dynamic> client,
-  }) => <String, dynamic>{...company, ...client};
+  }) => <String, dynamic>{...company, ...group, ...client};
 
   /// Store an unmodifiable copy: a caller mutating a [resolved] result must not
   /// be able to corrupt the mirror, or vice versa.
+  ///
+  /// [companion] is a parallel map keyed the same way ([_clientGroup]) that is
+  /// written AND evicted here, in the same call, so its key set cannot drift
+  /// from the layer's. Keeping the two in step by convention at the call site
+  /// is what failed before; see [_clientGroup].
   void _remember(
     Map<String, Map<String, dynamic>> layer,
     String key,
-    Map<String, dynamic> value,
-  ) {
+    Map<String, dynamic> value, {
+    Map<String, String>? companion,
+    String? companionValue,
+  }) {
     layer
       ..remove(key)
       ..[key] = Map<String, dynamic>.unmodifiable(value);
+    companion
+      ?..remove(key)
+      ..[key] = companionValue ?? '';
     while (layer.length > seedCacheLimit) {
-      layer.remove(layer.keys.first);
+      final evicted = layer.keys.first;
+      layer.remove(evicted);
+      companion?.remove(evicted);
     }
   }
 

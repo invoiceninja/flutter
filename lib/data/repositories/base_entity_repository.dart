@@ -20,6 +20,31 @@ import 'package:admin/data/services/api_exception.dart';
 
 final _log = Logger('BaseEntityRepository');
 
+/// Raised when a paged fetch comes back after the active company has changed,
+/// so the rows it carries were fetched under a *different* company's token
+/// than the `companyId` they would be stamped with.
+///
+/// Benign by nature — the work is simply abandoned — so callers should treat it
+/// as a no-op rather than a failure: `GenericListViewModel` swallows it without
+/// flashing an error (its `hasMore` is left untouched, so paging stays armed),
+/// and a `refreshAll` loop lets it end the sweep.
+class CompanySwitchedException implements Exception {
+  const CompanySwitchedException({
+    required this.expected,
+    required this.active,
+    required this.entityType,
+  });
+
+  final String expected;
+  final String? active;
+  final String entityType;
+
+  @override
+  String toString() =>
+      'CompanySwitchedException: a $entityType page for $expected arrived '
+      'while ${active ?? "no company"} was active';
+}
+
 /// Force-refreshes related entities whose server state changed as a *side
 /// effect* of a mutation on a different entity — e.g. adding a payment updates
 /// its invoice(s) and client; converting a quote creates an invoice; merging a
@@ -55,6 +80,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     this.uuid = const Uuid(),
     DateTime Function()? now,
     this.onEnqueued,
+    this.activeCompanyId,
     Set<MutationKind> requiresPasswordFor = const {},
   }) : _now = now ?? DateTime.now,
        _passwordRequiredKinds = requiresPasswordFor;
@@ -70,6 +96,31 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// immediately when online instead of sitting until the next explicit
   /// trigger (company switch, app resume, etc.). Tests leave it null.
   final void Function(String companyId)? onEnqueued;
+
+  /// The company whose token requests are currently going out under —
+  /// `auth.credentials.value?.companyId`, wired by DI. Tests leave it null,
+  /// which disables the check.
+  ///
+  /// `ApiClient` resolves credentials from a live notifier at request-build
+  /// time and takes no company parameter, while every paged fetch takes
+  /// `companyId` as an argument and stamps the rows it writes with that same
+  /// argument. Nothing tied the two together, so a company switch landing
+  /// mid-pass — a user tapping Sync then switching, or the 401 rollback that
+  /// re-activates the previous company and starts a second prefetch sweep —
+  /// fetched company B's records under B's token and wrote them under
+  /// `company_id = A`. See [companyStillActive].
+  String? Function()? activeCompanyId;
+
+  /// Whether [companyId] is still the company whose token is being used.
+  ///
+  /// Null (boot, pre-credentials, or a test) is a no-op, never a mismatch:
+  /// this is a guard against writing the *wrong* company's data, not a
+  /// requirement that credentials exist.
+  @protected
+  bool companyStillActive(String companyId) {
+    final live = activeCompanyId?.call();
+    return live == null || live == companyId;
+  }
 
   OutboxDao get _outbox => db.outboxDao;
   IdRemapDao get _idRemap => db.idRemapDao;
@@ -909,24 +960,44 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     //    suppression so a deleted client's own detail tabs still fetch (React
     //    parity). Client-specific, so it stays narrow.
     //
-    //  * `hasParentScope` (client OR vendor OR bank-integration) gates the
-    //    shared `(companyId, entityType)` keyset cursor — neither read nor
-    //    advanced for a scoped fetch. The scoped page's `data.last` is not a
-    //    valid global high-water mark: reading it would make the scoped list
-    //    under-fetch, and advancing it would corrupt the *unscoped* list's
+    //  * `hasParentScope` (client OR vendor OR bank-integration OR project)
+    //    gates the shared `(companyId, entityType)` keyset cursor — neither
+    //    read nor advanced for a scoped fetch. The scoped page's `data.last` is
+    //    not a valid global high-water mark: reading it would make the scoped
+    //    list under-fetch, and advancing it would corrupt the *unscoped* list's
     //    delta sync (e.g. opening a client's Invoices tab or a bank account's
     //    Transactions tab skipping the standalone list forward). A scoped fetch
-    //    offset-paginates its narrowed view from page 1 instead. These are the
-    //    server-narrowing scope params embedded lists thread; `project_id` is
-    //    intentionally absent — project-embedded lists scope only the LOCAL
-    //    watch, never the server fetch, so their cursor advance stays correct.
+    //    offset-paginates its narrowed view from page 1 instead.
+    //
+    //    `project_id` used to be deliberately absent, on the grounds that
+    //    project-embedded lists scoped only the LOCAL watch and never the
+    //    fetch. That stopped being true: Invoices, Expenses and Tasks each
+    //    send project scope on the wire now, under the three different names
+    //    their own `*Filters.php` accepts (`InvoiceFilters::project_id`,
+    //    `ExpenseFilters::project_ids`, `TaskFilters::project_tasks`). Quotes
+    //    still don't, because `QuoteFilters.php` has no project method.
+    //
+    //    **The enumeration is belt-and-braces, not the guarantee.** What
+    //    actually keeps a scoped fetch off the cursor is `isNarrowedFetch`'s
+    //    `extraFilters` arm, which is true for ANY non-empty filter — so
+    //    adding the three keys here changes no behaviour, and the six repos
+    //    that hand-roll this body and pass only their own parent key
+    //    (`hasClientScope` / `hasVendorScope` / `false`) are equally correct
+    //    without them. Don't read this list as a contract every call site owes
+    //    you; a new scope param is safe the moment it lands in `extraFilters`.
+    //    It is written out anyway because DIVERGENCE between this gate and
+    //    `isNarrowedFetch` is precisely what flutter#32 was — the two
+    //    disagreed, and a stale enumeration is how they start to.
     final hasClientScope =
         resolvedExtra.containsKey('client_id') ||
         resolvedExtra.containsKey('client_ids');
     final hasParentScope =
         hasClientScope ||
         resolvedExtra.containsKey('vendor_id') ||
-        resolvedExtra.containsKey('bank_integration_ids');
+        resolvedExtra.containsKey('bank_integration_ids') ||
+        resolvedExtra.containsKey('project_id') ||
+        resolvedExtra.containsKey('project_ids') ||
+        resolvedExtra.containsKey('project_tasks');
 
     // The cursor is a PAGE-1, UNSCOPED, UN-NARROWED delta probe only — see
     // `isNarrowedFetch` / `shouldReadCursor` for the full rationale, shared
@@ -967,6 +1038,25 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         rowCount: 0,
         cursorApplied: cursor?.isEmpty == false,
         pageSize: pageSize,
+      );
+    }
+
+    // The company switched while this page was in flight, so `apiRows` came
+    // back under a DIFFERENT company's token and stamping them with our
+    // `companyId` would file one workspace's records under another. Abandon
+    // the page, leave the cursor alone.
+    //
+    // A throw, not a return value. This method's bool is `hasMore`, and
+    // neither answer is safe: `false` latches a list at its current page
+    // forever, while `true` makes `refreshAll`'s `while (hasMore)` loop spin
+    // through its 1000-page cap re-fetching pages it will keep discarding.
+    // `CompanySwitchedException` ends the loop and leaves `hasMore` untouched
+    // in the list VM, which catches it and stays armed for the next attempt.
+    if (!companyStillActive(companyId)) {
+      throw CompanySwitchedException(
+        expected: companyId,
+        active: activeCompanyId?.call(),
+        entityType: entityTypeName,
       );
     }
 

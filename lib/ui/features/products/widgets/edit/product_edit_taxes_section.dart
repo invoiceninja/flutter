@@ -144,6 +144,7 @@ class _TaxSlot extends StatelessWidget {
       // be hand-entered. (Typed input correctly routes through the
       // locale-aware String setters.)
       return _TaxRow(
+        useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
         nameLabel: context.tr('tax_name'),
         rateLabel: context.tr('tax_rate'),
         nameValue: name,
@@ -199,6 +200,7 @@ class _TaxSlot extends StatelessWidget {
 /// no bundled tax rates to pick from.
 class _TaxRow extends StatelessWidget {
   const _TaxRow({
+    required this.useCommaAsDecimalPlace,
     required this.nameLabel,
     required this.rateLabel,
     required this.nameValue,
@@ -207,6 +209,7 @@ class _TaxRow extends StatelessWidget {
     required this.onRateChanged,
   });
 
+  final bool useCommaAsDecimalPlace;
   final String nameLabel;
   final String rateLabel;
   final String nameValue;
@@ -230,6 +233,8 @@ class _TaxRow extends StatelessWidget {
         SizedBox(width: InSpacing.md(context)),
         Expanded(
           child: EntityEditField(
+            numeric: true,
+            useCommaAsDecimalPlace: useCommaAsDecimalPlace,
             label: rateLabel,
             initial: decimalInputText(rateValue),
             onChanged: onRateChanged,

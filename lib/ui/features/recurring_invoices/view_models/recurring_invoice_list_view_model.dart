@@ -119,6 +119,10 @@ class RecurringInvoiceListViewModel
       delete: (id) => repo.delete(companyId: companyId, id: id),
     ),
     BulkAction<RecurringInvoice>(
+      // Outward-facing and hard to reverse over a whole selection — the
+      // single-record twin already prompts. `_onBulk` shows one dialog when
+      // this is set, gated on the device Confirm-actions preference.
+      confirm: true,
       id: 'send_now',
       labelKey: 'send_now',
       // send_now sends the first occurrence — draft-only, matching React.

@@ -275,7 +275,27 @@ class ClientSettingsDraftViewModel extends SettingsDraftHost
     notifyListeners();
     try {
       final json = _draft.toJson()..removeWhere((_, v) => v == null);
-      final next = client.copyWith(settings: json.isEmpty ? null : json);
+      // `Client` mirrors three cascade keys as top-level fields, and
+      // `Client.toApiJson()` unconditionally folds those MIRRORS back over the
+      // settings blob on the way out (empty removes the key, non-empty
+      // overwrites it). Writing only the blob therefore had the edit undone by
+      // the client's own serializer: setting a per-client currency either never
+      // reached the server (mirror empty -> key removed) or snapped back to the
+      // old value (mirror stale -> key overwritten), and un-ticking the
+      // override could never clear it because the key was re-added on every
+      // save. Both the outbox payload and the local Drift payload go through
+      // `toApiJson`, so it reverted one frame after "Saved settings".
+      String cascade(String key) {
+        final v = json[key];
+        return v is String ? v : '';
+      }
+
+      final next = client.copyWith(
+        settings: json.isEmpty ? null : json,
+        currencyId: cascade('currency_id'),
+        languageId: cascade('language_id'),
+        paymentTerms: cascade('payment_terms'),
+      );
       // Capture "Update all records" design directives BEFORE advancing the
       // baseline (changedDesignUpdates diffs draft vs initial). Skip an
       // unsynced offline-create client — `/designs/set/default` 400s on a

@@ -38,6 +38,7 @@ class ExpenseTaxSection extends StatefulWidget {
   const ExpenseTaxSection({
     super.key,
     required this.companyId,
+    this.useCommaAsDecimalPlace = false,
     required this.amount,
     required this.amountError,
     required this.taxNames,
@@ -54,6 +55,13 @@ class ExpenseTaxSection extends StatefulWidget {
   });
 
   final String companyId;
+
+  /// The company's decimal separator, threaded to the numeric fields below.
+  /// Without it a comma-locale user typing `12,5` is fought by the re-seed:
+  /// `parseDecimal('12,5', useComma: false)` strips the comma and yields 125,
+  /// which never equals the parent's canonical `12.5`, so the controller is
+  /// rewritten and the caret jumps — the exact bug `numeric` exists to stop.
+  final bool useCommaAsDecimalPlace;
   final Decimal amount;
   final String? amountError;
 
@@ -138,6 +146,8 @@ class _ExpenseTaxSectionState extends State<ExpenseTaxSection> {
             mainAxisSize: MainAxisSize.min,
             children: [
               EntityEditField(
+                numeric: true,
+                useCommaAsDecimalPlace: widget.useCommaAsDecimalPlace,
                 label: context.tr('amount'),
                 initial: decimalInputText(widget.amount),
                 onChanged: widget.onAmountChanged,
@@ -318,6 +328,8 @@ class _RatePickerSlot extends StatelessWidget {
             Expanded(
               flex: 2,
               child: EntityEditField(
+                numeric: true,
+                useCommaAsDecimalPlace: w.useCommaAsDecimalPlace,
                 label: context.tr('tax_rate$slot'),
                 initial: decimalInputText(rate),
                 onChanged: (v) => w.onTaxRateChanged(slot, v),
@@ -398,6 +410,8 @@ class _AmountSlot extends StatelessWidget {
           Expanded(
             flex: 2,
             child: EntityEditField(
+              numeric: true,
+              useCommaAsDecimalPlace: w.useCommaAsDecimalPlace,
               label: context.tr('tax_amount'),
               initial: decimalInputText(w.taxAmounts[i]),
               onChanged: (v) => w.onTaxAmountChanged(slot, v),

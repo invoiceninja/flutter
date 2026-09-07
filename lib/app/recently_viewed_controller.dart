@@ -153,6 +153,28 @@ class RecentlyViewedController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drop every company's recents from memory. Called from the logout fan-out
+  /// in `Services.build`, beside `sidebarMenu.resetInMemory()`.
+  ///
+  /// Storage being keyed by company makes cross-*company* isolation structural,
+  /// which is why [_onSession] deliberately doesn't clear — but the cross-*user*
+  /// case shares the company id, so nothing separated one user's recents from
+  /// the next person to sign in on the same device. `_byCompany` is an
+  /// app-lifetime map on a `Services` singleton and was only ever cleared inside
+  /// [restore], which runs once at boot: user B's command palette showed user A's
+  /// client names and invoice numbers, and B's first [record] call wrote the
+  /// whole map straight back into the freshly wiped `nav_state`.
+  ///
+  /// The pending debounce is cancelled first, or that queued [_persist] would
+  /// re-write the map this is clearing.
+  void reset() {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    if (_byCompany.isEmpty) return;
+    _byCompany.clear();
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _persistTimer?.cancel();

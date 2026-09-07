@@ -87,6 +87,118 @@ void main() {
           'Found:\n  ${offenders.join('\n  ')}',
     );
   });
+
+  group('coverage: the risky verbs are all gated', () {
+    // `_onBulk` only prompts when `BulkAction.confirm` is set, and for a long
+    // time the ONLY place in `lib/` that set it was `standardCrudBulkActions`'
+    // archive. So multiselecting 40 invoices and hitting Auto Bill ran 40
+    // gateway charges against 40 saved cards with no prompt at all, while the
+    // single-record twin of every one of these verbs stopped and asked.
+    // CLAUDE.md § Action confirmations names exactly these.
+    const mustConfirm = {
+      'mark_sent',
+      'mark_paid',
+      'auto_bill',
+      'approve',
+      'convert_to_invoice',
+      'send_now',
+    };
+
+    Iterable<File> filesEndingIn(String dir, String suffix) => Directory(dir)
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith(suffix));
+
+    /// `(id, block)` for every `BulkAction<…>(…)` literal in [src].
+    Iterable<({String id, String block})> bulkActionsIn(String src) sync* {
+      for (final m in RegExp(r'BulkAction<[^>]+>\(').allMatches(src)) {
+        final block = _argumentList(src, m.end - 1);
+        if (block == null) continue;
+        final id = RegExp(r"id: '([a-z_]+)'").firstMatch(block)?.group(1);
+        if (id != null) yield (id: id, block: block);
+      }
+    }
+
+    test('every risky bulk verb sets confirm: true', () {
+      final missing = <String>[];
+      for (final f in filesEndingIn(
+        'lib/ui/features',
+        '_list_view_model.dart',
+      )) {
+        for (final a in bulkActionsIn(f.readAsStringSync())) {
+          if (mustConfirm.contains(a.id) && !_setsConfirmTrue(a.block)) {
+            missing.add('${f.uri.pathSegments.last}: ${a.id}');
+          }
+        }
+      }
+      expect(
+        missing,
+        isEmpty,
+        reason:
+            'these fire immediately over a whole selection and are '
+            'outward-facing or hard to reverse — tag them `confirm: true`',
+      );
+    });
+
+    test('no confirm-tagged verb is also an onSelection action', () {
+      // `_onBulk` captures `eligibleSelectedIds` BEFORE the confirm dialog and
+      // re-reads `_vm.items` after it to resolve entities for an
+      // `onSelection` handler. Its own comment records that this is "safe
+      // today only because no `onSelection` action sets `confirm: true` — a
+      // coincidence across two files, not an invariant". Tagging one re-opens
+      // invoiceninja/flutter#89.
+      // Scans `lib/ui` WHOLE, not just the per-entity list VMs. `archive` is
+      // minted by the shared `standardCrudBulkActions` factory in
+      // `lib/ui/core/list/` and is the one confirm-tagged verb no per-entity
+      // file declares, so a features-only scan handed it a permanent free
+      // pass: a screen adding `actionId: 'archive'` with an `onSelection:`
+      // handler passed this test green while re-opening the exact bug it
+      // cites. (`delete` and `purge` take the password sheet instead — see the
+      // `confirm` / `requiresPassword` exclusivity test above.)
+      final confirmIds = <String>{
+        for (final f in filesEndingIn('lib/ui', '.dart'))
+          for (final a in bulkActionsIn(f.readAsStringSync()))
+            if (_setsConfirmTrue(a.block)) a.id,
+      };
+      expect(
+        confirmIds,
+        contains('archive'),
+        reason:
+            'the shared factory in lib/ui/core/list must be in scope — if '
+            'archive is missing the scan has narrowed back to lib/ui/features '
+            'and this test is vacuous for every verb the factory owns',
+      );
+
+      final clashes = <String>[];
+      for (final f in filesEndingIn('lib/ui/features', '_list_screen.dart')) {
+        final src = f.readAsStringSync();
+        for (final m in RegExp(r'EntityListBulkAction\(').allMatches(src)) {
+          final block = _argumentList(src, m.end - 1);
+          if (block == null) continue;
+          final id = RegExp(
+            r"actionId: '([a-z_]+)'",
+          ).firstMatch(block)?.group(1);
+          if (id == null) continue;
+          if (confirmIds.contains(id) && block.contains('onSelection:')) {
+            clashes.add('${f.uri.pathSegments.last}: $id');
+          }
+        }
+      }
+      expect(clashes, isEmpty);
+    });
+  });
+}
+
+/// Whether [block] really passes `confirm: true` — as opposed to mentioning it
+/// in a comment. A plain `contains` accepted `// confirm: true` and
+/// `// TODO: confirm: true`, so commenting the flag out to silence a prompt
+/// left both tests green while the guard was gone.
+bool _setsConfirmTrue(String block) {
+  for (final line in block.split('\n')) {
+    final code = line.split('//').first;
+    if (RegExp(r'\bconfirm:\s*true\b').hasMatch(code)) return true;
+  }
+  return false;
 }
 
 /// Returns the text between the `(` at [openParen] and its matching `)`, or

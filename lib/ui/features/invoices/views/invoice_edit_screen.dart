@@ -15,6 +15,7 @@ import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/billing_shared/seed_client_invitations.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
+import 'package:admin/ui/features/invoices/widgets/detail/mark_paid_confirm_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/edit/invoice_edit_layout.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_locked_dialog.dart';
@@ -163,6 +164,15 @@ class InvoiceEditScreen extends StatelessWidget {
             ),
           ),
       saveParamFor: (a) => InvoiceActions.saveParamFor(a as InvoiceAction),
+      // `markPaid` records a synthetic payment for the full outstanding
+      // balance. On the detail screen `InvoiceActions.dispatch` always asks
+      // first; from here the SAVE-PARAM branch returns before `dispatch` is
+      // reached, so the same tap used to do it with no prompt at all. The
+      // other SAVE-PARAM verbs (markSent / cancel / autoBill) carry
+      // `confirm: true` on their action item and are gated by `guardedOnTap`.
+      confirmSaveParam: (BuildContext context, Object action) async =>
+          action != InvoiceAction.markPaid ||
+          await showMarkPaidConfirmDialog(context),
       onAfterSaveAction: (ctx, saved, a) {
         final services = ctx.read<Services>();
         return InvoiceActions.dispatch(

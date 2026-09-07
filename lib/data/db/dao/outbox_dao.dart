@@ -125,6 +125,49 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.get();
   }
 
+  /// Whether an EARLIER row for the same record is still going to be sent.
+  ///
+  /// The outbox has no per-entity ordering guarantee: `nextReady` is id-ordered
+  /// but only returns rows that are due, so a row re-parked into the future
+  /// drops out of the snapshot while a *later* row for the same record stays in
+  /// it. That let mutation N+1 be applied before N, and N then overwrote it on
+  /// its retry — the classic lost update:
+  ///
+  ///   save v1 -> row1 hangs, the form times out and pops "saving in
+  ///   background" -> user saves v2 (dedup leaves the in_flight row1 alone) ->
+  ///   row1 fails and re-parks -> row2 succeeds -> row1 retries and PUTs v1
+  ///   over it, on the server and locally. No dead row, no toast, no event.
+  ///
+  /// "Still going to be sent" deliberately EXCLUDES a row parked beyond
+  /// [parkedHorizon]: a 409 conflict and the entity-missing 400 both re-park a
+  /// row `pending` at `now + 365 days` while it waits for the user to resolve
+  /// it. Blocking on those would starve the record for a year — far worse than
+  /// the reordering. Same horizon [staleRowsForCompany] uses to call a row
+  /// parked.
+  Future<bool> hasEarlierActiveRowForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+    required int beforeId,
+    required int now,
+    Duration parkedHorizon = const Duration(days: 1),
+  }) async {
+    final horizon = now + parkedHorizon.inMilliseconds;
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityType.equals(entityType) &
+            o.entityId.equals(entityId) &
+            o.id.isSmallerThanValue(beforeId) &
+            (o.state.equals('in_flight') |
+                (o.state.equals('pending') &
+                    o.nextAttemptAt.isSmallerOrEqualValue(horizon))),
+      )
+      ..limit(1);
+    return (await q.getSingleOrNull()) != null;
+  }
+
   /// Find an existing `pending` row for [companyId] + [entityType] so the
   /// caller can collapse rapid edits of an idempotent mutation (e.g. user
   /// settings) into one outbox row instead of N.
@@ -506,6 +549,53 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.getSingleOrNull();
   }
 
+  /// Newest row for the given entity that a "Discard failed save" tap may
+  /// legitimately abandon: the entity's own `create` / `update`, in state
+  /// `dead` **or** `pending`.
+  ///
+  /// [findDeadForEntity] is not enough for that surface. `SaveFailedBanner`
+  /// renders off `submitError`, and only a **422** kills the row — a 5xx or a
+  /// lost connection leaves it `pending` with backoff, so the banner is up
+  /// while no dead row exists. Falling back to the dead-only query there
+  /// found nothing, `clearFailedSync()` ran alone, the banner vanished and the
+  /// queued row went on to apply the write the user had just discarded.
+  ///
+  /// Two exclusions are load-bearing:
+  ///
+  ///  * **`in_flight` is excluded.** `SyncRepository.discardOutboxRow` deletes
+  ///    an in-flight row while leaving its request on the wire — right for the
+  ///    Outbox screen's explicit Discard, and exactly the lie this surface
+  ///    exists to avoid. The banner outlives the attempt either way: the row
+  ///    re-parks as `pending` on failure, or succeeds and clears the form.
+  ///  * **Only `create` / `update` kinds.** A discard abandons the ROW, not the
+  ///    ENTITY (CLAUDE.md § Sync). A queued `add_comment`, `email` or
+  ///    `mark_sent` on the same record is unrelated user work and must survive
+  ///    a discard of the save — the same distinction `hasEditRowForEntity`
+  ///    draws for the dirty-flag reconcile.
+  Future<OutboxRow?> findDiscardableForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityType.equals(entityType) &
+            o.entityId.equals(entityId) &
+            o.state.isIn(['dead', 'pending']) &
+            o.mutationKind.isIn([
+              MutationKind.create.wireName,
+              MutationKind.update.wireName,
+            ]),
+      )
+      ..orderBy([
+        (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
+      ])
+      ..limit(1);
+    return q.getSingleOrNull();
+  }
+
   /// Re-arm a `dead` row for immediate retry. Resets `attempts` and
   /// `nextAttemptAt` so the next [drainOnce] picks it up; preserves
   /// `idempotency_key`, `payload`, and `field_errors_json` so the server
@@ -527,6 +617,17 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// fields) and are otherwise never cleaned up — the user has to discard
   /// them one by one from the Outbox UI. Auto-pruning bounds how long the
   /// data sits on disk in the (currently unencrypted) Drift DB.
+  /// The dead rows [SyncRepository.pruneDeadRows] is about to delete, so it can
+  /// reconcile each one's `is_dirty` flag before the row that explains it is
+  /// gone. Read-only; the delete is still [pruneDead].
+  Future<List<OutboxRow>> deadRowsOlderThan({required int olderThanMs}) =>
+      (select(outbox)..where(
+            (o) =>
+                o.state.equals('dead') &
+                o.createdAt.isSmallerThanValue(olderThanMs),
+          ))
+          .get();
+
   Future<int> pruneDead({required int olderThanMs}) =>
       (delete(outbox)..where(
             (o) =>

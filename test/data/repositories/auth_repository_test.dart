@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:admin/data/models/api/user_api_model.dart';
+import 'package:admin/data/repositories/auth/auth_helpers.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/services/api_client.dart';
@@ -2840,11 +2841,81 @@ void main() {
 
       expect(fresh.session.value, isNull);
       expect(fresh.credentials.value, isNull);
+      // The bounce is now NON-destructive. It used to call a bare `logout()`,
+      // whose default reaches `_db.wipe()` and destroys every company's queued
+      // outbox rows — silently, at boot, over nothing worse than a stale
+      // pointer. `restore()` preserves instead: the tokens are unusable but
+      // the user's unsynced edits are not, and signing back in rewrites the
+      // map (`_persistAndActivate`) and drains them.
+      //
+      // Note the map here (`co_other`) names a company with no local
+      // `companies` row, so it is not a workspace `restore()` can fall back
+      // into — which is why this still bounces rather than recovering.
       expect(
         await storage.read('invoiceninja.tokens.v1'),
-        isNull,
-        reason: 'logout drops the stale token map',
+        isNotNull,
+        reason: 'the stale map is kept; only the in-memory session is cleared',
       );
+      expect(
+        await db.select(db.companies).get(),
+        isNotEmpty,
+        reason: 'a boot-time bounce must never wipe the local database',
+      );
+    });
+
+    test('recovers into another company when one still has a usable token '
+        'instead of bouncing to login', () async {
+      authService.queueLogin(
+        _envelope(
+          companies: const [
+            (
+              id: 'co_a',
+              name: 'Acme',
+              token: 'tok_a',
+              isAdmin: false,
+              isOwner: false,
+            ),
+            (
+              id: 'co_b',
+              name: 'Beta',
+              token: 'tok_b',
+              isAdmin: false,
+              isOwner: false,
+            ),
+          ],
+        ),
+      );
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a',
+        password: 'b',
+      );
+
+      // `_persistAndActivate`'s last-resort branch can persist a current
+      // company the token map has no entry for (the issue-#16 condition:
+      // the envelope carried no usable `is_system` token). Simulate the
+      // resulting divergence.
+      await storage.write(
+        'invoiceninja.tokens.v1',
+        jsonEncode({'co_b': 'tok_b'}),
+      );
+      await storage.write('invoiceninja.current_company.v1', 'co_a');
+
+      final fresh = AuthRepository(
+        db: db,
+        authService: authService,
+        tokenStorage: storage,
+        passwordCache: passwordCache,
+      );
+      await fresh.restore();
+
+      expect(
+        fresh.session.value?.currentCompanyId,
+        'co_b',
+        reason: 'co_b is a known company we hold a usable token for',
+      );
+      expect(fresh.credentials.value?.token, 'tok_b');
     });
   });
 
@@ -3428,5 +3499,285 @@ void main() {
         expect(refreshUrl, isNotNull);
       },
     );
+  });
+
+  group('cross-user isolation on a shared device', () {
+    // An involuntary logout (401, or an idle timeout with unsynced work) takes
+    // `preserveLocalData: true`, which returns before `_db.wipe()`. Nothing on
+    // the login path used to reconsider that: `pruneExcept` only touches
+    // `companies` / `accounts`, so every company-scoped table survived into the
+    // next person's session — and `onActiveCompanyChanged` then kicked a drain,
+    // sending the previous user's queued mutations under the new user's token.
+    Future<int> outboxRows() async => (await db.select(db.outbox).get()).length;
+
+    Future<void> seedQueuedWork() async {
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co_a',
+          entityType: 'client',
+          entityId: 'cl_1',
+          mutationKind: 'update',
+          payload: '{"name":"private"}',
+          idempotencyKey: 'idem_1',
+          nextAttemptAt: 0,
+          createdAt: 1,
+        ),
+      );
+    }
+
+    test('a DIFFERENT user signing in wipes the preserved database', () async {
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+      await seedQueuedWork();
+      expect(await outboxRows(), 1);
+
+      // Involuntary end of session — data deliberately survives.
+      await repo.logout(preserveLocalData: true);
+      expect(
+        await outboxRows(),
+        1,
+        reason: 'the preserve path must keep the queued work',
+      );
+
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_b')),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'b@example.com',
+        password: 'pw',
+      );
+
+      expect(
+        await outboxRows(),
+        0,
+        reason:
+            'user B must not inherit user A: the rows would otherwise render '
+            'in B\'s lists and drain under B\'s token',
+      );
+    });
+
+    test('a different ACCOUNT signing in wipes it too', () async {
+      authService.queueLogin(_envelope(accountId: 'acct_1'));
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+      await seedQueuedWork();
+      await repo.logout(preserveLocalData: true);
+
+      authService.queueLogin(_envelope(accountId: 'acct_2'));
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+
+      expect(await outboxRows(), 0);
+    });
+
+    test('the SAME user signing back in keeps their queued work', () async {
+      // The whole point of the preserve path — a 401 is the same person, and
+      // their offline edits must still drain. A check that wiped here would be
+      // strictly worse than the bug it replaces.
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+      await seedQueuedWork();
+      await repo.logout(preserveLocalData: true);
+
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+
+      expect(await outboxRows(), 1);
+    });
+
+    test('an install with no stored identity is never wiped', () async {
+      // Upgrading from a build that never wrote the keys must not destroy the
+      // user's database on their first launch: both sides have to be non-empty
+      // and different before anything is touched.
+      await seedQueuedWork();
+      expect(await storage.read(kAuthUserIdKey), isNull);
+
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+
+      expect(await outboxRows(), 1);
+    });
+
+    test('the SAME user on a DIFFERENT self-hosted server is wiped', () async {
+      // Self-hosted instances mint hashids from small sequential ids, so
+      // user #1 / account #1 on two different servers commonly encode to the
+      // same strings — the other two legs of the identity see no change at
+      // all, and server B would inherit server A's whole database.
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://alpha.example.com',
+        isHosted: false,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+      await seedQueuedWork();
+      await repo.logout(preserveLocalData: true);
+
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://beta.example.com',
+        isHosted: false,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+
+      expect(await outboxRows(), 0);
+    });
+
+    // A false positive here DESTROYS data — the wipe takes the outbox with it
+    // — while a false negative only leaves the leak above. So the comparison
+    // is canonicalized, and each of these spellings of one server must keep
+    // the user's queued work. Declared as separate tests so each gets a fresh
+    // storage + database from `setUp`.
+    for (final pair in const [
+      ('https://acme.example.com', 'https://acme.example.com/'),
+      ('https://acme.example.com', 'HTTPS://Acme.Example.com'),
+      ('https://acme.example.com', 'https://acme.example.com:443'),
+    ]) {
+      test('${pair.$1} and ${pair.$2} are the same identity', () async {
+        authService.queueLogin(
+          _envelope(user: const UserSummaryApi(id: 'user_a')),
+        );
+        await repo.login(
+          baseUrl: pair.$1,
+          isHosted: false,
+          email: 'a@example.com',
+          password: 'pw',
+        );
+        await seedQueuedWork();
+        await repo.logout(preserveLocalData: true);
+
+        authService.queueLogin(
+          _envelope(user: const UserSummaryApi(id: 'user_a')),
+        );
+        await repo.login(
+          baseUrl: pair.$2,
+          isHosted: false,
+          email: 'a@example.com',
+          password: 'pw',
+        );
+
+        expect(await outboxRows(), 1);
+      });
+    }
+
+    test('an identity wipe also drops the per-company token map', () async {
+      // Pins the PROPERTY, and does not currently discriminate: it passes
+      // with the wipe's `delete(kAuthTokensKey)` removed, because `logout()`
+      // zeroes `_tokensByCompany` before its preserve return and
+      // `_persistAndActivate` runs `isFullSync: true`, which filters the
+      // carried map to the new response's companies. Both are incidental to
+      // the wipe. The two users are on DIFFERENT companies here — the shape
+      // that would leak if either of those ever stopped holding, since A's
+      // `co_a` entry is not overwritten by B's `co_b`.
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+      await repo.logout(preserveLocalData: true);
+      expect(
+        jsonDecode(await storage.read(kAuthTokensKey) ?? '{}'),
+        containsPair('co_a', 'tok_a'),
+        reason: 'precondition: the preserve path keeps the token map',
+      );
+
+      authService.queueLogin(
+        _envelope(
+          user: const UserSummaryApi(id: 'user_b'),
+          companies: const [
+            (
+              id: 'co_b',
+              name: 'Beta',
+              token: 'tok_b',
+              isAdmin: false,
+              isOwner: false,
+            ),
+          ],
+          defaultCompanyId: 'co_b',
+        ),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'b@example.com',
+        password: 'pw',
+      );
+
+      final tokens =
+          jsonDecode(await storage.read(kAuthTokensKey) ?? '{}')
+              as Map<String, dynamic>;
+      expect(
+        tokens.keys,
+        ['co_b'],
+        reason: "user A's token must not survive into user B's session",
+      );
+    });
+
+    test('a destructive logout clears the stored identity', () async {
+      authService.queueLogin(
+        _envelope(user: const UserSummaryApi(id: 'user_a')),
+      );
+      await repo.login(
+        baseUrl: 'https://x',
+        isHosted: true,
+        email: 'a@example.com',
+        password: 'pw',
+      );
+      expect(await storage.read(kAuthUserIdKey), 'user_a');
+
+      await repo.logout();
+
+      // The database is already gone, so a retained identity would only make
+      // the next sign-in do a redundant wipe.
+      expect(await storage.read(kAuthUserIdKey), isNull);
+      expect(await storage.read(kAuthAccountIdKey), isNull);
+    });
   });
 }

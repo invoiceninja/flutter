@@ -847,6 +847,7 @@ class _TaxSurchargeSection extends StatelessWidget {
     final d = vm.draft;
     return BillingTaxSurchargeSection(
       companyId: vm.companyId,
+      useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
       taxRows: [
         (
           name: d.taxName1,

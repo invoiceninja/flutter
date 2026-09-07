@@ -184,6 +184,13 @@ class PurchaseOrderListScreen extends StatelessWidget {
           singleSuccessKey: 'emailed_purchase_order',
           pluralSuccessKey: 'emailed_purchase_orders',
           nothingKey: 'nothing_to_email',
+          // A scheduled batch was not emailed. Both branches come back
+          // through the same `applyArg`, so the message has to follow the
+          // result rather than the action.
+          successKeysFor: (arg) =>
+              (arg is BillingEmailResult && arg.scheduledFor != null)
+              ? ('email_scheduled', 'emails_scheduled')
+              : ('emailed_purchase_order', 'emailed_purchase_orders'),
           prepare: (context) => showBillingDocEmailSheet(
             context,
             entity: BillingDocType.purchaseOrder,

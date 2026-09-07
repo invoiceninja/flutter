@@ -56,6 +56,8 @@ class ProductEditDetailsSection extends StatelessWidget {
                 autocorrect: false,
               ),
               EntityEditField(
+                numeric: true,
+                useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
                 label: context.tr('price'),
                 prefixText: moneyPrefix,
                 initial: decimalInputText(vm.draft.price),
@@ -67,6 +69,8 @@ class ProductEditDetailsSection extends StatelessWidget {
               ),
               if (showCost)
                 EntityEditField(
+                  numeric: true,
+                  useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
                   label: context.tr('cost'),
                   prefixText: moneyPrefix,
                   initial: decimalInputText(vm.draft.cost),
@@ -78,6 +82,8 @@ class ProductEditDetailsSection extends StatelessWidget {
                 ),
               if (showQuantity)
                 EntityEditField(
+                  numeric: true,
+                  useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
                   label: context.tr('quantity'),
                   initial: decimalInputText(vm.draft.quantity),
                   onChanged: vm.setQuantity,

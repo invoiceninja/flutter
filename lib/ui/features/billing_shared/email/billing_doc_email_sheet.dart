@@ -80,8 +80,16 @@ class BillingEmailResult {
   final String body;
   final String ccEmail;
 
-  /// When non-null, the email should be scheduled for this UTC ISO 8601
-  /// datetime instead of sent immediately.
+  /// When non-null, the email should be scheduled for this **local** wall
+  /// clock instead of sent immediately — the picker's own value, unconverted.
+  ///
+  /// It documented itself as UTC and every caller then dutifully sent
+  /// `.toUtc()`, which is wrong: the server truncates `send_at` to a date-only
+  /// `next_run`, so converting shifts an evening pick to the NEXT calendar day
+  /// east of UTC and to the PREVIOUS one west of it — the scheduled mail fires
+  /// a day late, or immediately because the date is already past. Send
+  /// `toIso8601String()` on this value as-is; a trailing `Z` on the wire means
+  /// a conversion crept back in.
   final DateTime? scheduledFor;
 }
 

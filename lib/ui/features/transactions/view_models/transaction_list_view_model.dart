@@ -189,6 +189,21 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
     return out;
   }
 
+  /// `date` is filtered locally (see above), so a page the DAO predicate guts
+  /// down must auto-chain the next one — otherwise the list dead-ends on a
+  /// false "No records found". Verbatim the override
+  /// `PaymentListViewModel` carries for the identical situation with the
+  /// identical param.
+  ///
+  /// Worse here without it: with `date` stripped there is often no other
+  /// filter left, so `isNarrowedFetch` is false and page 1 applies the delta
+  /// cursor — on a warm session that returns almost nothing, and there is no
+  /// scroll extent for the load-more trigger to fire from.
+  @override
+  bool get localOnlyFilterActive =>
+      super.localOnlyFilterActive ||
+      (extraFilters['date']?.isNotEmpty ?? false);
+
   static String? _statusKeyword(String statusId) {
     if (statusId == kTransactionStatusUnmatched) return 'unmatched';
     if (statusId == kTransactionStatusMatched) return 'matched';

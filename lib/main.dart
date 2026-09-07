@@ -24,6 +24,7 @@ import 'package:admin/app/nav_history_controller.dart';
 import 'package:admin/app/nav_state_persister.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/sentry_gate.dart';
+import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
@@ -229,7 +230,7 @@ Future<void> _bootstrap() async {
   // Bound how long dead outbox rows sit on disk. Fire-and-forget — the user
   // shouldn't wait for a cleanup query on startup, and a failure here is not
   // fatal (worst case: a few extra rows linger until next boot).
-  unawaited(_pruneDeadOutbox(opened.db));
+  unawaited(_pruneDeadOutbox(services.sync));
 
   // Resume where you left off: pick the persisted route if we have one and
   // the user is still authenticated. Unauthenticated → /login regardless.
@@ -428,11 +429,14 @@ void _installCaptureHandlers(DebugCaptureStore store) {
 
 /// Drop dead outbox rows older than 90 days. Errors are logged but swallowed —
 /// startup must continue even if this housekeeping query fails.
-Future<void> _pruneDeadOutbox(AppDatabase db) async {
-  const ttl = Duration(days: 90);
+///
+/// Routed through `SyncRepository` rather than the DAO so each pruned row's
+/// optimistic `is_dirty` flag is released as it goes: the DAO cannot reach the
+/// entity dispatchers, so the bare delete used to leave records frozen against
+/// every future refresh. See [SyncRepository.pruneDeadRows].
+Future<void> _pruneDeadOutbox(SyncRepository sync) async {
   try {
-    final cutoff = DateTime.now().subtract(ttl).millisecondsSinceEpoch;
-    final removed = await db.outboxDao.pruneDead(olderThanMs: cutoff);
+    final removed = await sync.pruneDeadRows();
     if (removed > 0) {
       Logger('main').info('Pruned $removed dead outbox row(s).');
     }

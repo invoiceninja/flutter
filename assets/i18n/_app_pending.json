@@ -324,6 +324,7 @@
   "email_report_hint": "Email a recurring report (P&L, sales by client, tasks, …).",
   "email_scheduled": "Email scheduled",
   "email_statement_hint": "Email each client a statement of their open invoices.",
+  "emails_scheduled": "Successfully scheduled :count emails",
   "enable_biometric_description": "Use Face ID or Touch ID to unlock the app instead of typing your password.",
   "end_all_sessions_warning": "Every user of this company will be signed out on all their devices.",
   "enter_email_first": "Enter your email first.",

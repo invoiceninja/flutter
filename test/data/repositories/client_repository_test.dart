@@ -949,6 +949,75 @@ void main() {
     });
   });
 
+  group('company/token binding', () {
+    // `ApiClient` builds every request from a live credentials notifier and
+    // takes no company parameter, while a paged fetch takes `companyId` as an
+    // argument and stamps the rows it writes with it. Nothing tied the two
+    // together, so a switch landing mid-fetch filed one workspace's records
+    // under another's id.
+    test('a page that arrives after a company switch is discarded', () async {
+      final (:repo, :api) = makeRepo(
+        pages: {
+          1: [apiClient('c1'), apiClient('c2')],
+        },
+      );
+      var live = 'co';
+      repo.activeCompanyId = () => live;
+
+      // Page 1 under the right company lands normally.
+      await repo.ensurePageLoaded(companyId: 'co', page: 1);
+      expect(
+        (await db.select(db.clients).get()).length,
+        2,
+        reason: 'sanity: the guard must not block the normal path',
+      );
+
+      // Now the user switches; the next page for `co` comes back under `co_b`.
+      live = 'co_b';
+      await expectLater(
+        repo.ensurePageLoaded(companyId: 'co', page: 1),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+    });
+
+    test('a null active company never blocks a fetch', () async {
+      // Boot, pre-credentials, and every test: the guard protects against
+      // writing the WRONG company's rows, it does not require credentials.
+      final (:repo, :api) = makeRepo(
+        pages: {
+          1: [apiClient('c1')],
+        },
+      );
+      repo.activeCompanyId = () => null;
+      await repo.ensurePageLoaded(companyId: 'co', page: 1);
+      expect((await db.select(db.clients).get()).length, 1);
+    });
+
+    test('the abandoned page leaves the cursor untouched', () async {
+      final (:repo, :api) = makeRepo(
+        pages: {
+          1: [apiClient('c1')],
+        },
+      );
+      repo.activeCompanyId = () => 'co_b';
+      await expectLater(
+        repo.ensurePageLoaded(companyId: 'co', page: 1),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+      final cursor = await db.syncStateDao.read(
+        companyId: 'co',
+        entityType: 'client',
+      );
+      expect(
+        cursor.id,
+        anyOf(isNull, isEmpty),
+        reason:
+            'advancing the watermark from a page we discarded would skip '
+            'those rows forever',
+      );
+    });
+  });
+
   group('pagination', () {
     test(
       'ensurePageLoaded upserts a page and advances cursor; hasMore reflects '

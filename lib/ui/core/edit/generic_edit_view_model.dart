@@ -365,7 +365,12 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// input outside [setDec] (e.g. a setter that writes two fields, or one with
   /// a non-zero default). Pass it to [parseDecimal] — never `Decimal.tryParse`
   /// on raw input, which silently zeroes `"1,5"` for comma-locale users.
-  @protected
+  ///
+  /// Deliberately NOT `@protected`, unlike its `set*` neighbours: a numeric
+  /// `EntityEditField` needs it to decide whether the value it holds and the
+  /// canonical text the VM hands back are the same NUMBER (see that widget's
+  /// `numeric` flag). Reading it to compare is fine; parsing user input in a
+  /// widget still isn't — that belongs in a `set*` on the VM.
   bool get useCommaAsDecimalPlace => _useCommaAsDecimalPlace;
 
   @protected

@@ -40,10 +40,17 @@ class ResyncProgress {
 
   final ResyncPhase phase;
 
-  /// Company the in-flight pass is downloading; null when idle. A pass
-  /// deliberately survives a company switch (its writes are all `company_id`
-  /// scoped), so [isRunning] alone would put a spinner on the wrong workspace —
-  /// compare against the active company via [isRunningFor] before rendering.
+  /// Company the in-flight pass is downloading; null when idle. [isRunning]
+  /// alone would put a spinner on the wrong workspace, so compare against the
+  /// active company via [isRunningFor] before rendering.
+  ///
+  /// A pass no longer survives a company switch: `Services.build` calls
+  /// [cancel] from `auth.onActiveCompanyChanged`. It used to, on the reasoning
+  /// that "its writes are all `company_id` scoped" — but that controls where
+  /// rows *land*, not which token *fetched* them. `ApiClient` resolves
+  /// credentials at request-build time, so the remaining entities of a pass
+  /// started in company A were fetched under B's token and written under
+  /// `company_id = A`.
   final String? companyId;
 
   final int completed;

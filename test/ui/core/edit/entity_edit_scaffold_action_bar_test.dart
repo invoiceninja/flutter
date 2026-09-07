@@ -49,6 +49,7 @@ Future<void> _pump(
   required bool canSave,
   required List<EntityActionItem<String>> Function(void Function(Object)) items,
   Map<String, String>? Function(Object)? saveParamFor,
+  Future<bool> Function(BuildContext, Object)? confirmSaveParam,
   Future<void> Function(BuildContext, String, Object)? onAfterSaveAction,
   Future<bool> Function(BuildContext, String, Object)?
   onAfterSaveActionOnCreate,
@@ -80,6 +81,7 @@ Future<void> _pump(
                 items: items(onTap),
               ),
           saveParamFor: saveParamFor,
+          confirmSaveParam: confirmSaveParam,
           onAfterSaveAction: onAfterSaveAction,
           onAfterSaveActionOnCreate: onAfterSaveActionOnCreate,
         ),
@@ -348,5 +350,96 @@ void main() {
     expect(editDispatched, isTrue); // edit path uses onAfterSaveAction
     expect(createHandlerCalled, isFalse); // create-only handler unused in edit
     expect(onSavedCalled, isFalse); // edit path never auto-navigates
+  });
+
+  group('SAVE-PARAM confirmation', () {
+    // A SAVE-PARAM action short-circuits `_onAction` and returns before
+    // `<E>Actions.dispatch` is ever reached, so a verb whose confirmation
+    // lives in `dispatch` — invoice `markPaid` is the only one — had none at
+    // all on the edit screen: one tap recorded a synthetic payment for the
+    // full outstanding balance and flipped the invoice to Paid.
+    testWidgets('a declined confirmation aborts the save', (tester) async {
+      final vm = _FakeVM(initialDraft: 'd', original: 'd');
+      var asked = 0;
+      await _pump(
+        tester,
+        vm: vm,
+        canSave: true,
+        items: (onTap) => [
+          EntityActionItem(
+            kind: 'markPaid',
+            icon: Icons.payments_outlined,
+            label: 'Mark paid',
+            enabled: true,
+            onTap: () => onTap('markPaid'),
+          ),
+        ],
+        saveParamFor: (a) => a == 'markPaid' ? const {'paid': 'true'} : null,
+        confirmSaveParam: (_, _) async {
+          asked++;
+          return false;
+        },
+      );
+
+      await tester.tap(find.text('Mark paid'));
+      await tester.pumpAndSettle();
+
+      expect(asked, 1);
+      expect(vm.saveCalled, isFalse, reason: 'Cancel must not mark it paid');
+    });
+
+    testWidgets('an accepted confirmation still queues the save param', (
+      tester,
+    ) async {
+      final vm = _FakeVM(initialDraft: 'd', original: 'd');
+      await _pump(
+        tester,
+        vm: vm,
+        canSave: true,
+        items: (onTap) => [
+          EntityActionItem(
+            kind: 'markPaid',
+            icon: Icons.payments_outlined,
+            label: 'Mark paid',
+            enabled: true,
+            onTap: () => onTap('markPaid'),
+          ),
+        ],
+        saveParamFor: (a) => a == 'markPaid' ? const {'paid': 'true'} : null,
+        confirmSaveParam: (_, _) async => true,
+      );
+
+      await tester.tap(find.text('Mark paid'));
+      await tester.pumpAndSettle();
+
+      expect(vm.saveCalled, isTrue);
+      expect(vm.consumedQuery, {'paid': 'true'});
+    });
+
+    testWidgets('no hook means no change for the other SAVE-PARAM verbs', (
+      tester,
+    ) async {
+      final vm = _FakeVM(initialDraft: 'd', original: 'd');
+      await _pump(
+        tester,
+        vm: vm,
+        canSave: true,
+        items: (onTap) => [
+          EntityActionItem(
+            kind: 'markSent',
+            icon: Icons.send_outlined,
+            label: 'Mark sent',
+            enabled: true,
+            onTap: () => onTap('markSent'),
+          ),
+        ],
+        saveParamFor: (a) => const {'mark_sent': 'true'},
+      );
+
+      await tester.tap(find.text('Mark sent'));
+      await tester.pumpAndSettle();
+
+      expect(vm.saveCalled, isTrue);
+    });
   });
 }

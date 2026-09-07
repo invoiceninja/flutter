@@ -56,6 +56,8 @@ class ExpenseEditCurrencyConversionSection extends StatelessWidget {
           errorText: vm.fieldErrorFor('invoice_currency_id'),
         ),
         EntityEditField(
+          numeric: true,
+          useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
           label: context.tr('exchange_rate'),
           initial: decimalInputText(vm.draft.exchangeRate),
           onChanged: vm.setExchangeRate,
@@ -63,6 +65,8 @@ class ExpenseEditCurrencyConversionSection extends StatelessWidget {
           errorText: vm.fieldErrorFor('exchange_rate'),
         ),
         EntityEditField(
+          numeric: true,
+          useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
           label: context.tr('foreign_amount'),
           initial: decimalInputText(vm.draft.foreignAmount),
           onChanged: vm.setForeignAmount,

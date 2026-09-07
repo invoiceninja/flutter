@@ -78,6 +78,8 @@ class _RecurringExpenseEditScheduleSectionState
           ),
           if (!endless)
             EntityEditField(
+              numeric: true,
+              useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
               label: context.tr('remaining_cycles'),
               initial:
                   '${draft.remainingCycles < 0 ? 1 : draft.remainingCycles}',

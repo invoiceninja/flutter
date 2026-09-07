@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -65,6 +66,104 @@ void main() {
       payload: jsonEncode(payload),
     ),
   );
+
+  group('group layer (company -> group -> client)', () {
+    Future<void> seedGroup(
+      Map<String, dynamic> settings, {
+      String id = 'grp1',
+      String companyId = 'co',
+    }) => db.groupSettingDao.upsertAll([
+      GroupSettingsCompanion.insert(
+        id: id,
+        companyId: companyId,
+        name: 'Retail',
+        updatedAt: 1,
+        payload: jsonEncode({'id': id, 'name': 'Retail', 'settings': settings}),
+      ),
+    ]);
+
+    test('a group override beats the company', () async {
+      // This resolver backs the gates that ACT on settings —
+      // `resolveInvoiceLockReason` / `peekInvoiceLockReason`, the
+      // add-to-invoice dialog, tap-to-call's timezone. It walked
+      // `{...company, ...client}` long after Groups shipped, so a group-level
+      // `lock_invoices` never locked in the app: no banner, and Edit/Delete
+      // still enabled on a sent invoice the server considers locked.
+      await seedCompany(jsonEncode({'lock_invoices': 'off'}));
+      await seedGroup({'lock_invoices': 'when_sent'});
+      await db.clientDao.upsert(
+        ClientsCompanion.insert(
+          id: 'cl1',
+          companyId: 'co',
+          name: 'Client',
+          number: '',
+          email: '',
+          displayName: 'Client',
+          balance: '0',
+          updatedAt: 1,
+          payload: jsonEncode({'id': 'cl1', 'settings': <String, dynamic>{}}),
+          groupSettingsId: const Value('grp1'),
+        ),
+      );
+
+      expect(await repo.resolved(companyId: 'co', clientId: 'cl1'), {
+        'lock_invoices': 'when_sent',
+      });
+    });
+
+    test('a client override still beats the group', () async {
+      await seedCompany(jsonEncode({'lock_invoices': 'off'}));
+      await seedGroup({'lock_invoices': 'when_sent'});
+      await db.clientDao.upsert(
+        ClientsCompanion.insert(
+          id: 'cl1',
+          companyId: 'co',
+          name: 'Client',
+          number: '',
+          email: '',
+          displayName: 'Client',
+          balance: '0',
+          updatedAt: 1,
+          payload: jsonEncode({
+            'id': 'cl1',
+            'settings': {'lock_invoices': 'end_of_month'},
+          }),
+          groupSettingsId: const Value('grp1'),
+        ),
+      );
+
+      expect(await repo.resolved(companyId: 'co', clientId: 'cl1'), {
+        'lock_invoices': 'end_of_month',
+      });
+    });
+
+    test(
+      'the seed mirror carries the group tier once the client is known',
+      () async {
+        await seedCompany(jsonEncode({'lock_invoices': 'off'}));
+        await seedGroup({'lock_invoices': 'when_sent'});
+        await db.clientDao.upsert(
+          ClientsCompanion.insert(
+            id: 'cl1',
+            companyId: 'co',
+            name: 'Client',
+            number: '',
+            email: '',
+            displayName: 'Client',
+            balance: '0',
+            updatedAt: 1,
+            payload: jsonEncode({'id': 'cl1', 'settings': <String, dynamic>{}}),
+            groupSettingsId: const Value('grp1'),
+          ),
+        );
+        await repo.resolved(companyId: 'co', clientId: 'cl1');
+
+        expect(repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'), {
+          'lock_invoices': 'when_sent',
+        });
+      },
+    );
+  });
 
   group('company layer', () {
     test('returns the company settings when no client is given', () async {
@@ -285,6 +384,106 @@ void main() {
         result['lock_invoices'] = 'tampered';
 
         expect(repo.resolvedIfReady(companyId: 'co'), {
+          'lock_invoices': 'when_sent',
+        });
+      },
+    );
+  });
+
+  group('seed-mirror eviction', () {
+    Future<void> seedGroup(
+      Map<String, dynamic> settings, {
+      String id = 'grp1',
+      String companyId = 'co',
+    }) => db.groupSettingDao.upsertAll([
+      GroupSettingsCompanion.insert(
+        id: id,
+        companyId: companyId,
+        name: 'Retail',
+        updatedAt: 1,
+        payload: jsonEncode({'id': id, 'name': 'Retail', 'settings': settings}),
+      ),
+    ]);
+
+    /// `group_settings_id` is a real Drift column, not a payload key — the
+    /// walker reads `client.groupSettingsId`, so a payload-only seed silently
+    /// produces an UNGROUPED client and every group assertion goes vacuous.
+    Future<void> seedGroupedClient(
+      Map<String, dynamic> settings, {
+      String id = 'cl1',
+      String? groupId = 'grp1',
+    }) => db.clientDao.upsert(
+      ClientsCompanion.insert(
+        id: id,
+        companyId: 'co',
+        name: 'Client',
+        number: '',
+        email: '',
+        displayName: 'Client',
+        balance: '0',
+        updatedAt: 1,
+        payload: jsonEncode({'id': id, 'settings': settings}),
+        groupSettingsId: Value(groupId),
+      ),
+    );
+
+    test(
+      'evicting a client layer must not leave its group id behind — the seed '
+      'would then silently DROP the client tier',
+      () async {
+        // Three DISTINCT values, so the assertion can tell all three outcomes
+        // apart: the correct cold-cache fall-through (company `off`), the bug
+        // (group branch minus the client tier → `when_sent`), and a stale hit
+        // (`end_of_month`).
+        await seedCompany(jsonEncode({'lock_invoices': 'off'}));
+        await seedGroup({'lock_invoices': 'when_sent'});
+        await seedGroupedClient({'lock_invoices': 'end_of_month'});
+
+        await repo.resolved(companyId: 'co', clientId: 'cl1');
+        expect(
+          repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'),
+          {'lock_invoices': 'end_of_month'},
+          reason: 'precondition: all three tiers are warm',
+        );
+
+        // Push `cl1`'s client layer out of the bounded mirror. `_clientGroup`
+        // used to be a plain map write with no eviction at all, so it kept
+        // naming `grp1` after the layer beside it was gone: `resolvedIfReady`
+        // then took the group branch, merged `{company + group}` and reported
+        // itself READY — seeding the invoice-lock banner as LOCKED on a client
+        // that had explicitly unlocked itself.
+        for (var i = 0; i < SettingsRepository.seedCacheLimit; i++) {
+          await seedGroupedClient({}, id: 'filler$i', groupId: null);
+          await repo.resolved(companyId: 'co', clientId: 'filler$i');
+        }
+
+        expect(
+          repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'),
+          {'lock_invoices': 'off'},
+          reason:
+              'an evicted client is a COLD cache, so it must fall through to '
+              'the company layer exactly as an unseen client does — never to '
+              'a group-branch answer with the client tier missing',
+        );
+      },
+    );
+
+    test(
+      'a still-cached client keeps its group tier under eviction pressure',
+      () async {
+        await seedCompany(jsonEncode({'lock_invoices': 'off'}));
+        await seedGroup({'lock_invoices': 'when_sent'});
+        await seedGroupedClient(<String, dynamic>{});
+
+        // Fill to one under the limit, then re-resolve cl1 so it is the most
+        // recently used entry and survives.
+        for (var i = 0; i < SettingsRepository.seedCacheLimit - 1; i++) {
+          await seedGroupedClient({}, id: 'filler$i', groupId: null);
+          await repo.resolved(companyId: 'co', clientId: 'filler$i');
+        }
+        await repo.resolved(companyId: 'co', clientId: 'cl1');
+
+        expect(repo.resolvedIfReady(companyId: 'co', clientId: 'cl1'), {
           'lock_invoices': 'when_sent',
         });
       },

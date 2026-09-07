@@ -7,6 +7,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/payment.dart';
+import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/utils/formatting.dart';
@@ -88,6 +89,22 @@ class PaymentUnappliedBand extends StatelessWidget {
 }
 
 Future<void> _autoApplyOldest(BuildContext context, Payment payment) async {
+  try {
+    await _autoApplyOldestImpl(context, payment);
+  } on CompanySwitchedException {
+    // The company changed under the prefetch below. Benign — the band belongs
+    // to a payment in the workspace the user just left.
+    return;
+  } catch (e) {
+    // This used to have no handler at all: `ensurePageLoaded` is a real network
+    // round-trip, and offline it threw straight out of an `onPressed` that
+    // discards the future — so the button simply looked dead. A money action
+    // must say when it did not happen.
+    if (context.mounted) Notify.error(context, formatNotifyError(e));
+  }
+}
+
+Future<void> _autoApplyOldestImpl(BuildContext context, Payment payment) async {
   final services = context.read<Services>();
   final companyId = services.auth.session.value!.currentCompanyId;
   // Make sure the client's invoices are in Drift before we read the local

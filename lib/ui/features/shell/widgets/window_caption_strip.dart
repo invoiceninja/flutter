@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -34,11 +33,13 @@ const double _kCaptionTrailingInset = 14.0;
 ///   both drop: with nothing to host the strip collapses to zero height and the
 ///   sidebar / content rises to meet the window's top edge, and with [trailing]
 ///   the row simply shrinks to its content.
-/// - **Windows/Linux**: their controls are *drawn* top-right (a future
-///   `WindowControls` widget over the content top — see
-///   `docs/desktop-window-state.md` § Desktop hidden title bar), so the sidebar
-///   stays flush and this renders nothing for now. Once those frameless runners
-///   are added it becomes the window drag handle on the left.
+/// - **Windows/Linux**: this renders nothing, on purpose and permanently. Those
+///   runners are frameless too, but their band spans the whole window and is
+///   painted by `WindowFrame` above the router (it has to cover `/login`,
+///   `/lock` and the other routes with no sidebar). Dropping the early return
+///   here would put a second bar inside the first — note the narrow layout
+///   mounts this strip as well (`scaffold_with_nav.dart`), which is what the
+///   `hostsCaptionRow` test doubles as a guard against.
 /// - **web / mobile**: nothing.
 class WindowCaptionStrip extends StatelessWidget {
   const WindowCaptionStrip({
@@ -66,8 +67,9 @@ class WindowCaptionStrip extends StatelessWidget {
   /// Whether this platform has a caption row at all — i.e. whether it hides its
   /// title bar and floats the window controls over the app's own chrome. Only
   /// macOS does today, so only macOS can host [trailing].
-  static bool hostsCaptionRow() =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+  /// Delegates to the shared predicate in `native_window.dart` so this and
+  /// `WindowFrame` cannot disagree about which platform owns the band.
+  static bool hostsCaptionRow() => hostsMacCaptionRow();
 
   @override
   Widget build(BuildContext context) {

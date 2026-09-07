@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/native_window.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart' show CompanyRow;
@@ -374,20 +375,28 @@ class _InSidebarState extends State<InSidebar> {
             // One callback, two possible mount points for the Sync button.
             void onSync() => unawaited(SettingsActions.forceResync(context));
             final showSearch = touch && !collapsed;
-            // macOS hoists the arrows into the window-caption row beside the
-            // traffic lights (see below). Only where such a row exists, and
-            // only on the expanded persistent rail: the collapsed 64-px rail is
+            // Window chrome outside these rows may already be showing the
+            // arrows: macOS hoists them into the caption row beside the traffic
+            // lights (see below), and the frameless Windows/Linux runners put
+            // them in the app-painted title bar above the router. Only on the
+            // expanded persistent rail either way: the collapsed 64-px rail is
             // narrower than the traffic-light span itself, and the drawer has
-            // no caption row of its own. `showSearch` / `hideHeader` can't be
-            // true on a macOS desktop rail — both are touch- or drawer-only —
-            // but gating on them keeps the "arrows alone in the row" invariant
-            // explicit rather than incidental.
-            final captionHostsArrows =
+            // no band of its own. `showSearch` / `hideHeader` can't be true on
+            // a desktop rail — both are touch- or drawer-only — but gating on
+            // them keeps the "arrows alone in the row" invariant explicit
+            // rather than incidental.
+            final chromeHostsArrows =
                 widget.width != null &&
                 !collapsed &&
                 !showSearch &&
                 !hideHeader &&
-                WindowCaptionStrip.hostsCaptionRow();
+                windowChromeHostsNavArrows();
+            // ...and of those, only macOS hosts them *here*. Handing a
+            // `trailingBuilder` to a strip that renders nothing on this
+            // platform trips its own assert in debug and drops the arrows from
+            // BOTH places in release, so the two questions stay separate.
+            final captionHostsArrows =
+                chromeHostsArrows && WindowCaptionStrip.hostsCaptionRow();
             // SafeArea (top AND bottom): the sidebar has no AppBar in either
             // host — the mobile drawer (Flutter's `Drawer` adds no inset of its
             // own) and the iPad persistent rail (Positioned at top: 0) — so
@@ -473,7 +482,7 @@ class _InSidebarState extends State<InSidebar> {
                   // keyboard and `NavHistoryMouseListener` needs thumb
                   // buttons, so without these a tablet/phone user who follows
                   // a cross-entity link has no way back.
-                  if (!captionHostsArrows)
+                  if (!chromeHostsArrows)
                     Padding(
                       // left 10 is an alignment, not a leftover: with touch
                       // sizing the back arrow's 18-px glyph starts at

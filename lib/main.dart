@@ -36,6 +36,7 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
+import 'package:admin/ui/features/shell/widgets/window_frame.dart';
 import 'package:admin/ui/core/widgets/call_log_prompter.dart';
 import 'package:admin/ui/core/widgets/shortcut_hint_overlay.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
@@ -710,7 +711,19 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                         // text scale.
                         RepaintBoundary(
                           key: widget.services.screenshotWindow.boundaryKey,
-                          child: child ?? const SizedBox.shrink(),
+                          // Frameless Windows/Linux only: paints the app's own
+                          // title bar above every route (a passthrough on macOS,
+                          // mobile and web). It must wrap the router rather than
+                          // live in the shell — `/login`, `/lock` and the route
+                          // error screen have no sidebar, and a frameless window
+                          // with no chrome there could not be moved or closed.
+                          // Inside the boundary so store captures match the app.
+                          child: WindowFrame(
+                            screenshotWindow: widget.services.screenshotWindow,
+                            railCollapsed: widget.services.sidebar,
+                            shellMounted: widget.services.shellMounted,
+                            child: child ?? const SizedBox.shrink(),
+                          ),
                         ),
                         Positioned.fill(
                           child: ToastHost(controller: widget.services.toasts),

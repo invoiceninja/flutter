@@ -136,6 +136,41 @@ void main() {
     });
   });
 
+  group('tooltips', () {
+    // The bug: the Win/Linux title bar mounts this pair inside
+    // `MaterialApp.builder`, ABOVE the root Navigator, where there is no
+    // `Overlay`. Material's Tooltip (-> RawTooltip -> OverlayPortal) asserts in
+    // debug and throws on hover in release without one — `toast_host.dart`
+    // records the same finding at the same mount point. Only an *enabled*
+    // arrow ever built a tooltip, so this needs a non-empty history.
+    Future<void> pumpWithHistory(
+      WidgetTester tester, {
+      required bool tooltips,
+    }) async {
+      router.go('/clients');
+      router.go('/clients/1');
+      await tester.pumpWidget(wrap(NavHistoryButtons(tooltips: tooltips)));
+      expect(history.canGoBack, isTrue, reason: 'need an enabled arrow');
+    }
+
+    testWidgets('are on by default, so the sidebar keeps advertising ⌘←', (
+      tester,
+    ) async {
+      await pumpWithHistory(tester, tooltips: true);
+      expect(find.byType(Tooltip), findsWidgets);
+    });
+
+    testWidgets('tooltips: false drops them but keeps the semantics label', (
+      tester,
+    ) async {
+      await pumpWithHistory(tester, tooltips: false);
+      expect(find.byType(Tooltip), findsNothing);
+      // Screen readers lose nothing — the label moves to Semantics.
+      expect(find.bySemanticsLabel('go_back'), findsOneWidget);
+      expect(find.bySemanticsLabel('go_forward'), findsOneWidget);
+    });
+  });
+
   testWidgets('back walks to the previous location, forward returns', (
     tester,
   ) async {

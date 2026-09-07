@@ -25,6 +25,7 @@ class NavHistoryButtons extends StatelessWidget {
     this.popDrawerFirst = false,
     this.touch = false,
     this.height,
+    this.tooltips = true,
     super.key,
   });
 
@@ -50,6 +51,17 @@ class NavHistoryButtons extends StatelessWidget {
   /// Null everywhere else, keeping the default/touch sizing untouched.
   final double? height;
 
+  /// Whether to advertise the keyboard shortcut on hover.
+  ///
+  /// **Must be false where the pair is mounted above the root `Navigator`** —
+  /// the frameless Windows/Linux title bar in `WindowFrame`, built inside
+  /// `MaterialApp.builder`. There is no `Overlay` ancestor up there, and
+  /// Material's `Tooltip` (via `RawTooltip` -> `OverlayPortal`) asserts in
+  /// debug and throws on hover in release without one. `toast_host.dart`
+  /// records the same finding at the same mount point, for the same reason.
+  /// `Semantics` carries the label instead, so screen readers lose nothing.
+  final bool tooltips;
+
   @override
   Widget build(BuildContext context) {
     final history = context.watch<NavHistoryController>();
@@ -69,6 +81,7 @@ class NavHistoryButtons extends StatelessWidget {
           touch: touch,
           compact: compact,
           height: height,
+          tooltips: tooltips,
           onPressed: () => _navigate(context, history.back),
         ),
         _HistoryButton(
@@ -79,6 +92,7 @@ class NavHistoryButtons extends StatelessWidget {
           touch: touch,
           compact: compact,
           height: height,
+          tooltips: tooltips,
           onPressed: () => _navigate(context, history.forward),
         ),
       ],
@@ -106,6 +120,7 @@ class _HistoryButton extends StatelessWidget {
     this.touch = false,
     this.compact = false,
     this.height,
+    this.tooltips = true,
   });
 
   final IconData icon;
@@ -116,6 +131,7 @@ class _HistoryButton extends StatelessWidget {
   final bool touch;
   final bool compact;
   final double? height;
+  final bool tooltips;
 
   @override
   Widget build(BuildContext context) {
@@ -156,8 +172,16 @@ class _HistoryButton extends StatelessWidget {
       onPressed: enabled ? onPressed : null,
     );
     // Only advertise the shortcut while the action can actually fire —
-    // same rule as the company switcher's ⌘K tooltip.
-    if (!enabled) return button;
+    // same rule as the company switcher's ⌘K tooltip. A disabled arrow still
+    // carries its label for screen readers, as does every arrow mounted where
+    // no `Overlay` exists to host a tooltip (see [NavHistoryButtons.tooltips]).
+    if (!enabled || !tooltips) {
+      return Semantics(
+        label: context.tr(labelKey),
+        button: true,
+        child: button,
+      );
+    }
     return ShortcutTooltip(
       label: context.tr(labelKey),
       keys: keys,

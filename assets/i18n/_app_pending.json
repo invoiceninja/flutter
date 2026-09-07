@@ -1154,5 +1154,7 @@
   "web_php_version": "Web",
   "weeks_ago_short": ":count w ago",
   "width_px": "Width (px)",
-  "wrote_stale_rows": "Wrote :count stale row(s) to the diagnostics log"
+  "wrote_stale_rows": "Wrote :count stale row(s) to the diagnostics log",
+  "minimize": "Minimize",
+  "maximize": "Maximize"
 }

@@ -30,6 +30,14 @@ set(CMAKE_C_FLAGS_PROFILE "${CMAKE_C_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
 # Use Unicode for all projects.
+# Pin the SDK floor. GetSystemMetricsForDpi needs WINVER >= 0x0605 and
+# ABM_GETAUTOHIDEBAREX needs NTDDI_VERSION >= NTDDI_WIN7, both used by the
+# custom title-bar frame in runner/win32_window.cpp. With nothing defined,
+# sdkddkver.h silently derives these from the newest SDK installed — so the
+# frame compiles by accident of the default, and a plugin or a hardening pass
+# that pins an older WINVER would turn both into undeclared identifiers.
+# runner.exe.manifest already declares Windows 10 only.
+add_definitions(-DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00)
 add_definitions(-DUNICODE -D_UNICODE)
 
 # Compilation settings that should be applied to most targets.

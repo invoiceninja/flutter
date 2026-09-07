@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/native_window.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 
@@ -135,6 +136,11 @@ class _ToastHostState extends State<ToastHost> {
     final isWide = MediaQuery.sizeOf(context).width >= Breakpoints.wide;
     final padding = MediaQuery.paddingOf(context);
     final viewInsets = MediaQuery.viewInsetsOf(context);
+    // On the frameless desktop runners the app paints its own title bar, and
+    // this host is a LATER sibling of it in the root `Stack` — so a top-right
+    // toast would sit on top of the drawn minimize/maximize/close cluster and,
+    // being opaque, swallow their clicks. Clear the band. Zero everywhere else.
+    final captionBand = paintsAppTitleBar() ? kAppTitleBarHeight : 0.0;
 
     if (isWide) {
       // Top-right, newest at the top. Cap how many we actually paint to the
@@ -149,7 +155,7 @@ class _ToastHostState extends State<ToastHost> {
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            top: 16 + padding.top,
+            top: 16 + padding.top + captionBand,
             right: 16,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),

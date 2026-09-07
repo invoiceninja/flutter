@@ -1593,6 +1593,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | OS deep links (custom scheme) | — | ❌ | ✅ | ✅ | `invoiceninja://app/…`; v1 registers a scheme for Google OAuth only |
 | Universal / App Links (https) | — | ❌ | ❌ | | needs server-hosted `.well-known` + an associated-domains entitlement |
 | Native window-state persistence (macOS + Windows) | — | ❌ | ✅ | ✅ | |
+| Frameless app-painted title bar (macOS + Windows + Linux) | — | ❌ | ✅ | | nav arrows share the window caption band; band follows the light/dark theme |
 | OAuth deep-link handler (callback URL) | — | ✅ | ✅ | ✅ | |
 | Web platform support (`flutter build web`) | ✅ | — | ✅ | | |
 | Web persistence (drift WASM / IndexedDB, unencrypted) | — | — | ✅ | | |

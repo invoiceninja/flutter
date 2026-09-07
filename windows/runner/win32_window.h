@@ -76,6 +76,52 @@ class Win32Window {
   // theme messages defer to this value instead of the system registry.
   void SetThemeBrightness(bool dark);
 
+  // --- Window actions driven by the app-painted title bar ------------------
+  // The window has no caption of its own once |custom_frame_| is on, so every
+  // affordance a caption used to provide is routed back here from Flutter over
+  // the `invoice_ninja/native_window` channel. Window mechanics live in this
+  // class; `FlutterWindow` is only the channel adapter (same split as
+  // |SetThemeBrightness|).
+
+  // Hands the window to the OS move loop, exactly as dragging a real caption
+  // would — so Aero Snap, shake-to-minimize and drag-to-restore all come free.
+  void BeginDrag();
+  void Minimize();
+  void ToggleMaximize();
+  void RequestClose();
+  // Opens the standard system menu (Move / Size / Close) at the cursor. The
+  // band is client area now, so the right-click arrives from Flutter rather
+  // than as WM_NCRBUTTONUP. Takes no coordinates on purpose — Flutter's are
+  // logical and client-relative, TrackPopupMenu wants physical and screen.
+  void ShowSystemMenu();
+  // NOT `IsMaximized` / `CloseWindow`: <windowsx.h> defines `IsMaximized(hwnd)` as a
+  // function-like macro (and <winuser.h> declares `CloseWindow(HWND)`). A one-parameter
+  // function-like macro DOES expand when invoked as `IsMaximized()` — that is one
+  // argument consisting of no tokens — so the member silently becomes `IsZoomed()`.
+  // Worse, in any translation unit that includes <windowsx.h> BEFORE this header, the
+  // macro would rewrite this declaration too, hiding the real Win32 API from every
+  // `IsZoomed(hwnd)` call site in the file.
+  bool IsWindowMaximized() const;
+  // Not const: seeds its cache on first read (see the definition).
+  bool IsWindowFocused();
+
+  // Resizes the CLIENT area to |width|x|height| logical points, preserving the
+  // visual top-left. Writes the achieved size back so Dart can detect clamping.
+  void SetContentSize(double width, double height, double* out_width,
+                      double* out_height);
+
+  // Overridden by |FlutterWindow| to push `windowChromeChanged`. Called only
+  // when the reported payload actually changes — WM_SIZE fires SIZE_RESTORED on
+  // every tick of an interactive resize, which would otherwise flood the
+  // channel at 60+ Hz.
+  virtual void OnWindowChromeChanged() {}
+  // Whether |OnWindowChromeChanged| would actually reach Dart. Overridden by
+  // FlutterWindow; without it the dedupe cache below would record payloads that
+  // were never sent (the channel does not exist during CreateWindow).
+  virtual bool CanPublishWindowChrome() { return false; }
+  void MaybePublishWindowChrome();
+
+
  private:
   friend class WindowClassRegistrar;
 
@@ -107,7 +153,32 @@ class Win32Window {
   // minimized; a maximized exit is re-applied by |Show|.
   bool RestorePlacement();
 
+  // Adjusts a maximized window's client rect: a maximized frameless window's
+  // rect is the work area GROWN by the frame, so the top of the Flutter
+  // surface would render off-screen, and it covers an auto-hide taskbar
+  // outright. See the definition for both.
+  void ApplyMaximizedInsets(HWND hwnd, RECT* client);
+
   bool quit_on_close_ = false;
+
+  // False disables the custom frame entirely and restores the stock OS title
+  // bar. Read once before CreateWindow from IN_DISABLE_CUSTOM_FRAME=1 or the
+  // HKCU CustomFrame DWORD — a recovery path that does not need a new build,
+  // which matters because a frameless window whose Flutter chrome fails to
+  // render has no close button at all.
+  bool custom_frame_ = true;
+
+  // Whether the window currently has focus, taken from WM_ACTIVATE's own
+  // wparam rather than inferred. Seeded lazily on first read (see the
+  // definition) so the `windowChrome` pull that runs before the first
+  // WM_ACTIVATE does not report a focused window as inactive.
+  bool active_ = false;
+  bool active_seeded_ = false;
+
+  // Last payload handed to |OnWindowChromeChanged|, for deduping.
+  bool published_any_ = false;
+  bool published_maximized_ = false;
+  bool published_active_ = true;
 
   // Placement persistence state (see docs/desktop-window-state.md).
   bool placement_restored_ = false;

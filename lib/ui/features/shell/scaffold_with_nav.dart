@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/nav_history_controller.dart';
+import 'package:admin/app/shell_mounted_notifier.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/app/shortcuts/keyboard_shortcuts_controller.dart';
@@ -91,6 +92,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   final Object _globalHintToken = Object();
   late final ShortcutHintController _shortcutHints;
   late final KeyboardShortcutsController _keyboardShortcuts;
+  late final ShellMountedNotifier _shellMounted;
 
   @override
   void initState() {
@@ -105,6 +107,13 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     );
     _shortcutHints = context.read<Services>().shortcutHints;
     _keyboardShortcuts = context.read<Services>().keyboardShortcuts;
+    // Tell the frameless Windows/Linux title bar that the sidebar rail exists,
+    // so its leading segment can match the rail's width and colour. Held as a
+    // field because `dispose` must not touch inherited widgets. The notifier
+    // defers its own notification, which is load-bearing: the listener sits
+    // ABOVE the router and has already been built this frame.
+    _shellMounted = context.read<Services>().shellMounted;
+    _shellMounted.value = true;
     _shortcutHints.register(_globalHintToken, _globalShortcutHints());
     // Re-register when a binding changes so the hold-modifier bar always shows
     // the user's current chords (unified with the live Shortcuts map + dialog).
@@ -172,6 +181,7 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     leaderModeArmed = false;
     _keyboardShortcuts.removeListener(_refreshGlobalHints);
     _shortcutHints.unregister(_globalHintToken);
+    _shellMounted.value = false;
     super.dispose();
   }
 

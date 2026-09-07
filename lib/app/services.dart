@@ -24,6 +24,7 @@ import 'package:admin/app/search_focus_registry.dart';
 import 'package:admin/app/services_entity_wiring.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/app/shortcuts/keyboard_shortcuts_controller.dart';
+import 'package:admin/app/shell_mounted_notifier.dart';
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/sidebar_menu_controller.dart';
@@ -721,6 +722,14 @@ class Services implements SidebarBadgeContext {
   /// and the traffic lights default back to visible on each boot.
   final ScreenshotWindowController screenshotWindow =
       ScreenshotWindowController();
+
+  /// Whether `ScaffoldWithNav` is on screen. Written only by the shell's
+  /// initState/dispose; read by `WindowFrame`, which paints the frameless
+  /// Windows/Linux title bar from ABOVE the router and so cannot see the shell
+  /// itself. In-memory only — it describes what is mounted right now, not a
+  /// preference. See [ShellMountedNotifier] for why its notification is
+  /// frame-deferred.
+  final ShellMountedNotifier shellMounted = ShellMountedNotifier();
 
   /// Debug-only Claude-readable log of uncaught errors + WARNING/SEVERE
   /// Logger records, plus on-demand outbox snapshots. `null` in release

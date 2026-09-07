@@ -28,6 +28,52 @@ const double kFallbackCaptionHeight = 28.0;
 /// nothing: 12-pt buttons centred at x = 20 / 40 / 60, plus clearance.
 const double kFallbackButtonsTrailingX = 70.0;
 
+/// Height of the app-painted title bar on the frameless Windows / Linux
+/// runners.
+///
+/// **Dart's number, not the runner's** — unlike [WindowChrome.captionHeight],
+/// which measures a real OS titlebar the app must fit inside. Once those
+/// windows are frameless there is no OS caption left to measure, so the band is
+/// purely an app layout choice; reporting it over the channel would also make
+/// the first frame lay out at one height and the second at another, a visible
+/// jump on every cold start. 32 is the Windows 11 standard caption height, it
+/// makes the conventional 46x32 caption button exact, and it is >= the 32 px
+/// `NavHistoryButtons` measures on its own, so handing it down pins rather than
+/// clips.
+const double kAppTitleBarHeight = 32.0;
+
+/// Whether this platform hides its OS title bar and floats the **real** window
+/// buttons over the app's own chrome. macOS only — `WindowCaptionStrip` is the
+/// widget that reserves room for them.
+bool hostsMacCaptionRow() =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+
+/// Whether this platform is frameless and paints its own full-width title bar
+/// (`WindowFrame`), drawing its own window buttons because it has none.
+///
+/// `kIsWeb` first: a browser on Windows reports `TargetPlatform.windows`, and a
+/// web build has no window to drag or close.
+bool paintsAppTitleBar() =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux);
+
+/// Whether window chrome *outside* the sidebar's own rows is already showing
+/// the nav history arrows — the macOS caption strip, or the Win/Linux title
+/// bar. `InSidebar` gates its own arrow row on this, so the pair can never
+/// render twice or nowhere.
+///
+/// These three predicates live here, in the leaf both sides already sit below,
+/// rather than on either widget: `window_frame.dart` needs the sidebar's rail
+/// widths and `in_sidebar.dart` needs this predicate, so putting it on either
+/// one would make them import each other.
+///
+/// Escape hatch: drop `paintsAppTitleBar()` from this expression to give the
+/// arrows back to the sidebar's own row on Windows and Linux. The title bar
+/// itself is unaffected.
+bool windowChromeHostsNavArrows() =>
+    hostsMacCaptionRow() || paintsAppTitleBar();
+
 /// The native window chrome Flutter has to lay itself out around, in logical
 /// points measured from the window's **top-left** corner.
 ///
@@ -43,6 +89,8 @@ const double kFallbackButtonsTrailingX = 70.0;
 class WindowChrome {
   const WindowChrome({
     this.fullscreen = false,
+    this.maximized = false,
+    this.active = true,
     this.captionHeight = kFallbackCaptionHeight,
     this.buttonsCenterY = kFallbackCaptionHeight / 2,
     this.buttonsTrailingX = kFallbackButtonsTrailingX,
@@ -58,9 +106,16 @@ class WindowChrome {
     }
 
     final fullscreen = map['fullscreen'] == true;
+    // `active` is the one flag that defaults to TRUE, so it cannot use the
+    // `== true` shape the others do — an absent key would invert it and report
+    // every window as unfocused. Read the bool if there is one, else keep the
+    // default; a malformed value is treated as absent, like every field here.
+    final activeRaw = map['active'];
     final height = positive('captionHeight') ?? kFallbackCaptionHeight;
     return WindowChrome(
       fullscreen: fullscreen,
+      maximized: map['maximized'] == true,
+      active: activeRaw is bool ? activeRaw : true,
       captionHeight: height,
       buttonsCenterY: positive('buttonsCenterY') ?? height / 2,
       // Zero is meaningful here — no buttons are floating over the content —
@@ -74,6 +129,25 @@ class WindowChrome {
   /// True in fullscreen, where macOS moves the buttons into the auto-hiding
   /// menu bar.
   final bool fullscreen;
+
+  /// Whether the window is maximized (Win32 `IsZoomed` / GTK `is-maximized`).
+  ///
+  /// Drives only the maximize/restore glyph on the platforms that draw their
+  /// own controls; macOS never reports it and nothing there reads it.
+  ///
+  /// Pushed, never inferred: Aero Snap, a title-bar double-click and Win+Up all
+  /// change this WITHOUT going through Dart, so a bool toggled beside
+  /// [NativeWindow.toggleMaximize] would desync on the first snap.
+  final bool maximized;
+
+  /// Whether the window currently has focus.
+  ///
+  /// macOS greys its traffic lights and Windows dims its caption when a window
+  /// is inactive; a drawn cluster that never changes makes it impossible to
+  /// tell which window is focused, which is the main tell that a custom title
+  /// bar is not the real thing. Defaults to true so a runner that never reports
+  /// renders as it always did.
+  final bool active;
 
   /// Height of the titlebar band the window controls float over.
   final double captionHeight;
@@ -94,17 +168,26 @@ class WindowChrome {
   bool operator ==(Object other) =>
       other is WindowChrome &&
       other.fullscreen == fullscreen &&
+      other.maximized == maximized &&
+      other.active == active &&
       other.captionHeight == captionHeight &&
       other.buttonsCenterY == buttonsCenterY &&
       other.buttonsTrailingX == buttonsTrailingX;
 
   @override
-  int get hashCode =>
-      Object.hash(fullscreen, captionHeight, buttonsCenterY, buttonsTrailingX);
+  int get hashCode => Object.hash(
+    fullscreen,
+    maximized,
+    active,
+    captionHeight,
+    buttonsCenterY,
+    buttonsTrailingX,
+  );
 
   @override
   String toString() =>
-      'WindowChrome(fullscreen: $fullscreen, captionHeight: $captionHeight, '
+      'WindowChrome(fullscreen: $fullscreen, maximized: $maximized, '
+      'active: $active, captionHeight: $captionHeight, '
       'buttonsCenterY: $buttonsCenterY, buttonsTrailingX: $buttonsTrailingX)';
 }
 
@@ -182,6 +265,22 @@ class NativeWindow {
 
   /// Close the window. Drawn-button target on Windows/Linux.
   Future<void> close() => _invoke('close');
+
+  /// Open the OS window menu (Move / Size / Close) **at the cursor**.
+  ///
+  /// Right-clicking a real title bar opens this, and users reach for it — it is
+  /// also the second recovery path if a drawn button ever fails (Alt+Space is
+  /// the first). It has to be routed from Dart because the band is client area
+  /// once the frame is custom, so the click never reaches the runner as a
+  /// non-client message.
+  ///
+  /// Deliberately takes **no coordinates**. The obvious `globalPosition` is
+  /// logical and client-relative, while `TrackPopupMenu` wants physical screen
+  /// pixels — two compounding errors that both vanish on a maximized window at
+  /// 100% scale, i.e. exactly where anyone would first try it. The runner reads
+  /// `GetCursorPos()` instead, which is the right anchor by construction: the
+  /// right-click that triggered this has only just happened.
+  Future<void> showSystemMenu() => _invoke('showSystemMenu');
 
   /// Resize the window's content area to [width]×[height] logical points,
   /// preserving the visual top-left corner (macOS exits fullscreen first if

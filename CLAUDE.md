@@ -48,6 +48,7 @@ Plus two non-negotiables carried from admin-portal:
 | Editing a CI / release workflow (test gate, job wiring) | `.github/workflows/_test.yaml` + `docs/setup.md` § Shipping to the stores |
 | Debugging a runtime error or stale outbox row | § Diagnostics log + `docs/diagnostics.md` |
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
+| Changing the desktop title bar, its drawn window buttons, or the nav arrows' home | § Design system (v2) — the window-buttons paragraph · `lib/ui/features/shell/widgets/window_frame.dart` · `docs/desktop-window-state.md` § Desktop hidden title bar |
 | Sharing a link to a record, or handling an incoming one | § Deep links |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
 | Surfacing a record's comments (the Comments card / tab), how a note renders, or a detail screen's tab order | § Design system (v2) — the four comment paragraphs · `lib/ui/features/billing_shared/activity/` |
@@ -111,6 +112,8 @@ Token-based visual language. (The original `docs/design/v2/*.jsx` mockups were r
 - `lib/app/theme.dart` — wires `InTheme.light` / `InTheme.dark` into `ThemeData` (incl. per-component button/shape themes).
 
 When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.of(context).colorScheme` + `context.inTheme` over hardcoded `Color(0x…)`.
+
+**The drawn window buttons are the one exception to every shape rule below.** `WindowControls` (`window_controls.dart`) paints minimize / maximize / close for the frameless Windows and Linux runners at Windows' own 46x32 metric: square, unrounded, flat full-height hover fill, no ripple — because a caption button is OS chrome, not app chrome, and a rounded rippling one reads as broken there. It is also why the close hover is a literal `Color(0xFFC42B1C)` rather than `InTheme.overdue`: the status tokens are user-overridable per preset, so a themed "overdue" could hand someone a green close button. One treatment ships on both platforms — there is no single Linux convention (Adwaita draws circles, Breeze squares), `gtk-decoration-layout` is unreadable from Flutter without a runner push, and every cross-platform app the audience runs already does exactly this. Everything else in the app follows the rule that starts here.
 
 **Always rounded rectangles, never pills.** Use `RoundedRectangleBorder(borderRadius: BorderRadius.circular(InRadii.r2))` (or `.r1` / `.r3` per size) — never `StadiumBorder`, never `BorderRadius.circular(999)`. Material 3 defaults `SegmentedButton` / `Chip` / `FloatingActionButton.extended` to pills, so `theme.dart` registers the rounded shape on every relevant component theme; new widgets inherit it. Add new component themes to `theme.dart` rather than overriding inline.
 

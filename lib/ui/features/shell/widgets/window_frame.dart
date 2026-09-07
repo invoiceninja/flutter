@@ -200,16 +200,28 @@ class _TitleBar extends StatelessWidget {
                         // `border`, like the app's other 55 dividers — this
                         // is not the place to be the 56th that is different.
                         //
-                        // Recorded trade-off, not an oversight: `border` on
-                        // `surface` measures 1.17–1.30:1 and is genuinely faint
+                        // Drawn as ONE DEVICE PIXEL, not one logical pixel.
+                        // `BorderSide`'s default 1.0 is logical, so at 150%
+                        // scaling it covers 1.5 device rows and is antialiased
+                        // across two — which reads both thicker and darker than
+                        // a hairline, and is what made this line look heavy even
+                        // after it was reverted from `borderStrong`. At 100% the
+                        // two are identical. Deliberately finer than the app's
+                        // other dividers: this is the outermost chrome edge, the
+                        // only rule drawn against the window's own boundary.
+                        //
+                        // Recorded trade-off on the colour: `border` on
+                        // `surface` measures 1.17-1.30:1 and is genuinely faint
                         // in the dark palettes (1.17 on Carbon). `borderStrong`
                         // was tried and reads visibly heavier than every line
                         // around it, including the content header's own rule
                         // directly below — which ships at that same contrast
-                        // everywhere else and looks right. Matching the app
-                        // beats winning a contrast ratio.
+                        // everywhere else and looks right.
                         border: Border(
-                          bottom: BorderSide(color: tokens.border),
+                          bottom: BorderSide(
+                            color: tokens.border,
+                            width: 1 / MediaQuery.devicePixelRatioOf(context),
+                          ),
                         ),
                       ),
                     ),

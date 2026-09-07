@@ -308,6 +308,38 @@ void main() {
         // and reads visibly heavier than every line around it, including the
         // content header's own rule directly below.
         expect(decoration.border?.bottom.color, InTheme.light.border);
+        // One DEVICE pixel, not one logical pixel: `BorderSide`'s default 1.0
+        // is logical, so at a fractional scale it straddles two device rows and
+        // is antialiased across both — which reads thicker and darker than a
+        // hairline. `setWindow` pins devicePixelRatio to 1, so here they match.
+        expect(decoration.border?.bottom.width, 1.0);
+      });
+    });
+
+    testWidgets('the rule is one device pixel at fractional scaling', (
+      tester,
+    ) async {
+      // The case that actually bites: at 150% a 1.0-logical rule covers 1.5
+      // device rows. Driven through `tester.view`, because `setSurfaceSize`
+      // does not move devicePixelRatio.
+      await under(TargetPlatform.windows, () async {
+        tester.view.devicePixelRatio = 1.5;
+        tester.view.physicalSize = const Size(1800, 1200);
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(frame());
+
+        final band = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byType(WindowFrame),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        expect(
+          (band.decoration as BoxDecoration).border?.bottom.width,
+          closeTo(1 / 1.5, 0.0001),
+        );
       });
     });
 

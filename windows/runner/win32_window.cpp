@@ -5,6 +5,8 @@
 #include <shellapi.h>
 #include <windowsx.h>
 
+#include <cstdio>
+
 #include "resource.h"
 
 namespace {
@@ -26,6 +28,39 @@ namespace {
 #ifndef DWMWA_BORDER_COLOR
 #define DWMWA_BORDER_COLOR 34
 #endif
+
+/// Window attribute + value that keeps Win11's rounded corners.
+///
+/// `DWMWCP_DEFAULT` rounds a window with a standard frame, which is no longer
+/// what this window has once WS_CAPTION is dropped — so ask for it explicitly.
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif
+#ifndef DWMWCP_ROUND
+#define DWMWCP_ROUND 2
+#endif
+
+/// The window style for the app-painted title bar: `WS_OVERLAPPEDWINDOW` minus
+/// the caption, i.e. `WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX |
+/// WS_MAXIMIZEBOX`.
+///
+/// **Removing the bit is what hides the OS title bar — not `WM_NCCALCSIZE`.**
+/// Three separate attempts tried to keep `WS_CAPTION` and make the client area
+/// cover what it draws (a frame change after creation, handling both
+/// `WM_NCCALCSIZE` forms, gating the app's band on the runner). All three were
+/// verified present in the running build — the channel was answering, so
+/// `custom_frame_` was true — and the caption drew anyway. With the bit gone
+/// there is nothing to draw, under any message ordering.
+///
+/// Nothing that matters is lost with it. Aero Snap, Win+arrow and drag-to-edge
+/// key off the window being a resizable top-level (`WS_THICKFRAME`) plus the OS
+/// move loop, which `BeginDrag` already enters via `WM_SYSCOMMAND SC_MOVE`; the
+/// minimize/restore animation keys off `WS_MINIMIZEBOX`/`WS_MAXIMIZEBOX`; the
+/// DWM shadow off `WS_THICKFRAME`; Alt+Space off `WS_SYSMENU`; and the taskbar
+/// button, Alt-Tab and the thumbnail off the window simply being a top-level
+/// app window. Rounded corners are the one exception, restored explicitly
+/// above.
+constexpr DWORD kFramelessWindowStyle = WS_OVERLAPPEDWINDOW & ~WS_CAPTION;
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
@@ -139,6 +174,15 @@ void ApplyBorderColor(HWND window, COLORREF color) {
   DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &color, sizeof(color));
 }
 
+/// Keeps Win11's rounded corners after WS_CAPTION is dropped — see the
+/// attribute define above for why the default no longer suffices. Older
+/// Windows returns E_INVALIDARG and touches nothing.
+void ApplyRoundedCorners(HWND window) {
+  DWORD preference = DWMWCP_ROUND;
+  DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &preference,
+                        sizeof(preference));
+}
+
 void ApplyImmersiveDarkMode(HWND window, bool dark) {
   BOOL value = dark ? TRUE : FALSE;
   DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, &value,
@@ -231,7 +275,8 @@ bool Win32Window::Create(const std::wstring& title,
   custom_frame_ = CustomFrameEnabled();
 
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      window_class, title.c_str(),
+      custom_frame_ ? kFramelessWindowStyle : WS_OVERLAPPEDWINDOW,
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
@@ -241,6 +286,9 @@ bool Win32Window::Create(const std::wstring& title,
   }
 
   UpdateTheme(window);
+  if (custom_frame_) {
+    ApplyRoundedCorners(window);
+  }
 
   // Restore-before-show: the window has no WS_VISIBLE yet and is only shown
   // at the first Flutter frame (FlutterWindow::OnCreate -> Show), and this
@@ -265,6 +313,31 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
+  // One line of ground truth per launch, printed where `flutter run` can see it
+  // (main.cpp attaches the parent console and utils.cpp reopens stdout on
+  // CONOUT$). Three rounds of this bug were lost to reasoning about a message
+  // sequence nobody could observe; the client-vs-window top delta answers it
+  // outright — ~1 means the frame is ours, ~31 means the caption is still
+  // reserved and the app is being pushed down by it.
+  if (window_handle_ != nullptr) {
+    RECT window_rect;
+    RECT client_rect;
+    GetWindowRect(window_handle_, &window_rect);
+    GetClientRect(window_handle_, &client_rect);
+    POINT client_origin = {client_rect.left, client_rect.top};
+    ClientToScreen(window_handle_, &client_origin);
+    printf(
+        "[InvoiceNinja] frame: custom=%d style=0x%08lX caption_bit=%d "
+        "window=%ldx%ld client=%ldx%ld top_delta=%ld\n",
+        custom_frame_ ? 1 : 0,
+        static_cast<unsigned long>(GetWindowLong(window_handle_, GWL_STYLE)),
+        (GetWindowLong(window_handle_, GWL_STYLE) & WS_CAPTION) ? 1 : 0,
+        window_rect.right - window_rect.left,
+        window_rect.bottom - window_rect.top, client_rect.right,
+        client_rect.bottom, client_origin.y - window_rect.top);
+    fflush(stdout);
+  }
+
   return ShowWindow(window_handle_,
                     restore_maximized_ ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL);
 }
@@ -405,13 +478,14 @@ Win32Window::MessageHandler(HWND hwnd,
     }
 
     case WM_NCCALCSIZE: {
-      // Drop the caption while KEEPING the sizing border, so resize, Aero Snap,
-      // the minimize animation, the DWM shadow and Win11 rounded corners all
-      // survive — those key off the window STYLES, which are deliberately left
-      // as WS_OVERLAPPEDWINDOW, not off who painted the caption. Keeping the
-      // styles is also why the persisted WINDOWPLACEMENT needs no migration:
-      // AdjustWindowRectEx is unchanged, so a stored window rect still means
-      // what it meant before.
+      // Reclaim the top of the frame while KEEPING the sizing border, so resize
+      // and Aero Snap stay native on three edges.
+      //
+      // This is no longer what hides the OS title bar — `kFramelessWindowStyle`
+      // is, by dropping WS_CAPTION outright, after three rounds of trying to
+      // cover the caption from here failed on a real machine. What is left for
+      // this handler is the sizing frame that DefWindowProc still reserves at
+      // the top even with no caption.
       if (!custom_frame_) {
         break;  // fall through to DefWindowProc
       }

@@ -313,6 +313,12 @@ void main() {
         // is antialiased across both — which reads thicker and darker than a
         // hairline. `setWindow` pins devicePixelRatio to 1, so here they match.
         expect(decoration.border?.bottom.width, 1.0);
+        // The window's own top edge is drawn HERE, not by leaving the OS a
+        // pixel of non-client area to paint into — that pixel costs the whole
+        // caption back, which is exactly how the OS title bar reappeared after
+        // it had been working. `borderStrong` matches the three DWM edges.
+        expect(decoration.border?.top.color, InTheme.light.borderStrong);
+        expect(decoration.border?.top.width, 1.0);
       });
     });
 

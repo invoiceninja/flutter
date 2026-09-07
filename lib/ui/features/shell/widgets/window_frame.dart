@@ -218,6 +218,22 @@ class _TitleBar extends StatelessWidget {
                         // directly below — which ships at that same contrast
                         // everywhere else and looks right.
                         border: Border(
+                          // The window's own top edge, drawn HERE rather than
+                          // by leaving the OS a pixel of non-client area to
+                          // paint into. That pixel costs the entire caption:
+                          // its height comes from the window style, not from
+                          // how much room it is given, so one pixel of border
+                          // brings back a ~31-px title bar. Inside the client
+                          // area it cannot touch the frame.
+                          //
+                          // `borderStrong` to match the other three edges,
+                          // which DWM paints from the same token via
+                          // DWMWA_BORDER_COLOR — unlike the bottom rule below,
+                          // which is an internal divider, not a window edge.
+                          top: BorderSide(
+                            color: tokens.borderStrong,
+                            width: 1 / MediaQuery.devicePixelRatioOf(context),
+                          ),
                           bottom: BorderSide(
                             color: tokens.border,
                             width: 1 / MediaQuery.devicePixelRatioOf(context),

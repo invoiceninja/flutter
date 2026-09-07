@@ -29,38 +29,6 @@ namespace {
 #define DWMWA_BORDER_COLOR 34
 #endif
 
-/// Window attribute + value that keeps Win11's rounded corners.
-///
-/// `DWMWCP_DEFAULT` rounds a window with a standard frame, which is no longer
-/// what this window has once WS_CAPTION is dropped — so ask for it explicitly.
-#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
-#define DWMWA_WINDOW_CORNER_PREFERENCE 33
-#endif
-#ifndef DWMWCP_ROUND
-#define DWMWCP_ROUND 2
-#endif
-
-/// The window style for the app-painted title bar: `WS_OVERLAPPEDWINDOW` minus
-/// the caption, i.e. `WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX |
-/// WS_MAXIMIZEBOX`.
-///
-/// **Removing the bit is what hides the OS title bar — not `WM_NCCALCSIZE`.**
-/// Three separate attempts tried to keep `WS_CAPTION` and make the client area
-/// cover what it draws (a frame change after creation, handling both
-/// `WM_NCCALCSIZE` forms, gating the app's band on the runner). All three were
-/// verified present in the running build — the channel was answering, so
-/// `custom_frame_` was true — and the caption drew anyway. With the bit gone
-/// there is nothing to draw, under any message ordering.
-///
-/// Nothing that matters is lost with it. Aero Snap, Win+arrow and drag-to-edge
-/// key off the window being a resizable top-level (`WS_THICKFRAME`) plus the OS
-/// move loop, which `BeginDrag` already enters via `WM_SYSCOMMAND SC_MOVE`; the
-/// minimize/restore animation keys off `WS_MINIMIZEBOX`/`WS_MAXIMIZEBOX`; the
-/// DWM shadow off `WS_THICKFRAME`; Alt+Space off `WS_SYSMENU`; and the taskbar
-/// button, Alt-Tab and the thumbnail off the window simply being a top-level
-/// app window. Rounded corners are the one exception, restored explicitly
-/// above.
-constexpr DWORD kFramelessWindowStyle = WS_OVERLAPPEDWINDOW & ~WS_CAPTION;
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
@@ -174,15 +142,6 @@ void ApplyBorderColor(HWND window, COLORREF color) {
   DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &color, sizeof(color));
 }
 
-/// Keeps Win11's rounded corners after WS_CAPTION is dropped — see the
-/// attribute define above for why the default no longer suffices. Older
-/// Windows returns E_INVALIDARG and touches nothing.
-void ApplyRoundedCorners(HWND window) {
-  DWORD preference = DWMWCP_ROUND;
-  DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &preference,
-                        sizeof(preference));
-}
-
 void ApplyImmersiveDarkMode(HWND window, bool dark) {
   BOOL value = dark ? TRUE : FALSE;
   DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, &value,
@@ -276,7 +235,7 @@ bool Win32Window::Create(const std::wstring& title,
 
   HWND window = CreateWindow(
       window_class, title.c_str(),
-      custom_frame_ ? kFramelessWindowStyle : WS_OVERLAPPEDWINDOW,
+      WS_OVERLAPPEDWINDOW,
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
@@ -286,9 +245,6 @@ bool Win32Window::Create(const std::wstring& title,
   }
 
   UpdateTheme(window);
-  if (custom_frame_) {
-    ApplyRoundedCorners(window);
-  }
 
   // Restore-before-show: the window has no WS_VISIBLE yet and is only shown
   // at the first Flutter frame (FlutterWindow::OnCreate -> Show), and this
@@ -478,14 +434,15 @@ Win32Window::MessageHandler(HWND hwnd,
     }
 
     case WM_NCCALCSIZE: {
-      // Reclaim the top of the frame while KEEPING the sizing border, so resize
-      // and Aero Snap stay native on three edges.
+      // Reclaim the WHOLE top of the frame while KEEPING the sizing border, so
+      // resize and Aero Snap stay native on three edges.
       //
-      // This is no longer what hides the OS title bar — `kFramelessWindowStyle`
-      // is, by dropping WS_CAPTION outright, after three rounds of trying to
-      // cover the caption from here failed on a real machine. What is left for
-      // this handler is the sizing frame that DefWindowProc still reserves at
-      // the top even with no caption.
+      // Covering the entire top edge is what hides the OS title bar: with no
+      // non-client strip left up there, Windows has nowhere to draw a caption.
+      // The window keeps WS_OVERLAPPEDWINDOW — the styles are what Aero Snap,
+      // the minimize animation, the DWM shadow, Win11 rounded corners and
+      // Alt+Space all key off, and this configuration is the one verified
+      // working on a real machine.
       if (!custom_frame_) {
         break;  // fall through to DefWindowProc
       }
@@ -493,11 +450,10 @@ Win32Window::MessageHandler(HWND hwnd,
       // important one: it is the ONLY calc `CreateWindow` can send, because the
       // TRUE form's NCCALCSIZE_PARAMS carries rgrc[1] (old window rect) and
       // rgrc[2] (old client rect), neither of which exists for a window being
-      // born. Declining it — as this handler used to — left the window created
-      // with the standard caption reserved, and since the Flutter child is
-      // pinned to the client origin by OnCreate, the whole app started one
-      // title bar lower with the real OS caption above it. The first resize
-      // sent the TRUE form, this ran, and it "fixed itself" for good.
+      // born. Declining it would leave the window created with the standard
+      // caption reserved, and since the Flutter child is pinned to the client
+      // origin by OnCreate, the app would start one title bar lower with the
+      // real OS caption above it until the first resize sent the TRUE form.
       //
       // In the FALSE form lParam is a bare RECT*; in the TRUE form it is the
       // params block whose rgrc[0] plays the same role. DefWindowProc converts
@@ -517,14 +473,15 @@ Win32Window::MessageHandler(HWND hwnd,
       client->top = proposed_top;
       if (IsZoomed(hwnd)) {
         ApplyMaximizedInsets(hwnd, client);
-      } else {
-        // Give the top edge back one pixel. Reclaiming the caption in full
-        // leaves DWM no non-client strip to draw the window border in, so the
-        // window ends up bordered on three sides and bare along the top. A
-        // maximized window has no visible border to preserve, and
-        // ApplyMaximizedInsets already owns its top inset.
-        client->top += 1;
       }
+      // NO `+= 1` here, ever. Handing back even ONE pixel of non-client area at
+      // the top re-enables caption rendering — and the caption's height comes
+      // from the window STYLE, not from how much room you left it, so a single
+      // pixel of intended border buys back the whole ~31-px title bar. That is
+      // exactly how the OS caption came back after it had been working: the
+      // pixel was added to give DWM somewhere to paint the window's top border.
+      // The top border is drawn by Flutter instead, inside the client area,
+      // where it cannot affect the frame (`window_frame.dart`).
       return 0;
     }
 

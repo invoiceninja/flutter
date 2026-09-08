@@ -157,6 +157,7 @@ class _TransactionEditBody extends StatelessWidget {
             InDateField(
               value: vm.draft.date?.toDateTime(),
               labelText: context.tr('date'),
+              formatter: services.formatterIfReady(companyId),
               clearable: true,
               onChanged: (dt) => vm.setDate(
                 dt == null ? null : Date(dt.year, dt.month, dt.day),

@@ -1,6 +1,5 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
@@ -261,17 +260,15 @@ class LocalizationSettingsBody extends StatelessWidget {
     );
   }
 
-  static String _dateFormatPreview(DatetimeFormat f, [String? locale]) {
-    if (f.format.isEmpty) return f.id;
-    try {
-      return DateFormat(
-        f.format,
-        (locale == null || locale.isEmpty) ? null : locale,
-      ).format(DateTime.now());
-    } catch (_) {
-      return f.format;
-    }
-  }
+  /// Each option is shown as a worked example rather than its intl pattern.
+  /// The sample is fixed ([kDateFormatSampleIso]) rather than today's date so
+  /// the numeric formats stay tellable apart — on 2026-09-08 `MM/dd/yyyy` and
+  /// `dd/MM/yyyy` both rendered two 2-digit slots, which is exactly the
+  /// question this dropdown exists to answer. Same sample the date fields'
+  /// placeholders use (invoiceninja/flutter#127), so the picker and the field
+  /// agree.
+  static String _dateFormatPreview(DatetimeFormat f, [String? locale]) =>
+      f.format.isEmpty ? f.id : dateFormatSample(f.format, locale: locale);
 
   List<DropdownMenuItem<String>> _monthOptions(BuildContext context) {
     const months = [

@@ -42,9 +42,9 @@ class InDateField extends StatefulWidget {
   /// clears the field (only reachable when [clearable] is true).
   final ValueChanged<DateTime?> onChanged;
 
-  /// Active company `Formatter`. When provided, the displayed value uses
-  /// `formatter.date(...)` and the placeholder hint pulls from the
-  /// company's `date_format_id`. Without it the field falls back to ISO.
+  /// Active company `Formatter`. When provided, both the displayed value and
+  /// the placeholder example are rendered by `formatter.date(...)`, so they
+  /// share a format by construction. Without it the field falls back to ISO.
   final Formatter? formatter;
 
   /// Floating label rendered above the field via `InputDecoration.labelText`.
@@ -52,8 +52,9 @@ class InDateField extends StatefulWidget {
   /// — nesting two decorations stacks borders and breaks the visual.
   final String? labelText;
 
-  /// Override the placeholder hint. Defaults to the company's active
-  /// format pattern (e.g. `M/d/yyyy`) or `YYYY-MM-DD` if no formatter.
+  /// Override the placeholder hint. Defaults to a worked example date in the
+  /// company's active format (e.g. `Jan 31, 2000`), or the ISO
+  /// [kDateFormatSampleIso] if no formatter.
   final String? hintText;
 
   final bool enabled;
@@ -130,12 +131,15 @@ class _InDateFieldState extends State<InDateField> {
     return f == null ? iso : f.date(iso);
   }
 
-  String? _hint() {
-    if (widget.hintText != null) return widget.hintText;
-    final f = widget.formatter;
-    if (f == null) return 'YYYY-MM-DD';
-    return f.dateFormats[f.settings.dateFormatId]?.format;
-  }
+  /// Placeholder for an empty field: a worked example of the company's date
+  /// format, NOT the format's intl pattern. Rendering the pattern is what
+  /// invoiceninja/flutter#127 was — `dd/MMM/yyyy` (the server's default) read
+  /// as a typo, since `MMM` is an abbreviated month name rather than a
+  /// two-digit number. `Formatter.dateExample` renders it through the same
+  /// path as a committed value, so the hint always matches what the field
+  /// will show once the user picks a date.
+  String _hint() =>
+      widget.hintText ?? widget.formatter?.dateExample ?? kDateFormatSampleIso;
 
   String? _activePattern() {
     final f = widget.formatter;

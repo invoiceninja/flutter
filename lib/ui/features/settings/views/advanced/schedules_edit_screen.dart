@@ -1094,6 +1094,8 @@ class _PaymentScheduleRowTileState extends State<_PaymentScheduleRowTile> {
   @override
   Widget build(BuildContext context) {
     final row = widget.row;
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId ?? '';
     // Fold readOnly into the same lock isPast already uses (disabled inputs +
     // no remove + dimmed) so editing an existing schedule's rows is inert.
     final isPast = widget.isPast || widget.readOnly;
@@ -1109,6 +1111,7 @@ class _PaymentScheduleRowTileState extends State<_PaymentScheduleRowTile> {
               child: InDateField(
                 value: row.date.toDateTime(),
                 labelText: context.tr('date'),
+                formatter: services.formatterIfReady(companyId),
                 enabled: !isPast,
                 onChanged: (d) {
                   if (d == null) return;

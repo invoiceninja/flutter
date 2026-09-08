@@ -313,6 +313,52 @@ String formatTimeOfDay(int hour, int minute, {required bool military}) {
   return '$hour12:$mm ${isPm ? 'PM' : 'AM'}';
 }
 
+/// The illustrative date every "what does this format look like?" surface
+/// renders — a date field's placeholder, a format picker's options.
+///
+/// **Never show a user the raw intl pattern.** `dd/MMM/yyyy` is the server's
+/// *default* format (`date_formats` id 1) and reads as a typo — "one too many
+/// M" — because `MMM` is an abbreviated month NAME, not a two-digit number.
+/// That was invoiceninja/flutter#127, reported against an empty Due Date
+/// field whose placeholder was the pattern itself.
+///
+/// Day 31 can only be a day, so the day/month slot order is unambiguous in
+/// every numeric format — which today's date can never promise (on
+/// 2026-09-08 both `MM/dd/yyyy` and `dd/MM/yyyy` render two 2-digit slots and
+/// the hint teaches nothing). January keeps the month name short, and
+/// 2000-01-31 is a Monday so the weekday format (id 7, `EEE MMM d, yyyy`)
+/// renders a real day rather than an accident. Same date admin-portal's
+/// `DateFormatEntity.preview` picks, so the two clients agree.
+const String kDateFormatSampleIso = '2000-01-31';
+
+/// [kDateFormatSampleIso] rendered against an arbitrary [pattern] — for a
+/// picker showing formats that are *not* the active one, where
+/// [Formatter.dateExample] cannot help because there is no `Formatter` for
+/// a format the company has not chosen.
+///
+/// Falls back to the raw [pattern] only when `DateFormat` rejects it, which
+/// is the same "better than nothing" degradation the settings dropdown had
+/// before this was shared.
+String dateFormatSample(String pattern, {String? locale}) {
+  if (pattern.isEmpty) return '';
+  try {
+    return DateFormat(
+      pattern,
+      (locale == null || locale.isEmpty) ? null : locale,
+    ).format(DateTime.parse(kDateFormatSampleIso));
+  } catch (_) {
+    return pattern;
+  }
+}
+
+/// Wall-clock sample for a time field's placeholder, the [formatTimeOfDay]
+/// counterpart of [kDateFormatSampleIso]. The hour is past noon on purpose so
+/// the 24-hour and 12-hour renderings are visibly different (`13:45` vs
+/// `1:45 PM`) — a morning sample would render near-identically under both and
+/// tell the user nothing about which one they are in.
+String timeFormatSample({required bool military}) =>
+    formatTimeOfDay(13, 45, military: military);
+
 /// "2m ago" / "3h ago" / "5d ago" / "2w ago" style label for a positive
 /// [Duration] elapsed since a past event. Wraps the same five translation
 /// keys the dashboard activity feed and System Logs both consume
@@ -1064,6 +1110,17 @@ class Formatter {
     // admin-portal #527 / formatting.dart:469.
     return formatted.replaceFirst('..', '.');
   }
+
+  /// A worked example of this company's date format, for a field placeholder.
+  ///
+  /// Routed through [date] on purpose: the placeholder is then produced by
+  /// the exact code that renders a committed value, so the two can never
+  /// disagree — it inherits the `'yyyy-MM-dd'` fallback for an unresolvable
+  /// `date_format_id` (which a direct `dateFormats[...]` read does not: it
+  /// yields null, and a null hint) and the `'..'` fixup above.
+  ///
+  /// See [kDateFormatSampleIso] for why a *fixed* date and why that one.
+  String get dateExample => date(kDateFormatSampleIso);
 
   /// `MMM d - MMM d, yyyy` range, year suppressed for the current year.
   String dateRange(String startIso, String endIso) {

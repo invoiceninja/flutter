@@ -377,6 +377,7 @@ class _PaymentRefundScreenState extends State<PaymentRefundScreen> {
     return InDateField(
       labelText: context.tr('date'),
       value: _date?.toDateTime(),
+      formatter: _formatter,
       onChanged: (dt) => setState(
         () => _date = dt == null ? null : Date(dt.year, dt.month, dt.day),
       ),

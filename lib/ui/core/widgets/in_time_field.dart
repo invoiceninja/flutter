@@ -47,8 +47,8 @@ class InTimeField extends StatefulWidget {
   /// — nesting two decorations stacks borders and breaks the visual.
   final String? labelText;
 
-  /// Override the placeholder hint. Defaults to `HH:MM` (military) or
-  /// `h:mm AM` (12-hour) based on the formatter.
+  /// Override the placeholder hint. Defaults to a worked example time —
+  /// `13:45` (military) or `1:45 PM` (12-hour) — based on the formatter.
   final String? hintText;
 
   final bool enabled;
@@ -112,10 +112,11 @@ class _InTimeFieldState extends State<InTimeField> {
     return formatTimeOfDay(value.hour, value.minute, military: _military);
   }
 
-  String _hint() {
-    if (widget.hintText != null) return widget.hintText!;
-    return _military ? 'HH:MM' : 'h:mm AM';
-  }
+  /// Placeholder for an empty field: a worked example clock time, not a
+  /// format pattern — the sibling of `InDateField`'s example hint
+  /// (invoiceninja/flutter#127). Shares [formatTimeOfDay] with [_format], so
+  /// the hint is exactly the shape a committed value takes.
+  String _hint() => widget.hintText ?? timeFormatSample(military: _military);
 
   void _onFocusChange() {
     if (_focusNode.hasFocus) return;

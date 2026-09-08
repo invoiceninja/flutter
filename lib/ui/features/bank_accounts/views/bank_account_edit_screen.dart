@@ -70,6 +70,7 @@ class BankAccountEditScreen extends StatelessWidget {
             InDateField(
               value: vm.draft.fromDate?.toDateTime(),
               labelText: context.tr('sync_from'),
+              formatter: services.formatterIfReady(companyId),
               clearable: true,
               onChanged: (dt) => vm.setFromDate(
                 dt == null ? null : Date(dt.year, dt.month, dt.day),

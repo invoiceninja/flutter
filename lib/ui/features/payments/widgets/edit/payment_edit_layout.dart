@@ -144,7 +144,11 @@ class _PaymentEditLayoutState extends State<PaymentEditLayout>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _IdentitySection(vm: vm, useCommaAsDecimalPlace: _useComma),
+        _IdentitySection(
+          vm: vm,
+          useCommaAsDecimalPlace: _useComma,
+          formatter: formatter,
+        ),
         SizedBox(height: InSpacing.lg(context)),
         DashboardCardShell(
           title: context.tr('tags'),
@@ -222,9 +226,11 @@ class _IdentitySection extends StatelessWidget {
   const _IdentitySection({
     required this.vm,
     required this.useCommaAsDecimalPlace,
+    required this.formatter,
   });
   final PaymentEditViewModel vm;
   final bool useCommaAsDecimalPlace;
+  final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +249,7 @@ class _IdentitySection extends StatelessWidget {
         InDateField(
           labelText: context.tr('date'),
           value: vm.draft.date?.toDateTime(),
+          formatter: formatter,
           onChanged: (dt) =>
               vm.setDate(dt == null ? null : Date(dt.year, dt.month, dt.day)),
         ),

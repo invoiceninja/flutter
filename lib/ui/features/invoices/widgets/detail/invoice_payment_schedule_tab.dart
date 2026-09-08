@@ -191,20 +191,20 @@ class _CreatePaymentScheduleDialogState
 
   final List<_CustomRow> _rows = [_CustomRow()];
 
-  // Decimal-separator setting drives parse of each custom installment amount so
-  // a comma-locale user typing `100,50` isn't rejected (validity) and `1.234`
-  // isn't sent wrong. `formatterIfReady` is the sync accessor the entity-edit
-  // screens use (see tax_rates_edit_screen.dart).
-  late final bool _useComma;
+  // Drives the parse of each custom installment amount so a comma-locale user
+  // typing `100,50` isn't rejected (validity) and `1.234` isn't sent wrong,
+  // and the rendering of both date fields below. `formatterIfReady` is the
+  // sync accessor the entity-edit screens use (see tax_rates_edit_screen.dart).
+  late final Formatter? _formatter;
+
+  bool get _useComma => _formatter?.settings.useCommaAsDecimalPlace ?? false;
 
   @override
   void initState() {
     super.initState();
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    _useComma =
-        services.formatterIfReady(companyId)?.settings.useCommaAsDecimalPlace ??
-        false;
+    _formatter = services.formatterIfReady(companyId);
   }
 
   @override
@@ -323,6 +323,7 @@ class _CreatePaymentScheduleDialogState
             child: InDateField(
               value: row.date,
               labelText: context.tr('date'),
+              formatter: _formatter,
               onChanged: (d) => setState(() => row.date = d),
             ),
           ),
@@ -427,6 +428,7 @@ class _CreatePaymentScheduleDialogState
                 InDateField(
                   value: _firstPayment,
                   labelText: context.tr('first_payment_date'),
+                  formatter: _formatter,
                   onChanged: (d) => setState(() => _firstPayment = d),
                 ),
               ] else ...[

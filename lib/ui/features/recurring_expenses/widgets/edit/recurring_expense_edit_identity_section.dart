@@ -116,6 +116,18 @@ class _ClientPicker extends StatelessWidget {
                 c.currencyId.isNotEmpty &&
                 vm.draft.invoiceCurrencyId.isEmpty) {
               vm.setInvoiceCurrencyId(c.currencyId);
+              // Seed the exchange rate too, so the converted amount is right
+              // immediately — same as the currency-conversion section's picker,
+              // and the half this mirror had been missing: setting the invoice
+              // currency without the rate left the conversion on whatever rate
+              // the form already held. Left alone when it can't be resolved
+              // (no expense currency yet / unknown).
+              final rate = crossCurrencyRate(
+                services.statics.currencies,
+                fromExpenseCurrencyId: vm.draft.currencyId,
+                toInvoiceCurrencyId: c.currencyId,
+              );
+              if (rate != null) vm.setExchangeRate(rate.toString());
             }
           },
           errorText: vm.fieldErrorFor('client_id'),

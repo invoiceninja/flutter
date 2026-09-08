@@ -115,8 +115,9 @@ CardFormat resolveFormatFor(String field, CardFormat desired) {
   if (forced != null) return forced;
   // `none` is legal only for a count field; anywhere else it means the key
   // would be omitted from a request that requires it.
-  if (!isTaskField(field) || desired == CardFormat.none)
+  if (!isTaskField(field) || desired == CardFormat.none) {
     return CardFormat.money;
+  }
   return desired;
 }
 

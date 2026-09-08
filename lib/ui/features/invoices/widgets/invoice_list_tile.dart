@@ -4,11 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/list/cell_slot.dart';
 import 'package:admin/ui/core/list/embedded_list_scope.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
-import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
@@ -115,9 +115,9 @@ class _InvoiceListTileState extends State<InvoiceListTile> {
         _leading(),
         const SizedBox(width: kColCellGap),
         for (final col in w.columns) ...[
-          _CellSlot(
+          CellSlot<Invoice>(
             column: col,
-            invoice: w.invoice,
+            entity: w.invoice,
             child: col.cellBuilder(w.invoice, context),
           ),
           const SizedBox(width: kColCellGap),
@@ -213,33 +213,5 @@ class _InvoiceListTileState extends State<InvoiceListTile> {
       onSelectTap: w.onSelectTap,
       defaultChild: const SizedBox.shrink(),
     );
-  }
-}
-
-class _CellSlot extends StatelessWidget {
-  const _CellSlot({
-    required this.column,
-    required this.invoice,
-    required this.child,
-  });
-  final ColumnDefinition<Invoice> column;
-  final Invoice invoice;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final aligned = Align(
-      alignment: column.align == ColumnAlign.end
-          ? AlignmentDirectional.centerEnd
-          : AlignmentDirectional.centerStart,
-      child: child,
-    );
-    final cell = CellCopyHover(
-      value: column.valueBuilder?.call(invoice),
-      align: column.align,
-      child: aligned,
-    );
-    if (column.isFlex) return Expanded(child: cell);
-    return SizedBox(width: column.width, child: cell);
   }
 }

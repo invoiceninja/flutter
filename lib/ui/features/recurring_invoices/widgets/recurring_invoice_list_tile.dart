@@ -4,11 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/ui/core/list/cell_slot.dart';
 import 'package:admin/ui/core/list/embedded_list_scope.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
-import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
@@ -113,9 +113,9 @@ class _RecurringInvoiceListTileState extends State<RecurringInvoiceListTile> {
         _leading(),
         const SizedBox(width: kColCellGap),
         for (final col in w.columns) ...[
-          _CellSlot(
+          CellSlot<RecurringInvoice>(
             column: col,
-            recurringInvoice: w.recurringInvoice,
+            entity: w.recurringInvoice,
             child: col.cellBuilder(w.recurringInvoice, context),
           ),
           const SizedBox(width: kColCellGap),
@@ -210,33 +210,5 @@ class _RecurringInvoiceListTileState extends State<RecurringInvoiceListTile> {
       onSelectTap: w.onSelectTap,
       defaultChild: const SizedBox.shrink(),
     );
-  }
-}
-
-class _CellSlot extends StatelessWidget {
-  const _CellSlot({
-    required this.column,
-    required this.recurringInvoice,
-    required this.child,
-  });
-  final ColumnDefinition<RecurringInvoice> column;
-  final RecurringInvoice recurringInvoice;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final aligned = Align(
-      alignment: column.align == ColumnAlign.end
-          ? AlignmentDirectional.centerEnd
-          : AlignmentDirectional.centerStart,
-      child: child,
-    );
-    final cell = CellCopyHover(
-      value: column.valueBuilder?.call(recurringInvoice),
-      align: column.align,
-      child: aligned,
-    );
-    if (column.isFlex) return Expanded(child: cell);
-    return SizedBox(width: column.width, child: cell);
   }
 }

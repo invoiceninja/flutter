@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/bank_account.dart';
-import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/entity_list_empty_state.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/bank_accounts/widgets/bank_connect.dart';
 import 'package:admin/ui/features/transactions/view_models/transaction_list_view_model.dart';
@@ -27,43 +27,15 @@ class TransactionListEmptyState extends StatelessWidget {
   final TransactionListViewModel vm;
 
   @override
-  Widget build(BuildContext context) {
-    if (!vm.hasActiveFilters) return const _BaseEmptyState();
-    final onlyArchived =
-        vm.states.length == 1 &&
-        vm.states.contains(EntityState.archived) &&
-        vm.customFilters.isEmpty &&
-        vm.extraFilters.isEmpty &&
-        vm.search.isEmpty;
-    final onlyDeleted =
-        vm.states.length == 1 &&
-        vm.states.contains(EntityState.deleted) &&
-        vm.customFilters.isEmpty &&
-        vm.extraFilters.isEmpty &&
-        vm.search.isEmpty;
-    if (onlyArchived) {
-      return EmptyState(
-        icon: Icons.archive_outlined,
-        title: context.tr('no_archived_transactions'),
-      );
-    }
-    if (onlyDeleted) {
-      return EmptyState(
-        icon: Icons.delete_outline,
-        title: context.tr('no_deleted_transactions'),
-      );
-    }
-    return EmptyState(
-      icon: Icons.filter_alt_off_outlined,
-      title: context.tr('no_transactions_match_filters'),
-      action: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-        onPressed: vm.clearAllFilters,
-        icon: const Icon(Icons.close),
-        label: Text(context.tr('clear_filters')),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => EntityListEmptyState(
+    vm: vm,
+    // The unfiltered branch is the only one that varies — it reads the local
+    // bank accounts to decide what to say — so it is supplied whole.
+    emptyOverride: const _BaseEmptyState(),
+    archivedTitle: context.tr('no_archived_transactions'),
+    deletedTitle: context.tr('no_deleted_transactions'),
+    noMatchTitle: context.tr('no_transactions_match_filters'),
+  );
 }
 
 /// "No transactions yet" — the unfiltered case, which reads the local bank

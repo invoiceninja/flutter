@@ -6,10 +6,10 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/cell_slot.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
-import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/features/gateways/widgets/gateway_logo.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
@@ -107,9 +107,9 @@ class CompanyGatewayListTile extends StatelessWidget {
         _leading(),
         const SizedBox(width: kColCellGap),
         for (final col in columns) ...[
-          _CellSlot(
+          CellSlot<CompanyGateway>(
             column: col,
-            gateway: gateway,
+            entity: gateway,
             child: col.cellBuilder(gateway, context),
           ),
           const SizedBox(width: kColCellGap),
@@ -209,33 +209,5 @@ class CompanyGatewayListTile extends StatelessWidget {
     if (gateway.gatewayKey.isEmpty) return null;
     final statics = context.read<Services>().statics;
     return statics.gateway(gateway.gatewayKey)?.name;
-  }
-}
-
-class _CellSlot extends StatelessWidget {
-  const _CellSlot({
-    required this.column,
-    required this.gateway,
-    required this.child,
-  });
-  final ColumnDefinition<CompanyGateway> column;
-  final CompanyGateway gateway;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final aligned = Align(
-      alignment: column.align == ColumnAlign.end
-          ? AlignmentDirectional.centerEnd
-          : AlignmentDirectional.centerStart,
-      child: child,
-    );
-    final cell = CellCopyHover(
-      value: column.valueBuilder?.call(gateway),
-      align: column.align,
-      child: aligned,
-    );
-    if (column.isFlex) return Expanded(child: cell);
-    return SizedBox(width: column.width, child: cell);
   }
 }

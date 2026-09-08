@@ -6,10 +6,10 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/cell_slot.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
-import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/features/payment_links/widgets/payment_link_actions.dart';
 
@@ -98,9 +98,9 @@ class PaymentLinkListTile extends StatelessWidget {
         _leading(),
         const SizedBox(width: kColCellGap),
         for (final col in columns) ...[
-          _CellSlot(
+          CellSlot<PaymentLink>(
             column: col,
-            paymentLink: paymentLink,
+            entity: paymentLink,
             child: col.cellBuilder(paymentLink, context),
           ),
           const SizedBox(width: kColCellGap),
@@ -167,33 +167,5 @@ class PaymentLinkListTile extends StatelessWidget {
       onSelectTap: onSelectTap,
       defaultChild: const SizedBox.shrink(),
     );
-  }
-}
-
-class _CellSlot extends StatelessWidget {
-  const _CellSlot({
-    required this.column,
-    required this.paymentLink,
-    required this.child,
-  });
-  final ColumnDefinition<PaymentLink> column;
-  final PaymentLink paymentLink;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final aligned = Align(
-      alignment: column.align == ColumnAlign.end
-          ? AlignmentDirectional.centerEnd
-          : AlignmentDirectional.centerStart,
-      child: child,
-    );
-    final cell = CellCopyHover(
-      value: column.valueBuilder?.call(paymentLink),
-      align: column.align,
-      child: aligned,
-    );
-    if (column.isFlex) return Expanded(child: cell);
-    return SizedBox(width: column.width, child: cell);
   }
 }

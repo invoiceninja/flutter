@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:admin/ui/features/settings/widgets/form_section.dart';
+import 'package:admin/ui/features/settings/widgets/custom_field_row.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -426,4 +428,50 @@ class _CustomFieldsAccessScope extends InheritedWidget {
 ({String companyId, bool enabled}) customFieldsAccess(BuildContext context) {
   final scope = _CustomFieldsAccessScope.of(context);
   return (companyId: scope.companyId, enabled: scope.enabled);
+}
+
+/// The four custom-field slots for one entity, as a `SettingsFormShell`
+/// section.
+///
+/// Seven of the eleven custom-field screens are exactly this and nothing else,
+/// differing only in [prefix] and [titleKey]. The remaining four (clients,
+/// invoices, vendors, and the company screen's siblings) add sections of their
+/// own and compose this instead of replacing it.
+///
+/// [title] arrives already localized, so the `context.tr('<x>_field')` call
+/// stays in the screen file. That is load-bearing, not style:
+/// `search_catalog_consistency_test` requires each `kCustomFieldsXSearchKeys`
+/// entry to appear as a literal `context.tr(...)` in *that screen's* source,
+/// and taking a key here instead moved the only reference into this file and
+/// failed all seven. Deriving the key from [prefix] would have been worse
+/// again — invisible to `no_unsubstituted_placeholders_test` too.
+class CustomFieldSlotsSection extends StatelessWidget {
+  const CustomFieldSlotsSection({
+    required this.prefix,
+    required this.title,
+    super.key,
+  });
+
+  /// The slot prefix the server stores, e.g. `product` for `product1..4`.
+  final String prefix;
+
+  /// Already localized — see the note above.
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final access = customFieldsAccess(context);
+    return FormSection(
+      title: title,
+      children: [
+        for (var i = 1; i <= 4; i++)
+          CustomFieldRow<CustomFieldsViewModel>(
+            key: ValueKey('${access.companyId}:$prefix$i'),
+            prefix: prefix,
+            slot: i,
+            enabled: access.enabled,
+          ),
+      ],
+    );
+  }
 }

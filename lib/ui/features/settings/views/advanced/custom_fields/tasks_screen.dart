@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/features/settings/view_models/custom_fields_view_model.dart';
+
 import 'package:admin/ui/features/settings/views/advanced/custom_fields/custom_fields_shell.dart';
-import 'package:admin/ui/features/settings/widgets/custom_field_row.dart';
-import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 
 const kCustomFieldsTasksSearchKeys = <String>[
@@ -22,23 +20,9 @@ class CustomFieldsTasksScreen extends StatelessWidget {
   const CustomFieldsTasksScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final access = customFieldsAccess(context);
-    return SettingsFormShell(
-      sections: [
-        FormSection(
-          title: context.tr('task_field'),
-          children: [
-            for (var i = 1; i <= 4; i++)
-              CustomFieldRow<CustomFieldsViewModel>(
-                key: ValueKey('${access.companyId}:task$i'),
-                prefix: 'task',
-                slot: i,
-                enabled: access.enabled,
-              ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => SettingsFormShell(
+    sections: [
+      CustomFieldSlotsSection(prefix: 'task', title: context.tr('task_field')),
+    ],
+  );
 }

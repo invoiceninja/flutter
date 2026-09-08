@@ -5,15 +5,14 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/contact.dart';
 import 'package:admin/domain/columns/client_columns.dart';
-import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/contact_label.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/list/cell_slot.dart';
 import 'package:admin/ui/core/list/entity_actions_popup_button.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/list/selectable_list_row.dart';
-import 'package:admin/ui/core/widgets/cell_copy_hover.dart';
 import 'package:admin/ui/core/widgets/initials_avatar.dart';
 import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/party_call_button.dart';
@@ -340,7 +339,7 @@ class _ClientListTileState extends State<ClientListTile> {
         _leading(displayName),
         const SizedBox(width: kColCellGap),
         for (final col in w.columns) ...[
-          _CellSlot(
+          CellSlot<Client>(
             column: col,
             entity: w.client,
             child: col.cellBuilder(w.client, context),
@@ -437,36 +436,6 @@ class _ClientListTileState extends State<ClientListTile> {
 
 /// Renders one column's cell at its declared width or as a flex-expanded
 /// slot for the identity column.
-class _CellSlot extends StatelessWidget {
-  const _CellSlot({
-    required this.column,
-    required this.entity,
-    required this.child,
-  });
-  final ClientColumn column;
-  final Client entity;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final aligned = Align(
-      alignment: column.align == ColumnAlign.end
-          ? AlignmentDirectional.centerEnd
-          : AlignmentDirectional.centerStart,
-      child: child,
-    );
-    final cell = CellCopyHover(
-      value: column.valueBuilder?.call(entity),
-      align: column.align,
-      child: aligned,
-    );
-    if (column.isFlex) {
-      return Expanded(child: cell);
-    }
-    return SizedBox(width: column.width, child: cell);
-  }
-}
-
 // ─── Subtitle line ─────────────────────────────────────────────────────
 
 class _SubtitleLine extends StatelessWidget {

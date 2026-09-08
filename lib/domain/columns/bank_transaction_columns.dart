@@ -7,7 +7,6 @@ import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/ids/bank_transaction_column_ids.dart';
 import 'package:admin/ui/core/widgets/bank_account_name_label.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/expense_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_status_pill.dart';
@@ -188,15 +187,10 @@ final kAllBankTransactionColumns = <BankTransactionColumn>[
     labelKey: 'is_deleted',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
-  BankTransactionColumn(
-    id: BankTransactionColumnIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (t, _) => t.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'bank_transaction', tagIds: t.tagIds),
-    valueBuilder: (t) => '',
+  colTags<BankTransaction>(
+    BankTransactionColumnIds.tagIds,
+    'bank_transaction',
+    (t) => t.tagIds,
   ),
 ];
 

@@ -10,7 +10,6 @@ import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
@@ -218,17 +217,7 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
   colUserName<Task>(TaskFieldIds.userId, (t) => t.userId, labelKey: 'user'),
   // Default-off (not in kDefaultTaskColumns) — opt-in via the column picker.
   // Header sort orders by the denormalized `tag_names` column.
-  TaskColumn(
-    id: TaskFieldIds.tagIds,
-    labelKey: 'tags',
-    width: 200,
-    cellBuilder: (t, _) => t.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'task', tagIds: t.tagIds),
-    // No copy value — names aren't resolvable synchronously here, and copying
-    // raw hashed ids isn't useful. '' suppresses the hover-copy affordance.
-    valueBuilder: (t) => '',
-  ),
+  colTags<Task>(TaskFieldIds.tagIds, 'task', (t) => t.tagIds, sortable: true),
 ];
 
 final Map<String, TaskColumn> taskColumnsById = {

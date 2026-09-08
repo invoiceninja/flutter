@@ -6,7 +6,6 @@ import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/category_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
@@ -223,16 +222,7 @@ final List<ExpenseColumn> kAllExpenseColumns = <ExpenseColumn>[
     labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
-  ExpenseColumn(
-    id: ExpenseFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (e, _) => e.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'expense', tagIds: e.tagIds),
-    valueBuilder: (e) => '',
-  ),
+  colTags<Expense>(ExpenseFieldIds.tagIds, 'expense', (e) => e.tagIds),
 ];
 
 final Map<String, ExpenseColumn> expenseColumnsById = {

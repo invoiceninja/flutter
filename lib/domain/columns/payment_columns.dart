@@ -5,7 +5,6 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/company_gateway_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
@@ -204,16 +203,7 @@ final List<PaymentColumn> kAllPaymentColumns = <PaymentColumn>[
     labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
-  PaymentColumn(
-    id: PaymentFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (p, _) => p.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'payment', tagIds: p.tagIds),
-    valueBuilder: (p) => '',
-  ),
+  colTags<Payment>(PaymentFieldIds.tagIds, 'payment', (p) => p.tagIds),
 ];
 
 final Map<String, PaymentColumn> paymentColumnsById = {

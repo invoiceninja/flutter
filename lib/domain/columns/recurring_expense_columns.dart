@@ -9,7 +9,6 @@ import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/category_name_label.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
@@ -263,15 +262,10 @@ final kAllRecurringExpenseColumns = <RecurringExpenseColumn>[
     labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
-  RecurringExpenseColumn(
-    id: RecurringExpenseFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (e, _) => e.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'recurring_expense', tagIds: e.tagIds),
-    valueBuilder: (e) => '',
+  colTags<RecurringExpense>(
+    RecurringExpenseFieldIds.tagIds,
+    'recurring_expense',
+    (e) => e.tagIds,
   ),
 ];
 

@@ -8,7 +8,6 @@ import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 
 typedef ProjectColumn = ColumnDefinition<Project>;
@@ -191,15 +190,11 @@ final List<ProjectColumn> kAllProjectColumns = <ProjectColumn>[
   ),
   // Default-off — opt-in via the column picker. Header sort orders by the
   // denormalized `tag_names` column.
-  ProjectColumn(
-    id: ProjectFieldIds.tagIds,
-    labelKey: 'tags',
-    width: 200,
-    cellBuilder: (p, _) => p.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'project', tagIds: p.tagIds),
-    // No copy value — see the Tasks tags column.
-    valueBuilder: (p) => '',
+  colTags<Project>(
+    ProjectFieldIds.tagIds,
+    'project',
+    (p) => p.tagIds,
+    sortable: true,
   ),
 ];
 

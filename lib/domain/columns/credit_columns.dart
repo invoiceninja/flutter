@@ -7,7 +7,6 @@ import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/design_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
@@ -202,16 +201,7 @@ final List<CreditColumn> kAllCreditColumns = <CreditColumn>[
   // "Created by :name" and would leak the raw placeholder.
   colUserName<Credit>(CreditFieldIds.userId, (c) => c.userId, labelKey: 'user'),
   // Attached tags. Display-only (not a sortable Drift column).
-  CreditColumn(
-    id: CreditFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (c, _) => c.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'credit', tagIds: c.tagIds),
-    valueBuilder: (c) => '',
-  ),
+  colTags<Credit>(CreditFieldIds.tagIds, 'credit', (c) => c.tagIds),
 ];
 
 final Map<String, CreditColumn> creditColumnsById = {

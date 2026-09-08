@@ -12,7 +12,6 @@ import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/domain/product_tax_categories.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/products/widgets/inventory_scope.dart';
 
@@ -199,21 +198,8 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
       (p) => p.customValue4,
     ],
   ),
-  ProductColumn(
-    id: ProductFieldIds.createdAt,
-    labelKey: 'created',
-    width: 110,
-    cellBuilder: (p, ctx) => cellDate(p.createdAt, ctx),
-    valueBuilder: (p) => p.createdAt.toIso8601String(),
-  ),
-  ProductColumn(
-    id: ProductFieldIds.archivedAt,
-    labelKey: 'archived',
-    width: 110,
-    cellBuilder: (p, ctx) =>
-        p.archivedAt == null ? cellEmpty() : cellDate(p.archivedAt!, ctx),
-    valueBuilder: (p) => p.archivedAt?.toIso8601String(),
-  ),
+  colCreatedAt<Product>(ProductFieldIds.createdAt, (p) => p.createdAt),
+  colArchivedAt<Product>(ProductFieldIds.archivedAt, (p) => p.archivedAt),
   // ── Standard record metadata ──────────────────────────────────────────
   // Shared across every entity list; see `column_factories.dart`. Created /
   // archived / deleted are real Drift columns and sort; state, documents and
@@ -247,16 +233,7 @@ final List<ProductColumn> kAllProductColumns = <ProductColumn>[
   ),
   // Attached tags. Display-only (not a sortable Drift column) — tag ids live
   // only in the payload; the tag cache resolves names/colors for rendering.
-  ProductColumn(
-    id: ProductFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (p, _) => p.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'product', tagIds: p.tagIds),
-    valueBuilder: (p) => '',
-  ),
+  colTags<Product>(ProductFieldIds.tagIds, 'product', (p) => p.tagIds),
 ];
 
 final Map<String, ProductColumn> productColumnsById = {

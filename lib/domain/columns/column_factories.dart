@@ -2,6 +2,7 @@ import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
 
 /// Factories for the columns every entity list shares.
@@ -222,4 +223,38 @@ ColumnDefinition<T> colUserName<T>(
     return userId.isEmpty ? cellEmpty() : UserNameLabel(userId: userId);
   },
   valueBuilder: (e) => cellNonZeroString(get(e)),
+);
+
+/// Attached tags, rendered as chips.
+///
+/// [entityType] is the tag scope's wire name (`'quote'`, `'bank_transaction'`,
+/// …), not the column id. Fourteen registries carried this verbatim.
+///
+/// **Display-only by default, and the default is not a formality.** Tags live
+/// in a payload array on twelve of the fourteen tables, so there is nothing to
+/// order by and the DAO would throw on the sort field. Task and Project are the
+/// exception — each denormalizes a comma-joined `tag_names` column and maps it
+/// in `_sortExpression` — so those two pass `sortable: true`. Hardcoding
+/// `false` here would silently degrade both of those lists to name-order in
+/// release and desync `sortable_columns_test`'s `displayOnly` map.
+///
+/// No copy value: names aren't resolvable synchronously here and copying raw
+/// hashed ids isn't useful, so `''` suppresses the hover-copy affordance.
+ColumnDefinition<T> colTags<T>(
+  String id,
+  String entityType,
+  List<String> Function(T entity) get, {
+  bool sortable = false,
+}) => ColumnDefinition<T>(
+  id: id,
+  labelKey: 'tags',
+  width: 200,
+  sortable: sortable,
+  cellBuilder: (e, _) {
+    final tagIds = get(e);
+    return tagIds.isEmpty
+        ? cellEmpty()
+        : EntityTagsView(entityType: entityType, tagIds: tagIds);
+  },
+  valueBuilder: (e) => '',
 );

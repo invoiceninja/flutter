@@ -7,7 +7,6 @@ import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
@@ -217,15 +216,10 @@ final kAllRecurringInvoiceColumns = <RecurringInvoiceColumn>[
     labelKey: 'user',
   ),
   // Attached tags. Display-only (not a sortable Drift column).
-  RecurringInvoiceColumn(
-    id: RecurringInvoiceFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (r, _) => r.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'recurring_invoice', tagIds: r.tagIds),
-    valueBuilder: (r) => '',
+  colTags<RecurringInvoice>(
+    RecurringInvoiceFieldIds.tagIds,
+    'recurring_invoice',
+    (r) => r.tagIds,
   ),
 ];
 

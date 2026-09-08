@@ -6,7 +6,6 @@ import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 
 // `kColumnFlexMinWidth` moved to `lib/ui/core/list/entity_list_constants.dart`
 // so every entity's list screen can use the same value.
@@ -237,26 +236,13 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
       (c) => c.customValue4,
     ],
   ),
-  ClientColumn(
-    id: ClientFieldIds.createdAt,
-    labelKey: 'created',
-    width: 110,
-    cellBuilder: (c, ctx) => cellDate(c.createdAt, ctx),
-    valueBuilder: (c) => c.createdAt.toIso8601String(),
-  ),
+  colCreatedAt<Client>(ClientFieldIds.createdAt, (c) => c.createdAt),
   colUpdatedAt<Client>(
     ClientFieldIds.updatedAt,
     (c) => c.updatedAt,
     width: 110,
   ),
-  ClientColumn(
-    id: ClientFieldIds.archivedAt,
-    labelKey: 'archived',
-    width: 110,
-    cellBuilder: (c, ctx) =>
-        c.archivedAt == null ? cellEmpty() : cellDate(c.archivedAt!, ctx),
-    valueBuilder: (c) => c.archivedAt?.toIso8601String(),
-  ),
+  colArchivedAt<Client>(ClientFieldIds.archivedAt, (c) => c.archivedAt),
   // ── Standard record metadata ──────────────────────────────────────────
   // Shared across every entity list; see `column_factories.dart`. Created /
   // archived / deleted are real Drift columns and sort; state, documents and
@@ -285,16 +271,7 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
   // "Created by :name" and would leak the raw placeholder.
   colUserName<Client>(ClientFieldIds.userId, (c) => c.userId, labelKey: 'user'),
   // Attached tags. Display-only (not a sortable Drift column).
-  ClientColumn(
-    id: ClientFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (c, _) => c.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'client', tagIds: c.tagIds),
-    valueBuilder: (c) => '',
-  ),
+  colTags<Client>(ClientFieldIds.tagIds, 'client', (c) => c.tagIds),
 ];
 
 final Map<String, ClientColumn> clientColumnsById = {

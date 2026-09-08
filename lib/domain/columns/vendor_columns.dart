@@ -6,7 +6,6 @@ import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
-import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/l10n/localization.dart';
 
 // Re-export the shared min width so vendor-screen code keeps the same
@@ -213,26 +212,13 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
       (v) => v.customValue4,
     ],
   ),
-  VendorColumn(
-    id: VendorFieldIds.createdAt,
-    labelKey: 'created',
-    width: 110,
-    cellBuilder: (v, ctx) => cellDate(v.createdAt, ctx),
-    valueBuilder: (v) => v.createdAt.toIso8601String(),
-  ),
+  colCreatedAt<Vendor>(VendorFieldIds.createdAt, (v) => v.createdAt),
   colUpdatedAt<Vendor>(
     VendorFieldIds.updatedAt,
     (v) => v.updatedAt,
     width: 110,
   ),
-  VendorColumn(
-    id: VendorFieldIds.archivedAt,
-    labelKey: 'archived',
-    width: 110,
-    cellBuilder: (v, ctx) =>
-        v.archivedAt == null ? cellEmpty() : cellDate(v.archivedAt!, ctx),
-    valueBuilder: (v) => v.archivedAt?.toIso8601String(),
-  ),
+  colArchivedAt<Vendor>(VendorFieldIds.archivedAt, (v) => v.archivedAt),
   // ── Standard record metadata ──────────────────────────────────────────
   // Shared across every entity list; see `column_factories.dart`. Created /
   // archived / deleted are real Drift columns and sort; state, documents and
@@ -261,16 +247,7 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
   // "Created by :name" and would leak the raw placeholder.
   colUserName<Vendor>(VendorFieldIds.userId, (v) => v.userId, labelKey: 'user'),
   // Attached tags. Display-only (not a sortable Drift column).
-  VendorColumn(
-    id: VendorFieldIds.tagIds,
-    labelKey: 'tags',
-    sortable: false,
-    width: 200,
-    cellBuilder: (v, _) => v.tagIds.isEmpty
-        ? cellEmpty()
-        : EntityTagsView(entityType: 'vendor', tagIds: v.tagIds),
-    valueBuilder: (v) => '',
-  ),
+  colTags<Vendor>(VendorFieldIds.tagIds, 'vendor', (v) => v.tagIds),
 ];
 
 final Map<String, VendorColumn> vendorColumnsById = {

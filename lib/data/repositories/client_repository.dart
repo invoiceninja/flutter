@@ -950,22 +950,11 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     required String companyId,
     required String entityId,
     required String documentId,
-  }) async {
-    final row = await db.clientDao
-        .watchById(companyId: companyId, id: entityId)
-        .first;
-    if (row == null) return;
-    final current = decodeRawDocumentsColumn(row.documents);
-    final next = current.where((d) => d.id != documentId).toList();
-    if (next.length == current.length) return; // not found; no-op
-    await (db.update(db.clients)
-          ..where((c) => c.companyId.equals(companyId) & c.id.equals(entityId)))
-        .write(
-          ClientsCompanion(
-            documents: Value(jsonEncode(next.map((d) => d.toJson()).toList())),
-          ),
-        );
-  }
+  }) => applyDocumentDeletedTemplate(
+    documentId: documentId,
+    readDocuments: () => _readDocuments(companyId, entityId),
+    writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
+  );
 
   /// Replace (or insert) one document in the client's local `documents`
   /// JSON column. Called after `PUT /api/v1/documents/{id}` returns the
@@ -974,27 +963,11 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     required String companyId,
     required String entityId,
     required DocumentApi document,
-  }) async {
-    final row = await db.clientDao
-        .watchById(companyId: companyId, id: entityId)
-        .first;
-    if (row == null) return;
-    final current = decodeRawDocumentsColumn(row.documents);
-    final next = [
-      for (final d in current)
-        if (d.id == document.id) document else d,
-    ];
-    if (!current.any((d) => d.id == document.id)) {
-      next.add(document);
-    }
-    await (db.update(db.clients)
-          ..where((c) => c.companyId.equals(companyId) & c.id.equals(entityId)))
-        .write(
-          ClientsCompanion(
-            documents: Value(jsonEncode(next.map((d) => d.toJson()).toList())),
-          ),
-        );
-  }
+  }) => applyDocumentChangedTemplate(
+    document: document,
+    readDocuments: () => _readDocuments(companyId, entityId),
+    writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
+  );
 
   Client _fromRow(ClientRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
@@ -1021,6 +994,28 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
       locations: decodeLocationsColumn(row.locations),
     );
   }
+
+  /// The row's `documents` column decoded, or null when the row isn't cached
+  /// locally — the two cases [applyDocumentChangedTemplate] must tell apart.
+  Future<List<DocumentApi>?> _readDocuments(
+    String companyId,
+    String entityId,
+  ) async {
+    final row = await db.clientDao
+        .watchById(companyId: companyId, id: entityId)
+        .first;
+    return row == null ? null : decodeRawDocumentsColumn(row.documents);
+  }
+
+  Future<void> _writeDocuments(
+    String companyId,
+    String entityId,
+    String json,
+  ) =>
+      (db.update(db.clients)..where(
+            (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
+          ))
+          .write(ClientsCompanion(documents: Value(json)));
 }
 
 /// Inclusive day-window bounds (epoch seconds, UTC) for the `created_at` /

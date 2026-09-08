@@ -1166,9 +1166,11 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// the fourteen document-bearing repos, which each carried a byte-identical
   /// copy differing only in the Drift lambda variable.
   ///
-  /// [readDocuments] returns `null` when the row is absent — a distinct case
-  /// from "row with no documents", which returns an empty list and is written
-  /// through. Callers supply it because the row type is per-entity.
+  /// [readDocuments] returns `null` when the row isn't cached locally, which
+  /// skips the write. That is a write-AVOIDANCE shortcut, not a correctness
+  /// guard: [writeDocuments] issues an `UPDATE ... WHERE id = ?`, so on a
+  /// missing row it would match nothing and change nothing either way. Callers
+  /// supply the closure because the row type is per-entity.
   @protected
   Future<void> applyDocumentChangedTemplate({
     required DocumentApi document,
@@ -1187,9 +1189,11 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     await writeDocuments(jsonEncode(next.map((d) => d.toJson()).toList()));
   }
 
-  /// Drop a document from the entity's `documents` column. No-ops when the row
-  /// is absent or the id isn't present, so a redundant delete costs no write.
+  /// Drop a document from the entity's `documents` column.
+  ///
   /// Sibling of [applyDocumentChangedTemplate]; same [readDocuments] contract.
+  /// The unchanged-length early return is likewise write-avoidance — re-encoding
+  /// an unchanged list would store the identical bytes.
   @protected
   Future<void> applyDocumentDeletedTemplate({
     required String documentId,

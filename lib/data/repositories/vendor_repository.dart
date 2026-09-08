@@ -527,22 +527,11 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     required String companyId,
     required String entityId,
     required String documentId,
-  }) async {
-    final row = await db.vendorDao
-        .watchById(companyId: companyId, id: entityId)
-        .first;
-    if (row == null) return;
-    final current = decodeRawDocumentsColumn(row.documents);
-    final next = current.where((d) => d.id != documentId).toList();
-    if (next.length == current.length) return; // not found; no-op
-    await (db.update(db.vendors)
-          ..where((v) => v.companyId.equals(companyId) & v.id.equals(entityId)))
-        .write(
-          VendorsCompanion(
-            documents: Value(jsonEncode(next.map((d) => d.toJson()).toList())),
-          ),
-        );
-  }
+  }) => applyDocumentDeletedTemplate(
+    documentId: documentId,
+    readDocuments: () => _readDocuments(companyId, entityId),
+    writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
+  );
 
   /// Replace (or insert) one document in the vendor's local `documents`
   /// JSON column. Mirror of `ClientRepository.applyDocumentChanged`.
@@ -550,27 +539,11 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     required String companyId,
     required String entityId,
     required DocumentApi document,
-  }) async {
-    final row = await db.vendorDao
-        .watchById(companyId: companyId, id: entityId)
-        .first;
-    if (row == null) return;
-    final current = decodeRawDocumentsColumn(row.documents);
-    final next = [
-      for (final d in current)
-        if (d.id == document.id) document else d,
-    ];
-    if (!current.any((d) => d.id == document.id)) {
-      next.add(document);
-    }
-    await (db.update(db.vendors)
-          ..where((v) => v.companyId.equals(companyId) & v.id.equals(entityId)))
-        .write(
-          VendorsCompanion(
-            documents: Value(jsonEncode(next.map((d) => d.toJson()).toList())),
-          ),
-        );
-  }
+  }) => applyDocumentChangedTemplate(
+    document: document,
+    readDocuments: () => _readDocuments(companyId, entityId),
+    writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
+  );
 
   Vendor _fromRow(VendorRow row) {
     final json = jsonDecode(row.payload) as Map<String, dynamic>;
@@ -594,6 +567,28 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
       documents: decodeDocumentsColumn(row.documents),
     );
   }
+
+  /// The row's `documents` column decoded, or null when the row isn't cached
+  /// locally — the two cases [applyDocumentChangedTemplate] must tell apart.
+  Future<List<DocumentApi>?> _readDocuments(
+    String companyId,
+    String entityId,
+  ) async {
+    final row = await db.vendorDao
+        .watchById(companyId: companyId, id: entityId)
+        .first;
+    return row == null ? null : decodeRawDocumentsColumn(row.documents);
+  }
+
+  Future<void> _writeDocuments(
+    String companyId,
+    String entityId,
+    String json,
+  ) =>
+      (db.update(db.vendors)..where(
+            (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
+          ))
+          .write(VendorsCompanion(documents: Value(json)));
 }
 
 /// Resolve the row-level display name from the API payload. Falls back to

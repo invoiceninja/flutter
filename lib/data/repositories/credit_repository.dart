@@ -555,48 +555,21 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
     required String companyId,
     required String entityId,
     required String documentId,
-  }) async {
-    final row = await db.creditDao
-        .watchById(companyId: companyId, id: entityId)
-        .first;
-    if (row == null) return;
-    final current = decodeRawDocumentsColumn(row.documents);
-    final next = current.where((d) => d.id != documentId).toList();
-    if (next.length == current.length) return;
-    await (db.update(db.credits)
-          ..where((e) => e.companyId.equals(companyId) & e.id.equals(entityId)))
-        .write(
-          CreditsCompanion(
-            documents: Value(jsonEncode(next.map((d) => d.toJson()).toList())),
-          ),
-        );
-  }
+  }) => applyDocumentDeletedTemplate(
+    documentId: documentId,
+    readDocuments: () => _readDocuments(companyId, entityId),
+    writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
+  );
 
   Future<void> applyDocumentChanged({
     required String companyId,
     required String entityId,
     required DocumentApi document,
-  }) async {
-    final row = await db.creditDao
-        .watchById(companyId: companyId, id: entityId)
-        .first;
-    if (row == null) return;
-    final current = decodeRawDocumentsColumn(row.documents);
-    final next = [
-      for (final d in current)
-        if (d.id == document.id) document else d,
-    ];
-    if (!current.any((d) => d.id == document.id)) {
-      next.add(document);
-    }
-    await (db.update(db.credits)
-          ..where((e) => e.companyId.equals(companyId) & e.id.equals(entityId)))
-        .write(
-          CreditsCompanion(
-            documents: Value(jsonEncode(next.map((d) => d.toJson()).toList())),
-          ),
-        );
-  }
+  }) => applyDocumentChangedTemplate(
+    document: document,
+    readDocuments: () => _readDocuments(companyId, entityId),
+    writeDocuments: (json) => _writeDocuments(companyId, entityId, json),
+  );
 
   // ── Conversions ────────────────────────────────────────────────────
 
@@ -707,4 +680,26 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
           byId: byId,
         ),
       );
+
+  /// The row's `documents` column decoded, or null when the row isn't cached
+  /// locally — the two cases [applyDocumentChangedTemplate] must tell apart.
+  Future<List<DocumentApi>?> _readDocuments(
+    String companyId,
+    String entityId,
+  ) async {
+    final row = await db.creditDao
+        .watchById(companyId: companyId, id: entityId)
+        .first;
+    return row == null ? null : decodeRawDocumentsColumn(row.documents);
+  }
+
+  Future<void> _writeDocuments(
+    String companyId,
+    String entityId,
+    String json,
+  ) =>
+      (db.update(db.credits)..where(
+            (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
+          ))
+          .write(CreditsCompanion(documents: Value(json)));
 }

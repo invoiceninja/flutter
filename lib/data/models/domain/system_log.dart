@@ -249,6 +249,13 @@ extension SystemLogType on SystemLog {
         return (isKey: false, value: 'LawPay');
       case 329:
         return (isKey: false, value: 'Payware');
+      // `SystemLog::TYPE_CHIPINASIA` / `TYPE_HELCIM` — both added server-side
+      // after this app shipped. Without them a CHIP or Helcim gateway's System
+      // Logs card lists every row as "Undefined Type".
+      case 330:
+        return (isKey: false, value: 'CHIP');
+      case 331:
+        return (isKey: false, value: 'Helcim');
       case 400:
         return (isKey: false, value: 'Quota exceeded');
       case 401:

@@ -287,6 +287,7 @@ PurchaseOrder emptyPurchaseOrder() => PurchaseOrder(
   vendorId: '',
   projectId: '',
   expenseId: '',
+  invoiceId: '',
   designId: '',
   assignedUserId: '',
   userId: '',

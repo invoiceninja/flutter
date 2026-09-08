@@ -456,4 +456,42 @@ void main() {
       );
     });
   });
+
+  group('last login (BACKEND.md § F5)', () {
+    // The server settled on `0`, not `null`, for "never signed in". That is the
+    // whole reason this row can exist at all: until 2026-09-08 the transformer
+    // sent `Carbon::parse(null)` — i.e. the moment you asked — so the row would
+    // have shown a plausible, wrong, and constantly-changing timestamp for
+    // every user who had never logged in.
+    testWidgets('a user who has never signed in reads "Never", not a date', (
+      tester,
+    ) async {
+      services = servicesFor(
+        users: {'u1': _user('u1', 'Zoe', 'Viewer')},
+        api: api,
+      );
+      await pump(tester, 'u1');
+
+      expect(find.text('Never'), findsOneWidget);
+      // An em dash would be wrong here: `—` means *absent*, and having never
+      // signed in is a fact worth stating.
+      expect(find.text('—'), findsNothing);
+    });
+
+    testWidgets('a real timestamp renders as a date', (tester) async {
+      services = servicesFor(
+        users: {
+          // 2026-03-14T11:30:00Z — deliberately mid-day UTC so the calendar
+          // day is the same from UTC-11 to UTC+10 (CLAUDE.md § Strict rules:
+          // CI runs UTC, these machines don't).
+          'u1': _user('u1', 'Zoe', 'Viewer').copyWith(lastLogin: 1773487800),
+        },
+        api: api,
+      );
+      await pump(tester, 'u1');
+
+      expect(find.text('Never'), findsNothing);
+      expect(find.textContaining('2026'), findsWidgets);
+    });
+  });
 }

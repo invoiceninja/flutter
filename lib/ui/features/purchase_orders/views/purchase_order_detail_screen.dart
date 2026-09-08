@@ -419,7 +419,20 @@ class _Header extends StatelessWidget {
                         purchaseOrder.dueDate!.toIso(),
                   ),
                 if (purchaseOrder.expenseId.isNotEmpty)
-                  _ExpenseLink(expenseId: purchaseOrder.expenseId),
+                  _RecordLink(
+                    captionKey: 'expense',
+                    labelKey: 'view_expense_label',
+                    route: '/expenses/${purchaseOrder.expenseId}',
+                  ),
+                // Set when this PO was produced by the server's 2026-09-05
+                // `clone_to_purchase_order` action, so the user can get back to
+                // the invoice it came from.
+                if (purchaseOrder.invoiceId.isNotEmpty)
+                  _RecordLink(
+                    captionKey: 'invoice',
+                    labelKey: 'view_invoice',
+                    route: '/invoices/${purchaseOrder.invoiceId}',
+                  ),
               ],
             ),
           ),
@@ -589,12 +602,27 @@ class _LabelValue extends StatelessWidget {
   }
 }
 
-/// "Expense" header field rendered as a tappable link to the converted
-/// expense (`/expenses/<id>`), instead of a raw UUID. Shown only when the PO
-/// has been converted (`expenseId` set).
-class _ExpenseLink extends StatelessWidget {
-  const _ExpenseLink({required this.expenseId});
-  final String expenseId;
+/// A captioned header field rendered as a tappable link to a related record,
+/// instead of a raw id. Two users today, each mounted only when its id is set:
+/// the converted **expense** (`expenseId`), and the **invoice** this PO was
+/// cloned from (`invoiceId`, set by the server's `clone_to_purchase_order`).
+class _RecordLink extends StatelessWidget {
+  const _RecordLink({
+    required this.captionKey,
+    required this.labelKey,
+    required this.route,
+  });
+
+  /// Localization key for the small caption above the link.
+  final String captionKey;
+
+  /// Localization key for the link text. Must be **placeholder-free** —
+  /// `view_expense` is "View expense # :expense" and nothing substitutes the
+  /// number here, hence `view_expense_label`; `view_invoice` is already bare.
+  final String labelKey;
+
+  /// Router path to open, e.g. `/expenses/<id>`.
+  final String route;
 
   @override
   Widget build(BuildContext context) {
@@ -604,7 +632,7 @@ class _ExpenseLink extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          context.tr('expense'),
+          context.tr(captionKey),
           style: TextStyle(fontSize: 11, color: tokens.ink3),
         ),
         const SizedBox(height: 2),
@@ -615,11 +643,9 @@ class _ExpenseLink extends StatelessWidget {
         Material(
           type: MaterialType.transparency,
           child: InkWell(
-            onTap: () => context.go('/expenses/$expenseId'),
+            onTap: () => context.go(route),
             child: Text(
-              // `view_expense_label`: `view_expense` is
-              // "View expense # :expense" and no number is substituted here.
-              context.tr('view_expense_label'),
+              context.tr(labelKey),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

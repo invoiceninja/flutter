@@ -56,6 +56,18 @@ CardListTarget cardListTarget(DashboardCardConfig config) {
     case 'logged_tasks':
     case 'invoiced_tasks':
     case 'paid_tasks':
+    // The 2026-08 task metrics. `overdue_tasks` and `tasks_due` DO have server
+    // filters (`TaskFilters::overdue`, and a due-date range), but pointing at
+    // one before the list has a matching local Drift predicate gives a list
+    // that narrows on the fetch and then widens again from cache — worse than
+    // no filter. Upgrade `overdue_tasks` to `{'overdue': {'true'}}` when the
+    // task due-date work lands its local predicate and status tab.
+    case 'task_estimated_duration':
+    case 'task_remaining_estimated_duration':
+    case 'unestimated_tasks':
+    case 'tasks_over_estimate':
+    case 'overdue_tasks':
+    case 'tasks_due':
       // No faithful task list filter today → bare list.
       return const CardListTarget(EntityType.task, '/tasks', {});
     case 'logged_expenses':

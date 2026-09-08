@@ -35,13 +35,15 @@ const kCompanyDetailsDocumentsSearchKeys = <String>[
 /// the company's own). It renders with `defaultValue: true` because the
 /// server's historical behavior for an unset key is public.
 ///
-/// **Until the server ships the prop, saving it visibly reverts.**
+/// **The server shipped this prop on 2026-09-08, so the toggle now persists.**
+/// It previously *reverted on screen* right after the "Saved" toast:
 /// `CompanySettingsSaver` drops any settings key absent from
 /// `CompanySettings::$casts`, and `CompanyRepository.applyUpdateResponse`
-/// replaces the whole blob with the server's echo — so the key is gone from
-/// Drift on the next frame and `defaultValue: true` renders the switch back
-/// ON right after the "Saved" toast. Not a client bug; see `BACKEND.md`
-/// § `documents_public_by_default`.
+/// replaces the whole blob with the server's echo, so the key was gone from
+/// Drift on the next frame and `defaultValue: true` re-rendered the switch ON.
+/// `CompanySettings.php:549` now declares the prop and `:552` registers its
+/// cast, so the key survives the round trip. Never a client bug; see
+/// `BACKEND.md` § `documents_public_by_default` for the original ask.
 ///
 /// The document list reads [CompanyDetailsViewModel.initialValue], not the
 /// draft: uploads and deletes land on the company row through the outbox, and

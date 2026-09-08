@@ -174,11 +174,15 @@ class _ManageBodyState extends State<_ManageBody> {
   DashboardCardConfig? get _prospective {
     final f = _field;
     if (f == null) return null;
-    final fmt = isTaskField(f) ? _format : CardFormat.money;
+    // The server forces the format on the duration and count fields and
+    // rejects anything else with a 422, so the picker never gets a say there.
+    final fmt = resolveFormatFor(f, _format);
+    final allowed = allowedCalcsFor(f);
+    final calc = allowed.contains(_calc) ? _calc : allowed.first;
     return DashboardCardConfig(
       field: f,
       period: _period,
-      calculate: _calc,
+      calculate: calc,
       format: fmt,
     );
   }
@@ -342,6 +346,9 @@ class _ManageBodyState extends State<_ManageBody> {
 
   Widget _composePane(BuildContext context, List<_FieldOpt> fieldOpts) {
     final isTask = _field != null && isTaskField(_field!);
+    final calcOptions = _field == null
+        ? CardCalc.values
+        : allowedCalcsFor(_field!);
     _FieldOpt? selected;
     for (final o in fieldOpts) {
       if (o.id == _field) {
@@ -366,9 +373,20 @@ class _ManageBodyState extends State<_ManageBody> {
               emptyHintKey: 'no_records_found',
               onChanged: (o) => setState(() {
                 _field = o?.id;
-                if (_field == null || !isTaskField(_field!)) {
+                final f = _field;
+                if (f == null) {
                   _format = CardFormat.money;
+                  return;
                 }
+                // Snap both controls into what this field actually accepts,
+                // so switching between field classes can't leave a tuple the
+                // server 422s on. `_format` is sticky across selections, which
+                // is why this must go through `resolveFormatFor` — it is what
+                // clears a `none` left behind by a previously-picked count
+                // field.
+                _format = resolveFormatFor(f, _format);
+                final allowed = allowedCalcsFor(f);
+                if (!allowed.contains(_calc)) _calc = allowed.first;
               }),
             ),
             SizedBox(height: InSpacing.md(context)),
@@ -381,22 +399,31 @@ class _ManageBodyState extends State<_ManageBody> {
                 (v) => context.tr(_periodLabel(v)),
               ),
             ),
-            SizedBox(height: InSpacing.md(context)),
-            _LabeledControl(
-              label: context.tr('calculate'),
-              child: _seg<CardCalc>(
-                CardCalc.values,
-                _calc,
-                (v) => setState(() => _calc = v),
-                (v) => context.tr(_calcLabel(v)),
+            // Hidden when the field leaves no choice — the count fields accept
+            // only `count`, and a single-segment control looks tappable while
+            // doing nothing. Same rule the format control below already
+            // follows; the chosen calculation still shows in the preview's
+            // subcaption, so nothing is lost.
+            if (calcOptions.length > 1) ...[
+              SizedBox(height: InSpacing.md(context)),
+              _LabeledControl(
+                label: context.tr('calculate'),
+                child: _seg<CardCalc>(
+                  calcOptions,
+                  _calc,
+                  (v) => setState(() => _calc = v),
+                  (v) => context.tr(_calcLabel(v)),
+                ),
               ),
-            ),
+            ],
             if (isTask) ...[
               SizedBox(height: InSpacing.md(context)),
               _LabeledControl(
                 label: context.tr('format'),
                 child: _seg<CardFormat>(
-                  CardFormat.values,
+                  // Never `CardFormat.values` — `none` exists only so the count
+                  // fields can omit the key on the wire, and has no label.
+                  const [CardFormat.money, CardFormat.time],
                   _format,
                   (v) => setState(() => _format = v),
                   (v) => context.tr(v.name),

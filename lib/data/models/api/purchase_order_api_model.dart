@@ -25,6 +25,9 @@ abstract class PurchaseOrderApi with _$PurchaseOrderApi {
     @JsonKey(name: 'vendor_id') @Default('') String vendorId,
     @JsonKey(name: 'project_id') @Default('') String projectId,
     @JsonKey(name: 'expense_id') @Default('') String expenseId,
+    // The invoice this PO was cloned from, via the 2026-09-05
+    // `clone_to_purchase_order` action. Empty for a PO created directly.
+    @JsonKey(name: 'invoice_id') @Default('') String invoiceId,
     @JsonKey(name: 'design_id') @Default('') String designId,
     @JsonKey(name: 'assigned_user_id') @Default('') String assignedUserId,
     @JsonKey(name: 'user_id') @Default('') String userId,

@@ -1,3 +1,4 @@
+import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
@@ -175,4 +176,72 @@ void main() {
     // instead of recomputing the window from the preset name.
     expect(body['date_range'], 'custom');
   });
+
+  // --- calculated_fields: the server's per-field-class request rules ---
+  //
+  // `ShowCalculatedFieldRequest` enforces three shapes, and getting any of them
+  // wrong is a 422 the user sees as a permanently-erroring card. These assert
+  // the wire body, which is the only place the distinction is observable.
+
+  test(
+    'calculated_fields — a money field sends format + calculation',
+    () async {
+      await api.fetchCalculatedField(
+        DashboardFilter.defaults(),
+        const DashboardCardConfig(
+          field: 'active_invoices',
+          period: CardPeriod.current,
+          calculate: CardCalc.sum,
+          format: CardFormat.money,
+        ),
+      );
+      final body = client.posts.single.body!;
+      expect(body['field'], 'active_invoices');
+      expect(body['calculation'], 'sum');
+      expect(body['period'], 'current');
+      expect(body['format'], 'money');
+    },
+  );
+
+  test('calculated_fields — a duration field sends format: time', () async {
+    await api.fetchCalculatedField(
+      DashboardFilter.defaults(),
+      const DashboardCardConfig(
+        field: 'task_estimated_duration',
+        period: CardPeriod.total,
+        calculate: CardCalc.avg,
+        format: CardFormat.time,
+      ),
+    );
+    final body = client.posts.single.body!;
+    expect(body['field'], 'task_estimated_duration');
+    expect(body['calculation'], 'avg');
+    expect(body['format'], 'time');
+  });
+
+  test(
+    'calculated_fields — a count field OMITS the format key entirely',
+    () async {
+      // The server's `after()` validator fails on `$this->has('format')`, not on
+      // its value, so sending `format: none` (or null) 422s just as hard as
+      // sending `money`. The key must be absent from the body.
+      await api.fetchCalculatedField(
+        DashboardFilter.defaults(),
+        const DashboardCardConfig(
+          field: 'overdue_tasks',
+          period: CardPeriod.current,
+          calculate: CardCalc.count,
+          format: CardFormat.none,
+        ),
+      );
+      final body = client.posts.single.body!;
+      expect(body['field'], 'overdue_tasks');
+      expect(body['calculation'], 'count');
+      expect(
+        body.containsKey('format'),
+        isFalse,
+        reason: 'the count fields reject `format` when merely present',
+      );
+    },
+  );
 }

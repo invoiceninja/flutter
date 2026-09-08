@@ -60,6 +60,20 @@ void main() {
           'logged_tasks': (e: EntityType.task, route: '/tasks', f: {}),
           'invoiced_tasks': (e: EntityType.task, route: '/tasks', f: {}),
           'paid_tasks': (e: EntityType.task, route: '/tasks', f: {}),
+          'task_estimated_duration': (
+            e: EntityType.task,
+            route: '/tasks',
+            f: {},
+          ),
+          'task_remaining_estimated_duration': (
+            e: EntityType.task,
+            route: '/tasks',
+            f: {},
+          ),
+          'unestimated_tasks': (e: EntityType.task, route: '/tasks', f: {}),
+          'tasks_over_estimate': (e: EntityType.task, route: '/tasks', f: {}),
+          'overdue_tasks': (e: EntityType.task, route: '/tasks', f: {}),
+          'tasks_due': (e: EntityType.task, route: '/tasks', f: {}),
           'logged_expenses': (e: EntityType.expense, route: '/expenses', f: {}),
           'pending_expenses': (
             e: EntityType.expense,

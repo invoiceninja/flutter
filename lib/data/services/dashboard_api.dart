@@ -70,7 +70,11 @@ class DashboardApi {
       'field': config.field,
       'calculation': config.calculate.name,
       'period': config.period.name,
-      'format': config.format.name,
+      // The task *count* fields reject `format` when the key is merely present
+      // — `ShowCalculatedFieldRequest`'s `after()` validator fails on
+      // `$this->has('format')`, not on its value — so omit it rather than
+      // sending `none` or null. Every other field requires it.
+      if (config.format != CardFormat.none) 'format': config.format.name,
       'currency_id': filter.currencyId.toString(),
     };
     final raw = await client.postJson(

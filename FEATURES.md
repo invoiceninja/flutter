@@ -110,6 +110,7 @@ the honest default.
 | Dashboard date range filter | ✅ | ✅ | ✅ | ✅ | |
 | Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |
+| Dashboard cards — task estimate / due / overdue metrics (6 server fields added 2026-08-31) | — | — | ✅ | | |
 | Reorder + show/hide dashboard list panels (device-local) | — | — | ✅ | ✅ | |
 | Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ❌ | ✅ | — |
 | Panel → filtered list deep-links (View All / KPI cards carry matching filters) | — | — | ✅ | ✅ | |
@@ -445,6 +446,7 @@ the honest default.
 | Purchase order — clone | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — convert to expense | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — view linked expense | ✅ | ✅ | ✅ | ✅ | |
+| Purchase order — view source invoice (`invoice_id`, set by `clone_to_purchase_order`) | — | — | ✅ | | |
 | Purchase order — add to inventory (→ received) | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — email to vendor | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — schedule email | ✅ | ❌ | ✅ | ✅ | |
@@ -1412,6 +1414,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Edit user details (Enterprise) | ✅ | ✅ | ✅ | ✅ | |
 | Bulk user management | ✅ | ✅ | ✅ | ✅ | |
 | User activity log | — | — | ✅ | ✅ | |
+| User last-login shown on the detail screen (`0` = Never) | ✅ | ❌ | ✅ | | |
 | Owner + current user shown in roster (badged, not selectable) | ❌ | ❌ | ✅ | | |
 | Remove / revoke user | ✅ | ✅ | ✅ | ✅ | |
 

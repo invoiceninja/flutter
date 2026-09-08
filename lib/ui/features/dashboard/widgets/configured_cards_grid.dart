@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -171,20 +172,64 @@ class _CardCell extends StatelessWidget {
     }
     final data = section.data;
     if (data == null) return '—'; // idle / loading / no cache yet
-    final num raw = data.value;
-    // Mirrors React DashboardCard.tsx:95-99 exactly: money (and not a count)
-    // → currency-formatted; everything else (count, time, avg-as-number) →
-    // the raw value.
-    if (config.format == CardFormat.money &&
-        config.calculate != CardCalc.count) {
-      return formatter.money(
-        data.asDecimal,
-        // `Formatter`'s all-currency sentinel is '-1'; for the dashboard's
-        // 999=all we want the company base currency → pass no currencyId,
-        // which is exactly what `selectedCurrencyKey` yields.
-        currencyId: selectedCurrencyKey(vm.filter.currencyId),
-      );
-    }
-    return raw % 1 == 0 ? raw.toInt().toString() : raw.toString();
+    return dashboardCardValueText(
+      config: config,
+      value: data.value,
+      asDecimal: data.asDecimal,
+      formatter: formatter,
+      currencyId: selectedCurrencyKey(vm.filter.currencyId),
+    );
   }
+}
+
+/// Renders one configured card's value for [config]'s field class.
+///
+/// A pure function so the three branches are unit-testable — pumping the grid
+/// needs a live `DashboardViewModel` holding Drift watches, and the branch that
+/// broke (below) is invisible from outside anyway.
+///
+/// Three cases, and the guards matter:
+///
+/// * **Money, not a count** → currency-formatted. Mirrors React
+///   DashboardCard.tsx:95-99. `currencyId` should be
+///   `selectedCurrencyKey(filter.currencyId)`: `Formatter`'s all-currency
+///   sentinel is `-1`, and for the dashboard's `999`=all we want the company
+///   base currency, which is exactly what that helper yields.
+/// * **Time, not a count** → a duration. The value is **seconds** on the wire
+///   (`ChartCalculations` sums `calcDuration()` / `estimated_duration`, both
+///   stored in seconds). React prints the bare number and so did we, so a
+///   "Logged tasks / time / sum" card read `9000` rather than `2:30`; this
+///   deliberately diverges, and is unavoidable for the 2026-08 duration fields
+///   whose format the server forces to `time`.
+///
+///   `compactDays` + no seconds is the app's convention for an *aggregate*
+///   duration (task list column, kanban card, detail KPI strip, daily header —
+///   see `formatDuration`'s own doc). This is the largest duration in the app,
+///   a period-wide sum across every task, so the bare default would give
+///   `523:45:12` where the rest of the app says `21d 19h 45m`.
+/// * **Anything else** (every count, and an avg-as-number) → the raw value.
+///
+/// **`calculate != count` guards both formatted branches.** The three original
+/// `*_tasks` fields accept any calculation *and* offer a format control, so
+/// `paid_tasks / count / time` is reachable from the picker — without the
+/// guard a count of 42 tasks renders as the duration `0:00:42`.
+String dashboardCardValueText({
+  required DashboardCardConfig config,
+  required num value,
+  required Decimal asDecimal,
+  required Formatter formatter,
+  required String? currencyId,
+}) {
+  final isCount = config.calculate == CardCalc.count;
+  if (config.format == CardFormat.money && !isCount) {
+    return formatter.money(asDecimal, currencyId: currencyId);
+  }
+  if (config.format == CardFormat.time && !isCount) {
+    return formatDuration(
+      Duration(seconds: value.round()),
+      compactDays: true,
+      showSeconds: false,
+    );
+  }
+  return value % 1 == 0 ? value.toInt().toString() : value.toString();
 }

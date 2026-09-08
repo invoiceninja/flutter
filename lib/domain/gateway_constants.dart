@@ -36,6 +36,14 @@ const String kGatewayBtcpay = 'vpyfbmdrkqcicpkjqdusgjfluebftuva';
 const String kGatewayBlockonomics = 'wbhf02us6owgo7p4nfjd0ymssdshks4d';
 const String kGatewayRotessa = '91be24c7b792230bced33e930ac61676';
 const String kGatewayCbaPowerboard = 'b67581d804dbad1743b61c57285142ad';
+// Added server-side after this app's first release: Helcim on 2026-03-25
+// (gateway id 69) and CHIP on 2026-05-15 (id 68). Keys verified against both
+// `PaymentLibrariesSeeder.php:97-98` and their migrations. Both reach the
+// picker automatically — the catalog and the credentials form are
+// statics-driven — so these constants exist only for `kGatewaySystemLogTypeIds`
+// below. Neither has a logo asset yet, so both fall back to the wallet icon.
+const String kGatewayHelcim = 'ca3b3f7e4be811c96a8a1f4cafe2a97f';
+const String kGatewayChip = 'c7a8e2f1b4d90635a3f8e1c9b2d4a6e0';
 
 /// Gateway types that require an OAuth-driven setup flow (external redirect,
 /// per-type custom UI). The Credentials tab on the edit screen substitutes a
@@ -200,8 +208,11 @@ const Map<String, String> kGatewayTypeLabelKey = <String, String>{
 ///
 /// Lossy by necessity: system_log rows carry no `company_gateway_id`, and some
 /// providers share a type id (both PayPal keys → 300/323), so logs scope to the
-/// *provider*, not a single gateway instance. Providers with no known type id
-/// (bank/crypto gateways) simply show no logs.
+/// *provider*, not a single gateway instance. A provider absent from this map
+/// simply shows no logs — `CompanyGatewaySystemLogsCard` early-returns on a
+/// miss, so a wrong or missing entry fails silently. Keep it in step with
+/// `SystemLog.typeDisplay`, which is the list of ids the app can actually
+/// name.
 const Map<String, Set<int>> kGatewaySystemLogTypeIds = <String, Set<int>>{
   kGatewayStripe: {301},
   kGatewayStripeConnect: {301},
@@ -221,4 +232,14 @@ const Map<String, Set<int>> kGatewaySystemLogTypeIds = <String, Set<int>>{
   kGatewaySquare: {320},
   kGatewayGoCardlessOAuth: {321},
   kGatewayRazorpay: {322},
+  // These four were omitted as "no known type id", but `SystemLog.typeDisplay`
+  // has named them all along (`system_log.dart:240-247`) — so their System Logs
+  // card was empty for no reason.
+  kGatewayBtcpay: {324},
+  kGatewayRotessa: {325},
+  kGatewayBlockonomics: {326},
+  kGatewayCbaPowerboard: {327},
+  // `SystemLog::TYPE_CHIPINASIA` / `TYPE_HELCIM`.
+  kGatewayChip: {330},
+  kGatewayHelcim: {331},
 };

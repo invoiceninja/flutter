@@ -8,6 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/user.dart';
+import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/detail/custom_field_detail_rows.dart';
@@ -56,6 +57,31 @@ class UserDetailScreen extends StatefulWidget {
 }
 
 class _UserDetailScreenState extends State<UserDetailScreen> {
+  /// `last_login` as a date, or a localized "Never".
+  ///
+  /// `User.lastLogin` is epoch **seconds as an int**, not a `DateTime?` like
+  /// its Vendor twin — and the server sends `0` (not null) for a user who has
+  /// never signed in. `epochSecondsToUtcOrNull` already treats `<= 0` as
+  /// absent, so it is the whole "never" test.
+  ///
+  /// Date only, no time: the Vendor row this mirrors does the same, and the
+  /// exact minute of a sign-in is not what anyone reads this row for.
+  ///
+  /// **`.toLocal()` first, and date-only.** `Formatter.date` applies
+  /// `.toLocal()` only on its `showTime: true` branch — the date-only branch is
+  /// a bare `DateTime.tryParse`, so handing it the UTC instant renders the
+  /// wrong calendar day for anyone whose evening crosses the UTC boundary (a
+  /// UTC-8 user signing in at 17:00 local would read tomorrow's date).
+  /// `ActivityRecordRow._timestampLabel` and `EntityDetailHeader._format`
+  /// document the same trap. Note `VendorDetailDetailsCard` still has it.
+  String _lastLoginText(BuildContext context, String companyId, User user) {
+    final at = epochSecondsToUtcOrNull(user.lastLogin);
+    if (at == null) return context.tr('never');
+    final local = at.toLocal().toIso8601String().split('T').first;
+    final formatter = context.read<Services>().formatterIfReady(companyId);
+    return formatter?.date(local) ?? local;
+  }
+
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
@@ -149,6 +175,22 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                       labelKey: 'two_factor_authentication',
                       value: context.tr('enabled'),
                     ),
+                  // Rendered only since the server made the field truthful
+                  // (2026-09-08, BACKEND.md § F5): `UserTransformer` used to
+                  // send `Carbon::parse(null)`, i.e. the moment you asked, and
+                  // `UserFactory` seeded the column at creation — so this row
+                  // would have shown request time for anyone who had never
+                  // signed in. Both are fixed.
+                  //
+                  // "Never" rather than an em dash: `—` means *absent*, and
+                  // never having signed in is a fact worth stating — it is the
+                  // whole reason to look at this row on a pending invite.
+                  _SummaryRow(
+                    labelKey: 'last_login',
+                    // The server sends `0`, not null, for "never"; that is what
+                    // `epochSecondsToUtcOrNull` already treats as absent.
+                    value: _lastLoginText(context, companyId, user),
+                  ),
                 ],
               ),
               if (user.customValue1.isNotEmpty ||

@@ -91,6 +91,16 @@ class KpiCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
+            // The card sits in a fixed `mainAxisExtent: 140` cell, so a value
+            // that wraps to a second 26 px line overflows it — clipped in
+            // release by the `Material`'s `Clip.antiAlias`, a RenderFlex
+            // overflow in debug. Both captions below already guard this way;
+            // the value did not, which only became reachable once a card could
+            // hold an aggregate duration (`21d 19h 45m` — the first value here
+            // with a space in it, and so the first that can wrap).
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
             style: moneyTextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w500,

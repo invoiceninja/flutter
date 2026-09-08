@@ -17,14 +17,23 @@ part 'user.freezed.dart';
 ///    settings blob; everything the new app doesn't model round-trips
 ///    untouched on save.
 ///
-/// **`lastLogin` never means "last login"** — it is parsed and stored but
-/// deliberately rendered nowhere. `UserTransformer` sends
-/// `Carbon::parse($user->last_login)->timestamp`, and `Carbon::parse(null)` is
-/// *now*, so a seeded or migrated row reports the moment you asked
-/// (live-confirmed against demo, where the value tracks request time); a row
-/// created through `POST /users` reports its creation time instead, because
-/// `UserFactory::create()` seeds the column. Don't build a "last seen" row on
-/// it, and don't use it to infer that someone has never acted. BACKEND.md § F5.
+/// **`lastLogin` is epoch seconds, and `0` means "never signed in".**
+///
+/// It was unusable until 2026-09-08 and rendered nowhere: `UserTransformer`
+/// sent `Carbon::parse($user->last_login)->timestamp`, and `Carbon::parse(null)`
+/// is *now*, so a seeded or migrated row reported the moment you asked
+/// (live-confirmed against demo, where the value tracked request time); a row
+/// created through `POST /users` reported its creation time instead, because
+/// `UserFactory::create()` seeded the column. Both are now fixed upstream
+/// (BACKEND.md § F5), so the value is truthful and Settings → User Details
+/// renders it.
+///
+/// Two things still differ from every other timestamp on this model, and both
+/// bite silently. The server settled on **`0`** rather than `null` for "never",
+/// so the absence test is `<= 0` — which is exactly what
+/// `epochSecondsToUtcOrNull` does, so route through that rather than comparing
+/// by hand. And this is a bare `int`, not the `DateTime?` its Vendor twin
+/// carries, so it cannot be handed straight to `Formatter.date`.
 ///
 /// (Field-level note lives here rather than beside the parameter because
 /// freezed copies *any* comment in the factory's parameter list into the

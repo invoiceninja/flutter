@@ -13,15 +13,18 @@ the Flutter app) so they are explicitly **out of scope** here.
 
 **Also in this file (non-filter backend asks, appended at the bottom):**
 - Web platform CORS — `Idempotency-Key` not allow-listed (**R**, blocks web writes).
-- Server-side `Idempotency-Key` dedupe — not implemented (**R**, retry-safety / duplicate creates).
+- Server-side `Idempotency-Key` dedupe — not implemented (**R**, retry-safety / duplicate creates); the server now has the machinery but keys it on a 1-second body hash, so the ask is smaller — see that section.
+- OIDC sign-in — the callback hardcodes the React SPA, so no Flutter client (native **or** web) can complete it (**O**, blocks self-hosted SSO; same shape as the calendar-connect fix).
+- Bulk `ids` are now existence-checked, so one stale id 422s the whole batch (**O**, shared-cache UX).
+- `POST /api/v1/tasks/bulk` with `action=bulk_update` always **500s** — `Collection::first()` returns a model, not a collection (**R**, server bug; not client-triggerable today).
 - Company write — partial login envelope + full-replace PUT force a client fetch-gate (**O**).
-- E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` (**O**, blocks SG government onboarding).
+- E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` (**SHIPPED** 2026-09-08; the `in:` list now carries `government`).
 - Dashboard net (ex-tax) chart totals — chart endpoints have no `net` param (**O**, feature request flutter#4).
 - Purchase-order PDF line-item currency — a PO with an attached client prints line items in the *client's* currency while totals stay in the *vendor's* (**R**, PDF correctness).
-- Company setting `documents_public_by_default` — no server-side default for a new document's `is_public` (**O**, feature request; the Flutter v2 toggle is inert without it).
+- Company setting `documents_public_by_default` — no server-side default for a new document's `is_public` (**SHIPPED** 2026-09-08; the prop, its cast and the `SavesDocuments` fallback all landed, so the v2 toggle should now persist).
 - `GET /api/v1/activities` — accepts **no filters at all**, incl. `user_id` (**O**, § F3; caused flutter#45, client now works around it).
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
-- `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**R**, § F5; the field is unusable until both are fixed).
+- `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**SHIPPED** 2026-09-08, § F5; both halves fixed, but the transformer emits `0` rather than `null` for "never").
 - `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
@@ -30,6 +33,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
 - **Calendar connect native callback** — `platform=flutter_native` on `/one_time_token`; both sides done.
 - **Multi-rate inclusive tax** — server adopted the additive `InclusiveTax::backout` model 2026-07-09 (two small client-side residuals noted in that section).
+- **`last_login`** (§ F5), **PEPPOL Singapore `government`**, and **`documents_public_by_default`** — all three landed server-side by 2026-09-08; see each section for the one client-visible caveat (`last_login` emits `0`, not `null`, for "never").
 
 **Provenance**
 - **2026-05-15** — empirical curl probe vs `demo.invoiceninja.com`.
@@ -496,7 +500,21 @@ history, and it is deliberately not suppressed per-platform either: per the
 table above, the invite path leaves the column null on hosted and self-hosted
 alike, so there is nowhere it would be safe to hide.
 
-### F5. `last_login` never means "last login" — **R**
+### F5. `last_login` never means "last login" — **SHIPPED (server-side)**
+
+> **STATUS 2026-09-08 — done, both halves.** `app/Transformers/UserTransformer.php:58`
+> is now `'last_login' => $user->last_login ? Carbon::parse($user->last_login)->timestamp : 0,`
+> and `app/Factory/UserFactory.php:29` is now `$user->last_login = null;` — the
+> seed is gone. The field is finally truthful.
+>
+> **One deviation from the spec below, and the client must handle it:** the
+> transformer emits **`0`**, not `null`, for a user who has never signed in. So
+> the v2 client's "never" test is `== 0`, not a null check — and `0` must render
+> as `never`, not as an em dash (`—` means *absent*; "has never signed in" is a
+> fact). `User.lastLogin` is `@Default(0) int` on the Flutter side, so convert
+> through `epochSecondsToUtcOrNull` before formatting. Kept below as the record
+> of the original ask.
+
 
 Two independent defects, and both must be fixed or the field stays unusable.
 
@@ -992,6 +1010,31 @@ and required for retry safety on every platform.
 
 ## Server-side `Idempotency-Key` dedupe — not implemented — **R (retry-safety gap)**
 
+> **UPDATE 2026-09-08 — the server now has the machinery; it just isn't keyed
+> on the header.** `StoreInvoiceRequest.php:100-104` and
+> `StorePaymentRequest.php:143-147` (and the `?paid=true` invoice update) now
+> take a lock via `Atomic::set` — Redis `SET NX EX 1` — keyed on
+> `"|INVOICE|" . hash('sha256', json_encode($input)) . "|" . $company_key`
+> (the body minus `lock_key`), and throw
+> `DuplicatePaymentException('Duplicate request.', 429)` on a hit: **429** with the bare body
+> `{"message":"Duplicate request"}` (no `errors` object, so it is not a 422
+> validation envelope).
+>
+> That is real dedupe, but two properties make it miss the case this section is
+> about. The TTL is **1 second**, and the key is the **request body** rather
+> than the `Idempotency-Key` header the client already sends. The v2 client maps
+> 429 → `RateLimitedException` and re-parks the outbox row for `Retry-After` or
+> **30 s** (`lib/data/repositories/sync_repository.dart:1169`), so a retry after
+> a lost response lands well outside the window and **still creates a
+> duplicate** — exactly the failure below.
+>
+> **The ask is therefore much smaller than originally written:** key the
+> existing `Atomic` lock on `(token, Idempotency-Key)` instead of the body hash,
+> widen the TTL, and store the response so a key hit replays it rather than
+> 429-ing. No client change — the header is already sent on every mutation on
+> every platform.
+
+
 The client sends `Idempotency-Key: <uuid>` on every outbox mutation, stable
 across retries (generated once at outbox-row creation — CLAUDE.md § Sync).
 The intent is exactly-once semantics: a request that times out *after* the
@@ -1184,7 +1227,82 @@ the deep-link bridge (`lib/app/app_deep_links.dart`) — is already in place.
 produces a callback `302` to `invoiceninja://calendar_connection/complete?...handoff=...`;
 a request with no platform still redirects to `react_url`.
 
-## E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` — **O (server gap, blocks SG government onboarding)**
+## OIDC sign-in — callback hardcodes the React SPA, so no Flutter client can complete it — **O (blocks self-hosted SSO on every Flutter target)**
+
+Found 2026-09-08 while auditing the generic-OIDC feature added in Aug–Sep 2026
+(`avanzzada/feat/oidc-sso`, PR #12073).
+
+**This is the calendar-connect gap again, one feature over.** That one is
+§ Calendar connect above, marked SHIPPED on both sides; the fix here is a direct
+copy of it.
+
+Everything except the return leg already works for a Flutter client:
+
+- `GET /api/v1/oidc/config` → `{oidc_enabled, oidc_provider_label}` — enough to
+  render or hide the button and label it with the operator's provider name.
+- `POST /api/v1/oidc/exchange {code}` → `{token}` — a one-shot swap of a 64-char
+  code (60 s TTL, `Cache::pull`) for a real CompanyToken, which the v2 client can
+  feed straight into its existing `loginWithToken` path.
+
+The break is in between. `LoginController::handleOidcProviderCallback`
+(`app/Http/Controllers/Auth/LoginController.php:1160`) ends with:
+
+```php
+$exchange_code = Str::random(64);
+Cache::put('oidc.exchange.' . $exchange_code, $company_token->token, now()->addSeconds(60));
+
+return redirect(config('ninja.react_url') . '/oauth-callback?code=' . $exchange_code);
+```
+
+`ninja.react_url` is unconditional — there is no `platform` parameter anywhere
+in the OIDC flow. So the code is delivered only to the React SPA, and **no
+Flutter client can receive it: not native, and not Flutter web either**, since
+that build is not served from `react_url`.
+
+The comment above those lines is right about *why* the code exists (keeping the
+CompanyToken out of browser history, Referer headers and access logs), and this
+ask does not change that — only where the code is delivered.
+
+**Required change** — mirror what calendar connect already does. Accept a
+`platform` value (`in:flutter_native,react`) on the OIDC start route
+(`GET /auth/oidc`), carry it through the provider round trip the way
+`CalendarConnectionService::platformForState()` carries it on `state`, and in
+`handleOidcProviderCallback` redirect to a native scheme when it is
+`flutter_native`:
+
+```php
+$redirect = $platform === 'flutter_native'
+    ? config('ninja.oidc.native_redirect', 'invoiceninja://oidc/complete')
+    : config('ninja.react_url') . '/oauth-callback';
+
+return redirect($redirect . '?code=' . $exchange_code);
+```
+
+A `config('ninja.oidc.native_redirect')` default of `invoiceninja://oidc/complete`
+matches the existing `ninja.calendar.native_redirect` convention.
+
+**Acceptance** — starting the OIDC flow with `platform=flutter_native` and
+completing it at the IdP redirects the system browser to
+`invoiceninja://oidc/complete?code=<64 chars>`, and `POST /api/v1/oidc/exchange`
+with that code returns the CompanyToken exactly once.
+
+**Client status** — v2 has the deep-link plumbing already (`app_deep_links.dart`
+handles this exact shape for calendar, including the cold-start double-delivery
+de-dup) and an existing `AuthRepository.loginWithToken`. The login-screen
+control is designed (a secondary `OutlinedButton` under the primary, labelled
+from `oidc_provider_label`, rendered only when `oidc_enabled`) but **will not
+ship until this lands** — a button that cannot complete its flow is worse than
+no button.
+
+## E-Invoice PEPPOL — Singapore "government" classification rejected by `StoreEntityRequest` — **SHIPPED (server-side)**
+
+> **STATUS 2026-09-08 — done, no client work.** `app/Http/Requests/EInvoice/Peppol/StoreEntityRequest.php:92`
+> is now `'classification' => ['required', Rule::in(['business', 'individual', 'government'])]`.
+> Both clients already send `government` for the SG CorpPass choice, so SG
+> government onboarding works with no change on either side. The low-severity
+> client polish noted below (no inline `classification` field error on a 422) is
+> moot for the common case. Kept below as the record of the original ask.
+
 
 `POST /api/v1/einvoice/peppol/setup` is validated by
 `app/Http/Requests/EInvoice/Peppol/StoreEntityRequest.php`, whose rule is
@@ -1579,8 +1697,31 @@ two cross-type clones now build the target draft **locally** (`cloneToQuote` /
 form — exactly like the already-working invoice→credit/recurring/PO clones — so
 they never hit the broken server bulk path. The server bug is still worth fixing
 (any API consumer using `clone_to_quote`/`clone_to_invoice` 500s), but it no
-longer blocks the client. (The dormant `cloneTo` server-clone repo/API/outbox
-handlers are now unused by the UI — safe to prune in a follow-up.)
+longer blocks the client.
+
+> **UPDATE 2026-09-08 — do NOT prune the dormant `cloneTo` handlers, and note
+> the server picture has changed.** The earlier note here said they were "safe
+> to prune in a follow-up". Two findings from the validation sweep argue against
+> that. First, the **bulk allowlists have diverged from their own controllers**:
+> `BulkActionQuoteRequest` dropped `clone_to_invoice` while `QuoteController::action()`
+> still handles it, and the new `BulkInvoiceRequest` allowlist omits
+> `clone_to_quote` while `InvoiceController::performAction()` still handles it —
+> so both now 422 on `/bulk` despite being implemented. (`clone_to_purchase_order`
+> was *added* to the invoice list on 2026-09-05, so the feature is being extended
+> upstream, not retired.) Second, the **single-record route has no allowlist at
+> all** — `GET /api/v1/{entity}/{id}/{action}` (`routes/api.php:258, 316, 358, 363`)
+> goes through `Action*Request`, which validates no action name, so every
+> cross-type clone still works there today.
+>
+> The v2 client's dormant path calls `bulkActionOne` — i.e. `/bulk` — so it
+> targets precisely the endpoint that broke. Keeping the handlers costs nothing
+> (an unknown mutation kind fails closed at `sync_repository.dart:986`, marking
+> the row dead), while deleting them would foreclose the working route. **If the
+> server-clone path is ever revived, point it at `GET /{entity}/{id}/{action}`,
+> not `/bulk`.**
+>
+> Server-side ask, unchanged in spirit: make the bulk allowlists match what the
+> controllers actually implement, so `/bulk` and `/{id}/{action}` agree.
 
 ### `payment_schedule` scheduler update ignores row edits (review #13)
 `UpdateSchedulerRequest` for `template == 'payment_schedule'` overwrites
@@ -1605,6 +1746,100 @@ server action/endpoint.
 `ChartQueries::getOutstandingQuery` / `getAggregateOutstandingQuery` return only an `outstanding` bucket — `SUM(balance)` + `COUNT(*)` over `status_id IN (2,3)` (sent + partial) with the invoice **issue** `date` in the dashboard window. There is **no** overdue dimension (`due_date < today`), so `/api/v1/charts/totals_v2` gives the dashboard no genuine overdue count/amount to bind to. **Client mitigation:** the KPI tile that reused `outstanding_count` under an "Overdue" label (whose number and drill-through disagreed) is relabeled **"Unpaid"** (a count of unpaid invoices) and drills through to the same windowed-unpaid list as the sibling "Outstanding" amount tile. If a true Overdue KPI is wanted, `totals_v2` should add an overdue `{amount, count}` bucket (`due_date < today AND status_id IN (2,3)`), after which the client can restore an "Overdue" tile bound to it.
 
 ---
+
+## Bulk `ids` are now existence-checked — one stale id rejects the whole batch — **O (shared-cache UX)**
+
+Found 2026-09-08 while auditing the backend validation sweep (v5.13.22 →
+v5.13.37), not by a client failure.
+
+A large number of `Bulk*Request` classes were newly wired or newly tightened to
+
+```php
+'ids' => ['required','bail','array','min:1',
+          Rule::exists('<table>','id')->where('company_id', $user->company()->id)],
+'ids.*' => ['bail','integer'],
+```
+
+covering vendors, tokens, webhooks, recurring expenses, expense categories,
+locations, users, and the new `Design` / `Document` / `GroupSetting` /
+`PaymentTerm` / `TaskScheduler` / `TaxRate` bulk requests. Several of these
+controllers previously did not type-hint a request class at all, so the rules
+are effectively new.
+
+**Why this bites a client rather than a script.** An offline-first client sends
+ids straight out of its local cache. That cache legitimately holds a row another
+user hard-deleted or purged since the last sync — that is the normal state of a
+shared workspace, not a client bug. Previously the server skipped such an id and
+processed the rest; now the **entire batch 422s**, so a multi-select archive of
+40 rows fails in full because one of them is stale. The user has no way to tell
+which id was the problem (the error names `ids`, not an index) and no way to
+recover except deselecting rows at random or forcing a full resync.
+
+**Requested change** — for bulk actions, skip ids that do not resolve rather
+than rejecting the request, and report what was skipped: either process the
+resolvable subset and return the affected count (plus a `meta.skipped_ids[]`),
+or keep the hard failure but name the offending indices so a client can drop
+them and retry automatically. The former matches the pre-sweep behaviour and is
+what every multi-select UI assumes.
+
+**Acceptance** — `POST /api/v1/clients/bulk` with `action=archive` and an `ids`
+array containing 39 live ids and 1 purged id archives the 39 and reports the 1,
+instead of returning 422 and archiving none.
+
+**Client status** — v2 sends ids from its Drift cache on every multi-select
+action. No client change is planned beyond making sure the server's message
+reaches the user; a client-side existence pre-check is not possible offline and
+would race even when online.
+
+## `POST /api/v1/tasks/bulk` with `action=bulk_update` always 500s — **R (server bug)**
+
+Found 2026-09-08 by source inspection; not client-triggerable today (the v2
+client only wires `bulk_update` for clients and recurring invoices), reported
+because any other API consumer hits it.
+
+`app/Http/Requests/Task/BulkTaskRequest.php:62-75`:
+
+```php
+$permissions = Task::withTrashed()
+                ->whereIn('id', $this->transformKeys($this->ids))
+                ->get()
+                ->first(function ($task) use ($user) {
+                    return $user->cannot('edit', $task);
+                });
+
+if ($permissions->isEmpty()) {
+```
+
+`Collection::first(callable)` returns a **`Task|null`**, not a Collection. When
+no task fails the permission check it is `null` → `Call to a member function
+isEmpty() on null`; when one does it is a `Task` → `BadMethodCallException`.
+Either way every `bulk_update` on tasks returns **500**.
+
+The predicate is also inverted relative to its message: `first()` finds the
+first task the user *cannot* edit, so the guard should fail when that is
+**non-null**.
+
+**Required change**
+
+```php
+$unauthorized = Task::withTrashed()
+                ->whereIn('id', $this->transformKeys($this->ids))
+                ->get()
+                ->first(fn ($task) => $user->cannot('edit', $task));
+
+if ($unauthorized !== null) {
+    $validator->errors()->add('ids', 'You are not authorized to update these tasks.');
+}
+```
+
+**Acceptance** — `POST /api/v1/tasks/bulk` with `action=bulk_update`, a valid
+`column`/`new_value` and ids the caller may edit returns 200 and applies the
+update; the same call with an id the caller may not edit returns 422 on `ids`.
+
+Note the adjacent `'new_value' => ['required_if:action,bulk_update|string']` in
+the same file is a malformed rule — the `|` sits inside an array element, so the
+whole string is treated as one rule name and `new_value` is never actually
+required. Harmless, but worth fixing in the same pass.
 
 ## `status_id` is implemented only on invoices — recurring-invoice + bank-transaction status filters are silently ignored — **O (client filters narrow locally only)**
 
@@ -1703,7 +1938,23 @@ authenticates a subsequent `GET /api/v1/clients` scoped to company X.
 
 ---
 
-## Company setting `documents_public_by_default` — upload visibility default — **O (server gap; the client toggle is inert without it)**
+## Company setting `documents_public_by_default` — upload visibility default — **SHIPPED (server-side)**
+
+> **STATUS 2026-09-08 — done, exactly as asked.** `app/DataMapper/CompanySettings.php:549`
+> declares `public bool $documents_public_by_default = true;` and `:552` registers
+> the `'bool'` cast — so `CompanySettingsSaver` now accepts the key instead of
+> dropping it. `app/Utils/Traits/SavesDocuments.php:41` and `:74` apply it as the
+> fallback: `$is_public ??= (bool) $company->getSetting('documents_public_by_default');`.
+>
+> **Client impact — verify this, it was a visible bug.** Per § Client status
+> below, the v2 toggle did not merely no-op: it *reverted* on screen right after
+> the "Saved" toast, because the server echoed a settings blob with the key
+> missing. That should now persist. The client side is already built
+> (`lib/ui/features/settings/views/basic/company_details/documents_screen.dart`,
+> `apiKey: 'documents_public_by_default'`), so there is nothing to write — just
+> confirm the switch holds after a save against a current server. Kept below as
+> the record of the original ask.
+
 
 **Symptom.** Every document uploaded through any Invoice Ninja client lands
 **public** — visible to the client in the portal and eligible for email

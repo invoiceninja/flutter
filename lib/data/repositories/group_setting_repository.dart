@@ -131,102 +131,25 @@ class GroupSettingRepository
     String? search,
     Set<EntityState> states = const {EntityState.active},
     bool ignoreCursor = false,
-  }) async {
-    // The keyset cursor is a page-1, unscoped, un-narrowed delta probe only —
-    // same gate as the other hand-rolled repos and the base template, shared
-    // with the ADVANCE below so the two can't disagree. See
-    // `BaseEntityRepository.isNarrowedFetch`. (Groups are also a bundled
-    // entity, so the practical blast radius is small — but keep the gate
-    // consistent with the siblings.)
-    final isSearchScoped = search != null && search.isNotEmpty;
-    final cursor = await readCursorIfEligible(
-      companyId: companyId,
-      ignoreCursor: ignoreCursor,
-      page: page,
-      hasParentScope: false,
-      isSearchScoped: isSearchScoped,
-      states: states,
-      extraFilters: const {},
-    );
-
-    // `?include=documents` so a paged refresh carries each group's
+  }) => ensurePageLoadedTemplate(
+    companyId: companyId,
+    page: page,
+    pageSize: pageSize,
+    search: search,
+    states: states,
+    ignoreCursor: ignoreCursor,
+    // `?include=documents` so a paged refresh carries each record's
     // attachments into the local `documents` column.
-    final filters = <String, String>{
-      'include': 'documents',
-      ...stateQueryParams(states),
-    };
-
-    final result = await api.list(
-      page: page,
-      perPage: pageSize,
-      search: search,
-      sinceUpdatedAt: cursor?.updatedAt,
-      sinceId: cursor?.id,
-      filters: filters,
-    );
-
-    final apiRows = result.data.data;
-    // Shared rule (see `hasMoreAfterPage`): with the keyset cursor applied a
-    // short/empty page is an exhausted DELTA, not end-of-list.
-    if (apiRows.isEmpty) {
-      return hasMoreAfterPage(
-        rowCount: 0,
-        cursorApplied: cursor?.isEmpty == false,
-        pageSize: pageSize,
-      );
-    }
-
-    // The company changed while this page was in flight, so these rows came
-    // back under a different workspace's token — see
-    // `BaseEntityRepository.companyStillActive`. This repo hand-rolls
-    // `ensurePageLoaded` rather than going through `ensurePageLoadedTemplate`,
-    // so it needs the guard written out; the other five hand-rolled repos
-    // inherit it from the template.
-    if (!companyStillActive(companyId)) {
-      throw CompanySwitchedException(
-        expected: companyId,
-        active: activeCompanyId?.call(),
-        entityType: entityTypeName,
-      );
-    }
-
-    // Server-refresh: skip ids whose existing local row has is_dirty=true,
-    // so a paged refresh doesn't clobber the user's pending offline edit.
-    await db.groupSettingDao.upsertAllPreservingDirty(
+    staticFilters: const {'include': 'documents'},
+    listCall: api.list,
+    itemsOf: (l) => l.data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.groupSettingDao.upsertAllPreservingDirty(
       companyId: companyId,
-      byId: {for (final a in apiRows) a.id: _apiToCompanion(a, companyId)},
-    );
-
-    // Advance only on page 1 (deeper pages carry older rows under id DESC,
-    // and the cursor write is last-write-wins — advancing on page >= 2 would
-    // walk the watermark backward). Matches the other hand-rolled repos.
-    // Shared rule (see `shouldAdvanceCursor`): only an unscoped,
-    // unfiltered page 1 may move the global watermark. A searched page is a
-    // narrowed view like any other — `isSearchScoped` was hardcoded false
-    // here, so a searched fetch used to advance from a search-scoped
-    // `data.last`.
-    if (shouldAdvanceCursor(
-          page: page,
-          hasParentScope: false,
-          isSearchScoped: isSearchScoped,
-          states: states,
-          extraFilters: const {},
-        ) &&
-        result.cursorUpdatedAt != null &&
-        result.cursorId != null) {
-      await advanceCursor(
-        companyId: companyId,
-        updatedAt: result.cursorUpdatedAt!,
-        id: result.cursorId!,
-        wasFullSync: ignoreCursor,
-      );
-    }
-    return hasMoreAfterPage(
-      rowCount: apiRows.length,
-      cursorApplied: cursor?.isEmpty == false,
-      pageSize: pageSize,
-    );
-  }
+      byId: byId,
+    ),
+  );
 
   /// Pull-to-refresh / foreground-resume.
   Future<void> refreshAll({required String companyId, bool full = false}) =>

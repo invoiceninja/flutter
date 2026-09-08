@@ -67,34 +67,46 @@ void main() {
       );
     });
 
-    test('every repo reads the keyset cursor through the shared gate', () {
-      // Six repos hand-roll `ensurePageLoaded`; the READ gate drifted apart
-      // from the ADVANCE gate once already, which is what #32 was.
-      const handRolled = [
-        'invoice',
-        'quote',
-        'credit',
-        'recurring_invoice',
-        'purchase_order',
-        'group_setting',
-      ];
-      for (final name in handRolled) {
-        final src = File(
-          'lib/data/repositories/${name}_repository.dart',
-        ).readAsStringSync();
-        expect(
-          src.contains('readCursorIfEligible('),
-          isTrue,
-          reason:
-              '${name}_repository hand-rolls ensurePageLoaded and must use the '
-              'shared cursor gate, not its own expression',
-        );
-        expect(
-          src.contains('ignoreCursor ||'),
-          isFalse,
-          reason: '${name}_repository still has an open-coded cursor read gate',
-        );
+    test('no repo hand-rolls ensurePageLoaded — all delegate to the '
+        'shared template', () {
+      // Six repos (invoice / quote / credit / recurring_invoice /
+      // purchase_order / group_setting) used to carry a ~95-line hand-copied
+      // body. The READ gate drifted apart from the ADVANCE gate once already,
+      // which is what #32 was; the only durable fix is that there is one body.
+      //
+      // Deliberately checks the CALL, not the import: five of the six carried
+      // a comment reading "same gate as `ensurePageLoadedTemplate`" while
+      // never calling it, so a grep for the template's name suggested they
+      // were covered when they were not.
+      final offenders = <String>[];
+      final openCoded = <String>[];
+      for (final f
+          in Directory('lib/data/repositories')
+              .listSync()
+              .whereType<File>()
+              .where((f) => f.path.endsWith('_repository.dart'))) {
+        final src = f.readAsStringSync();
+        final name = f.uri.pathSegments.last;
+        if (name == 'base_entity_repository.dart') continue;
+        if (!src.contains('Future<bool> ensurePageLoaded({')) continue;
+        if (!src.contains('ensurePageLoadedTemplate(')) offenders.add(name);
+        if (src.contains('ignoreCursor ||')) openCoded.add(name);
       }
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'these declare ensurePageLoaded without routing through '
+            '`BaseEntityRepository.ensurePageLoadedTemplate`, so the cursor '
+            'read/advance gates can drift again:\n  ${offenders.join('\n  ')}',
+      );
+      expect(
+        openCoded,
+        isEmpty,
+        reason:
+            'open-coded cursor read gate (should be `readCursorIfEligible`, '
+            'which the template calls):\n  ${openCoded.join('\n  ')}',
+      );
     });
   });
 }

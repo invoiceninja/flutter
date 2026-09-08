@@ -218,101 +218,27 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     Set<EntityState> states = const {EntityState.active},
     Map<String, Set<String>> extraFilters = const {},
     bool ignoreCursor = false,
-  }) async {
-    final resolvedExtra = resolveRelativeFilterTokens(extraFilters);
-    // Hide rows of soft-deleted clients (React parity) unless the fetch is
-    // already scoped to a specific client (then the detail tab needs them).
-    final hasClientScope =
-        resolvedExtra.containsKey('client_id') ||
-        resolvedExtra.containsKey('client_ids');
-    // The shared `(companyId, entityType)` cursor is a page-1, UNSCOPED,
-    // UN-NARROWED delta probe only — same gate as `ensurePageLoadedTemplate`,
-    // shared with the ADVANCE below so the two can't disagree. See
-    // `BaseEntityRepository.isNarrowedFetch`.
-    final isSearchScoped = search != null && search.isNotEmpty;
-    final cursor = await readCursorIfEligible(
+  }) => ensurePageLoadedTemplate(
+    companyId: companyId,
+    page: page,
+    pageSize: pageSize,
+    search: search,
+    states: states,
+    extraFilters: extraFilters,
+    ignoreCursor: ignoreCursor,
+    excludeDeletedClients: true,
+    // `?include=documents` so a paged refresh carries each record's
+    // attachments into the local `documents` column.
+    staticFilters: const {'include': 'documents'},
+    listCall: api.list,
+    itemsOf: (l) => l.data,
+    idOf: (a) => a.id,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.invoiceDao.upsertAllPreservingDirty(
       companyId: companyId,
-      ignoreCursor: ignoreCursor,
-      page: page,
-      hasParentScope: hasClientScope,
-      isSearchScoped: isSearchScoped,
-      states: states,
-      extraFilters: resolvedExtra,
-    );
-    final filters = <String, String>{
-      ...stateQueryParams(states),
-      // `?include=documents` — same rationale as Client/Expense. Without
-      // it the list response omits documents and remote uploads never
-      // propagate to the local cache.
-      'include': 'documents',
-      if (!hasClientScope) 'without_deleted_clients': 'true',
-      for (final entry in resolvedExtra.entries)
-        if (entry.value.isNotEmpty)
-          entry.key: (entry.value.toList()..sort()).join(','),
-    };
-
-    final result = await api.list(
-      page: page,
-      perPage: pageSize,
-      search: search,
-      sinceUpdatedAt: cursor?.updatedAt,
-      sinceId: cursor?.id,
-      filters: filters,
-    );
-
-    final apiRows = result.data.data;
-    // Shared rule (see `hasMoreAfterPage`): with the keyset cursor applied a
-    // short/empty page is an exhausted DELTA, not end-of-list.
-    if (apiRows.isEmpty) {
-      return hasMoreAfterPage(
-        rowCount: 0,
-        cursorApplied: cursor?.isEmpty == false,
-        pageSize: pageSize,
-      );
-    }
-
-    // The company changed while this page was in flight, so these rows came
-    // back under a different workspace's token and stamping them with our
-    // `companyId` would file one workspace's records under another. This repo
-    // hand-rolls `ensurePageLoaded` instead of going through
-    // `ensurePageLoadedTemplate`, so it needs the guard written out.
-    if (!companyStillActive(companyId)) {
-      throw CompanySwitchedException(
-        expected: companyId,
-        active: activeCompanyId?.call(),
-        entityType: entityTypeName,
-      );
-    }
-
-    await db.invoiceDao.upsertAllPreservingDirty(
-      companyId: companyId,
-      byId: {for (final a in apiRows) a.id: _apiToCompanion(a, companyId)},
-    );
-
-    // Shared rule (see `shouldAdvanceCursor`): only an unscoped,
-    // unfiltered page 1 may move the global watermark.
-    if (shouldAdvanceCursor(
-          page: page,
-          hasParentScope: hasClientScope,
-          isSearchScoped: isSearchScoped,
-          states: states,
-          extraFilters: resolvedExtra,
-        ) &&
-        result.cursorUpdatedAt != null &&
-        result.cursorId != null) {
-      await advanceCursor(
-        companyId: companyId,
-        updatedAt: result.cursorUpdatedAt!,
-        id: result.cursorId!,
-        wasFullSync: ignoreCursor,
-      );
-    }
-    return hasMoreAfterPage(
-      rowCount: apiRows.length,
-      cursorApplied: cursor?.isEmpty == false,
-      pageSize: pageSize,
-    );
-  }
+      byId: byId,
+    ),
+  );
 
   /// Backs `InvoiceNameLabel`'s cache-miss path: a quote/expense that
   /// references an invoice not on the prefetched first page. Deduped /

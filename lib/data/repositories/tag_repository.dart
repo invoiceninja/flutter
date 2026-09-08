@@ -149,9 +149,11 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
       };
       // The company changed while this page was in flight, so these rows came
       // back under a different workspace's token and stamping them with our
-      // `companyId` would file one workspace's records under another. This repo
-      // hand-rolls `ensurePageLoaded` instead of going through
-      // `ensurePageLoadedTemplate`, so it needs the guard written out.
+      // `companyId` would file one workspace's records under another. Tags are
+      // the one entity with no `ensurePageLoaded` at all — `refreshAll` pages
+      // `api.list` directly, across every entity type at once — so this repo
+      // can't inherit the guard from `ensurePageLoadedTemplate` and writes it
+      // out.
       if (!companyStillActive(companyId)) {
         throw CompanySwitchedException(
           expected: companyId,

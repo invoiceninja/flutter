@@ -915,11 +915,12 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
                   ],
                 ),
               ),
-              // `hasActiveFilters` treats `{active}`/`{}` as "no status
-              // filter" (and ignores a changed sort — sort isn't a filter),
-              // so the clear button hides when `State: Active` (or no state
-              // chip) is the only thing applied, regardless of sort — even
-              // though `IsFilterKey` still renders that one chip.
+              // `hasActiveFilters` treats `{active}` as "no state filter"
+              // (and ignores a changed sort — sort isn't a filter), so the
+              // clear button hides when the lifecycle default is the only
+              // thing applied, regardless of sort. Since #126 that agrees
+              // with the chips: a key at its default renders none, so there
+              // is nothing on screen for the missing button to contradict.
               if (widget.vm.hasActiveFilters ||
                   _controller.text.text.isNotEmpty)
                 IconButton(

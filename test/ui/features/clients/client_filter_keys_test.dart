@@ -251,15 +251,24 @@ void main() {
       vm.dispose();
     });
 
-    test('removeValue allows an empty state set — chip disappears', () async {
+    test('removeValue lands on the default, never the empty set', () async {
       final vm = await makeVm();
       const key = IsFilterKey();
-      // Default `{active}`. Removing the only chip clears entirely.
+      // invoiceninja/flutter#126: removing the last state used to clear the
+      // dimension entirely, which meant "no restriction" — deleted rows, from
+      // a gesture that reads as "stop filtering", with no chip and no
+      // clear-filters button left to undo it. Remove the state the default
+      // actually holds: `removeValue(vm, 'deleted')` from `{active}` would
+      // leave the set unchanged and pass either side of the fix.
       await key.removeValue(vm, 'active');
+      expect(vm.states, {EntityState.active});
+
+      await vm.setStates({EntityState.archived});
+      await key.removeValue(vm, 'archived');
       expect(
         vm.states,
-        isEmpty,
-        reason: 'empty set means "no status restriction"; user sees all rows',
+        {EntityState.active},
+        reason: 'archived / deleted are opt-in; the default is active-only',
       );
       vm.dispose();
     });

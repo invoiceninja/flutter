@@ -348,21 +348,84 @@ void main() {
     });
 
     test(
-      'empty set is allowed and omits the lifecycle `status` param ("All")',
+      'an empty set normalizes to the default and still sends `status=active`',
       () async {
         api.pages[1] = [_row('c1')];
         final vm = vmFor('co');
         await settle();
 
+        // invoiceninja/flutter#126: `{}` used to reach the wire as "no
+        // `status` param", which the server answers with active + archived +
+        // deleted. It is now the default instead, so a cleared State filter
+        // fetches exactly what a fresh list fetches.
+        await vm.setStates({EntityState.deleted});
+        await settle();
         await vm.setStates(<EntityState>{});
         await settle();
 
-        expect(vm.states, isEmpty);
-        expect(api.calls.last.filters.containsKey('status'), isFalse);
-        // No transient notice on the new "All" path.
+        expect(vm.states, {EntityState.active});
+        expect(api.calls.last.filters['status'], 'active');
         expect(vm.consumeTransientNotice(), isNull);
       },
     );
+
+    test(
+      'clearing the State filter leaves deleted rows out of the LIST',
+      () async {
+        // The user-visible outcome of #126, end to end through the real
+        // repository and Drift DAO rather than through the states set: a
+        // deleted record must not reappear because someone removed a chip.
+        api.pages[1] = [
+          _row('active'),
+          ClientApi(
+            id: 'archived',
+            name: 'archived',
+            updatedAt: 100,
+            archivedAt: 5,
+          ),
+          ClientApi(
+            id: 'deleted',
+            name: 'deleted',
+            updatedAt: 100,
+            isDeleted: true,
+          ),
+        ];
+        final vm = vmFor('co');
+        await settle();
+        expect(vm.items.map((c) => c.id), ['active']);
+
+        // The three gestures that used to reach the empty set all funnel
+        // through `setStates`, so this covers the `×` on the chip, the `×` on
+        // the aggregate chip, and Backspace in an empty search box alike.
+        await vm.setStates(<EntityState>{});
+        await settle();
+        expect(vm.items.map((c) => c.id), ['active']);
+
+        // Asking for them explicitly still works — that is the whole point of
+        // making it opt-in rather than hiding the rows outright.
+        await vm.setStates({EntityState.deleted});
+        await settle();
+        expect(vm.items.map((c) => c.id), ['deleted']);
+
+        vm.dispose();
+      },
+    );
+
+    test('ticking all three states is the way to fetch every row', () async {
+      // The "show me everything" capability #126 removed from the CLEAR
+      // gesture is still reachable — deliberately, and only by asking. The
+      // widest fetch omits `status` entirely, which is what keeps it a
+      // cursor-advancing baseline rather than a slice.
+      api.pages[1] = [_row('c1')];
+      final vm = vmFor('co');
+      await settle();
+
+      await vm.setStates(EntityState.values.toSet());
+      await settle();
+
+      expect(vm.states, EntityState.values.toSet());
+      expect(api.calls.last.filters.containsKey('status'), isFalse);
+    });
 
     test('toggleState mirrors setStates with one entity flipped', () async {
       api.pages[1] = [_row('c1')];
@@ -448,10 +511,10 @@ void main() {
       await vm.clearAllFilters();
       await settle();
 
-      // clearAllFilters resets state to the default `{active}` (not `{}`):
-      // "clear filters" means "show me the normal list", which for state is
-      // active-only. The lone removable "State: Active" chip is expected; the
-      // clear button hides itself in that case so it doesn't read as a filter.
+      // clearAllFilters resets state to the default `{active}`: "clear
+      // filters" means "show me the normal list", which for state is
+      // active-only. Since #126 no chip renders at the default either, so
+      // the hidden clear button and the empty chip row now agree.
       expect(vm.states, {EntityState.active});
       expect(vm.sortField, ClientFieldIds.name);
       expect(vm.sortAscending, isTrue);

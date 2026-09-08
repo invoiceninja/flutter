@@ -270,11 +270,12 @@ class TokenSearchController {
   /// [activeTokens] but collapses a `checkboxMultiSelect` key that has more
   /// than one applied value into a single aggregate chip — so picking 3
   /// statuses reads as one `status draft, paid, sent` chip, not three.
-  /// Every other key keeps one chip per value (byte-for-byte today's
-  /// behavior).
+  /// Every other key keeps one chip per value. A key at its default
+  /// contributes nothing at all — see [_isAtDefaultForChips].
   List<ActiveFilterChip> activeChips(BuildContext context) {
     final out = <ActiveFilterChip>[];
     for (final k in filterKeys) {
+      if (_isAtDefaultForChips(k)) continue;
       final tokens = k.tokensFrom(vm, context).toList();
       if (tokens.isEmpty) continue;
       if (k.checkboxMultiSelect && tokens.length > 1) {
@@ -329,16 +330,47 @@ class TokenSearchController {
     return null;
   }
 
-  /// Currently-applied tokens across every filter key, in [filterKeys]
-  /// order. Recomputed on every read — cheap, since each key already
-  /// memoises its own slice.
+  /// Currently-applied tokens across every filter key **that is not at its
+  /// default**, in [filterKeys] order — the same suppression [activeChips]
+  /// applies, so Backspace can never reach a chip nobody can see. Recomputed
+  /// on every read — cheap, since each key already memoises its own slice.
   List<FilterToken> activeTokens(BuildContext context) {
     final out = <FilterToken>[];
     for (final k in filterKeys) {
+      if (_isAtDefaultForChips(k)) continue;
       out.addAll(k.tokensFrom(vm, context));
     }
     return out;
   }
+
+  /// A key sitting at its default contributes no chip — which is what
+  /// [FilterKey.isAtDefault]'s own doc has always promised ("the search field
+  /// uses this to suppress noise on a fresh load"); until #126 nothing
+  /// honoured it, and `isAtDefault` only gated the key picker.
+  ///
+  /// For every key but one this is a no-op: their `tokensFrom` projects a
+  /// values set that their own `isAtDefault` reports empty, and the one
+  /// differently-shaped key (`InvoiceOverdueFilterKey`) already early-returns
+  /// on `isAtDefault` inside its own `tokensFrom`. It changes exactly one
+  /// chip — `IsFilterKey`'s `State: Active`, whose `×` would otherwise reset
+  /// the dimension to a value it already holds and appear to do nothing
+  /// (invoiceninja/flutter#126). It also settles the mismatch
+  /// `TokenSearchField` documents at its clear button: that chip rendered
+  /// while `hasActiveFilters` reported none, so the button hid itself.
+  ///
+  /// Note the implication is one-way. `CustomFieldFilterKey` is the inverse
+  /// case — `isAtDefault` false while `tokensFrom` is empty, because the
+  /// company un-configured the column — and this guard is immune to it, but
+  /// don't read `isAtDefault` as "has no chip" in the other direction.
+  ///
+  /// Applied in [activeChips] and [activeTokens] rather than in `tokensFrom`
+  /// for two reasons. The value picker resolves its applied set — the check
+  /// icon, and toggle-vs-add — from `tokensFrom` directly, so suppressing it
+  /// there would un-tick Active on an active-only list. And [activeTokens]
+  /// backs the Backspace-removes-the-last-chip path, which must not "remove"
+  /// a chip nobody can see: it would announce a phantom removal to screen
+  /// readers and swallow the key event.
+  bool _isAtDefaultForChips(FilterKey key) => key.isAtDefault(vm);
 
   // ── Keyboard handling ─────────────────────────────────────────────────
 

@@ -13,9 +13,15 @@ import 'package:admin/ui/core/list/search/filter_token.dart';
 const int _kQuickValueLimitPerKey = 3;
 
 /// `is:active` / `is:archived` / `is:deleted` — the entity lifecycle filter,
-/// multi-valued, default `{active}`. Entity-agnostic: operates on
+/// multi-valued, default [kDefaultListStates]. Entity-agnostic: operates on
 /// [GenericListViewModel.states] only, so every entity list can register the
 /// same instance.
+///
+/// **The dimension is never empty**, so archived and deleted rows appear only
+/// when someone asks for them (invoiceninja/flutter#126). Clearing lands on
+/// the default instead of dropping the dimension; `setStates` on the VM
+/// normalizes as the backstop, and the two methods below say so where a
+/// reader looks for the product rule.
 ///
 /// Labelled **"State"** (not "Status") and aliased `state` (not `status`):
 /// invoices / tasks / bank-transactions also register a per-entity *Status*
@@ -73,12 +79,17 @@ class IsFilterKey extends FilterKey {
     return vm.setStates({state});
   }
 
-  /// Clearing the aggregate chip drops the state dimension entirely in one
-  /// write (empty set is allowed — see [removeValue]).
+  /// Clearing the aggregate chip returns the dimension to its default in one
+  /// write — never to the empty set, which meant "show everything, deleted
+  /// included" while rendering no chip and hiding the clear-filters button
+  /// (#126). See [removeValue].
   @override
   Future<void> clear(GenericListViewModel<dynamic> vm, BuildContext context) =>
-      vm.setStates(const {});
+      vm.setStates(kDefaultListStates);
 
+  /// Also decides whether a chip renders at all: `TokenSearchController`
+  /// skips a key at its default, so an active-only list carries no `State`
+  /// chip and every `×` the user *can* see does something.
   @override
   bool isAtDefault(GenericListViewModel<dynamic> vm) =>
       vm.states.length == 1 && vm.states.contains(EntityState.active);
@@ -88,11 +99,18 @@ class IsFilterKey extends FilterKey {
     GenericListViewModel<dynamic> vm,
     BuildContext context,
   ) {
-    // Emit one chip per state in `vm.states`. An empty set (e.g. after
-    // "clear filters" or clearing the aggregate chip via `×`) yields no
-    // chip. On a fresh load `vm.states` is `{active}`, so a `State: Active`
-    // chip is visible — matching Sentry, where `is:unresolved` shows as a
-    // chip instead of being implicit.
+    // Emit one token per state in `vm.states`, INCLUDING the default
+    // `{active}`. Deliberately not gated on [isAtDefault]: the value picker
+    // reads its applied set (the check icon, and toggle-vs-add) straight off
+    // this method, so an early return here would render Active un-ticked on
+    // an active-only list. The *chip* is suppressed one layer up, in
+    // `TokenSearchController.activeChips` / `activeTokens`.
+    //
+    // This is a reversal: the default chip used to be visible, matching
+    // Sentry's `is:unresolved`. Sentry's chip is removable and removing it
+    // genuinely widens; ours can't widen any more (#126), so a permanently
+    // dead `×` was the alternative. Suppressing it also un-blocks the search
+    // placeholder on three surfaces — see § List state filter in CLAUDE.md.
     return [
       for (final s in EntityState.values)
         if (vm.states.contains(s))
@@ -174,10 +192,17 @@ class IsFilterKey extends FilterKey {
     final state = _stateOf(rawValue);
     if (state == null) return Future.value();
     final next = Set<EntityState>.from(vm.states)..remove(state);
-    // Empty set is allowed — both the watch query and the server-side
-    // status param treat it as "no restriction" (show all rows). Removing
-    // the last chip drops the dimension entirely.
-    return vm.setStates(next);
+    // Removing the LAST state lands on the default, not the empty set: empty
+    // means "no restriction" at the watch query and the server `status` param
+    // alike, i.e. deleted rows, from a gesture that reads as "stop filtering"
+    // (#126). One consequence, and it is the rule rather than a bug: the
+    // picker's Active row becomes inert on a default list. `_FilterCheckbox`
+    // is stateless and draws from `tokensFrom`, and `setStates` early-returns
+    // on an unchanged set without notifying, so the tick never even flickers
+    // — the tap is silently ignored rather than refused. Cheap (no reload, no
+    // `nav_state` write) but genuinely unsignposted; the chip's dead `×` was
+    // traded for this, which at least sits behind a deliberate menu tap.
+    return vm.setStates(next.isEmpty ? kDefaultListStates : next);
   }
 
   // `cycleValue` is intentionally NOT overridden — users found the silent

@@ -41,8 +41,10 @@ class _FakeVm implements GenericListViewModel<dynamic> {
 
   var cleared = false;
 
-  /// Mirrors the base implementation closely enough for this widget: `{}` and
-  /// `{active}` are both "no status filter".
+  /// Mirrors the base implementation closely enough for this widget:
+  /// `{active}` is "no state filter". (`{}` used to be folded in with it;
+  /// since #126 the real VM can't produce an empty set, and the base no
+  /// longer special-cases one — see `GenericListViewModel.hasActiveFilters`.)
   @override
   bool get hasActiveFilters {
     if (states.isNotEmpty &&

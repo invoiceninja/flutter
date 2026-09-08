@@ -17,6 +17,8 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_entry_sheet.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/filter_token.dart';
+import 'package:admin/ui/core/list/search/filter_token_chip.dart';
+import 'package:admin/ui/core/list/search/is_filter_key.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,6 +135,52 @@ void main() {
 
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() async => db.close());
+
+  testWidgets(
+    'the search placeholder shows while no chip does — and yields to a chip',
+    (tester) async {
+      // invoiceninja/flutter#126, second-order effect. All three search
+      // surfaces gate their placeholder on `active.isEmpty`
+      // (`filter_entry_sheet.dart:481`, `token_search_field.dart:853` and the
+      // narrow summary bar's whole branch at `:1034`). `IsFilterKey` used to
+      // emit a chip at the default, so `active` was never empty on an
+      // unfiltered list and the placeholder was unreachable everywhere — the
+      // phone's search bar rendered a read-only `State  Active` pill in its
+      // place. Suppressing the default chip is what lets the hint render.
+      final vm = _FakeVm(
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        userSettings: UserSettingsRepository(db: db),
+        searchDebounce: Duration.zero,
+        persistDebounce: Duration.zero,
+      );
+      addTearDown(vm.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          home: FilterEntrySheet(
+            vm: vm,
+            filterKeys: const <FilterKey>[IsFilterKey()],
+            hintKey: 'search',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Default `{active}` → no chip → the placeholder is visible.
+      expect(find.text('Search'), findsOneWidget);
+      expect(find.byType(FilterTokenChip), findsNothing);
+
+      // A real filter takes the slot back.
+      await vm.setStates({EntityState.archived});
+      await tester.pumpAndSettle();
+      expect(find.byType(FilterTokenChip), findsOneWidget);
+      expect(find.text('Search'), findsNothing);
+    },
+  );
 
   testWidgets('typing shows result tiles and tapping opens the record', (
     tester,

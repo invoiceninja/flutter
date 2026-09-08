@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
@@ -6,16 +7,22 @@ import 'package:admin/data/models/api/company_api_model.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/expense_category_repository.dart';
+import 'package:admin/data/repositories/group_setting_repository.dart';
 import 'package:admin/data/repositories/project_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/data/repositories/task_status_repository.dart';
 import 'package:admin/data/repositories/tag_repository.dart';
+import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
 import 'package:admin/data/repositories/vendor_repository.dart';
 import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/data/services/expense_categories_api.dart';
+import 'package:admin/data/services/group_settings_api.dart';
 import 'package:admin/data/services/projects_api.dart';
 import 'package:admin/data/services/statics_service.dart';
+import 'package:admin/data/services/task_statuses_api.dart';
 import 'package:admin/data/services/tags_api.dart';
+import 'package:admin/data/services/users_api.dart';
 import 'package:admin/data/services/vendors_api.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -24,14 +31,24 @@ import 'package:admin/ui/core/list/generic_list_view_model.dart';
 import 'package:admin/ui/core/list/search/filter_key.dart';
 import 'package:admin/ui/core/list/search/tag_filter_key.dart';
 import 'package:admin/ui/features/expense_categories/widgets/expense_category_filter_keys.dart';
+import 'package:admin/ui/features/clients/client_filter_keys.dart';
+import 'package:admin/ui/features/credits/widgets/credit_filter_keys.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_filter_keys.dart';
 import 'package:admin/ui/features/gateways/gateway_filter_keys.dart';
 import 'package:admin/ui/features/payment_links/widgets/payment_link_filter_keys.dart';
+import 'package:admin/ui/features/invoices/widgets/invoice_filter_keys.dart';
+import 'package:admin/ui/features/payments/widgets/payment_filter_keys.dart';
+import 'package:admin/ui/features/products/product_filter_keys.dart';
 import 'package:admin/ui/features/projects/project_filter_keys.dart';
+import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_filter_keys.dart';
+import 'package:admin/ui/features/quotes/widgets/quote_filter_keys.dart';
 import 'package:admin/ui/features/recurring_expenses/widgets/recurring_expense_filter_keys.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_filter_keys.dart';
+import 'package:admin/ui/features/tasks/task_filter_keys.dart';
 import 'package:admin/ui/features/transactions/widgets/transaction_filter_keys.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_filter_keys.dart';
+
+import '../../../../_localization_helper.dart';
 
 /// Covers the nine `*_filter_keys.dart` modules that had no test — expense,
 /// expense_category, gateway, payment_link, project, recurring_expense,
@@ -116,6 +133,21 @@ class _FakeProjectsApi implements ProjectsApi {
   Object? noSuchMethod(Invocation i) => throw UnimplementedError();
 }
 
+class _FakeGroupSettingsApi implements GroupSettingsApi {
+  @override
+  Object? noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+class _FakeUsersApi implements UsersApi {
+  @override
+  Object? noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+class _FakeTaskStatusesApi implements TaskStatusesApi {
+  @override
+  Object? noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
 class _FakeVendorsApi implements VendorsApi {
   @override
   Object? noSuchMethod(Invocation i) => throw UnimplementedError();
@@ -138,12 +170,18 @@ void main() {
   late ProjectRepository projects;
   late VendorRepository vendors;
   late ExpenseCategoryRepository categories;
+  late GroupSettingRepository groups;
+  late UserRepository users;
+  late TaskStatusRepository statuses;
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
     clients = ClientRepository(db: db, api: _FakeClientsApi());
     tags = TagRepository(db: db, api: _FakeTagsApi());
     projects = ProjectRepository(db: db, api: _FakeProjectsApi());
+    groups = GroupSettingRepository(db: db, api: _FakeGroupSettingsApi());
+    users = UserRepository(db: db, api: _FakeUsersApi());
+    statuses = TaskStatusRepository(db: db, api: _FakeTaskStatusesApi());
     vendors = VendorRepository(db: db, api: _FakeVendorsApi());
     categories = ExpenseCategoryRepository(
       db: db,
@@ -187,7 +225,57 @@ void main() {
       tags: tags,
       companyId: 'co',
     ),
+    'client': buildClientFilterKeys(
+      company: companyWithLabels(),
+      statics: StaticsRepository(db: db, service: _FakeStaticsService()),
+      groups: groups,
+      users: users,
+      tags: tags,
+      companyId: 'co',
+    ),
+    'credit': buildCreditFilterKeys(
+      clients: clients,
+      tags: tags,
+      companyId: 'co',
+      company: companyWithLabels(),
+    ),
     'expense_category': buildExpenseCategoryFilterKeys(),
+    'invoice': buildInvoiceFilterKeys(
+      clients: clients,
+      tags: tags,
+      companyId: 'co',
+      company: companyWithLabels(),
+    ),
+    'payment': buildPaymentFilterKeys(
+      clients: clients,
+      tags: tags,
+      companyId: 'co',
+      company: companyWithLabels(),
+    ),
+    'product': buildProductFilterKeys(
+      tags: tags,
+      companyId: 'co',
+      company: companyWithLabels(),
+    ),
+    'purchase_order': buildPurchaseOrderFilterKeys(
+      tags: tags,
+      companyId: 'co',
+      company: companyWithLabels(),
+    ),
+    'quote': buildQuoteFilterKeys(
+      clients: clients,
+      tags: tags,
+      companyId: 'co',
+      company: companyWithLabels(),
+    ),
+    'task': buildTaskFilterKeys(
+      clients: clients,
+      projects: projects,
+      statuses: statuses,
+      tags: tags,
+      companyId: 'co',
+      company: companyWithLabels(),
+    ),
     'gateway': buildCompanyGatewayFilterKeys(),
     'payment_link': buildPaymentLinkFilterKeys(),
     'project': buildProjectFilterKeys(
@@ -229,6 +317,53 @@ void main() {
       });
     });
 
+    testWidgets(
+      'a key at its default emits no token — every builder, every key',
+      (tester) async {
+        // The invariant `TokenSearchController._isAtDefaultForChips` rests on:
+        // skipping a key that reports `isAtDefault` can only ever drop a chip
+        // that would have been empty anyway (invoiceninja/flutter#126). Break
+        // the alignment in a NEW key and the chip the user applied silently
+        // stops rendering — nothing else in the suite would notice.
+        //
+        // Exhaustive by construction rather than by sampling: it walks every
+        // `build*FilterKeys` in `lib/`, so a key added to any entity list is
+        // covered the day it ships. `IsFilterKey` is the one documented
+        // exemption — it keeps emitting at the default on purpose, because
+        // the value picker reads its ticked rows from `tokensFrom`.
+        late BuildContext ctx;
+        await tester.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: kTestLocalizationsDelegates,
+            supportedLocales: kTestSupportedLocales,
+            home: Builder(
+              builder: (c) {
+                ctx = c;
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.runAsync(() async {
+          final vm = await makeVm();
+          allBuilders().forEach((name, keys) {
+            for (final k in keys) {
+              if (k is IsFilterKey || !k.isAtDefault(vm)) continue;
+              expect(
+                k.tokensFrom(vm, ctx),
+                isEmpty,
+                reason:
+                    '$name/${k.id} reports isAtDefault but still emits a '
+                    'token, so its chip would be suppressed while applied',
+              );
+            }
+          });
+        });
+      },
+    );
+
     test('no builder emits a duplicate key id', () {
       allBuilders().forEach((name, keys) {
         final ids = keys.map((k) => k.id).toList();
@@ -242,10 +377,18 @@ void main() {
 
     test('tag keys carry their own entity type', () {
       const expected = {
+        'client': 'client',
+        'credit': 'credit',
         'expense': 'expense',
+        'invoice': 'invoice',
+        'payment': 'payment',
+        'product': 'product',
         'project': 'project',
+        'purchase_order': 'purchase_order',
+        'quote': 'quote',
         'recurring_expense': 'recurring_expense',
         'recurring_invoice': 'recurring_invoice',
+        'task': 'task',
         // The bank_transaction wire name, not "transaction".
         'transaction': 'bank_transaction',
         'vendor': 'vendor',

@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/saved_view.dart';
 import 'package:admin/data/repositories/user_settings_repository.dart';
+import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/utils/combine_latest.dart';
 
@@ -32,6 +33,45 @@ const int kSavedViewSnapshotVersion = 1;
 /// Declared here rather than beside the ViewModel so the data layer doesn't
 /// have to import UI code.
 const Set<String> kDisplayOnlySnapshotKeys = {'groupField', 'collapsedGroups'};
+
+/// Heal a filter snapshot written before invoiceninja/flutter#126, where the
+/// lifecycle dimension could be persisted empty.
+///
+/// `GenericListViewModel` now normalizes an empty set to `{active}` on read,
+/// so the *live* snapshot can never carry `"states": []` again — which is
+/// precisely why a stored one has to be normalized too, at both places the two
+/// are deep-compared:
+///
+///  * [SavedViewsRepository._matchSlot] — a view captured in the old empty
+///    state would apply correctly but could never match the live slot again,
+///    silently dropping the sidebar's active-view highlight and disabling
+///    [SavedViewsRepository.clearAppliedViewFilters]. That is the same failure
+///    [kDisplayOnlySnapshotKeys] exists to prevent.
+///  * `GenericListViewModel._subscribeNavState` — its dedupe compares the
+///    on-disk slot against `_lastSeenSlot` / `currentSnapshot()`, both already
+///    normalized, so the first unrelated `nav_state` touch (a route write is
+///    one) would re-apply the slot and reload the list for nothing.
+///
+/// Mirrors `GenericListViewModel._applyDecoded`'s parse rather than just
+/// testing for `[]`: that loop keeps only names that resolve to an
+/// [EntityState], so `["foo"]` — an older build reading a newer blob, the
+/// shape `IsFilterKey` already contemplates when it mentions "a hypothetical
+/// future state" — hydrates to `{active}` exactly like `[]` does. Healing only
+/// the empty case would leave the two sides disagreeing on that blob and cost
+/// one `_applyDecoded` + full page-1 refetch every time it is read.
+///
+/// Returns **the same instance** when the slot already names a real state, so
+/// it allocates only on the rare healing path — a caller that goes on to
+/// mutate the result must copy it first.
+Map<String, dynamic> normalizeSnapshotStates(Map<String, dynamic> slot) {
+  final raw = slot['states'];
+  if (raw is List &&
+      raw.any((n) => EntityState.values.any((s) => s.name == n))) {
+    return slot;
+  }
+  return Map<String, dynamic>.from(slot)
+    ..['states'] = <String>[EntityState.active.name];
+}
 
 /// Local-only saved views: named snapshots of a list screen's
 /// filter+sort+search state plus the user's current column selection. The
@@ -88,9 +128,15 @@ class SavedViewsRepository {
     required Map<String, dynamic> currentSnapshot,
   }) {
     const eq = DeepCollectionEquality();
+    // Same #126 healing as [_matchSlot], so the two can't disagree about
+    // whether a pre-#126 `"states": []` view is the one on screen. They still
+    // differ in general — [_matchSlot] also strips `columnIds` and
+    // [kDisplayOnlySnapshotKeys] and this doesn't — which is latent only
+    // because nothing in `lib/` calls this one.
+    final live = normalizeSnapshotStates(currentSnapshot);
     return watchForEntity(companyId, entityType).map((views) {
       for (final v in views) {
-        if (eq.equals(v.snapshot, currentSnapshot)) return v;
+        if (eq.equals(normalizeSnapshotStates(v.snapshot), live)) return v;
       }
       return null;
     });
@@ -131,12 +177,17 @@ class SavedViewsRepository {
   /// dropped the active-view highlight and disabled [clearAppliedViewFilters].
   SavedView? _matchSlot(List<SavedView> views, Map<String, dynamic> slot) {
     const eq = DeepCollectionEquality();
-    final liveSlot = Map<String, dynamic>.from(slot)
+    // `Map.from` on the OUTSIDE: [normalizeSnapshotStates] hands back the
+    // argument itself when there is nothing to heal, and the `removeWhere` /
+    // `remove` below would then strip keys out of the caller's live snapshot —
+    // and out of `SavedView.snapshot`'s own map.
+    final liveSlot = Map<String, dynamic>.from(normalizeSnapshotStates(slot))
       ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
     for (final v in views) {
-      final viewSlot = Map<String, dynamic>.from(v.snapshot)
-        ..remove('columnIds')
-        ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
+      final viewSlot =
+          Map<String, dynamic>.from(normalizeSnapshotStates(v.snapshot))
+            ..remove('columnIds')
+            ..removeWhere((k, _) => kDisplayOnlySnapshotKeys.contains(k));
       if (eq.equals(viewSlot, liveSlot)) return v;
     }
     return null;
@@ -319,7 +370,17 @@ class SavedViewsRepository {
     // Filters → nav_state.filters_json. Strip `columnIds` before splicing
     // so the nav_state slot stays at the six-field shape the VM's
     // currentSnapshot()/equality check uses.
-    final filterSlot = Map<String, dynamic>.from(snapshot)..remove('columnIds');
+    // `normalizeSnapshotStates` here, not just at the two compare sites:
+    // this is the one path that takes a STORED snapshot and writes it back
+    // into `filters_json`, so applying a pre-#126 view would re-persist
+    // `"states": []` — and it would then sit there, because a stale view
+    // that is otherwise at its defaults trips `_subscribeNavState`'s second
+    // dedupe guard, so the VM never re-applies and never re-persists. Every
+    // reader heals it today; this keeps the claim above ("the live snapshot
+    // can never carry `"states": []` again") true rather than nearly true.
+    final filterSlot = Map<String, dynamic>.from(
+      normalizeSnapshotStates(snapshot),
+    )..remove('columnIds');
     final nav = await db.navStateDao.current();
     final existing = nav?.filtersJson;
     Map<String, dynamic> doc;

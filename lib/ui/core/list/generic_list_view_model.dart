@@ -377,7 +377,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   String _search = '';
   String get search => _search;
 
-  Set<EntityState> _states = const {EntityState.active};
+  /// The lifecycle dimension. **Never empty** — every write goes through
+  /// [normalizeListStates], so "no State filter" and the default are one state
+  /// rather than two, and deleted rows can only ever be reached by asking for
+  /// them (invoiceninja/flutter#126).
+  Set<EntityState> _states = kDefaultListStates;
   Set<EntityState> get states => _states;
 
   late String _sortField;
@@ -665,12 +669,15 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// filter" (and the clear button shouldn't appear for a sort-only change).
   /// `clearAllFilters` still resets sort via its own independent check.
   bool get hasActiveFilters {
-    // `{}` (empty) and `{active}` are both "no status filter": the
-    // server-side `client_status` param is omitted and the watch query
-    // doesn't constrain. Treat them equivalently so removing the only
-    // status chip doesn't flip the empty-state copy to "no matches".
-    if (_states.isNotEmpty &&
-        (_states.length != 1 || !_states.contains(EntityState.active))) {
+    // `{active}` is "no state filter" — it's the default, and the clear
+    // button correctly hides itself there. This used to be guarded by
+    // `_states.isNotEmpty &&`, which is worse than redundant: `{}` means
+    // "show everything, deleted included", and short-circuiting it to
+    // `false` answers "no filter applied" — half of #126, since that is what
+    // hides the clear button and picks the first-run "nothing yet" empty
+    // state. Unguarded, `length != 1` already returns the right answer for
+    // `{}`, so a fourth writer or a bad hydrate fails safe.
+    if (_states.length != 1 || !_states.contains(EntityState.active)) {
       return true;
     }
     for (final values in _customFilters.values) {
@@ -842,7 +849,7 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// over yesterday's stale country filter.
   void _applyDecoded(Map<String, dynamic> entity) {
     _search = '';
-    _states = const {EntityState.active};
+    _states = kDefaultListStates;
     _sortField = defaultSortField;
     _sortAscending = defaultSortAscending;
     _customFilters = const {};
@@ -861,7 +868,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
           if (s.name == name) hydrated.add(s);
         }
       }
-      _states = hydrated;
+      // A blob written before #126 can carry `"states": []`; heal it here so
+      // the trap can't survive an app restart. `_subscribeNavState` normalizes
+      // the same shape before its dedupe compare, so this doesn't cost a
+      // spurious reload on the next unrelated nav_state touch.
+      _states = normalizeListStates(hydrated);
     }
 
     final sortField = entity['sortField'];
@@ -1001,7 +1012,10 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// stays accurate (no spurious reload when already at defaults).
   Map<String, dynamic> _defaultSnapshot() => <String, dynamic>{
     'search': '',
-    'states': [EntityState.active.name],
+    // Derived, not repeated: `SavedViewsRepository` depends on this being
+    // byte-equal to `currentSnapshot()` at the defaults, and a divergence
+    // shows up as a reload on every unrelated nav_state touch.
+    'states': kDefaultListStates.map((s) => s.name).toList(),
     'sortField': defaultSortField,
     'sortAscending': defaultSortAscending,
     'customFilters': <String, List<String>>{},
@@ -1060,9 +1074,13 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
   /// dimension" rule doesn't apply.)
   void _applyIntentState(ListFilterIntent intent) {
     _search = '';
+    // `intent.states` is public API on `ListFilterIntent` but no dashboard
+    // panel sets it today, so this normally takes the default branch. Routed
+    // through [normalizeListStates] anyway: an empty set from a future panel
+    // must not be able to reopen #126 behind the VM's back.
     _states = intent.states != null
-        ? Set<EntityState>.unmodifiable(intent.states!)
-        : const {EntityState.active};
+        ? normalizeListStates(intent.states!)
+        : kDefaultListStates;
     _sortField =
         (intent.sortField != null && isValidColumnId(intent.sortField!))
         ? intent.sortField!
@@ -1304,13 +1322,40 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     await _resetAndReload(ignoreCursor: value.isNotEmpty);
   }
 
+  /// Apply a new lifecycle set. The choke point every **user gesture** funnels
+  /// through — the filter key's `clear` / `addValue` / `removeValue` (and so
+  /// the chip `×`, the checkbox picker, and Backspace on an empty search box),
+  /// plus `toggleState` and the tests. Normalizing here is what makes "the
+  /// dimension is never empty" true by construction for all of them
+  /// (invoiceninja/flutter#126).
+  ///
+  /// It is not the only writer: `_applyDecoded` (nav_state hydrate + saved-view
+  /// apply) and `_applyIntentState` (dashboard deep links) assign `_states`
+  /// directly and call [normalizeListStates] themselves. Three sites to keep in
+  /// step, not one.
+  ///
+  /// Normalizing before the dedupe matters: clearing an already-default list
+  /// then compares `{active}` to `{active}` and early-returns, so the gesture
+  /// costs no reload and no `nav_state` write.
   Future<void> setStates(Set<EntityState> next) async {
-    if (setEquals(next, _states)) return;
-    final isWidening = next.isEmpty || next.difference(_states).isNotEmpty;
-    _states = Set.unmodifiable(next);
+    final normalized = normalizeListStates(next);
+    if (setEquals(normalized, _states)) return;
+    // `next.isEmpty` used to count as widening on its own; it can't reach here
+    // any more, and `difference` already covers the case it stood in for —
+    // `{deleted}` → `{active}` adds a state, so it still ignores the cursor.
+    final isWidening = normalized.difference(_states).isNotEmpty;
+    _states = normalized;
     await _resetAndReload(ignoreCursor: isWidening);
   }
 
+  /// Flip one state in or out of the set.
+  ///
+  /// No caller in `lib/` today — the filter key drives the picker through
+  /// `addValue` / `removeValue` instead. If one is ever wired up, note that
+  /// toggling OFF the last remaining state lands on [kDefaultListStates]
+  /// rather than emptying the dimension (#126), so `toggleState(active)` on a
+  /// default list is a no-op that does not notify. A checkbox bound directly
+  /// to this would neither move nor repaint; go through the filter key.
   void toggleState(EntityState s) {
     final next = Set<EntityState>.from(_states);
     if (!next.remove(s)) next.add(s);
@@ -1427,9 +1472,9 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     // Gate the early-return on whether any field actually differs from its
     // cleared target — NOT on `hasActiveFilters`. The cleared target for
     // state is `{active}` (the default), so "state differs" means the
-    // current set is anything other than exactly `{active}` (`{}`,
-    // `{archived}`, `{active, deleted}`, …). Without this an explicit
-    // clear from `{}` or `{archived}` would be a silent no-op.
+    // current set is anything other than exactly `{active}` (`{archived}`,
+    // `{active, deleted}`, …). Without this an explicit clear from
+    // `{archived}` would be a silent no-op.
     final statesAtDefault =
         _states.length == 1 && _states.contains(EntityState.active);
     final changed =
@@ -1441,11 +1486,11 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
         _extraFilters.isNotEmpty;
     _search = '';
     // Reset state to the default `{active}` rather than dropping the
-    // dimension. "Clear filters" means "show me the normal list", which
-    // for state is active-only — leaving a single removable `State:
-    // Active` chip (the clear button hides itself in that case, so it
-    // doesn't read as "a filter is still applied").
-    _states = const {EntityState.active};
+    // dimension — "Clear filters" means "show me the normal list", which
+    // for state is active-only. Since #126 that is the *only* thing
+    // dropping the dimension can mean, and the chip disappears with it
+    // (a key at its default renders none — `TokenSearchController`).
+    _states = kDefaultListStates;
     _sortField = defaultSortField;
     _sortAscending = defaultSortAscending;
     _customFilters = const {};
@@ -1773,6 +1818,10 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
           return;
         }
       }
+      // Heal a pre-#126 `"states": []` before the compares below: both sides
+      // they run against are normalized, so an un-healed slot would never
+      // dedupe and every unrelated nav_state touch would reload the list.
+      slot = normalizeSnapshotStates(slot);
       const eq = DeepCollectionEquality();
       // Skip when this entity's persisted slot didn't actually change — the
       // shared `nav_state` row was touched for an unrelated reason (route

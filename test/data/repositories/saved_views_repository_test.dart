@@ -447,6 +447,112 @@ void main() {
     );
   });
 
+  group('normalizeSnapshotStates', () {
+    test('heals a pre-#126 empty `states` list, and only that', () {
+      // Empty → the default. `{active}` is now the only shape the live
+      // snapshot can produce for "no state filter", so a stored `[]` would
+      // otherwise never match again.
+      expect(normalizeSnapshotStates({'search': '', 'states': <String>[]}), {
+        'search': '',
+        'states': ['active'],
+      });
+
+      // It mirrors `_applyDecoded`'s parse rather than just testing for `[]`,
+      // so every shape that hydrates to `{active}` normalizes to `['active']`
+      // — an unknown name, a non-list, and a legacy blob with no `states` key
+      // at all. Healing only `[]` would leave those disagreeing with the VM
+      // and cost a spurious reload on every read.
+      for (final slot in <Map<String, dynamic>>[
+        {'states': <String>[]},
+        {
+          'states': <String>['foo'],
+        },
+        {'states': 'active'},
+        {'search': 'acme'},
+      ]) {
+        expect(normalizeSnapshotStates(slot)['states'], [
+          'active',
+        ], reason: 'unhealed: $slot');
+      }
+
+      // A slot that already names a real state is returned untouched — and as
+      // the SAME instance, which `_matchSlot` relies on knowing (it copies
+      // before mutating).
+      final populated = {
+        'states': ['archived', 'deleted'],
+      };
+      expect(identical(normalizeSnapshotStates(populated), populated), isTrue);
+    });
+
+    test(
+      'a view stored with `"states": []` still matches the live slot',
+      () async {
+        // #126: the view applies correctly (the VM normalizes on read), but
+        // without this the sidebar's active-view highlight would silently never
+        // light up again and `clearAppliedViewFilters` would be a no-op.
+        final stale = await repo.create(
+          companyId: 'co',
+          entityType: EntityType.client,
+          name: 'Everything',
+          snapshot: {'search': '', 'states': <String>[]},
+        );
+
+        final hit = await repo
+            .matchingView(
+              companyId: 'co',
+              entityType: EntityType.client,
+              currentSnapshot: {
+                'search': '',
+                'states': ['active'],
+              },
+            )
+            .first;
+        expect(hit, isNotNull);
+        expect(hit!.id, stale.id);
+
+        // The production path — `watchActiveView` → `_matchSlot` — is what
+        // drives the sidebar highlight and gates `clearAppliedViewFilters`.
+        await db.navStateDao.saveFilters(
+          filtersJson: jsonEncode({
+            'co': {
+              'client': {
+                'search': '',
+                'states': ['active'],
+              },
+            },
+          }),
+          now: 3,
+        );
+        final active = await repo
+            .watchActiveView(companyId: 'co', entityType: EntityType.client)
+            .first;
+        expect(active, isNotNull);
+        expect(active!.id, stale.id);
+
+        // `apply()` is the fourth snapshot site and the only one that WRITES
+        // a stored snapshot back into `filters_json`, so it heals too —
+        // otherwise applying this view re-persists `"states": []`, and a
+        // stale view that is otherwise at its defaults then trips
+        // `_subscribeNavState`'s second dedupe guard, so the VM never
+        // re-applies and never re-persists and the `[]` sits there.
+        await repo.apply(stale.id);
+        final written = jsonDecode(
+          (await db.navStateDao.current())!.filtersJson!,
+        );
+        expect(
+          (written as Map)['co']['client']['states'],
+          ['active'],
+          reason: 'apply must not re-persist the pre-#126 empty shape',
+        );
+
+        // Neither matcher may mutate the stored snapshot — `_matchSlot` strips
+        // `columnIds` and the display-only keys, and `normalizeSnapshotStates`
+        // hands back the argument itself when there is nothing to heal.
+        expect(stale.snapshot['states'], isEmpty);
+      },
+    );
+  });
+
   group('watchActiveView', () {
     test('emits the view whose applied slot reflects the live state', () async {
       final view = await repo.create(

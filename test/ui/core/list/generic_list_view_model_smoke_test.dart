@@ -380,9 +380,9 @@ void main() {
       await vm.setStates({EntityState.archived});
       await vm.clearAllFilters();
       expect(vm.extraFilters, isEmpty);
-      // Clear resets state to the default `{active}` (not `{}`). The lone
-      // `State: Active` chip is expected; `hasActiveFilters` still reports
-      // false for `{active}` so the clear button hides itself.
+      // Clear resets state to the default `{active}`. Since #126 that is the
+      // only thing the state dimension can be cleared TO — and at the default
+      // no chip renders, matching `hasActiveFilters` reporting false.
       expect(vm.states, {EntityState.active});
       expect(vm.hasActiveFilters, isFalse);
 
@@ -801,35 +801,80 @@ void main() {
     },
   );
 
-  test(
-    'empty `_states` is treated as "no status filter" in hasActiveFilters',
-    () async {
-      final vm = FakeInvoiceListViewModel(
-        companyId: 'co',
-        navStateDao: db.navStateDao,
-        userSettings: UserSettingsRepository(db: db),
-        searchDebounce: const Duration(milliseconds: 1),
-        persistDebounce: const Duration(milliseconds: 1),
-      );
-      await settle();
+  test('setStates normalizes an empty set to the `{active}` default', () async {
+    final vm = FakeInvoiceListViewModel(
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      userSettings: UserSettingsRepository(db: db),
+      searchDebounce: const Duration(milliseconds: 1),
+      persistDebounce: const Duration(milliseconds: 1),
+    );
+    await settle();
 
-      // Default `{active}` reports no active filter.
-      expect(vm.hasActiveFilters, isFalse);
+    // Default `{active}` reports no active filter.
+    expect(vm.states, {EntityState.active});
+    expect(vm.hasActiveFilters, isFalse);
 
-      // Clearing to `{}` (user removed the only status chip) is also
-      // "no filter" — both states drop the lifecycle `status` query param.
-      await vm.setStates(const <EntityState>{});
-      expect(
-        vm.hasActiveFilters,
-        isFalse,
-        reason:
-            'empty set means "show all"; equivalent to the default `{active}` '
-            'from a hasActiveFilters perspective so the empty-state copy '
-            'reads "no clients yet", not "no matches".',
-      );
-      vm.dispose();
-    },
-  );
+    // invoiceninja/flutter#126: an empty set used to mean "no restriction",
+    // i.e. show deleted rows — from a gesture (`×` on the only chip, or
+    // Backspace in an empty search box) that reads as "stop filtering". It
+    // rendered no chip AND hid the clear-filters button, so the user had no
+    // signal and no way back. `setStates` is the choke point that makes the
+    // dimension non-empty by construction.
+    await vm.setStates(const <EntityState>{});
+    expect(vm.states, {EntityState.active});
+    expect(vm.hasActiveFilters, isFalse);
+
+    // Same from a non-default set — the state is a real change, so it lands
+    // on the default rather than short-circuiting.
+    await vm.setStates({EntityState.deleted});
+    expect(vm.states, {EntityState.deleted});
+    await vm.setStates(const <EntityState>{});
+    expect(vm.states, {EntityState.active});
+
+    vm.dispose();
+  });
+
+  test('a persisted `"states": []` heals to `{active}` on hydrate', () async {
+    // A blob written before #126 must not carry the trap across a restart.
+    await db.navStateDao.saveFilters(
+      filtersJson:
+          '{"co":{"invoice":{"search":"","states":[],'
+          '"sortField":"number","sortAscending":false,'
+          '"customFilters":{},"extraFilters":{}}}}',
+      now: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    final vm = FakeInvoiceListViewModel(
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      userSettings: UserSettingsRepository(db: db),
+      searchDebounce: const Duration(milliseconds: 1),
+      persistDebounce: const Duration(milliseconds: 1),
+    );
+    await settle();
+
+    expect(vm.states, {EntityState.active});
+    expect(vm.hasActiveFilters, isFalse);
+
+    // The other half of the healing, and the half nothing else covers:
+    // `_subscribeNavState` normalizes the on-disk slot before its dedupe.
+    // Without that, the still-`[]` disk slot never equals the healed
+    // `_lastSeenSlot` / `currentSnapshot()`, and the first unrelated
+    // `nav_state` touch — a route write is one — re-applies the slot and
+    // refetches page 1 for nothing.
+    final fetchesBefore = vm.fetchPageCalls;
+    await db.navStateDao.saveRoute(route: '/clients', now: 2);
+    await settle();
+    expect(
+      vm.fetchPageCalls,
+      fetchesBefore,
+      reason: 'an unrelated nav_state write must not reload the list',
+    );
+    expect(vm.states, {EntityState.active});
+
+    vm.dispose();
+  });
 
   test(
     'embedded list neither hydrates from nor persists to the shared '

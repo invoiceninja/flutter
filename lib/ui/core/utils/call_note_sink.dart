@@ -1,4 +1,5 @@
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/domain/entity_type.dart';
 
 /// Returns a **thunk** that enqueues an activity note against `(type, id)`, or
@@ -32,57 +33,40 @@ Future<void> Function()? enqueueCallNote(
   required String entityId,
   required String companyId,
   required String note,
-}) => switch (type) {
-  EntityType.client => () => services.clients.addComment(
-    companyId: companyId,
-    clientId: entityId,
-    text: note,
-  ),
-  EntityType.vendor => () => services.vendors.addComment(
-    companyId: companyId,
-    vendorId: entityId,
-    text: note,
-  ),
-  EntityType.invoice => () => services.invoices.addComment(
-    companyId: companyId,
-    invoiceId: entityId,
-    text: note,
-  ),
-  EntityType.quote => () => services.quotes.addComment(
-    companyId: companyId,
-    quoteId: entityId,
-    text: note,
-  ),
-  EntityType.credit => () => services.credits.addComment(
-    companyId: companyId,
-    creditId: entityId,
-    text: note,
-  ),
-  EntityType.purchaseOrder => () => services.purchaseOrders.addComment(
-    companyId: companyId,
-    purchaseOrderId: entityId,
-    text: note,
-  ),
-  EntityType.recurringInvoice => () => services.recurringInvoices.addComment(
-    companyId: companyId,
-    recurringInvoiceId: entityId,
-    text: note,
-  ),
-  EntityType.payment => () => services.payments.addComment(
-    companyId: companyId,
-    paymentId: entityId,
-    text: note,
-  ),
-  EntityType.expense => () => services.expenses.addComment(
-    companyId: companyId,
-    expenseId: entityId,
-    text: note,
-  ),
-  EntityType.recurringExpense => () => services.recurringExpenses.addComment(
-    companyId: companyId,
-    recurringExpenseId: entityId,
-    text: note,
-  ),
+}) {
+  final select = _noteRepoSelector(type);
+  if (select == null) return null;
+  // `select(services)` runs inside the thunk, not here: `enqueueCallNote` is
+  // called to decide whether to OFFER logging, and must not touch `Services`
+  // until the user actually submits.
+  return () => select(
+    services,
+  ).addComment(companyId: companyId, entityId: entityId, text: note);
+}
+
+/// Selects the repository that owns [type]'s activity notes, or null when it
+/// has none. A selector rather than the repository itself so the caller can
+/// decide whether to offer logging without resolving anything off [Services].
+///
+/// One arm per entity because the repositories are distinct concrete types;
+/// `Services` exposes no lookup by [EntityType]. The arms are otherwise
+/// identical now that `addComment` comes from the shared
+/// `EntityCommentMutations` mixin with a uniform `entityId` parameter — before
+/// that each arm spelled the id differently (`clientId`, `quoteId`, …) and the
+/// whole call had to be repeated ten times.
+EntityCommentMutations<dynamic, dynamic> Function(Services)? _noteRepoSelector(
+  EntityType type,
+) => switch (type) {
+  EntityType.client => (s) => s.clients,
+  EntityType.vendor => (s) => s.vendors,
+  EntityType.invoice => (s) => s.invoices,
+  EntityType.quote => (s) => s.quotes,
+  EntityType.credit => (s) => s.credits,
+  EntityType.purchaseOrder => (s) => s.purchaseOrders,
+  EntityType.recurringInvoice => (s) => s.recurringInvoices,
+  EntityType.payment => (s) => s.payments,
+  EntityType.expense => (s) => s.expenses,
+  EntityType.recurringExpense => (s) => s.recurringExpenses,
   _ => null,
 };
 

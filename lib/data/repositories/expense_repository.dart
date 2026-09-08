@@ -13,6 +13,7 @@ import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/expenses_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -33,6 +34,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// delete/purge/documentDelete, full apply-response triple + _fromRow
 /// overlay.
 class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
+    with EntityCommentMutations<Expense, ExpenseApi>
     implements DocumentBearingRepository {
   ExpenseRepository({
     required super.db,
@@ -272,22 +274,6 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
       );
     });
     return SaveResult(entity: expense, outboxRowId: rowId);
-  }
-
-  /// Append a user comment to this expense's activity stream. Hits
-  /// `/api/v1/activities/notes` via the outbox; the dispatcher's
-  /// `customActions` map calls the `ActivitiesApi`.
-  Future<void> addComment({
-    required String companyId,
-    required String expenseId,
-    required String text,
-  }) async {
-    await enqueueMutation(
-      companyId: companyId,
-      entityId: expenseId,
-      kind: MutationKind.addComment,
-      payload: {'entity_id': expenseId, 'notes': text.trim()},
-    );
   }
 
   /// Apply a design / email template to this expense. Mirrors

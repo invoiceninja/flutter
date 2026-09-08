@@ -17,6 +17,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
@@ -41,7 +42,9 @@ final _log = Logger('InvoiceRepository');
 /// Document-bearing (same pattern as Expense / Client), with eleven
 /// custom-action mutation kinds enqueued through the standard outbox.
 class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
-    with BillingDocEmailMutations<Invoice, InvoiceApi>
+    with
+        EntityCommentMutations<Invoice, InvoiceApi>,
+        BillingDocEmailMutations<Invoice, InvoiceApi>
     implements DocumentBearingRepository {
   InvoiceRepository({
     required super.db,
@@ -535,20 +538,6 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     entityId: id,
     kind: MutationKind.runTemplate,
     payload: {'id': id, 'template_id': templateId},
-  );
-
-  /// Append a user comment to this invoice's activity stream. Hits
-  /// `/api/v1/activities/notes` via the outbox; the dispatcher's
-  /// `customActions` map calls the `ActivitiesApi`.
-  Future<void> addComment({
-    required String companyId,
-    required String invoiceId,
-    required String text,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: invoiceId,
-    kind: MutationKind.addComment,
-    payload: {'entity_id': invoiceId, 'notes': text.trim()},
   );
 
   // -------------------- documents --------------------

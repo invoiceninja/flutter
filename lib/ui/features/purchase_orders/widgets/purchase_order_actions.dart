@@ -546,7 +546,7 @@ class PurchaseOrderActions {
           subject: _confirmSubject(po),
           submit: (text) => services.purchaseOrders.addComment(
             companyId: companyId,
-            purchaseOrderId: po.id,
+            entityId: po.id,
             text: text,
           ),
         );
@@ -556,7 +556,7 @@ class PurchaseOrderActions {
           entityId: po.id,
           submit: (text) => services.purchaseOrders.addComment(
             companyId: companyId,
-            purchaseOrderId: po.id,
+            entityId: po.id,
             text: text,
           ),
         );

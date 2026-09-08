@@ -96,7 +96,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
         _activityVm.kick();
         Future<void> submit(String text) => _services.vendors.addComment(
           companyId: _companyId,
-          vendorId: v.id,
+          entityId: v.id,
           text: text,
         );
         // Built here rather than in `initState`: `promptLogCallFor` needs a

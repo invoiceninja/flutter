@@ -228,7 +228,7 @@ class VendorActions {
           candidates: vendorPhoneCandidates(vendor),
           submit: (text) => services.vendors.addComment(
             companyId: companyId,
-            vendorId: vendor.id,
+            entityId: vendor.id,
             text: text,
           ),
         );
@@ -238,7 +238,7 @@ class VendorActions {
           entityId: vendor.id,
           submit: (text) => services.vendors.addComment(
             companyId: companyId,
-            vendorId: vendor.id,
+            entityId: vendor.id,
             text: text,
           ),
         );

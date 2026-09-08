@@ -14,6 +14,7 @@ import 'package:admin/data/models/domain/credit.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/credits_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -26,7 +27,9 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 final _log = Logger('CreditRepository');
 
 class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
-    with BillingDocEmailMutations<Credit, CreditApi> {
+    with
+        EntityCommentMutations<Credit, CreditApi>,
+        BillingDocEmailMutations<Credit, CreditApi> {
   CreditRepository({
     required super.db,
     required this.api,
@@ -342,17 +345,6 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
     entityId: id,
     kind: MutationKind.runTemplate,
     payload: {'id': id, 'template_id': templateId},
-  );
-
-  Future<void> addComment({
-    required String companyId,
-    required String creditId,
-    required String text,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: creditId,
-    kind: MutationKind.addComment,
-    payload: {'entity_id': creditId, 'notes': text.trim()},
   );
 
   // ── Documents ──────────────────────────────────────────────────────

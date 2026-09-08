@@ -13,6 +13,7 @@ import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/recurring_invoices_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -24,7 +25,9 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 
 class RecurringInvoiceRepository
     extends BaseEntityRepository<RecurringInvoice, RecurringInvoiceApi>
-    with BillingDocEmailMutations<RecurringInvoice, RecurringInvoiceApi> {
+    with
+        EntityCommentMutations<RecurringInvoice, RecurringInvoiceApi>,
+        BillingDocEmailMutations<RecurringInvoice, RecurringInvoiceApi> {
   RecurringInvoiceRepository({
     required super.db,
     required this.api,
@@ -367,17 +370,6 @@ class RecurringInvoiceRepository
     entityId: id,
     kind: MutationKind.increasePrices,
     payload: {'id': id, 'percentage_increase': percentageIncrease},
-  );
-
-  Future<void> addComment({
-    required String companyId,
-    required String recurringInvoiceId,
-    required String text,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: recurringInvoiceId,
-    kind: MutationKind.addComment,
-    payload: {'entity_id': recurringInvoiceId, 'notes': text.trim()},
   );
 
   // ── Documents ──────────────────────────────────────────────────────

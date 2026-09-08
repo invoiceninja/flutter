@@ -214,7 +214,7 @@ class ExpenseActions {
           subject: _confirmSubject(expense),
           submit: (text) => services.expenses.addComment(
             companyId: companyId,
-            expenseId: expense.id,
+            entityId: expense.id,
             text: text,
           ),
         );
@@ -224,7 +224,7 @@ class ExpenseActions {
           entityId: expense.id,
           submit: (text) => services.expenses.addComment(
             companyId: companyId,
-            expenseId: expense.id,
+            entityId: expense.id,
             text: text,
           ),
         );

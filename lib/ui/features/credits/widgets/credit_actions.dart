@@ -457,7 +457,7 @@ class CreditActions {
           subject: _confirmSubject(credit),
           submit: (text) => services.credits.addComment(
             companyId: companyId,
-            creditId: credit.id,
+            entityId: credit.id,
             text: text,
           ),
         );
@@ -467,7 +467,7 @@ class CreditActions {
           entityId: credit.id,
           submit: (text) => services.credits.addComment(
             companyId: companyId,
-            creditId: credit.id,
+            entityId: credit.id,
             text: text,
           ),
         );

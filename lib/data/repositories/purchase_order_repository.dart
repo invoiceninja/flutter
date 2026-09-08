@@ -12,6 +12,7 @@ import 'package:admin/data/models/api/purchase_order_api_model.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/purchase_orders_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -25,7 +26,9 @@ final _log = Logger('PurchaseOrderRepository');
 
 class PurchaseOrderRepository
     extends BaseEntityRepository<PurchaseOrder, PurchaseOrderApi>
-    with BillingDocEmailMutations<PurchaseOrder, PurchaseOrderApi> {
+    with
+        EntityCommentMutations<PurchaseOrder, PurchaseOrderApi>,
+        BillingDocEmailMutations<PurchaseOrder, PurchaseOrderApi> {
   PurchaseOrderRepository({
     required super.db,
     required this.api,
@@ -325,17 +328,6 @@ class PurchaseOrderRepository
     entityId: id,
     kind: MutationKind.runTemplate,
     payload: {'id': id, 'template_id': templateId},
-  );
-
-  Future<void> addComment({
-    required String companyId,
-    required String purchaseOrderId,
-    required String text,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: purchaseOrderId,
-    kind: MutationKind.addComment,
-    payload: {'entity_id': purchaseOrderId, 'notes': text.trim()},
   );
 
   // ── Documents ──────────────────────────────────────────────────────

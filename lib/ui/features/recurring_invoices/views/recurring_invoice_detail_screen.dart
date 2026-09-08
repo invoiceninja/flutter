@@ -156,7 +156,7 @@ class _Body extends StatelessWidget {
             entityId: recurringInvoice.id,
             submit: (text) => services.recurringInvoices.addComment(
               companyId: companyId,
-              recurringInvoiceId: recurringInvoice.id,
+              entityId: recurringInvoice.id,
               text: text,
             ),
           ),
@@ -169,7 +169,7 @@ class _Body extends StatelessWidget {
                 : '#${recurringInvoice.number}',
             submit: (text) => services.recurringInvoices.addComment(
               companyId: companyId,
-              recurringInvoiceId: recurringInvoice.id,
+              entityId: recurringInvoice.id,
               text: text,
             ),
           ),

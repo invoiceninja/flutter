@@ -298,7 +298,7 @@ class _Body extends StatelessWidget {
             entityId: invoice.id,
             submit: (text) => services.invoices.addComment(
               companyId: companyId,
-              invoiceId: invoice.id,
+              entityId: invoice.id,
               text: text,
             ),
           ),
@@ -309,7 +309,7 @@ class _Body extends StatelessWidget {
             subject: invoice.number.isEmpty ? '' : '#${invoice.number}',
             submit: (text) => services.invoices.addComment(
               companyId: companyId,
-              invoiceId: invoice.id,
+              entityId: invoice.id,
               text: text,
             ),
           ),

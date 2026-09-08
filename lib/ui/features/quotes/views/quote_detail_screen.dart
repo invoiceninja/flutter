@@ -147,7 +147,7 @@ class _Body extends StatelessWidget {
             entityId: quote.id,
             submit: (text) => services.quotes.addComment(
               companyId: companyId,
-              quoteId: quote.id,
+              entityId: quote.id,
               text: text,
             ),
           ),
@@ -158,7 +158,7 @@ class _Body extends StatelessWidget {
             subject: quote.number.isEmpty ? '' : '#${quote.number}',
             submit: (text) => services.quotes.addComment(
               companyId: companyId,
-              quoteId: quote.id,
+              entityId: quote.id,
               text: text,
             ),
           ),

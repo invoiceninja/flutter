@@ -222,7 +222,7 @@ class RecurringExpenseActions {
           subject: _confirmSubject(recurringExpense),
           submit: (text) => services.recurringExpenses.addComment(
             companyId: companyId,
-            recurringExpenseId: recurringExpense.id,
+            entityId: recurringExpense.id,
             text: text,
           ),
         );
@@ -232,7 +232,7 @@ class RecurringExpenseActions {
           entityId: recurringExpense.id,
           submit: (text) => services.recurringExpenses.addComment(
             companyId: companyId,
-            recurringExpenseId: recurringExpense.id,
+            entityId: recurringExpense.id,
             text: text,
           ),
         );

@@ -458,7 +458,7 @@ class RecurringInvoiceActions {
           subject: _confirmSubject(ri),
           submit: (text) => services.recurringInvoices.addComment(
             companyId: companyId,
-            recurringInvoiceId: ri.id,
+            entityId: ri.id,
             text: text,
           ),
         );
@@ -468,7 +468,7 @@ class RecurringInvoiceActions {
           entityId: ri.id,
           submit: (text) => services.recurringInvoices.addComment(
             companyId: companyId,
-            recurringInvoiceId: ri.id,
+            entityId: ri.id,
             text: text,
           ),
         );

@@ -172,7 +172,7 @@ class PaymentActions {
           subject: _confirmSubject(payment),
           submit: (text) => services.payments.addComment(
             companyId: companyId,
-            paymentId: payment.id,
+            entityId: payment.id,
             text: text,
           ),
         );
@@ -182,7 +182,7 @@ class PaymentActions {
           entityId: payment.id,
           submit: (text) => services.payments.addComment(
             companyId: companyId,
-            paymentId: payment.id,
+            entityId: payment.id,
             text: text,
           ),
         );

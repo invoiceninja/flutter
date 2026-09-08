@@ -21,6 +21,7 @@ import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
@@ -32,6 +33,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// Page size is fixed at [pageSize]. Subsequent pages are fetched only on
 /// demand — list screens call [ensurePageLoaded] near the scroll edge.
 class ClientRepository extends BaseEntityRepository<Client, ClientApi>
+    with EntityCommentMutations<Client, ClientApi>
     implements DocumentBearingRepository {
   ClientRepository({
     required super.db,
@@ -653,24 +655,6 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
         'document_id': documentId,
         'is_public': isPublic,
       },
-    );
-  }
-
-  /// Append a user comment to this client's activity stream. Hits
-  /// `/api/v1/activities/notes` via the outbox; the dispatcher's
-  /// `customActions` map (registered in services.dart) calls the
-  /// `ActivitiesApi`. The pending outbox row is what drives the optimistic
-  /// "syncing…" entry in the Activity tab.
-  Future<void> addComment({
-    required String companyId,
-    required String clientId,
-    required String text,
-  }) async {
-    await enqueueMutation(
-      companyId: companyId,
-      entityId: clientId,
-      kind: MutationKind.addComment,
-      payload: {'entity_id': clientId, 'notes': text.trim()},
     );
   }
 

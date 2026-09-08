@@ -15,6 +15,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/quotes_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -31,7 +32,9 @@ final _log = Logger('QuoteRepository');
 /// fetch. Diff: quote-specific custom actions (`approve`,
 /// `convertToInvoice`, `convertToProject`) and no `markPaid` / `autoBill`.
 class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
-    with BillingDocEmailMutations<Quote, QuoteApi> {
+    with
+        EntityCommentMutations<Quote, QuoteApi>,
+        BillingDocEmailMutations<Quote, QuoteApi> {
   QuoteRepository({
     required super.db,
     required this.api,
@@ -360,17 +363,6 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     entityId: id,
     kind: MutationKind.runTemplate,
     payload: {'id': id, 'template_id': templateId},
-  );
-
-  Future<void> addComment({
-    required String companyId,
-    required String quoteId,
-    required String text,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: quoteId,
-    kind: MutationKind.addComment,
-    payload: {'entity_id': quoteId, 'notes': text.trim()},
   );
 
   // ── Documents ──────────────────────────────────────────────────────

@@ -426,7 +426,7 @@ class ClientActions {
           candidates: clientPhoneCandidates(client),
           submit: (text) => services.clients.addComment(
             companyId: companyId,
-            clientId: client.id,
+            entityId: client.id,
             text: text,
           ),
         );
@@ -436,7 +436,7 @@ class ClientActions {
           entityId: client.id,
           submit: (text) => services.clients.addComment(
             companyId: companyId,
-            clientId: client.id,
+            entityId: client.id,
             text: text,
           ),
         );

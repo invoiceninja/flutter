@@ -94,7 +94,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
             entityId: e.id,
             submit: (text) => _services.expenses.addComment(
               companyId: _companyId,
-              expenseId: e.id,
+              entityId: e.id,
               text: text,
             ),
           ),
@@ -105,7 +105,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen>
             subject: e.number.isEmpty ? '' : '#${e.number}',
             submit: (text) => _services.expenses.addComment(
               companyId: _companyId,
-              expenseId: e.id,
+              entityId: e.id,
               text: text,
             ),
           ),

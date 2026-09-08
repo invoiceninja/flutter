@@ -162,7 +162,7 @@ class _Body extends StatelessWidget {
             entityId: purchaseOrder.id,
             submit: (text) => services.purchaseOrders.addComment(
               companyId: companyId,
-              purchaseOrderId: purchaseOrder.id,
+              entityId: purchaseOrder.id,
               text: text,
             ),
           ),
@@ -175,7 +175,7 @@ class _Body extends StatelessWidget {
                 : '#${purchaseOrder.number}',
             submit: (text) => services.purchaseOrders.addComment(
               companyId: companyId,
-              purchaseOrderId: purchaseOrder.id,
+              entityId: purchaseOrder.id,
               text: text,
             ),
           ),

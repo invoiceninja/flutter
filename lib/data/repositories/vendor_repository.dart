@@ -18,6 +18,7 @@ import 'package:admin/data/services/vendors_api.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
@@ -29,6 +30,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 /// Page size is fixed at [pageSize]. Subsequent pages are fetched only on
 /// demand — list screens call [ensurePageLoaded] near the scroll edge.
 class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
+    with EntityCommentMutations<Vendor, VendorApi>
     implements DocumentBearingRepository {
   VendorRepository({
     required super.db,
@@ -365,22 +367,6 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
         'document_id': documentId,
         'is_public': isPublic,
       },
-    );
-  }
-
-  /// Append a user comment to this vendor's activity stream. Hits
-  /// `/api/v1/activities/notes` via the outbox; the dispatcher's
-  /// `customActions` map calls the `ActivitiesApi`.
-  Future<void> addComment({
-    required String companyId,
-    required String vendorId,
-    required String text,
-  }) async {
-    await enqueueMutation(
-      companyId: companyId,
-      entityId: vendorId,
-      kind: MutationKind.addComment,
-      payload: {'entity_id': vendorId, 'notes': text.trim()},
     );
   }
 

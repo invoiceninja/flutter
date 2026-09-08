@@ -501,7 +501,7 @@ class QuoteActions {
           subject: _confirmSubject(quote),
           submit: (text) => services.quotes.addComment(
             companyId: companyId,
-            quoteId: quote.id,
+            entityId: quote.id,
             text: text,
           ),
         );
@@ -511,7 +511,7 @@ class QuoteActions {
           entityId: quote.id,
           submit: (text) => services.quotes.addComment(
             companyId: companyId,
-            quoteId: quote.id,
+            entityId: quote.id,
             text: text,
           ),
         );

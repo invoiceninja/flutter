@@ -14,6 +14,7 @@ import 'package:admin/data/models/domain/payment.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/payments_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -34,6 +35,7 @@ final _log = Logger('PaymentRepository');
 /// `invoices` allocations array) — enqueued as their own `MutationKind`
 /// variants and dispatched via `customActions`.
 class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
+    with EntityCommentMutations<Payment, PaymentApi>
     implements DocumentBearingRepository {
   PaymentRepository({
     required super.db,
@@ -333,20 +335,6 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
       entityId: paymentId,
       kind: MutationKind.applyPayment,
       payload: <String, dynamic>{'id': paymentId, 'invoices': allocations},
-    );
-  }
-
-  /// Append a user comment to this payment's activity stream.
-  Future<void> addComment({
-    required String companyId,
-    required String paymentId,
-    required String text,
-  }) async {
-    await enqueueMutation(
-      companyId: companyId,
-      entityId: paymentId,
-      kind: MutationKind.addComment,
-      payload: {'entity_id': paymentId, 'notes': text.trim()},
     );
   }
 

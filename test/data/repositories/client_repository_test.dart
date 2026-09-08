@@ -1874,7 +1874,7 @@ void main() {
 
       await repo.addComment(
         companyId: 'co',
-        clientId: 'c1',
+        entityId: 'c1',
         text: '  hello world  ',
       );
 
@@ -1907,7 +1907,7 @@ void main() {
 
     test('watchPendingForEntity streams the row until it lands', () async {
       final (:repo, :api) = makeRepo();
-      await repo.addComment(companyId: 'co', clientId: 'c1', text: 'hi');
+      await repo.addComment(companyId: 'co', entityId: 'c1', text: 'hi');
 
       final pending = await db.outboxDao
           .watchPendingForEntity(
@@ -1931,7 +1931,7 @@ void main() {
         companyId: 'co',
         client: Client.fromApi(apiClient('c1', name: 'Acme')),
       );
-      await repo.addComment(companyId: 'co', clientId: 'c1', text: 'note');
+      await repo.addComment(companyId: 'co', entityId: 'c1', text: 'note');
 
       final scoped = await db.outboxDao
           .watchPendingForEntity(

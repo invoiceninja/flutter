@@ -11,6 +11,7 @@ import 'package:admin/data/models/api/recurring_expense_api_model.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/entity_comment_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/services/recurring_expenses_api.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -31,6 +32,7 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 ///     screen consumes the in-flight `get` response directly.
 class RecurringExpenseRepository
     extends BaseEntityRepository<RecurringExpense, RecurringExpenseApi>
+    with EntityCommentMutations<RecurringExpense, RecurringExpenseApi>
     implements DocumentBearingRepository {
   RecurringExpenseRepository({
     required super.db,
@@ -318,19 +320,6 @@ class RecurringExpenseRepository
     return row == null
         ? {'id': id}
         : _fromRow(row).toApiJson(preserveTempId: true);
-  }
-
-  Future<void> addComment({
-    required String companyId,
-    required String recurringExpenseId,
-    required String text,
-  }) async {
-    await enqueueMutation(
-      companyId: companyId,
-      entityId: recurringExpenseId,
-      kind: MutationKind.addComment,
-      payload: {'entity_id': recurringExpenseId, 'notes': text.trim()},
-    );
   }
 
   @override

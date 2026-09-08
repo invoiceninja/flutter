@@ -762,7 +762,7 @@ class InvoiceActions {
           subject: _confirmSubject(invoice),
           submit: (text) => services.invoices.addComment(
             companyId: companyId,
-            invoiceId: invoice.id,
+            entityId: invoice.id,
             text: text,
           ),
         );
@@ -772,7 +772,7 @@ class InvoiceActions {
           entityId: invoice.id,
           submit: (text) => services.invoices.addComment(
             companyId: companyId,
-            invoiceId: invoice.id,
+            entityId: invoice.id,
             text: text,
           ),
         );

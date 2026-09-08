@@ -98,7 +98,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
     _activityVm.kick();
     Future<void> submit(String text) => _services.clients.addComment(
       companyId: _companyId,
-      clientId: c.id,
+      entityId: c.id,
       text: text,
     );
     // Built once here, not in `initState` (`promptLogCallFor` needs a subject

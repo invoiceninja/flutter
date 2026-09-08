@@ -434,9 +434,9 @@ class _CustomFieldsAccessScope extends InheritedWidget {
 /// section.
 ///
 /// Seven of the eleven custom-field screens are exactly this and nothing else,
-/// differing only in [prefix] and [titleKey]. The remaining four (clients,
-/// invoices, vendors, and the company screen's siblings) add sections of their
-/// own and compose this instead of replacing it.
+/// differing only in [prefix] and [title]. The other three (clients, invoices,
+/// vendors) add sections of their own and still hand-roll the slot loop — they
+/// could compose this, but do not today.
 ///
 /// [title] arrives already localized, so the `context.tr('<x>_field')` call
 /// stays in the screen file. That is load-bearing, not style:

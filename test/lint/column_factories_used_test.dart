@@ -16,6 +16,18 @@ import 'package:flutter_test/flutter_test.dart';
 /// (`ClientFieldIds.createdAt`), but every copy of a shared column necessarily
 /// spells the same user-facing label key, and that is also what
 /// `no_unsubstituted_placeholders_test` keys on.
+///
+/// Two limits worth knowing, both accepted:
+///
+///  * **Only the factories that hardcode their `labelKey` are checkable.**
+///    `colNotes` / `colFlag` / `colUserName` / `colEntityState` /
+///    `colDocumentsCount` take `labelKey:` as an argument, so the string
+///    appears at correct call sites too and matching it would fire on those.
+///  * **A hand-rolled copy can evade this by choosing a different key.**
+///    `column_factories.dart` notes that `created_at` ("Date Created") exists
+///    alongside `created`; a registry spelling that is invisible here. So is a
+///    column whose `labelKey:` is the last argument, since the pattern below
+///    requires the trailing comma.
 void main() {
   test('shared metadata columns are built by the factories, not by hand', () {
     // Each maps a label key to the factory that owns it.
@@ -23,6 +35,7 @@ void main() {
       'created': 'colCreatedAt',
       'archived': 'colArchivedAt',
       'tags': 'colTags',
+      'last_updated': 'colUpdatedAt',
     };
     final offenders = <String>[];
     for (final f

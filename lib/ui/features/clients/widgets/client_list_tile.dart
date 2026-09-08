@@ -432,10 +432,6 @@ class _ClientListTileState extends State<ClientListTile> {
   }
 }
 
-// ─── Column slot ───────────────────────────────────────────────────────
-
-/// Renders one column's cell at its declared width or as a flex-expanded
-/// slot for the identity column.
 // ─── Subtitle line ─────────────────────────────────────────────────────
 
 class _SubtitleLine extends StatelessWidget {

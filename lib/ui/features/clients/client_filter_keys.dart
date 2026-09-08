@@ -326,11 +326,12 @@ class GroupFilterKey extends MembershipFilterKey {
   final GroupSettingRepository groups;
   final String companyId;
 
-  /// Synchronous `group_settings_id → name` lookup supplied by the
-  /// wrapper (mirrors [ClientFilterKey.nameForClientId]). A fresh key
-  /// instance is built on every rebuild, so resolving the chip name
-  /// from a per-instance stream cache showed the raw id until a later
-  /// rebuild; the wrapper-owned map is already populated. Null → id.
+  /// Synchronous `group_settings_id → name` lookup supplied by
+  /// `EntityTokenSearchField` (mirrors [ClientFilterKey.nameForClientId]).
+  /// Called lazily from [displayValueFor], so the key survives a name emit
+  /// without being rebuilt and still resolves the current map — where a
+  /// per-instance stream cache showed the raw id until a later rebuild.
+  /// Null → id.
   final String? Function(String id)? nameForGroupId;
 
   @override

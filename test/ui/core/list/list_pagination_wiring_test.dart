@@ -80,6 +80,7 @@ void main() {
       // were covered when they were not.
       final offenders = <String>[];
       final openCoded = <String>[];
+      var scanned = 0;
       for (final f
           in Directory('lib/data/repositories')
               .listSync()
@@ -89,9 +90,31 @@ void main() {
         final name = f.uri.pathSegments.last;
         if (name == 'base_entity_repository.dart') continue;
         if (!src.contains('Future<bool> ensurePageLoaded({')) continue;
+        scanned++;
         if (!src.contains('ensurePageLoadedTemplate(')) offenders.add(name);
         if (src.contains('ignoreCursor ||')) openCoded.add(name);
       }
+      // Without this both expectations below degenerate to `expect([], isEmpty)`
+      // the moment the marker string or the directory moves — the old version
+      // hardcoded six paths, so it threw instead of passing silently.
+      expect(
+        scanned,
+        greaterThan(20),
+        reason: 'only $scanned repos matched — the scan is not finding them',
+      );
+      // The gate expression now lives in exactly one place, so assert it is
+      // still there. Skipping the base file below (it legitimately contains
+      // `ignoreCursor ||`) would otherwise leave it unguarded entirely.
+      expect(
+        File(
+          'lib/data/repositories/base_entity_repository.dart',
+        ).readAsStringSync().contains('await readCursorIfEligible('),
+        isTrue,
+        reason:
+            'ensurePageLoadedTemplate must read the cursor through the shared '
+            'gate — that is the whole reason the six hand-rolled bodies were '
+            'collapsed into it',
+      );
       expect(
         offenders,
         isEmpty,

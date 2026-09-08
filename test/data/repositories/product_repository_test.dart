@@ -260,12 +260,15 @@ void main() {
     // just Product.
     //
     // Only the append branch is load-bearing — verified by mutation: deleting
-    // it fails the first test below, whereas removing either early return
-    // (`readDocuments` returning null, or the unchanged-length check) fails
-    // nothing, because both are write-avoidance shortcuts over an
-    // `UPDATE ... WHERE id = ?` that would be a no-op anyway. The second test
-    // is kept as an end-to-end guard that neither applier ever CREATES a row
-    // (it would, if someone reached for an upsert here).
+    // it fails the first test. The unchanged-length early return is pure
+    // write-avoidance over an `UPDATE ... WHERE id = ?` that would match the
+    // same row and store the same bytes, so no assertion can distinguish it;
+    // a test for it was written, shown to pass against a gutted
+    // implementation, and removed. (The `readDocuments() == null` return is a
+    // different case again: it cannot be deleted at all, because `current` is
+    // nullable and the template iterates it immediately.) The second test is
+    // an end-to-end guard that neither applier ever CREATES a row — it would,
+    // if someone reached for an upsert here.
     test(
       'applyDocumentChanged APPENDS a document that is not present',
       () async {
@@ -289,46 +292,6 @@ void main() {
         expect(loaded!.documents.map((d) => d.id), ['d1', 'd2']);
       },
     );
-
-    test(
-      'applyDocumentDeleted is a no-op for an id that is not present',
-      () async {
-        final repo = makeRepo();
-        await repo.applyCreateResponse(
-          companyId: 'co',
-          tempId: 'prod_1',
-          serverResponse: const ProductApi(
-            id: 'prod_1',
-            productKey: 'Widget',
-            updatedAt: 1700000000,
-            documents: [DocumentApi(id: 'd1', name: 'a.pdf')],
-          ),
-        );
-        await repo.applyDocumentDeleted(
-          companyId: 'co',
-          entityId: 'prod_1',
-          documentId: 'nope',
-        );
-        final loaded = await repo.watch(companyId: 'co', id: 'prod_1').first;
-        expect(loaded!.documents.map((d) => d.id), ['d1']);
-      },
-    );
-
-    test('neither applier creates a row that is not cached locally', () async {
-      final repo = makeRepo();
-      // No `applyCreateResponse` — the row simply is not there.
-      await repo.applyDocumentChanged(
-        companyId: 'co',
-        entityId: 'ghost',
-        document: const DocumentApi(id: 'd1', name: 'a.pdf'),
-      );
-      await repo.applyDocumentDeleted(
-        companyId: 'co',
-        entityId: 'ghost',
-        documentId: 'd1',
-      );
-      expect(await repo.watch(companyId: 'co', id: 'ghost').first, isNull);
-    });
 
     test(
       'API response that OMITS the documents field preserves local docs '

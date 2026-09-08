@@ -11,13 +11,15 @@ import 'package:admin/ui/core/list/search/membership_filter_key.dart';
 /// invoices, payments, expenses, projects — all confirmed working server
 /// side in the May 2026 audit).
 ///
-/// Chip-name resolution is decoupled from the filter key itself: the
-/// `*TokenSearchField` wrapper subscribes once (via `StreamBuilder`) to
+/// Chip-name resolution is decoupled from the filter key itself:
+/// `EntityTokenSearchField` subscribes once (via `StreamBuilder`) to
 /// `ClientRepository.watchActiveNames` and passes a synchronous resolver
-/// closure in via [nameForClientId]. That way the names map lives in the
-/// widget tree, stream emits trigger a rebuild, and freshly-constructed
-/// `ClientFilterKey` instances on each rebuild see the up-to-date map
-/// instead of starting from an empty private cache.
+/// closure in via [nameForClientId]. The names map lives in the widget tree,
+/// and because [displayValueFor] calls the closure lazily at render time, a
+/// key built earlier still resolves the latest names — so the key list is NOT
+/// rebuilt on a name emit, which would re-open a `TagFilterKey` Drift
+/// subscription each time. The alternative it replaced was a per-instance
+/// stream cache that showed the raw id until a later rebuild.
 class ClientFilterKey extends MembershipFilterKey {
   ClientFilterKey({
     required this.clients,

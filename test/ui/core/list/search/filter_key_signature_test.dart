@@ -13,6 +13,12 @@ import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
 /// subscription opens in its constructor). Live name maps are the churning
 /// input, and are deliberately excluded.
 ///
+/// The *absence* of name maps from the key is a compile-time fact — the
+/// function has no `names` parameter — so there is nothing here to assert
+/// about it; a test comparing one call with itself would pass for every
+/// possible implementation. It is stated in `filterKeySignature`'s own doc
+/// instead.
+///
 /// Tested directly because the field itself never settles under
 /// `pumpAndSettle` — its `OverlayPortal` and focus-driven subscriptions keep a
 /// frame pending — which is the same reason `token_search_field_test` unit-
@@ -76,17 +82,12 @@ void main() {
     },
   );
 
-  test('name maps are NOT part of the key', () {
-    // They arrive as fresh instances on every Drift emit, so folding them in
-    // would rebuild the key list — and open a fresh TagFilterKey Drift
-    // subscription — on every no-op re-emit. The keys read names through
-    // LiveNameMaps instead, which stays correct without a rebuild. The
-    // signature simply has nowhere to put them, which is the point: this test
-    // fails to compile if someone adds a `names:` parameter back.
-    expect(sig(prefix: 'invoice'), sig(prefix: 'invoice'));
-  });
-
-  test('a null company still produces a stable key', () {
-    expect(sig(c: null, prefix: 'invoice'), sig(c: null, prefix: 'invoice'));
+  test('a null company drops the label half of the key without throwing', () {
+    // Reached on the first frame, before the company stream emits. The prefix
+    // must stop mattering — otherwise two entities sharing a companyId would
+    // collide, or the key would churn once the company arrives.
+    expect(sig(c: null, prefix: 'invoice'), sig(c: null, prefix: 'product'));
+    expect(sig(c: null, prefix: 'invoice'), sig(c: null));
+    expect(sig(c: null, prefix: 'invoice'), isNot(sig(prefix: 'invoice')));
   });
 }

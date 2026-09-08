@@ -39,6 +39,27 @@ class PaymentListViewModel extends GenericListViewModel<Payment> {
     notifyListeners();
   }
 
+  /// The unapplied-funds toggle is real filter state — it reaches
+  /// `PaymentRepository.watchPage` and narrows the Drift query — but it lives
+  /// on this VM rather than in `extraFilters`, so the base can't see it.
+  ///
+  /// Folding it in here rather than teaching `EntityListEmptyState` about it:
+  /// the empty state used to carry the `!vm.hasUnappliedFundsOnly` term in
+  /// three places and reset the flag from its Clear-filters button, and lost
+  /// all four when that widget was shared. `hasActiveFilters` and
+  /// `clearAllFilters` are the documented generic seam for exactly this (see
+  /// the escape-hatch comment in `EntityListScreenScaffold`), so overriding
+  /// them restores the behaviour *and* makes the toggle count as a filter
+  /// everywhere else — the scaffold's own Clear-filters escape included.
+  @override
+  bool get hasActiveFilters => _hasUnappliedFundsOnly || super.hasActiveFilters;
+
+  @override
+  Future<void> clearAllFilters() async {
+    _hasUnappliedFundsOnly = false;
+    await super.clearAllFilters();
+  }
+
   @override
   Set<String> get lockedFilterKeyIds => {if (clientId != null) 'client'};
 

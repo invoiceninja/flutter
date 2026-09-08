@@ -31,6 +31,7 @@ class EntityListEmptyState extends StatelessWidget {
     this.emptySubtitle,
     this.emptyAction,
     this.emptyOverride,
+    this.extraNarrowing = false,
     super.key,
   }) : assert(
          emptyOverride != null || (icon != null && emptyTitle != null),
@@ -54,6 +55,15 @@ class EntityListEmptyState extends StatelessWidget {
   /// "Add gateway".
   final Widget? emptyAction;
 
+  /// A narrowing input the base [GenericListViewModel] cannot see, so that the
+  /// archived / deleted branches don't claim "nothing archived" when something
+  /// else is filtering. Payments' unapplied-funds toggle is the only one: it
+  /// reaches the Drift query but lives as a bare bool on its VM rather than in
+  /// `extraFilters`. Its VM also folds the flag into `hasActiveFilters` and
+  /// `clearAllFilters`, which covers the first-run branch and the Clear button;
+  /// this covers the two lifecycle branches.
+  final bool extraNarrowing;
+
   /// Replaces the "nothing yet" branch outright. Transactions needs this: its
   /// unfiltered copy depends on whether the company has a *linked* bank
   /// account, which it resolves from its own Drift stream. Only that branch
@@ -64,6 +74,7 @@ class EntityListEmptyState extends StatelessWidget {
   /// the user is looking at the Archived (or Deleted) tab with no search,
   /// chips or extra filters on top.
   bool _onlyState(EntityState state) =>
+      !extraNarrowing &&
       vm.states.length == 1 &&
       vm.states.contains(state) &&
       vm.customFilters.isEmpty &&

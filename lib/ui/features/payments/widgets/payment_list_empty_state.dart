@@ -12,6 +12,8 @@ class PaymentListEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) => EntityListEmptyState(
     vm: vm,
+    // Not visible to the base VM — see EntityListEmptyState.extraNarrowing.
+    extraNarrowing: vm.hasUnappliedFundsOnly,
     icon: Icons.payments_outlined,
     emptyTitle: context.tr('no_payments_yet'),
     // No first-run subtitle: a payment is recorded against an invoice, so

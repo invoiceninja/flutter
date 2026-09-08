@@ -1113,9 +1113,10 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// that keeps answering `hasMore` can't spin forever. It is a parameter
   /// because the right ceiling is per-entity: bounded reference tables
   /// (gateways, task statuses, expense categories) cap at 100, the browsable
-  /// entities at 1000 (50 rows x 1000 = 50 000 records). Those values used to
-  /// live in 27 hand-copied loop bodies, where the split had drifted into 100
-  /// for 13 repos and 1000 for 14 with no rationale recorded either way.
+  /// entities at 1000 (50 rows x 1000 = 50 000 records), and bank transactions
+  /// at 200. Those values used to live in 28 hand-copied loop bodies, where the
+  /// split had drifted into 100 for 13 repos, 1000 for 14 and 200 for one, with
+  /// a rationale recorded for only three of them.
   ///
   /// [fetchPage] is the repo's own `ensurePageLoaded`, passed as a tear-off.
   /// The base can't call it directly — each repo declares its own signature,
@@ -1151,9 +1152,13 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       );
       page++;
       if (page > maxPages) {
+        // Names the entity explicitly: this logger is the base class's, so
+        // every repo's cap warning now shares one `loggerName` and the
+        // per-repo loggers that used to identify it are gone.
         _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
+          'refreshAll hit the $maxPages page safety cap for $entityTypeName '
+          'in company $companyId — cursor will resume on the next sync '
+          'trigger.',
         );
         break;
       }

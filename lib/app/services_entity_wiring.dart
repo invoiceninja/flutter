@@ -1162,6 +1162,16 @@ _wireRecurringExpense(_EntityWiring reg) {
             ))?.data.id,
         refreshCloneTarget: reg.refreshCloneTarget,
       ),
+      MutationKind.autoBill: ({required row, required payload}) async {
+        final response = await invoicesApi.autoBill(
+          id: payload['id'] as String,
+          idempotencyKey: row.idempotencyKey,
+        );
+        // autoBill creates a Payment (gateway/credit) not in the invoice
+        // response — pull the newest payments into the local list.
+        await reg.refreshRecentPayments(row.companyId);
+        return response?.data;
+      },
       MutationKind.cancelEntity: ({required row, required payload}) async {
         final response = await invoicesApi.cancel(
           id: payload['id'] as String,
@@ -1284,6 +1294,13 @@ _wireRecurringExpense(_EntityWiring reg) {
             ))?.data.id,
         refreshCloneTarget: reg.refreshCloneTarget,
       ),
+      MutationKind.cancelEntity: ({required row, required payload}) async {
+        final response = await quotesApi.cancel(
+          id: payload['id'] as String,
+          idempotencyKey: row.idempotencyKey,
+        );
+        return response?.data;
+      },
       MutationKind.runTemplate: ({required row, required payload}) async {
         final response = await quotesApi.runTemplate(
           id: payload['id'] as String,
@@ -1553,6 +1570,14 @@ _wireRecurringExpense(_EntityWiring reg) {
             ))?.data.id,
         refreshCloneTarget: reg.refreshCloneTarget,
       ),
+      MutationKind.runTemplate: ({required row, required payload}) async {
+        final response = await creditsApi.runTemplate(
+          id: payload['id'] as String,
+          templateId: payload['template_id'] as String,
+          idempotencyKey: row.idempotencyKey,
+        );
+        return response?.data;
+      },
       ...addCommentHandlers<CreditApi>(
         reg.ctx.activitiesApi,
         entity: 'credits',
@@ -1740,6 +1765,14 @@ _wireRecurringInvoice(_EntityWiring reg) {
             ))?.data.id,
         refreshCloneTarget: reg.refreshCloneTarget,
       ),
+      MutationKind.runTemplate: ({required row, required payload}) async {
+        final response = await recurringInvoicesApi.runTemplate(
+          id: payload['id'] as String,
+          templateId: payload['template_id'] as String,
+          idempotencyKey: row.idempotencyKey,
+        );
+        return response?.data;
+      },
       MutationKind.updatePrices: ({required row, required payload}) async {
         final response = await recurringInvoicesApi.updatePrices(
           id: payload['id'] as String,

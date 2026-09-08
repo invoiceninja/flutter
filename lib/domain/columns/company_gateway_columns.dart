@@ -2,6 +2,7 @@ import 'package:admin/data/db/dao/company_gateway_dao.dart';
 import 'package:admin/data/models/domain/company_gateway.dart';
 import 'package:admin/domain/columns/column_cells.dart';
 import 'package:admin/domain/columns/column_definition.dart';
+import 'package:admin/domain/columns/column_factories.dart';
 
 typedef CompanyGatewayColumn = ColumnDefinition<CompanyGateway>;
 
@@ -30,17 +31,13 @@ final List<CompanyGatewayColumn> kAllCompanyGatewayColumns =
         cellBuilder: (g, _) => cellText(g.gatewayKey),
         valueBuilder: (g) => cellNonZeroString(g.gatewayKey),
       ),
-      CompanyGatewayColumn(
-        id: CompanyGatewayFieldIds.updatedAt,
-        labelKey: 'last_updated',
+      // `updatedAt` is epoch SECONDS here, not a DateTime, so the lift is done
+      // at the call site. Hand-rolling this column is what let its copy value
+      // drift to raw epoch seconds while every other list copies ISO-8601.
+      colUpdatedAt<CompanyGateway>(
+        CompanyGatewayFieldIds.updatedAt,
+        (g) => DateTime.fromMillisecondsSinceEpoch(g.updatedAt * 1000),
         width: 160,
-        cellBuilder: (g, context) => g.updatedAt == 0
-            ? cellEmpty()
-            : cellDate(
-                DateTime.fromMillisecondsSinceEpoch(g.updatedAt * 1000),
-                context,
-              ),
-        valueBuilder: (g) => g.updatedAt == 0 ? null : g.updatedAt.toString(),
       ),
     ];
 

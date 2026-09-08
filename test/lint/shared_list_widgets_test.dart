@@ -34,22 +34,34 @@ void main() {
     );
   });
 
+  /// Every scan below must actually find files; otherwise a directory move or
+  /// a renamed suffix turns the lint into `expect([], isEmpty)` — green, and
+  /// guarding nothing.
+  void expectScanned(int n, String what) => expect(
+    n,
+    greaterThan(5),
+    reason: 'only $n $what found — the glob is no longer matching',
+  );
+
   test('no empty state re-implements the archived/deleted predicate', () {
     // The tell is the predicate, not the widget: a screen may legitimately
     // wrap EntityListEmptyState, but re-deriving `onlyArchived` from the VM
     // means it has copied the whole thing again.
     final offenders = <String>[];
+    var scanned = 0;
     for (final f
         in Directory('lib/ui/features')
             .listSync(recursive: true)
             .whereType<File>()
             .where((f) => f.path.endsWith('_list_empty_state.dart'))) {
+      scanned++;
       final src = f.readAsStringSync();
       if (src.contains('EntityState.archived') &&
           src.contains('vm.customFilters.isEmpty')) {
         offenders.add(f.uri.pathSegments.last);
       }
     }
+    expectScanned(scanned, 'empty states');
     expect(
       offenders,
       isEmpty,
@@ -65,11 +77,13 @@ void main() {
     // and only this one is shared — Client's takes a Decimal + Formatter and
     // Projects' a String with a '—' sentinel, and those must stay separate.
     final offenders = <String>[];
+    var scanned = 0;
     for (final f
         in Directory('lib/ui/features')
             .listSync(recursive: true)
             .whereType<File>()
             .where((f) => f.path.endsWith('_kpi_strip.dart'))) {
+      scanned++;
       final src = f.readAsStringSync();
       final declaresCell =
           src.contains('class _KpiCell ') || src.contains('class _Cell ');
@@ -77,6 +91,7 @@ void main() {
         offenders.add(f.uri.pathSegments.last);
       }
     }
+    expectScanned(scanned, 'KPI strips');
     expect(
       offenders,
       isEmpty,
@@ -96,16 +111,19 @@ void main() {
     // categories, payment links) are plain StatelessWidgets with no cache, so
     // the tell is the cache field, not the widget kind.
     final offenders = <String>[];
+    var scanned = 0;
     for (final f
         in Directory('lib/ui/features')
             .listSync(recursive: true)
             .whereType<File>()
             .where((f) => f.path.endsWith('_token_search_field.dart'))) {
+      scanned++;
       final src = f.readAsStringSync();
       if (src.contains('List<FilterKey>? _keys')) {
         offenders.add(f.uri.pathSegments.last);
       }
     }
+    expectScanned(scanned, 'token search fields');
     expect(
       offenders,
       isEmpty,
@@ -113,6 +131,48 @@ void main() {
           'use EntityTokenSearchField from '
           'lib/ui/core/list/search/entity_token_search_field.dart:\n'
           '  ${offenders.join('\n  ')}',
+    );
+  });
+
+  test('a VM-only filter flag still reaches the shared empty state', () {
+    // `EntityListEmptyState` reads narrowing state off `GenericListViewModel`.
+    // Payments' unapplied-funds toggle is the one filter that bypasses it — a
+    // bare bool on the VM that still reaches the Drift query — so it has to be
+    // threaded in three places. Sharing the widget dropped all of them at once
+    // (the flag appeared four times in the hand-written copy and zero times
+    // after), and nothing noticed, because nothing currently sets the flag: the
+    // breakage is dormant until the "Has unapplied funds" chip is wired up.
+    final vm = File(
+      'lib/ui/features/payments/view_models/payment_list_view_model.dart',
+    ).readAsStringSync();
+    final emptyState = File(
+      'lib/ui/features/payments/widgets/payment_list_empty_state.dart',
+    ).readAsStringSync();
+    if (!vm.contains('hasUnappliedFundsOnly')) return; // flag retired: fine
+
+    expect(
+      vm.contains('bool get hasActiveFilters'),
+      isTrue,
+      reason:
+          'PaymentListViewModel must fold hasUnappliedFundsOnly into '
+          'hasActiveFilters, or the first-run "No payments yet" copy shows '
+          'over a filtered empty list',
+    );
+    expect(
+      vm.contains('Future<void> clearAllFilters()'),
+      isTrue,
+      reason:
+          'PaymentListViewModel must clear hasUnappliedFundsOnly in '
+          'clearAllFilters, or the Clear-filters button leaves the list '
+          'empty with no way back',
+    );
+    expect(
+      emptyState.contains('extraNarrowing: vm.hasUnappliedFundsOnly'),
+      isTrue,
+      reason:
+          'PaymentListEmptyState must pass extraNarrowing, or the archived / '
+          'deleted branches claim "No archived payments" when the real reason '
+          'is the unapplied filter',
     );
   });
 

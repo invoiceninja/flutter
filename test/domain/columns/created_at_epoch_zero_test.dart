@@ -71,6 +71,35 @@ void main() {
     );
   });
 
+  testWidgets('a real created_at still renders a date on all three', (
+    tester,
+  ) async {
+    // The negative cases alone would pass against `cellBuilder: (_, __) =>
+    // cellEmpty()`, i.e. against a change that blanked every Created cell on
+    // every list. This is the other half.
+    final real = DateTime.utc(2026, 5, 14);
+    for (final rendered in [
+      await _render(
+        tester,
+        clientColumnsById[ClientFieldIds.createdAt]!,
+        emptyClient().copyWith(createdAt: real),
+      ),
+      await _render(
+        tester,
+        productColumnsById[ProductFieldIds.createdAt]!,
+        emptyProductWithKey('k').copyWith(createdAt: real),
+      ),
+      await _render(
+        tester,
+        vendorColumnsById[VendorFieldIds.createdAt]!,
+        emptyVendor().copyWith(createdAt: real),
+      ),
+    ]) {
+      expect(rendered, isNot('—'));
+      expect(rendered, contains('2026'));
+    }
+  });
+
   testWidgets('Vendor created_at at epoch 0 renders blank', (tester) async {
     expect(
       await _render(

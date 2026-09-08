@@ -885,7 +885,8 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
   }
 
   /// The row's `documents` column decoded, or null when the row isn't cached
-  /// locally — the two cases [applyDocumentChangedTemplate] must tell apart.
+  /// locally, which skips the write. Write-avoidance, not correctness — see
+  /// [applyDocumentChangedTemplate].
   Future<List<DocumentApi>?> _readDocuments(
     String companyId,
     String entityId,

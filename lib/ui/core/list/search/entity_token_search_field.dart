@@ -26,7 +26,20 @@ class LiveNameMaps {
   final List<Map<String, String>> Function() _read;
 
   /// The name for [id] in the [index]-th source, or null.
-  String? lookup(int index, String id) => _read()[index][id];
+  ///
+  /// Out-of-range returns null rather than throwing: [index] pairs positionally
+  /// with `nameSources`, and the two live in different arguments of the same
+  /// constructor, so nothing type-checks the pairing. A mismatch would
+  /// otherwise surface as a `RangeError` from inside a chip's
+  /// `displayValueFor` during paint. The assert keeps it loud in debug.
+  String? lookup(int index, String id) {
+    final maps = _read();
+    assert(
+      index < maps.length,
+      'lookup($index) but only ${maps.length} nameSources were declared',
+    );
+    return index < maps.length ? maps[index][id] : null;
+  }
 }
 
 /// Builds one entity's filter keys from everything they close over.
@@ -38,25 +51,6 @@ typedef FilterKeysBuilder =
       LiveNameMaps names,
     );
 
-/// Wires [TokenSearchField] for one entity list: watches whatever the entity's
-/// filter keys depend on, and rebuilds the key list only when a *shaping* input
-/// actually changes.
-///
-/// The caching is the reason this is stateful and the reason it is shared.
-/// `TagFilterKey` opens a Drift watch subscription in its constructor, so
-/// rebuilding the list on every stream re-emit would leak one live query per
-/// rebuild. Name maps arrive as fresh instances on each Drift emit, so the
-/// cache key compares them by CONTENT ([nameMapSignature]), not identity.
-///
-/// Thirteen entities had a hand-written copy of this, and they had already
-/// drifted into two different caching implementations — Products hoisted its
-/// company stream inside `build` and cached on two separate fields, while
-/// Invoices used a combined signature. Only the shape varied; the bug surface
-/// was identical.
-///
-/// The three list screens whose keys need no streams at all (gateways, expense
-/// categories, payment links) stay plain `StatelessWidget`s — there is nothing
-/// here for them to reuse.
 /// Cache key for one entity's filter keys: every input they close over,
 /// flattened to a string.
 ///
@@ -88,6 +82,25 @@ String filterKeySignature({
   return '$companyId#$labels#$extra';
 }
 
+/// Wires [TokenSearchField] for one entity list: watches whatever the entity's
+/// filter keys depend on, and rebuilds the key list only when a *shaping* input
+/// actually changes.
+///
+/// The caching is the reason this is stateful and the reason it is shared.
+/// `TagFilterKey` opens a Drift watch subscription in its constructor, so
+/// rebuilding the list on every stream re-emit would leak one live query per
+/// rebuild. Name maps are handled the other way round — they are read live through
+/// [LiveNameMaps] and stay out of the cache key entirely; see [filterKeySignature].
+///
+/// Thirteen entities had a hand-written copy of this, and they had already
+/// drifted into two different caching implementations — Products hoisted its
+/// company stream inside `build` and cached on two separate fields, while
+/// Invoices used a combined signature. Only the shape varied; the bug surface
+/// was identical.
+///
+/// The three list screens whose keys need no streams at all (gateways, expense
+/// categories, payment links) stay plain `StatelessWidget`s — there is nothing
+/// here for them to reuse.
 class EntityTokenSearchField extends StatefulWidget {
   const EntityTokenSearchField({
     required this.vm,
@@ -97,6 +110,7 @@ class EntityTokenSearchField extends StatefulWidget {
     this.nameSources = const [],
     this.customFieldPrefix,
     this.extraSignature,
+    this.watchesCompany = true,
     super.key,
   });
 
@@ -118,6 +132,15 @@ class EntityTokenSearchField extends StatefulWidget {
   /// gates its stock filter. Folded into the cache key.
   final String Function(Company? company)? extraSignature;
 
+  /// Whether to open a `watchCompany` subscription at all.
+  ///
+  /// False for the two entities whose keys ignore the company entirely
+  /// (Expenses, Transactions) — they had no company stream before this widget
+  /// existed, and opening one costs a live Drift query per mounted list plus a
+  /// rebuild on every company emit, for a value nothing reads. Their
+  /// `keysBuilder` receives null.
+  final bool watchesCompany;
+
   @override
   State<EntityTokenSearchField> createState() => _EntityTokenSearchFieldState();
 }
@@ -137,7 +160,9 @@ class _EntityTokenSearchFieldState extends State<EntityTokenSearchField> {
       return;
     }
     _streamCompanyId = widget.vm.companyId;
-    _companyStream = services.company.watchCompany(widget.vm.companyId);
+    _companyStream = widget.watchesCompany
+        ? services.company.watchCompany(widget.vm.companyId)
+        : const Stream<Company?>.empty();
     _nameStreams = [
       for (final source in widget.nameSources)
         source(services, widget.vm.companyId),
@@ -189,6 +214,7 @@ class _EntityTokenSearchFieldState extends State<EntityTokenSearchField> {
       stream: _companyStream,
       builder: (context, companySnap) => _NameMaps(
         streams: _nameStreams!,
+        previous: _names,
         builder: (names) {
           _names = names;
           return TokenSearchField(
@@ -211,9 +237,17 @@ class _EntityTokenSearchFieldState extends State<EntityTokenSearchField> {
 /// paints immediately and the chips fill in names as they arrive — which is
 /// what all thirteen hand-written copies did.
 class _NameMaps extends StatelessWidget {
-  const _NameMaps({required this.streams, required this.builder});
+  const _NameMaps({
+    required this.streams,
+    required this.previous,
+    required this.builder,
+  });
 
   final List<Stream<Map<String, String>>> streams;
+
+  /// Last resolved maps, used only on an error frame — see below.
+  final List<Map<String, String>> previous;
+
   final Widget Function(List<Map<String, String>> names) builder;
 
   @override
@@ -221,10 +255,19 @@ class _NameMaps extends StatelessWidget {
 
   Widget _nest(List<Map<String, String>> resolved) {
     if (resolved.length == streams.length) return builder(resolved);
+    final i = resolved.length;
     return StreamBuilder<Map<String, String>>(
-      stream: streams[resolved.length],
-      builder: (context, snap) =>
-          _nest([...resolved, snap.data ?? const <String, String>{}]),
+      stream: streams[i],
+      builder: (context, snap) {
+        // `AsyncSnapshot.withError` drops `data`, so a Drift error frame would
+        // otherwise blank the map and fall every chip back to a raw hashid.
+        // Task, Project and Expense kept the previous value before this widget
+        // existed; the other ten reset. Keeping it is the better of the two.
+        final fallback = i < previous.length
+            ? previous[i]
+            : const <String, String>{};
+        return _nest([...resolved, snap.data ?? fallback]);
+      },
     );
   }
 }

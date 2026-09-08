@@ -86,12 +86,43 @@ void main() {
     );
   });
 
+  test('no token search field re-implements the key cache', () {
+    // The cache is the whole point: TagFilterKey opens a Drift subscription in
+    // its constructor, so rebuilding the key list on every stream re-emit
+    // leaks one live query per rebuild. Thirteen hand-written copies had
+    // already drifted into two different caching implementations.
+    //
+    // The three fields whose keys need no streams (gateways, expense
+    // categories, payment links) are plain StatelessWidgets with no cache, so
+    // the tell is the cache field, not the widget kind.
+    final offenders = <String>[];
+    for (final f
+        in Directory('lib/ui/features')
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('_token_search_field.dart'))) {
+      final src = f.readAsStringSync();
+      if (src.contains('List<FilterKey>? _keys')) {
+        offenders.add(f.uri.pathSegments.last);
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'use EntityTokenSearchField from '
+          'lib/ui/core/list/search/entity_token_search_field.dart:\n'
+          '  ${offenders.join('\n  ')}',
+    );
+  });
+
   test('the shared widgets these replaced still exist', () {
     // Guards the lints above from passing vacuously after a rename or move.
     for (final path in const [
       'lib/ui/core/list/cell_slot.dart',
       'lib/ui/core/list/entity_list_empty_state.dart',
       'lib/ui/core/detail/kpi_cell.dart',
+      'lib/ui/core/list/search/entity_token_search_field.dart',
     ]) {
       expect(File(path).existsSync(), isTrue, reason: '$path is gone');
     }

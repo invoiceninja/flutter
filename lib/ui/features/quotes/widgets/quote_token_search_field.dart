@@ -1,21 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import 'package:admin/app/services.dart';
-import 'package:admin/data/models/domain/company.dart';
-import 'package:admin/data/models/domain/company_custom_fields.dart';
-import 'package:admin/ui/core/list/search/name_map_signature.dart';
-import 'package:admin/ui/core/list/search/filter_key.dart';
-import 'package:admin/ui/core/list/search/token_search_field.dart';
-import 'package:admin/ui/features/quotes/view_models/quote_list_view_model.dart';
+import 'package:admin/ui/core/list/search/entity_token_search_field.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_filter_keys.dart';
+import 'package:admin/ui/features/quotes/view_models/quote_list_view_model.dart';
 
-/// Thin wrapper that wires [TokenSearchField] for the quotes list.
-///
-/// Stateful + key-caching: `TagFilterKey` opens a Drift watch subscription in
-/// its constructor, so the key list is rebuilt (and the old one disposed) only
-/// when a shaping input changes — never on every stream re-emit.
-class QuoteTokenSearchField extends StatefulWidget {
+/// Wires [EntityTokenSearchField] for the quotes list.
+class QuoteTokenSearchField extends StatelessWidget {
   const QuoteTokenSearchField({
     required this.vm,
     required this.wide,
@@ -26,93 +16,28 @@ class QuoteTokenSearchField extends StatefulWidget {
   final bool wide;
 
   @override
-  State<QuoteTokenSearchField> createState() => _QuoteTokenSearchFieldState();
-}
-
-class _QuoteTokenSearchFieldState extends State<QuoteTokenSearchField> {
-  Stream<Company?>? _companyStream;
-  Stream<Map<String, String>>? _clientNameStream;
-  String? _streamCompanyId;
-
-  List<FilterKey>? _keys;
-  String? _signature;
-
-  void _ensureStreams(Services services) {
-    if (_streamCompanyId == widget.vm.companyId && _companyStream != null) {
-      return;
-    }
-    _streamCompanyId = widget.vm.companyId;
-    _companyStream = services.company.watchCompany(widget.vm.companyId);
-    _clientNameStream = services.clients
-        .watchActiveNames(companyId: widget.vm.companyId)
-        .map(
-          (rows) => {
-            for (final r in rows)
-              if (r.name.isNotEmpty) r.id: r.name,
-          },
-        );
-  }
-
-  static String _sig(String companyId, Company? c, Map<String, String> names) {
-    final labels = c == null
-        ? ''
-        : [
-            for (var i = 1; i <= 4; i++) c.customFieldLabel('invoice$i'),
-          ].join('|');
-    return '$companyId#$labels#${nameMapSignature(names)}';
-  }
-
-  void _disposeKeys() {
-    for (final k in _keys ?? const <FilterKey>[]) {
-      k.dispose();
-    }
-    _keys = null;
-  }
-
-  List<FilterKey> _keysFor(
-    Services services,
-    Company? company,
-    Map<String, String> names,
-  ) {
-    final signature = _sig(widget.vm.companyId, company, names);
-    if (_keys != null && _signature == signature) return _keys!;
-    _disposeKeys();
-    _signature = signature;
-    return _keys = buildQuoteFilterKeys(
+  Widget build(BuildContext context) => EntityTokenSearchField(
+    vm: vm,
+    wide: wide,
+    hintKey: 'search_quotes_or_filter_hint',
+    // Quotes share Invoice Ninja's `invoice1..4` custom-field slots.
+    customFieldPrefix: 'invoice',
+    nameSources: [
+      (services, companyId) => services.clients
+          .watchActiveNames(companyId: companyId)
+          .map(
+            (rows) => {
+              for (final r in rows)
+                if (r.name.isNotEmpty) r.id: r.name,
+            },
+          ),
+    ],
+    keysBuilder: (services, companyId, company, names) => buildQuoteFilterKeys(
       clients: services.clients,
       tags: services.tags,
-      companyId: widget.vm.companyId,
+      companyId: companyId,
       company: company,
-      nameForClientId: (id) => names[id],
-    );
-  }
-
-  @override
-  void dispose() {
-    _disposeKeys();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    _ensureStreams(services);
-    return StreamBuilder<Company?>(
-      stream: _companyStream,
-      builder: (context, companySnap) {
-        return StreamBuilder<Map<String, String>>(
-          stream: _clientNameStream,
-          builder: (context, snap) {
-            final names = snap.data ?? const <String, String>{};
-            return TokenSearchField(
-              vm: widget.vm,
-              filterKeys: _keysFor(services, companySnap.data, names),
-              wide: widget.wide,
-              hintKey: 'search_quotes_or_filter_hint',
-            );
-          },
-        );
-      },
-    );
-  }
+      nameForClientId: (id) => names.lookup(0, id),
+    ),
+  );
 }

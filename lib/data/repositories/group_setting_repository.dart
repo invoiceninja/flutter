@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -19,8 +18,6 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
-
-final _log = Logger('GroupSettingRepository');
 
 /// Source of truth for group_settings. Mirrors `ProductRepository` — the
 /// UI watches Drift; the network only writes. Every mutation goes through
@@ -232,34 +229,12 @@ class GroupSettingRepository
   }
 
   /// Pull-to-refresh / foreground-resume.
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000;
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning('refreshAll hit safety cap for company $companyId');
-        break;
-      }
-    }
-  }
 
   /// Create a new group offline. Returns the group with its tmp id.
   Future<SaveResult<GroupSetting>> create({

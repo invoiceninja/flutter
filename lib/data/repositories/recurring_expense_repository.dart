@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -20,8 +19,6 @@ import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
-
-final _log = Logger('RecurringExpenseRepository');
 
 /// Source of truth for RecurringExpense data. Mirrors `ExpenseRepository`
 /// (document-bearing, password-gated delete / purge / documentDelete) plus:
@@ -207,37 +204,12 @@ class RecurringExpenseRepository
     ),
   );
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000;
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
-        );
-        break;
-      }
-    }
-  }
 
   /// Create a new recurring expense offline. Returns the entity with its
   /// tmp id so the UI can navigate to the detail screen immediately.
@@ -540,7 +512,7 @@ class RecurringExpenseRepository
       number: Value(a.number),
       date: Value(a.date),
       paymentDate: Value(a.paymentDate),
-      amount: Value(_moneyString(a.amount)),
+      amount: Value(moneyString(a.amount)),
       vendorId: Value(a.vendorId),
       clientId: Value(a.clientId),
       projectId: Value(a.projectId),
@@ -653,11 +625,4 @@ class RecurringExpenseRepository
           byId: byId,
         ),
       );
-}
-
-/// Server money values flip between number + string; normalize to a string
-/// for stable storage. Mirrors `_moneyString` in `expense_repository.dart`.
-String _moneyString(Object raw) {
-  if (raw is String) return raw;
-  return raw.toString();
 }

@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart' show Value, BooleanExpressionOperators;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -21,8 +20,6 @@ import 'package:admin/data/services/upload_source.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
-
-final _log = Logger('ProductRepository');
 
 /// Local low-stock filter applied over the decoded product page. The server
 /// exposes no stock filter dimension, so this is a post-decode predicate on the
@@ -235,37 +232,12 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
   /// the UI's state filter can flip between active/archived/deleted without
   /// re-hitting the network. The local watch stream applies the user's
   /// current selection on top.
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000; // 50 rows × 1000 = 50 000 products
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
-        );
-        break;
-      }
-    }
-  }
 
   /// Create a new product offline. Returns the product with its tmp id so the
   /// UI can navigate to the detail screen immediately.
@@ -477,9 +449,9 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
       companyId: companyId,
       productKey: a.productKey,
       notes: a.notes,
-      price: _moneyString(a.price),
-      cost: _moneyString(a.cost),
-      quantity: _moneyString(a.quantity),
+      price: moneyString(a.price),
+      cost: moneyString(a.cost),
+      quantity: moneyString(a.quantity),
       updatedAt: a.updatedAt,
       createdAt: Value(a.createdAt),
       archivedAt: a.archivedAt > 0 ? Value(a.archivedAt) : const Value(null),
@@ -620,13 +592,6 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
           byId: byId,
         ),
       );
-}
-
-/// The server sometimes returns money as a number, sometimes as a string;
-/// normalize to a string for stable storage.
-String _moneyString(Object raw) {
-  if (raw is String) return raw;
-  return raw.toString();
 }
 
 /// True when a pending outbox row's payload carries the

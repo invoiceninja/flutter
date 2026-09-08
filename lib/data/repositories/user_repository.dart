@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -14,8 +13,6 @@ import 'package:admin/data/services/users_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
-
-final _log = Logger('UserRepository');
 
 /// Outbox `entity_type` value for the user-record PUT flow. `EntityRegistry`
 /// routes rows with this wire name to the user dispatcher.
@@ -267,35 +264,13 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
     );
   }
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
+        maxPages: 100,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 100;
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        ignoreCursor: full && page == 1,
-        states: EntityState.values.toSet(),
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company $companyId',
-        );
-        break;
-      }
-    }
-  }
 
   // ── Mutations ───────────────────────────────────────────────────────
 

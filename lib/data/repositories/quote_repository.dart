@@ -15,6 +15,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/quotes_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -29,7 +30,8 @@ final _log = Logger('QuoteRepository');
 /// outbox-mediated write pipeline + document handlers + page-by-page
 /// fetch. Diff: quote-specific custom actions (`approve`,
 /// `convertToInvoice`, `convertToProject`) and no `markPaid` / `autoBill`.
-class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
+class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
+    with BillingDocEmailMutations<Quote, QuoteApi> {
   QuoteRepository({
     required super.db,
     required this.api,
@@ -262,34 +264,12 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     );
   }
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000;
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning('refreshAll hit page cap for company $companyId');
-        break;
-      }
-    }
-  }
 
   Future<SaveResult<Quote>> create({
     required String companyId,
@@ -421,48 +401,6 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
     payload: {'id': id},
   );
 
-  Future<void> email({
-    required String companyId,
-    required String id,
-    required String template,
-    String? subject,
-    String? body,
-    String? ccEmail,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: id,
-    kind: MutationKind.emailEntity,
-    payload: {
-      'id': id,
-      'template': template,
-      if (subject != null) 'subject': subject,
-      if (body != null) 'body': body,
-      if (ccEmail != null) 'cc_email': ccEmail,
-    },
-  );
-
-  Future<void> scheduleEmail({
-    required String companyId,
-    required String id,
-    required String template,
-    required String sendAt,
-    String? subject,
-    String? body,
-    String? ccEmail,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: id,
-    kind: MutationKind.scheduleEmail,
-    payload: {
-      'id': id,
-      'template': template,
-      'send_at': sendAt,
-      if (subject != null) 'subject': subject,
-      if (body != null) 'body': body,
-      if (ccEmail != null) 'cc_email': ccEmail,
-    },
-  );
-
   Future<void> cloneTo({
     required String companyId,
     required String id,
@@ -470,7 +408,7 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
   }) => enqueueMutation(
     companyId: companyId,
     entityId: id,
-    kind: _cloneKindFor(targetType),
+    kind: cloneKindFor(targetType),
     payload: {'id': id, 'target': targetType},
   );
 
@@ -715,8 +653,8 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
       projectId: Value(a.projectId),
       date: Value(a.date),
       dueDate: Value(a.dueDate),
-      amount: Value(_moneyString(a.amount)),
-      balance: Value(_moneyString(a.balance)),
+      amount: Value(moneyString(a.amount)),
+      balance: Value(moneyString(a.balance)),
       poNumber: Value(a.poNumber),
       designId: Value(a.designId),
       assignedUserId: Value(a.assignedUserId),
@@ -794,29 +732,4 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi> {
       documents: decodeDocumentsColumn(row.documents),
     );
   }
-}
-
-MutationKind _cloneKindFor(String targetType) {
-  switch (targetType) {
-    case 'invoice':
-      return MutationKind.cloneToInvoice;
-    case 'quote':
-      return MutationKind.cloneToQuote;
-    case 'credit':
-      return MutationKind.cloneToCredit;
-    case 'recurring_invoice':
-      return MutationKind.cloneToRecurring;
-    case 'purchase_order':
-      return MutationKind.cloneToPurchaseOrder;
-    default:
-      throw ArgumentError(
-        'Unknown clone target "$targetType" — must be one of '
-        'invoice|quote|credit|recurring_invoice|purchase_order',
-      );
-  }
-}
-
-String _moneyString(Object raw) {
-  if (raw is String) return raw;
-  return raw.toString();
 }

@@ -210,37 +210,12 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     ),
   );
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000;
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
-        );
-        break;
-      }
-    }
-  }
 
   /// Create a new payment offline. [sendEmail] threads through the
   /// outbox as a synthetic `_send_email` flag that [PaymentsApi.create]
@@ -645,10 +620,10 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
       companyId: companyId,
       number: Value(a.number),
       date: Value(a.date),
-      amount: Value(_moneyString(a.amount)),
-      applied: Value(_moneyString(a.applied)),
-      refunded: Value(_moneyString(a.refunded)),
-      exchangeRate: Value(_moneyString(a.exchangeRate)),
+      amount: Value(moneyString(a.amount)),
+      applied: Value(moneyString(a.applied)),
+      refunded: Value(moneyString(a.refunded)),
+      exchangeRate: Value(moneyString(a.exchangeRate)),
       statusId: Value(a.statusId),
       typeId: Value(a.typeId),
       clientId: Value(a.clientId),
@@ -811,9 +786,4 @@ List<dynamic>? _decodeList(String? raw) {
     if (decoded is List) return decoded;
   } catch (_) {}
   return null;
-}
-
-String _moneyString(Object raw) {
-  if (raw is String) return raw;
-  return raw.toString();
 }

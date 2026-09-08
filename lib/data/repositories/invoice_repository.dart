@@ -17,6 +17,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/tag_denormalization.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/services/invoices_api.dart';
@@ -40,6 +41,7 @@ final _log = Logger('InvoiceRepository');
 /// Document-bearing (same pattern as Expense / Client), with eleven
 /// custom-action mutation kinds enqueued through the standard outbox.
 class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
+    with BillingDocEmailMutations<Invoice, InvoiceApi>
     implements DocumentBearingRepository {
   InvoiceRepository({
     required super.db,
@@ -362,37 +364,12 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     };
   }
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000;
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
-        );
-        break;
-      }
-    }
-  }
 
   /// Create a new invoice offline. Returns the invoice with its tmp id so
   /// the UI can navigate to the detail screen immediately.
@@ -592,48 +569,6 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     payload: {'id': id},
   );
 
-  Future<void> email({
-    required String companyId,
-    required String id,
-    required String template,
-    String? subject,
-    String? body,
-    String? ccEmail,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: id,
-    kind: MutationKind.emailEntity,
-    payload: {
-      'id': id,
-      'template': template,
-      if (subject != null) 'subject': subject,
-      if (body != null) 'body': body,
-      if (ccEmail != null) 'cc_email': ccEmail,
-    },
-  );
-
-  Future<void> scheduleEmail({
-    required String companyId,
-    required String id,
-    required String template,
-    required String sendAt,
-    String? subject,
-    String? body,
-    String? ccEmail,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: id,
-    kind: MutationKind.scheduleEmail,
-    payload: {
-      'id': id,
-      'template': template,
-      'send_at': sendAt,
-      if (subject != null) 'subject': subject,
-      if (body != null) 'body': body,
-      if (ccEmail != null) 'cc_email': ccEmail,
-    },
-  );
-
   /// Clone this invoice to a new entity of the chosen type. `targetType` is
   /// one of `invoice`, `quote`, `credit`, `recurring_invoice`,
   /// `purchase_order`. The dispatcher's customActions handler hits the
@@ -645,7 +580,7 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
   }) => enqueueMutation(
     companyId: companyId,
     entityId: id,
-    kind: _cloneKindFor(targetType),
+    kind: cloneKindFor(targetType),
     payload: {'id': id, 'target': targetType},
   );
 
@@ -958,10 +893,10 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       date: Value(a.date),
       dueDate: Value(a.dueDate),
       partialDueDate: Value(a.partialDueDate),
-      amount: Value(_moneyString(a.amount)),
-      balance: Value(_moneyString(a.balance)),
-      paidToDate: Value(_moneyString(a.paidToDate)),
-      partial: Value(_moneyString(a.partial)),
+      amount: Value(moneyString(a.amount)),
+      balance: Value(moneyString(a.balance)),
+      paidToDate: Value(moneyString(a.paidToDate)),
+      partial: Value(moneyString(a.partial)),
       poNumber: Value(a.poNumber),
       designId: Value(a.designId),
       assignedUserId: Value(a.assignedUserId),
@@ -1060,36 +995,4 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
       schedule: decodeScheduleColumn(row.schedule),
     );
   }
-}
-
-/// Map a `targetType` string (`invoice` / `quote` / `credit` /
-/// `recurring_invoice` / `purchase_order`) to the corresponding
-/// `MutationKind` clone variant. Unknown targets throw, since the dispatcher
-/// uses the kind to pick its `customActions` handler.
-MutationKind _cloneKindFor(String targetType) {
-  switch (targetType) {
-    case 'invoice':
-      return MutationKind.cloneToInvoice;
-    case 'quote':
-      return MutationKind.cloneToQuote;
-    case 'credit':
-      return MutationKind.cloneToCredit;
-    case 'recurring_invoice':
-      return MutationKind.cloneToRecurring;
-    case 'purchase_order':
-      return MutationKind.cloneToPurchaseOrder;
-    default:
-      throw ArgumentError(
-        'Unknown clone target "$targetType" — must be one of '
-        'invoice|quote|credit|recurring_invoice|purchase_order',
-      );
-  }
-}
-
-/// The server sometimes returns money as a number, sometimes as a string;
-/// normalize to a string for stable storage. Mirrors `_moneyString` in
-/// `expense_repository.dart`.
-String _moneyString(Object raw) {
-  if (raw is String) return raw;
-  return raw.toString();
 }

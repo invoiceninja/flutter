@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/expense_category_dao.dart';
@@ -15,8 +14,6 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
-
-final _log = Logger('ExpenseCategoryRepository');
 
 /// Repository for ExpenseCategory rows. Mirrors [TaskStatusRepository] —
 /// bundled-AND-paginated, full CRUD via the outbox, settings-only UX.
@@ -153,36 +150,13 @@ class ExpenseCategoryRepository
         ),
       );
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
+        maxPages: 100, // ~5k categories is more than anyone needs
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 100; // ~5k categories is more than anyone needs
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for $companyId',
-        );
-        break;
-      }
-    }
-  }
 
   Future<SaveResult<ExpenseCategory>> create({
     required String companyId,

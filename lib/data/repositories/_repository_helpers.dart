@@ -6,6 +6,7 @@ import 'package:admin/data/models/api/schedule_item_api_model.dart';
 import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/models/domain/location.dart';
 import 'package:admin/data/models/domain/schedule_item.dart';
+import 'package:admin/domain/sync/mutation.dart';
 
 /// `DateTime` → epoch seconds (Invoice Ninja's wire convention). Inverse of
 /// `epochSecondsToUtc` in `models/value/parsing.dart`. Used by repository
@@ -96,4 +97,38 @@ List<DocumentApi> decodeRawDocumentsColumn(String? raw) {
     }
   } catch (_) {}
   return <DocumentApi>[];
+}
+
+/// The server sometimes returns money as a number, sometimes as a string;
+/// normalize to a string for stable storage in the Drift text column.
+///
+/// Shared by every repository's `_apiToCompanion`. It was previously copied
+/// verbatim into eleven of them, each carrying a "Mirrors `_moneyString` in
+/// `<some other repo>`" comment pointing at a different sibling.
+String moneyString(Object raw) {
+  if (raw is String) return raw;
+  return raw.toString();
+}
+
+/// Map a billing-document clone `targetType` wire value onto its
+/// [MutationKind]. Shared by the Invoice / Quote / Credit / RecurringInvoice
+/// `cloneTo` enqueue paths, which each carried a byte-identical private copy.
+MutationKind cloneKindFor(String targetType) {
+  switch (targetType) {
+    case 'invoice':
+      return MutationKind.cloneToInvoice;
+    case 'quote':
+      return MutationKind.cloneToQuote;
+    case 'credit':
+      return MutationKind.cloneToCredit;
+    case 'recurring_invoice':
+      return MutationKind.cloneToRecurring;
+    case 'purchase_order':
+      return MutationKind.cloneToPurchaseOrder;
+    default:
+      throw ArgumentError(
+        'Unknown clone target "$targetType" — must be one of '
+        'invoice|quote|credit|recurring_invoice|purchase_order',
+      );
+  }
 }

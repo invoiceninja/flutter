@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/company_gateway_dao.dart';
@@ -14,8 +13,6 @@ import 'package:admin/data/services/company_gateways_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
-
-final _log = Logger('CompanyGatewayRepository');
 
 /// Source of truth for CompanyGateway data. UI watches Drift via [watchPage]
 /// and [watch]; the network only writes. Every mutation goes through the
@@ -139,37 +136,13 @@ class CompanyGatewayRepository
     ),
   );
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
+        maxPages: 100, // gateways are bounded; cap defensively.
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 100; // gateways are bounded; cap defensively.
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
-        );
-        break;
-      }
-    }
-  }
 
   Future<SaveResult<CompanyGateway>> create({
     required String companyId,

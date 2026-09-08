@@ -14,6 +14,7 @@ import 'package:admin/data/models/api/purchase_order_api_model.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/repositories/billing_doc_email_mutations.dart';
 import 'package:admin/data/services/purchase_orders_api.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -25,7 +26,8 @@ import 'package:admin/domain/sidebar_badge_modes.dart';
 final _log = Logger('PurchaseOrderRepository');
 
 class PurchaseOrderRepository
-    extends BaseEntityRepository<PurchaseOrder, PurchaseOrderApi> {
+    extends BaseEntityRepository<PurchaseOrder, PurchaseOrderApi>
+    with BillingDocEmailMutations<PurchaseOrder, PurchaseOrderApi> {
   PurchaseOrderRepository({
     required super.db,
     required this.api,
@@ -233,34 +235,12 @@ class PurchaseOrderRepository
     );
   }
 
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000;
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning('refreshAll hit page cap for company $companyId');
-        break;
-      }
-    }
-  }
 
   Future<SaveResult<PurchaseOrder>> create({
     required String companyId,
@@ -406,48 +386,6 @@ class PurchaseOrderRepository
     entityId: id,
     kind: MutationKind.convertToExpense,
     payload: {'id': id},
-  );
-
-  Future<void> email({
-    required String companyId,
-    required String id,
-    required String template,
-    String? subject,
-    String? body,
-    String? ccEmail,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: id,
-    kind: MutationKind.emailEntity,
-    payload: {
-      'id': id,
-      'template': template,
-      if (subject != null) 'subject': subject,
-      if (body != null) 'body': body,
-      if (ccEmail != null) 'cc_email': ccEmail,
-    },
-  );
-
-  Future<void> scheduleEmail({
-    required String companyId,
-    required String id,
-    required String template,
-    required String sendAt,
-    String? subject,
-    String? body,
-    String? ccEmail,
-  }) => enqueueMutation(
-    companyId: companyId,
-    entityId: id,
-    kind: MutationKind.scheduleEmail,
-    payload: {
-      'id': id,
-      'template': template,
-      'send_at': sendAt,
-      if (subject != null) 'subject': subject,
-      if (body != null) 'body': body,
-      if (ccEmail != null) 'cc_email': ccEmail,
-    },
   );
 
   Future<void> runTemplate({
@@ -667,8 +605,8 @@ class PurchaseOrderRepository
       expenseId: Value(a.expenseId),
       date: Value(a.date),
       dueDate: Value(a.dueDate),
-      amount: Value(_moneyString(a.amount)),
-      balance: Value(_moneyString(a.balance)),
+      amount: Value(moneyString(a.amount)),
+      balance: Value(moneyString(a.balance)),
       poNumber: Value(a.poNumber),
       designId: Value(a.designId),
       assignedUserId: Value(a.assignedUserId),
@@ -762,9 +700,4 @@ class PurchaseOrderRepository
           byId: byId,
         ),
       );
-}
-
-String _moneyString(Object raw) {
-  if (raw is String) return raw;
-  return raw.toString();
 }

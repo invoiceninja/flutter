@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart'
     show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
@@ -22,8 +21,6 @@ import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
-
-final _log = Logger('VendorRepository');
 
 /// Source of truth for Vendor data. The UI watches Drift via [watchPage]
 /// and [watch]; the network only writes. Every mutation goes through the
@@ -251,37 +248,12 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
   /// Pull-to-refresh / foreground-resume entry point. Mirrors
   /// `ClientRepository.refreshAll`: pull every state into the local cache
   /// so the UI's state filter can flip without re-hitting the network.
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000;
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
-        );
-        break;
-      }
-    }
-  }
 
   /// Create a new vendor offline. Returns the vendor with its tmp id so the
   /// UI can navigate to the detail screen immediately.

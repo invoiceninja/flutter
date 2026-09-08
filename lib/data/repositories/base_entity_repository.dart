@@ -16,6 +16,7 @@ import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/data/db/dao/id_remap_dao.dart';
 import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/db/dao/sync_state_dao.dart';
+import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/services/api_exception.dart';
 
 final _log = Logger('BaseEntityRepository');
@@ -1098,6 +1099,108 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       cursorApplied: cursor?.isEmpty == false,
       pageSize: pageSize,
     );
+  }
+
+  /// Shared shape for `refreshAll` across every paginated repo: walk the whole
+  /// entity from page 1 with every lifecycle state included, so the archived
+  /// and deleted tail lands in Drift too.
+  ///
+  /// [full] resets the keyset cursor first and makes page 1 ignore it, turning
+  /// a delta sync into a true re-download. Pages after the first never apply
+  /// the cursor (see [shouldReadCursor]).
+  ///
+  /// [maxPages] is a safety cap, not a tuning knob — it exists so a server
+  /// that keeps answering `hasMore` can't spin forever. It is a parameter
+  /// because the right ceiling is per-entity: bounded reference tables
+  /// (gateways, task statuses, expense categories) cap at 100, the browsable
+  /// entities at 1000 (50 rows x 1000 = 50 000 records). Those values used to
+  /// live in 27 hand-copied loop bodies, where the split had drifted into 100
+  /// for 13 repos and 1000 for 14 with no rationale recorded either way.
+  ///
+  /// [fetchPage] is the repo's own `ensurePageLoaded`, passed as a tear-off.
+  /// The base can't call it directly — each repo declares its own signature,
+  /// and `group_setting`'s takes no `extraFilters`.
+  @protected
+  Future<void> refreshAllTemplate({
+    required String companyId,
+    required bool full,
+    required Future<bool> Function({
+      required String companyId,
+      required int page,
+      required Set<EntityState> states,
+      required bool ignoreCursor,
+    })
+    fetchPage,
+    int maxPages = 1000,
+  }) async {
+    if (full) {
+      await db.syncStateDao.reset(
+        companyId: companyId,
+        entityType: entityTypeName,
+      );
+    }
+    var page = 1;
+    var hasMore = true;
+    final allStates = EntityState.values.toSet();
+    while (hasMore) {
+      hasMore = await fetchPage(
+        companyId: companyId,
+        page: page,
+        states: allStates,
+        ignoreCursor: full && page == 1,
+      );
+      page++;
+      if (page > maxPages) {
+        _log.warning(
+          'refreshAll hit the $maxPages page safety cap for company '
+          '$companyId — cursor will resume on the next sync trigger.',
+        );
+        break;
+      }
+    }
+  }
+
+  /// Merge a server-confirmed document into the entity's `documents` column.
+  ///
+  /// Replaces the entry with the same id, or appends when it is new. Shared by
+  /// the fourteen document-bearing repos, which each carried a byte-identical
+  /// copy differing only in the Drift lambda variable.
+  ///
+  /// [readDocuments] returns `null` when the row is absent — a distinct case
+  /// from "row with no documents", which returns an empty list and is written
+  /// through. Callers supply it because the row type is per-entity.
+  @protected
+  Future<void> applyDocumentChangedTemplate({
+    required DocumentApi document,
+    required Future<List<DocumentApi>?> Function() readDocuments,
+    required Future<void> Function(String encodedJson) writeDocuments,
+  }) async {
+    final current = await readDocuments();
+    if (current == null) return;
+    final next = [
+      for (final d in current)
+        if (d.id == document.id) document else d,
+    ];
+    if (!current.any((d) => d.id == document.id)) {
+      next.add(document);
+    }
+    await writeDocuments(jsonEncode(next.map((d) => d.toJson()).toList()));
+  }
+
+  /// Drop a document from the entity's `documents` column. No-ops when the row
+  /// is absent or the id isn't present, so a redundant delete costs no write.
+  /// Sibling of [applyDocumentChangedTemplate]; same [readDocuments] contract.
+  @protected
+  Future<void> applyDocumentDeletedTemplate({
+    required String documentId,
+    required Future<List<DocumentApi>?> Function() readDocuments,
+    required Future<void> Function(String encodedJson) writeDocuments,
+  }) async {
+    final current = await readDocuments();
+    if (current == null) return;
+    final next = current.where((d) => d.id != documentId).toList();
+    if (next.length == current.length) return;
+    await writeDocuments(jsonEncode(next.map((d) => d.toJson()).toList()));
   }
 
   /// Lazily hydrate a single referenced row into Drift on a cache miss —

@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart'
     show Value, BooleanExpressionOperators, Table, TableInfo, Variable;
-import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/dao/base_entity_dao.dart';
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
@@ -25,8 +24,6 @@ import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/document_bearing_repository.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
-
-final _log = Logger('ClientRepository');
 
 /// Source of truth for Client data. The UI watches Drift via [watchPage]
 /// and [watch]; the network only writes. Every mutation goes through the
@@ -446,37 +443,12 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
   /// the UI's state filter can flip between active/archived/deleted without
   /// re-hitting the network. The local watch stream applies the user's
   /// current selection on top.
-  Future<void> refreshAll({
-    required String companyId,
-    bool full = false,
-  }) async {
-    if (full) {
-      await db.syncStateDao.reset(
+  Future<void> refreshAll({required String companyId, bool full = false}) =>
+      refreshAllTemplate(
         companyId: companyId,
-        entityType: entityTypeName,
+        full: full,
+        fetchPage: ensurePageLoaded,
       );
-    }
-    var page = 1;
-    var hasMore = true;
-    const maxPages = 1000; // 50 rows × 1000 = 50 000 clients
-    final allStates = EntityState.values.toSet();
-    while (hasMore) {
-      hasMore = await ensurePageLoaded(
-        companyId: companyId,
-        page: page,
-        states: allStates,
-        ignoreCursor: full && page == 1,
-      );
-      page++;
-      if (page > maxPages) {
-        _log.warning(
-          'refreshAll hit the $maxPages page safety cap for company '
-          '$companyId — cursor will resume on the next sync trigger.',
-        );
-        break;
-      }
-    }
-  }
 
   /// Create a new client offline. Returns the client with its tmp id (so the
   /// UI can navigate to the detail screen immediately) plus the outbox row

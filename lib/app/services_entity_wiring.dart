@@ -1,3 +1,5 @@
+import 'package:admin/app/services_clone_handlers.dart';
+import 'package:admin/app/services_comment_handlers.dart';
 import 'package:admin/app/services_document_handlers.dart';
 import 'package:admin/app/services_email_handlers.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -453,15 +455,10 @@ class _EntityWiring {
       // through the dedicated [ActivitiesApi]. Server response is
       // discarded — the Activity tab refetches once the pending outbox
       // row drains.
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'clients',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<ClientApi>(
+        reg.ctx.activitiesApi,
+        entity: 'clients',
+      ),
       // POST /clients/{into}/{from}/merge — absorb `from` into `into`.
       // Password-gated (row.requiresPassword ⇒ X-API-PASSWORD-BASE64).
       // The absorbed client is gone server-side: drop its local row, then
@@ -662,15 +659,10 @@ class _EntityWiring {
     api: vendorsApi,
     repo: vendorRepo,
     customActions: {
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'vendors',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<VendorApi>(
+        reg.ctx.activitiesApi,
+        entity: 'vendors',
+      ),
       // POST /vendors/{into}/{from}/merge — absorb `from` into `into`.
       // Password-gated; the absorbed vendor is gone server-side, so drop its
       // local row and return the survivor for the dispatcher to upsert.
@@ -723,15 +715,10 @@ class _EntityWiring {
     api: expensesApi,
     repo: expenseRepo,
     customActions: {
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'expenses',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<ExpenseApi>(
+        reg.ctx.activitiesApi,
+        entity: 'expenses',
+      ),
       MutationKind.runTemplate: ({required row, required payload}) async {
         final response = await expensesApi.runTemplate(
           id: payload['id'] as String,
@@ -788,15 +775,10 @@ _wireRecurringExpense(_EntityWiring reg) {
         );
         return response.data;
       },
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'recurring_expenses',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<RecurringExpenseApi>(
+        reg.ctx.activitiesApi,
+        entity: 'recurring_expenses',
+      ),
       ...documentMutationHandlers<RecurringExpenseApi>(
         documentsApi: reg.ctx.documentsApi,
         upload: recurringExpensesApi.uploadDocument,
@@ -1167,86 +1149,19 @@ _wireRecurringExpense(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        // The clone endpoint returns the *new* entity envelope. We don't apply
-        // it onto the source row (return null so the dispatcher skips
-        // applyUpdateResponse), but we force-refetch it by id so it appears in
-        // its list without a manual resync.
-        final clone = await invoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.invoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToQuote: ({required row, required payload}) async {
-        final clone = await invoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'quote',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.quote,
-        );
-        return null;
-      },
-      MutationKind.cloneToCredit: ({required row, required payload}) async {
-        final clone = await invoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'credit',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.credit,
-        );
-        return null;
-      },
-      MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        final clone = await invoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'recurring_invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.recurringInvoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToPurchaseOrder:
-          ({required row, required payload}) async {
-            final clone = await invoicesApi.cloneTo(
-              id: payload['id'] as String,
-              targetType: 'purchase_order',
-              idempotencyKey: row.idempotencyKey,
-            );
-            await reg.refreshCloneTarget(
-              row.companyId,
-              clone?.data.id,
-              EntityType.purchaseOrder,
-            );
-            return null;
-          },
-      MutationKind.autoBill: ({required row, required payload}) async {
-        final response = await invoicesApi.autoBill(
-          id: payload['id'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        // autoBill creates a Payment (gateway/credit) not in the invoice
-        // response — pull the newest payments into the local list.
-        await reg.refreshRecentPayments(row.companyId);
-        return response?.data;
-      },
+      ...cloneToHandlers<InvoiceApi>(
+        cloneAndReturnId:
+            ({
+              required String id,
+              required String targetType,
+              required String idempotencyKey,
+            }) async => (await invoicesApi.cloneTo(
+              id: id,
+              targetType: targetType,
+              idempotencyKey: idempotencyKey,
+            ))?.data.id,
+        refreshCloneTarget: reg.refreshCloneTarget,
+      ),
       MutationKind.cancelEntity: ({required row, required payload}) async {
         final response = await invoicesApi.cancel(
           id: payload['id'] as String,
@@ -1262,15 +1177,10 @@ _wireRecurringExpense(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'invoices',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<InvoiceApi>(
+        reg.ctx.activitiesApi,
+        entity: 'invoices',
+      ),
       ...reactivateEmailHandlers<InvoiceApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<InvoiceApi>(
         documentsApi: reg.ctx.documentsApi,
@@ -1361,79 +1271,19 @@ _wireRecurringExpense(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        final clone = await quotesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.invoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToQuote: ({required row, required payload}) async {
-        final clone = await quotesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'quote',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.quote,
-        );
-        return null;
-      },
-      MutationKind.cloneToCredit: ({required row, required payload}) async {
-        final clone = await quotesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'credit',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.credit,
-        );
-        return null;
-      },
-      MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        final clone = await quotesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'recurring_invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.recurringInvoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToPurchaseOrder:
-          ({required row, required payload}) async {
-            final clone = await quotesApi.cloneTo(
-              id: payload['id'] as String,
-              targetType: 'purchase_order',
-              idempotencyKey: row.idempotencyKey,
-            );
-            await reg.refreshCloneTarget(
-              row.companyId,
-              clone?.data.id,
-              EntityType.purchaseOrder,
-            );
-            return null;
-          },
-      MutationKind.cancelEntity: ({required row, required payload}) async {
-        final response = await quotesApi.cancel(
-          id: payload['id'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return response?.data;
-      },
+      ...cloneToHandlers<QuoteApi>(
+        cloneAndReturnId:
+            ({
+              required String id,
+              required String targetType,
+              required String idempotencyKey,
+            }) async => (await quotesApi.cloneTo(
+              id: id,
+              targetType: targetType,
+              idempotencyKey: idempotencyKey,
+            ))?.data.id,
+        refreshCloneTarget: reg.refreshCloneTarget,
+      ),
       MutationKind.runTemplate: ({required row, required payload}) async {
         final response = await quotesApi.runTemplate(
           id: payload['id'] as String,
@@ -1442,15 +1292,7 @@ _wireRecurringExpense(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'quotes',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<QuoteApi>(reg.ctx.activitiesApi, entity: 'quotes'),
       ...reactivateEmailHandlers<QuoteApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<QuoteApi>(
         documentsApi: reg.ctx.documentsApi,
@@ -1698,89 +1540,23 @@ _wireRecurringExpense(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        final clone = await creditsApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.invoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToQuote: ({required row, required payload}) async {
-        final clone = await creditsApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'quote',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.quote,
-        );
-        return null;
-      },
-      MutationKind.cloneToCredit: ({required row, required payload}) async {
-        final clone = await creditsApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'credit',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.credit,
-        );
-        return null;
-      },
-      MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        final clone = await creditsApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'recurring_invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.recurringInvoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToPurchaseOrder:
-          ({required row, required payload}) async {
-            final clone = await creditsApi.cloneTo(
-              id: payload['id'] as String,
-              targetType: 'purchase_order',
-              idempotencyKey: row.idempotencyKey,
-            );
-            await reg.refreshCloneTarget(
-              row.companyId,
-              clone?.data.id,
-              EntityType.purchaseOrder,
-            );
-            return null;
-          },
-      MutationKind.runTemplate: ({required row, required payload}) async {
-        final response = await creditsApi.runTemplate(
-          id: payload['id'] as String,
-          templateId: payload['template_id'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return response?.data;
-      },
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'credits',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...cloneToHandlers<CreditApi>(
+        cloneAndReturnId:
+            ({
+              required String id,
+              required String targetType,
+              required String idempotencyKey,
+            }) async => (await creditsApi.cloneTo(
+              id: id,
+              targetType: targetType,
+              idempotencyKey: idempotencyKey,
+            ))?.data.id,
+        refreshCloneTarget: reg.refreshCloneTarget,
+      ),
+      ...addCommentHandlers<CreditApi>(
+        reg.ctx.activitiesApi,
+        entity: 'credits',
+      ),
       ...reactivateEmailHandlers<CreditApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<CreditApi>(
         documentsApi: reg.ctx.documentsApi,
@@ -1879,15 +1655,10 @@ _wireRecurringExpense(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'purchase_orders',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<PurchaseOrderApi>(
+        reg.ctx.activitiesApi,
+        entity: 'purchase_orders',
+      ),
       ...reactivateEmailHandlers<PurchaseOrderApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<PurchaseOrderApi>(
         documentsApi: reg.ctx.documentsApi,
@@ -1956,80 +1727,19 @@ _wireRecurringInvoice(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.cloneToInvoice: ({required row, required payload}) async {
-        final clone = await recurringInvoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.invoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToQuote: ({required row, required payload}) async {
-        final clone = await recurringInvoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'quote',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.quote,
-        );
-        return null;
-      },
-      MutationKind.cloneToCredit: ({required row, required payload}) async {
-        final clone = await recurringInvoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'credit',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.credit,
-        );
-        return null;
-      },
-      MutationKind.cloneToRecurring: ({required row, required payload}) async {
-        final clone = await recurringInvoicesApi.cloneTo(
-          id: payload['id'] as String,
-          targetType: 'recurring_invoice',
-          idempotencyKey: row.idempotencyKey,
-        );
-        await reg.refreshCloneTarget(
-          row.companyId,
-          clone?.data.id,
-          EntityType.recurringInvoice,
-        );
-        return null;
-      },
-      MutationKind.cloneToPurchaseOrder:
-          ({required row, required payload}) async {
-            final clone = await recurringInvoicesApi.cloneTo(
-              id: payload['id'] as String,
-              targetType: 'purchase_order',
-              idempotencyKey: row.idempotencyKey,
-            );
-            await reg.refreshCloneTarget(
-              row.companyId,
-              clone?.data.id,
-              EntityType.purchaseOrder,
-            );
-            return null;
-          },
-      MutationKind.runTemplate: ({required row, required payload}) async {
-        final response = await recurringInvoicesApi.runTemplate(
-          id: payload['id'] as String,
-          templateId: payload['template_id'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return response?.data;
-      },
+      ...cloneToHandlers<RecurringInvoiceApi>(
+        cloneAndReturnId:
+            ({
+              required String id,
+              required String targetType,
+              required String idempotencyKey,
+            }) async => (await recurringInvoicesApi.cloneTo(
+              id: id,
+              targetType: targetType,
+              idempotencyKey: idempotencyKey,
+            ))?.data.id,
+        refreshCloneTarget: reg.refreshCloneTarget,
+      ),
       MutationKind.updatePrices: ({required row, required payload}) async {
         final response = await recurringInvoicesApi.updatePrices(
           id: payload['id'] as String,
@@ -2045,15 +1755,10 @@ _wireRecurringInvoice(_EntityWiring reg) {
         );
         return response?.data;
       },
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'recurring_invoices',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<RecurringInvoiceApi>(
+        reg.ctx.activitiesApi,
+        entity: 'recurring_invoices',
+      ),
       ...reactivateEmailHandlers<RecurringInvoiceApi>(reg.ctx.emailsApi),
       ...documentMutationHandlers<RecurringInvoiceApi>(
         documentsApi: reg.ctx.documentsApi,
@@ -2109,15 +1814,10 @@ _wireRecurringInvoice(_EntityWiring reg) {
           idempotencyKey: row.idempotencyKey,
         );
       },
-      MutationKind.addComment: ({required row, required payload}) async {
-        await reg.ctx.activitiesApi.addNote(
-          entity: 'payments',
-          entityId: payload['entity_id'] as String,
-          notes: payload['notes'] as String,
-          idempotencyKey: row.idempotencyKey,
-        );
-        return null;
-      },
+      ...addCommentHandlers<PaymentApi>(
+        reg.ctx.activitiesApi,
+        entity: 'payments',
+      ),
       ...documentMutationHandlers<PaymentApi>(
         documentsApi: reg.ctx.documentsApi,
         upload: paymentsApi.uploadDocument,

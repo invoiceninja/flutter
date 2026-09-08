@@ -77,7 +77,29 @@ void main() {
     },
   };
 
+  /// `MixinName` -> that mixin's source, for the mixins a repository can apply.
+  final mixinSources = <String, List<String>>{
+    for (final f in Directory(
+      'lib/data/repositories',
+    ).listSync().whereType<File>().where((f) => f.path.endsWith('.dart')))
+      for (final m in RegExp(
+        r'^mixin (\w+)',
+        multiLine: true,
+      ).allMatches(f.readAsStringSync()))
+        m.group(1)!: [f.readAsStringSync()],
+  };
+
   test('every enqueueable MutationKind has a handler for its entity', () {
+    expect(
+      mixinSources.keys,
+      containsAll(<String>[
+        'EntityCommentMutations',
+        'BillingDocEmailMutations',
+      ]),
+      reason:
+          'a mutation mixin was renamed — kinds it enqueues would go '
+          'unchecked, which is the hole this lint shipped with',
+    );
     final native = dispatcherNativeKinds();
     expect(native, contains('create'), reason: 'sanity: switch parse failed');
 
@@ -104,9 +126,28 @@ void main() {
       );
       if (!repoFile.existsSync()) continue;
 
-      final enqueued = RegExp(
-        r'kind: MutationKind\.(\w+)',
-      ).allMatches(repoFile.readAsStringSync()).map((m) => m.group(1)!).toSet();
+      // Follow the repo's mixins too. `addComment` lives on
+      // `EntityCommentMutations` and `emailEntity` / `scheduleEmail` on
+      // `BillingDocEmailMutations`, so reading only the repository file misses
+      // three kinds across fifteen repos — verified by mutation: deleting a
+      // Quote `emailEntity` handler passed an earlier draft of this lint.
+      final repoSrc = repoFile.readAsStringSync();
+      final sources = <String>[
+        repoSrc,
+        for (final mixin
+            in RegExp(r'\bwith\s+([A-Za-z0-9_,<>\s]+?)\s*(?:implements|\{)')
+                .allMatches(repoSrc)
+                .expand((m) => RegExp(r'\b([A-Z]\w+)<').allMatches(m.group(1)!))
+                .map((m) => m.group(1)!)
+                .toSet())
+          ...mixinSources[mixin] ?? const <String>[],
+      ];
+      final enqueued = <String>{
+        for (final src in sources)
+          ...RegExp(
+            r'kind: MutationKind\.(\w+)',
+          ).allMatches(src).map((m) => m.group(1)!),
+      };
       if (enqueued.isEmpty) continue;
 
       final registered = <String>{

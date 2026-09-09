@@ -656,6 +656,48 @@ class _InSidebarState extends State<InSidebar> {
                     ),
                   ),
                   Container(height: 1, color: tokens.border),
+                  // Settings and Outbox: chrome, so they sit below the rule
+                  // with the help actions instead of scrolling away at the tail
+                  // of the menu (invoiceninja/flutter#131 — in grid mode the
+                  // tile block ran straight into a full-width Settings row with
+                  // no gap at all, and hundreds of pixels of dead space below
+                  // it).
+                  //
+                  // Below the rule rather than above it because the scroll
+                  // viewport already clips there: a partially scrolled row is
+                  // cut by a crisp 1-px line and the chrome sits in the band
+                  // beyond it. Above the rule, a half-clipped row would abut
+                  // the Settings row with nothing between them, fixable only
+                  // with a third hairline — and two rules 44-94 px apart at the
+                  // bottom of a 232-px rail turn the sidebar into three
+                  // regions, one of them 44 px tall.
+                  //
+                  // A structural sibling of the `Expanded`, never a `Spacer`
+                  // inside it, for two independent reasons: the rows must not
+                  // scroll away (which `SliverFillRemaining(hasScrollBody:
+                  // false)` would still allow), and both intrinsic-sizing
+                  // recipes query intrinsics, which `SidebarNavGrid`'s
+                  // `LayoutBuilder` throws on in debug and answers 0 for in
+                  // release.
+                  //
+                  // Budget: 6 px plus one row with the outbox empty (the common
+                  // case — `hideWhenZero`), 6 plus two while something is
+                  // queued, and rows are not height-capped, so the block grows
+                  // with the text scaler on top of that. On a landscape
+                  // phone the fixed chrome already costs ~243 of a 412-px
+                  // window (see `_kUpsellMinHeight`), leaving ~3.5 of ~12 rows;
+                  // this spends about one of them. Deliberately NOT gated on
+                  // height the way the upsell is: `InSidebar`'s composite
+                  // height cannot be widget-tested (the saved-views Drift
+                  // deadlock), so such a gate would be a mechanism nobody can
+                  // prove fires, and a Settings row that jumps back into the
+                  // list as you resize is worse than either end state.
+                  _pinnedChromeRows(
+                    context,
+                    services,
+                    compact: collapsed,
+                    touch: touch,
+                  ),
                   SidebarFooterActions(
                     compact: collapsed,
                     showCollapseToggle: canCollapse,
@@ -731,18 +773,21 @@ class _InSidebarState extends State<InSidebar> {
     );
   }
 
-  /// The nav list, top to bottom.
+  /// The scrolling nav list, top to bottom.
   ///
   /// The reorderable, griddable block — Dashboard, the entity rows, Reports and
-  /// Activity — comes from [_buildMenuEntries]. Saved views, Settings and
-  /// Outbox deliberately sit outside it: saved-view rows carry arbitrary
-  /// user-typed names that would ellipsize to nothing in a tile, and **Outbox
-  /// is the one row in the whole sidebar whose visibility resolves
-  /// asynchronously** (`hideWhenZero`, inside a `StreamBuilder`). Every entry
-  /// in the block above is gated synchronously at build time, so no grid cell
-  /// can collapse to nothing and strand an empty column — a failure mode
-  /// invoiceninja/flutter#124 paid for once already, and one that keeping
-  /// Outbox out of the grid makes unreachable by construction.
+  /// Activity — comes from [_buildMenuEntries]. Saved views trail it and stay
+  /// out of the grid because their rows carry arbitrary user-typed names that
+  /// would ellipsize to nothing in an 80-px tile.
+  ///
+  /// Settings and Outbox are not here at all: they are chrome rather than
+  /// destinations, and [_pinnedChromeRows] mounts them below the scroller (see
+  /// there). Outbox additionally could never have been a grid cell — it is the
+  /// one row in the sidebar whose visibility resolves **asynchronously**
+  /// (`hideWhenZero`, inside a `StreamBuilder`), where every entry in the block
+  /// above is gated synchronously at build time, so no cell can collapse to
+  /// nothing and strand an empty column. That is a failure mode
+  /// invoiceninja/flutter#124 paid for once already.
   List<Widget> _buildItems(
     BuildContext context,
     Services services,
@@ -772,9 +817,9 @@ class _InSidebarState extends State<InSidebar> {
         )
       else
         for (final entry in entries) entry.build(tile: false),
-      // Saved views — reactive section that disappears when empty. Owns its
-      // own trailing spacer so the gap above Settings stays uniform with the
-      // rest of the sidebar when there are no saved views.
+      // Saved views — reactive section that disappears when empty, and now the
+      // last thing in the scroller: the chrome rows that used to follow it are
+      // pinned below (see `_pinnedChromeRows`).
       _SavedViewsSection(
         companyId: companyId,
         currentBranch: widget.currentBranch,
@@ -784,29 +829,97 @@ class _InSidebarState extends State<InSidebar> {
         activeViewId: activeViewId,
         savedViewsStream: _savedViews!.stream,
       ),
-      _fixedNav(
-        context,
-        services,
-        compact: compact,
-        touch: touch,
-        labelKey: 'settings',
-        icon: Icons.settings_outlined,
-        kind: FixedBranchKind.settings,
-      ),
-      _fixedNav(
-        context,
-        services,
-        compact: compact,
-        touch: touch,
-        labelKey: 'outbox',
-        icon: Icons.outbox_outlined,
-        kind: FixedBranchKind.outbox,
-        badgeStream: (s, c) =>
-            _combineOutboxCounts(s.watchOutboxPending(c), s.watchOutboxDead(c)),
-        hideWhenZero: true,
-      ),
     ];
   }
+
+  /// Settings and Outbox, pinned below the scroller — app chrome rather than
+  /// menu destinations (invoiceninja/flutter#131).
+  ///
+  /// **Where this method lives is load-bearing.** It must stay between
+  /// [_buildItems] and [_buildMenuEntries]: `sidebar_menu_wiring_test.dart`
+  /// slices the source from `_buildMenuEntries` to `_entityNav` and fails on
+  /// the literal `hideWhenZero`, which the Outbox row below carries. Defined
+  /// after `_buildMenuEntries` this turns a grid lint red for a reason that
+  /// reads as unrelated to it.
+  ///
+  /// **Order is Outbox, then Settings** — the reverse of the list these two
+  /// rows used to end. It follows from the layout rather than from taste: the
+  /// `Expanded` scroller above absorbs every height change, so this block's
+  /// *bottom* edge is nailed to the footer and its *top* edge is what travels.
+  /// With Settings last it never moves; the other way round, every queued
+  /// mutation inserts a row beneath it and shoves the permanent row up a full
+  /// row height — 44 px on touch — under the user's thumb.
+  ///
+  /// **The wrapper can never render empty**, unlike the footer group of
+  /// invoiceninja/flutter#124: Settings has no `hideWhenZero`, and `_fixedNav`
+  /// returns a row even when `_findFixedBranch` yields null (just with a null
+  /// `onTap`). That is why a group-level `Padding` is safe here.
+  ///
+  /// **`AnimatedSize` is not polish.** The Outbox row appears and disappears
+  /// whenever a mutation is queued or drains, which offline is constantly, and
+  /// a row that pops reads as a glitch. 150 ms / `easeOut` is the sidebar's own
+  /// collapse tween. (The `AnimatedSize` this file deliberately does *not* use
+  /// on the header is a different case — that 1 -> 2 company transition never
+  /// happens on screen; this one happens all day.)
+  ///
+  /// Horizontal 12 is the scroller's own padding, so a pinned row's box is as
+  /// wide as a scrolled one. The glyphs land 1 px apart rather than flush: a
+  /// chrome row's outline is drawn in both states (see `SidebarNavItem`) and a
+  /// `Container` border insets its child, so the icon starts at 12 + 1 + 10 =
+  /// 23 against the list's 22 — the price of the constant row height, and
+  /// invisible with a rule and a band gap between the two groups. It
+  /// deliberately does not match `SidebarFooterActions`' inset of 8: near
+  /// alignment with the list above is the axis worth having, and the two
+  /// groups' fills starting 4 px apart is the price.
+  Widget _pinnedChromeRows(
+    BuildContext context,
+    Services services, {
+    required bool compact,
+    required bool touch,
+  }) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+    child: AnimatedSize(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      alignment: Alignment.bottomCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Known and pre-existing, but newly always on screen: `StreamBuilder`
+          // carries `snapshot.data` across a stream identity change, and
+          // `_syncStreams` closes and clears `_badgeStreams` wholesale on a
+          // company switch — so until the new Drift query emits, this shows the
+          // previous company's count. A `key: ValueKey(companyId)` would reset
+          // it if it ever looks wrong in practice.
+          _fixedNav(
+            context,
+            services,
+            compact: compact,
+            touch: touch,
+            labelKey: 'outbox',
+            icon: Icons.outbox_outlined,
+            kind: FixedBranchKind.outbox,
+            badgeStream: (s, c) => _combineOutboxCounts(
+              s.watchOutboxPending(c),
+              s.watchOutboxDead(c),
+            ),
+            hideWhenZero: true,
+            selection: SidebarNavSelection.neutral,
+          ),
+          _fixedNav(
+            context,
+            services,
+            compact: compact,
+            touch: touch,
+            labelKey: 'settings',
+            icon: Icons.settings_outlined,
+            kind: FixedBranchKind.settings,
+            selection: SidebarNavSelection.neutral,
+          ),
+        ],
+      ),
+    ),
+  );
 
   /// The user's main menu: the app's default block, permuted and filtered by
   /// [SidebarMenuController] (invoiceninja/flutter#125).
@@ -1085,6 +1198,7 @@ class _InSidebarState extends State<InSidebar> {
     required IconData icon,
     required FixedBranchKind kind,
     bool tile = false,
+    SidebarNavSelection selection = SidebarNavSelection.accent,
     Stream<int> Function(Services, String)? badgeStream,
     bool hideWhenZero = false,
     Widget? trailingHover,
@@ -1097,6 +1211,7 @@ class _InSidebarState extends State<InSidebar> {
       label: label,
       icon: icon,
       active: isActive,
+      selection: selection,
       compact: compact,
       tile: tile,
       touch: touch,
@@ -1322,12 +1437,11 @@ class _SavedViewsSection extends StatelessWidget {
                 active: view.id == activeViewId,
                 onTap: () => _onTap(context, view),
               ),
-            // Trailing spacer separating the saved list from the bottom
-            // group (Settings / Outbox). Lives inside the section so when
-            // there are no saved views the whole group collapses to
-            // SizedBox.shrink() and the Reports→Settings gap matches the
-            // gap between all other adjacent rows.
-            const SidebarSectionHeader(null),
+            // No trailing spacer: the bottom group (Settings / Outbox) this
+            // used to separate the saved list from is no longer below it in the
+            // scroller — `_pinnedChromeRows` mounts those under the nav rule.
+            // Re-adding one would just stack 8 px on top of the scroller's own
+            // 10-px bottom padding.
           ],
         );
       },

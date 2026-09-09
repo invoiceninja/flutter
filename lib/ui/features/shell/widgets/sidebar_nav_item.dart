@@ -7,9 +7,31 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_badge.dart';
 import 'package:admin/ui/core/widgets/shortcut_tooltip.dart';
 
-/// One row in the sidebar nav list. Three visual states:
+/// How a *selected* row paints.
+///
+///   * [accent] — every destination row: Dashboard, the entity rows, Reports,
+///     Activity, saved views.
+///   * [neutral] — the sidebar's own quiet chrome language instead, for the two
+///     rows pinned below the nav list (Settings / Outbox). An accent fill on a
+///     full-width row sitting under a tile grid reads as one more tile, which
+///     is what invoiceninja/flutter#131 was reported about.
+///
+/// Inert while [SidebarNavItem.active] is false: an unselected row paints
+/// identically either way (bar a 1-px border inset — see `shapedBody`).
+///
+/// An enum rather than a second bool: two bools would admit
+/// `active: false, neutral: true`, which means nothing, and a `switch` fails
+/// the build when a third treatment arrives. [SidebarBadgeTone] is the
+/// precedent in this same widget.
+enum SidebarNavSelection { accent, neutral }
+
+/// One row in the sidebar nav list. Four visual states:
 ///
 ///   * **active** — accent background + ink, bold weight.
+///   * **active, [SidebarNavSelection.neutral]** — `surfaceAlt` fill, a
+///     `borderStrong` outline and `ink` at the same bold weight. The fill is
+///     only ~1.05:1 against the sidebar in every palette, so the ink carries
+///     this state and the outline delimits it; see the colour block in `build`.
 ///   * **inactive enabled** — transparent background, muted ink.
 ///   * **disabled** — same as inactive but with `ink4` and a tap that pops a
 ///     "Coming soon" SnackBar instead of switching branches. The disabled
@@ -24,6 +46,7 @@ class SidebarNavItem extends StatefulWidget {
     required this.label,
     required this.icon,
     required this.active,
+    this.selection = SidebarNavSelection.accent,
     this.onTap,
     this.count,
     this.countTone = SidebarBadgeTone.neutral,
@@ -41,6 +64,12 @@ class SidebarNavItem extends StatefulWidget {
   final String label;
   final IconData icon;
   final bool active;
+
+  /// Which selected treatment this row wears **when [active]** — the accent one
+  /// every destination uses, or the neutral chrome one the pinned Settings /
+  /// Outbox rows use. Inert while [active] is false.
+  final SidebarNavSelection selection;
+
   final VoidCallback? onTap;
   final int? count;
 
@@ -115,12 +144,27 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
       !widget.tile &&
       !widget.disabled;
 
+  /// Whether this row is the selected one *and* paints in the quiet chrome
+  /// language rather than the accent one.
+  bool get _neutralSelected =>
+      widget.active && widget.selection == SidebarNavSelection.neutral;
+
   /// The badge, plus a tooltip naming what it counts when that isn't obvious.
   /// A bare red `3` is only useful if you can find out it means "overdue".
   Widget _badgeWithTooltip() {
     final badge = SidebarBadge(
       count: widget.count!,
-      active: widget.active,
+      // A neutral-selected row keeps the *unselected* palette. `colorsFor`
+      // flips its neutral tone to `accent` digits on a `surface` chip when
+      // active — tuned for an accentSoft row, and the highest-chroma thing that
+      // could otherwise survive a fix whose whole point is that the blue draws
+      // the eye (invoiceninja/flutter#131). The chip's fill then matches the
+      // row's, so the count reads on the fill rather than in a filled chip —
+      // it keeps its own `border` outline and its `ink3` digits; accepted,
+      // because `SidebarBadge` is shared with the Sidebar-counters live preview
+      // in Device Settings and widening `colorsFor` widens the blast radius for
+      // a row the user is already standing on.
+      active: widget.active && !_neutralSelected,
       tone: widget.countTone,
     );
     final label = widget.countLabel;
@@ -156,17 +200,37 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // `disabled` stays first in both ink ternaries, so `ink4` keeps meaning
+    // *disabled* and is never borrowed for the quiet treatment.
+    //
+    // Both neutral ink steps are TWO notches, not one: `ink2`->`ink` for the
+    // label and `ink3`->`ink` for the icon. The accent state this replaces
+    // carries only 1.24:1 of *luminance* — it works on hue, which is exactly
+    // what is being given up here — while `surfaceAlt` on `surface` is ~1.05:1
+    // in every palette and `borderStrong` 1.42:1, so neither the fill nor the
+    // outline can be the signal. The icon step is worth 3.68:1, the strongest
+    // cue available without a hue, and on the collapsed 64-px rail — no label,
+    // no weight, no badge — it is the ONLY cue. `login_screen.dart`'s neutral
+    // selection makes the same two-step jump (`selected ? ink : ink3`).
     final fg = widget.disabled
         ? tokens.ink4
+        : _neutralSelected
+        ? tokens.ink
         : widget.active
         ? tokens.accentInk
         : tokens.ink2;
     final iconFg = widget.disabled
         ? tokens.ink4
+        : _neutralSelected
+        ? tokens.ink
         : widget.active
         ? tokens.accent
         : tokens.ink3;
-    final bg = widget.active ? tokens.accentSoft : Colors.transparent;
+    final bg = !widget.active
+        ? Colors.transparent
+        : _neutralSelected
+        ? tokens.surfaceAlt
+        : tokens.accentSoft;
     final effectiveOnTap = widget.disabled
         ? () => Notify.info(
             context,
@@ -313,17 +377,33 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
               ],
             ),
           );
-    // The tile's outline. Border-only and *inside* the Material below, never an
+    // The tile's outline, and a chrome row's selected one. Border-only and
+    // *inside* the Material below, never an
     // `Ink` and never an opaque fill: the Material owns the colour so the
     // InkWell's ripple paints above it and still shows through this Container.
     // Painting the fill here instead would hide the ripple entirely — the
     // idiom `test/lint/no_ink_widget_test.dart` exists to enforce.
-    final Widget shapedBody = isTile
+    //
+    // A neutral row is outlined too, and in BOTH states — transparent at rest.
+    // `Container` folds a uniform border into its child's padding, so an
+    // outline drawn only on selection would make a *pointer* row 32 -> 34 px
+    // the moment you open Settings, nudging the row above it and ellipsizing
+    // its label sooner. Touch hides that entirely (the `ConstrainedBox` below
+    // floors the row at 44), so it would survive review on a phone and show up
+    // only on the desktop rail. The price is that a resting neutral row is 2 px
+    // taller than a resting nav row, and its icon sits 1 px further in — both
+    // invisible, because the chrome block is spatially separate from the list.
+    final bool outlined =
+        isTile || widget.selection == SidebarNavSelection.neutral;
+    final Color outlineColor = _neutralSelected
+        ? tokens.borderStrong
+        : isTile
+        ? (widget.active ? tokens.accent : tokens.border)
+        : Colors.transparent;
+    final Widget shapedBody = outlined
         ? Container(
             decoration: BoxDecoration(
-              border: Border.all(
-                color: widget.active ? tokens.accent : tokens.border,
-              ),
+              border: Border.all(color: outlineColor),
               borderRadius: BorderRadius.circular(InRadii.r2),
             ),
             child: body,
@@ -331,26 +411,33 @@ class _SidebarNavItemState extends State<SidebarNavItem> {
         : body;
     // The interactive surface: fill + ripple + hit area. Named for what it is
     // rather than `tile`, which now means the grid variant a few lines up.
-    final surface = Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(InRadii.r2),
-      child: InkWell(
-        onTap: effectiveOnTap,
+    // Selection reaches a screen reader as `isSelected` rather than as colour
+    // and weight alone — which mattered less while the cue was a hue change,
+    // and matters now that a chrome row's is a 1.42:1 outline. `container` is
+    // deliberately left false so this merges into the InkWell's own node.
+    final surface = Semantics(
+      selected: widget.active,
+      child: Material(
+        color: bg,
         borderRadius: BorderRadius.circular(InRadii.r2),
-        // Inside the InkWell so the ripple and the hit area both fill the
-        // target, and the Material above sizes to it so an active row's accent
-        // background does too. `minHeight`, never `SizedBox(height:)` — see the
-        // padding comment above; the Row centres its icon inside the extra
-        // space, which reads as the `vertical: 13` the app's other
-        // thumb-friendly rows use.
-        child: widget.touch
-            ? ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: InSizes.touchTarget,
-                ),
-                child: shapedBody,
-              )
-            : shapedBody,
+        child: InkWell(
+          onTap: effectiveOnTap,
+          borderRadius: BorderRadius.circular(InRadii.r2),
+          // Inside the InkWell so the ripple and the hit area both fill the
+          // target, and the Material above sizes to it so an active row's accent
+          // background does too. `minHeight`, never `SizedBox(height:)` — see the
+          // padding comment above; the Row centres its icon inside the extra
+          // space, which reads as the `vertical: 13` the app's other
+          // thumb-friendly rows use.
+          child: widget.touch
+              ? ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: InSizes.touchTarget,
+                  ),
+                  child: shapedBody,
+                )
+              : shapedBody,
+        ),
       ),
     );
     Widget result = surface;

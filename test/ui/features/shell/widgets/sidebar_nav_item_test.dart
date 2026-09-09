@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -11,12 +13,14 @@ import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
 
 /// Theme that supplies the `InTheme` extension `SidebarNavItem` reads via
 /// `context.inTheme`.
-ThemeData _theme() => ThemeData.light().copyWith(
-  extensions: <ThemeExtension<dynamic>>[InTheme.light],
-);
+ThemeData _theme([InTheme tokens = InTheme.light]) =>
+    ThemeData.light().copyWith(extensions: <ThemeExtension<dynamic>>[tokens]);
 
-Widget _wrap(Widget child) => MaterialApp(
-  theme: _theme(),
+/// [tokens] selects the palette the widget reads through `context.inTheme`.
+/// Only the extension changes — `SidebarNavItem` takes every colour from it, so
+/// a dark palette under a light `ThemeData` still proves the token wiring.
+Widget _wrap(Widget child, {InTheme tokens = InTheme.light}) => MaterialApp(
+  theme: _theme(tokens),
   home: Scaffold(body: child),
 );
 
@@ -1082,6 +1086,288 @@ void main() {
         expect(tester.takeException(), isNull);
       }
       expect(heights[1.4]!, greaterThan(heights[1.0]!));
+    });
+  });
+
+  // The two rows pinned below the nav list — Settings and Outbox — are chrome
+  // rather than destinations, so their selected state drops the accent for the
+  // sidebar's own quiet language (invoiceninja/flutter#131: on the grid layout
+  // an accent fill on a full-width row under a tile block reads as one more
+  // tile, and it was reported as "the blue draws the eye").
+  //
+  // None of this is observable from `InSidebar`, which cannot be pumped — the
+  // saved-views Drift watch deadlocks `AppDatabase.close()`. The wiring is
+  // source-scanned in `test/lint/sidebar_menu_wiring_test.dart`; the appearance
+  // is here.
+  group('neutral selection (invoiceninja/flutter#131)', () {
+    Material materialOf(WidgetTester tester) => tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byType(SidebarNavItem),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+
+    /// The border-only box, or null when the row draws none. Deliberately not
+    /// `firstWhere` — "there is no outline" is an assertion these tests make.
+    Container? outlineOf(WidgetTester tester) {
+      final boxes = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byType(SidebarNavItem),
+              matching: find.byType(Container),
+            ),
+          )
+          .where((c) => (c.decoration as BoxDecoration?)?.border != null);
+      return boxes.isEmpty ? null : boxes.first;
+    }
+
+    BoxDecoration outlineDecorationOf(WidgetTester tester) =>
+        outlineOf(tester)!.decoration! as BoxDecoration;
+
+    TextStyle labelOf(WidgetTester tester, String text) =>
+        tester.widget<Text>(find.text(text)).style!;
+
+    Color iconColorOf(WidgetTester tester, IconData icon) =>
+        tester.widget<Icon>(find.byIcon(icon)).color!;
+
+    Widget row({
+      required bool active,
+      SidebarNavSelection selection = SidebarNavSelection.accent,
+      bool touch = false,
+      bool tile = false,
+      int? count,
+      String label = 'Settings',
+      Key? key,
+    }) => SidebarNavItem(
+      key: key,
+      label: label,
+      icon: Icons.settings_outlined,
+      active: active,
+      selection: selection,
+      touch: touch,
+      tile: tile,
+      count: count,
+      onTap: () {},
+    );
+
+    // The anchor for the rest of the group: today's accent assertions live only
+    // in the `tile` group, so the ROW branch had no colour coverage at all.
+    testWidgets('an active destination row keeps the accent fill, unoutlined', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_wrap(row(active: true)));
+
+      expect(materialOf(tester).color, InTheme.light.accentSoft);
+      expect(
+        iconColorOf(tester, Icons.settings_outlined),
+        InTheme.light.accent,
+      );
+      expect(labelOf(tester, 'Settings').color, InTheme.light.accentInk);
+      expect(labelOf(tester, 'Settings').fontWeight, FontWeight.w600);
+      expect(
+        outlineOf(tester),
+        isNull,
+        reason: 'only a tile and a chrome row are outlined',
+      );
+    });
+
+    testWidgets('an active chrome row swaps accent for the quiet language', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(row(active: true, selection: SidebarNavSelection.neutral)),
+      );
+
+      final material = materialOf(tester);
+      expect(material.color, InTheme.light.surfaceAlt);
+      expect(
+        material.color,
+        isNot(InTheme.light.accentSoft),
+        reason: 'the whole point of the issue',
+      );
+      // Both ink steps are two notches — the fill is ~1.05:1 against the
+      // sidebar in every palette, so the ink is what carries this state.
+      expect(iconColorOf(tester, Icons.settings_outlined), InTheme.light.ink);
+      expect(labelOf(tester, 'Settings').color, InTheme.light.ink);
+      expect(labelOf(tester, 'Settings').fontWeight, FontWeight.w600);
+
+      final decoration = outlineDecorationOf(tester);
+      expect(decoration.border!.top.color, InTheme.light.borderStrong);
+      expect(
+        decoration.color,
+        isNull,
+        reason: 'the Container must not be opaque, or it hides the ripple',
+      );
+    });
+
+    testWidgets('…and resolves against the dark palette, not baked-in light', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          row(active: true, selection: SidebarNavSelection.neutral),
+          tokens: InTheme.dark,
+        ),
+      );
+
+      expect(materialOf(tester).color, InTheme.dark.surfaceAlt);
+      expect(iconColorOf(tester, Icons.settings_outlined), InTheme.dark.ink);
+      expect(labelOf(tester, 'Settings').color, InTheme.dark.ink);
+      expect(
+        outlineDecorationOf(tester).border!.top.color,
+        InTheme.dark.borderStrong,
+      );
+    });
+
+    testWidgets('an unselected chrome row is coloured exactly like any row', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(row(active: false, selection: SidebarNavSelection.neutral)),
+      );
+
+      expect(materialOf(tester).color, Colors.transparent);
+      expect(labelOf(tester, 'Settings').color, InTheme.light.ink2);
+      expect(iconColorOf(tester, Icons.settings_outlined), InTheme.light.ink3);
+      // Colours, not widget-for-widget equality with a destination row: the
+      // outline is drawn in both states (transparent at rest), so a resting
+      // chrome row does carry a Container a destination row does not.
+      expect(outlineDecorationOf(tester).border!.top.color, Colors.transparent);
+    });
+
+    testWidgets('selecting a chrome row does not change its height', (
+      tester,
+    ) async {
+      // A `Container` border folds EdgeInsets.all(1) into its child, so an
+      // outline drawn only when active would make a POINTER row 32 -> 34 px the
+      // moment you navigate into Settings — nudging the row above it and
+      // ellipsizing its label sooner. Touch never sees it (the 44-px floor
+      // swallows it), which is why this is asserted at pointer density.
+      await tester.pumpWidget(
+        _wrap(
+          Column(
+            children: [
+              row(
+                key: const Key('rest'),
+                active: false,
+                selection: SidebarNavSelection.neutral,
+              ),
+              row(
+                key: const Key('sel'),
+                active: true,
+                selection: SidebarNavSelection.neutral,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSize(find.byKey(const Key('sel'))).height,
+        tester.getSize(find.byKey(const Key('rest'))).height,
+      );
+    });
+
+    testWidgets('the outline does not eat into the touch target', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          row(
+            active: true,
+            selection: SidebarNavSelection.neutral,
+            touch: true,
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSize(find.byType(SidebarNavItem)).height,
+        InSizes.touchTarget,
+      );
+    });
+
+    testWidgets('the badge on a selected chrome row keeps the quiet palette', (
+      tester,
+    ) async {
+      // `SidebarBadge`'s neutral tone flips to accent digits on a `surface`
+      // chip when active — tuned for an accentSoft row, and the highest-chroma
+      // thing that could survive a fix about blue drawing the eye.
+      await tester.pumpWidget(
+        _wrap(
+          row(
+            active: true,
+            selection: SidebarNavSelection.neutral,
+            count: 3,
+            label: 'Outbox',
+          ),
+        ),
+      );
+
+      final chip = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('3'), matching: find.byType(Container))
+            .first,
+      );
+      final decoration = chip.decoration! as BoxDecoration;
+      expect(decoration.color, InTheme.light.surfaceAlt);
+      expect(decoration.color, isNot(InTheme.light.surface));
+      expect(
+        tester.widget<Text>(find.text('3')).style!.color,
+        InTheme.light.ink3,
+      );
+    });
+
+    testWidgets('a neutral tile outlines borderStrong, never accent', (
+      tester,
+    ) async {
+      // Unreachable in the app today — Settings is not a menu id and Outbox is
+      // barred from the grid — but an undefined branch is a silent wrong paint
+      // in release, so it is defined and pinned rather than asserted away.
+      await tester.pumpWidget(
+        _wrap(
+          row(active: true, selection: SidebarNavSelection.neutral, tile: true),
+        ),
+      );
+
+      expect(
+        outlineDecorationOf(tester).border!.top.color,
+        InTheme.light.borderStrong,
+      );
+    });
+
+    testWidgets('the selected row announces itself as selected', (
+      tester,
+    ) async {
+      // Until this, active/inactive was conveyed by colour and weight alone.
+      // That was tolerable while the cue was a hue change; a chrome row's is a
+      // 1.42:1 outline.
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _wrap(row(active: true, selection: SidebarNavSelection.neutral)),
+      );
+
+      final data = tester
+          .getSemantics(find.byType(SidebarNavItem))
+          .getSemanticsData();
+      expect(data.flagsCollection.isSelected, ui.Tristate.isTrue);
+      // The flag has to ride the SAME node as the tap action, or a screen
+      // reader announces the button and the selection as two separate stops.
+      // It does today because `Semantics(container: false)` is not a boundary
+      // and `SemanticsConfiguration.isCompatibleWith` only refuses a merge on
+      // clashing actions/flags — the InkWell never sets `isSelected`. This
+      // assertion is what would catch a later `container: true`, an
+      // `ExcludeSemantics`, or a `button: true` that splits them; asserting the
+      // flag alone passes either way, since `getSemantics` walks up to the
+      // nearest node. Same shape as `party_call_button_test.dart`'s guard.
+      expect(
+        data.hasAction(SemanticsAction.tap),
+        isTrue,
+        reason: 'a selected row that is not tappable is a dead nav row',
+      );
+      handle.dispose();
     });
   });
 }

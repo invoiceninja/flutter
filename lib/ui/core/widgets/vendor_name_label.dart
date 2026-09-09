@@ -31,8 +31,17 @@ class VendorNameLabel extends StatefulWidget {
   final int maxLines;
   final TextOverflow overflow;
 
-  /// When true the resolved name renders as a hover-underlined link to
-  /// the vendor's full-screen view. Off by default.
+  /// When true the resolved name renders as a link to the vendor's full-screen
+  /// view — hover-underlined on a pointer platform, underlined and recoloured
+  /// **at rest** on touch, where hover can never fire.
+  ///
+  /// Set it where the slot is **labelled** (a wide-table column under a
+  /// `Vendor` header) or where nothing else on the surface takes a tap (a
+  /// detail header). Off by default, and it must stay off in a **narrow list
+  /// row**: the row owns the tap there, and this widget's `LinkText` is
+  /// `HitTestBehavior.opaque`, so it would steal every tap that landed on the
+  /// name — invoiceninja/flutter#128, pinned by
+  /// `test/lint/no_list_tile_name_link_test.dart`.
   final bool link;
 
   @override
@@ -95,6 +104,7 @@ class _VendorNameLabelState extends State<VendorNameLabel> {
   }
 
   Widget _text(BuildContext context, String text) => linkOrText(
+    context: context,
     link: widget.link,
     label: text,
     onTap: widget.link

@@ -198,11 +198,7 @@ class _RecurringExpenseListTileState extends State<RecurringExpenseListTile> {
         style: identStyle,
       );
     } else if (e.vendorId.isNotEmpty) {
-      identWidget = VendorNameLabel(
-        vendorId: e.vendorId,
-        style: identStyle,
-        link: true,
-      );
+      identWidget = VendorNameLabel(vendorId: e.vendorId, style: identStyle);
     } else {
       identWidget = Text(
         '—',

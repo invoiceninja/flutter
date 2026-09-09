@@ -89,10 +89,14 @@ class DetailInfoRow extends StatelessWidget {
     }
     if (semanticsLabel != null) {
       // `excludeSemantics` so the child's own text node doesn't merge in and
-      // announce the value twice.
+      // announce the value twice — which also drops the descendant's
+      // `SemanticsAction.tap`, so `onTap` has to be re-declared here or the
+      // node is a button with no `ACTION_CLICK` for TalkBack / switch access
+      // to invoke.
       display = Semantics(
         button: true,
         label: semanticsLabel,
+        onTap: onTap,
         excludeSemantics: true,
         child: display,
       );

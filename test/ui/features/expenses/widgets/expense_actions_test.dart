@@ -41,10 +41,20 @@ void main() {
     WidgetTester tester,
     Expense expense, {
     int enabledModules = 32767,
+    bool isOwner = true,
+    bool isAdmin = true,
+    String permissions = '',
   }) async {
     final fixture = await buildFixture(
       companies: [
-        FakeCompany(id: 'co1', name: 'Co', enabledModules: enabledModules),
+        FakeCompany(
+          id: 'co1',
+          name: 'Co',
+          enabledModules: enabledModules,
+          isOwner: isOwner,
+          isAdmin: isAdmin,
+          permissions: permissions,
+        ),
       ],
     );
     addTearDown(fixture.dispose);
@@ -203,5 +213,74 @@ void main() {
     final items = await resolveItems(tester, _expense(invoiceId: 'inv1'));
 
     expect(enabled(items, ExpenseAction.cloneToRecurring), isTrue);
+  });
+
+  /// The "View vendor" item is the replacement home for the shortcut
+  /// invoiceninja/flutter#128 removed from the narrow row, so it has to be
+  /// present — and it is a *labelled* "go to the vendor" affordance, so it is
+  /// permission-gated the way `EntityLinkCard`'s `permissionKey:` is on the
+  /// detail grids. `can()` short-circuits true for an admin or owner, so a
+  /// non-admin with explicit permissions is the only way to see the gate.
+  group('view vendor', () {
+    testWidgets('present for an admin on an expense with a vendor', (
+      tester,
+    ) async {
+      final items = await resolveItems(
+        tester,
+        _expense().copyWith(vendorId: 'v1'),
+      );
+
+      expect(present(items, ExpenseAction.viewVendor), isTrue);
+    });
+
+    testWidgets('absent when the expense has no vendor', (tester) async {
+      final items = await resolveItems(tester, _expense());
+
+      expect(present(items, ExpenseAction.viewVendor), isFalse);
+    });
+
+    testWidgets('absent for a user without view_vendor', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _expense().copyWith(vendorId: 'v1'),
+        isOwner: false,
+        isAdmin: false,
+        permissions: 'view_expense',
+      );
+
+      expect(
+        present(items, ExpenseAction.viewVendor),
+        isFalse,
+        reason: 'a labelled menu item makes a promise a table cell does not',
+      );
+    });
+
+    testWidgets('present for a non-admin who does hold view_vendor', (
+      tester,
+    ) async {
+      final items = await resolveItems(
+        tester,
+        _expense().copyWith(vendorId: 'v1'),
+        isOwner: false,
+        isAdmin: false,
+        permissions: 'view_expense,view_vendor',
+      );
+
+      expect(present(items, ExpenseAction.viewVendor), isTrue);
+    });
+
+    testWidgets('never reaches an edit screen', (tester) async {
+      // `EntityEditScaffold._onAction` would save the dirty form (or create the
+      // record) before dispatching it, so `filterForEditScreen` drops it.
+      final items = await resolveItems(
+        tester,
+        _expense().copyWith(vendorId: 'v1'),
+      );
+      final item = flattenActionItems(
+        items,
+      ).firstWhere((i) => i.kind == ExpenseAction.viewVendor);
+
+      expect(item.isNavigationOnly, isTrue);
+    });
   });
 }

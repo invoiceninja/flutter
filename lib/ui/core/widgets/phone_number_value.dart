@@ -141,18 +141,21 @@ class PhoneNumberValue extends StatelessWidget {
     builder: (context) {
       final tokens = context.inTheme;
       final dialable = canDialPhone(context, phone);
+      // Hoisted so the `Semantics` below can re-declare the same action: its
+      // `excludeSemantics` drops the child's own tap node along with the text.
+      void dial() => callPhoneNumber(
+        context,
+        phone,
+        subject: subject,
+        clientId: clientId,
+        logTarget: logTarget,
+      );
       Widget display = dialable
           ? LinkText(
               label: phone,
               style: style,
               color: tokens.accent,
-              onTap: () => callPhoneNumber(
-                context,
-                phone,
-                subject: subject,
-                clientId: clientId,
-                logTarget: logTarget,
-              ),
+              onTap: dial,
             )
           : Text(phone, style: style);
       if (dialable) {
@@ -162,6 +165,10 @@ class PhoneNumberValue extends StatelessWidget {
         display = Semantics(
           button: true,
           label: '${context.tr('call')} $phone',
+          // Re-declared because `excludeSemantics` below drops the
+          // descendant's own `SemanticsAction.tap` along with its text node,
+          // leaving a button nothing could activate.
+          onTap: dial,
           // Without this the child `Text` merges its own node in and the
           // number is announced twice ("Call +1 415…, +1 415…").
           excludeSemantics: true,

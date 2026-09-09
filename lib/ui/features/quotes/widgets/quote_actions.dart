@@ -50,6 +50,7 @@ enum QuoteAction {
   runTemplate,
   addComment,
   logCall,
+  viewClient,
   copyLink,
   archive,
   restore,
@@ -127,6 +128,10 @@ class QuoteActions {
     final canArchive = quote.archivedAt == null && !quote.isDeleted;
     final canRestore = quote.archivedAt != null || quote.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
+    // detail grids. Read lazily here (itemsFor runs per build) so it
+    // re-resolves on a company switch.
+    final canViewClient = me?.can('view_client') ?? false;
     final canEdit = me?.can('edit_quote') ?? false;
     final canCreate = me?.can('create_quote') ?? false;
     final canDelete = me?.can('edit_quote') ?? false;
@@ -296,6 +301,18 @@ class QuoteActions {
           onTap: () => onTap(QuoteAction.logCall),
         ),
       ],
+      if (quote.clientId.isNotEmpty && canViewClient)
+        EntityActionItem(
+          kind: QuoteAction.viewClient,
+          icon: Icons.person_outline,
+          label: context.tr('view_client'),
+          enabled: true,
+          // Navigation only — must not reach the edit screen, where
+          // `EntityEditScaffold._onAction` would save the dirty form (or
+          // create the record) before dispatching it.
+          isNavigationOnly: true,
+          onTap: () => onTap(QuoteAction.viewClient),
+        ),
       ?copyLinkActionItem(
         context: context,
         kind: QuoteAction.copyLink,
@@ -515,6 +532,9 @@ class QuoteActions {
             text: text,
           ),
         );
+      case QuoteAction.viewClient:
+        if (quote.clientId.isEmpty) return;
+        goEntityFullDetail(context, '/clients', quote.clientId);
       case QuoteAction.copyLink:
         await copyEntityLink(context, EntityType.quote, quote.id);
       case QuoteAction.archive:

@@ -179,8 +179,11 @@ class _PaymentListTileState extends State<PaymentListTile> {
           const SizedBox(height: 2),
           ClientNameLabel(
             clientId: p.clientId,
-            style: TextStyle(color: tokens.ink3, fontSize: 12),
-            link: true,
+            style: TextStyle(
+              color: tokens.ink2,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ],

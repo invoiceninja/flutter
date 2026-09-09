@@ -1537,6 +1537,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Push notifications (FCM / APNs) | 🟡 | ✅ | ❌ |  | |
 | Deep links (open a record from a shared `invoiceninja://` link) | — | ❌ | ✅ |  | v1 has no incoming-link handling at all — its only URL scheme is the Google OAuth callback |
 | Copy Link on a record — shareable deep link, auto-switches company | — | — | ✅ | | |
+| View client / vendor from a record's actions menu | ✅ | ✅ | ✅ | | Replaced the narrow row's tappable client name (#128); permission-gated, excluded from edit screens |
 | Paste a record link into the command palette (covers web / Linux / non-linkifying messengers) | — | — | ✅ | | |
 | Detail screen hydrates an uncached record on arrival (deep link / dashboard tap / restored route) | — | — | ✅ | | |
 | Native share sheet | — | ✅ | 🟡 | ✅ | v2: PDFs only, via `Printing.sharePdf` — no `share_plus` |

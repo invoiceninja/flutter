@@ -98,6 +98,7 @@ class _ProjectNameLabelState extends State<ProjectNameLabel> {
   }
 
   Widget _text(BuildContext context, String text) => linkOrText(
+    context: context,
     link: widget.link,
     label: text,
     onTap: widget.link

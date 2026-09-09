@@ -58,6 +58,7 @@ enum PurchaseOrderAction {
   runTemplate,
   addComment,
   logCall,
+  viewVendor,
   copyLink,
   archive,
   restore,
@@ -131,6 +132,10 @@ class PurchaseOrderActions {
     final canArchive = po.archivedAt == null && !po.isDeleted;
     final canRestore = po.archivedAt != null || po.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
+    // detail grids. Read lazily here (itemsFor runs per build) so it
+    // re-resolves on a company switch.
+    final canViewVendor = me?.can('view_vendor') ?? false;
     final canEdit = me?.can('edit_purchase_order') ?? false;
     final canCreate = me?.can('create_purchase_order') ?? false;
     final canDelete = me?.can('edit_purchase_order') ?? false;
@@ -322,6 +327,18 @@ class PurchaseOrderActions {
           onTap: () => onTap(PurchaseOrderAction.logCall),
         ),
       ],
+      if (po.vendorId.isNotEmpty && canViewVendor)
+        EntityActionItem(
+          kind: PurchaseOrderAction.viewVendor,
+          icon: Icons.storefront_outlined,
+          label: context.tr('view_vendor'),
+          enabled: true,
+          // Navigation only — must not reach the edit screen, where
+          // `EntityEditScaffold._onAction` would save the dirty form (or
+          // create the record) before dispatching it.
+          isNavigationOnly: true,
+          onTap: () => onTap(PurchaseOrderAction.viewVendor),
+        ),
       ?copyLinkActionItem(
         context: context,
         kind: PurchaseOrderAction.copyLink,
@@ -560,6 +577,9 @@ class PurchaseOrderActions {
             text: text,
           ),
         );
+      case PurchaseOrderAction.viewVendor:
+        if (po.vendorId.isEmpty) return;
+        goEntityFullDetail(context, '/vendors', po.vendorId);
       case PurchaseOrderAction.copyLink:
         await copyEntityLink(context, EntityType.purchaseOrder, po.id);
       case PurchaseOrderAction.archive:

@@ -200,8 +200,11 @@ class _TaskListTileState extends State<TaskListTile> {
                     if (t.clientId.isNotEmpty)
                       ClientNameLabel(
                         clientId: t.clientId,
-                        style: TextStyle(color: tokens.ink3, fontSize: 12),
-                        link: true,
+                        style: TextStyle(
+                          color: tokens.ink2,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                   ],
                 ),

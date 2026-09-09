@@ -195,10 +195,25 @@ class _InvoiceListTileState extends State<InvoiceListTile> {
         ),
         if (i.clientId.isNotEmpty) ...[
           const SizedBox(height: 2),
+          // Deliberately NOT `link: true` — invoiceninja/flutter#128. A
+          // narrow row has exactly one destination; a nested `LinkText` is
+          // `HitTestBehavior.opaque`, so it stole every tap that landed on
+          // the name (including, in multi-select, the toggle) and there was
+          // no at-rest affordance on touch saying so. The client is reached
+          // from `⋮ → View client`, from the detail header's cued link, and
+          // from the wide table's labelled Client column. Pinned by
+          // `test/lint/no_list_tile_name_link_test.dart`.
+          //
+          // `ink2` + `w500`, not `ink3`: `linkOrText` used to supply the
+          // `w500`, and `ink3` at 12px is ~3.9:1 — below AA on the one field
+          // people scan this list for.
           ClientNameLabel(
             clientId: i.clientId,
-            style: TextStyle(color: tokens.ink3, fontSize: 12),
-            link: true,
+            style: TextStyle(
+              color: tokens.ink2,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ],

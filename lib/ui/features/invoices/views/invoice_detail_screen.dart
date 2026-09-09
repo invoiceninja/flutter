@@ -519,6 +519,12 @@ class _Header extends StatelessWidget {
                 const SizedBox(width: 4),
                 LinkText(
                   label: context.tr('recurring_invoice'),
+                  // Same at-rest cue the client name above gets through
+                  // `linkOrText` — this one builds its `LinkText` by hand, and
+                  // without these two the same header would carry one visibly
+                  // navigable link and one invisible on touch (#128).
+                  color: linkAtRestColor(context),
+                  underlineAtRest: linkNeedsAtRestCue,
                   style: TextStyle(
                     color: tokens.ink3,
                     fontWeight: FontWeight.w500,

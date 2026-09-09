@@ -50,6 +50,7 @@ enum CreditAction {
   runTemplate,
   addComment,
   logCall,
+  viewClient,
   copyLink,
   archive,
   restore,
@@ -125,6 +126,10 @@ class CreditActions {
     final canArchive = credit.archivedAt == null && !credit.isDeleted;
     final canRestore = credit.archivedAt != null || credit.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
+    // detail grids. Read lazily here (itemsFor runs per build) so it
+    // re-resolves on a company switch.
+    final canViewClient = me?.can('view_client') ?? false;
     final canEdit = me?.can('edit_credit') ?? false;
     final canCreate = me?.can('create_credit') ?? false;
     final canDelete = me?.can('edit_credit') ?? false;
@@ -265,6 +270,18 @@ class CreditActions {
           onTap: () => onTap(CreditAction.logCall),
         ),
       ],
+      if (credit.clientId.isNotEmpty && canViewClient)
+        EntityActionItem(
+          kind: CreditAction.viewClient,
+          icon: Icons.person_outline,
+          label: context.tr('view_client'),
+          enabled: true,
+          // Navigation only — must not reach the edit screen, where
+          // `EntityEditScaffold._onAction` would save the dirty form (or
+          // create the record) before dispatching it.
+          isNavigationOnly: true,
+          onTap: () => onTap(CreditAction.viewClient),
+        ),
       ?copyLinkActionItem(
         context: context,
         kind: CreditAction.copyLink,
@@ -471,6 +488,9 @@ class CreditActions {
             text: text,
           ),
         );
+      case CreditAction.viewClient:
+        if (credit.clientId.isEmpty) return;
+        goEntityFullDetail(context, '/clients', credit.clientId);
       case CreditAction.copyLink:
         await copyEntityLink(context, EntityType.credit, credit.id);
       case CreditAction.archive:

@@ -192,8 +192,11 @@ class _PurchaseOrderListTileState extends State<PurchaseOrderListTile> {
           const SizedBox(height: 2),
           VendorNameLabel(
             vendorId: p.vendorId,
-            style: TextStyle(color: tokens.ink3, fontSize: 12),
-            link: true,
+            style: TextStyle(
+              color: tokens.ink2,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ],

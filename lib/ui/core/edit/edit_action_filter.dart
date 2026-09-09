@@ -4,11 +4,17 @@ import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 /// bar, porting the old admin-portal `getActions` show/hide rules without
 /// touching any per-entity `itemsFor` body.
 ///
-/// Two adjustments vs. the detail surface:
+/// Three adjustments vs. the detail surface:
 ///
 ///  * **The primary action is always dropped.** By the
 ///    `standard_entity_action_items` convention the only `isPrimary` item
 ///    is "Edit" — pointless on the screen that *is* the editor.
+///  * **Pure navigation actions are always dropped.** An item flagged
+///    [EntityActionItem.isNavigationOnly] (View client / View vendor) persists
+///    nothing, but `EntityEditScaffold._onAction` treats any action without a
+///    `saveParamFor` entry as an after-save action — so on a dirty form it
+///    would save first, and in create mode create the record. See the field's
+///    own doc.
 ///  * **On create**, lifecycle/clone actions the old app hid on a new
 ///    record are dropped: `clone`, the whole clone group, `archive`,
 ///    `restore`, `delete`. The caller supplies [isLifecycle] (a tiny
@@ -25,6 +31,9 @@ List<EntityActionItem<A>> filterForEditScreen<A>(
 }) {
   return [
     for (final item in items)
-      if (!item.isPrimary && !(isCreate && isLifecycle(item.kind))) item,
+      if (!item.isPrimary &&
+          !item.isNavigationOnly &&
+          !(isCreate && isLifecycle(item.kind)))
+        item,
   ];
 }

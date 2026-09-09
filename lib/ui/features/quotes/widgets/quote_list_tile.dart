@@ -189,8 +189,11 @@ class _QuoteListTileState extends State<QuoteListTile> {
           const SizedBox(height: 2),
           ClientNameLabel(
             clientId: q.clientId,
-            style: TextStyle(color: tokens.ink3, fontSize: 12),
-            link: true,
+            style: TextStyle(
+              color: tokens.ink2,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ],

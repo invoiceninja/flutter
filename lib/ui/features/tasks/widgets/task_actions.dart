@@ -65,8 +65,9 @@ class TaskActions {
   /// After-save actions whose [dispatch] navigates unconditionally; the
   /// create-mode edit scaffold uses this to keep that navigation instead of
   /// redirecting to the detail screen. See `InvoiceActions.navigatesOnCreate`.
-  /// `viewClient` (empty-client early return) and `addToInvoice` (dismissable
-  /// picker dialog) are excluded — they don't always navigate.
+  /// `addToInvoice` (dismissable picker dialog) is excluded — it doesn't
+  /// always navigate. `viewClient` never reaches an edit screen at all now
+  /// (`isNavigationOnly`), so it can't be an after-save action either.
   static bool navigatesOnCreate(TaskAction action) {
     switch (action) {
       case TaskAction.newInvoice:
@@ -133,6 +134,10 @@ class TaskActions {
     final canArchive = task.archivedAt == null && !task.isDeleted;
     final canRestore = task.archivedAt != null || task.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
+    // detail grids. Read lazily here (itemsFor runs per build) so it
+    // re-resolves on a company switch.
+    final canViewClient = me?.can('view_client') ?? false;
 
     // Start/Stop/Resume — only one renders at a time, gated by task state.
     EntityActionItem<TaskAction>? timerItem;
@@ -201,12 +206,16 @@ class TaskActions {
               !task.isRunning,
           onTap: () => onTap(TaskAction.addToInvoice),
         ),
-      if (task.clientId.isNotEmpty)
+      if (task.clientId.isNotEmpty && canViewClient)
         EntityActionItem(
           kind: TaskAction.viewClient,
           icon: Icons.person_outline,
           label: context.tr('view_client'),
           enabled: true,
+          // Navigation only — must not reach the edit screen, where
+          // `EntityEditScaffold._onAction` would save the dirty form (or
+          // create the record) before dispatching it.
+          isNavigationOnly: true,
           onTap: () => onTap(TaskAction.viewClient),
         ),
       EntityActionItem(

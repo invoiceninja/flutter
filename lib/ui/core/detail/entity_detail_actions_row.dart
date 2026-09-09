@@ -34,6 +34,7 @@ class EntityActionItem<A> {
     this.children,
     this.disabledTooltipKey = 'coming_soon',
     this.isLifecycle = false,
+    this.isNavigationOnly = false,
     this.confirm = false,
     this.isDestructive = false,
     this.confirmMessageKey,
@@ -54,6 +55,18 @@ class EntityActionItem<A> {
   /// destructive group reads as separate from the entity-specific actions
   /// above it.
   final bool isLifecycle;
+
+  /// A pure navigation action: it persists nothing, it just goes somewhere
+  /// else (View client / View vendor).
+  ///
+  /// Set it so [filterForEditScreen] drops the item from the edit/create
+  /// screen. `EntityEditScaffold._onAction` treats any action with no
+  /// `saveParamFor` entry as an *after-save* action, so on a dirty form it
+  /// runs `_runSave` **first** — and in create mode it creates the record
+  /// outright, then races its own "saved" toast + detail redirect against the
+  /// action's own navigation. A verb that only navigates must never be able
+  /// to trigger a save the user did not ask for.
+  final bool isNavigationOnly;
 
   /// Gate this action behind an "Are you sure?" dialog when the user has
   /// **Confirm actions** on (Settings → Device Settings → Security; on by

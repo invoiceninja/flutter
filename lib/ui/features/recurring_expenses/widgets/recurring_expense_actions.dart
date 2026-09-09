@@ -32,6 +32,7 @@ enum RecurringExpenseAction {
   cloneToExpense,
   addComment,
   logCall,
+  viewVendor,
   copyLink,
   archive,
   restore,
@@ -73,6 +74,10 @@ class RecurringExpenseActions {
     final canRestore =
         recurringExpense.archivedAt != null || recurringExpense.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
+    // detail grids. Read lazily here (itemsFor runs per build) so it
+    // re-resolves on a company switch.
+    final canViewVendor = me?.can('view_vendor') ?? false;
 
     return [
       editActionItem(
@@ -129,6 +134,18 @@ class RecurringExpenseActions {
         enabled: true,
         onTap: () => onTap(RecurringExpenseAction.logCall),
       ),
+      if (recurringExpense.vendorId.isNotEmpty && canViewVendor)
+        EntityActionItem(
+          kind: RecurringExpenseAction.viewVendor,
+          icon: Icons.storefront_outlined,
+          label: context.tr('view_vendor'),
+          enabled: true,
+          // Navigation only — must not reach the edit screen, where
+          // `EntityEditScaffold._onAction` would save the dirty form (or
+          // create the record) before dispatching it.
+          isNavigationOnly: true,
+          onTap: () => onTap(RecurringExpenseAction.viewVendor),
+        ),
       ?copyLinkActionItem(
         context: context,
         kind: RecurringExpenseAction.copyLink,
@@ -236,6 +253,9 @@ class RecurringExpenseActions {
             text: text,
           ),
         );
+      case RecurringExpenseAction.viewVendor:
+        if (recurringExpense.vendorId.isEmpty) return;
+        goEntityFullDetail(context, '/vendors', recurringExpense.vendorId);
       case RecurringExpenseAction.copyLink:
         await copyEntityLink(
           context,

@@ -32,6 +32,7 @@ enum ExpenseAction {
   runTemplate,
   addComment,
   logCall,
+  viewVendor,
   copyLink,
   archive,
   restore,
@@ -71,6 +72,10 @@ class ExpenseActions {
     final canArchive = expense.archivedAt == null && !expense.isDeleted;
     final canRestore = expense.archivedAt != null || expense.isDeleted;
     final me = context.read<Services>().auth.session.value?.currentCompany;
+    // Permission gate, matching `EntityLinkCard`'s `permissionKey:` on the
+    // detail grids. Read lazily here (itemsFor runs per build) so it
+    // re-resolves on a company switch.
+    final canViewVendor = me?.can('view_vendor') ?? false;
 
     return [
       editActionItem(
@@ -136,6 +141,18 @@ class ExpenseActions {
         enabled: true,
         onTap: () => onTap(ExpenseAction.logCall),
       ),
+      if (expense.vendorId.isNotEmpty && canViewVendor)
+        EntityActionItem(
+          kind: ExpenseAction.viewVendor,
+          icon: Icons.storefront_outlined,
+          label: context.tr('view_vendor'),
+          enabled: true,
+          // Navigation only — must not reach the edit screen, where
+          // `EntityEditScaffold._onAction` would save the dirty form (or
+          // create the record) before dispatching it.
+          isNavigationOnly: true,
+          onTap: () => onTap(ExpenseAction.viewVendor),
+        ),
       ?copyLinkActionItem(
         context: context,
         kind: ExpenseAction.copyLink,
@@ -228,6 +245,9 @@ class ExpenseActions {
             text: text,
           ),
         );
+      case ExpenseAction.viewVendor:
+        if (expense.vendorId.isEmpty) return;
+        goEntityFullDetail(context, '/vendors', expense.vendorId);
       case ExpenseAction.copyLink:
         await copyEntityLink(context, EntityType.expense, expense.id);
       case ExpenseAction.archive:

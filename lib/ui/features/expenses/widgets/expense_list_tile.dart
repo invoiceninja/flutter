@@ -183,8 +183,11 @@ class _ExpenseListTileState extends State<ExpenseListTile> {
           const SizedBox(height: 2),
           VendorNameLabel(
             vendorId: e.vendorId,
-            style: TextStyle(color: tokens.ink3, fontSize: 12),
-            link: true,
+            style: TextStyle(
+              color: tokens.ink2,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ],

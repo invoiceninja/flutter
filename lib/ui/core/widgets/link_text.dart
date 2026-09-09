@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/ui/core/widgets/widget_preview_support.dart';
 
 /// Text styled as a link: underline on hover with the click cursor. Used
 /// to mark clickable text inside larger tap surfaces (table cells inside a
 /// `TableRowInkWell`, "View all" labels inside an `InkWell`, etc.) so the
 /// word reads as a navigable link before the user mouses over it.
+///
+/// The hover underline is the whole affordance on a pointer platform — and it
+/// can never fire on touch, which is why [underlineAtRest] exists. Callers
+/// that route through [linkOrText] get that decision made for them.
 ///
 /// When [onTap] is non-null the widget also handles the tap itself; when
 /// null, it's a pure visual that relies on an ancestor (`InkWell` /
@@ -23,6 +28,7 @@ class LinkText extends StatefulWidget {
     this.maxLines,
     this.overflow,
     this.enabled = true,
+    this.underlineAtRest = false,
   });
 
   final String label;
@@ -40,6 +46,15 @@ class LinkText extends StatefulWidget {
   final Color? hoverColor;
 
   final VoidCallback? onTap;
+
+  /// Show the underline at rest, not only on hover. Set it where hover can
+  /// never fire — on touch the hover cue is unreachable, so the affordance
+  /// has to be visible *before* the tap. Off by default so the pointer
+  /// surfaces that rely on hover alone (the Number cell's [cellLink], the
+  /// dashboard tables) stay exactly as they are. The decision belongs to
+  /// [linkOrText]; this is only the mechanism.
+  final bool underlineAtRest;
+
   final int? maxLines;
   final TextOverflow? overflow;
 
@@ -61,7 +76,8 @@ class _LinkTextState extends State<LinkText> {
     final resolvedColor = widget.color ?? widget.style?.color ?? tokens.ink;
     final resolvedHover = widget.hoverColor ?? resolvedColor;
     final base = widget.style ?? const TextStyle();
-    final showUnderline = widget.enabled && _hovering;
+    final showUnderline =
+        widget.enabled && (_hovering || widget.underlineAtRest);
     final effective = base.copyWith(
       color: widget.enabled
           ? (_hovering ? resolvedHover : resolvedColor)
@@ -96,13 +112,48 @@ class _LinkTextState extends State<LinkText> {
   }
 }
 
-/// Render [label] as a hover-underlined [LinkText] when [link] is true and
-/// an [onTap] is supplied, otherwise as plain [Text]. The link variant is a
-/// touch bolder (`w500`) than the surrounding cell so a cross-entity
-/// reference reads as navigable at rest without an at-rest underline.
-/// Shared by the `*NameLabel` widgets so column cells and mobile tiles
-/// stay consistent.
+/// Whether a link must show its affordance **at rest** rather than on hover.
+///
+/// Gated on the input device, not the viewport — the same reasoning as
+/// `InSizes.touchTarget`: a narrow desktop window still has a mouse, and a
+/// tablet at any width still has fingers. A pure function so the rule is
+/// unit-testable without pumping a widget.
+bool get linkNeedsAtRestCue => Env.isTouchPrimary;
+
+/// The at-rest colour for a cross-entity link, or `null` to leave the
+/// caller's own styling alone (which is what every pointer platform gets, so
+/// desktop rendering is unchanged).
+///
+/// `accentInk`, **not** `accent`: a selected list row is filled with
+/// `accentSoft` (`selectable_list_row.dart`), and `accent` is the same mid
+/// blue in BOTH brightnesses — it lands at ~3.2:1 on the dark `accentSoft`,
+/// under the 4.5:1 floor. `accentInk` shifts per brightness and clears it
+/// either way. Same call `client_picker_field.dart`, `tag_picker_field.dart`
+/// and `line_item_table_desktop.dart` already made.
+Color? linkAtRestColor(BuildContext context) =>
+    linkNeedsAtRestCue ? context.inTheme.accentInk : null;
+
+/// Render [label] as a [LinkText] when [link] is true and an [onTap] is
+/// supplied, otherwise as plain [Text]. Shared by the `*NameLabel` widgets so
+/// column cells and detail surfaces stay consistent.
+///
+/// The link variant is a touch bolder (`w500`) than the surrounding cell, and
+/// **on touch it also underlines and recolours at rest** — because the hover
+/// underline that carries "this is a link" on a pointer platform can never
+/// fire there (invoiceninja/flutter#128).
+///
+/// The underline is the affordance and the colour only rides along: `accent`
+/// is user-overridable per (company, user), `_deriveAccentInk` re-derives this
+/// family from whatever the user picked, and the second stock swatch
+/// (`#1F2937`) clamps to near-black in light mode — so a colour-only cue can
+/// silently evaporate, and a green- or red-branded company would get client
+/// names that read as `paid` / `overdue`.
+///
+/// A cross-entity link must NOT be used inside a narrow list row: the row owns
+/// the tap there, and a nested opaque [LinkText] steals it. See
+/// `test/lint/no_list_tile_name_link_test.dart`.
 Widget linkOrText({
+  required BuildContext context,
   required bool link,
   required String label,
   VoidCallback? onTap,
@@ -113,12 +164,26 @@ Widget linkOrText({
   if (!link || onTap == null) {
     return Text(label, style: style, maxLines: maxLines, overflow: overflow);
   }
-  return LinkText(
+  // `onTap` on the Semantics as well as the child: `excludeSemantics: true`
+  // drops the descendant `GestureDetector`'s node INCLUDING its
+  // `SemanticsAction.tap`, so without it the bridge reports a link with no
+  // `ACTION_CLICK` and TalkBack / switch access have nothing to invoke.
+  // `link:` rather than `button:` — a cross-entity jump is a link, and that is
+  // what a screen reader should announce.
+  return Semantics(
+    link: true,
     label: label,
     onTap: onTap,
-    style: (style ?? const TextStyle()).copyWith(fontWeight: FontWeight.w500),
-    maxLines: maxLines,
-    overflow: overflow,
+    excludeSemantics: true,
+    child: LinkText(
+      label: label,
+      onTap: onTap,
+      color: linkAtRestColor(context),
+      underlineAtRest: linkNeedsAtRestCue,
+      style: (style ?? const TextStyle()).copyWith(fontWeight: FontWeight.w500),
+      maxLines: maxLines,
+      overflow: overflow,
+    ),
   );
 }
 

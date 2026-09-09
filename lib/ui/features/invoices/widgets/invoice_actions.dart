@@ -777,6 +777,7 @@ class InvoiceActions {
           companyId: companyId,
           entityId: invoice.id,
           subject: _confirmSubject(invoice),
+          clientId: invoice.clientId,
           submit: (text) => services.invoices.addComment(
             companyId: companyId,
             entityId: invoice.id,

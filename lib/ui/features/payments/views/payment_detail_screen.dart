@@ -107,6 +107,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
             companyId: _companyId,
             entityId: p.id,
             subject: p.number.isEmpty ? '' : '#${p.number}',
+            clientId: p.clientId,
             submit: (text) => _services.payments.addComment(
               companyId: _companyId,
               entityId: p.id,

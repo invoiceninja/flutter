@@ -237,6 +237,8 @@ class RecurringExpenseActions {
           companyId: companyId,
           entityId: recurringExpense.id,
           subject: _confirmSubject(recurringExpense),
+          vendorId: recurringExpense.vendorId,
+          clientId: recurringExpense.clientId,
           submit: (text) => services.recurringExpenses.addComment(
             companyId: companyId,
             entityId: recurringExpense.id,

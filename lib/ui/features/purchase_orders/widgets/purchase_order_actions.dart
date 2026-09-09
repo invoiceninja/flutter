@@ -561,6 +561,8 @@ class PurchaseOrderActions {
           companyId: companyId,
           entityId: po.id,
           subject: _confirmSubject(po),
+          vendorId: po.vendorId,
+          clientId: po.clientId,
           submit: (text) => services.purchaseOrders.addComment(
             companyId: companyId,
             entityId: po.id,

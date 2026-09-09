@@ -40,7 +40,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// takes `1h 30m` and `1:30`, so it needs letters and must not be handed a
 /// number pad. The log-call `contact` slot holds `"<name> · <number>"`
 /// (`lib/ui/core/dialogs/log_call_sheet.dart`, which documents it), so it is
-/// not a phone field even though its picker tooltip is `phone_numbers` —
+/// not a phone field even though its picker tooltip is `contacts` —
 /// adding that key to `_phone` would make a name untypeable. Membership is
 /// also **exact**, never substring: `email_from_name` is a name and
 /// `email_style_custom` is an HTML body, and both would be wrongly demanded

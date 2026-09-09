@@ -143,7 +143,7 @@ the honest default.
 | Client — import contact from device address book (iOS + Android) | ❌ | ✅ | ✅ | | |
 | Client contacts — sync out to the device address book (caller ID) | ❌ | ❌ | ✅ | | |
 | Client — call from the list row on a phone: one tap for a single number, a contact picker when there are several | ❌ | ❌ | ✅ | | |
-| Log a phone call against a record — direction, time, contact, duration and a summary, written into the activity feed | ❌ | ❌ | ✅ | | |
+| Log a phone call against a record — direction, time, contact (pre-filled from the record's client or vendor contacts, including those with no stored number), duration and a summary, written into the activity feed | ❌ | ❌ | ✅ | | |
 | Offer to log a call on return from the dialer (dismissible toast, device-local preference) | ❌ | ❌ | ✅ | | |
 | Phone numbers — tap to call, plus a Message (SMS) action on contact rows | ❌ | 🟡 | ✅ | | |
 | Client/Vendor — contact CC-only | ✅ | ✅ | ✅ | — | — |

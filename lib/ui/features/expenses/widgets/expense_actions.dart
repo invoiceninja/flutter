@@ -229,6 +229,8 @@ class ExpenseActions {
           companyId: companyId,
           entityId: expense.id,
           subject: _confirmSubject(expense),
+          vendorId: expense.vendorId,
+          clientId: expense.clientId,
           submit: (text) => services.expenses.addComment(
             companyId: companyId,
             entityId: expense.id,

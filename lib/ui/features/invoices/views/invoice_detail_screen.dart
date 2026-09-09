@@ -307,6 +307,13 @@ class _Body extends StatelessWidget {
             companyId: companyId,
             entityId: invoice.id,
             subject: invoice.number.isEmpty ? '' : '#${invoice.number}',
+            // Client only. `Invoice` declares a `vendorId` too — so do
+            // Quote / Credit / RecurringInvoice / Payment, and it is a
+            // real field with a shipped list column. It is just not the
+            // right party here: a call logged against an invoice is a
+            // call to whoever owes it. Vendor-first applies to expenses,
+            // recurring expenses and purchase orders.
+            clientId: invoice.clientId,
             submit: (text) => services.invoices.addComment(
               companyId: companyId,
               entityId: invoice.id,

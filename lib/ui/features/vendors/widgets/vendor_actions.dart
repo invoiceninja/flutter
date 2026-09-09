@@ -6,7 +6,6 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_type.dart';
-import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
@@ -225,7 +224,7 @@ class VendorActions {
           companyId: companyId,
           entityId: vendor.id,
           subject: _confirmSubject(vendor),
-          candidates: vendorPhoneCandidates(vendor),
+          vendorId: vendor.id,
           submit: (text) => services.vendors.addComment(
             companyId: companyId,
             entityId: vendor.id,

@@ -23,6 +23,8 @@ PhoneDetailRow / PhoneNumberValue / ContactLocalTime   lib/ui/core/widgets/phone
 PartyCallButton / PhoneCallButton    the glyph + picker                      lib/ui/core/widgets/party_call_button.dart
   ├─ PhoneCallButtonVariant          .inline (detail header) / .listRow
   └─ clientPhoneCandidates()         which numbers, in what order            lib/domain/phone/phone_candidates.dart
+clientCallLogCandidates()       the same walk, widened; NOT for the dialer   lib/domain/phone/phone_candidates.dart
+  └─ promptLogCallFor()          its only caller                             lib/ui/core/detail/activity_note_actions.dart
 ClientListTile._callButton / VendorListTile._callButton   callers, not children: the narrow list row
 ```
 
@@ -72,6 +74,43 @@ case). It is deliberately **not** ordered by the document's `invitations` — an
 email-delivery fact, and primary-first is both more predictable and stable from one document to the
 next. A "was sent this document" *marker* on the matching picker rows is the one thing this surface
 knows that the client screen doesn't, and is the obvious next increment.
+
+**There is a second builder, and it is not for dialling.** `clientCallLogCandidates` /
+`vendorCallLogCandidates` run the same walk in the same order for the log-call form, whose Contact
+field answers *"who did you speak to"*, not *"which number do I dial"*. Three differences: a contact
+with **no stored number** is kept, contributing its name alone (email-only contacts are ordinary,
+and dropping them is what left the field blank); contacts are **not deduped against each other**,
+because two colleagues sharing one switchboard number are two different answers here, though the
+party's own line is still deduped so a repeated office number doesn't render twice; and a **named**
+contact's un-dialable number (`1-800-FLOWERS`) is kept **verbatim**, since it is a true record of
+who was called and the note is permanent.
+
+A contact with neither a name nor a dialable number is dropped — that is the all-blank row the
+server seeds for every client — and so is a nameless one storing only an un-dialable string, by the
+same test. Note that test is the *name*, deliberately stricter than `Contact.isBlank`, which also
+counts `email` and so would admit a nameless contact carrying only a server-minted portal address:
+right for the detail card, which renders the address, wrong for a picker row that would read
+`(no name)` with nothing under it. A nameless contact *with* a number is kept, and renders exactly
+as the dialer's does. The party's own top-level line still requires a real number, so this never
+invents a numberless row labelled with the party's own name.
+
+**One consequence on the two screens that already worked.** Client and Vendor now seed from this
+same widened list, so a primary contact with a name but no stored number seeds its bare name where
+the field used to fall through to the party's own line — *and its number*. The note is append-only,
+so it now records a person where it used to record a company and a number. That is what the field's
+own question asks for ("who did you speak to"), and the number is one tap away in the picker, but it
+is a change to permanent output that cannot be corrected after Save.
+
+**Never hand one of those to the dialer.** `PhoneCallButton` asserts every candidate has a number,
+and `call_note_wiring_test.dart` allowlists the two files that may *call* the widened builders (any
+file may name them — the scan strips comments first, which is also why it matches the bare name
+rather than `symbol(`, so a tear-off can't slip past). A numberless candidate reaching
+`callPhoneNumber` is a dead tap with no toast (`telUri('')` is null), a tooltip ending in a bare `·`,
+and a long-press that copies the empty string and toasts that it did. `_CandidateRow` therefore
+makes four things conditional for such a row: the number line, the gap, the copy button and the
+long-press. The gap travels with the button — left behind, it strands 8 px at the end of the row —
+while the long-press goes for its own reason, that a copy gesture which copies nothing and says it
+did is worse than no gesture.
 
 Six things here are load-bearing, and most of them fail silently:
 
@@ -245,6 +284,56 @@ Task and Project mount the same tab and pass `EntityNoteActions.none`: neither r
 `addComment`. `test/lint/call_note_wiring_test.dart` pins those call sites, because a dark button
 is silent.
 
+**Whose contacts the form offers (invoiceninja/flutter#129).** `promptLogCallFor` takes the
+record's party — `clientId` / `vendorId` — and resolves it from Drift itself, so wherever the party
+has a named contact or a stored number the Contact field seeds and the picker icon appears. Before
+this only Client and Vendor passed a candidate list, because only those two screens hold a resolved
+record with `contacts` on it; every invoice, quote, credit, recurring invoice, purchase order,
+payment, expense and recurring expense fell through to an empty default at all **15** of their call
+sites — two each, bar recurring expense, which mounts no Activity tab and so has only its `⋯` arm.
+The field was blank and the picker icon absent. Nothing failed — the button rendered, the sheet
+opened, the note saved — which is why `test/lint/call_note_wiring_test.dart` now fails the build on
+a `promptLogCallFor(` call site that names the wrong party or none.
+
+Five things here are load-bearing:
+
+- **Vendor wins over client, on vendor-facing records only** — expense, recurring expense and
+  purchase order. `Invoice`, `Quote`, `Credit`, `RecurringInvoice` **and `Payment`** also declare a
+  `vendorId`, and it is *not* vestigial — `invoice_columns.dart` ships a linked Vendor column for the
+  billing docs and React offers one too. It is simply not the right party here: a call logged against
+  an invoice is a call to whoever owes it. Wiring it "for symmetry" would silently point those five
+  at the wrong contacts, so the lint checks per entity rather than accepting either id, and
+  `invoice_detail_screen.dart` carries a comment saying why.
+- **A non-empty `vendorId` that doesn't resolve yields NOTHING, never the client's contacts.** On an
+  expense or PO whose vendor merely isn't cached, falling through would file the wrong party's name
+  into a note that is append-only and permanent.
+- **The read is Drift-first, and only then a *bounded* hydrate** — `watch(...).first`, and on a miss
+  `ensureLoaded(...).timeout(2 s)` before reading again. Never unbounded: `ensureLoaded` awaits its
+  fetch with no timeout of its own, and this tap has no spinner and no cancel. And not
+  fire-and-forget either, because the miss is a *configuration* rather than a race — reachable from
+  both layouts, though not for the obvious reason. **Wide:** a billing doc's table hydrates its
+  client from the Client column *and* from every money column (`cellPartyMoney` →
+  `PartyCurrencyBuilder._ensure`), and `amount` / `balance` ship visible by default, so the miss
+  needs all of them hidden or a genuinely zero row; on the vendor-facing three the hydrating cell is
+  `VendorNameLabel`. **Narrow:** the tile is *not* always safe — `expense_list_tile.dart` mounts
+  `VendorNameLabel` only when a vendor is set, and `recurring_expense_list_tile.dart` only when the
+  number is empty, so an ordinary numbered recurring expense hydrates nothing at all on a phone.
+  `ensureLoaded` also negative-caches a 404, so "it'll be warm next time" isn't guaranteed. The whole
+  resolution sits in a `try`/`catch` that **logs a WARNING** and degrades to no candidates: it runs
+  inside a fire-and-forget `onLogCall`, so an escaping drift-stream error would swallow the tap
+  entirely — no sheet, no toast — and a silent degradation would be byte-for-byte the #129 symptom.
+  It is `watch(...).first`, **never `peek`** (`peek_is_seed_only_test.dart`).
+- **The button is latched for the duration.** `ActivityNoteButtons` disables each button while its
+  own callback is in flight. Without it a second tap during the lookup stacks a second sheet, each
+  running its own `runMutationWithNotify(submit)` — the same permanent call note posted twice. The
+  `⋯` arms need none, because the menu closes on selection. Disabling is also the only feedback
+  there is: before it, a slow lookup left the button looking simply dead.
+- **The picker is headed with the party, not the record.** `subject` is `#0064` on a document and
+  titles the *form* correctly, but it used to title the picker too — "Call #0064" names the wrong
+  thing and claims an action that isn't happening. `showPhoneCandidatePicker` grew a `title:`
+  override for it, falling back to the dialer's `Call <party>`, and the field's suffix tooltip is
+  now `contacts` rather than `phone_numbers`.
+
 Routing everything through the two helpers is not tidiness. Before it, five billing `⋯` arms
 awaited the repo bare — no success toast, no Retry — while the Activity tab on the same screen
 toasted; three more used private helpers that skipped `requireSynced` entirely; and Vendor showed
@@ -362,6 +451,16 @@ burst dedupe and not a cache — `SettingsRepository.resolved` stays uncached, a
   the reason `entity_sort_filter_sheet.dart` and `tax_category_dialog.dart` both hand-roll a
   selectable list. The design rule ("two choices stay visible") is about the affordance, not that
   widget. `log_call_sheet_test.dart` pins it in both presentations.
+- **`showPhoneCandidatePicker` applies no `tapToCall` gate of its own** — `PartyCallButton` and
+  `PhoneCallButton` each gate in their own `_build`, and the picker function does not. That is what keeps the log-call form's contact chooser
+  working on desktop, where the preference defaults off, and it is not an oversight: choosing who a
+  past call was with is not placing one. The form's suffix icon is ungated for the same reason.
+- **`CallLogPrompter._open` still passes no `candidates`, so the post-call sheet has no picker.**
+  Its Contact field is already seeded from `dialled` — the number actually rung — so the picker
+  would only serve the "dialled Jane, spoke to Bob" case. This is a choice, not a limitation:
+  `PendingCallLog` carries `entityType` + `entityId`, which for a client or vendor target **is** the
+  party id, so two of the ten target types could be wired today while the eight document types would
+  need the document loaded first. An asymmetry of its own, so neither was done.
 - **The contact field is a plain `TextField`, never a `SearchableDropdownField`.** That widget sets
   `TextInputType.none` for a list of six or fewer, so the soft keyboard never opens, and renders a
   *disabled* field when `items` is empty — between them they make it impossible to log a call to a

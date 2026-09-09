@@ -167,6 +167,7 @@ class _Body extends StatelessWidget {
             subject: recurringInvoice.number.isEmpty
                 ? ''
                 : '#${recurringInvoice.number}',
+            clientId: recurringInvoice.clientId,
             submit: (text) => services.recurringInvoices.addComment(
               companyId: companyId,
               entityId: recurringInvoice.id,

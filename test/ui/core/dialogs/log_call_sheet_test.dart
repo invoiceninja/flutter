@@ -34,6 +34,8 @@ void main() {
     double textScale = 1.0,
     List<PhoneCandidate> candidates = const <PhoneCandidate>[],
     Duration? suggestedDuration,
+    String subject = 'Acme Corp',
+    String partyName = '',
   }) async {
     result = null;
     tester.view.physicalSize = Size(width, 900);
@@ -61,7 +63,8 @@ void main() {
                   result = await showLogCallSheet(
                     context,
                     companyId: 'co',
-                    subject: 'Acme Corp',
+                    subject: subject,
+                    partyName: partyName,
                     candidates: candidates,
                     suggestedDuration: suggestedDuration,
                   );
@@ -253,6 +256,14 @@ void main() {
                   context,
                   companyId: 'co',
                   subject: 'Acme Corp',
+                  partyName: 'Acme Corp',
+                  // With candidates, so the Contact field carries its suffix
+                  // `IconButton`. This sweep passed none until #129, which was
+                  // representative then — documents never had any — and is not
+                  // now that every entity normally does: the icon takes 48 px
+                  // out of a field that is already only two thirds of a 296 px
+                  // row at 1.4x.
+                  candidates: const [candidate],
                 ),
                 child: const Text('open'),
               ),
@@ -304,5 +315,111 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('Jane Smith'), findsWidgets);
+  });
+  testWidgets('the contact picker is headed with the party, not the record', (
+    tester,
+  ) async {
+    // `subject` is `#0064` on a document, and it titles the form correctly —
+    // but it used to title the picker too, which then read "Call #0064": the
+    // wrong thing named, with a verb claiming an action that isn't happening
+    // (invoiceninja/flutter#129).
+    await open(
+      tester,
+      subject: '#0064',
+      partyName: 'Acme Corporation',
+      candidates: const [candidate],
+    );
+
+    await tester.tap(find.byIcon(Icons.contacts_outlined));
+    await tester.pumpAndSettle();
+
+    // Asserted as whole strings, not `textContaining`: the form itself is still
+    // mounted behind the picker and its own title is "Log Call · #0064".
+    expect(find.text('Acme Corporation'), findsOneWidget);
+    expect(find.text('Call #0064'), findsNothing);
+    expect(find.text('Call Acme Corporation'), findsNothing);
+  });
+
+  testWidgets('an unnamed party falls back to a plain Contacts heading', (
+    tester,
+  ) async {
+    await open(tester, subject: '#0064', candidates: const [candidate]);
+
+    await tester.tap(find.byIcon(Icons.contacts_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Contacts'), findsOneWidget);
+    // Never the dialer's bare verb with nothing to act on.
+    expect(find.text('Call'), findsNothing);
+    expect(find.text('Call #0064'), findsNothing);
+  });
+
+  testWidgets('a contact with no stored number seeds the field by name alone', (
+    tester,
+  ) async {
+    // The whole point of the widened list: an email-only contact is the common
+    // shape, and the note wants a name, not a number.
+    const nameless = (
+      label: 'Jane Smith',
+      phone: '',
+      isPrimary: true,
+      isPartyOwnLine: false,
+    );
+    await open(tester, partyName: 'Acme Corp', candidates: const [nameless]);
+
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Contact').first)
+          .controller
+          ?.text,
+      'Jane Smith',
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Summary'),
+      'Left a message',
+    );
+    await tester.pump();
+    await tester.tap(saveButton());
+    await tester.pumpAndSettle();
+
+    // One separator either side of the contact segment. The positive check
+    // alone is not enough: if `_contactText` regressed to `'Jane Smith · '`,
+    // `composeCallNote` would trim it to `'Jane Smith ·'` and the header would
+    // read `… Jane Smith · · <when>` — which still CONTAINS the string below.
+    expect(result, contains('Outgoing · Jane Smith · '));
+    expect(result, isNot(contains(' · · ')));
+  });
+
+  testWidgets('the picker offers a numberless row with no copy affordance', (
+    tester,
+  ) async {
+    const nameless = (
+      label: 'Jane Smith',
+      phone: '',
+      isPrimary: false,
+      isPartyOwnLine: false,
+    );
+    await open(
+      tester,
+      partyName: 'Acme Corp',
+      candidates: const [candidate, nameless],
+    );
+
+    await tester.tap(find.byIcon(Icons.contacts_outlined));
+    await tester.pumpAndSettle();
+
+    // One copy button, for the one row that has something to copy.
+    expect(find.byIcon(Icons.content_copy), findsOneWidget);
+
+    await tester.tap(find.text('Jane Smith').last);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Contact').first)
+          .controller
+          ?.text,
+      'Jane Smith',
+    );
   });
 }

@@ -35,6 +35,7 @@ Future<String?> showLogCallSheet(
   BuildContext context, {
   required String companyId,
   required String subject,
+  String partyName = '',
   List<PhoneCandidate> candidates = const <PhoneCandidate>[],
   PhoneCandidate? dialled,
   Duration? suggestedDuration,
@@ -60,6 +61,7 @@ Future<String?> showLogCallSheet(
     value: services,
     child: _LogCallForm(
       subject: subject,
+      partyName: partyName,
       candidates: candidates,
       initialContact: initial,
       suggestedDuration: suggestedDuration,
@@ -100,6 +102,7 @@ Future<String?> showLogCallSheet(
 class _LogCallForm extends StatefulWidget {
   const _LogCallForm({
     required this.subject,
+    required this.partyName,
     required this.candidates,
     required this.initialContact,
     required this.suggestedDuration,
@@ -107,9 +110,17 @@ class _LogCallForm extends StatefulWidget {
   });
 
   /// What this call is being logged *against* — a client or vendor's display
-  /// name, or a document's `#number`. Titles the form, and names the party in
-  /// the contact picker.
+  /// name, or a document's `#number`. Titles the form.
   final String subject;
+
+  /// The client or vendor whose contacts [candidates] came from, which heads
+  /// the contact picker.
+  ///
+  /// Separate from [subject] because on a document that is `#0064`, and a
+  /// picker headed "Call #0064" both names the wrong thing and claims an action
+  /// that isn't happening (invoiceninja/flutter#129). Empty falls back to a
+  /// plain "Contacts".
+  final String partyName;
   final List<PhoneCandidate> candidates;
   final PhoneCandidate? initialContact;
   final Duration? suggestedDuration;
@@ -175,7 +186,15 @@ class _LogCallFormState extends State<_LogCallForm> {
     final picked = await showPhoneCandidatePicker(
       context,
       candidates: widget.candidates,
-      partyName: widget.subject,
+      partyName: widget.partyName,
+      // Not the dialer's "Call <party>": this form records a call that has
+      // already happened, so the verb would be a claim about an action that
+      // isn't taking place. `clientId` stays null for the same reason — a live
+      // `ContactLocalTime` clock answers "what time is it there now", which is
+      // beside the point here (and arms a one-minute ticker).
+      title: widget.partyName.trim().isEmpty
+          ? context.tr('contacts')
+          : widget.partyName.trim(),
     );
     if (picked == null || !mounted) return;
     _contact.text = _contactText(picked);
@@ -374,7 +393,12 @@ class _LogCallFormState extends State<_LogCallForm> {
                                         Icons.contacts_outlined,
                                         size: 18,
                                       ),
-                                      tooltip: context.tr('phone_numbers'),
+                                      // 'Contacts', not 'Phone numbers': the
+                                      // log-call list also carries contacts
+                                      // with no stored number. Deliberately
+                                      // NOT gated on `tapToCall` — logging a
+                                      // call is not placing one.
+                                      tooltip: context.tr('contacts'),
                                       onPressed: _pickContact,
                                     ),
                             ),

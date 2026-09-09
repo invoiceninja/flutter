@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -246,6 +248,87 @@ void main() {
       await pump(tester, vmWith(_FakeActivitiesApi()), actions: both);
       expect(find.text('No comments yet'), findsNothing);
       expect(find.text('No records found'), findsOneWidget);
+    });
+  });
+  group('ActivityNoteButtons latching', () {
+    // `promptLogCallFor` resolves the record's party from Drift BEFORE it opens
+    // anything (invoiceninja/flutter#129), so the modal barrier no longer goes
+    // up inside the tapping frame. Left live, a second tap during that window
+    // stacks a second sheet and can post the same permanent call note twice.
+
+    Future<void> pumpButtons(
+      WidgetTester tester,
+      EntityNoteActions actions,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          home: Scaffold(body: ActivityNoteButtons(actions: actions)),
+        ),
+      );
+    }
+
+    Finder logCall() => find.widgetWithText(OutlinedButton, 'Log Call');
+
+    testWidgets('a second tap during the party lookup is refused', (
+      tester,
+    ) async {
+      var calls = 0;
+      final gate = Completer<void>();
+      await pumpButtons(
+        tester,
+        EntityNoteActions(
+          onLogCall: () async {
+            calls++;
+            await gate.future;
+          },
+        ),
+      );
+
+      await tester.tap(logCall());
+      await tester.pump();
+      expect(calls, 1);
+      // Disabled, not merely inert: the wait is the only thing the user can
+      // see, and before this the button looked simply dead for its duration.
+      expect(tester.widget<OutlinedButton>(logCall()).onPressed, isNull);
+
+      await tester.tap(logCall(), warnIfMissed: false);
+      await tester.pump();
+      expect(calls, 1);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(tester.widget<OutlinedButton>(logCall()).onPressed, isNotNull);
+      expect(calls, 1);
+    });
+
+    testWidgets('each button latches only itself', (tester) async {
+      final gate = Completer<void>();
+      await pumpButtons(
+        tester,
+        EntityNoteActions(
+          onLogCall: () => gate.future,
+          onAddComment: () async {},
+        ),
+      );
+
+      await tester.tap(logCall());
+      await tester.pump();
+
+      expect(tester.widget<OutlinedButton>(logCall()).onPressed, isNull);
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Add Comment'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+
+      gate.complete();
+      await tester.pumpAndSettle();
     });
   });
 }

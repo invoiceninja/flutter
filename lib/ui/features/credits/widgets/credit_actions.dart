@@ -472,6 +472,7 @@ class CreditActions {
           companyId: companyId,
           entityId: credit.id,
           subject: _confirmSubject(credit),
+          clientId: credit.clientId,
           submit: (text) => services.credits.addComment(
             companyId: companyId,
             entityId: credit.id,

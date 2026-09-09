@@ -9,7 +9,6 @@ import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/domain/entity_type.dart';
-import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
@@ -423,7 +422,7 @@ class ClientActions {
           companyId: companyId,
           entityId: client.id,
           subject: _confirmSubject(client),
-          candidates: clientPhoneCandidates(client),
+          clientId: client.id,
           submit: (text) => services.clients.addComment(
             companyId: companyId,
             entityId: client.id,

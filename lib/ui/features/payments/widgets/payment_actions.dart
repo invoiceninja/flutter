@@ -189,6 +189,7 @@ class PaymentActions {
           companyId: companyId,
           entityId: payment.id,
           subject: _confirmSubject(payment),
+          clientId: payment.clientId,
           submit: (text) => services.payments.addComment(
             companyId: companyId,
             entityId: payment.id,

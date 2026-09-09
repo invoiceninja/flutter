@@ -156,6 +156,7 @@ class _Body extends StatelessWidget {
             companyId: companyId,
             entityId: quote.id,
             subject: quote.number.isEmpty ? '' : '#${quote.number}',
+            clientId: quote.clientId,
             submit: (text) => services.quotes.addComment(
               companyId: companyId,
               entityId: quote.id,

@@ -701,4 +701,145 @@ void main() {
       expect(launcher.launched, ['tel:+14155552671']);
     });
   });
+  group('the picker with a numberless candidate', () {
+    // Only the log-call chooser can produce one (invoiceninja/flutter#129) —
+    // the dialer's own builders still require a dialable number, and
+    // `PhoneCallButton` asserts against it. So this exercises
+    // `showPhoneCandidatePicker` directly.
+    const nameless = (
+      label: 'Jane Smith',
+      phone: '',
+      isPrimary: true,
+      isPartyOwnLine: false,
+    );
+
+    // Returns nothing: the `onPressed` closure below is still suspended on the
+    // open picker when this returns, so anything it assigned would always be
+    // null. Tests here assert on what the picker RENDERS.
+    Future<void> openPicker(
+      WidgetTester tester,
+      List<PhoneCandidate> candidates, {
+      String? title,
+      double textScale = 1.0,
+    }) async {
+      await tester.pumpWidget(
+        Provider<Services>.value(
+          value: services,
+          child: MaterialApp(
+            theme: buildInTheme(InTheme.light),
+            localizationsDelegates: kTestLocalizationsDelegates,
+            supportedLocales: kTestSupportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showPhoneCandidatePicker(
+                    context,
+                    candidates: candidates,
+                    partyName: 'Acme Corporation',
+                    title: title,
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('renders no number line and no copy button', (tester) async {
+      await openPicker(tester, const [nameless, bob]);
+
+      expect(find.text('Jane Smith'), findsOneWidget);
+      // The two guards in `_CandidateRow` are independent, so assert both.
+      // Without this line, dropping only the number-line guard leaves a
+      // `Text('')` behind and every other assertion here still passes.
+      expect(find.text(''), findsNothing);
+      // One copy button, for the one row that has something to copy — and no
+      // stranded 8 px gap where the other one would have been.
+      expect(find.byIcon(Icons.content_copy), findsOneWidget);
+    });
+
+    testWidgets('long-pressing it copies nothing', (tester) async {
+      await openPicker(tester, const [nameless]);
+      await tester.longPress(find.text('Jane Smith'));
+      await tester.pump();
+
+      // A copy gesture that copies the empty string, and toasts that it did,
+      // is worse than no gesture.
+      expect(copied, isEmpty);
+    });
+
+    testWidgets('the row stays a legal touch target at the maximum scale', (
+      tester,
+    ) async {
+      await openPicker(tester, const [nameless], textScale: kTextScaleMax);
+
+      // The row's own `InkWell`, not `find.ancestor(…, ConstrainedBox).first`:
+      // that one silently resolves to the sheet's own `ConstrainedBox` if
+      // `_CandidateRow`'s is ever deleted, which is the change this is here to
+      // catch.
+      final row = tester
+          .getSize(
+            find
+                .ancestor(
+                  of: find.text('Jane Smith'),
+                  matching: find.byType(InkWell),
+                )
+                .first,
+          )
+          .height;
+      expect(row, greaterThanOrEqualTo(actionButtonSize()));
+    });
+
+    testWidgets('a title overrides the default Call heading', (tester) async {
+      await openPicker(tester, const [jane], title: 'Contacts');
+
+      expect(find.text('Contacts'), findsOneWidget);
+      expect(find.text('Call Acme Corporation'), findsNothing);
+    });
+
+    testWidgets('without a title the dialer heading is unchanged', (
+      tester,
+    ) async {
+      await openPicker(tester, const [jane]);
+
+      expect(find.text('Call Acme Corporation'), findsOneWidget);
+    });
+  });
+  testWidgets('PhoneCallButton asserts against a log-call candidate list', (
+    tester,
+  ) async {
+    // Both `call_note_wiring_test.dart`'s allowlist and `docs/tap-to-call.md`
+    // lean on this assert as the runtime half of "never hand the dialer a
+    // numberless candidate", so it needs to actually fire. In release it is
+    // compiled out and a leak degrades to a dead tap — which is the stated
+    // trade, and why the lint is the primary guard.
+    await pumpAt(
+      tester,
+      400,
+      const PhoneCallButton(
+        candidates: [
+          (
+            label: 'Jane Smith',
+            phone: '',
+            isPrimary: true,
+            isPartyOwnLine: false,
+          ),
+        ],
+        partyName: 'Acme Corporation',
+      ),
+      phoneActions: true,
+    );
+
+    expect(tester.takeException(), isA<AssertionError>());
+  });
 }

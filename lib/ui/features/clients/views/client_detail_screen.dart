@@ -12,7 +12,6 @@ import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
-import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/core/detail/activity_note_buttons.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
@@ -102,8 +101,8 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
       text: text,
     );
     // Built once here, not in `initState` (`promptLogCallFor` needs a subject
-    // and phone candidates off the resolved record) and not twice (the card and
-    // the tabs must not each hold their own copy — see `EntityNoteActions`).
+    // and the party id off the resolved record) and not twice (the card and the
+    // tabs must not each hold their own copy — see `EntityNoteActions`).
     final notes = EntityNoteActions(
       onAddComment: () =>
           promptAddCommentFor(context, entityId: c.id, submit: submit),
@@ -112,7 +111,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
         companyId: _companyId,
         entityId: c.id,
         subject: c.displayName,
-        candidates: clientPhoneCandidates(c),
+        clientId: c.id,
         submit: submit,
       ),
     );

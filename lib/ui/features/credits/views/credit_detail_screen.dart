@@ -154,6 +154,7 @@ class _Body extends StatelessWidget {
             companyId: companyId,
             entityId: credit.id,
             subject: credit.number.isEmpty ? '' : '#${credit.number}',
+            clientId: credit.clientId,
             submit: (text) => services.credits.addComment(
               companyId: companyId,
               entityId: credit.id,

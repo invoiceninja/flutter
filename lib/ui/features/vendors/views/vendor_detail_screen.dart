@@ -5,7 +5,6 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/entity_type.dart';
-import 'package:admin/domain/phone/phone_candidates.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
@@ -100,7 +99,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
           text: text,
         );
         // Built here rather than in `initState`: `promptLogCallFor` needs a
-        // subject and phone candidates off the resolved record.
+        // subject and the party id off the resolved record.
         final notes = EntityNoteActions(
           onAddComment: () =>
               promptAddCommentFor(context, entityId: v.id, submit: submit),
@@ -109,7 +108,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
             companyId: _companyId,
             entityId: v.id,
             subject: v.name,
-            candidates: vendorPhoneCandidates(v),
+            vendorId: v.id,
             submit: submit,
           ),
         );

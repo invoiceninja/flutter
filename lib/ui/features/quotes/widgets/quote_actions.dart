@@ -516,6 +516,7 @@ class QuoteActions {
           companyId: companyId,
           entityId: quote.id,
           subject: _confirmSubject(quote),
+          clientId: quote.clientId,
           submit: (text) => services.quotes.addComment(
             companyId: companyId,
             entityId: quote.id,

@@ -287,6 +287,16 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
     }
     final candidates = widget.candidates;
     if (candidates.isEmpty) return const SizedBox.shrink();
+    // The log-call list (`clientCallLogCandidates`) also carries contacts with
+    // no stored number; this widget must only ever see the dialable one. That
+    // separation is a naming convention and nothing type-checks it, so assert:
+    // a numberless candidate here is a dead tap with no toast (`telUri('')` is
+    // null and `callPhoneNumber` returns silently), a tooltip ending in a bare
+    // `·`, and a long-press that copies the empty string and toasts "Copied".
+    assert(
+      candidates.every((c) => c.phone.trim().isNotEmpty),
+      'PhoneCallButton dials — it must not be given a log-call candidate list',
+    );
 
     final tokens = context.inTheme;
     final multi = candidates.length > 1;
@@ -463,10 +473,19 @@ class _PhoneCallButtonState extends State<PhoneCallButton> {
 /// a full-width slab pinned to the bottom of a ~500 px column.
 ///
 /// Returns rather than dialling: see `_PhoneCallButtonState._onTap`.
+///
+/// [title] overrides the default `Call <party>` heading. It exists for the one
+/// caller that is not dialling — the log-call form's contact chooser
+/// (invoiceninja/flutter#129), which picks who a *past* call was with, so the
+/// verb would be a claim about an action that isn't happening. Note this
+/// function applies no `tapToCall` gate of its own (only
+/// `_PhoneCallButtonState._build` does), which is what keeps that chooser
+/// working on desktop, where the preference defaults off. Don't "fix" that.
 Future<PhoneCandidate?> showPhoneCandidatePicker(
   BuildContext context, {
   required List<PhoneCandidate> candidates,
   required String partyName,
+  String? title,
   String? clientId,
   VoidCallback? onViewParty,
   String viewPartyLabelKey = 'view_client',
@@ -483,6 +502,7 @@ Future<PhoneCandidate?> showPhoneCandidatePicker(
     child: _PickerBody(
       candidates: candidates,
       partyName: partyName,
+      title: title,
       clientId: clientId,
       onViewParty: onViewParty,
       viewPartyLabelKey: viewPartyLabelKey,
@@ -528,6 +548,7 @@ class _PickerBody extends StatelessWidget {
   const _PickerBody({
     required this.candidates,
     required this.partyName,
+    required this.title,
     required this.clientId,
     required this.onViewParty,
     required this.viewPartyLabelKey,
@@ -535,6 +556,7 @@ class _PickerBody extends StatelessWidget {
 
   final List<PhoneCandidate> candidates;
   final String partyName;
+  final String? title;
   final String? clientId;
   final VoidCallback? onViewParty;
   final String viewPartyLabelKey;
@@ -555,8 +577,9 @@ class _PickerBody extends StatelessWidget {
               Flexible(
                 child: Text(
                   // "Call" alone is a verb with no object, and this is the
-                  // surface built to say which party is being rung.
-                  partyName.isEmpty ? call : '$call $partyName',
+                  // surface built to say which party is being rung — unless a
+                  // caller supplied its own heading (see [title]).
+                  title ?? (partyName.isEmpty ? call : '$call $partyName'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -617,11 +640,19 @@ class _CandidateRow extends StatelessWidget {
     final label = candidate.label.isEmpty
         ? context.tr('no_name_fallback')
         : candidate.label;
+    // The log-call chooser can offer a contact with no stored number
+    // (invoiceninja/flutter#129), so every number-derived affordance here is
+    // conditional. The dialer's own lists never reach this branch.
+    final phone = candidate.phone.trim();
     return InkWell(
       onTap: () => Navigator.of(context).pop(candidate),
       // Redundant alias for the explicit copy button — a long-press inside a
       // sheet is doubly invisible, so the button is what makes it learnable.
-      onLongPress: () => copyToClipboard(context, candidate.phone),
+      // Dropped along with that button: a copy gesture that copies nothing,
+      // and toasts that it did, is worse than no gesture at all.
+      onLongPress: phone.isEmpty
+          ? null
+          : () => copyToClipboard(context, candidate.phone),
       child: ConstrainedBox(
         // `minHeight`, never a fixed height: a tight box slices Inter Tight's
         // descenders past ~1.14x text scale.
@@ -658,7 +689,12 @@ class _CandidateRow extends StatelessWidget {
                       // The same marker the client contacts card uses.
                       if (candidate.isPrimary)
                         Padding(
-                          padding: const EdgeInsets.only(left: InSpacing.sm),
+                          // Directional: a physical `left` puts the star on
+                          // the wrong side of the name in Arabic / Hebrew, as
+                          // this file's own trigger padding already knows.
+                          padding: const EdgeInsetsDirectional.only(
+                            start: InSpacing.sm,
+                          ),
                           child: Icon(
                             Icons.star,
                             size: 14,
@@ -667,17 +703,22 @@ class _CandidateRow extends StatelessWidget {
                         ),
                     ],
                   ),
-                  Text(
-                    candidate.phone,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: tokens.ink3,
+                  if (phone.isNotEmpty)
+                    Text(
+                      candidate.phone,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: tokens.ink3,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
-            SizedBox(width: InSpacing.sm),
-            _CopyButton(value: candidate.phone),
+            // Both or neither: leaving the gap behind strands 8 px of dead
+            // space at the end of a numberless row.
+            if (phone.isNotEmpty) ...[
+              const SizedBox(width: InSpacing.sm),
+              _CopyButton(value: candidate.phone),
+            ],
           ],
         ),
       ),

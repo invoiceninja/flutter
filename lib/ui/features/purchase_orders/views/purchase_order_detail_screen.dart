@@ -173,6 +173,10 @@ class _Body extends StatelessWidget {
             subject: purchaseOrder.number.isEmpty
                 ? ''
                 : '#${purchaseOrder.number}',
+            // Both: the vendor wins when set, and a purchase order's
+            // `clientId` is genuinely populated on a client-facing one.
+            vendorId: purchaseOrder.vendorId,
+            clientId: purchaseOrder.clientId,
             submit: (text) => services.purchaseOrders.addComment(
               companyId: companyId,
               entityId: purchaseOrder.id,

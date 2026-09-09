@@ -263,6 +263,7 @@ void main() {
     Future<Client?> Function(BuildContext, String)? onCreate,
     AuthSession? session,
     bool wireCreate = true,
+    bool away = false,
   }) async {
     repo = _FakeClientRepo(
       [...rows],
@@ -284,21 +285,37 @@ void main() {
           localizationsDelegates: kTestLocalizationsDelegates,
           supportedLocales: kTestSupportedLocales,
           home: Scaffold(
-            body: SizedBox(
-              width: 400,
-              child: ClientPickerField(
-                companyId: 'co',
-                selectedClientId: selectedClientId,
-                onSelected: selected.add,
-                onCreateRequested: !wireCreate
-                    ? null
-                    : (context, name) async {
-                        createRequests.add(name);
-                        return onCreate == null
-                            ? null
-                            : onCreate(context, name);
-                      },
-              ),
+            body: Column(
+              children: [
+                SizedBox(
+                  width: 400,
+                  child: ClientPickerField(
+                    companyId: 'co',
+                    selectedClientId: selectedClientId,
+                    onSelected: selected.add,
+                    onCreateRequested: !wireCreate
+                        ? null
+                        : (context, name) async {
+                            createRequests.add(name);
+                            return onCreate == null
+                                ? null
+                                : onCreate(context, name);
+                          },
+                  ),
+                ),
+                // Opaque, focus-free, and NOT a text field — see the identical
+                // target in `searchable_dropdown_field_test.dart` for why all
+                // three matter to a dismissal test.
+                if (away) ...[
+                  const Spacer(),
+                  const SizedBox(
+                    key: ValueKey('away'),
+                    height: 120,
+                    width: double.infinity,
+                    child: ColoredBox(color: Color(0xFFEEEEEE)),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -678,6 +695,68 @@ void main() {
 
       expect(selected.single?.id, 'c1');
       expect(createRequests, isEmpty);
+    });
+
+    // invoiceninja/flutter#130. This picker is a separate implementation from
+    // `SearchableDropdownField` — async `optionsBuilder`, `_suppressBlurSnap`,
+    // and an option list that is NEVER empty once create is available — so it
+    // gets its own coverage rather than inheriting the other file's.
+    //
+    // `flutter test` runs as `TargetPlatform.android` and `tester.tap` sends a
+    // `PointerDeviceKind.touch`, which is exactly the pair Flutter's
+    // `_EditableTextTapOutsideAction` refuses to unfocus for — so this
+    // reproduces the phone, not an approximation of it.
+    testWidgets('tapping away closes the options popover', (tester) async {
+      await pump(
+        tester,
+        rows: [
+          _client('c1', name: 'Globex'),
+          _client('c2', name: 'Initech'),
+        ],
+        away: true,
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.text('Globex'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('away')));
+      await tester.pumpAndSettle();
+      // One more frame: a programmatic unfocus can be followed by the
+      // FocusManager re-routing focus back on the NEXT frame (the hazard
+      // `token_search_field.dart` documents), which would re-open the list.
+      await tester.pump();
+      expect(find.text('Globex'), findsNothing);
+    });
+
+    testWidgets('clearing a committed client closes the list, not opens it', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        rows: [
+          _client('c1', name: 'Globex'),
+          _client('c2', name: 'Initech'),
+        ],
+        // The parent NAMES the selection. That is what makes clearing a commit
+        // — the same `_parentOwnsCommitted` split `SearchableDropdownField`
+        // spells out. This picker has no chip-adder caller, but the two ✕
+        // handlers must not diverge silently.
+        selectedClientId: 'c2',
+        away: true,
+      );
+
+      // Open it first, so the field is focused when ✕ is tapped — that is the
+      // state that makes `clear()` re-open the list.
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.text('Globex'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await tester.pump();
+      expect(selected, [isNull]);
+      expect(find.text('Globex'), findsNothing);
     });
 
     testWidgets('clearing emits null', (tester) async {

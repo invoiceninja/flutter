@@ -9,6 +9,7 @@ import 'package:admin/ui/core/adaptive.dart';
 // breaking it would mean extracting the model to its own file plus rewriting
 // the import line in ~20 call sites — more churn than the smell is worth.
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
+import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 
 /// One row item in an [EntityDetailActionsRow].
 ///
@@ -389,11 +390,11 @@ class _ActionButton<A> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Group parent (e.g. "Clone"): there's no single action to fire, so
-    // render a MenuAnchor that opens the same fly-out the overflow "More"
+    // render a menu anchor that opens the same fly-out the overflow "More"
     // menu would. Without this a visible (non-overflowed) group would be a
     // dead button — `onTap` is null on a group item.
     if (item.hasChildren) {
-      return MenuAnchor(
+      return BackDismissibleMenuAnchor(
         consumeOutsideTap: true,
         menuChildren: EntityActionItem.menuChildrenFor<A>(
           context,
@@ -441,7 +442,7 @@ class _MoreMenu<A> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MenuAnchor(
+    return BackDismissibleMenuAnchor(
       consumeOutsideTap: true,
       menuChildren: EntityActionItem.menuChildrenFor<A>(context, items),
       // Trigger styled as an OutlinedButton so it sits flush with the
@@ -468,7 +469,7 @@ class _OverflowMenuButton<A> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MenuAnchor(
+    return BackDismissibleMenuAnchor(
       consumeOutsideTap: true,
       menuChildren: EntityActionItem.menuChildrenFor<A>(context, items),
       builder: (context, controller, _) => IconButton(

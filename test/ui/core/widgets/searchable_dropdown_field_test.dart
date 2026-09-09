@@ -24,7 +24,23 @@ const _items = [
 /// Standard scaffold for a single picker. [sink] adds a second field to tap
 /// when a test needs to steal focus — pushed to the bottom of the viewport so
 /// the picker's open popover can't swallow the tap meant for it.
-Widget _host(Widget field, {bool sink = false}) => MaterialApp(
+///
+/// [away] adds a plain, keyboard-free target for the *other* kind of test: one
+/// that must prove the popover closes because of `onTapOutside`, not because
+/// focus moved somewhere else. All three of its properties are load-bearing.
+/// It is a `ColoredBox`, so it hit-tests at all (`HitTestBehavior.opaque` — a
+/// bare `SizedBox` registers nothing and the tap never reaches
+/// `RenderTapRegionSurface`). Nothing in it can take focus, so a passing test
+/// can only be the hook firing. And it is **not** a `TextField`: every text
+/// field shares the `EditableText` tap-region group, so tapping [sink] is
+/// "inside" that group, fires no `onTapOutside` at all, and closes the popover
+/// by plain focus transfer — a dismissal test written against it passes with
+/// the fix reverted.
+Widget _host(
+  Widget field, {
+  bool sink = false,
+  bool away = false,
+}) => MaterialApp(
   theme: buildInTheme(InTheme.light),
   localizationsDelegates: kTestLocalizationsDelegates,
   supportedLocales: kTestSupportedLocales,
@@ -33,6 +49,15 @@ Widget _host(Widget field, {bool sink = false}) => MaterialApp(
       children: [
         SizedBox(width: 360, child: field),
         if (sink) ...[const Spacer(), const TextField(key: ValueKey('sink'))],
+        if (away) ...[
+          const Spacer(),
+          const SizedBox(
+            key: ValueKey('away'),
+            height: 120,
+            width: double.infinity,
+            child: ColoredBox(color: Color(0xFFEEEEEE)),
+          ),
+        ],
       ],
     ),
   ),
@@ -695,6 +720,234 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('+ New fruit'), findsNothing);
       expect(footerBuilds, before);
+    });
+  });
+
+  // invoiceninja/flutter#130: on native touch the popover had no dismissal
+  // path at all. `_canShowOptionsView` is `hasFocus && options.isNotEmpty`, so
+  // it closes only on a pick, on Escape (a hardware keyboard) or on focus
+  // loss — and Flutter's `_EditableTextTapOutsideAction` deliberately does not
+  // drop focus for a touch tap outside on android/iOS. Our option list is
+  // never empty, so the list stayed up until the user picked something.
+  //
+  // These tests reproduce the real thing rather than approximating it:
+  // `flutter test` runs as `TargetPlatform.android` and `tester.tap` sends a
+  // `PointerDeviceKind.touch` — the exact pair the SDK refuses to unfocus for.
+  group('dismissing the popover', () {
+    Finder inOptions(String text) =>
+        find.descendant(of: find.byType(ListView), matching: find.text(text));
+
+    /// Settle, then pump one more frame. `token_search_field.dart` records a
+    /// real in-repo hazard where a programmatic `unfocus()` was followed by the
+    /// FocusManager re-routing focus back to the field on the NEXT frame,
+    /// re-opening the menu. Asserting on the settled frame alone would miss it.
+    Future<void> settleAndOneMore(WidgetTester tester) async {
+      await tester.pumpAndSettle();
+      await tester.pump();
+    }
+
+    testWidgets('tapping away closes the list, and the field still works', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          SearchableDropdownField<_Option>(
+            label: 'Fruit',
+            items: _items,
+            initialValue: _items[2], // Banana — the reported shape
+            displayString: (o) => o.name,
+            idOf: (o) => o.id,
+            onChanged: (_) {},
+          ),
+          away: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(inOptions('Apple'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('away')));
+      await settleAndOneMore(tester);
+      expect(find.byType(ListView), findsNothing);
+
+      // Not wedged: the picker is still usable afterwards.
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(inOptions('Apple'), findsOneWidget);
+    });
+
+    testWidgets('clearing a committed value closes the list, not opens it', (
+      tester,
+    ) async {
+      final calls = <_Option?>[];
+      await tester.pumpWidget(
+        _host(
+          SearchableDropdownField<_Option>(
+            label: 'Fruit',
+            items: _items,
+            // The parent NAMES the selection — a single-select picker, which is
+            // the shape #130 was reported against. That is what makes clearing
+            // a commit; see the adder case below for the other half.
+            initialValue: _items[2], // Banana
+            displayString: (o) => o.name,
+            idOf: (o) => o.id,
+            onChanged: calls.add,
+          ),
+          away: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Open it first, so the field is focused when ✕ is tapped — that is the
+      // state that makes `clear()` re-open the list.
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await settleAndOneMore(tester);
+      expect(calls, [isNull]);
+      expect(
+        find.byType(ListView),
+        findsNothing,
+        reason: 'the ✕ means "unset", not "show me everything"',
+      );
+    });
+
+    // The other half of the ✕ rule. A chip-adder keeps `initialValue: null`
+    // forever and drops the picked item OUT of `items`, so after an add the
+    // field holds a label the parent never agreed to and `onChanged(null)` is
+    // discarded by the caller. Clearing there is not a commit — it just wipes
+    // the leftover label — so focus must stay, or every subsequent add costs an
+    // extra tap and the keyboard. `MultiEntityPicker` is the Type picker on the
+    // Activity filter sheet, i.e. the very screen #130 came from.
+    testWidgets("clearing a chip-adder's leftover label keeps the list open", (
+      tester,
+    ) async {
+      final calls = <_Option?>[];
+      final available = [..._items];
+      await tester.pumpWidget(
+        _host(
+          StatefulBuilder(
+            builder: (context, setLocalState) =>
+                SearchableDropdownField<_Option>(
+                  label: 'Fruit',
+                  items: available,
+                  initialValue: null,
+                  displayString: (o) => o.name,
+                  idOf: (o) => o.id,
+                  onChanged: (o) {
+                    calls.add(o);
+                    if (o != null) setLocalState(() => available.remove(o));
+                  },
+                ),
+          ),
+          away: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.tap(inOptions('Cherry'));
+      await tester.pumpAndSettle();
+      expect(calls.single?.id, '4');
+
+      await tester.tap(find.byIcon(Icons.close));
+      await settleAndOneMore(tester);
+      expect(calls, [isNotNull, isNull]);
+      expect(
+        find.byType(ListView),
+        findsOneWidget,
+        reason: 'the next item must still be one tap away',
+      );
+    });
+
+    testWidgets('clearing a half-typed query leaves the field open to retype', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          SearchableDropdownField<_Option>(
+            label: 'Fruit',
+            items: _items,
+            initialValue: null,
+            displayString: (o) => o.name,
+            idOf: (o) => o.id,
+            onChanged: (_) {},
+          ),
+          away: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'ap');
+      await tester.pumpAndSettle();
+      expect(inOptions('Banana'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await settleAndOneMore(tester);
+      // Focus kept and the idle list back: here the ✕ means "erase and let me
+      // retype", so dropping the keyboard would be the wrong answer.
+      expect(inOptions('Banana'), findsOneWidget);
+    });
+
+    // A keyboard-less picker (<= 6 options on touch) has no caret to place, so
+    // its field IS the dropdown button and a tap on an open one means "close".
+    testWidgets('tapping a keyboard-less field toggles its list shut', (
+      tester,
+    ) async {
+      await _pump(tester, initial: _items[2]);
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+
+      await tester.tap(find.byType(TextField));
+      await settleAndOneMore(tester);
+      expect(find.byType(ListView), findsNothing);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+    });
+
+    // `TextField.onTap` arrives via `TextSelectionGestureDetectorBuilder`, whose
+    // `_handleTapUp` calls it only on the FIRST tap of a series — so without
+    // `onTapAlwaysCalled` an impatient second tap is swallowed entirely and the
+    // toggle above is intermittent. `pump()` advances fake time by ZERO, which
+    // keeps both taps in one series; the `pumpAndSettle` used everywhere else
+    // in this group would step past `kDoubleTapTimeout` and hide the bug.
+    testWidgets('the toggle survives a fast second tap', (tester) async {
+      await _pump(tester, initial: _items[2]);
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(ListView), findsOneWidget);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(ListView), findsNothing);
+    });
+
+    // The other half of that gate. Past the keyboard-suppression threshold the
+    // field is a real text input, so a tap is the user placing a caret in it —
+    // stealing that for "close" would make a long picker untypable.
+    testWidgets('tapping a typable field does NOT toggle its list shut', (
+      tester,
+    ) async {
+      final many = [for (var i = 0; i < 9; i++) _Option('$i', 'Fruit $i')];
+      await _pump(tester, items: many);
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+
+      await tester.tap(find.byType(TextField));
+      await settleAndOneMore(tester);
+      expect(find.byType(ListView), findsOneWidget);
     });
   });
 }

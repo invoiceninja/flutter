@@ -5,6 +5,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 
 /// List-row trailing popup that consumes the same [EntityActionItem] list
 /// the detail header renders. Mirrors the disabled-styled menu rows that
@@ -100,9 +101,13 @@ class EntityActionsPopupButton<A> extends StatelessWidget {
 
     final style = _buttonStyle(actionButtonSize());
 
-    final popup = MenuAnchor(
+    final popup = BackDismissibleMenuAnchor(
       // Match the old PopupMenuButton: an outside tap only dismisses the
-      // menu, it doesn't also activate the row/widget underneath.
+      // menu, it doesn't also activate the row/widget underneath. Its OTHER
+      // semantics — back closes the menu rather than leaving the screen — is
+      // what `BackDismissibleMenuAnchor` restores; a bare `MenuAnchor` has no
+      // back handling at all, and matching only half of a route's behaviour is
+      // how that went unnoticed.
       consumeOutsideTap: true,
       menuChildren: EntityActionItem.menuChildrenFor<A>(context, menuItems),
       builder: (context, controller, _) => IconButton(

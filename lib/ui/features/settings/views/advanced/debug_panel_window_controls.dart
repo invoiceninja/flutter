@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/screenshot_window_controller.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -21,7 +22,7 @@ class ScreenshotSizeMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
     final applied = controller.appliedSizePx;
-    return MenuAnchor(
+    return BackDismissibleMenuAnchor(
       builder: (context, menu, _) => IconButton(
         icon: const Icon(Icons.aspect_ratio),
         tooltip: context.tr('screenshot_size'),

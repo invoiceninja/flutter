@@ -32,18 +32,39 @@ void main() {
     List<String> selected = const [],
     Tag? Function(String)? resolveById,
     ValueChanged<List<String>>? onChanged,
+    bool away = false,
   }) async {
+    final field = TagPickerField(
+      label: 'Tags',
+      available: available,
+      selectedIds: selected,
+      onChanged: onChanged ?? (_) {},
+      onCreate: onCreate,
+      resolveById: resolveById,
+    );
     await pumpAt(
       tester,
       800,
-      TagPickerField(
-        label: 'Tags',
-        available: available,
-        selectedIds: selected,
-        onChanged: onChanged ?? (_) {},
-        onCreate: onCreate,
-        resolveById: resolveById,
-      ),
+      // [away] adds a plain target for the dismissal test. All three of its
+      // properties are load-bearing: `ColoredBox` hit-tests
+      // (`HitTestBehavior.opaque`), so `RenderTapRegionSurface` sees the tap at
+      // all; nothing in it can take focus, so a pass can only be `onTapOutside`
+      // firing; and it is NOT a `TextField` — every text field shares the
+      // `EditableText` tap-region group, so tapping one would close the popover
+      // by plain focus transfer and the test would pass with the fix reverted.
+      away
+          ? Column(
+              children: [
+                field,
+                const SizedBox(
+                  key: ValueKey('away'),
+                  height: 120,
+                  width: double.infinity,
+                  child: ColoredBox(color: Color(0xFFEEEEEE)),
+                ),
+              ],
+            )
+          : field,
       scroll: false,
     );
     await tester.pump();
@@ -236,5 +257,34 @@ void main() {
       // delete the wrong chip, or none.
       expect(emitted, ['other']);
     });
+  });
+
+  // invoiceninja/flutter#130. This field is wired by
+  // `test/lint/picker_popover_wiring_test.dart`, but that lint only counts
+  // occurrences — it cannot tell whether the hook landed on the right
+  // `TextField`. This is the behavioural half.
+  //
+  // It reproduces the phone rather than approximating it: `flutter test` runs
+  // as `TargetPlatform.android` and `tester.tap` sends a
+  // `PointerDeviceKind.touch`, which is exactly the pair Flutter's
+  // `_EditableTextTapOutsideAction` refuses to unfocus for.
+  testWidgets('tapping away closes the suggestions', (tester) async {
+    await pumpPicker(
+      tester,
+      available: [_tag('t1', 'urgent'), _tag('t2', 'billable')],
+      away: true,
+    );
+
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(find.text('urgent'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('away')));
+    await tester.pumpAndSettle();
+    // One more frame: a programmatic unfocus can be followed by the
+    // FocusManager re-routing focus back on the NEXT frame — the hazard
+    // `token_search_field.dart` documents — which would reopen the list.
+    await tester.pump();
+    expect(find.text('urgent'), findsNothing);
   });
 }

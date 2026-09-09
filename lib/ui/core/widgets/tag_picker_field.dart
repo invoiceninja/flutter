@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/tag.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 import 'package:admin/ui/core/widgets/tag_pill.dart';
 
 /// Multi-select tag picker — selected tags render as removable colored chips
@@ -274,6 +275,9 @@ class _TagPickerFieldState extends State<TagPickerField> {
                         child: TextField(
                           controller: textController,
                           focusNode: focusNode,
+                          // On native touch nothing else can close the popover
+                          // — see `picker_dismissal.dart`.
+                          onTapOutside: dismissPickerOnTapOutside(focusNode),
                           enabled: widget.enabled,
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) {

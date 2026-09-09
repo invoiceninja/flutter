@@ -6,6 +6,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/escape_observer.dart';
+import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 
 /// Generic text-filter dropdown for long lists (countries, currencies,
 /// industries, …). Replaces `DropdownButtonFormField` where scrolling through
@@ -237,6 +238,10 @@ class _SearchableDropdownFieldState<T extends Object>
   }
 
   void _onFocusChange() {
+    // Cleared on focus *gain* as well as loss, and deliberately ABOVE the early
+    // return below: `_reopenOptions`' toggle reads this flag, so a stale `true`
+    // carried into a fresh focus would make the first tap close a popover that
+    // isn't there. Don't tidy it under the `hasFocus` guard.
     _optionsVisible = false;
     // On blur, snap the visible text back to the committed item's name —
     // otherwise the user could leave half-typed garbage in the field that
@@ -291,6 +296,29 @@ class _SearchableDropdownFieldState<T extends Object>
     for (final it in items) _ItemOpt<T>(it),
   ];
 
+  /// True when the parent still names [_committed] as its selection.
+  ///
+  /// False for the "add to a chip list" callers (`MultiEntityPicker`,
+  /// `multi_product_picker`, the custom-labels screen): they keep
+  /// `initialValue: null` forever and drop the picked item OUT of `items`, and
+  /// `_committed` is never reset back to null (`didUpdateWidget` compares
+  /// old-id vs new-id, both null) — so after an add it holds a value the parent
+  /// has never agreed to, and the field text still shows that value's label.
+  ///
+  /// Two things read it, for the same underlying reason. [_idleOptions] won't
+  /// hoist (or pre-highlight) a value the user has already added. And the ✕
+  /// won't treat clearing as a *commit*: at those call sites `onChanged(null)`
+  /// is explicitly discarded, so the ✕ means only "clear the leftover label",
+  /// and dropping focus there would cost a tap and the keyboard on every
+  /// subsequent add. It fails safe — a host that hasn't propagated its pick yet
+  /// simply keeps focus, which is what the field did before either rule existed.
+  bool get _parentOwnsCommitted {
+    final committed = _committed;
+    final initial = widget.initialValue;
+    if (committed == null || initial == null) return false;
+    return widget.idOf(initial) == widget.idOf(committed);
+  }
+
   /// Options for an empty query. The committed item leads so it stays visible
   /// even in a 250-country list, and so the default highlight (row 0) is the
   /// CURRENT value — Enter, or Android's soft-keyboard "Done", then lands on
@@ -304,13 +332,8 @@ class _SearchableDropdownFieldState<T extends Object>
     final present = widget.items.any((it) => widget.idOf(it) == id);
     // Injecting an item that ISN'T in `items` is only right when the parent
     // still says it is the selection — that's `tax_rate_picker`'s synthetic
-    // legacy rate. The "add to a chip list" pickers keep `initialValue: null`
-    // forever and drop the added item OUT of `items`, and `_committed` is never
-    // reset back to null (didUpdateWidget compares old-id vs new-id, both
-    // null), so without this we would re-offer, and pre-highlight, a value the
-    // user has already added.
-    final initial = widget.initialValue;
-    final parentAgrees = initial != null && widget.idOf(initial) == id;
+    // legacy rate. See [_parentOwnsCommitted] for the adder case this excludes.
+    final parentAgrees = _parentOwnsCommitted;
     if (!present && !parentAgrees) {
       return widget.items.take(widget.idleResults).toList(growable: false);
     }
@@ -329,6 +352,16 @@ class _SearchableDropdownFieldState<T extends Object>
   /// one supersedes the older, and the visible text never changes. Select-all
   /// so typing replaces the value rather than appending to it.
   void _reopenOptions() {
+    // A keyboard-less picker IS the dropdown button — `showCursor: false` and
+    // `enableInteractiveSelection: false`, so there is no caret to place — and a
+    // button you cannot un-press is the odd thing on a phone, where the field is
+    // often the only part of the screen the popover doesn't cover. Toggle it
+    // shut. A typable field keeps the tap for the caret. Benign if
+    // `_optionsVisible` ever goes stale: one tap does nothing, the next reopens.
+    if (_suppressKeyboard && _optionsVisible) {
+      _focusNode.unfocus();
+      return;
+    }
     // A mid-edit tap is the user placing a caret in their own query, and a tap
     // mid-composition already has live options — leave both alone.
     if (!_isPristine(_controller.text)) return;
@@ -536,7 +569,27 @@ class _SearchableDropdownFieldState<T extends Object>
                       child: TextField(
                         controller: textController,
                         focusNode: focusNode,
+                        // On native touch nothing else can close the popover —
+                        // see `picker_dismissal.dart`.
+                        onTapOutside: dismissPickerOnTapOutside(focusNode),
                         onTap: _reopenOptions,
+                        // Without this the toggle in `_reopenOptions` is
+                        // intermittent. `TextField.onTap` arrives via
+                        // `TextSelectionGestureDetectorBuilder.onUserTap`,
+                        // which `_handleTapUp` calls only on the FIRST tap of a
+                        // series (`text_selection.dart`) — so a second tap
+                        // inside `kDoubleTapTimeout` at roughly the same spot
+                        // is swallowed, and `enableInteractiveSelection: false`
+                        // means the double-tap branch does nothing either: the
+                        // tap is simply lost. Wait 300 ms and it works, which
+                        // is the worst possible behaviour for a button.
+                        //
+                        // Gated on the same flag as the toggle, not `true`: on
+                        // a typable picker the second tap of a series IS
+                        // word-select, and `_reopenOptions`' select-all would
+                        // fight it. Safe here precisely because a keyboard-less
+                        // picker has no selection to steal.
+                        onTapAlwaysCalled: _suppressKeyboard,
                         onSubmitted: (_) => _onSubmitted(onFieldSubmitted),
                         // A short list on a touch device needs no typing, so keep
                         // the soft keyboard (which would cover the list) away.
@@ -826,12 +879,40 @@ class _SearchableDropdownFieldState<T extends Object>
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 onPressed: () {
+                  // Both read BEFORE the mutation below: `_isPristine` reads
+                  // the controller and `_parentOwnsCommitted` reads
+                  // `_committed`.
+                  final wasPristine = _isPristine(textController.text);
+                  final wasSelection = _parentOwnsCommitted;
                   textController.clear();
                   setState(() {
                     _committed = null;
                     _optionsVisible = false;
                   });
                   widget.onChanged(null);
+                  // Clearing an actual SELECTION is a commit — the same shape
+                  // as tapping the committed row, which also closes and
+                  // unfocuses. Without this the opposite happens: `clear()` is
+                  // a text change, `_onChangedField` recomputes, the idle list
+                  // comes back non-empty, the field still has focus, and the
+                  // SDK OPENS the popover (invoiceninja/flutter#130). The
+                  // `_optionsVisible` above is only our own bookkeeping — the
+                  // SDK's OverlayPortalController never sees it. It also
+                  // strands a stale `_options`: `optionsBuilder` ran inside
+                  // `clear()`, BEFORE the setState above, so the list still
+                  // holds the just-cleared item hoisted to row 0 and a
+                  // soft-keyboard "Done" would re-select it.
+                  //
+                  // Two cases deliberately keep focus, because in neither is
+                  // the ✕ a commit. A half-typed query: there it means "erase
+                  // and let me retype", so the keyboard must stay and
+                  // reopening the idle list is the right answer to an empty
+                  // query. And a chip-adder ([_parentOwnsCommitted]), where
+                  // `onChanged(null)` is discarded by the caller and the ✕
+                  // only clears the leftover label of the last item added —
+                  // unfocusing there costs a tap and the keyboard on every
+                  // subsequent add, on the Activity filter sheet among others.
+                  if (wasPristine && wasSelection) _focusNode.unfocus();
                 },
               ),
             Padding(

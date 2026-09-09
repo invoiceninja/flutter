@@ -9,6 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/escape_observer.dart';
+import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 
 /// Searchable client picker with an inline "create client" affordance.
@@ -548,6 +549,9 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
                       child: TextField(
                         controller: textController,
                         focusNode: focusNode,
+                        // On native touch nothing else can close the popover —
+                        // see `picker_dismissal.dart`.
+                        onTapOutside: dismissPickerOnTapOutside(focusNode),
                         enabled: widget.enabled,
                         onTap: _reopenOptions,
                         onSubmitted: (_) {
@@ -724,12 +728,32 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
           icon: Icon(Icons.close, size: 16, color: tokens.ink3),
           onPressed: widget.enabled
               ? () {
+                  // Read BEFORE the clear — `_isPristine` reads the controller.
+                  final wasPristine = _isPristine(textController.text.trim());
+                  final wasSelection = widget.selectedClientId.isNotEmpty;
                   textController.clear();
                   setState(() {
                     _committed = null;
                     _optionsVisible = false;
                   });
                   widget.onSelected(null);
+                  // Clearing an actual SELECTION is a commit — the same shape
+                  // as tapping the committed row, which also closes and
+                  // unfocuses. Without this `clear()` is a text change, the
+                  // (never-empty, once create is available) option list comes
+                  // back, the field still has focus, and the SDK OPENS the
+                  // popover — invoiceninja/flutter#130, and the same mechanism
+                  // `_handleCreate` already documents a few hundred lines up.
+                  //
+                  // A half-typed query keeps focus: there the ✕ means "erase
+                  // and let me retype", which is also why the empty state shows
+                  // a magnifier rather than nothing. The `selectedClientId`
+                  // half is this file's spelling of
+                  // `SearchableDropdownField._parentOwnsCommitted` — kept so
+                  // the two ✕ handlers can't diverge silently, even though this
+                  // picker is structurally single-select and has no chip-adder
+                  // caller to protect.
+                  if (wasPristine && wasSelection) _focusNode.unfocus();
                 }
               : null,
         );

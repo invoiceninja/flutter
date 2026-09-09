@@ -15,6 +15,7 @@ import 'package:admin/data/models/domain/tax_rate.dart';
 import 'package:admin/domain/date_placeholders.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/utils/formatting.dart';
@@ -1969,6 +1970,9 @@ class _ProductCellState extends State<_ProductCell> {
           child: TextField(
             controller: controller,
             focusNode: focusNode,
+            // On native touch nothing else can close the popover — see
+            // `picker_dismissal.dart`. On desktop this is the SDK default.
+            onTapOutside: dismissPickerOnTapOutside(focusNode),
             onChanged: (_) => widget.onCommitText(),
             onSubmitted: (_) {
               if (_acceptedCreateRow()) return;
@@ -2308,6 +2312,11 @@ class _TaxCellState extends State<_TaxCell> {
           textEditingController: _controller,
           focusNode: _focusNode,
           displayStringForOption: (opt) => opt.display,
+          // Flip above the field when there is more room there. Left at the
+          // `.down` default — as this cell alone was — a tax cell on the last
+          // row of a long invoice gets only the space beneath it, floored at a
+          // ~48 px sliver. The other four pickers already pass this.
+          optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
           optionsBuilder: (value) {
             final q = value.text.trim().toLowerCase();
             final filtered = q.isEmpty
@@ -2325,6 +2334,9 @@ class _TaxCellState extends State<_TaxCell> {
             return TextField(
               controller: controller,
               focusNode: focusNode,
+              // On native touch nothing else can close the popover — see
+              // `picker_dismissal.dart`. On desktop this is the SDK default.
+              onTapOutside: dismissPickerOnTapOutside(focusNode),
               onSubmitted: (_) => onFieldSubmitted(),
               textAlign: TextAlign.right,
               textAlignVertical: TextAlignVertical.center,

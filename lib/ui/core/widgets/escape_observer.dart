@@ -11,6 +11,10 @@ import 'package:flutter/services.dart';
 ///
 /// Returning [KeyEventResult.ignored] is the point: the key still reaches
 /// `RawAutocomplete`'s own shortcut, which is what actually hides the overlay.
+///
+/// See also `dismissPickerOnTapOutside` (`picker_dismissal.dart`), the other
+/// half of the same story: Escape is a *keyboard* dismissal, so on a phone the
+/// overlay had no way to close at all.
 class EscapeObserver extends StatelessWidget {
   const EscapeObserver({
     super.key,

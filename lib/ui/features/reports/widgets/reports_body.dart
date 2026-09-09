@@ -27,6 +27,7 @@ import 'package:admin/domain/reports/report_registry.dart';
 import 'package:admin/domain/reports/report_schedule.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/widgets/back_dismissible_menu_anchor.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
@@ -379,7 +380,7 @@ class _DateRangeField extends StatelessWidget {
     } else {
       label = context.tr(_reportPresetKey(p.datePreset));
     }
-    return MenuAnchor(
+    return BackDismissibleMenuAnchor(
       builder: (context, controller, _) => OutlinedButton.icon(
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
@@ -1371,7 +1372,7 @@ class _ExportButton extends StatelessWidget {
         label: Text(context.tr('cancel')),
       );
     }
-    return MenuAnchor(
+    return BackDismissibleMenuAnchor(
       builder: (context, controller, _) => OutlinedButton.icon(
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),

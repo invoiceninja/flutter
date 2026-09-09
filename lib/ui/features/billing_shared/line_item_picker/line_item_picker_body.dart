@@ -24,6 +24,7 @@ import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/product_stock_label.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_result.dart';
+import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_summary.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Tabbed multi-select picker body for the billing-doc edit screens.
@@ -744,6 +745,8 @@ class _LineItemPickerBodyState extends State<LineItemPickerBody>
             count: count,
             total: total,
             formatter: widget.formatter,
+            clientCurrencyId: _client?.currencyId,
+            groupCurrencyId: _group?.currencyId,
             onCancel: () => Navigator.of(context).pop(),
             onAdd: count == 0
                 ? null
@@ -1013,6 +1016,8 @@ class _Footer extends StatelessWidget {
     required this.count,
     required this.total,
     required this.formatter,
+    required this.clientCurrencyId,
+    required this.groupCurrencyId,
     required this.onCancel,
     required this.onAdd,
   });
@@ -1021,22 +1026,27 @@ class _Footer extends StatelessWidget {
   final int count;
   final Decimal total;
   final Formatter? formatter;
+
+  /// The document's currency, so the sum isn't labelled with the company
+  /// symbol when the client bills in another one. `Formatter` walks these
+  /// client → group → company, the cascade `watchEffectiveClientCurrency`
+  /// resolves for the edit screen's own totals strip. Both null on a purchase
+  /// order — it has no client, and the vendor tier isn't threaded here
+  /// (see CLAUDE.md).
+  final String? clientCurrencyId;
+  final String? groupCurrencyId;
   final VoidCallback onCancel;
   final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
-    // Footer always shows a count — even at zero. An empty SizedBox here
-    // left the footer visually lopsided before any picks; the muted
-    // `0` reads as "intentional zero state, not a loading glitch".
-    final String countText;
-    if (count == 0) {
-      countText = '0';
-    } else if (formatter == null) {
-      countText = '$count';
-    } else {
-      countText = '$count · ${formatter!.money(total)}';
-    }
+    final countText = lineItemPickerFooterText(
+      count: count,
+      total: total,
+      formatter: formatter,
+      clientCurrencyId: clientCurrencyId,
+      groupCurrencyId: groupCurrencyId,
+    );
     return Padding(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       child: Row(
@@ -1044,10 +1054,7 @@ class _Footer extends StatelessWidget {
           Expanded(
             child: Text(
               countText,
-              style: TextStyle(
-                color: count == 0 ? tokens.ink3 : tokens.ink2,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: tokens.ink2, fontWeight: FontWeight.w600),
             ),
           ),
           OutlinedButton(

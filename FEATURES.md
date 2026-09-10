@@ -371,6 +371,7 @@ the honest default.
 | Task — daily view | ✅ | ❌ | ✅ |  | |
 | Task — weekly view | ✅ | ❌ | ✅ |  | |
 | Task — calendar view | ✅ | ❌ | ✅ |  | |
+| Task — remembers the chosen view (list / daily / weekly / calendar / kanban) | ❌ | 🟡 | ✅ |  | |
 | Task — connect Google/Microsoft calendar + convert event to task | ✅ | ❌ | 🟡 |  | |
 | Task — detail | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Task — edit | ✅ | ✅ | ✅ | ✅ | |

@@ -8,6 +8,7 @@ import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../generated/schema.dart';
+import '../../generated/schema_v8.dart' as v8;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
 /// forward-migration policy (see `docs/migrations.md`).
@@ -42,6 +43,7 @@ void main() {
     6: 'c54173a0059bf0eb1f550c09081e7c59f50673588b7bda1d969b79425401ce90',
     7: '13773cfe170d086a17c91ce69d08c5914f065a8773202859009d0ccad74dc196',
     8: 'c1269adc91f8f62e33e1fe3fdf02c24509a69e96aa50613438d71e4319c3f7c8',
+    9: 'ad33ee319136e8eca6f5cf450f4d9031c304a02e711a75565c5221deac952d83',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -142,6 +144,44 @@ void main() {
         }
       },
     );
+
+    test('device preferences seeded at v8 survive the upgrade', () async {
+      // Shape is what `migrateAndValidate` proves; this proves the *rows*
+      // survive. `nav_state` is a single row carrying every device preference —
+      // the restored route, the theme, the keyboard-shortcut overrides — so a
+      // migration that recreated the table instead of `ALTER TABLE ADD COLUMN`
+      // would silently reset all of them, pass every other test in this file,
+      // and surface only as "the app forgot my settings" after an update.
+      // `schemaAt` (not `startAt`) so the seeding database and the migrating
+      // one get separate connections over the same store — `newConnection()`
+      // wraps it with `closeUnderlyingOnClose: false`, so closing the v8 handle
+      // leaves the data in place.
+      final schema = await verifier.schemaAt(8);
+      final old = v8.DatabaseAtV8(schema.newConnection());
+      // Raw SQL rather than a generated companion: this is deliberately the
+      // shape a v8 install has on disk, not one re-derived from today's tables.
+      await old.customStatement(
+        'INSERT INTO nav_state (id, current_route, status_tabs, '
+        "sidebar_collapsed, updated_at) VALUES (0, '/tasks?view=kanban', 0, 1, "
+        '1234)',
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      // `schemaVersion`, never a literal: `migrateAndValidate` opens the real
+      // AppDatabase, which migrates to its OWN version — pinning 9 here would
+      // fail with a schema diff the day someone lands v10, inside a test about
+      // a migration they never touched.
+      await verifier.migrateAndValidate(db, schemaVersion);
+      final row = await db.navStateDao.current();
+      expect(row?.currentRoute, '/tasks?view=kanban');
+      expect(row?.statusTabs, isFalse);
+      expect(row?.sidebarCollapsed, isTrue);
+      // The v9 column has no backfill: an upgraded install is on the list until
+      // the user picks a view, exactly like a fresh one.
+      expect(row?.tasksView, isNull);
+      await db.close();
+    });
   });
 
   group('fresh-install schema canaries', () {

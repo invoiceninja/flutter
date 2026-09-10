@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import 'package:admin/app/services.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
@@ -76,11 +79,22 @@ PreferredSizeWidget buildTasksViewAppBar(
 /// icon-only `SegmentedButton` (five text labels won't fit) with tooltips; on
 /// narrow falls back to a `PopupMenuButton` so the AppBar stays compact.
 ///
-/// Driven entirely via URL: tapping navigates to `/tasks?view=<mode>` (list →
-/// bare `/tasks`). Each screen reads the query param and rebuilds — no shared
-/// local state to keep in sync. Switching views drops any `?date=` focus; each
-/// time-oriented view re-defaults to today (a calendar day-cell tap deep-links
-/// into daily with an explicit `?date=`).
+/// **The layout is a preference, not a place.** Tapping writes
+/// `Services.tasksView` and navigates to a bare `/tasks`; `TaskListScreen`
+/// resolves the body from that preference, so closing a task pane, re-tapping
+/// the sidebar row, switching company and relaunching all come back on the same
+/// view instead of the plain list (invoiceninja/flutter#133). Switching views
+/// drops any `?date=` focus; each time-oriented view re-defaults to today (a
+/// calendar day-cell tap deep-links into daily with an explicit
+/// `?view=daily&date=…`, which `TaskListScreen` mirrors back into the
+/// preference).
+///
+/// It deliberately emits **no** `?view=`, so a switch is not a history step:
+/// `isUpNavigation` compares paths only, so `/tasks` and `/tasks?view=kanban`
+/// would be separate entries, and pressing Android back onto the bare one would
+/// re-render the board from the preference and look like nothing happened.
+/// Every other list-view control in the app — filters, sort, status tabs —
+/// already lives in `nav_state` and creates no history entry; this now matches.
 class TasksViewToggle extends StatelessWidget {
   const TasksViewToggle({super.key, required this.active, required this.wide});
 
@@ -103,11 +117,23 @@ class TasksViewToggle extends StatelessWidget {
     TasksViewMode.kanban => 'kanban',
   };
 
+  /// Writes the preference, then navigates to the bare list URL. When the URL
+  /// is already `/tasks` that `go` is a no-op — `GoRouterDelegate
+  /// .setNewRoutePath` returns early on an unchanged `RouteMatchList` — so the
+  /// repaint comes from `TaskListScreen`'s `ValueListenableBuilder` on this same
+  /// controller. That is deliberate; don't "fix" it by re-adding a `?view=`.
+  ///
+  /// The early return needs **both** halves. `active` is what the screen is
+  /// rendering, and while a master-detail pane is open the screen is locked to
+  /// the list — so it reads List even for a user whose preference is Kanban, and
+  /// tapping List there must still be able to set it. Comparing the preference
+  /// as well also keeps a re-tap of the current view from navigating away from a
+  /// `?date=` focus it is already showing.
   void _go(BuildContext context, TasksViewMode next) {
-    if (next == active) return;
-    context.go(
-      next == TasksViewMode.list ? '/tasks' : '/tasks?view=${next.name}',
-    );
+    final tasksView = context.read<Services>().tasksView;
+    if (next == active && tasksView.value == next) return;
+    tasksView.set(next);
+    context.go('/tasks');
   }
 
   @override

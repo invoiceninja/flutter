@@ -29,6 +29,7 @@ import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/sidebar_menu_controller.dart';
 import 'package:admin/app/status_tabs_controller.dart';
+import 'package:admin/app/tasks_view_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme_controller.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -300,6 +301,7 @@ class Services implements SidebarBadgeContext {
     required this.appLocale,
     required this.confirmActions,
     required this.statusTabs,
+    required this.tasksView,
     required this.phoneActions,
     required this.pendingCall,
     required this.contactsSync,
@@ -615,6 +617,14 @@ class Services implements SidebarBadgeContext {
   /// `EntityListScreenScaffold` — the list's own `ListenableBuilder` watches
   /// the ViewModel, which never fires when this flips.
   final StatusTabsController statusTabs;
+
+  /// Device-local Tasks layout (list / daily / weekly / calendar / kanban), as
+  /// last picked from the Tasks AppBar toggle. Read live via a
+  /// `ValueListenableBuilder` in `TaskListScreen` — picking "List" from a
+  /// preference-driven board navigates to the *same* bare `/tasks` URL, which
+  /// `GoRouterDelegate.setNewRoutePath` short-circuits, so the repaint cannot
+  /// depend on the router noticing. See invoiceninja/flutter#133.
+  final TasksViewController tasksView;
 
   /// Device-local "Phone numbers" preferences — tap-to-call, the optional
   /// in-app confirm, and the outside-business-hours warning window
@@ -1438,6 +1448,7 @@ class Services implements SidebarBadgeContext {
     );
     final confirmActions = ConfirmActionsController(db: db);
     final statusTabs = StatusTabsController(db: db);
+    final tasksView = TasksViewController(db: db);
     final phoneActions = PhoneActionsController(db: db);
     final pendingCall = PendingCallController();
     // One instance, shared by the picker (`services.deviceContacts`) and the
@@ -1562,6 +1573,10 @@ class Services implements SidebarBadgeContext {
       // first one's menu, and their first touch of any menu control would
       // persist that array into their own fresh row.
       services.sidebarMenu.resetInMemory();
+      // Same argument for the Tasks layout: `nav_state` is about to be wiped,
+      // but the controller outlives the logout, so a second user signing in
+      // without relaunching would open Tasks on the first one's board.
+      services.tasksView.resetInMemory();
       // Drop every repo's first-frame seed cache. Those hold display names —
       // user data — and a second user signing in on the same install must not
       // inherit the previous one's. Also `invalidateAllFormatters`, whose doc
@@ -1714,6 +1729,7 @@ class Services implements SidebarBadgeContext {
       appLocale: appLocale,
       confirmActions: confirmActions,
       statusTabs: statusTabs,
+      tasksView: tasksView,
       phoneActions: phoneActions,
       pendingCall: pendingCall,
       contactsSync: contactsSync,

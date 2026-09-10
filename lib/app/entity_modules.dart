@@ -13,6 +13,8 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
+import 'package:admin/domain/tasks/tasks_view_mode.dart';
+import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/features/bank_accounts/views/bank_account_detail_screen.dart';
 import 'package:admin/ui/features/clients/views/client_detail_screen.dart';
 import 'package:admin/ui/features/clients/views/client_edit_screen.dart';
@@ -236,18 +238,21 @@ final kWiredEntityModules = <EntityModuleSpec>[
       // `?view=` selects the body (list / daily / weekly / calendar / kanban);
       // `?date=YYYY-MM-DD` seeds the focused day for the time-oriented views.
       // Read here (not in the screen) so deep links open in the right view
-      // from the first frame.
-      final view = switch (state.uri.queryParameters['view']) {
-        'kanban' => TasksViewMode.kanban,
-        'daily' => TasksViewMode.daily,
-        'weekly' => TasksViewMode.weekly,
-        'calendar' => TasksViewMode.calendar,
-        _ => TasksViewMode.list,
-      };
+      // from the first frame. A null `view` means the URL said nothing and the
+      // screen falls back to the remembered preference — which is why the
+      // parser lives in `lib/domain/tasks/` and this file must NOT import
+      // `services.dart` (it is imported *by* it; a back-import is a cycle).
       return TaskListScreen(
-        view: view,
+        view: tasksViewModeFromQuery(state.uri.queryParameters['view']),
         focusDate: Date.tryParse(state.uri.queryParameters['date']),
         clientId: clientId == null || clientId.isEmpty ? null : clientId,
+        // Same signal `buildEntityRouteBlock` computes for the layout itself
+        // (`router.dart`). A pane over the list pins it to the plain list: only
+        // `EntityListScreenScaffold` publishes into `MasterDetailNavController`,
+        // which the pane needs for J/K stepping and its first-frame seed.
+        hasPane: state.matchedLocation != '/tasks',
+        // A dashboard card's drill-down filter is consumed by the list VM only.
+        hasListIntent: state.extra is ListFilterIntent,
       );
     },
     // Create-mode seed comes from `Services.takeCreateDraft('/tasks')`.

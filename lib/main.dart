@@ -181,6 +181,7 @@ Future<void> _bootstrap() async {
     services.sidebar.restore(),
     services.confirmActions.restore(),
     services.statusTabs.restore(),
+    services.tasksView.restore(),
     services.phoneActions.restore(),
     services.sidebarBadgeModes.restore(),
     services.sidebarMenu.restore(),

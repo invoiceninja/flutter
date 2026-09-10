@@ -109,6 +109,24 @@ class NavState extends Table {
   TextColumn get sidebarMenuJson =>
       text().named('sidebar_menu_json').nullable()();
 
+  /// Device-local Tasks layout — the `TasksViewMode.name` the user last chose
+  /// from the Tasks AppBar toggle (`list` / `daily` / `weekly` / `calendar` /
+  /// `kanban`). Null column = never chosen, which resolves to `list`. Added in
+  /// schema v9 for invoiceninja/flutter#133.
+  ///
+  /// The mode used to live only in the URL (`/tasks?view=kanban`), and every
+  /// structural "up" navigation drops the query — so tapping "New task" from
+  /// the kanban board and cancelling landed the user back on the plain list.
+  /// The URL stays the override (deep links, `?view=daily&date=…`, a restored
+  /// route); this column is the fallback for a bare `/tasks`.
+  ///
+  /// Not the [statusTabs] bool shape — there are five modes and the default is
+  /// an enum value, so there is no literal a SQL `withDefault` could hold; and
+  /// not a JSON blob like [sidebarMenuJson], because this preference is one
+  /// scalar with a single writer. An unrecognised string (written by a newer
+  /// build, then downgraded) parses back to null rather than throwing.
+  TextColumn get tasksView => text().named('tasks_view').nullable()();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

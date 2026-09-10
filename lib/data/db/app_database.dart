@@ -186,7 +186,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -248,6 +248,14 @@ class AppDatabase extends _$AppDatabase {
     // the card. Not the `status_tabs` bool shape — the interesting half is an
     // *ordered list* whose default is computed from the entity registry at
     // runtime, so there is no literal a SQL default could hold.
+    //
+    // v8 → v9: add `nav_state.tasks_view` (device-local Tasks layout — the
+    // `TasksViewMode.name` last picked from the Tasks AppBar toggle,
+    // invoiceninja/flutter#133). Nullable with no backfill: null means "never
+    // chosen", which resolves to the list — exactly what every installed
+    // database renders today, so an upgraded install is identical to a fresh
+    // one until the user picks a view. Not the `status_tabs` bool shape (five
+    // modes, and the default is an enum value rather than a SQL literal).
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
@@ -270,6 +278,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 8) {
         await m.addColumn(navState, navState.sidebarMenuJson);
+      }
+      if (from < 9) {
+        await m.addColumn(navState, navState.tasksView);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

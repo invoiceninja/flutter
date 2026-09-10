@@ -220,5 +220,19 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Tasks-layout-only update — [TasksViewController] calls this when the user
+  /// picks a view from the Tasks AppBar toggle. Same partial-write pattern as
+  /// [saveSidebarMenu]; [name] is a `TasksViewMode.name`, or null to forget the
+  /// choice (back to the list default).
+  Future<void> saveTasksView({required String? name, required int now}) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        tasksView: Value(name),
+        updatedAt: now,
+      ),
+    );
+  }
+
   Future<void> clear() => (delete(navState)..where((n) => n.id.equals(0))).go();
 }

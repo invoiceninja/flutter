@@ -5048,6 +5048,17 @@ class $NavStateTable extends NavState
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _tasksViewMeta = const VerificationMeta(
+    'tasksView',
+  );
+  @override
+  late final GeneratedColumn<String> tasksView = GeneratedColumn<String>(
+    'tasks_view',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _recentEntitiesJsonMeta =
       const VerificationMeta('recentEntitiesJson');
   @override
@@ -5104,6 +5115,7 @@ class $NavStateTable extends NavState
     contactsSyncJson,
     phoneActionsJson,
     sidebarMenuJson,
+    tasksView,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
@@ -5255,6 +5267,12 @@ class $NavStateTable extends NavState
         ),
       );
     }
+    if (data.containsKey('tasks_view')) {
+      context.handle(
+        _tasksViewMeta,
+        tasksView.isAcceptableOrUnknown(data['tasks_view']!, _tasksViewMeta),
+      );
+    }
     if (data.containsKey('recent_entities_json')) {
       context.handle(
         _recentEntitiesJsonMeta,
@@ -5357,6 +5375,10 @@ class $NavStateTable extends NavState
       sidebarMenuJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}sidebar_menu_json'],
+      ),
+      tasksView: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tasks_view'],
       ),
       recentEntitiesJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -5473,6 +5495,24 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   /// any destination a later release adds. See `lib/domain/sidebar_menu.dart`.
   final String? sidebarMenuJson;
 
+  /// Device-local Tasks layout — the `TasksViewMode.name` the user last chose
+  /// from the Tasks AppBar toggle (`list` / `daily` / `weekly` / `calendar` /
+  /// `kanban`). Null column = never chosen, which resolves to `list`. Added in
+  /// schema v9 for invoiceninja/flutter#133.
+  ///
+  /// The mode used to live only in the URL (`/tasks?view=kanban`), and every
+  /// structural "up" navigation drops the query — so tapping "New task" from
+  /// the kanban board and cancelling landed the user back on the plain list.
+  /// The URL stays the override (deep links, `?view=daily&date=…`, a restored
+  /// route); this column is the fallback for a bare `/tasks`.
+  ///
+  /// Not the [statusTabs] bool shape — there are five modes and the default is
+  /// an enum value, so there is no literal a SQL `withDefault` could hold; and
+  /// not a JSON blob like [sidebarMenuJson], because this preference is one
+  /// scalar with a single writer. An unrecognised string (written by a newer
+  /// build, then downgraded) parses back to null rather than throwing.
+  final String? tasksView;
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,
@@ -5498,6 +5538,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     this.contactsSyncJson,
     this.phoneActionsJson,
     this.sidebarMenuJson,
+    this.tasksView,
     this.recentEntitiesJson,
     required this.sidebarCollapsed,
     required this.updatedAt,
@@ -5549,6 +5590,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     }
     if (!nullToAbsent || sidebarMenuJson != null) {
       map['sidebar_menu_json'] = Variable<String>(sidebarMenuJson);
+    }
+    if (!nullToAbsent || tasksView != null) {
+      map['tasks_view'] = Variable<String>(tasksView);
     }
     if (!nullToAbsent || recentEntitiesJson != null) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson);
@@ -5605,6 +5649,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       sidebarMenuJson: sidebarMenuJson == null && nullToAbsent
           ? const Value.absent()
           : Value(sidebarMenuJson),
+      tasksView: tasksView == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tasksView),
       recentEntitiesJson: recentEntitiesJson == null && nullToAbsent
           ? const Value.absent()
           : Value(recentEntitiesJson),
@@ -5642,6 +5689,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       contactsSyncJson: serializer.fromJson<String?>(json['contactsSyncJson']),
       phoneActionsJson: serializer.fromJson<String?>(json['phoneActionsJson']),
       sidebarMenuJson: serializer.fromJson<String?>(json['sidebarMenuJson']),
+      tasksView: serializer.fromJson<String?>(json['tasksView']),
       recentEntitiesJson: serializer.fromJson<String?>(
         json['recentEntitiesJson'],
       ),
@@ -5674,6 +5722,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       'contactsSyncJson': serializer.toJson<String?>(contactsSyncJson),
       'phoneActionsJson': serializer.toJson<String?>(phoneActionsJson),
       'sidebarMenuJson': serializer.toJson<String?>(sidebarMenuJson),
+      'tasksView': serializer.toJson<String?>(tasksView),
       'recentEntitiesJson': serializer.toJson<String?>(recentEntitiesJson),
       'sidebarCollapsed': serializer.toJson<bool>(sidebarCollapsed),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -5698,6 +5747,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     Value<String?> contactsSyncJson = const Value.absent(),
     Value<String?> phoneActionsJson = const Value.absent(),
     Value<String?> sidebarMenuJson = const Value.absent(),
+    Value<String?> tasksView = const Value.absent(),
     Value<String?> recentEntitiesJson = const Value.absent(),
     bool? sidebarCollapsed,
     int? updatedAt,
@@ -5733,6 +5783,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     sidebarMenuJson: sidebarMenuJson.present
         ? sidebarMenuJson.value
         : this.sidebarMenuJson,
+    tasksView: tasksView.present ? tasksView.value : this.tasksView,
     recentEntitiesJson: recentEntitiesJson.present
         ? recentEntitiesJson.value
         : this.recentEntitiesJson,
@@ -5784,6 +5835,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       sidebarMenuJson: data.sidebarMenuJson.present
           ? data.sidebarMenuJson.value
           : this.sidebarMenuJson,
+      tasksView: data.tasksView.present ? data.tasksView.value : this.tasksView,
       recentEntitiesJson: data.recentEntitiesJson.present
           ? data.recentEntitiesJson.value
           : this.recentEntitiesJson,
@@ -5814,6 +5866,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ..write('contactsSyncJson: $contactsSyncJson, ')
           ..write('phoneActionsJson: $phoneActionsJson, ')
           ..write('sidebarMenuJson: $sidebarMenuJson, ')
+          ..write('tasksView: $tasksView, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -5822,7 +5875,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     currentRoute,
     selectedCompanyId,
@@ -5840,10 +5893,11 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     contactsSyncJson,
     phoneActionsJson,
     sidebarMenuJson,
+    tasksView,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5865,6 +5919,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           other.contactsSyncJson == this.contactsSyncJson &&
           other.phoneActionsJson == this.phoneActionsJson &&
           other.sidebarMenuJson == this.sidebarMenuJson &&
+          other.tasksView == this.tasksView &&
           other.recentEntitiesJson == this.recentEntitiesJson &&
           other.sidebarCollapsed == this.sidebarCollapsed &&
           other.updatedAt == this.updatedAt);
@@ -5888,6 +5943,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
   final Value<String?> contactsSyncJson;
   final Value<String?> phoneActionsJson;
   final Value<String?> sidebarMenuJson;
+  final Value<String?> tasksView;
   final Value<String?> recentEntitiesJson;
   final Value<bool> sidebarCollapsed;
   final Value<int> updatedAt;
@@ -5909,6 +5965,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.contactsSyncJson = const Value.absent(),
     this.phoneActionsJson = const Value.absent(),
     this.sidebarMenuJson = const Value.absent(),
+    this.tasksView = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5931,6 +5988,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.contactsSyncJson = const Value.absent(),
     this.phoneActionsJson = const Value.absent(),
     this.sidebarMenuJson = const Value.absent(),
+    this.tasksView = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     required int updatedAt,
@@ -5953,6 +6011,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Expression<String>? contactsSyncJson,
     Expression<String>? phoneActionsJson,
     Expression<String>? sidebarMenuJson,
+    Expression<String>? tasksView,
     Expression<String>? recentEntitiesJson,
     Expression<bool>? sidebarCollapsed,
     Expression<int>? updatedAt,
@@ -5977,6 +6036,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       if (contactsSyncJson != null) 'contacts_sync_json': contactsSyncJson,
       if (phoneActionsJson != null) 'phone_actions_json': phoneActionsJson,
       if (sidebarMenuJson != null) 'sidebar_menu_json': sidebarMenuJson,
+      if (tasksView != null) 'tasks_view': tasksView,
       if (recentEntitiesJson != null)
         'recent_entities_json': recentEntitiesJson,
       if (sidebarCollapsed != null) 'sidebar_collapsed': sidebarCollapsed,
@@ -6002,6 +6062,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Value<String?>? contactsSyncJson,
     Value<String?>? phoneActionsJson,
     Value<String?>? sidebarMenuJson,
+    Value<String?>? tasksView,
     Value<String?>? recentEntitiesJson,
     Value<bool>? sidebarCollapsed,
     Value<int>? updatedAt,
@@ -6026,6 +6087,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       contactsSyncJson: contactsSyncJson ?? this.contactsSyncJson,
       phoneActionsJson: phoneActionsJson ?? this.phoneActionsJson,
       sidebarMenuJson: sidebarMenuJson ?? this.sidebarMenuJson,
+      tasksView: tasksView ?? this.tasksView,
       recentEntitiesJson: recentEntitiesJson ?? this.recentEntitiesJson,
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -6090,6 +6152,9 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     if (sidebarMenuJson.present) {
       map['sidebar_menu_json'] = Variable<String>(sidebarMenuJson.value);
     }
+    if (tasksView.present) {
+      map['tasks_view'] = Variable<String>(tasksView.value);
+    }
     if (recentEntitiesJson.present) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson.value);
     }
@@ -6122,6 +6187,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
           ..write('contactsSyncJson: $contactsSyncJson, ')
           ..write('phoneActionsJson: $phoneActionsJson, ')
           ..write('sidebarMenuJson: $sidebarMenuJson, ')
+          ..write('tasksView: $tasksView, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -47536,6 +47602,7 @@ typedef $$NavStateTableCreateCompanionBuilder =
       Value<String?> contactsSyncJson,
       Value<String?> phoneActionsJson,
       Value<String?> sidebarMenuJson,
+      Value<String?> tasksView,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       required int updatedAt,
@@ -47559,6 +47626,7 @@ typedef $$NavStateTableUpdateCompanionBuilder =
       Value<String?> contactsSyncJson,
       Value<String?> phoneActionsJson,
       Value<String?> sidebarMenuJson,
+      Value<String?> tasksView,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       Value<int> updatedAt,
@@ -47655,6 +47723,11 @@ class $$NavStateTableFilterComposer
 
   ColumnFilters<String> get sidebarMenuJson => $composableBuilder(
     column: $table.sidebarMenuJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tasksView => $composableBuilder(
+    column: $table.tasksView,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -47768,6 +47841,11 @@ class $$NavStateTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get tasksView => $composableBuilder(
+    column: $table.tasksView,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => ColumnOrderings(column),
@@ -47870,6 +47948,9 @@ class $$NavStateTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get tasksView =>
+      $composableBuilder(column: $table.tasksView, builder: (column) => column);
+
   GeneratedColumn<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => column,
@@ -47932,6 +48013,7 @@ class $$NavStateTableTableManager
                 Value<String?> contactsSyncJson = const Value.absent(),
                 Value<String?> phoneActionsJson = const Value.absent(),
                 Value<String?> sidebarMenuJson = const Value.absent(),
+                Value<String?> tasksView = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -47953,6 +48035,7 @@ class $$NavStateTableTableManager
                 contactsSyncJson: contactsSyncJson,
                 phoneActionsJson: phoneActionsJson,
                 sidebarMenuJson: sidebarMenuJson,
+                tasksView: tasksView,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,
@@ -47976,6 +48059,7 @@ class $$NavStateTableTableManager
                 Value<String?> contactsSyncJson = const Value.absent(),
                 Value<String?> phoneActionsJson = const Value.absent(),
                 Value<String?> sidebarMenuJson = const Value.absent(),
+                Value<String?> tasksView = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 required int updatedAt,
@@ -47997,6 +48081,7 @@ class $$NavStateTableTableManager
                 contactsSyncJson: contactsSyncJson,
                 phoneActionsJson: phoneActionsJson,
                 sidebarMenuJson: sidebarMenuJson,
+                tasksView: tasksView,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,

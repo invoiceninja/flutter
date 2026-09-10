@@ -7,6 +7,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/db/dao/task_dao.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/tasks/tasks_view_mode.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_screen_scaffold.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
@@ -22,28 +23,39 @@ import 'package:admin/ui/features/tasks/widgets/task_list_tile.dart';
 import 'package:admin/ui/features/tasks/widgets/task_token_search_field.dart';
 import 'package:admin/ui/features/tasks/widgets/tasks_view_toggle.dart';
 
-/// Which body the tasks screen renders. Read from `?view=` on the URL so
-/// deep links and back/forward navigation surface in the right view from
-/// the first frame. List + Kanban use `EntityListScreenScaffold` / the kanban
-/// board; daily / weekly / calendar are time-oriented views over the same
-/// task set (see their respective screens).
-enum TasksViewMode { list, daily, weekly, calendar, kanban }
+/// Re-exported so `show TasksViewMode` importers keep pointing here while the
+/// enum itself lives in a leaf the `lib/app/` controller can import without
+/// dragging in a UI screen. Same shape as
+/// `lib/domain/columns/<entity>_columns.dart` and its `ids/` leaf.
+export 'package:admin/domain/tasks/tasks_view_mode.dart' show TasksViewMode;
 
-/// Tasks list screen. When `view == TasksViewMode.kanban` the body
-/// delegates to [KanbanScreen]; otherwise it's the standard
-/// `EntityListScreenScaffold`. Both share the same AppBar toggle so the
+/// Tasks list screen. Dispatches to [KanbanScreen] / [TaskCalendarScreen] /
+/// [TaskDailyScreen] / [TaskWeeklyScreen], or the standard
+/// `EntityListScreenScaffold`. All five share the same AppBar toggle so the
 /// user always sees how to switch back.
+///
+/// The layout is resolved here rather than taken as a given: `?view=` on the
+/// URL is the override, and the device-local `Services.tasksView` preference is
+/// the fallback for a bare `/tasks`. Before invoiceninja/flutter#133 the URL was
+/// the only carrier, and since every structural "up" navigation drops the query
+/// string, tapping "New task" from the kanban board and cancelling put the user
+/// back on the plain list.
 class TaskListScreen extends StatelessWidget {
   const TaskListScreen({
     super.key,
-    this.view = TasksViewMode.list,
+    this.view,
     this.focusDate,
     this.clientId,
     this.projectId,
     this.embedded = false,
+    this.hasPane = false,
+    this.hasListIntent = false,
   });
 
-  final TasksViewMode view;
+  /// The layout `?view=` asked for, or **null** when the URL expressed no
+  /// opinion — including `?view=full`, which is `MasterDetailLayout`'s pane
+  /// flag sharing the key. Null falls back to the remembered preference.
+  final TasksViewMode? view;
 
   /// Initial focused day/week/month for the time-oriented views, seeded from
   /// `?date=` on the URL (e.g. a calendar day-cell tap deep-links into daily).
@@ -60,8 +72,32 @@ class TaskListScreen extends StatelessWidget {
   /// True when this list lives inside another screen's body.
   final bool embedded;
 
+  /// True when a master-detail pane is open over this list (`/tasks/:id`,
+  /// `/tasks/:id/edit`, `/tasks/new`).
+  final bool hasPane;
+
+  /// True when a dashboard `ListFilterIntent` rode in on the route's `extra`.
+  final bool hasListIntent;
+
   @override
   Widget build(BuildContext context) {
+    // "Locked" = this screen can only be the plain list, so the remembered
+    // preference must not apply. Each arm breaks something silently otherwise —
+    // see `resolveTasksViewMode` for what and why.
+    final locked =
+        embedded ||
+        hasPane ||
+        hasListIntent ||
+        clientId != null ||
+        projectId != null;
+    return _RememberedTasksView(
+      urlView: view,
+      locked: locked,
+      builder: _bodyFor,
+    );
+  }
+
+  Widget _bodyFor(BuildContext context, TasksViewMode view) {
     if (view == TasksViewMode.calendar) {
       return TaskCalendarScreen(focusDate: focusDate);
     }
@@ -256,6 +292,95 @@ class TaskListScreen extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Resolves the layout for [TaskListScreen] and mirrors an explicit URL choice
+/// back into the remembered preference. Stateful for the mirror alone.
+///
+/// **The mirror is one of two writers.** `TasksViewToggle._go` writes the user's
+/// own choice (and navigates to a bare `/tasks`, so a switch is not a history
+/// step); this mirror covers every URL-driven path instead — the calendar
+/// day-cell's `?view=daily&date=…` deep link, the post-OAuth
+/// `/tasks?view=calendar` landing, a restored `nav_state` route, back/forward —
+/// so the preference can never drift from a URL that does name a layout. It
+/// writes post-frame so `ValueNotifier.notifyListeners` can never fire inside
+/// the parent's build phase.
+class _RememberedTasksView extends StatefulWidget {
+  const _RememberedTasksView({
+    required this.urlView,
+    required this.locked,
+    required this.builder,
+  });
+
+  final TasksViewMode? urlView;
+  final bool locked;
+  final Widget Function(BuildContext context, TasksViewMode mode) builder;
+
+  @override
+  State<_RememberedTasksView> createState() => _RememberedTasksViewState();
+}
+
+class _RememberedTasksViewState extends State<_RememberedTasksView> {
+  @override
+  void initState() {
+    super.initState();
+    _mirror();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RememberedTasksView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.urlView != oldWidget.urlView ||
+        widget.locked != oldWidget.locked) {
+      _mirror();
+    }
+  }
+
+  void _mirror() {
+    final mode = widget.urlView;
+    if (widget.locked || mode == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<Services>().tasksView.set(mode);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Load-bearing, not decoration: the toggle sets the preference and then
+    // navigates to a bare `/tasks`, which is the URL a preference-driven board
+    // is *already* on — and `GoRouterDelegate.setNewRoutePath` short-circuits an
+    // unchanged `RouteMatchList`, so nothing rebuilds from the router. This
+    // subscription is the whole repaint path for a view switch.
+    //
+    // It is built UNCONDITIONALLY, including when `locked` — the stable element
+    // position is the point, not the value. `locked` carries `hasPane`, which
+    // flips on every pane open and close, so returning the child bare in that
+    // branch alternates the widget at this slot between `ValueListenableBuilder`
+    // and `EntityListScreenScaffold`; `Widget.canUpdate` fails on the
+    // runtimeType change and the list is unmounted and re-inflated. On a wide
+    // window that is a real regression, because `MasterDetailLayout` keeps the
+    // list element alive there on purpose (`Positioned.fill(Offstage(…))` is
+    // Stack child 0 in both pane states) — the list would reset its scroll,
+    // rebuild its ViewModel back to page 1 and drop multi-select every time a
+    // row is clicked, and the freshly-seeded `MasterDetailNavController` could
+    // no longer resolve the row the pane just opened.
+    //
+    // Note `EntityListScreenScaffold._statusTabs` is NOT a precedent for
+    // branching here: that guard wraps an optional *sibling* in a `Column`, so
+    // its early return destabilises nothing below it.
+    return ValueListenableBuilder<TasksViewMode?>(
+      valueListenable: context.read<Services>().tasksView,
+      builder: (context, remembered, _) => widget.builder(
+        context,
+        resolveTasksViewMode(
+          urlView: widget.urlView,
+          remembered: remembered,
+          locked: widget.locked,
+        ),
+      ),
     );
   }
 }

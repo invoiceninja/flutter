@@ -30,10 +30,14 @@ import 'package:admin/data/db/app_database.dart';
 ///   strip `/foo/new` back to `/foo`, query string and all).
 ///
 /// NOTE: only `view=full` is transient. The Tasks screen reuses the same
-/// `view=` key for its LAYOUT mode (`calendar`/`daily`/`weekly`/`kanban`),
-/// which lives only in the URL and MUST persist — otherwise leaving Tasks on
-/// the calendar and restarting silently dumps the user back on the plain
-/// list. So a non-`full` `view` value is preserved.
+/// `view=` key for its LAYOUT mode (`calendar`/`daily`/`weekly`/`kanban`), so a
+/// non-`full` `view` value is preserved. That mode is now also remembered
+/// device-locally (`nav_state.tasks_view`, invoiceninja/flutter#133) and the
+/// view toggle emits no `?view=` at all, so the URL is no longer its main
+/// carrier — but the carve-out must stay for the two paths that still produce
+/// one: the calendar day-cell's `?view=daily&date=…` and the post-OAuth
+/// `/tasks?view=calendar` landing. Stripping it would drop the layout from a
+/// restored route for exactly those.
 ///
 /// Every other query param (e.g. `client_id`) is preserved.
 String stripTransientQuery(String uri) {

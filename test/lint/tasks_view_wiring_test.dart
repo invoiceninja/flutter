@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Source-level guards for the Tasks layout preference
-/// (invoiceninja/flutter#133).
+/// (invoiceninja/flutter#133) and for the kanban screen's deliberate lack of a
+/// create FAB (invoiceninja/flutter#135).
 ///
 /// Scanned rather than exercised because reaching any of it for real needs the
 /// whole app graph — a router, a live `Services`, and a `KanbanScreen` that
@@ -95,6 +96,88 @@ void main() {
       source.contains(r"'/tasks?view=$"),
       isFalse,
       reason: 'the toggle is emitting ?view= again — that is a history step',
+    );
+  });
+
+  test('the kanban screen has no create FAB', () {
+    // Its three siblings — daily / weekly / calendar — each hardcode an
+    // identical `FloatingActionButton`, and they keep it: a FAB may only be
+    // dropped where the substitute is the SAME verb. Daily and weekly do have
+    // a second create (`TaskDailyActions.logTime`, behind an always-visible
+    // `Log time` button), but it pre-fills a time entry and says so, and
+    // calendar's is convert-this-event — neither is a plain new task. Kanban's
+    // FAB was the one true duplicate: every column already ends in a
+    // `+ New Task` that seeds that column's status, where the FAB seeded
+    // nothing (so a task saved with the picker left blank landed in no column
+    // until the server assigned one) and on a phone sat over a column's own
+    // footer. React's kanban has no page-level create control either
+    // (invoiceninja/flutter#135).
+    //
+    // Scanned rather than pumped: `KanbanScreen` builds a `KanbanViewModel`
+    // over two live Drift watch streams, and re-adding the FAB "for consistency
+    // with the other three" compiles, runs, and looks perfectly ordinary in a
+    // desktop review.
+    //
+    // Comments are stripped first, or this fails on the very comment in
+    // `kanban_screen.dart` that explains the absence — the trap
+    // `no_list_tile_name_link_test.dart` already records.
+    final source = read('lib/ui/features/tasks/views/kanban_screen.dart')
+        .split('\n')
+        .map((line) {
+          final i = line.indexOf('//');
+          return i < 0 ? line : line.substring(0, i);
+        })
+        .join('\n');
+    expect(
+      source.contains('loatingActionButton'),
+      isFalse,
+      reason:
+          'KanbanScreen has a FAB again — the per-column "+ New Task" is the '
+          'board\'s create affordance (invoiceninja/flutter#135).',
+    );
+  });
+
+  test('the column\'s create gate is not the reorder gate', () {
+    // `KanbanBoard` folds `!filtersActive` into `canEdit` so a reorder can
+    // never be computed from a partial set. With the FAB gone the footer is the
+    // board's ONLY create path, so passing that same expression as `canCreate`
+    // would take it away from anyone who applies a filter — and `create_task`
+    // is what the server authorizes a create against, which `can()` never
+    // derives from `edit_task`. Both halves are silent: the footer just isn't
+    // drawn. `kanban_column_test.dart` pins the widget's side of this.
+    final source = read(
+      'lib/ui/features/tasks/widgets/kanban/kanban_board.dart',
+    );
+    expect(source, contains("me?.can('create_task')"));
+    expect(source, contains('canCreate: canCreate,'));
+    // The argument alone is not enough: the filter reads just as naturally
+    // folded into the DECLARATION (`final canCreate = (…) && !vm.filtersActive`
+    // ), which leaves `canCreate: canCreate,` intact and both assertions above
+    // green. Count the mentions instead — there must be exactly two, and both
+    // must be reorder gates. Comments are stripped or the count picks up the
+    // one right beside `canCreate:` explaining why it is NOT folded in.
+    final gates = source
+        .split('\n')
+        .map((line) {
+          final i = line.indexOf('//');
+          return i < 0 ? line : line.substring(0, i);
+        })
+        .where((line) => line.contains('filtersActive'))
+        .map((line) => line.trim())
+        .toList();
+    expect(
+      gates,
+      [
+        'canEdit: canEdit && !vm.filtersActive,',
+        'onAcceptStatus: (canEdit && !vm.filtersActive)',
+      ],
+      reason:
+          'a filter reached the create gate — a filtered board would then have '
+          'no way to create a task at all (invoiceninja/flutter#135).',
+    );
+    expect(
+      read('lib/ui/features/tasks/widgets/kanban/kanban_column.dart'),
+      contains('if (canCreate) ...['),
     );
   });
 

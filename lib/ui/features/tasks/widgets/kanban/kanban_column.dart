@@ -35,6 +35,7 @@ class KanbanColumn extends StatelessWidget {
     required this.onAcceptTask,
     this.onAcceptStatus,
     this.canEdit = true,
+    this.canCreate = true,
   });
 
   final TaskStatus status;
@@ -55,10 +56,25 @@ class KanbanColumn extends StatelessWidget {
   /// where this column currently sits. Null disables column reorder.
   final void Function(TaskStatus droppedStatus)? onAcceptStatus;
 
-  /// Whether the active user can mutate tasks. When false, drag handles
-  /// are hidden and drops are no-ops — read-only users can't initiate a
-  /// drop the server would reject anyway.
+  /// Whether the active user may rearrange the board. When false, drag
+  /// handles are hidden and drops are no-ops — read-only users can't initiate
+  /// a drop the server would reject anyway.
+  ///
+  /// The board folds `!filtersActive` into this (a reorder computed from a
+  /// filtered, partial set would drop the hidden tasks from a status's
+  /// persisted order), which is why it is **not** the gate on [canCreate].
   final bool canEdit;
+
+  /// Whether the active user may start a new task — the `+ New Task` footer.
+  ///
+  /// Split from [canEdit] because the two ask different questions. This one is
+  /// `create_task` (the token the server authorizes a create against; `can()`
+  /// never derives it from `edit_task`), and it is filter-independent: the
+  /// footer creates one task, it never rewrites a column's order. Since the
+  /// kanban screen has no FAB (invoiceninja/flutter#135) this footer is the
+  /// board's only create path, so conflating the two would leave a filtered
+  /// board — or a create-only user — with no way to add a task at all.
+  final bool canCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -228,9 +244,11 @@ class KanbanColumn extends StatelessWidget {
               },
             ),
           ),
-          // Per-column quick-add (admin-portal parity): seeds the new task
-          // with this column's status so it lands in the right column.
-          if (canEdit) ...[
+          // Per-column quick-add (admin-portal + React parity): seeds the new
+          // task with this column's status so it lands in the right column.
+          // Since invoiceninja/flutter#135 removed the screen's FAB this is the
+          // board's only create path — hence [canCreate] rather than [canEdit].
+          if (canCreate) ...[
             Divider(height: 1, color: tokens.border),
             InkWell(
               onTap: () => goEntityCreateFullWidth(

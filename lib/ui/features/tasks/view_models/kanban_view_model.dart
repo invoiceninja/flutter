@@ -60,7 +60,11 @@ class KanbanViewModel extends ChangeNotifier with TaskFiltersMixin {
   // before the board groups/renders, so column card-counts reflect the filter
   // too. While any filter is active the board is read-only for reordering
   // (`filtersActive` gates `KanbanColumn.canEdit`) — a partial reorder would
-  // drop hidden tasks from a status's persisted order.
+  // drop hidden tasks from a status's persisted order. It deliberately stops
+  // there: it does NOT reach `KanbanColumn.canCreate`, because a quick-add
+  // writes one task's `status_id` and rewrites no order — and since the screen
+  // has no FAB (invoiceninja/flutter#135) that footer is the board's only way
+  // to add a task.
 
   bool _isResolving = true;
   bool get isResolving => _isResolving;

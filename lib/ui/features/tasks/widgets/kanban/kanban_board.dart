@@ -70,6 +70,12 @@ class KanbanBoard extends StatelessWidget {
 
     final me = context.read<Services>().auth.session.value?.currentCompany;
     final canEdit = me?.can('edit_task') ?? false;
+    // A separate token, deliberately. `can()` grants `edit ⇒ view` and
+    // `delete ⇒ edit` but never `edit ⇒ create`, so an edit-only user really
+    // cannot create — and `create_task` is both what the server authorizes a
+    // create against and what React's `Kanban.tsx` gates its own per-column
+    // `+` on.
+    final canCreate = me?.can('create_task') ?? false;
 
     return Padding(
       // Horizontal 24 to match `EntityListScreenScaffold`'s table-card
@@ -96,6 +102,13 @@ class KanbanBoard extends StatelessWidget {
               // shows a partial set, so a persisted reorder would drop the
               // hidden tasks from this status's order.
               canEdit: canEdit && !vm.filtersActive,
+              // NOT folded with `filtersActive`. A quick-add writes one task's
+              // `status_id`; it never touches a column's persisted `task_ids`
+              // order, so the partial-set hazard above doesn't reach it. And
+              // since the screen dropped its FAB (invoiceninja/flutter#135)
+              // this is the board's only create path — a filter must not be
+              // able to take it away.
+              canCreate: canCreate,
               onAcceptTask: (task, beforeTaskId) =>
                   _onAccept(vm, status, task, beforeTaskId),
               onAcceptStatus: (canEdit && !vm.filtersActive)

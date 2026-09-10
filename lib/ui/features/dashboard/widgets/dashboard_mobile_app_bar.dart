@@ -100,11 +100,14 @@ class DashboardMobileAppBar extends StatelessWidget
       // is the sidebar's right border, since the shell insets content with a
       // bare `Positioned.fill(left: railWidth)`. There is also nothing to buy
       // there: no leading and a ≥368 dp bar leaves the default 16 ample room.
-      // No other bar in the app pairs `titleSpacing: 0` with a real `title:` —
-      // the `entity_list_app_bar` / `tasks_view_toggle` uses of that value are
-      // wide bars that render through `flexibleSpace` and pass no title at all,
-      // and the narrow bar this one mirrors (`tasks_view_toggle`, same
-      // nullable-leading shape) keeps the default.
+      // Three other bars pair `titleSpacing: 0` with a real `title:` for the
+      // same reason — `billing_doc_email_screen.dart`, the command palette's
+      // phone page (whose title *is* its search field), and (since #136 gave it
+      // a second action) the narrow `tasks_view_toggle` bar this one mirrors.
+      // The remaining uses of that value are a different case: bars that render
+      // through `flexibleSpace` and pass no title at all, i.e. both in
+      // `entity_list_app_bar.dart` and `tasks_view_toggle`'s *wide* branch —
+      // so that file belongs to both sets, one branch each.
       titleSpacing: showHamburger ? 0 : null,
       // Still ellipsised, unlike the other screens' bare `Text` titles: 320 dp
       // handsets remain too narrow for the full word with every action shown,

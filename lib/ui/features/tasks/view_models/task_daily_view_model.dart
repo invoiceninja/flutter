@@ -76,6 +76,17 @@ class TaskDailyViewModel extends ChangeNotifier with TaskFiltersMixin {
   List<({Task task, TimeEntry entry})> get rows =>
       entriesOnDay(_filtered, _day);
 
+  /// True when the day *does* hold entries and only an active filter is hiding
+  /// them — the one case where offering "Clear filters" is honest.
+  ///
+  /// [filtersActive] alone is not that case: a day with nothing logged is
+  /// equally empty with a filter applied, and that user is told to clear a
+  /// filter that reveals nothing *and* loses the `Log time` action they
+  /// actually want. The unfiltered pass runs only after [rows] has already come
+  /// back empty, so the common path costs nothing.
+  bool get hasFilteredOutRows =>
+      filtersActive && rows.isEmpty && entriesOnDay(_tasks, _day).isNotEmpty;
+
   /// Total wall-clock time logged on the focused day (running entries counted
   /// up to now).
   Duration get total {

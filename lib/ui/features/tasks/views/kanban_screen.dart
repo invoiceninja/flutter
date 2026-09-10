@@ -8,6 +8,7 @@ import 'package:admin/ui/features/tasks/view_models/kanban_view_model.dart';
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart';
 import 'package:admin/ui/features/tasks/widgets/kanban/kanban_board.dart';
 import 'package:admin/ui/features/tasks/widgets/task_filter_bar.dart';
+import 'package:admin/ui/features/tasks/widgets/task_filters_sheet.dart';
 import 'package:admin/ui/features/tasks/widgets/tasks_view_toggle.dart';
 
 /// Top-level kanban screen. Mounts its own [KanbanViewModel] (separate from
@@ -60,38 +61,72 @@ class _KanbanScreenState extends State<KanbanScreen> {
     super.dispose();
   }
 
+  /// The single call site per screen: the AppBar's filter action and the chip
+  /// strip's chips both route here, so the sheet's arguments cannot drift
+  /// between them.
+  void _openFilters() =>
+      openTaskFilters(context, filters: _vm, companyId: _vm.companyId);
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: buildTasksViewAppBar(context, TasksViewMode.kanban),
-      // The drawer itself — the AppBar's hamburger needs something to
-      // open. Mirrors `EntityListScreenScaffold`, which attaches it the
-      // same way for the list view.
-      drawer: Breakpoints.isGlobalNavVisible(context)
-          ? null
-          : const AppDrawer(),
-      // Deliberately no `floatingActionButton` — the one Tasks view that can
-      // drop it, because a FAB may only go where the substitute is the SAME
-      // verb. Every column ends in its own `+ New Task`, which is a plain
-      // new-task create and a better one (it seeds the column's status, so the
-      // task lands where the user clicked; this FAB seeded nothing, and on a
-      // phone `endFloat` put it over the footer of whichever column was
-      // scrolled to the right edge). Daily and weekly are NOT a precedent: they
-      // do have a second create, but it is `TaskDailyActions.logTime` behind a
-      // `Log time` button — a different verb that pre-fills a time entry — so
-      // dropping their FAB would make a plain new task unreachable there;
-      // calendar's only other create is convert-this-event. React's kanban has
-      // no page-level create control either (invoiceninja/flutter#135).
-      // `test/lint/tasks_view_wiring_test.dart` fails the build if one returns.
-      body: ChangeNotifierProvider<KanbanViewModel>.value(
-        value: _vm,
-        child: Column(
-          children: [
-            TaskFilterBar(filters: _vm, companyId: _vm.companyId),
-            const Expanded(child: KanbanBoard()),
-          ],
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // One gate, all of this screen's consumers of it — the AppBar's
+        // flavour, its filter action, the bar's own layout and, on the three
+        // time-oriented views, the view header. `Scaffold.appBar` is built
+        // outside the body so the bar can never inform it, and two gates
+        // disagree in the 600-832 px band; see `taskFiltersInline`. Same shape
+        // as `EntityListScreenScaffold`, which reads `wide` here too.
+        final wide = Breakpoints.isWide(constraints);
+        final inline = taskFiltersInline(
+          paneWidth: constraints.maxWidth,
+          isPhone: Breakpoints.isPhone(context),
+        );
+        return Scaffold(
+          appBar: buildTasksViewAppBar(
+            context,
+            TasksViewMode.kanban,
+            wide: wide,
+            // Both null while the pickers render inline — a second entry point
+            // there would be redundant chrome over the row itself.
+            filters: inline ? null : _vm,
+            onEditFilters: _openFilters,
+          ),
+          // The drawer itself — the AppBar's hamburger needs something to
+          // open. Mirrors `EntityListScreenScaffold`, which attaches it the
+          // same way for the list view.
+          drawer: Breakpoints.isGlobalNavVisible(context)
+              ? null
+              : const AppDrawer(),
+          // Deliberately no `floatingActionButton` — the one Tasks view that can
+          // drop it, because a FAB may only go where the substitute is the SAME
+          // verb. Every column ends in its own `+ New Task`, which is a plain
+          // new-task create and a better one (it seeds the column's status, so the
+          // task lands where the user clicked; this FAB seeded nothing, and on a
+          // phone `endFloat` put it over the footer of whichever column was
+          // scrolled to the right edge). Daily and weekly are NOT a precedent: they
+          // do have a second create, but it is `TaskDailyActions.logTime` behind a
+          // `Log time` button — a different verb that pre-fills a time entry — so
+          // dropping their FAB would make a plain new task unreachable there;
+          // calendar's only other create is convert-this-event. React's kanban has
+          // no page-level create control either (invoiceninja/flutter#135).
+          // `test/lint/tasks_view_wiring_test.dart` fails the build if one returns.
+          body: ChangeNotifierProvider<KanbanViewModel>.value(
+            value: _vm,
+            child: Column(
+              children: [
+                TaskFilterBar(
+                  filters: _vm,
+                  companyId: _vm.companyId,
+                  inline: inline,
+                  onEditFilters: _openFilters,
+                ),
+                const Expanded(child: KanbanBoard()),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

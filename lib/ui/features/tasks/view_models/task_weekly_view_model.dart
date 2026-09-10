@@ -117,10 +117,23 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
 
   /// Tasks with real or pending activity in the visible week, ordered by
   /// earliest start then id (stable as the user types).
-  List<Task> get rows {
+  List<Task> get rows => _rowsFrom(_filtered);
+
+  /// True when the week *does* hold activity and only an active filter is
+  /// hiding it — the one case where offering "Clear filters" is honest.
+  ///
+  /// [filtersActive] alone is not that case: a week with nothing logged is
+  /// equally empty with a filter applied, and telling that user to clear a
+  /// filter sends them somewhere that reveals nothing. The unfiltered pass runs
+  /// only after [rows] has already come back empty, so the common path costs
+  /// nothing.
+  bool get hasFilteredOutRows =>
+      filtersActive && rows.isEmpty && _rowsFrom(_tasksById.values).isNotEmpty;
+
+  List<Task> _rowsFrom(Iterable<Task> tasks) {
     final keys = {for (final d in weekDays) d.toIso()};
     final list = <Task>[];
-    for (final t in _filtered) {
+    for (final t in tasks) {
       final hasReal = _logsFor(t.id).any((e) {
         final d = timeEntryLocalDate(e);
         return d != null && keys.contains(d.toIso());

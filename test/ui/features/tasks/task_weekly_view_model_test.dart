@@ -13,27 +13,28 @@ import 'package:admin/ui/features/tasks/view_models/task_weekly_view_model.dart'
 final _epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 final _now = DateTime(2026, 6, 15, 12);
 
-Task _t(String id, {List<TimeEntry> log = const []}) => Task(
-  id: id,
-  number: id,
-  description: id,
-  rate: Decimal.zero,
-  invoiceId: '',
-  clientId: '',
-  projectId: '',
-  statusId: 's1',
-  statusOrder: 0,
-  assignedUserId: '',
-  timeLog: log,
-  customValue1: '',
-  customValue2: '',
-  customValue3: '',
-  customValue4: '',
-  updatedAt: _epoch,
-  createdAt: _epoch,
-  archivedAt: null,
-  isDeleted: false,
-);
+Task _t(String id, {List<TimeEntry> log = const [], String projectId = ''}) =>
+    Task(
+      id: id,
+      number: id,
+      description: id,
+      rate: Decimal.zero,
+      invoiceId: '',
+      clientId: '',
+      projectId: projectId,
+      statusId: 's1',
+      statusOrder: 0,
+      assignedUserId: '',
+      timeLog: log,
+      customValue1: '',
+      customValue2: '',
+      customValue3: '',
+      customValue4: '',
+      updatedAt: _epoch,
+      createdAt: _epoch,
+      archivedAt: null,
+      isDeleted: false,
+    );
 
 TimeEntry _e(DateTime start, DateTime? stop) =>
     TimeEntry(start: start, stop: stop);
@@ -274,4 +275,46 @@ void main() {
       await ctrl.close();
     },
   );
+
+  group('hasFilteredOutRows — the empty state must not lie', () {
+    test('true when the week has activity a filter is hiding', () async {
+      final ctrl = StreamController<List<Task>>();
+      final vm = _build(_FakeRepo(ctrl));
+      ctrl.add([
+        _t(
+          'a',
+          projectId: 'p1',
+          log: [_e(DateTime(2026, 6, 8, 9), DateTime(2026, 6, 8, 11))],
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      vm.setProjectFilter('p2');
+      expect(vm.rows, isEmpty);
+      expect(vm.hasFilteredOutRows, isTrue);
+      await ctrl.close();
+    });
+
+    test('false on a week that is empty with or without the filter', () async {
+      // Gating the empty state on `filtersActive` alone points someone whose
+      // week simply has nothing logged at "Clear filters", which reveals
+      // nothing.
+      final ctrl = StreamController<List<Task>>();
+      final vm = _build(_FakeRepo(ctrl));
+      ctrl.add([
+        _t(
+          'a',
+          projectId: 'p1',
+          log: [_e(DateTime(2026, 5, 4, 9), DateTime(2026, 5, 4, 11))],
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      vm.setProjectFilter('p1');
+      expect(vm.rows, isEmpty, reason: 'the log is in another week');
+      expect(vm.filtersActive, isTrue);
+      expect(vm.hasFilteredOutRows, isFalse);
+      await ctrl.close();
+    });
+  });
 }

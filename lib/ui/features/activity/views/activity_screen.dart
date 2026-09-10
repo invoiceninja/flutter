@@ -11,6 +11,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
+import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/activity/view_models/activity_view_model.dart';
 import 'package:admin/ui/features/activity/widgets/activity_feed_row.dart';
@@ -162,7 +163,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
           ),
           ListenableBuilder(
             listenable: _vm,
-            builder: (context, _) => _FilterButton(
+            builder: (context, _) => FilterIconButton(
               activeCount: _vm.filters.activeCount,
               onPressed: () =>
                   openActivityFilters(context, vm: _vm, companyId: _companyId),
@@ -311,43 +312,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
       render: render,
       meta: activityAuditMeta(a, render: render, formatter: _formatter),
       onTap: activityDeepLinkTarget(a) == null ? null : () => _onRowTap(a),
-    );
-  }
-}
-
-/// Filter affordance with a dot when any filter is on, so the narrowed state is
-/// visible without opening the sheet.
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({required this.activeCount, required this.onPressed});
-
-  final int activeCount;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.inTheme;
-    return IconButton(
-      tooltip: context.tr('filters'),
-      onPressed: onPressed,
-      icon: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          const Icon(Icons.filter_alt_outlined),
-          if (activeCount > 0)
-            Positioned(
-              right: -1,
-              top: -1,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: tokens.accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

@@ -38,6 +38,9 @@ const String _kFile = 'lib/ui/features/tasks/widgets/task_filter_bar.dart';
 /// The assignee picker deliberately passes **no** `emptyHintKey`: the roster
 /// arrives bundled on `/refresh` and always holds at least the signed-in user,
 /// so an empty list there really is a loading state. Hence two, not three.
+///
+/// Since invoiceninja/flutter#136 it also pins the *absence* of a second
+/// responsive gate here — see the last test.
 void main() {
   late final String src = File(_kFile).readAsStringSync();
 
@@ -187,6 +190,43 @@ void main() {
           'Project and Client must both pass it — their streams settle on `[]` '
           'for a company that has none, and the placeholder otherwise reads '
           '"Loading" for ever. The assignee picker deliberately does not.',
+    );
+  });
+
+  /// The wide/narrow decision arrives as a parameter now, and this file must
+  /// not take a second one.
+  ///
+  /// It used to be a `LayoutBuilder` *inside* the bar's own
+  /// `Container(padding: horizontal: 24)`, which means it really tested
+  /// `pane - 48 >= 600`. Two consequences, both silent. The AppBar cannot be
+  /// reached from the body — `Scaffold.appBar` is built outside it — so the
+  /// filter action has to be gated by the host screen; and if this file keeps
+  /// its own gate as well, a 600-648 px pane renders the stacked pickers *and*
+  /// suppresses the AppBar icon, which is the exact layout #136 removed. The
+  /// threshold moved into `taskFiltersInline`, where the gutters are subtracted
+  /// once and a table test can see it.
+  test('the bar takes the responsive gate rather than deciding it', () {
+    expect(
+      code.contains('LayoutBuilder'),
+      isFalse,
+      reason:
+          'a second gate here disagrees with the one the host screen passes to '
+          'the AppBar — see `taskFiltersInline`.',
+    );
+    expect(
+      code.contains('Breakpoints.isWide('),
+      isFalse,
+      reason:
+          'the bar no longer answers the width question; `taskFiltersInline` '
+          'does, from the pane width minus this file\'s own gutters.',
+    );
+    expect(
+      code.contains('required this.inline'),
+      isTrue,
+      reason:
+          'defaulting `inline` turns a missed call site into silent double '
+          'chrome (the inline row AND the AppBar icon) or none at all, instead '
+          'of a compile error.',
     );
   });
 }

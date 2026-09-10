@@ -16,6 +16,7 @@ import 'package:admin/ui/features/tasks/widgets/calendar/calendar_connect_menu.d
 import 'package:admin/ui/features/tasks/widgets/calendar/task_calendar_grid.dart';
 import 'package:admin/ui/features/tasks/widgets/calendar/task_calendar_header.dart';
 import 'package:admin/ui/features/tasks/widgets/task_filter_bar.dart';
+import 'package:admin/ui/features/tasks/widgets/task_filters_sheet.dart';
 import 'package:admin/ui/features/tasks/widgets/tasks_view_toggle.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -190,36 +191,70 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
     super.dispose();
   }
 
+  /// The single call site per screen: the AppBar's filter action and the chip
+  /// strip's chips both route here, so the sheet's arguments cannot drift
+  /// between them.
+  void _openFilters() =>
+      openTaskFilters(context, filters: _vm, companyId: _companyId);
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: buildTasksViewAppBar(context, TasksViewMode.calendar),
-      // The drawer itself — the AppBar's hamburger needs something to
-      // open. Mirrors `EntityListScreenScaffold`, which attaches it the
-      // same way for the list view.
-      drawer: Breakpoints.isGlobalNavVisible(context)
-          ? null
-          : const AppDrawer(),
-      floatingActionButton: FloatingActionButton(
-        tooltip: context.tr('new_task'),
-        onPressed: () => goToCreateRoute(context, '/tasks/new'),
-        child: const Icon(Icons.add),
-      ),
-      body: MultiProvider(
-        providers: [
-          ChangeNotifierProvider<TaskCalendarViewModel>.value(value: _vm),
-          ChangeNotifierProvider<CalendarConnectionViewModel>.value(
-            value: _calVm,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // One gate, all of this screen's consumers of it — the AppBar's
+        // flavour, its filter action, the bar's own layout and, on the three
+        // time-oriented views, the view header. `Scaffold.appBar` is built
+        // outside the body so the bar can never inform it, and two gates
+        // disagree in the 600-832 px band; see `taskFiltersInline`. Same shape
+        // as `EntityListScreenScaffold`, which reads `wide` here too.
+        final wide = Breakpoints.isWide(constraints);
+        final inline = taskFiltersInline(
+          paneWidth: constraints.maxWidth,
+          isPhone: Breakpoints.isPhone(context),
+        );
+        return Scaffold(
+          appBar: buildTasksViewAppBar(
+            context,
+            TasksViewMode.calendar,
+            wide: wide,
+            // Both null while the pickers render inline — a second entry point
+            // there would be redundant chrome over the row itself.
+            filters: inline ? null : _vm,
+            onEditFilters: _openFilters,
           ),
-        ],
-        child: Column(
-          children: [
-            TaskFilterBar(filters: _vm, companyId: _companyId),
-            TaskCalendarHeader(formatter: _formatter),
-            Expanded(child: TaskCalendarGrid(formatter: _formatter)),
-          ],
-        ),
-      ),
+          // The drawer itself — the AppBar's hamburger needs something to
+          // open. Mirrors `EntityListScreenScaffold`, which attaches it the
+          // same way for the list view.
+          drawer: Breakpoints.isGlobalNavVisible(context)
+              ? null
+              : const AppDrawer(),
+          floatingActionButton: FloatingActionButton(
+            tooltip: context.tr('new_task'),
+            onPressed: () => goToCreateRoute(context, '/tasks/new'),
+            child: const Icon(Icons.add),
+          ),
+          body: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<TaskCalendarViewModel>.value(value: _vm),
+              ChangeNotifierProvider<CalendarConnectionViewModel>.value(
+                value: _calVm,
+              ),
+            ],
+            child: Column(
+              children: [
+                TaskFilterBar(
+                  filters: _vm,
+                  companyId: _companyId,
+                  inline: inline,
+                  onEditFilters: _openFilters,
+                ),
+                TaskCalendarHeader(formatter: _formatter, wide: wide),
+                Expanded(child: TaskCalendarGrid(formatter: _formatter)),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

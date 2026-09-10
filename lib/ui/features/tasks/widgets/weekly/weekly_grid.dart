@@ -50,6 +50,24 @@ class WeeklyGrid extends StatelessWidget {
     final localeArg = (locale == null || locale.isEmpty) ? null : locale;
 
     if (rows.isEmpty) {
+      // Filter-aware, for the reason `EntityListScreenScaffold._emptyState`
+      // spells out: without it a filtered week is a dead end that never says a
+      // filter is responsible. Both keys already exist. `hasFilteredOutRows`,
+      // not `filtersActive` — a week with nothing logged is equally empty with
+      // a filter applied, and pointing that user at "Clear filters" sends them
+      // somewhere that reveals nothing.
+      if (vm.hasFilteredOutRows) {
+        return EmptyState(
+          icon: Icons.filter_alt_off_outlined,
+          title: context.tr('no_records_found'),
+          action: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+            onPressed: vm.clearFilters,
+            icon: const Icon(Icons.close),
+            label: Text(context.tr('clear_filters')),
+          ),
+        );
+      }
       return EmptyState(
         icon: Icons.calendar_view_week_outlined,
         title: context.tr('no_records_found'),

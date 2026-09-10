@@ -383,6 +383,7 @@ the honest default.
 | Task — time-log entries (edit each row) | ✅ | ✅ | ✅ | ✅ | |
 | Task — kanban drag-to-reorder within status | ✅ | ✅ | ✅ | ✅ | |
 | Task — kanban filter by project / client / assignee | ✅ | ✅ | ✅ | ✅ | |
+| Task — narrow panes collapse the Project / Client / Assignee filters to an AppBar icon + removable chips | ❌ | ❌ | ✅ | | |
 | Task — invoice from task | ✅ | ✅ | ✅ | ✅ | |
 | Task — create/convert a quote or invoice line item into a dated task | ❌ | ❌ | ✅ | | |
 | Task — add to existing invoice | ✅ | ✅ | ✅ | | |

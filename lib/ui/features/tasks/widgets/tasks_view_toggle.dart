@@ -7,21 +7,50 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
+import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/widgets/filter_icon_button.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
+import 'package:admin/ui/features/tasks/view_models/task_filters_mixin.dart';
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart'
     show TasksViewMode;
 
 /// Shared AppBar for the custom task views (kanban / calendar / daily /
 /// weekly), which don't use `EntityListScreenScaffold`. Renders the `tasks`
-/// title + the [TasksViewToggle] with [active] highlighted. Wide mirrors the
-/// list view's chrome (the shared `InSizes.headerBand` toolbar, 24 px gutter)
-/// so the toggle's pixel
-/// position is stable as the user flips views; narrow drops to a compact row.
+/// title + the [TasksViewToggle] with [active] highlighted, plus the filter
+/// action when the pickers are collapsed.
+///
+/// [wide] arrives from the host screen's `LayoutBuilder` — the **content
+/// pane**, the same way `EntityListScreenScaffold` feeds
+/// `EntityListAppBar(wide:)`. It used to be read here off `MediaQuery`, i.e.
+/// the *window*, which differs by the 232 px rail: in a 600-832 px window the
+/// Tasks **list** drew its compact bar while these four drew the 69 px
+/// `InSizes.headerBand`, so flipping views moved the toggle — the exact thing
+/// the old version of this comment claimed to prevent. One bool per screen now
+/// answers the flavour, whether the pickers render inline, and therefore
+/// whether this bar carries the filter action.
+///
+/// [leading] stays a **window** read (`isGlobalNavVisible`): a hamburger must
+/// not duplicate a rail that is already on screen. Same split
+/// `EntityListAppBar` makes.
+///
+/// Pass [filters] + [onEditFilters] exactly when the pickers are collapsed
+/// (`filters: inline ? null : _vm`); both null means the body is showing them
+/// inline and a second entry point would be redundant chrome.
 PreferredSizeWidget buildTasksViewAppBar(
   BuildContext context,
-  TasksViewMode active,
-) {
-  final wide = MediaQuery.sizeOf(context).width >= Breakpoints.wide;
+  TasksViewMode active, {
+  required bool wide,
+  TaskFiltersMixin? filters,
+  VoidCallback? onEditFilters,
+}) {
+  final filterAction = filters == null || onEditFilters == null
+      ? null
+      : _FilterAction(
+          filters: filters,
+          onPressed: onEditFilters,
+          // Wide is the height-constrained branch — see [_FilterAction.dense].
+          dense: wide,
+        );
   if (wide) {
     return AppBar(
       // The shared band, like the list toolbar this mirrors — a second copy of
@@ -29,6 +58,12 @@ PreferredSizeWidget buildTasksViewAppBar(
       toolbarHeight: InSizes.headerBand,
       automaticallyImplyLeading: false,
       titleSpacing: 0,
+      // The filter action goes in this `Row`, never in `actions:`. `AppBar`
+      // builds `Stack([flexibleSpace, Material(toolbar)])`, so the toolbar
+      // paints *over* the flexible space and — hit-testing being reverse paint
+      // order — an `actions:` entry here would sit on top of the toggle below
+      // and swallow its taps. That is why this branch has no `title:` and no
+      // `actions:` at all.
       flexibleSpace: SafeArea(
         bottom: false,
         child: Padding(
@@ -43,6 +78,10 @@ PreferredSizeWidget buildTasksViewAppBar(
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const Spacer(),
+              if (filterAction != null) ...[
+                filterAction,
+                const SizedBox(width: InSpacing.sm),
+              ],
               TasksViewToggle(active: active, wide: true),
             ],
           ),
@@ -58,19 +97,70 @@ PreferredSizeWidget buildTasksViewAppBar(
     // `automaticallyImplyLeading` therefore renders no leading at all — so
     // switching Tasks to Kanban/Calendar/Daily/Weekly removed every route to
     // the rest of the app except toggling back to List. Gated on window width
-    // (not local constraints) exactly as the list scaffold is: above
-    // `Breakpoints.wide` the persistent sidebar is already on screen and a
-    // hamburger would open a duplicate of it.
+    // (not the pane) because above `Breakpoints.wide` the persistent sidebar is
+    // already on screen and a hamburger would open a duplicate of it.
     leading: Breakpoints.isGlobalNavVisible(context)
         ? null
         : const DrawerHamburger(),
+    // Dead in both branches — an explicit `leading` wins when there is one, and
+    // when there isn't, the Scaffold's drawer is null on the same condition and
+    // a shell-branch root has nothing to pop. Stated rather than defaulted
+    // because this branch is now reachable *with* the rail up (the flavour
+    // follows the pane, the hamburger the window), which is exactly where an
+    // implied leading would be wrong. Same shape as
+    // `dashboard_mobile_app_bar.dart`.
+    automaticallyImplyLeading: !Breakpoints.isGlobalNavVisible(context),
+    // Material's default 16 dp either side of the title is 32 dp this bar can't
+    // spare now that it carries two actions — `_ToolbarLayout` subtracts
+    // `middleSpacing * 2.0` from the title's `maxWidth`, so zeroing it buys
+    // both sides back: on a 320 dp phone the hamburger,
+    // the filter icon and the view toggle leave the title 136 dp, and `tasks`
+    // is "Zeiterfassung" in German (~130 dp at `titleLarge`), so it ellipsises
+    // at a large text scale. Conditional for the reason
+    // `dashboard_mobile_app_bar.dart` gives: `NavigationToolbar` starts the
+    // title at `leadingWidth + middleSpacing`, so with no hamburger a zero
+    // spacing renders it hard against the sidebar's right border.
+    titleSpacing: Breakpoints.isGlobalNavVisible(context) ? null : 0,
     title: Text(context.tr('tasks')),
     actions: [
+      if (filterAction != null) filterAction,
       Padding(
         padding: const EdgeInsetsDirectional.only(end: 8),
         child: TasksViewToggle(active: active, wide: false),
       ),
     ],
+  );
+}
+
+/// The AppBar's filter affordance: the shared [FilterIconButton], rebuilt on
+/// every filter change so its dot and count stay live.
+class _FilterAction extends StatelessWidget {
+  const _FilterAction({
+    required this.filters,
+    required this.onPressed,
+    required this.dense,
+  });
+
+  final TaskFiltersMixin filters;
+  final VoidCallback onPressed;
+
+  /// True inside the wide `flexibleSpace` `Row`, which gets
+  /// `InSizes.headerBand` (69) minus 24 px of padding = **45 px** for its
+  /// children — hence the ~40 px `SegmentedButton` beside it. A default 48 px
+  /// `IconButton` there neither fits nor throws: the constraints clamp it and it
+  /// renders short. That branch is reachable with the pickers collapsed on a
+  /// **landscape phone** (658 px pane, so `wide` is true while `inline` is not),
+  /// so it is not a corner case.
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: filters,
+    builder: (context, _) => FilterIconButton(
+      activeCount: filters.activeFilterCount,
+      size: dense ? actionButtonSize() : null,
+      onPressed: onPressed,
+    ),
   );
 }
 

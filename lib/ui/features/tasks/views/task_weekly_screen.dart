@@ -15,6 +15,7 @@ import 'package:admin/ui/features/tasks/view_models/task_weekly_view_model.dart'
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart';
 import 'package:admin/ui/features/tasks/widgets/daily/task_daily_actions.dart';
 import 'package:admin/ui/features/tasks/widgets/task_filter_bar.dart';
+import 'package:admin/ui/features/tasks/widgets/task_filters_sheet.dart';
 import 'package:admin/ui/features/tasks/widgets/tasks_view_toggle.dart';
 import 'package:admin/ui/features/tasks/widgets/weekly/weekly_grid.dart';
 import 'package:admin/utils/formatting.dart';
@@ -143,37 +144,74 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
     super.dispose();
   }
 
+  /// The single call site per screen: the AppBar's filter action and the chip
+  /// strip's chips both route here, so the sheet's arguments cannot drift
+  /// between them.
+  void _openFilters() =>
+      openTaskFilters(context, filters: _vm, companyId: _companyId);
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: buildTasksViewAppBar(context, TasksViewMode.weekly),
-      // The drawer itself — the AppBar's hamburger needs something to
-      // open. Mirrors `EntityListScreenScaffold`, which attaches it the
-      // same way for the list view.
-      drawer: Breakpoints.isGlobalNavVisible(context)
-          ? null
-          : const AppDrawer(),
-      floatingActionButton: FloatingActionButton(
-        tooltip: context.tr('new_task'),
-        onPressed: () => goToCreateRoute(context, '/tasks/new'),
-        child: const Icon(Icons.add),
-      ),
-      body: ChangeNotifierProvider<TaskWeeklyViewModel>.value(
-        value: _vm,
-        child: Column(
-          children: [
-            TaskFilterBar(filters: _vm, companyId: _companyId),
-            _WeeklyHeader(formatter: _formatter),
-            Expanded(child: WeeklyGrid(formatter: _formatter)),
-          ],
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // One gate, all of this screen's consumers of it — the AppBar's
+        // flavour, its filter action, the bar's own layout and, on the three
+        // time-oriented views, the view header. `Scaffold.appBar` is built
+        // outside the body so the bar can never inform it, and two gates
+        // disagree in the 600-832 px band; see `taskFiltersInline`. Same shape
+        // as `EntityListScreenScaffold`, which reads `wide` here too.
+        final wide = Breakpoints.isWide(constraints);
+        final inline = taskFiltersInline(
+          paneWidth: constraints.maxWidth,
+          isPhone: Breakpoints.isPhone(context),
+        );
+        return Scaffold(
+          appBar: buildTasksViewAppBar(
+            context,
+            TasksViewMode.weekly,
+            wide: wide,
+            // Both null while the pickers render inline — a second entry point
+            // there would be redundant chrome over the row itself.
+            filters: inline ? null : _vm,
+            onEditFilters: _openFilters,
+          ),
+          // The drawer itself — the AppBar's hamburger needs something to
+          // open. Mirrors `EntityListScreenScaffold`, which attaches it the
+          // same way for the list view.
+          drawer: Breakpoints.isGlobalNavVisible(context)
+              ? null
+              : const AppDrawer(),
+          floatingActionButton: FloatingActionButton(
+            tooltip: context.tr('new_task'),
+            onPressed: () => goToCreateRoute(context, '/tasks/new'),
+            child: const Icon(Icons.add),
+          ),
+          body: ChangeNotifierProvider<TaskWeeklyViewModel>.value(
+            value: _vm,
+            child: Column(
+              children: [
+                TaskFilterBar(
+                  filters: _vm,
+                  companyId: _companyId,
+                  inline: inline,
+                  onEditFilters: _openFilters,
+                ),
+                _WeeklyHeader(formatter: _formatter, wide: wide),
+                Expanded(child: WeeklyGrid(formatter: _formatter)),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _WeeklyHeader extends StatelessWidget {
-  const _WeeklyHeader({this.formatter});
+  const _WeeklyHeader({required this.wide, this.formatter});
+
+  /// See `TaskDailyHeader.wide` — the pane bool the screen already computed.
+  final bool wide;
 
   final Formatter? formatter;
 
@@ -181,7 +219,6 @@ class _WeeklyHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<TaskWeeklyViewModel>();
     final tokens = context.inTheme;
-    final wide = MediaQuery.sizeOf(context).width >= Breakpoints.wide;
     final rangeLabel =
         formatter?.dateRange(vm.weekStart.toIso(), vm.weekEnd.toIso()) ??
         '${vm.weekStart.toIso()} – ${vm.weekEnd.toIso()}';

@@ -149,4 +149,47 @@ void main() {
     vm.setProjectFilter('p1');
     expect(vm.rows.map((r) => r.task.id), ['a']);
   });
+
+  group('hasFilteredOutRows — the empty state must not lie', () {
+    test('true when the day has entries a filter is hiding', () async {
+      final vm = _build([
+        _t(
+          'a',
+          projectId: 'p1',
+          log: [_e(DateTime(2026, 6, 10, 9), DateTime(2026, 6, 10, 10))],
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      vm.setProjectFilter('p2');
+
+      expect(vm.rows, isEmpty);
+      expect(vm.hasFilteredOutRows, isTrue);
+    });
+
+    test('false on a day that is empty with or without the filter', () async {
+      // The regression this predicate exists for: gating the empty state on
+      // `filtersActive` alone tells someone who simply logged nothing today to
+      // "Clear filters" — which reveals nothing — and takes away the `Log time`
+      // action they actually came for.
+      final vm = _build([
+        _t(
+          'a',
+          projectId: 'p1',
+          log: [_e(DateTime(2026, 6, 3, 9), DateTime(2026, 6, 3, 10))],
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      vm.setProjectFilter('p1');
+
+      expect(vm.rows, isEmpty, reason: 'the entry is on another day');
+      expect(vm.filtersActive, isTrue);
+      expect(vm.hasFilteredOutRows, isFalse);
+    });
+
+    test('false with no filter applied at all', () async {
+      final vm = _build([_t('a')]);
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.hasFilteredOutRows, isFalse);
+    });
+  });
 }

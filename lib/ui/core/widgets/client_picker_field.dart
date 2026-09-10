@@ -623,67 +623,70 @@ class _ClientPickerFieldState extends State<ClientPickerField> {
               // ours would fill the whole bounding box and leave the SDK's
               // alignment nothing to move, stranding an upward-opening popover
               // at the top of the screen.
-              return Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(InRadii.r2),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: 280,
-                    maxWidth: popoverWidth,
-                  ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    controller: _optionsScroll,
-                    itemExtent: _optionExtent,
-                    itemCount: options.length,
-                    itemBuilder: (context, i) {
-                      final opt = options.elementAt(i);
-                      final isHighlighted = i == highlightedIndex;
-                      if (opt is _ClientCreate) {
-                        return _CreateRow(
-                          query: opt.query,
-                          highlighted: isHighlighted,
-                          onTap: () => _handleCreate(opt.query),
-                        );
-                      }
-                      final client = (opt as _ClientExisting).client;
-                      final isCommitted = _committed?.id == client.id;
-                      return Container(
-                        color: isHighlighted ? tokens.accentSoft : null,
-                        child: InkWell(
-                          // Re-picking the committed row must NOT go through
-                          // `onSelected`: that is `RawAutocomplete._select`,
-                          // which early-returns on an unchanged selection
-                          // *before* hiding the overlay, leaving a dead tap
-                          // under a popover that stays open. Commit + unfocus
-                          // directly instead.
-                          onTap: isCommitted
-                              ? () {
-                                  _optionsVisible = false;
-                                  setState(() => _commit(client));
-                                  _focusNode.unfocus();
-                                }
-                              : () => onSelected(opt),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: InSpacing.md(context),
-                              ),
-                              child: Text(
-                                clientPickerLabel(client),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: tokens.ink,
+              return BackDismissiblePickerOverlay(
+                focusNode: _focusNode,
+                child: Material(
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(InRadii.r2),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: 280,
+                      maxWidth: popoverWidth,
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      controller: _optionsScroll,
+                      itemExtent: _optionExtent,
+                      itemCount: options.length,
+                      itemBuilder: (context, i) {
+                        final opt = options.elementAt(i);
+                        final isHighlighted = i == highlightedIndex;
+                        if (opt is _ClientCreate) {
+                          return _CreateRow(
+                            query: opt.query,
+                            highlighted: isHighlighted,
+                            onTap: () => _handleCreate(opt.query),
+                          );
+                        }
+                        final client = (opt as _ClientExisting).client;
+                        final isCommitted = _committed?.id == client.id;
+                        return Container(
+                          color: isHighlighted ? tokens.accentSoft : null,
+                          child: InkWell(
+                            // Re-picking the committed row must NOT go through
+                            // `onSelected`: that is `RawAutocomplete._select`,
+                            // which early-returns on an unchanged selection
+                            // *before* hiding the overlay, leaving a dead tap
+                            // under a popover that stays open. Commit + unfocus
+                            // directly instead.
+                            onTap: isCommitted
+                                ? () {
+                                    _optionsVisible = false;
+                                    setState(() => _commit(client));
+                                    _focusNode.unfocus();
+                                  }
+                                : () => onSelected(opt),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: InSpacing.md(context),
+                                ),
+                                child: Text(
+                                  clientPickerLabel(client),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: tokens.ink,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               );

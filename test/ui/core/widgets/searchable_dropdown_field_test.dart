@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,6 +97,48 @@ Future<_Option?> _pump(
   await tester.pumpAndSettle();
   // Trampoline closure — caller reads the latest `captured` after interaction.
   return captured;
+}
+
+/// [_pump] at an explicit width and text scale, for the geometry cases. The
+/// app-wide text scale is a real user setting (Device Settings), and
+/// `InSizes.touchTarget` does **not** scale with it — so the suffix stays 96 px
+/// while everything around it grows, which is what makes a narrow field the
+/// case worth pinning.
+Future<void> _pumpAt(
+  WidgetTester tester, {
+  required double width,
+  required double textScale,
+  _Option? initial,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildInTheme(InTheme.light),
+      localizationsDelegates: kTestLocalizationsDelegates,
+      supportedLocales: kTestSupportedLocales,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: width,
+            child: SearchableDropdownField<_Option>(
+              label: 'Assigned User',
+              items: _items,
+              initialValue: initial,
+              displayString: (o) => o.name,
+              idOf: (o) => o.id,
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -272,6 +315,36 @@ void main() {
     expect(field.enabled, isFalse);
     // Default empty hint key is 'loading'; localization helper resolves it.
     expect(field.decoration?.hintText, isNotNull);
+  });
+
+  /// The property assertion above is what let an **invisible** placeholder ship.
+  /// `InputDecorator` hands the hint's slot to a label that has not withdrawn,
+  /// and on a DISABLED, EMPTY field it can never withdraw on its own
+  /// (`_labelShouldWithdraw` is `!isEmpty || (isFocused && enabled)`) — so
+  /// `showHint` was false and the hint got wrapped in
+  /// `AnimatedOpacity(opacity: 0)`, leaving an outlined box with no ✕, no ▾ and
+  /// nothing saying why it was dead.
+  ///
+  /// **`find.text` cannot see this** — the `Text` is in the tree either way,
+  /// just painted at zero alpha; a finder-based test passes with the fix
+  /// reverted (checked by experiment). Assert the opacity the decorator
+  /// actually computed.
+  testWidgets('the empty placeholder is actually visible', (tester) async {
+    await _pump(tester, items: const [], emptyHintKey: 'no_records_found');
+    final hint = find.text('No records found');
+    expect(hint, findsOneWidget);
+
+    final fade = tester.widget<AnimatedOpacity>(
+      find.ancestor(of: hint, matching: find.byType(AnimatedOpacity)).first,
+    );
+    expect(
+      fade.opacity,
+      1.0,
+      reason:
+          'the placeholder must be painted, not hidden behind an inline label',
+    );
+    // The label survives, floated above the hint rather than occupying its slot.
+    expect(find.text('Fruit'), findsOneWidget);
   });
 
   // invoiceninja/flutter#34: the text of an untouched picker is the selected
@@ -948,6 +1021,108 @@ void main() {
       await tester.tap(find.byType(TextField));
       await settleAndOneMore(tester);
       expect(find.byType(ListView), findsOneWidget);
+    });
+
+    /// …which is exactly why the ▾ is a button. `_reopenOptions` gates its close
+    /// branch on `_suppressKeyboard`, so above six options NOTHING in the field
+    /// could shut the popover — the arrow was a bare `Icon` whose taps fell
+    /// through to the field and only ever re-opened. On the Tasks filter bar
+    /// that left the Client and Project pickers with no tap-to-close at all
+    /// (invoiceninja/flutter#134). Locate it on the `IconButton`, not the icon:
+    /// `find.byIcon` alone would also match the glyph before it was a button.
+    testWidgets('the ▾ toggles a typable picker shut, and open again', (
+      tester,
+    ) async {
+      final many = [for (var i = 0; i < 9; i++) _Option('$i', 'Fruit $i')];
+      await _pump(tester, items: many);
+      final arrow = find.widgetWithIcon(IconButton, Icons.arrow_drop_down);
+      expect(arrow, findsOneWidget);
+
+      await tester.tap(arrow);
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+
+      await tester.tap(arrow);
+      await settleAndOneMore(tester);
+      expect(
+        find.byType(ListView),
+        findsNothing,
+        reason: 'the arrow must close a picker the field itself cannot',
+      );
+
+      await tester.tap(arrow);
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+    });
+
+    /// The arrow does not steal the field's tap: an `IconButton` in the suffix
+    /// wins its own, so `TextField.onTap: _reopenOptions` never doubles up and
+    /// re-opens what the button just closed. A regression here would show as
+    /// the popover flickering shut and straight back open.
+    testWidgets('the ▾ closes a keyboard-less picker too', (tester) async {
+      await _pump(tester, initial: _items[2]);
+      final arrow = find.widgetWithIcon(IconButton, Icons.arrow_drop_down);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+
+      await tester.tap(arrow);
+      await settleAndOneMore(tester);
+      expect(find.byType(ListView), findsNothing);
+    });
+
+    /// The ✕ and the ▾ share the suffix `Row`, and on touch both are
+    /// `InSizes.touchTarget` wide — 88 px of suffix on a populated field. The
+    /// field is 360 px here, the width `SearchableDropdownField` is used at on
+    /// the narrowest surfaces, so this is the case that would overflow first.
+    testWidgets('the ✕ and ▾ both fit inside the narrowest real host', (
+      tester,
+    ) async {
+      // Both targets are `InSizes.touchTarget` on touch, so a populated field
+      // carries 96 px of suffix where it used to carry ~72 — headroom shrank
+      // 24 px at every call site. `_pump`'s 360 px could never overflow
+      // whatever the suffix did, so assert the width the widget is actually
+      // squeezed to.
+      //
+      // 136 px is derived, not picked: `payment_allocations_section.dart`'s
+      // allocation row is the tightest host in `lib/` — an `Expanded` picker in
+      // a `Row` beside a 12 px gap, a `SizedBox(width: 140)` amount field and a
+      // trailing `IconButton` (~48 on touch), inside a card padded
+      // `InSpacing.lg` (12 a side, narrow). On a 360 px phone that leaves the
+      // picker 360 − 24 − 12 − 140 − 48 = 136.
+      await _pumpAt(tester, width: 136, textScale: 1.4, initial: _items[2]);
+      // Assert containment, NOT `takeException`. `_RenderDecoration` clamps
+      // (`inputWidth = max(0, maxWidth - accessoryInsets)`) instead of
+      // overflowing, and a `TextField` scrolls rather than ellipsizing — so an
+      // oversized suffix is **silent**: no RenderFlex banner, no exception,
+      // just a value the user cannot read. `takeException` is also near-useless
+      // on its own, since flutter_test already fails on a pending exception.
+      final field = tester.getRect(find.byType(TextField));
+      final clear = tester.getRect(
+        find.widgetWithIcon(IconButton, Icons.close),
+      );
+      final arrow = tester.getRect(
+        find.widgetWithIcon(IconButton, Icons.arrow_drop_down),
+      );
+      expect(
+        arrow.right,
+        lessThanOrEqualTo(field.right + precisionErrorTolerance),
+        reason: 'the ▾ must not extend past the field it sits in',
+      );
+      expect(
+        clear.left,
+        greaterThanOrEqualTo(field.left),
+        reason: 'and the ✕ must not be pushed off the leading edge',
+      );
+      expect(
+        clear.width + arrow.width,
+        lessThan(field.width),
+        reason:
+            'the two targets plus their gap must leave room for the value — '
+            'they are a fixed 96 px and do not scale with text size, so this '
+            'is the assertion that fails first if either grows',
+      );
     });
   });
 }

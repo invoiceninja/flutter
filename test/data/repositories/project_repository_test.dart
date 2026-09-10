@@ -347,6 +347,40 @@ void main() {
       expect(purgeRow.requiresPassword, isTrue);
     });
 
+    test(
+      'watchActiveNames falls back to the id when the name is blank',
+      () async {
+        // The twin of `client_repository_test`'s and `vendor_repository_test`'s
+        // case, and the reason this seam owns the fallback rather than each
+        // caller: `projects.name` is `withDefault('')` so an empty name is
+        // representable, and `ProjectDao.watchActiveNames` orders by
+        // `name.lower()` — so a blank is not just unreadable, it sorts to the
+        // TOP of every picker reading this stream.
+        final repo = makeRepo();
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: const ProjectApi(
+            id: 'p_blank',
+            name: '',
+            updatedAt: 1700000000,
+          ),
+        );
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: const ProjectApi(
+            id: 'p_named',
+            name: 'Apollo',
+            updatedAt: 1700000000,
+          ),
+        );
+
+        final rows = await repo.watchActiveNames(companyId: 'co').first;
+        final byId = {for (final r in rows) r.id: r.name};
+        expect(byId['p_blank'], 'p_blank', reason: 'never an empty label');
+        expect(byId['p_named'], 'Apollo');
+      },
+    );
+
     test('restore clears archived_at so the row returns to the active list '
         'and leaves the archived set', () async {
       final repo = makeRepo();

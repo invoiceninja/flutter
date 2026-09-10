@@ -1998,174 +1998,177 @@ class _ProductCellState extends State<_ProductCell> {
         // `ConstrainedBox(tight) -> Align`, and a bare `Align` shrink-wraps
         // only under an infinite constraint — so ours would fill the whole
         // bounding box and leave the SDK's alignment nothing to move.
-        return Material(
-          elevation: 4,
-          color: tokens.surface,
-          shape: RoundedRectangleBorder(
-            side: BorderSide(color: tokens.border),
-            borderRadius: BorderRadius.circular(InRadii.r2),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 280, maxWidth: 360),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_searching) const LinearProgressIndicator(minHeight: 2),
-                if (_searchFailed)
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: InSpacing.md(context),
-                      vertical: InSpacing.sm,
+        return BackDismissiblePickerOverlay(
+          focusNode: widget.focusNode,
+          child: Material(
+            elevation: 4,
+            color: tokens.surface,
+            shape: RoundedRectangleBorder(
+              side: BorderSide(color: tokens.border),
+              borderRadius: BorderRadius.circular(InRadii.r2),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 280, maxWidth: 360),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_searching) const LinearProgressIndicator(minHeight: 2),
+                  if (_searchFailed)
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: InSpacing.md(context),
+                        vertical: InSpacing.sm,
+                      ),
+                      child: Text(
+                        context.tr('couldnt_load_products'),
+                        style: TextStyle(color: tokens.ink3, fontSize: 12),
+                      ),
                     ),
-                    child: Text(
-                      context.tr('couldnt_load_products'),
-                      style: TextStyle(color: tokens.ink3, fontSize: 12),
-                    ),
-                  ),
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    controller: _optionsScrollController,
-                    itemExtent: _optionExtent,
-                    itemCount: options.length,
-                    itemBuilder: (context, i) {
-                      final opt = options.elementAt(i);
-                      final isHighlighted = i == highlightedIndex;
-                      if (opt is _ProductCreate) {
-                        if (!_canCreateProducts) {
-                          // Same row, no affordance: it exists only to keep the
-                          // option list non-empty so the overlay — and with it
-                          // the spinner / error above — can mount at all.
-                          return Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: InSpacing.md(context),
-                            ),
-                            child: Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: Text(
-                                context.tr('no_records_found'),
-                                style: TextStyle(
-                                  color: tokens.ink3,
-                                  fontSize: 12,
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      controller: _optionsScrollController,
+                      itemExtent: _optionExtent,
+                      itemCount: options.length,
+                      itemBuilder: (context, i) {
+                        final opt = options.elementAt(i);
+                        final isHighlighted = i == highlightedIndex;
+                        if (opt is _ProductCreate) {
+                          if (!_canCreateProducts) {
+                            // Same row, no affordance: it exists only to keep the
+                            // option list non-empty so the overlay — and with it
+                            // the spinner / error above — can mount at all.
+                            return Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: InSpacing.md(context),
+                              ),
+                              child: Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Text(
+                                  context.tr('no_records_found'),
+                                  style: TextStyle(
+                                    color: tokens.ink3,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return Container(
+                            color: isHighlighted ? tokens.accentSoft : null,
+                            child: InkWell(
+                              // Straight to the handler, never through
+                              // `onSelected`: that is
+                              // `RawAutocomplete._select`, which early-returns
+                              // on an unchanged selection *before* hiding the
+                              // overlay. `_ProductCreate` has no `operator ==`,
+                              // so after one cancelled create the same instance
+                              // is still latched and the tap was dead until the
+                              // user edited the text.
+                              onTap: _startCreate,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: InSpacing.md(context),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.add,
+                                      size: 16,
+                                      // `accentInk`, not `accent`: `accent`
+                                      // is the same mid blue in BOTH
+                                      // brightnesses and lands at ~3.2:1 on the
+                                      // dark `accentSoft` highlight, under the
+                                      // 4.5:1 floor. `accentInk` lightens for
+                                      // dark themes and clears it either way.
+                                      color: tokens.accentInk,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${context.tr('create')} "${opt.label}"',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: tokens.accentInk,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           );
                         }
+                        final product = (opt as _ProductExisting).product;
                         return Container(
                           color: isHighlighted ? tokens.accentSoft : null,
                           child: InkWell(
-                            // Straight to the handler, never through
-                            // `onSelected`: that is
-                            // `RawAutocomplete._select`, which early-returns
-                            // on an unchanged selection *before* hiding the
-                            // overlay. `_ProductCreate` has no `operator ==`,
-                            // so after one cancelled create the same instance
-                            // is still latched and the tap was dead until the
-                            // user edited the text.
-                            onTap: _startCreate,
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: InSpacing.md(context),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.add,
-                                    size: 16,
-                                    // `accentInk`, not `accent`: `accent`
-                                    // is the same mid blue in BOTH
-                                    // brightnesses and lands at ~3.2:1 on the
-                                    // dark `accentSoft` highlight, under the
-                                    // 4.5:1 floor. `accentInk` lightens for
-                                    // dark themes and clears it either way.
-                                    color: tokens.accentInk,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '${context.tr('create')} "${opt.label}"',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: tokens.accentInk,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                            onTap: () => onSelected(opt),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: InSpacing.md(context),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            product.productKey,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: tokens.ink,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                        ProductStockLabel(
+                                          quantity: product.inStockQuantity,
+                                          show: widget.showStock,
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
+                                    if (widget.showProductDetails &&
+                                        product.notes.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 2),
+                                        child: Text(
+                                          // The dates the keyword becomes, as
+                                          // in the picker sheet and the
+                                          // Products list
+                                          // (invoiceninja/flutter#93).
+                                          expandDatePlaceholders(
+                                            product.notes,
+                                            formatter: widget.formatter,
+                                          ).split('\n').first,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: tokens.ink3,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         );
-                      }
-                      final product = (opt as _ProductExisting).product;
-                      return Container(
-                        color: isHighlighted ? tokens.accentSoft : null,
-                        child: InkWell(
-                          onTap: () => onSelected(opt),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: InSpacing.md(context),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          product.productKey,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: tokens.ink,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                      ProductStockLabel(
-                                        quantity: product.inStockQuantity,
-                                        show: widget.showStock,
-                                      ),
-                                    ],
-                                  ),
-                                  if (widget.showProductDetails &&
-                                      product.notes.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2),
-                                      child: Text(
-                                        // The dates the keyword becomes, as
-                                        // in the picker sheet and the
-                                        // Products list
-                                        // (invoiceninja/flutter#93).
-                                        expandDatePlaceholders(
-                                          product.notes,
-                                          formatter: widget.formatter,
-                                        ).split('\n').first,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: tokens.ink3,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -2349,40 +2352,47 @@ class _TaxCellState extends State<_TaxCell> {
           // `ConstrainedBox(tight) -> Align`, and a bare `Align` shrink-wraps
           // only under an infinite constraint — so ours would fill the whole
           // bounding box and leave the SDK's alignment nothing to move.
-          optionsViewBuilder: (context, onSelected, options) => Material(
-            elevation: 4,
-            color: tokens.surface,
-            shape: RoundedRectangleBorder(
-              side: BorderSide(color: tokens.border),
-              borderRadius: BorderRadius.circular(InRadii.r2),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240, maxWidth: 280),
-              child: ListView.builder(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                itemCount: options.length,
-                itemBuilder: (context, i) {
-                  final opt = options.elementAt(i);
-                  return InkWell(
-                    onTap: () => onSelected(opt),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: InSpacing.md(context),
-                        vertical: 10,
-                      ),
-                      child: Text(
-                        opt.displayLocalized(widget.formatter).isEmpty
-                            ? context.tr('none')
-                            : opt.displayLocalized(widget.formatter),
-                        style: TextStyle(color: tokens.ink, fontSize: 13),
-                      ),
+          optionsViewBuilder: (context, onSelected, options) =>
+              BackDismissiblePickerOverlay(
+                focusNode: _focusNode,
+                child: Material(
+                  elevation: 4,
+                  color: tokens.surface,
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(color: tokens.border),
+                    borderRadius: BorderRadius.circular(InRadii.r2),
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxHeight: 240,
+                      maxWidth: 280,
                     ),
-                  );
-                },
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: options.length,
+                      itemBuilder: (context, i) {
+                        final opt = options.elementAt(i);
+                        return InkWell(
+                          onTap: () => onSelected(opt),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: InSpacing.md(context),
+                              vertical: 10,
+                            ),
+                            child: Text(
+                              opt.displayLocalized(widget.formatter).isEmpty
+                                  ? context.tr('none')
+                                  : opt.displayLocalized(widget.formatter),
+                              style: TextStyle(color: tokens.ink, fontSize: 13),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
         );
       },
     );

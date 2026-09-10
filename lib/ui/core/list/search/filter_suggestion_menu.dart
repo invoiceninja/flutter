@@ -111,6 +111,7 @@ class FilterSuggestionMenu extends StatelessWidget {
     required this.onPickExclusive,
     required this.onPickOp,
     required this.onCommitFreeText,
+    required this.onDismiss,
     this.maxHeight = 320,
     this.floating = true,
     super.key,
@@ -126,6 +127,25 @@ class FilterSuggestionMenu extends StatelessWidget {
   /// Checkbox half of the [FilterKey.checkboxMultiSelect] split action:
   /// toggle the value and keep the menu open.
   final void Function(FilterKey key, FilterValueSuggestion value) onToggleValue;
+
+  /// Closes the surface hosting this menu, if it is dismissable at all.
+  ///
+  /// Called **before** a row awaits a pushed route (the two date pickers
+  /// below). While the wide-mode overlay is showing, its
+  /// `BackDismissibleOverlay` holds a `ChildBackButtonDispatcher`, and the
+  /// `Router` consults child dispatchers *before* it pops any route — so a back
+  /// press meant for the calendar would dismiss the menu underneath it and
+  /// leave the calendar open. `token_search_field._onSelectValue` states the
+  /// same "dismiss BEFORE the await" rule for its own network round-trip.
+  ///
+  /// **`required`, though nullable** — the same shape its two private children
+  /// use. A third host that simply omitted it would be indistinguishable from
+  /// the sheet's deliberate null, and would silently reintroduce the bug this
+  /// exists for. Passing `null` has to be a decision someone typed.
+  ///
+  /// Null from the narrow-mode sheet, which is a route of its own and has no
+  /// overlay to close.
+  final VoidCallback? onDismiss;
 
   /// Row-label half of the split action: select only this value and close.
   final void Function(FilterKey key, FilterValueSuggestion value)
@@ -172,6 +192,7 @@ class FilterSuggestionMenu extends StatelessWidget {
               onToggleValue: onToggleValue,
               onPickExclusive: onPickExclusive,
               onPickOp: onPickOp,
+              onDismiss: onDismiss,
             ),
     );
     // Narrow mode (FilterEntrySheet) renders the menu full-bleed below a
@@ -572,6 +593,7 @@ class _ValueList extends StatelessWidget {
     required this.onToggleValue,
     required this.onPickExclusive,
     required this.onPickOp,
+    required this.onDismiss,
   });
 
   final GenericListViewModel<dynamic> vm;
@@ -580,6 +602,10 @@ class _ValueList extends StatelessWidget {
   final FilterSuggestionController controller;
   final void Function(FilterKey key, FilterValueSuggestion value) onSelectValue;
   final void Function(FilterKey key, FilterValueSuggestion value) onToggleValue;
+
+  /// See [FilterSuggestionMenu.onDismiss] — forwarded to the date rows, which
+  /// are the only ones that push a route.
+  final VoidCallback? onDismiss;
   final void Function(FilterKey key, FilterValueSuggestion value)
   onPickExclusive;
   final void Function(FilterKey key, FilterOp op) onPickOp;
@@ -633,6 +659,7 @@ class _ValueList extends StatelessWidget {
                       controller: controller,
                       onSelectValue: onSelectValue,
                       onPickExclusive: onPickExclusive,
+                      onDismiss: onDismiss,
                     );
                   }
                   return _OperatorRows(
@@ -936,6 +963,7 @@ class _DateValueRows extends StatefulWidget {
     required this.controller,
     required this.onSelectValue,
     required this.onPickExclusive,
+    required this.onDismiss,
   });
 
   final GenericListViewModel<dynamic> vm;
@@ -950,6 +978,10 @@ class _DateValueRows extends StatefulWidget {
   /// applied-match toggle in `onSelectValue` would remove it).
   final void Function(FilterKey key, FilterValueSuggestion value)
   onPickExclusive;
+
+  /// See [FilterSuggestionMenu.onDismiss]. Both rows below push a route and
+  /// await it, so both must close the host surface first.
+  final VoidCallback? onDismiss;
 
   @override
   State<_DateValueRows> createState() => _DateValueRowsState();
@@ -1075,6 +1107,7 @@ class _DateValueRowsState extends State<_DateValueRows> {
         final formatter = context.read<Services>().formatterIfReady(
           widget.vm.companyId,
         );
+        widget.onDismiss?.call(); // before the await — see [onDismiss]
         final wire = await pickDateRangeWindow(
           context,
           column: dateKey.serverKey,
@@ -1121,6 +1154,7 @@ class _DateValueRowsState extends State<_DateValueRows> {
     }
 
     addRow('${context.tr('absolute_date')}  →', 'abs', () async {
+      widget.onDismiss?.call(); // before the await — see [onDismiss]
       final now = DateTime.now();
       final picked = await showDatePicker(
         context: context,

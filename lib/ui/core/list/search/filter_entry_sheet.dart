@@ -318,6 +318,9 @@ class _FilterEntrySheetState extends State<FilterEntrySheet> {
       keys: widget.filterKeys,
       parse: _controller.parseInput(),
       controller: _controller.suggestions,
+      // This sheet IS a route, so back pops it and there is no overlay to
+      // close first — see `FilterSuggestionMenu.onDismiss`.
+      onDismiss: null,
       onSelectKey: _onSelectKey,
       onSelectValue: _onSelectValue,
       onToggleValue: _onToggleValue,

@@ -139,12 +139,32 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     columnIndex: columnIndex,
   );
 
-  /// Cheap `(id, name)` stream for active projects — used by the Task
-  /// list's project filter key (suggestion menu + chip display name).
-  /// Selects only the two columns needed; orders by name.
+  /// Cheap `(id, name)` stream for active projects — used by the Task list's
+  /// project filter key (suggestion menu + chip display name) and by the Tasks
+  /// filter bar's project picker.
+  ///
+  /// Falls back to the **id** for a nameless project, exactly as the Client and
+  /// Vendor twins do. `projects.name` is `withDefault('')` so an empty name is
+  /// representable, and `ProjectDao.watchActiveNames` orders by `name.lower()`
+  /// — so a blank is not merely an unreadable row, it is a blank row sorted to
+  /// the **top** of every picker that reads this. The id and not `(no name)`:
+  /// this seam has no `BuildContext`, and in a *picker* an id tells two
+  /// nameless records apart where a repeated `(no name)` would not. A name
+  /// **label** is the opposite case — see `ClientNameLabel`.
+  ///
+  /// This lived at four call sites before it lived here (`ProjectFilterKey`,
+  /// both expense identity sections, the Tasks filter bar); they keep their
+  /// guards, which are now redundant rather than load-bearing.
   Stream<List<({String id, String name})>> watchActiveNames({
     required String companyId,
-  }) => db.projectDao.watchActiveNames(companyId: companyId);
+  }) => db.projectDao
+      .watchActiveNames(companyId: companyId)
+      .map(
+        (rows) => [
+          for (final r in rows)
+            (id: r.id, name: r.name.trim().isEmpty ? r.id : r.name),
+        ],
+      );
 
   /// Active, non-deleted projects for one client. Used by the Task edit
   /// Project picker so changing client narrows the project list.

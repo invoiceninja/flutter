@@ -334,22 +334,59 @@ class _TagPickerFieldState extends State<TagPickerField> {
                   // constraint — so ours filled the whole bounding box and left
                   // the SDK's alignment nothing to move, stranding an
                   // upward-opening popover at the top of the screen.
-                  return Material(
-                    elevation: 4,
-                    borderRadius: BorderRadius.circular(InRadii.r2),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: 280,
-                        maxWidth: popoverWidth,
-                      ),
-                      child: ListView(
-                        shrinkWrap: true,
-                        padding: EdgeInsets.zero,
-                        children: [
-                          for (final tag in options)
-                            if (!_isCreateOption(tag))
+                  return BackDismissiblePickerOverlay(
+                    focusNode: _focusNode,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(InRadii.r2),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: 280,
+                          maxWidth: popoverWidth,
+                        ),
+                        child: ListView(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          children: [
+                            for (final tag in options)
+                              if (!_isCreateOption(tag))
+                                InkWell(
+                                  onTap: () => onSelected(tag),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: InSpacing.md(context),
+                                      vertical: InSpacing.sm,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 10,
+                                          height: 10,
+                                          decoration: BoxDecoration(
+                                            color: parseTagColor(
+                                              tag.color,
+                                              fallback: tokens.ink3,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: InSpacing.sm),
+                                        Expanded(
+                                          child: Text(
+                                            tag.name,
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(color: tokens.ink),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            if (showCreate) ...[
+                              if (options.any((t) => !_isCreateOption(t)))
+                                Divider(height: 1, color: tokens.border),
                               InkWell(
-                                onTap: () => onSelected(tag),
+                                onTap: () => _handleCreate(query),
                                 child: Padding(
                                   padding: EdgeInsets.symmetric(
                                     horizontal: InSpacing.md(context),
@@ -357,66 +394,34 @@ class _TagPickerFieldState extends State<TagPickerField> {
                                   ),
                                   child: Row(
                                     children: [
-                                      Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: parseTagColor(
-                                            tag.color,
-                                            fallback: tokens.ink3,
-                                          ),
-                                          shape: BoxShape.circle,
-                                        ),
+                                      Icon(
+                                        Icons.add,
+                                        size: 16,
+                                        // `accentInk`, not `accent` — `accent`
+                                        // is the same mid blue in both
+                                        // brightnesses and lands at ~3.2:1 on
+                                        // the dark `accentSoft` highlight.
+                                        color: tokens.accentInk,
                                       ),
                                       const SizedBox(width: InSpacing.sm),
                                       Expanded(
                                         child: Text(
-                                          tag.name,
+                                          context
+                                              .tr('create_tag_named')
+                                              .replaceFirst(':name', query),
                                           style: theme.textTheme.bodyMedium
-                                              ?.copyWith(color: tokens.ink),
+                                              ?.copyWith(
+                                                color: tokens.accentInk,
+                                              ),
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
                               ),
-                          if (showCreate) ...[
-                            if (options.any((t) => !_isCreateOption(t)))
-                              Divider(height: 1, color: tokens.border),
-                            InkWell(
-                              onTap: () => _handleCreate(query),
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: InSpacing.md(context),
-                                  vertical: InSpacing.sm,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.add,
-                                      size: 16,
-                                      // `accentInk`, not `accent` — `accent`
-                                      // is the same mid blue in both
-                                      // brightnesses and lands at ~3.2:1 on
-                                      // the dark `accentSoft` highlight.
-                                      color: tokens.accentInk,
-                                    ),
-                                    const SizedBox(width: InSpacing.sm),
-                                    Expanded(
-                                      child: Text(
-                                        context
-                                            .tr('create_tag_named')
-                                            .replaceFirst(':name', query),
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(color: tokens.accentInk),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   );

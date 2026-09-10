@@ -45,6 +45,7 @@ class EntityPickerField<T extends Object> extends StatefulWidget {
     this.cacheKey,
     this.errorText,
     this.emptyHintKey,
+    this.idleResults,
     this.optionLeadingBuilder,
     this.footerBuilder,
   });
@@ -77,6 +78,13 @@ class EntityPickerField<T extends Object> extends StatefulWidget {
 
   final String? errorText;
   final String? emptyHintKey;
+
+  /// Rows offered for an empty query. Forwarded to
+  /// [SearchableDropdownField.idleResults], whose default (20) is tuned for an
+  /// edit form's picker. A **filter** wants more — `ClientFilterKey`'s own
+  /// suggestion list caps the idle set at 50 — so the Tasks filter bar passes
+  /// that. Null keeps the widget default.
+  final int? idleResults;
   final Widget Function(BuildContext, T)? optionLeadingBuilder;
   final WidgetBuilder? footerBuilder;
 
@@ -211,7 +219,17 @@ class _EntityPickerFieldState<T extends Object>
           idOf: widget.idOf,
           onChanged: widget.onChanged,
           errorText: widget.errorText,
-          emptyHintKey: widget.emptyHintKey,
+          // Suppressed until the stream has actually spoken. `emptyHintKey` is
+          // for "this company has none" — a permanent state — and
+          // `SearchableDropdownField` shows it whenever `items` is empty, which
+          // includes the frames before the first Drift emission. Left ungated,
+          // every entry to a screen flashes "No records found" at a picker that
+          // is merely still loading; falling through to the default `'loading'`
+          // for that window says the true thing.
+          emptyHintKey: snapshot.connectionState == ConnectionState.waiting
+              ? null
+              : widget.emptyHintKey,
+          idleResults: widget.idleResults ?? 20,
           optionLeadingBuilder: widget.optionLeadingBuilder,
           footerBuilder: widget.footerBuilder,
         );

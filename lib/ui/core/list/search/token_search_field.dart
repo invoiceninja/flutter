@@ -22,6 +22,7 @@ import 'package:admin/ui/core/list/search/filter_token.dart';
 import 'package:admin/ui/core/list/search/filter_token_chip.dart';
 import 'package:admin/ui/core/list/search/segment_menu.dart';
 import 'package:admin/ui/core/list/search/token_search_controller.dart';
+import 'package:admin/ui/core/widgets/picker_dismissal.dart';
 
 /// Sentry-style token search field. Tokens (e.g. `is:active`,
 /// `country:United States`) render as inline chips ahead of a `TextField`
@@ -705,27 +706,62 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
         return Positioned(
           top: localTop,
           left: localLeft,
-          child: TapRegion(
-            groupId: _tapGroup,
-            child: FilterSuggestionMenu(
-              vm: widget.vm,
-              keys: widget.filterKeys,
-              parse: _controller.parseInput(),
-              controller: _controller.suggestions,
-              onSelectKey: _onSelectKey,
-              onSelectValue: _onSelectValue,
-              onToggleValue: _onToggleValue,
-              onPickExclusive: _onPickExclusive,
-              onPickOp: _onPickOp,
-              onCommitFreeText: (v) {
-                _controller.commitFreeText(v);
-                // Enter on the "Search for X" row signals "I'm done
-                // picking; show me the results" — dismiss the dropdown
-                // but keep focus + the typed text so the user can keep
-                // editing the query.
-                _hideOverlay();
-                _controller.focus.requestFocus();
-              },
+          // Android back closes the menu instead of navigating off the list.
+          // This is not a route and carries no back handling of its own, and
+          // the wide field it belongs to is reachable on touch far more widely
+          // than "desktop": `searchWide = wide || globalNav`
+          // (`entity_list_screen_scaffold.dart`) with `isGlobalNavVisible` a
+          // raw `width >= 600`, so every tablet and every phone in LANDSCAPE
+          // gets it. Unhandled, back ran `NavHistoryController.back()` — or
+          // `SystemNavigator.pop()` and left the app.
+          //
+          // `onBack` is the Escape handler's pair (`_hideOverlay()` +
+          // `unfocus()`), deliberately NOT `onTapOutside`'s, which also
+          // `_commitPendingFreeText()`s: back cancels, it does not commit.
+          // `_hideOverlay` is load-bearing beyond `hide()` — it clears the chip
+          // anchor, resets the caret anchor, unpins the value key and drops a
+          // dangling `country:` prefix.
+          //
+          // `BackDismissiblePickerOverlay` would be WRONG here: these overlays
+          // are driven by an `OverlayPortalController` and visibility is
+          // deliberately decoupled from focus (see the class doc), so
+          // unfocusing would swallow the press and leave the menu on screen.
+          // Hence the explicit `canDismiss` too — the mount window is the
+          // portal's, and `isShowing` is the real predicate.
+          child: BackDismissibleOverlay(
+            onBack: () {
+              _hideOverlay();
+              _controller.focus.unfocus();
+            },
+            canDismiss: () => _overlay.isShowing,
+            child: TapRegion(
+              groupId: _tapGroup,
+              child: FilterSuggestionMenu(
+                vm: widget.vm,
+                keys: widget.filterKeys,
+                parse: _controller.parseInput(),
+                controller: _controller.suggestions,
+                // A row that pushes a route (both date pickers) must close this
+                // overlay first: the `BackDismissibleOverlay` above holds a
+                // `ChildBackButtonDispatcher`, which the `Router` consults
+                // BEFORE popping, so back would dismiss the menu under the
+                // calendar and leave the calendar up.
+                onDismiss: _hideOverlay,
+                onSelectKey: _onSelectKey,
+                onSelectValue: _onSelectValue,
+                onToggleValue: _onToggleValue,
+                onPickExclusive: _onPickExclusive,
+                onPickOp: _onPickOp,
+                onCommitFreeText: (v) {
+                  _controller.commitFreeText(v);
+                  // Enter on the "Search for X" row signals "I'm done
+                  // picking; show me the results" — dismiss the dropdown
+                  // but keep focus + the typed text so the user can keep
+                  // editing the query.
+                  _hideOverlay();
+                  _controller.focus.requestFocus();
+                },
+              ),
             ),
           ),
         );
@@ -986,18 +1022,26 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     return Positioned(
       left: left,
       top: top,
-      child: TapRegion(
-        groupId: _segmentTapGroup,
-        onTapOutside: (_) => _closeSegment(),
-        child: SegmentMenu(
-          vm: widget.vm,
-          filterKey: key,
-          kind: kind,
-          currentWire: chip.rawValues.single,
-          onClose: _closeSegment,
-          fieldChoices: kind == SegmentKind.field
-              ? _fieldSwitchCandidates(key)
-              : const [],
+      // Same reasoning as the main menu, and this one is worse: `_openSegment`
+      // explicitly unfocuses before showing, so there is no IME to absorb the
+      // press and the FIRST back navigated away. `_closeSegment` is what its
+      // own Escape binding and tap-outside already do.
+      child: BackDismissibleOverlay(
+        onBack: _closeSegment,
+        canDismiss: () => _segmentOverlay.isShowing,
+        child: TapRegion(
+          groupId: _segmentTapGroup,
+          onTapOutside: (_) => _closeSegment(),
+          child: SegmentMenu(
+            vm: widget.vm,
+            filterKey: key,
+            kind: kind,
+            currentWire: chip.rawValues.single,
+            onClose: _closeSegment,
+            fieldChoices: kind == SegmentKind.field
+                ? _fieldSwitchCandidates(key)
+                : const [],
+          ),
         ),
       ),
     );

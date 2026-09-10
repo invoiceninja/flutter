@@ -457,8 +457,18 @@ class _SearchableDropdownFieldState<T extends Object>
       borderSide: BorderSide(color: tokens.border),
     );
 
-    // Statics not loaded yet — render a disabled placeholder so layout
-    // doesn't shift when the list arrives.
+    // No options — render a disabled placeholder rather than a live field that
+    // opens onto nothing.
+    //
+    // This branch is 52 px against the live field's 48, so a picker whose list
+    // arrives late does move 4 px once. That is **pre-existing and not caused
+    // by `floatingLabelBehavior` below** — measured both ways, the number does
+    // not move; an outline border gives a floated label zero height
+    // (`input_decorator.dart`: `floatingLabelHeight = 0` for `isOutline`, so
+    // `topHeight` is 0 either way). The difference comes from this branch
+    // having no `suffixIcon`, where the live one is floored by a 44 px button.
+    // An earlier version of this comment blamed the floating label for it and
+    // built a "deliberate trade" on that; there is no trade.
     if (widget.items.isEmpty) {
       // This branch unmounts `RawAutocomplete`, which disposes the highlight
       // notifier we borrowed — drop the reference so a post-frame callback
@@ -478,6 +488,31 @@ class _SearchableDropdownFieldState<T extends Object>
             decoration: InputDecoration(
               labelText: widget.label,
               hintText: context.tr(widget.emptyHintKey ?? 'loading'),
+              // Without this the hint below is invisible, and this branch is
+              // the ONLY place in the widget where that matters.
+              // `_InputDecoratorState.labelShouldWithdraw` is
+              // `widget._labelShouldWithdraw || floatingLabelBehavior ==
+              // always`, where the first term is `!isEmpty || (isFocused &&
+              // enabled)` — and a DISABLED, EMPTY field can be neither. So
+              // `_hasInlineLabel` stays true, `showHint = isEmpty &&
+              // !_hasInlineLabel` is false, and `input_decorator.dart` wraps
+              // the hint in `AnimatedOpacity(opacity: 0)`; worse,
+              // `RenderAnimatedOpacityMixin.visitChildrenForSemantics` drops
+              // it at alpha 0, so it isn't announced either. The label simply
+              // sits where the hint would have been, and the user gets an
+              // outlined, un-tappable box with no ✕, no ▾ and no explanation —
+              // which is what a company with no projects saw on the Tasks
+              // filter bar (invoiceninja/flutter#134 follow-up). Floating the
+              // label withdraws it and lets the hint paint.
+              //
+              // Testing this needs care, and the obvious two ways both LIE.
+              // `decoration.hintText != null` asserts a property, not a pixel —
+              // that is what let the invisible hint ship. And **`find.text`
+              // cannot see it either**: the `Text` is in the tree in both
+              // states, just wrapped in `AnimatedOpacity(opacity: 0)`, so a
+              // finder-based test passes with this line reverted (checked by
+              // experiment). Assert the computed opacity.
+              floatingLabelBehavior: FloatingLabelBehavior.always,
               errorText: widget.errorText,
               isDense: true,
               contentPadding: EdgeInsets.symmetric(
@@ -714,112 +749,117 @@ class _SearchableDropdownFieldState<T extends Object>
               // (it only shrink-wraps under an infinite constraint), leaving
               // the SDK's alignment nothing to move — an upward popover would
               // detach and render at the top of the screen.
-              return Material(
-                elevation: 4,
-                // Bordered, not just elevated: in dark mode the popover's
-                // surface is near-black against a near-black page, and
-                // elevation alone leaves the (now full-length) list floating
-                // with no visible edge.
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(InRadii.r2),
-                  side: BorderSide(color: tokens.border),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: 280,
-                    maxWidth: popoverWidth,
+              return BackDismissiblePickerOverlay(
+                focusNode: _focusNode,
+                child: Material(
+                  elevation: 4,
+                  // Bordered, not just elevated: in dark mode the popover's
+                  // surface is near-black against a near-black page, and
+                  // elevation alone leaves the (now full-length) list floating
+                  // with no visible edge.
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(InRadii.r2),
+                    side: BorderSide(color: tokens.border),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          controller: _optionsScrollController,
-                          itemExtent: optionExtent,
-                          itemCount: options.length,
-                          itemBuilder: (context, i) {
-                            final opt = options.elementAt(i);
-                            final item = switch (opt) {
-                              _ItemOpt<T>(:final item) => item,
-                            };
-                            final isHighlighted = i == highlightedIndex;
-                            final label = widget.displayString(item);
-                            final isCommitted = i == committedIndex;
-                            final leading = widget.optionLeadingBuilder?.call(
-                              context,
-                              item,
-                            );
-                            return Semantics(
-                              button: true,
-                              inMutuallyExclusiveGroup: true,
-                              selected: isCommitted,
-                              child: Container(
-                                color: isHighlighted ? tokens.accentSoft : null,
-                                child: InkWell(
-                                  // Re-picking the current value can't go
-                                  // through `onSelected`: `_select` early-
-                                  // returns on an unchanged selection *before*
-                                  // hiding the overlay, so the tap would be
-                                  // dead and the popover would stay open.
-                                  // Notify and close here instead — several
-                                  // callers treat a re-pick as a real command
-                                  // (re-seed an allocation's auto-filled
-                                  // amount, re-bind a stream, retry a change
-                                  // their own handler vetoed, re-add an item
-                                  // whose chip was deleted), and every handler
-                                  // is idempotent for a same-value call.
-                                  onTap: isCommitted
-                                      ? () {
-                                          _optionsVisible = false;
-                                          widget.onChanged(item);
-                                          _focusNode.unfocus();
-                                        }
-                                      : () => onSelected(opt),
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: InSpacing.md(context),
-                                      vertical: InSpacing.sm,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        if (leading != null) ...[
-                                          leading,
-                                          const SizedBox(width: InSpacing.sm),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: 280,
+                      maxWidth: popoverWidth,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            controller: _optionsScrollController,
+                            itemExtent: optionExtent,
+                            itemCount: options.length,
+                            itemBuilder: (context, i) {
+                              final opt = options.elementAt(i);
+                              final item = switch (opt) {
+                                _ItemOpt<T>(:final item) => item,
+                              };
+                              final isHighlighted = i == highlightedIndex;
+                              final label = widget.displayString(item);
+                              final isCommitted = i == committedIndex;
+                              final leading = widget.optionLeadingBuilder?.call(
+                                context,
+                                item,
+                              );
+                              return Semantics(
+                                button: true,
+                                inMutuallyExclusiveGroup: true,
+                                selected: isCommitted,
+                                child: Container(
+                                  color: isHighlighted
+                                      ? tokens.accentSoft
+                                      : null,
+                                  child: InkWell(
+                                    // Re-picking the current value can't go
+                                    // through `onSelected`: `_select` early-
+                                    // returns on an unchanged selection *before*
+                                    // hiding the overlay, so the tap would be
+                                    // dead and the popover would stay open.
+                                    // Notify and close here instead — several
+                                    // callers treat a re-pick as a real command
+                                    // (re-seed an allocation's auto-filled
+                                    // amount, re-bind a stream, retry a change
+                                    // their own handler vetoed, re-add an item
+                                    // whose chip was deleted), and every handler
+                                    // is idempotent for a same-value call.
+                                    onTap: isCommitted
+                                        ? () {
+                                            _optionsVisible = false;
+                                            widget.onChanged(item);
+                                            _focusNode.unfocus();
+                                          }
+                                        : () => onSelected(opt),
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: InSpacing.md(context),
+                                        vertical: InSpacing.sm,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          if (leading != null) ...[
+                                            leading,
+                                            const SizedBox(width: InSpacing.sm),
+                                          ],
+                                          Expanded(
+                                            child: Text(
+                                              label,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(color: tokens.ink),
+                                            ),
+                                          ),
+                                          // A blank option (the custom-field
+                                          // "none" row) would show a bare tick.
+                                          if (isCommitted && label.isNotEmpty)
+                                            Icon(
+                                              Icons.check,
+                                              size: 16,
+                                              color: tokens.accent,
+                                            ),
                                         ],
-                                        Expanded(
-                                          child: Text(
-                                            label,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: theme.textTheme.bodyMedium
-                                                ?.copyWith(color: tokens.ink),
-                                          ),
-                                        ),
-                                        // A blank option (the custom-field
-                                        // "none" row) would show a bare tick.
-                                        if (isCommitted && label.isNotEmpty)
-                                          Icon(
-                                            Icons.check,
-                                            size: 16,
-                                            color: tokens.accent,
-                                          ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                      if (footer != null) ...[
-                        Divider(height: 1, color: tokens.border),
-                        footer,
+                        if (footer != null) ...[
+                          Divider(height: 1, color: tokens.border),
+                          footer,
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               );
@@ -835,7 +875,7 @@ class _SearchableDropdownFieldState<T extends Object>
   bool get _suppressKeyboard =>
       Env.isTouchPrimary && widget.items.length <= _noKeyboardMaxItems;
 
-  /// Clear button (when there's something to clear) plus the dropdown arrow.
+  /// Clear button (when there's something to clear) plus the dropdown toggle.
   ///
   /// Rebuilt from the controller rather than the enclosing build:
   /// `RawAutocomplete` does not `setState` when the text changes (it drives the
@@ -845,7 +885,14 @@ class _SearchableDropdownFieldState<T extends Object>
   ///
   /// The arrow is what tells the user this is a picker at all — without it, a
   /// populated field offers only an ✕, and "delete the value, then choose" is a
-  /// reasonable reading of that.
+  /// reasonable reading of that. It is also the only *visible* way to close the
+  /// popover, which is why it is a button rather than a glyph; see its own
+  /// comment below. The label is the state-neutral `options` rather than an
+  /// open/close pair, because the glyph does not flip: making it do so would
+  /// need `_optionsVisible` to become observable, and notifying from
+  /// `optionsViewBuilder` fires mid-build into this very `ListenableBuilder`,
+  /// which has already built this frame. Material's own `DropdownButton` keeps
+  /// one glyph too.
   Widget _buildSuffix(
     BuildContext context,
     InTheme tokens,
@@ -915,10 +962,50 @@ class _SearchableDropdownFieldState<T extends Object>
                   if (wasPristine && wasSelection) _focusNode.unfocus();
                 },
               ),
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: InSpacing.sm),
-              child: Icon(Icons.arrow_drop_down, size: 20, color: tokens.ink3),
+            // A real toggle, not decoration. `_reopenOptions` gates its
+            // close branch on `_suppressKeyboard`, so above six options the
+            // field is typable and a tap on it — or on this glyph, which used
+            // to be a bare `Icon` whose taps fell through to the field — could
+            // only ever RE-open. On the Tasks filter bar that left the Client
+            // and Project pickers with no tap-to-close at all, and cost the
+            // Assigned User picker its own the moment a company hired a
+            // seventh user: the one control that looks like a toggle wasn't
+            // one (invoiceninja/flutter#134). An `IconButton` in the suffix
+            // wins its own tap, so `TextField.onTap: _reopenOptions` does not
+            // also run — the ✕ has worked that way in this Row since it
+            // shipped.
+            IconButton(
+              tooltip: context.tr('options'),
+              icon: Icon(Icons.arrow_drop_down, size: 20, color: tokens.ink3),
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints.tightFor(
+                width: buttonSize,
+                height: buttonSize,
+              ),
+              // As on the ✕ beside it: `padded` (the iOS/Android default) would
+              // inflate the layout box to kMinInteractiveDimension and ignore
+              // the constraints above, stretching the dense field.
+              style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () {
+                if (_optionsVisible) {
+                  // The same lever as back and tap-outside, so all three
+                  // dismissals leave identical state.
+                  _focusNode.unfocus();
+                  return;
+                }
+                // Order-insensitive, and it must stay that way: `requestFocus`
+                // is applied in a microtask, so the synchronous text bounce
+                // below may recompute the options while `hasFocus` is still
+                // false. `RawAutocomplete` re-runs its visibility check on the
+                // focus listener, so the overlay opens when focus lands. Don't
+                // "fix" this into a post-frame callback.
+                _focusNode.requestFocus();
+                _reopenOptions();
+              },
             ),
+            const SizedBox(width: InSpacing.sm),
           ],
         );
       },

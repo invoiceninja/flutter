@@ -6,10 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// the counting note below.
 const String _kAllowNoTapOutside = 'lint: allow-no-tap-outside';
 const String _kAllowOpenDirection = 'lint: allow-options-open-direction';
+const String _kAllowNoBackDismiss = 'lint: allow-no-back-dismiss';
 
-/// The two invariants every `RawAutocomplete` options popover in this app has
-/// to carry. Both fail **silently**, and neither is visible from inside the
-/// widget that gets them wrong.
+/// The three invariants every `RawAutocomplete` options popover in this app has
+/// to carry. All three fail **silently**, and none of them is visible from
+/// inside the widget that gets them wrong.
 ///
 /// **1. The field must set `onTapOutside`.** `_canShowOptionsView` is
 /// `hasFocus && options.isNotEmpty` (`widgets/autocomplete.dart`), so the
@@ -24,14 +25,29 @@ const String _kAllowOpenDirection = 'lint: allow-options-open-direction';
 /// carries the full argument, including why a tap on an option row can't trip
 /// it. A picker shipped without it looks perfect on every desktop review.
 ///
-/// **2. The popover must open into whichever side has more room.** Left at
+/// **2. The popover must close on Android's back.** `RawAutocomplete` is not a
+/// route and carries no back handling at all — no `PopScope`, no
+/// `BackButtonListener`, no `NavigatorPopHandler` anywhere in
+/// `widgets/autocomplete.dart`. So back reached `SystemBackGate`, which ran
+/// `NavHistoryController.back()` and navigated off the screen — or called
+/// `SystemNavigator.pop()` and **exited the app**, on the common case of a
+/// session restored straight onto the screen in question
+/// (invoiceninja/flutter#134). `BackDismissiblePickerOverlay`
+/// (`lib/ui/core/widgets/picker_dismissal.dart`) claims a
+/// `ChildBackButtonDispatcher` for exactly as long as the overlay child is
+/// mounted, which is the only layer that runs BEFORE the `Router` pops; a
+/// `PopScope` cannot work, because `ModalRoute` notifies every registered
+/// `PopEntry` and `SystemBackGate`'s would still navigate. Invisible on a
+/// desktop review, which has Escape.
+///
+/// **3. The popover must open into whichever side has more room.** Left at
 /// `OptionsViewOpenDirection.down`, a picker low on the screen gets only the
 /// space beneath it, floored at a ~48 px sliver. Four of the five hosts passed
 /// `mostSpace`; the line-item tax cell did not, so the tax cell on the last row
 /// of a long invoice was that picker — for the life of the file, with the rule
 /// written down in CLAUDE.md and nothing checking it.
 ///
-/// Both rules are **counts** per file, not scans of a window around
+/// All three rules are **counts** per file, not scans of a window around
 /// `fieldViewBuilder:`. That builder runs to ~85 lines in
 /// `searchable_dropdown_field.dart`, and `line_item_table_desktop.dart`
 /// legitimately holds two `RawAutocomplete`s — a count handles that without
@@ -46,7 +62,11 @@ const String _kAllowOpenDirection = 'lint: allow-options-open-direction';
 /// hooks no widget test covers, are worth re-reading by hand if that file is
 /// refactored. It also cannot see a file that correctly hoists one callback and
 /// shares it across two fields (1 hook, 2 hosts would fail); nobody does that
-/// today. And it says nothing about a hand-rolled `OverlayPortal` menu —
+/// today. Rule 2 has the matching blind spot: it proves the back wrapper is
+/// *present* in the file, not that it wraps the `optionsViewBuilder` output
+/// rather than the field — mounted-means-open is the whole mechanism, and only
+/// a reader can see that it still holds. And it says nothing about a
+/// hand-rolled `OverlayPortal` menu —
 /// `token_search_field.dart` solves the same dismissal problem its own way,
 /// with a shared `TapRegion.groupId`.
 void main() {
@@ -107,6 +127,34 @@ void main() {
     );
   });
 
+  test('every RawAutocomplete popover closes on Android back', () {
+    final offenders = <String>[];
+    for (final (path, raw, src) in sources) {
+      final hosts = hostsIn(src);
+      // Skips `picker_dismissal.dart` itself, which defines the wrapper and
+      // builds no `RawAutocomplete` — so the definition can't self-satisfy the
+      // count.
+      if (hosts == 0) continue;
+      final covered =
+          count(src, 'BackDismissiblePickerOverlay(') +
+          count(raw, _kAllowNoBackDismiss);
+      if (covered < hosts) {
+        offenders.add('$path ($hosts host(s), $covered covered)');
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'Every RawAutocomplete must wrap its `optionsViewBuilder` output in '
+          '`BackDismissiblePickerOverlay(focusNode: …)`. Without it, Android '
+          'back with the popover open navigates off the screen — or exits the '
+          'app — instead of closing it, because the SDK has no back handling '
+          'at all. Add the wrapper, or one `// $_kAllowNoBackDismiss <reason>` '
+          'per exempt host.',
+    );
+  });
+
   test('every RawAutocomplete popover opens into the roomier side', () {
     final offenders = <String>[];
     for (final (path, raw, src) in sources) {
@@ -155,6 +203,70 @@ void main() {
       reason:
           'dismissPickerOnTapOutside must unfocus the node it is given — that '
           'is the only thing that hides a RawAutocomplete options overlay.',
+    );
+  });
+
+  /// The back wrapper's own contract, for the same reason: rule 2 only counts
+  /// call sites, so a gutted wrapper leaves five green ones over five popovers
+  /// that eat back again.
+  test('the back wrapper claims, prioritises and releases a dispatcher', () {
+    // Whitespace-stripped, not `join(' ')`: these tokens are arguments that
+    // `dart format` is free to wrap, and an indentation-preserving join would
+    // red the build on a pure reformat.
+    final src = File('lib/ui/core/widgets/picker_dismissal.dart')
+        .readAsLinesSync()
+        .map((l) {
+          final i = l.indexOf('//');
+          return i == -1 ? l : l.substring(0, i);
+        })
+        .join(' ')
+        .replaceAll(RegExp(r'\s+'), '');
+    const required = <String, String>{
+      // The one layer that runs before the Router pops. A PopScope cannot
+      // substitute: ModalRoute notifies every PopEntry, so SystemBackGate's
+      // would still navigate.
+      'createChildBackButtonDispatcher()':
+          'the wrapper must register a ChildBackButtonDispatcher',
+      // Without this the child registers with ZERO callbacks and
+      // `_CallbackHookProvider.invokeCallback` hits `_callbacks.single`, which
+      // throws, is caught, and answers `defaultValue` for ever — back silently
+      // stops working while every other token here stays present.
+      'addCallback(': 'the dispatcher must carry exactly one callback',
+      // …and it must actually be consulted first.
+      'takePriority()': 'the dispatcher must take priority while open',
+      // …and hand it back on unmount, or a dismissed popover keeps eating back.
+      'removeCallback(': 'the dispatcher must be released on dispose',
+      // Dropping focus is what hides a RawAutocomplete overlay; a DismissIntent
+      // from the overlay child would pop the ROUTE instead (see the dartdoc).
+      // Match the DELEGATION, not a bare `unfocus()` — the picker wrapper hands
+      // over a tear-off, so `unfocus()` alone is satisfied by
+      // `dismissPickerOnTapOutside` at the top of the same file and this rule
+      // would pass over a gutted back handler.
+      'onBack:focusNode.unfocus':
+          'the picker wrapper must dismiss by dropping focus',
+    };
+    for (final entry in required.entries) {
+      expect(
+        src.contains(entry.key),
+        isTrue,
+        reason:
+            '${entry.value} — expected `${entry.key}` in picker_dismissal.dart.',
+      );
+    }
+    // `maybeOf`, never `of`: `Router.of` asserts and then bangs, and the picker
+    // suites pump bare `MaterialApp`s with no Router throughout. This is the
+    // single edit that would turn all of them into debug throws.
+    expect(
+      src.contains('Router.maybeOf('),
+      isTrue,
+      reason: 'the wrapper must look the Router up with maybeOf',
+    );
+    expect(
+      RegExp(r'Router\.of\(').hasMatch(src),
+      isFalse,
+      reason:
+          'Router.of bangs on a host without a Router — a bare-MaterialApp '
+          'widget test or a widget preview — so the wrapper must not use it.',
     );
   });
 }

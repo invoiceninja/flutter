@@ -73,6 +73,15 @@ class SegmentMenu extends StatelessWidget {
     final key = _dateKey!;
     final formatter = context.read<Services>().formatterIfReady(vm.companyId);
     final seed = _isWindow ? key.parseWindow(currentWire) : null;
+    // Close BEFORE the await, not after. `pickDateRangeWindow` pushes a
+    // `PopupRoute`, and while this menu is still showing its
+    // `BackDismissibleOverlay` holds a `ChildBackButtonDispatcher` — which the
+    // `Router` consults *before* it pops anything. So a back press meant for
+    // the calendar would instead dismiss the menu underneath it and leave the
+    // calendar open, burning a press on something the user cannot see.
+    // `token_search_field._onSelectValue` states the same rule for its own
+    // await, and the value below applies fine to an already-closed menu.
+    onClose();
     final wire = await pickDateRangeWindow(
       context,
       column: key.serverKey,
@@ -80,7 +89,6 @@ class SegmentMenu extends StatelessWidget {
       seed: seed,
     );
     if (wire != null) await key.addValue(vm, wire);
-    onClose();
   }
 
   @override
@@ -246,6 +254,11 @@ class SegmentMenu extends StatelessWidget {
         _MenuRow(
           label: '${context.tr('absolute_date')}  →',
           onTap: () async {
+            // Close BEFORE the await — see `_openRangePopover`. `showDatePicker`
+            // is `useRootNavigator: true`, so its route is not even on this
+            // navigator and a `ModalRoute.isCurrentOf` guard could not see it;
+            // closing first is the only thing that works for both.
+            onClose();
             final now = DateTime.now();
             final picked = await showDatePicker(
               context: context,
@@ -259,7 +272,6 @@ class SegmentMenu extends StatelessWidget {
                   '${picked.day.toString().padLeft(2, '0')}';
               await filterKey.addValue(vm, filterKey.buildWire(iso, op));
             }
-            onClose();
           },
         ),
       ],

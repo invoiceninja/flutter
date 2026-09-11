@@ -502,6 +502,90 @@ void main() {
         for (var i = 0; i < 50; i++) '$i',
       ]);
     });
+
+    final createdAtCol = const ReportColumn(
+      identifier: 'client.created_at',
+      displayLabel: 'Date Created',
+      type: ReportColumnType.dateTime,
+    );
+
+    // invoiceninja/flutter#138. The Reports screen sets the group *before*
+    // the run that fetches the optional date column, so `ui.group` can name a
+    // column the preview doesn't carry yet. Without the existence check
+    // `_bucket` returns `[]` while `renderedRows` is still forced to `[]` —
+    // the view comes back with no rows AND no groups over a full preview,
+    // which renders as "No results" for the length of the fetch and stays
+    // there if the run is cancelled.
+    test('a group naming an absent column falls back to ungrouped rows', () {
+      final preview = previewWith(
+        columns: [clientCol, amountCol],
+        rows: [
+          [
+            const ReportStringCell(value: 'ACME', displayValue: 'ACME'),
+            ReportNumberCell(value: d('100'), isMoney: true, currencyId: '1'),
+          ],
+          [
+            const ReportStringCell(value: 'Foo', displayValue: 'Foo'),
+            ReportNumberCell(value: d('200'), isMoney: true, currencyId: '1'),
+          ],
+        ],
+      );
+      final view = engine.compute(
+        preview: preview,
+        ui: const ReportUiState(
+          group: 'client.created_at', // not in this preview
+          subgroup: ReportSubgroup.month,
+        ),
+        exchangeRates: const {},
+        companyCurrencyId: '1',
+      );
+
+      expect(view.groups, isEmpty);
+      expect(view.rows, hasLength(2));
+      expect(view.totalRowCount, 2);
+    });
+
+    // An epoch-seconds `*_at` value is parsed `isUtc: true`, but the table
+    // cell renders it through `Formatter.date(..., showTime: true)`, which
+    // appends `Z` and calls `.toLocal()`. Reading the calendar fields off the
+    // UTC instant counts a row in one month while its own cell displays a
+    // date in another.
+    //
+    // This is the rare invariant **CI cannot check**: under `TZ=UTC` the
+    // buggy and fixed code are behaviourally identical, because there is no
+    // conversion to get wrong. The test says so out loud and returns rather
+    // than asserting something vacuous — it bites on any developer machine
+    // with a non-zero offset (verified failing against the pre-fix code under
+    // `TZ=Asia/Jerusalem`).
+    test('a dateTime buckets on the local day, not the UTC one', () {
+      final instant = DateTime.utc(2026, 3, 1, 23, 30);
+      final local = instant.toLocal();
+      if (local.day == instant.day) return; // device is at UTC
+
+      final view = engine.compute(
+        preview: previewWith(
+          columns: [createdAtCol, amountCol],
+          rows: [
+            [
+              ReportDateTimeCell(value: instant),
+              ReportNumberCell(value: d('10'), isMoney: true, currencyId: '1'),
+            ],
+          ],
+        ),
+        ui: const ReportUiState(
+          group: 'client.created_at',
+          subgroup: ReportSubgroup.day,
+        ),
+        exchangeRates: const {},
+        companyCurrencyId: '1',
+      );
+
+      expect(
+        view.groups.single.key,
+        Date(local.year, local.month, local.day).toIso(),
+      );
+      expect(view.groups.single.key, isNot('2026-03-01'));
+    });
   });
 
   group('ReportUiState value equality', () {
@@ -545,6 +629,121 @@ void main() {
       expect(base.hashCode == sortDiff.hashCode, isFalse);
       expect(base == groupDiff, isFalse);
       expect(base.hashCode == groupDiff.hashCode, isFalse);
+    });
+  });
+
+  // `_bucket` only emits a bucket for a date that has rows, so a period
+  // nobody was active in is absent rather than zero. A chart plotting buckets
+  // by index then draws two non-adjacent periods as neighbours — this is the
+  // span that lets it fill the gaps instead.
+  group('ReportEngine.dateBucketSpan', () {
+    const engine = ReportEngine();
+
+    test('fills an interior month gap', () {
+      expect(
+        engine.dateBucketSpan('2026-01-01', '2026-04-01', ReportSubgroup.month),
+        ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01'],
+      );
+    });
+
+    test('does not extend past either end', () {
+      final span = engine.dateBucketSpan(
+        '2026-02-01',
+        '2026-03-01',
+        ReportSubgroup.month,
+      );
+      expect(span, ['2026-02-01', '2026-03-01']);
+    });
+
+    test('a single bucket spans itself', () {
+      expect(
+        engine.dateBucketSpan('2026-02-01', '2026-02-01', ReportSubgroup.month),
+        ['2026-02-01'],
+      );
+    });
+
+    test('steps months across a year boundary', () {
+      expect(
+        engine.dateBucketSpan('2025-11-01', '2026-02-01', ReportSubgroup.month),
+        ['2025-11-01', '2025-12-01', '2026-01-01', '2026-02-01'],
+      );
+    });
+
+    test('quarter steps three months at a time', () {
+      expect(
+        engine.dateBucketSpan(
+          '2026-01-01',
+          '2026-10-01',
+          ReportSubgroup.quarter,
+        ),
+        ['2026-01-01', '2026-04-01', '2026-07-01', '2026-10-01'],
+      );
+    });
+
+    test('day steps one day at a time, across a month end', () {
+      expect(
+        engine.dateBucketSpan('2026-02-27', '2026-03-02', ReportSubgroup.day),
+        ['2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02'],
+      );
+    });
+
+    test('week steps on the configured first day of week', () {
+      const mondayEngine = ReportEngine(firstDayOfWeek: 1);
+      expect(
+        mondayEngine.dateBucketSpan(
+          '2026-06-01',
+          '2026-06-22',
+          ReportSubgroup.week,
+        ),
+        ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22'],
+      );
+    });
+
+    test('year steps on the fiscal year, not the calendar year', () {
+      const aprilEngine = ReportEngine(firstMonthOfYear: 4);
+      expect(
+        aprilEngine.dateBucketSpan(
+          '2024-04-01',
+          '2026-04-01',
+          ReportSubgroup.year,
+        ),
+        ['2024-04-01', '2025-04-01', '2026-04-01'],
+      );
+    });
+
+    test('refuses a span past the render cap', () {
+      // ~6 years of days is well past kMaxReportChartBuckets. The caller reads
+      // an empty result as "plot the raw buckets", so the refusal has to be
+      // empty rather than truncated — a truncated span would silently drop
+      // every bucket past the cap.
+      expect(
+        engine.dateBucketSpan('2020-01-01', '2026-01-01', ReportSubgroup.day),
+        isEmpty,
+      );
+    });
+
+    test('refuses inverted or unparsable bounds', () {
+      expect(
+        engine.dateBucketSpan('2026-04-01', '2026-01-01', ReportSubgroup.month),
+        isEmpty,
+      );
+      // The engine's own bucket for a null date cell sorts first, so this is
+      // the shape a nullable date column actually produces.
+      expect(
+        engine.dateBucketSpan('', '2026-01-01', ReportSubgroup.month),
+        isEmpty,
+      );
+      expect(
+        engine.dateBucketSpan('2026-01-01', 'nope', ReportSubgroup.month),
+        isEmpty,
+      );
+    });
+
+    test('re-canonicalizes a bound that is not a bucket start', () {
+      expect(
+        engine.dateBucketSpan('2026-01-17', '2026-03-09', ReportSubgroup.month),
+        ['2026-01-01', '2026-02-01', '2026-03-01'],
+      );
     });
   });
 }

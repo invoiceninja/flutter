@@ -638,6 +638,11 @@ the honest default.
 | Report — column reorder | ✅ | ❌ | ✅ | — | |
 | Report — per-column table filters (type-aware) | ❌ | ✅ | ✅ | — | |
 | Report — chart (bar + time-series) | ❌ | ✅ | ✅ | — | |
+| Report — chart series: record count | ❌ | ❌ | ✅ | — | v1 computes a `count` total but its chart picker only offers numeric *columns*, so it can't be charted there |
+| Report — chart fills empty periods with zero | ❌ | ❌ | ✅ | — | v1 sidesteps gaps with a real time axis rather than filling them; v2 plots period buckets by index, so it fills |
+| Report — date subgroup granularity (day / week / month / quarter / year) | ❌ | ✅ | ✅ | — | |
+| Report — names the date field the range filters | ❌ | 🟡 | ✅ | — | v1 shows a date-field dropdown only when a report has more than one date column |
+| Report — date-created column (client report) | ❌ | ✅ | ✅ | — | |
 
 ---
 

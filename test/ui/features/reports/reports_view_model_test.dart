@@ -13,6 +13,7 @@ import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
+import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 
 class _Trigger {
@@ -71,6 +72,9 @@ class _FakeRepo implements ReportsRepository {
     throw out;
   }
 
+  /// Preview returned by `keepWaiting`'s continuation, when a test sets one.
+  ReportPreview? continuation;
+
   @override
   Future<ReportPreview> continuePreview({
     required String hash,
@@ -78,7 +82,9 @@ class _FakeRepo implements ReportsRepository {
     Duration pollInterval = ReportsApi.defaultPollInterval,
     ReportPollingCancellation? isCancelled,
   }) async {
-    throw UnimplementedError();
+    final p = continuation;
+    if (p == null) throw UnimplementedError();
+    return p;
   }
 
   /// Export hook: when [exportError] is set it's thrown; otherwise
@@ -593,8 +599,9 @@ void main() {
         final repo = _FakeRepo();
         final g1 = _Trigger()..release();
         final g2 = _Trigger()..release();
-        // The server returns the full set on every preview (the VM sends no
-        // report_keys on preview).
+        // The server returns the full set on every preview (with the optional
+        // date column off — the only thing that sends report_keys — the VM
+        // sends none).
         repo.queue(g1, colsPreview(['a', 'b', 'c']));
         repo.queue(g2, colsPreview(['a', 'b', 'c']));
         final vm = ReportsViewModel(repo: repo, statics: statics);
@@ -779,6 +786,367 @@ void main() {
         expect(vm.reportIdentifier, 'invoice');
       },
     );
+  });
+
+  // invoiceninja/flutter#138. The clients report's date range filters on
+  // `clients.created_at`, but the server's default column set carries no
+  // `created_at` — so there is nothing to group or chart by until the app
+  // asks for that column by name. Everything here is about asking for it
+  // without breaking the "preview never narrows the columns" invariant.
+  group('optional date column', () {
+    ReportPreview clientPreview(List<String> ids) => ReportPreview(
+      columns: [
+        for (final id in ids)
+          ReportColumn(
+            identifier: id,
+            // What the server actually answers for a key it has no
+            // report-key entry for: `ctrans('texts.')`.
+            displayLabel: id == 'client.created_at' ? 'texts.' : id,
+            type: inferColumnType(id),
+          ),
+      ],
+      rows: const [],
+    );
+
+    test('off by default — preview sends no report_keys', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      expect(vm.includeDateColumn, isFalse);
+      expect(repo.previewReportKeys.single, isEmpty);
+    });
+
+    test('on, preview asks for the known set plus the extra column', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.balance']),
+      );
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.balance', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+
+      expect(repo.previewReportKeys[0], isEmpty);
+      expect(repo.previewReportKeys[1], [
+        'client.name',
+        'client.balance',
+        'client.created_at',
+      ]);
+    });
+
+    // The bug this exists for: after the first augmented run the preview
+    // *contains* the extra column, so a "skip if already present" guard
+    // would send `[]` on the second run and the column would vanish again —
+    // invisible unless you press Run twice.
+    test('a second augmented run still carries it exactly once', () async {
+      final repo = _FakeRepo();
+      final augmented = clientPreview([
+        'client.name',
+        'client.balance',
+        'client.created_at',
+      ]);
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.balance']),
+      );
+      repo.queue(_Trigger()..release(), augmented);
+      repo.queue(_Trigger()..release(), augmented);
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      await vm.runReport();
+
+      expect(repo.previewReportKeys[2], [
+        'client.name',
+        'client.balance',
+        'client.created_at',
+      ]);
+    });
+
+    // `_reconcileWithColumns` deliberately never un-hides a column, so
+    // without an explicit opt-in the column arrives fetched and invisible
+    // and the switch appears to do nothing at all.
+    test('the column becomes visible when it arrives', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      expect(vm.visibleColumnIds, {'client.name'});
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      expect(vm.visibleColumnIds, {'client.name', 'client.created_at'});
+    });
+
+    test('replaces the unresolved server header', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics)
+        ..optionalDateColumnLabel = 'Date Created';
+      await vm.runReport();
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+
+      final col = vm.run.preview!.columns.last;
+      expect(col.identifier, 'client.created_at');
+      expect(col.displayLabel, 'Date Created');
+      // `*_at` infers to dateTime, so the column is groupable and chartable
+      // rather than an inert string.
+      expect(col.type, ReportColumnType.dateTime);
+    });
+
+    test('a resolved server header wins over ours', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+      repo.queue(
+        _Trigger()..release(),
+        const ReportPreview(
+          columns: [
+            ReportColumn(
+              identifier: 'client.created_at',
+              // What the server would send if it ever adopted the column —
+              // in the company's locale, which beats our English default.
+              displayLabel: 'Fecha de Creación',
+              type: ReportColumnType.dateTime,
+            ),
+          ],
+          rows: [],
+        ),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics)
+        ..optionalDateColumnLabel = 'Date Created';
+      await vm.runReport();
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      expect(vm.run.preview!.columns.single.displayLabel, 'Fecha de Creación');
+    });
+
+    // Stripping the key from report_keys isn't enough on its own:
+    // `GenericReportRequest::prepareForValidation` unshifts `group_by` back
+    // into the list, so the server would re-add the column to the file.
+    test('export and email strip the column AND the group_by', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.created_at', subgroup: ReportSubgroup.month);
+
+      expect(vm.serverReportKeys(), ['client.name']);
+      expect(vm.serverGroupBy, isNull);
+
+      // An ordinary grouping is untouched.
+      vm.setGroup('client.name');
+      expect(vm.serverGroupBy, 'client.name');
+    });
+
+    // The flag changes the fetch without touching the payload, so it has to
+    // join the dirty check by hand or Run keeps reading "Run report".
+    test('flipping the switch marks the params dirty', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      expect(vm.isParamDirty, isFalse);
+      vm.setIncludeDateColumn(true);
+      expect(vm.isParamDirty, isTrue);
+    });
+
+    // Otherwise the panel offers a grouping the next run will drop.
+    test('turning it off clears a grouping that depends on it', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.created_at', subgroup: ReportSubgroup.month);
+
+      vm.setIncludeDateColumn(false);
+      expect(vm.group, isNull);
+      expect(vm.subgroup, isNull);
+    });
+
+    test('a grouping on another column survives turning it off', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.name');
+
+      vm.setIncludeDateColumn(false);
+      expect(vm.group, 'client.name');
+    });
+
+    // `keepWaiting` used to hand the raw preview straight to `_run`, skipping
+    // every post-run step: no relabel, no column-set record, no visible-set
+    // opt-in, and `isParamDirty` left stuck true. All of it invisible at the
+    // call site, and `keepWaiting` had no test at all.
+    test(
+      'a "Keep waiting" continuation runs the same pipeline as a run',
+      () async {
+        final repo = _FakeRepo();
+        repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+        // The run that carries the column times out, then its continuation
+        // delivers it.
+        repo.queueError(
+          _Trigger()..release(),
+          const ReportError(kind: ReportErrorKind.timeout, pollingHash: 'h1'),
+        );
+        repo.continuation = clientPreview(['client.name', 'client.created_at']);
+
+        final vm = ReportsViewModel(repo: repo, statics: statics)
+          ..optionalDateColumnLabel = 'Date Created';
+        await vm.runReport();
+        vm.setIncludeDateColumn(true);
+        await vm.runReport(); // times out
+        expect(vm.run.status, ReportRunStatus.error);
+
+        await vm.keepWaiting();
+
+        final col = vm.run.preview!.columns.last;
+        // Relabelled: the server sends the literal "texts." for this key.
+        expect(col.displayLabel, 'Date Created');
+        // Visible, so the switch doesn't appear to have done nothing.
+        expect(vm.visibleColumnIds, contains('client.created_at'));
+        // Recorded, so the next augmented run has a current column set.
+        expect(vm.serverGroupBy, isNull);
+        // Settled: Run must not keep reading "Run to refresh".
+        expect(vm.isParamDirty, isFalse);
+      },
+    );
+
+    // Once the preview carries the column it is an ordinary dropdown item, so
+    // the ordinary branch has to keep the opt-in on — otherwise the next Run
+    // sends no report_keys, the server omits the column, and the grouping is
+    // dropped with no message one interaction later.
+    test('re-grouping from the plain dropdown keeps the opt-in', () async {
+      final repo = _FakeRepo();
+      final withColumn = clientPreview(['client.name', 'client.created_at']);
+      repo.queue(_Trigger()..release(), withColumn);
+      repo.queue(_Trigger()..release(), withColumn);
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+
+      // Switch off — which clears the dependent grouping…
+      vm.setIncludeDateColumn(false);
+      expect(vm.group, isNull);
+      // …then re-pick the column, which is now an ordinary item. This is what
+      // `_GroupByField`'s ordinary branch does.
+      vm.setIncludeDateColumn(true);
+      vm.setGroup('client.created_at', subgroup: ReportSubgroup.month);
+
+      await vm.runReport();
+      expect(repo.previewReportKeys[1], contains('client.created_at'));
+      expect(vm.group, 'client.created_at');
+    });
+
+    // A drill is into a bucket at the old granularity, so it cannot survive
+    // the change: `_groupKey` re-derives against the new one and matches
+    // nothing, leaving "No results" under a breadcrumb that has re-formatted
+    // the stale key and now names a period that does have rows.
+    test('changing the subgroup clears the drill', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.created_at', subgroup: ReportSubgroup.day);
+      vm.setSelectedGroup('2026-04-15');
+      expect(vm.selectedGroup, '2026-04-15');
+
+      vm.setSubgroup(ReportSubgroup.month);
+      expect(vm.selectedGroup, isNull);
+    });
+
+    test('switching reports resets the opt-in', () async {
+      final repo = _FakeRepo();
+      repo.queue(_Trigger()..release(), clientPreview(['client.name']));
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      await vm.runReport();
+      vm.setIncludeDateColumn(true);
+      vm.setReport('invoice');
+      expect(vm.includeDateColumn, isFalse);
+      // The invoice report's date column is already in the default set, so
+      // it has nothing to offer and the flag can't produce a request there.
+      expect(vm.definition.optionalDateColumnId, isNull);
+    });
+
+    // A cold start has no preview, so the augmented request has nothing to
+    // build from unless the last known column set was persisted — and
+    // without it `_reconcileWithColumns` drops the restored grouping on the
+    // very first run.
+    test('restores the opt-in, the column set and the chart series', () async {
+      final restored = clientPreview(['client.name', 'client.created_at']);
+
+      final repo1 = _FakeRepo();
+      repo1.queue(_Trigger()..release(), restored);
+      final vm1 = ReportsViewModel(
+        repo: repo1,
+        statics: statics,
+        navStateDao: db.navStateDao,
+        companyId: 'co1',
+        persistDebounce: Duration.zero,
+      );
+      await vm1.hydration;
+      vm1.setIncludeDateColumn(true);
+      await vm1.runReport();
+      vm1.setGroup('client.created_at', subgroup: ReportSubgroup.month);
+      vm1.setChartColumn('group.count');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final repo2 = _FakeRepo();
+      repo2.queue(_Trigger()..release(), restored);
+      final vm2 = ReportsViewModel(
+        repo: repo2,
+        statics: statics,
+        navStateDao: db.navStateDao,
+        companyId: 'co1',
+      );
+      await vm2.hydration;
+      expect(vm2.includeDateColumn, isTrue);
+      expect(vm2.group, 'client.created_at');
+      expect(vm2.subgroup, ReportSubgroup.month);
+      // Without persisting this the chart re-auto-picks the first numeric
+      // column, silently losing a deliberate Count selection on restart.
+      expect(vm2.chartColumn, 'group.count');
+
+      // The first run after restore is already augmented — a plain cold run
+      // would return no `created_at` and the grouping would be dropped.
+      await vm2.runReport();
+      expect(repo2.previewReportKeys.single, [
+        'client.name',
+        'client.created_at',
+      ]);
+      expect(vm2.group, 'client.created_at');
+    });
   });
 }
 

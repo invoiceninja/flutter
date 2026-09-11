@@ -15,8 +15,9 @@ import 'package:admin/utils/formatting.dart';
 /// company-switch via the auth session listener (not via `build`, which
 /// would dispose a notifier mid-rebuild).
 ///
-/// First-paint rule (per the plan): Clients report preselected,
-/// `This year` range; the EmptyState invites the user to Run.
+/// First paint: the Clients report preselected over an all-time range
+/// (`ReportPayload.datePreset` defaults to `allTime`); the EmptyState
+/// invites the user to Run.
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -79,10 +80,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final globalNav = Breakpoints.isGlobalNavVisible(context);
-    // The VM has no BuildContext; feed it the localized header for the
-    // synthetic Product-report `stock_value` column here (re-applied on locale
-    // change since build re-runs). Used only on the next Run.
+    // The VM has no BuildContext; feed it the localized headers it can't
+    // resolve itself here (re-applied on locale change since build re-runs).
+    // Used only on the next Run: the synthetic Product-report `stock_value`
+    // column, and the optional date column, whose header the server answers
+    // with an unresolved `"texts."`.
     _vm.stockValueLabel = context.tr('stock_value');
+    _vm.optionalDateColumnLabel = context.tr('created_at');
     return ChangeNotifierProvider<ReportsViewModel>.value(
       value: _vm,
       child: Scaffold(

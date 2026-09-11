@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:drift/native.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -299,8 +300,11 @@ void main() {
     );
     await _pump(tester, vm: vm, view: view, formatter: _testFormatter());
 
-    // Only one numeric column AND one currency → no dropdowns at all.
-    expect(find.byType(DropdownButton<String>), findsNothing);
+    // One currency → no currency picker. The series picker is always there
+    // now: Count rides alongside every numeric column, so a report with one
+    // money column still has two series to choose between.
+    expect(find.byKey(const Key('report-chart-currency')), findsNothing);
+    expect(find.byKey(const Key('report-chart-series')), findsOneWidget);
     expect(
       find.textContaining('Switch above to see other currencies'),
       findsNothing,
@@ -424,5 +428,209 @@ void main() {
     final spots = chart.data.lineBarsData.first.spots;
     // Chronological order preserved (300, 100, 200) — NOT value-sorted.
     expect(spots.map((s) => s.y).toList(), [300.0, 100.0, 200.0]);
+  });
+
+  // invoiceninja/flutter#138. `GroupTotals.count` has always been there and
+  // the table's group rows have always printed it — only the chart couldn't
+  // draw it, which on a report grouped by a date is the one series worth
+  // drawing ("how many new clients this month").
+  group('count series', () {
+    testWidgets('rides alongside the numeric columns in the picker', (
+      tester,
+    ) async {
+      final vm = await _seedVm(
+        tester,
+        const ReportPreview(columns: [_clientCol, _amountCol], rows: []),
+      );
+      final view = _viewWith(
+        visibleColumns: const [_clientCol, _amountCol],
+        groups: [
+          _group('Acme', {
+            'invoice.amount': {'1': Decimal.fromInt(50)},
+          }, rowCount: 3),
+          _group('Beta', {
+            'invoice.amount': {'1': Decimal.fromInt(20)},
+          }, rowCount: 1),
+        ],
+      );
+      await _pump(tester, vm: vm, view: view, formatter: _testFormatter());
+
+      final picker = tester.widget<DropdownButton<String>>(
+        find.byKey(const Key('report-chart-series')),
+      );
+      expect(picker.items!.map((i) => i.value), [
+        'group.count',
+        'invoice.amount',
+      ]);
+      // A money report keeps charting money until the user says otherwise.
+      expect(vm.chartColumn, 'invoice.amount');
+    });
+
+    testWidgets('plots row counts, not totals, once picked', (tester) async {
+      final vm = await _seedVm(
+        tester,
+        const ReportPreview(columns: [_clientCol, _amountCol], rows: []),
+      );
+      final view = _viewWith(
+        visibleColumns: const [_clientCol, _amountCol],
+        groups: [
+          _group('Acme', {
+            'invoice.amount': {'1': Decimal.fromInt(50)},
+          }, rowCount: 3),
+          _group('Beta', {
+            'invoice.amount': {'1': Decimal.fromInt(20)},
+          }, rowCount: 7),
+        ],
+      );
+      await _pump(tester, vm: vm, view: view, formatter: _testFormatter());
+      vm.setChartColumn('group.count');
+      await tester.pump();
+
+      final chart = tester.widget<BarChart>(find.byType(BarChart));
+      // Value-descending, like every other bar series: Beta (7), Acme (3).
+      expect(chart.data.barGroups.map((g) => g.barRods.first.toY), [7.0, 3.0]);
+      // A count has no currency, so no currency picker can appear for it.
+      expect(find.byKey(const Key('report-chart-currency')), findsNothing);
+    });
+
+    // This used to be the `no_numeric_values_to_chart` dead end: a report
+    // with nothing to sum drew nothing at all, even though every group knew
+    // how many rows it held.
+    testWidgets('is auto-picked when there is nothing numeric to chart', (
+      tester,
+    ) async {
+      final vm = await _seedVm(
+        tester,
+        const ReportPreview(columns: [_clientCol], rows: []),
+      );
+      final view = _viewWith(
+        visibleColumns: const [_clientCol],
+        groups: [
+          _group('Acme', const {}, rowCount: 3),
+          _group('Beta', const {}, rowCount: 5),
+        ],
+      );
+      await _pump(tester, vm: vm, view: view, formatter: _testFormatter());
+
+      expect(vm.chartColumn, 'group.count');
+      expect(find.byType(BarChart), findsOneWidget);
+      expect(
+        tester
+            .widget<BarChart>(find.byType(BarChart))
+            .data
+            .barGroups
+            .map((g) => g.barRods.first.toY),
+        [5.0, 3.0],
+      );
+    });
+  });
+
+  // A period nobody signed up in has no bucket at all — `_bucket` only emits
+  // one for a date that has rows — so plotting by index draws January next
+  // to March as though they were consecutive months.
+  group('date-series gaps', () {
+    Future<ReportsViewModel> seedMonthly(WidgetTester tester) async {
+      final vm = await _seedVm(
+        tester,
+        const ReportPreview(columns: [_dateCol, _amountCol], rows: []),
+        activeGroupId: 'invoice.date',
+      );
+      vm.setSubgroup(ReportSubgroup.month);
+      return vm;
+    }
+
+    ReportView gappedView() => _viewWith(
+      visibleColumns: const [_dateCol, _amountCol],
+      groups: [
+        _group('2026-01-01', {
+          'invoice.amount': {'1': Decimal.fromInt(300)},
+        }, rowCount: 3),
+        // February is missing — nobody was invoiced.
+        _group('2026-03-01', {
+          'invoice.amount': {'1': Decimal.fromInt(200)},
+        }, rowCount: 2),
+      ],
+    );
+
+    testWidgets('an empty month plots a zero instead of closing up', (
+      tester,
+    ) async {
+      final vm = await seedMonthly(tester);
+      await _pump(
+        tester,
+        vm: vm,
+        view: gappedView(),
+        formatter: _testFormatter(),
+      );
+
+      final chart = tester.widget<LineChart>(find.byType(LineChart));
+      expect(chart.data.lineBarsData.first.spots.map((s) => s.y), [
+        300.0,
+        0.0,
+        200.0,
+      ]);
+    });
+
+    // A filled bucket belongs to no group, so drilling into it would filter
+    // to zero rows and strand the user on "No results" with the chart gone.
+    // Easy to hit by accident: fl_chart's `isInterestedForInteractions` does
+    // not exclude `FlPointerHoverEvent`, so on desktop and web the drill
+    // callbacks fire on mouse-over, not just on tap.
+    testWidgets('a filled-in zero bucket is not drillable', (tester) async {
+      final vm = await seedMonthly(tester);
+      await _pump(
+        tester,
+        vm: vm,
+        view: gappedView(),
+        formatter: _testFormatter(),
+      );
+
+      final chart = tester.widget<LineChart>(find.byType(LineChart));
+      final touch = chart.data.lineTouchData.touchCallback!;
+      final spots = chart.data.lineBarsData.first.spots;
+
+      FlPointerHoverEvent hover() =>
+          FlPointerHoverEvent(const PointerHoverEvent());
+      LineTouchResponse at(int i) => LineTouchResponse(
+        touchLocation: Offset.zero,
+        touchChartCoordinate: Offset.zero,
+        lineBarSpots: [
+          TouchLineBarSpot(
+            chart.data.lineBarsData.first,
+            0,
+            spots[i],
+            spots[i].y,
+          ),
+        ],
+      );
+
+      // Index 1 is February — invented by the gap fill, no rows behind it.
+      touch(hover(), at(1));
+      await tester.pump();
+      expect(vm.selectedGroup, isNull);
+
+      // Index 0 is January, a real bucket — still drillable.
+      touch(hover(), at(0));
+      await tester.pump();
+      expect(vm.selectedGroup, '2026-01-01');
+    });
+
+    testWidgets('the filled bucket is labelled, not left as a raw ISO date', (
+      tester,
+    ) async {
+      final vm = await seedMonthly(tester);
+      vm.setChartColumn('group.count');
+      await _pump(
+        tester,
+        vm: vm,
+        view: gappedView(),
+        formatter: _testFormatter(),
+      );
+
+      // Bucket keys stay ISO (they are identity — drill-down matches on
+      // them); only the axis label is formatted.
+      expect(find.text('February 2026'), findsOneWidget);
+      expect(find.text('2026-02-01'), findsNothing);
+    });
   });
 }

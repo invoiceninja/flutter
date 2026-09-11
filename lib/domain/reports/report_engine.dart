@@ -9,11 +9,20 @@ import 'package:admin/utils/date_ranges.dart';
 
 final _log = Logger('ReportEngine');
 
+/// Render ceiling for a gap-filled chart timeline. Mirrors the dashboard's
+/// own `_maxRenderBuckets` (`chart_series_math.dart`) — past this many
+/// points fl_chart is being handed more spots than the axis can show.
+const int kMaxReportChartBuckets = 750;
+
 /// How a date-typed group column buckets its values when grouped.
 enum ReportSubgroup { day, week, month, quarter, year }
 
-extension ReportSubgroupWire on ReportSubgroup {
-  String get wire {
+extension ReportSubgroupLabel on ReportSubgroup {
+  /// Localization key for this granularity. The five values happen to match
+  /// the enum's own names, but they are looked up through `context.tr`, so
+  /// `report_registry_date_keys_test` asserts each one resolves in the bundle —
+  /// a variable key is invisible to `no_unsubstituted_placeholders_test`.
+  String get labelKey {
     switch (this) {
       case ReportSubgroup.day:
         return 'day';
@@ -311,9 +320,18 @@ class ReportEngine {
     }
 
     // 5. Group or pass through.
+    //
+    // The group column must actually be **in** the preview. A caller can name
+    // one that isn't there yet — the Reports screen sets the group before the
+    // run that fetches an optional column — and without this check `_bucket`
+    // returns `[]` while `renderedRows` is still forced to `[]`, so the view
+    // comes back with no rows AND no groups over a full preview. That is the
+    // "No results" empty state: shown for the length of the fetch, and left
+    // there permanently if the run is cancelled or fails.
     final isGrouping =
         ui.group != null &&
         ui.group!.isNotEmpty &&
+        _columnIndex(preview.columns, ui.group!) >= 0 &&
         (ui.selectedGroup == null || ui.selectedGroup!.isEmpty);
     final groups = isGrouping
         ? _bucket(filtered, preview.columns, ui)
@@ -630,7 +648,15 @@ class ReportEngine {
     if (column.type == ReportColumnType.dateTime &&
         cell is ReportDateTimeCell &&
         cell.value != null) {
-      final d = cell.value!;
+      // `.toLocal()` is load-bearing, not defensive. An epoch-seconds `*_at`
+      // value is parsed `isUtc: true` (`_parseTyped`), while the table cell
+      // renders it through `Formatter.date(..., showTime: true)`, which
+      // appends `Z` and calls `.toLocal()`. Reading the calendar fields off
+      // the UTC instant would bucket a client created 2026-03-01 09:00 at
+      // UTC+10 under **February** while its own row displays 01/Mar — the
+      // headline "new clients per month" figure contradicting itself on the
+      // same screen. A local DateTime (the string branch) is unaffected.
+      final d = cell.value!.toLocal();
       return _dateBucket(Date(d.year, d.month, d.day), subgroup);
     }
     // Prefer displayValue → cell's raw value (case-preserving for strings)
@@ -663,6 +689,77 @@ class ReportEngine {
         // when unset / 1).
         return startOfFiscalYear(date, firstMonthOfYear).toIso();
     }
+  }
+
+  /// Every bucket key from [firstKey] to [lastKey] inclusive at [subgroup]
+  /// granularity — the contiguous timeline `groups` does *not* provide.
+  ///
+  /// [_bucket] only emits a bucket for a date that has rows, so a month
+  /// nobody signed up in simply isn't there; a chart plotting buckets by
+  /// index then closes the gap and draws two non-adjacent periods as
+  /// neighbours. Callers fill the missing keys with zero. Both bounds are
+  /// expected to be keys [_dateBucket] produced, and are re-canonicalized
+  /// anyway so a hand-written bound can't walk off the grid.
+  ///
+  /// Deliberately **interior only** — the caller passes the first and last
+  /// bucket present in the data, never the selected date range, so "This
+  /// year" viewed in March doesn't assert zeros for months that haven't
+  /// happened.
+  ///
+  /// Returns `const []` when the bounds don't parse, are inverted, or the
+  /// span exceeds [kMaxReportChartBuckets] (All-time at day granularity is
+  /// thousands of points). Over the cap the caller plots the raw buckets
+  /// rather than coarsening: the user picked this granularity, unlike the
+  /// dashboard's own axis builder, which is the model for the cap itself
+  /// (`chart_series_math.dart`).
+  List<String> dateBucketSpan(
+    String firstKey,
+    String lastKey,
+    ReportSubgroup? subgroup,
+  ) {
+    final first = Date.tryParse(firstKey);
+    final last = Date.tryParse(lastKey);
+    if (first == null || last == null) return const [];
+    if (first.compareTo(last) > 0) return const [];
+    final sub = subgroup ?? ReportSubgroup.day;
+    final end = _dateBucket(last, sub);
+    var cursor = Date.tryParse(_dateBucket(first, sub));
+    if (cursor == null) return const [];
+    final out = <String>[];
+    while (true) {
+      if (out.length >= kMaxReportChartBuckets) return const [];
+      final key = cursor!.toIso();
+      out.add(key);
+      if (key == end || cursor.compareTo(last) >= 0) break;
+      cursor = _nextBucket(cursor, sub);
+    }
+    return out;
+  }
+
+  /// The start of the bucket following the one starting at [d]. Bucket
+  /// starts are canonical (month → the 1st, quarter → the quarter's first
+  /// month, year → the fiscal-year start, week → the week start), so
+  /// stepping by one period keeps them canonical.
+  Date _nextBucket(Date d, ReportSubgroup sub) {
+    switch (sub) {
+      case ReportSubgroup.day:
+        return d.addDays(1);
+      case ReportSubgroup.week:
+        return d.addDays(7);
+      case ReportSubgroup.month:
+        return _addMonths(d, 1);
+      case ReportSubgroup.quarter:
+        return _addMonths(d, 3);
+      case ReportSubgroup.year:
+        return startOfNextFiscalYear(d, firstMonthOfYear);
+    }
+  }
+
+  /// [d] shifted by whole months, snapped to the 1st. Month-space math, so
+  /// there is no "Jan 31 + 1 month" clamping question to get wrong.
+  static Date _addMonths(Date d, int months) {
+    final zeroBased = d.year * 12 + (d.month - 1) + months;
+    return Date(zeroBased ~/ 12, zeroBased % 12 + 1, 1);
   }
 
   Map<String, Map<String, Decimal>> _perCurrencyTotals(

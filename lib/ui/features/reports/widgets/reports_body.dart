@@ -23,6 +23,7 @@ import 'package:admin/data/static/activity_types_catalog.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
 import 'package:admin/domain/reports/report_engine.dart';
 import 'package:admin/domain/reports/report_filter_options.dart';
+import 'package:admin/domain/reports/report_group_label.dart';
 import 'package:admin/domain/reports/report_registry.dart';
 import 'package:admin/domain/reports/report_schedule.dart';
 import 'package:admin/l10n/localization.dart';
@@ -206,6 +207,7 @@ class _ReportSettingsPanel extends StatelessWidget {
                   SizedBox(height: InSpacing.lg(context)),
                   _PanelLabel(text: context.tr('date_range')),
                   _DateRangeField(vm: vm, formatter: formatter),
+                  const _DateRangeKeyHint(),
                   // Grouping, charting, columns and column-filters are
                   // preview-only. The ~11 reports that don't support preview
                   // can only be exported/emailed, so hide these controls for
@@ -215,6 +217,7 @@ class _ReportSettingsPanel extends StatelessWidget {
                     SizedBox(height: InSpacing.lg(context)),
                     _PanelLabel(text: context.tr('group_by')),
                     _GroupByField(vm: vm, enabled: hasPreview),
+                    _SubgroupField(vm: vm),
                     if (hasPreview && vm.group != null)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
@@ -225,6 +228,10 @@ class _ReportSettingsPanel extends StatelessWidget {
                       ),
                     SizedBox(height: InSpacing.lg(context)),
                     _ColumnsField(vm: vm, enabled: hasPreview),
+                    // A column toggle, so it belongs with Columns rather than
+                    // under the Group by heading — which also stops three
+                    // controls in one panel all reading "Date Created".
+                    _IncludeDateColumnTile(vm: vm, enabled: hasPreview),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       dense: true,
@@ -356,7 +363,7 @@ class _ReportPickerField extends StatelessWidget {
   }
 }
 
-/// Date range — report presets (incl. `last_90`) plus a "Custom range…"
+/// Date range — report presets plus a "Custom range…"
 /// entry that opens the shared two-month picker
 /// ([openDateRangePicker]). A `DashboardCustomRange` result maps to
 /// `payload.copyWith(datePreset: custom, startDate, endDate)`; a preset
@@ -500,6 +507,150 @@ String _reportPresetKey(ReportDatePreset p) {
   }
 }
 
+/// Names the column the server's date range actually filters on.
+///
+/// "Last 30 days" on the Clients report means *created* in the last 30 days
+/// — that is already the server's behaviour and the whole of
+/// invoiceninja/flutter#138's first ask, but nothing on screen said so.
+/// Read-only on purpose: `ClientExport` can't honour a caller-supplied
+/// `date_key` at all (see [ReportDefinition.dateRangeKey]), so a picker
+/// would be a lie on the report this matters most for.
+class _DateRangeKeyHint extends StatelessWidget {
+  const _DateRangeKeyHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<ReportsViewModel>();
+    final key = reportDateKeyLabelKey(vm.definition.dateRangeKey);
+    if (key == null) return const SizedBox.shrink();
+    // "Filtered by Date Created", not a bare "Date Created": sitting between
+    // the range button and the "Group by" label, the noun alone reads as a
+    // heading for the control below it. `filtered_by` is a real, fully
+    // translated key, so this costs no `_app_pending` entry.
+    return Padding(
+      padding: EdgeInsets.only(top: InSpacing.sm),
+      child: Text(
+        '${context.tr('filtered_by')} ${context.tr(key)}',
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(color: context.inTheme.ink3),
+      ),
+    );
+  }
+}
+
+/// Bucket granularity for a date grouping. Hidden for every other column
+/// type — the engine only reads `subgroup` for a date column, so offering
+/// it elsewhere would be an inert control.
+class _SubgroupField extends StatelessWidget {
+  const _SubgroupField({required this.vm});
+
+  final ReportsViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final column = _groupColumn(vm);
+    final isDate =
+        column != null &&
+        (column.type == ReportColumnType.date ||
+            column.type == ReportColumnType.dateTime);
+    if (!isDate) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(top: InSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Labelled above the field like every other control in this panel,
+          // rather than with an inline `labelText` that would sit in a
+          // different place, size and colour from the three above it.
+          _PanelLabel(text: context.tr('subgroup')),
+          DropdownButtonFormField<ReportSubgroup>(
+            initialValue: vm.subgroup ?? ReportSubgroup.month,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: (value) {
+              if (value != null) vm.setSubgroup(value);
+            },
+            items: [
+              for (final sub in ReportSubgroup.values)
+                DropdownMenuItem(
+                  value: sub,
+                  child: Text(context.tr(sub.labelKey)),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Opt-in for a report whose date range filters on a column its default
+/// column set omits — today only Clients / `created_at`.
+///
+/// The Group by entry below is the discoverable path (and runs the report
+/// itself); this is the state display, the "I want the column but not the
+/// grouping" path, and — because a non-empty `report_keys` pins the column
+/// set — the way back out.
+class _IncludeDateColumnTile extends StatelessWidget {
+  const _IncludeDateColumnTile({required this.vm, required this.enabled});
+
+  final ReportsViewModel vm;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelKey = reportDateKeyLabelKey(vm.definition.dateRangeKey);
+    if (vm.definition.optionalDateColumnId == null || labelKey == null) {
+      return const SizedBox.shrink();
+    }
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      value: vm.includeDateColumn,
+      onChanged: enabled ? vm.setIncludeDateColumn : null,
+      title: Text(context.tr(labelKey)),
+    );
+  }
+}
+
+/// Display text for a group bucket key. The key itself is identity — the
+/// engine re-derives it to match `selectedGroup` on drill-down and it is
+/// persisted — so only what is rendered changes. See
+/// [reportGroupDisplayLabel].
+String _groupLabel(ReportsViewModel vm, String key, Formatter? formatter) =>
+    reportGroupDisplayLabel(
+      key: key,
+      columnType: _groupColumn(vm)?.type,
+      subgroup: vm.subgroup,
+      formatter: formatter,
+    );
+
+/// The report's [ReportDefinition.optionalDateColumnId] when it is worth
+/// offering: the report has one, we know how to label it, and the loaded
+/// preview doesn't already carry it.
+String? _offerableDateColumn(ReportsViewModel vm, List<ReportColumn> columns) {
+  final extra = vm.definition.optionalDateColumnId;
+  if (extra == null) return null;
+  if (reportDateKeyLabelKey(vm.definition.dateRangeKey) == null) return null;
+  if (columns.any((c) => c.identifier == extra)) return null;
+  return extra;
+}
+
+/// The column [ReportsViewModel.group] names, or null when no group is set
+/// or no preview carries it.
+ReportColumn? _groupColumn(ReportsViewModel vm) {
+  final id = vm.group;
+  if (id == null || id.isEmpty) return null;
+  for (final c in vm.run.preview?.columns ?? const <ReportColumn>[]) {
+    if (c.identifier == id) return c;
+  }
+  return null;
+}
+
 class _GroupByField extends StatelessWidget {
   const _GroupByField({required this.vm, this.enabled = true});
 
@@ -514,10 +665,18 @@ class _GroupByField extends StatelessWidget {
     // covers the disabled-before-Run case and the hydrated-group/no-preview
     // restart path, where a stale id would trip DropdownButtonFormField's
     // "exactly one matching item" assertion.
+    // The optional date column, offered as an extra item while the preview
+    // doesn't carry it yet. Picking it fetches it (see `onChanged`); once
+    // fetched it is an ordinary column in `columns` and this is null again,
+    // so the item can never be duplicated. `enabled` is `hasPreview`, which
+    // is what guarantees `_previewReportKeys()` has a live column list to
+    // augment — there is no cold-start case to special-case.
+    final offerable = _offerableDateColumn(vm, columns);
+
     final groupValid =
         vm.group != null &&
         vm.group!.isNotEmpty &&
-        columns.any((c) => c.identifier == vm.group);
+        (columns.any((c) => c.identifier == vm.group) || vm.group == offerable);
     return DropdownButtonFormField<String>(
       initialValue: groupValid ? vm.group : '',
       isExpanded: true,
@@ -532,6 +691,25 @@ class _GroupByField extends StatelessWidget {
                 vm.setGroup(null);
                 return;
               }
+              if (id == offerable) {
+                // The one item that isn't a free local regroup: the column
+                // has to be fetched first. Run it here rather than leaving
+                // the user to notice that the Run button changed label —
+                // the necessity isn't visible, and `runReport` is
+                // epoch-guarded so calling it from `onChanged` is safe.
+                vm.setIncludeDateColumn(true);
+                vm.setGroup(id, subgroup: ReportSubgroup.month);
+                unawaited(vm.runReport());
+                return;
+              }
+              // Once fetched, the optional column is an ordinary item —
+              // and picking it here must still keep the opt-in on, or the
+              // next Run sends no `report_keys`, the server omits the
+              // column, and `_reconcileWithColumns` drops the grouping with
+              // no message one interaction later.
+              if (id == vm.definition.optionalDateColumnId) {
+                vm.setIncludeDateColumn(true);
+              }
               final col = columns.where((c) => c.identifier == id).firstOrNull;
               final isDate =
                   col != null &&
@@ -545,6 +723,29 @@ class _GroupByField extends StatelessWidget {
           DropdownMenuItem(
             value: col.identifier,
             child: Text(col.displayLabel),
+          ),
+        if (offerable != null)
+          DropdownMenuItem(
+            value: offerable,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    context.tr(
+                      reportDateKeyLabelKey(vm.definition.dateRangeKey)!,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                SizedBox(width: InSpacing.sm),
+                Icon(
+                  Icons.cloud_download_outlined,
+                  size: 16,
+                  color: context.inTheme.ink3,
+                ),
+              ],
+            ),
           ),
       ],
     );
@@ -718,7 +919,8 @@ Future<void> _openColumnPicker(
 
 /// Server-side filters rendered per `definition.filterFields`. Mutates the
 /// payload (which flips `isParamDirty` so the existing Run button signals a
-/// refetch). `dateRange`/`dateColumn` are handled by the date field above.
+/// refetch). `dateRange` is handled by the date field above — it is the only
+/// field excluded here.
 class _FiltersSection extends StatelessWidget {
   const _FiltersSection({required this.vm});
 
@@ -727,11 +929,7 @@ class _FiltersSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fields = vm.definition.filterFields
-        .where(
-          (f) =>
-              f != ReportFilterField.dateRange &&
-              f != ReportFilterField.dateColumn,
-        )
+        .where((f) => f != ReportFilterField.dateRange)
         .toList();
     if (fields.isEmpty) return const SizedBox.shrink();
     final count = vm.activeFilterCount;
@@ -939,7 +1137,6 @@ class _FilterControl extends StatelessWidget {
           onChanged: (v) => vm.setPayload(p.copyWith(pdfEmailAttachment: v)),
         );
       case ReportFilterField.dateRange:
-      case ReportFilterField.dateColumn:
         return const SizedBox.shrink();
     }
   }
@@ -1301,11 +1498,11 @@ class _ScheduleButton extends StatelessWidget {
           reportIdentifier: vm.reportIdentifier,
           payload: vm.payload,
           // Ordered visible keys (column order, filtered to visible; empty →
-          // the visible set) minus any synthetic client-only column
-          // (`stock_value`) the server doesn't know — same stripping export and
-          // email use.
+          // the visible set) minus any column the server can't render into a
+          // file — same stripping export and email use, `groupBy` included
+          // (the server re-adds a stripped key when it is the group column).
           reportKeys: vm.serverReportKeys(ordered: true),
-          groupBy: vm.group,
+          groupBy: vm.serverGroupBy,
         );
         // Cross-branch (Reports → Settings) drops route `extra:`; stage the
         // seed on `Services` so the schedule create screen reads it.
@@ -1649,7 +1846,8 @@ class _ReportTableArea extends StatelessWidget {
     if (view.rows.isEmpty && view.groups.isEmpty) {
       return Column(
         children: [
-          if (vm.selectedGroup != null) _DrillBreadcrumb(vm: vm),
+          if (vm.selectedGroup != null)
+            _DrillBreadcrumb(vm: vm, formatter: formatter),
           Expanded(
             child: EmptyState(
               icon: Icons.search_off,
@@ -1661,7 +1859,8 @@ class _ReportTableArea extends StatelessWidget {
     }
     return Column(
       children: [
-        if (vm.selectedGroup != null) _DrillBreadcrumb(vm: vm),
+        if (vm.selectedGroup != null)
+          _DrillBreadcrumb(vm: vm, formatter: formatter),
         // Chart card slots between the drill breadcrumb and the totals
         // card. Only renders when there's actually a group bucket set —
         // the engine emits `groups: []` whenever no group is active OR
@@ -1696,9 +1895,10 @@ class _ReportTableArea extends StatelessWidget {
 }
 
 class _DrillBreadcrumb extends StatelessWidget {
-  const _DrillBreadcrumb({required this.vm});
+  const _DrillBreadcrumb({required this.vm, required this.formatter});
 
   final ReportsViewModel vm;
+  final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
@@ -1716,7 +1916,7 @@ class _DrillBreadcrumb extends StatelessWidget {
             child: InputChip(
               avatar: const Icon(Icons.filter_alt_outlined, size: 16),
               label: Text(
-                vm.selectedGroup ?? '',
+                _groupLabel(vm, vm.selectedGroup ?? '', formatter),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1875,6 +2075,7 @@ class _ReportDataTable extends StatelessWidget {
                 group: view.groups[i],
                 formatter: formatter,
                 background: i.isEven ? tokens.surface : tokens.surfaceAlt,
+                label: _groupLabel(vm, view.groups[i].key, formatter),
               );
             }
             return _DataRow(
@@ -2277,6 +2478,7 @@ class _GroupRow extends StatelessWidget {
     required this.group,
     required this.formatter,
     required this.background,
+    required this.label,
   });
 
   final ReportView view;
@@ -2284,14 +2486,19 @@ class _GroupRow extends StatelessWidget {
   final Formatter? formatter;
   final Color background;
 
+  /// The bucket's display text, resolved once by the parent — which already
+  /// watches the view model — rather than per row. Watching here would put
+  /// one provider subscription on every visible row for a value identical
+  /// across all of them, and rebuild the lot on every notify.
+  final String label;
+
   @override
   Widget build(BuildContext context) {
     final vm = context.read<ReportsViewModel>();
     final unit = context.tr(group.count == 1 ? 'row' : 'rows');
     return Semantics(
       button: true,
-      label:
-          'Group ${group.key}, ${group.count} $unit. Double-tap to drill in.',
+      label: 'Group $label, ${group.count} $unit. Double-tap to drill in.',
       child: Material(
         color: background,
         child: InkWell(
@@ -2307,7 +2514,7 @@ class _GroupRow extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: InSpacing.sm),
                     child: Text(
-                      '${group.key} (${group.count})',
+                      '$label (${group.count})',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -2485,16 +2692,19 @@ class _ReportCardList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (view.groups.isNotEmpty) {
+      // Watched once here, not inside the builder: a `context.watch` in an
+      // item builder subscribes every visible tile to the view model
+      // separately, for a value that is the same for all of them.
+      final vm = context.watch<ReportsViewModel>();
       return ListView.separated(
         itemCount: view.groups.length,
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, i) {
           final g = view.groups[i];
           return ListTile(
-            title: Text(g.key),
+            title: Text(_groupLabel(vm, g.key, formatter)),
             subtitle: Text('${g.count} ${context.tr('rows')}'),
-            onTap: () =>
-                context.read<ReportsViewModel>().setSelectedGroup(g.key),
+            onTap: () => vm.setSelectedGroup(g.key),
           );
         },
       );

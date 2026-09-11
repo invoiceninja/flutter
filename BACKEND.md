@@ -2198,3 +2198,77 @@ blanket rule would blank 96 real addresses. The client fix is a mitigation, not
 a substitute for 1–4 — it cannot help the React client, the portal profile form,
 or anyone reading the database directly.
 
+
+---
+
+## Reports: no entity report exposes a "date created" column — **O (client works around it; also affects React)**
+
+**Provenance** — 2026-09-11, invoiceninja/flutter#138 ("a `report` to show new
+`clients` in a given period"), verified against `v5-develop` and live against
+`demo.invoiceninja.com`.
+
+Every entity report already *filters* on a date — `ClientExport::$date_key` is
+`created_at`, and `BaseExport::addDateRange()` applies
+`whereBetween('created_at', …)`. Verified live: `POST /api/v1/reports/clients`
+with `date_range: 'last_year'` returns 0 rows on the demo account while `'all'`
+returns all of them. So "new clients in a period" is already the clients report
+with a range applied.
+
+What no report can do is **group or chart by that date**, because the column is
+not in the default column set. `BaseExport::$client_report_keys` — and every
+other `*_report_keys` map in that file — carries no `created_at` or
+`updated_at`. `DocumentExport` is the lone exception in the whole export layer
+(`'created_at' => 'created_at'`, formatted `Y-m-d H:i:s`), which shows there is
+no objection in principle. The legacy Flutter client had `created_at` as a
+**default** column on its client report, because it built reports from its own
+store rather than from this endpoint.
+
+**Requested change.** Add `'created_at' => 'client.created_at'` (and ideally
+`updated_at`, and the same pair across the other `*_report_keys` maps), and
+format it as a date rather than emitting the raw model value — `ClientTransformer`
+returns `(int) $client->created_at`, so today the cell is a unix timestamp and
+`buildHeader()` resolves the header to `ctrans('texts.')`, i.e. the literal
+string `"texts."`.
+
+**Acceptance.** `POST /api/v1/reports/clients?output=json` with
+`report_keys: []` returns a `client.created_at` column whose `display_value` is
+a formatted date and whose header is the translated "Date Created".
+
+**Client status.** `admin` (v2) works around this as of #138: the user can opt
+the column in, and the app sends the server's own returned column set plus
+`client.created_at` explicitly. That works today — the server honours an
+arbitrary `client.*` key because `buildRow()` falls through to the transformed
+model — and the app already parses an epoch-seconds `*_at` value and substitutes
+its own header. The workaround **pins** the column set for as long as it is on
+(a column added server-side later would not reach that user), and it is
+preview-only: `serverReportKeys()` and `serverGroupBy` strip the column from
+export / email / schedule, because the CSV would otherwise carry a raw epoch and
+`BaseExport::groupRows` groups on the exact value with no date bucketing. React
+has no workaround and shows no such column at all.
+
+## Reports: two smaller defects found alongside — **O**
+
+**`ClientExport` can never honour a caller-supplied `date_key`.**
+`ClientExport.php:141` calls `$this->addDateRange($query, ' clients')` — with a
+**leading space**. `BaseExport::addDateRange` gates the override on
+`columnExists($table_name, $this->input['date_key'])`, i.e.
+`Schema::hasColumn(' clients', …)`, which is always false. Every other export
+passes a clean table name (`'invoices'`, `'client_contacts'`, `'expenses'`, …).
+Harmless today only because `created_at` is the sole date the clients report
+could sensibly use — but `date_key` is accepted, documented and silently
+ignored there. One-character fix.
+
+**Two reports' date ranges are inert.** `ProjectReport::getPdf()`
+(`app/Services/Report/ProjectReport.php`) documents `date_range`, `start_date`
+and `end_date` in its input contract and never calls `addDateRange`; it filters
+only by `projects` and user permissions. `ARSummaryReport` does the same — it
+even declares `public string $date_key = 'date'` — and its only date predicate
+is the aging buckets' `whereBetween('due_date', …)`. Of the seven classes in
+`app/Services/Report/`, those are the only two that never call `addDateRange`.
+Both clients render a Date Range control for both reports, and it does nothing.
+Either apply the range or drop the params from the documented contracts.
+
+**Client status.** v2 names the filtered date column under the Date Range
+control from a per-report table mirroring each export's `$date_key`, and
+deliberately renders nothing for `project` or `aged_receivable_summary_report`
+rather than naming a column the server ignores.

@@ -121,6 +121,13 @@ class ReportsViewModel extends ChangeNotifier {
   /// BuildContext); defaults to English. See [_augmentPreview].
   String stockValueLabel = 'Stock value';
 
+  /// Localized header for [ReportDefinition.optionalDateColumnId]. The
+  /// server answers that key with `ctrans('texts.')` — the literal string
+  /// `"texts."` — because the column isn't in any of its report-key maps,
+  /// so the app supplies its own. Set by the screen from
+  /// `context.tr('created_at')`, same route as [stockValueLabel].
+  String optionalDateColumnLabel = 'Date Created';
+
   // ─── Payload (server-side) ───
   String _reportIdentifier;
   String get reportIdentifier => _reportIdentifier;
@@ -134,7 +141,18 @@ class ReportsViewModel extends ChangeNotifier {
   /// and column filters are NOT in here so changing them doesn't bump
   /// dirty (they're local-render concerns).
   ReportPayload? _lastRunPayload;
-  bool get isParamDirty => _payload != _lastRunPayload;
+
+  /// [_includeDateColumn] as of the last successful run. It changes the
+  /// *fetch* without touching the payload, so it has to join the dirty
+  /// check by hand or the Run button keeps reading "Run report" when it
+  /// should read "Run to refresh" — silent, and it looks right on screen.
+  /// It deliberately does not live on [ReportPayload]: that class is a wire
+  /// DTO whose `toJson` is a direct dump.
+  bool _lastRunIncludeDateColumn = false;
+
+  bool get isParamDirty =>
+      _payload != _lastRunPayload ||
+      _includeDateColumn != _lastRunIncludeDateColumn;
 
   // ─── Result ───
   ReportRunState _run = ReportRunState.idle();
@@ -172,6 +190,29 @@ class ReportsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Opt-in for [ReportDefinition.optionalDateColumnId]. On, the preview
+  /// asks for the server's own column set **plus** that column; off, it
+  /// sends an empty `report_keys` exactly as before.
+  ///
+  /// It has to be opt-in rather than always-on because a non-empty
+  /// `report_keys` *pins* the column set: a column the server adds later
+  /// would never reach a pinned user. Off is the escape hatch — a plain
+  /// run re-learns the current set into [_serverColumnIds] — and it keeps
+  /// default behaviour byte-identical for anyone who doesn't want it.
+  bool _includeDateColumn = false;
+  bool get includeDateColumn => _includeDateColumn;
+
+  /// Identifiers the last successful preview returned, persisted so the
+  /// augmented request survives a cold start (a restored `group` pointing
+  /// at the optional column would otherwise be dropped by
+  /// [_reconcileWithColumns] on the very first run).
+  ///
+  /// Deliberately not [_visibleColumnIds]: that is the user's *selection*,
+  /// so reusing it would make hiding a column stop it being **fetched**,
+  /// and the column picker — sourced from `preview.columns` — could never
+  /// offer it back.
+  List<String> _serverColumnIds = const [];
+
   String? _sortField;
   bool _sortAscending = true;
   String? get sortField => _sortField;
@@ -208,9 +249,9 @@ class ReportsViewModel extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  /// Active filter count for the toolbar badge. Excludes `date_range`
-  /// and `date_key` (they have their own toolbar surface) and matches
-  /// against the report's `defaultFilterValues`.
+  /// Active filter count for the toolbar badge. Excludes `date_range`, which
+  /// has its own toolbar surface, and matches against the report's
+  /// `defaultFilterValues`.
   int get activeFilterCount {
     final defaults = definition.defaultFilterValues;
     String defaultStr(String key) => defaults[key]?.toString() ?? '';
@@ -220,7 +261,6 @@ class ReportsViewModel extends ChangeNotifier {
       bool changed;
       switch (f) {
         case ReportFilterField.dateRange:
-        case ReportFilterField.dateColumn:
           continue;
         case ReportFilterField.status:
           changed = (_payload.status ?? '') != defaultStr('status');
@@ -352,6 +392,42 @@ class ReportsViewModel extends ChangeNotifier {
     return _memoView!;
   }
 
+  /// The contiguous bucket keys a date-grouped chart should plot, or
+  /// `const []` when there is nothing to fill.
+  ///
+  /// `_bucket` only emits a bucket for a date that *has* rows, so a month
+  /// nobody signed up in is absent rather than zero — and a chart plotting
+  /// buckets by index then draws two non-adjacent periods as neighbours.
+  /// This hands the chart the full span so it can plot the gaps as zeroes.
+  ///
+  /// It lives here rather than in the card because the span depends on the
+  /// engine's fiscal-year and week-start configuration, which only this
+  /// class holds. [buildView] must have run at least once (it always has —
+  /// the card is built from its result).
+  List<String> chartBucketKeys(List<GroupTotals> groups, ReportColumn? column) {
+    if (column == null || groups.length < 2) return const [];
+    if (column.type != ReportColumnType.date &&
+        column.type != ReportColumnType.dateTime) {
+      return const [];
+    }
+    // Only fill when the granularity is *declared*. `_dateBucket` falls back
+    // to day for a null subgroup, so filling on that assumption would invent
+    // a daily timeline under buckets that may not be daily at all — and the
+    // group-by control always sets one for a date column, so in practice
+    // this only skips a grouping set some other way.
+    final subgroup = _subgroup;
+    if (subgroup == null) return const [];
+    final span = _engine.dateBucketSpan(
+      groups.first.key,
+      groups.last.key,
+      subgroup,
+    );
+    // Nothing missing (or the span was refused as too long) — the caller
+    // plots the raw buckets, exactly as before.
+    if (span.length <= groups.length) return const [];
+    return span;
+  }
+
   void _invalidateMemo() {
     _memoKey = null;
     _memoView = null;
@@ -400,6 +476,14 @@ class ReportsViewModel extends ChangeNotifier {
     'sortAscending': _sortAscending,
     'panelCollapsed': _panelCollapsed,
     'chartVisible': _chartVisible,
+    // The chart's series is as much "where the user left off" as the group
+    // it charts; without it a restart re-auto-picks the first numeric column
+    // and silently drops a deliberate Count selection.
+    if (_chartColumn != null) 'chartColumn': _chartColumn,
+    if (_includeDateColumn) 'includeDateColumn': true,
+    // Persisted so a restored grouping on the optional date column survives
+    // the cold run that would otherwise drop it (see `_previewReportKeys`).
+    if (_serverColumnIds.isNotEmpty) 'serverColumns': _serverColumnIds,
   };
 
   void _applySnapshot(Map<String, dynamic> s) {
@@ -436,6 +520,13 @@ class ReportsViewModel extends ChangeNotifier {
     if (pc is bool) _panelCollapsed = pc;
     final cv = s['chartVisible'];
     if (cv is bool) _chartVisible = cv;
+    final cc = s['chartColumn'];
+    if (cc is String && cc.isNotEmpty) _chartColumn = cc;
+    _includeDateColumn = s['includeDateColumn'] == true;
+    final sc = s['serverColumns'];
+    if (sc is List) {
+      _serverColumnIds = List.unmodifiable(sc.map((e) => '$e'));
+    }
   }
 
   Map<String, dynamic> _payloadToMap(ReportPayload p) => <String, dynamic>{
@@ -579,6 +670,12 @@ class ReportsViewModel extends ChangeNotifier {
     _subgroup = null;
     _selectedGroup = null;
     _chartColumn = null;
+    // Both are per-report: the snapshot is one-report-shaped by design, and
+    // the Group by entry that turns the flag on is itself gated on a loaded
+    // preview, so re-picking after a report switch costs nothing.
+    _includeDateColumn = false;
+    _lastRunIncludeDateColumn = false;
+    _serverColumnIds = const [];
     _run = ReportRunState.idle();
     _invalidateMemo();
     notifyListeners();
@@ -659,6 +756,12 @@ class ReportsViewModel extends ChangeNotifier {
 
   void setSubgroup(ReportSubgroup? sg) {
     _subgroup = sg;
+    // A drill is into a bucket *at the old granularity*, so it can't survive
+    // the change — `_groupKey` re-derives against the new one and matches
+    // nothing, leaving "No results" under a breadcrumb that has re-formatted
+    // the stale key and now names a period that does have rows. `setGroup`
+    // clears it for the same reason.
+    _selectedGroup = null;
     _invalidateMemo();
     notifyListeners();
   }
@@ -669,9 +772,9 @@ class ReportsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reset payload filter values (not date range / date column / columns /
-  /// sort / group). Keeps the loaded preview so the user doesn't have to
-  /// re-Run just to clear filters.
+  /// Reset payload filter values (not the date range, columns, sort or
+  /// group). Keeps the loaded preview so the user doesn't have to re-Run
+  /// just to clear filters.
   void resetFilters() {
     _userTouched = true;
     final defaults = definition.defaultFilterValues;
@@ -715,6 +818,7 @@ class ReportsViewModel extends ChangeNotifier {
     _selectedGroup = null;
     _chartColumn = null;
     _chartVisible = true;
+    _includeDateColumn = false;
     _invalidateMemo();
     notifyListeners();
   }
@@ -737,33 +841,22 @@ class ReportsViewModel extends ChangeNotifier {
         reportIdentifier: _reportIdentifier,
         endpoint: definition.endpoint,
         payload: _payload,
-        // Preview always requests the server's full default column set (empty
-        // report_keys) — column visibility is a purely local concern applied
-        // by the engine. Sending the visible subset here would narrow the
+        // Empty = the server's full default column set, which is what the
+        // preview wants: column visibility is a purely local concern applied
+        // by the engine. Sending the visible *subset* here would narrow the
         // server response, and since the column picker is sourced from
         // `preview.columns`, a hidden column would vanish from the picker and
         // become unrecoverable on the next Run. Export/email still send the
         // visible subset so the file honors the user's selection.
-        reportKeys: const [],
+        //
+        // The one non-empty case is the opt-in optional date column, which
+        // still sends the *full* known set plus that one — never a subset.
+        reportKeys: _previewReportKeys(),
         isCancelled: _cancellationFor(epoch),
       );
       if (_disposed || epoch != _runEpoch) return;
-      // Inject the synthetic Product-report `stock_value` column before it
-      // seeds the default visible set / column picker below.
-      final preview = _augmentPreview(rawPreview);
-      _lastRunPayload = _payload;
-      _run = ReportRunState.ready(preview);
+      _applySuccessfulPreview(rawPreview);
       _activePollingHash = null;
-      if (_visibleColumnIds.isEmpty) {
-        // First Run on this report: default visible columns to the
-        // server's returned set so the column picker has a baseline.
-        _visibleColumnIds = preview.columns.map((c) => c.identifier).toSet();
-      } else {
-        // Hydrated/customized set: keep it but drop columns the report no
-        // longer returns and surface any new server columns.
-        _reconcileWithColumns(preview);
-      }
-      _invalidateMemo();
       notifyListeners();
     } on ReportError catch (e) {
       if (_disposed || epoch != _runEpoch) return;
@@ -789,6 +882,43 @@ class ReportsViewModel extends ChangeNotifier {
     }
   }
 
+  /// Everything that must happen when a preview lands, whichever request
+  /// produced it.
+  ///
+  /// It exists because [keepWaiting] used to do a shorter version of this by
+  /// hand and silently drifted: a report that timed out and was resumed came
+  /// back with no synthetic `stock_value` column, an unresolved `"texts."`
+  /// header on the optional date column, that column fetched but invisible,
+  /// no refreshed column set, a stale `group`/`sortField`, and `isParamDirty`
+  /// stuck true so Run read "Run to refresh" over a current preview. Six
+  /// divergences, none of them visible at either call site.
+  void _applySuccessfulPreview(ReportPreview rawPreview) {
+    // Inject the synthetic Product-report `stock_value` column, and relabel
+    // the optional date column, before either seeds the visible set below.
+    final preview = _augmentPreview(rawPreview);
+    _lastRunPayload = _payload;
+    _lastRunIncludeDateColumn = _includeDateColumn;
+    _run = ReportRunState.ready(preview);
+    _serverColumnIds = List.unmodifiable(
+      preview.columns.map((c) => c.identifier),
+    );
+    if (_visibleColumnIds.isEmpty) {
+      // First Run on this report: default visible columns to the server's
+      // returned set so the column picker has a baseline.
+      _visibleColumnIds = preview.columns.map((c) => c.identifier).toSet();
+    } else {
+      // Hydrated/customized set: keep it but drop columns the report no
+      // longer returns and surface any new server columns.
+      _reconcileWithColumns(preview);
+    }
+    // `_reconcileWithColumns` deliberately never auto-shows a new server
+    // column ("don't un-hide what the user hid"), but the optional date
+    // column is one the user just asked for by name — without this it
+    // arrives fetched and invisible, and the switch appears to do nothing.
+    _showOptionalDateColumn(preview);
+    _invalidateMemo();
+  }
+
   /// Re-poll the in-flight hash for another budget. Only valid when the
   /// last error was a timeout; the repository surfaces a `pollingHash` on
   /// that error specifically so we can pick up where we left off.
@@ -805,10 +935,8 @@ class ReportsViewModel extends ChangeNotifier {
         isCancelled: _cancellationFor(epoch),
       );
       if (_disposed || epoch != _runEpoch) return;
-      _lastRunPayload = _payload;
-      _run = ReportRunState.ready(preview);
+      _applySuccessfulPreview(preview);
       _activePollingHash = null;
-      _invalidateMemo();
       notifyListeners();
     } on ReportError catch (e) {
       if (_disposed || epoch != _runEpoch) return;
@@ -868,7 +996,7 @@ class ReportsViewModel extends ChangeNotifier {
         payload: _payload,
         format: format,
         reportKeys: serverReportKeys(),
-        groupBy: _group,
+        groupBy: serverGroupBy,
         isCancelled: () => _disposed || _exportEpoch != epoch,
       );
       if (_disposed || epoch != _exportEpoch) return null;
@@ -941,7 +1069,7 @@ class ReportsViewModel extends ChangeNotifier {
         endpoint: definition.endpoint,
         payload: _payload,
         reportKeys: serverReportKeys(),
-        groupBy: _group,
+        groupBy: serverGroupBy,
       );
     } finally {
       if (!_disposed) {
@@ -951,20 +1079,88 @@ class ReportsViewModel extends ChangeNotifier {
     }
   }
 
+  // ─── Optional date column (opt-in, preview-only) ───
+
+  /// `report_keys` for the preview request. Empty — the server's own
+  /// default set — unless the user opted into the optional date column,
+  /// in which case it is the full **known** set plus that column.
+  ///
+  /// The live preview wins over [_serverColumnIds] so the set is as fresh
+  /// as the last answer; with neither we fall back to a plain run rather
+  /// than pinning the report to a single column (`prepareForValidation`
+  /// would happily accept a one-element list).
+  List<String> _previewReportKeys() {
+    final extra = definition.optionalDateColumnId;
+    if (!_includeDateColumn || extra == null) return const [];
+    final known =
+        _run.preview?.columns.map((c) => c.identifier).toList() ??
+        _serverColumnIds;
+    if (known.isEmpty) return const [];
+    // Strip-then-append, never "skip if already present": after the first
+    // augmented run `known` *contains* `extra` (we asked for it), so a
+    // `contains` guard would send `[]` on the very next run and the column
+    // would vanish again — a bug invisible until the second Run.
+    return [
+      for (final id in known)
+        if (id != extra && id != _kStockValueId) id,
+      extra,
+    ];
+  }
+
+  void setIncludeDateColumn(bool value) {
+    if (_includeDateColumn == value) return;
+    _userTouched = true;
+    _includeDateColumn = value;
+    // Turning it off strands a grouping on a column the next run won't
+    // return. `_reconcileWithColumns` would clear it, but only after the
+    // fetch — until then the panel offers a grouping that is already gone.
+    if (!value && _group != null && _group == definition.optionalDateColumnId) {
+      _group = null;
+      _subgroup = null;
+      _selectedGroup = null;
+      _invalidateMemo();
+    }
+    notifyListeners();
+  }
+
+  /// Make the opted-in column visible the first time it arrives.
+  void _showOptionalDateColumn(ReportPreview preview) {
+    final extra = definition.optionalDateColumnId;
+    if (!_includeDateColumn || extra == null) return;
+    if (_visibleColumnIds.contains(extra)) return;
+    if (!preview.columns.any((c) => c.identifier == extra)) return;
+    _visibleColumnIds = Set.unmodifiable({..._visibleColumnIds, extra});
+  }
+
   // ─── Product-report inventory valuation (synthetic, preview-only) ───
 
   static const String _kStockValueId = 'stock_value';
 
   /// Visible report keys safe to send to the server (export / email / schedule):
-  /// the visible selection minus any synthetic, client-computed column
-  /// (`stock_value`) the server doesn't know. Pass [ordered] to honor the
-  /// user's column order — the schedule flow needs it; export/email don't.
+  /// the visible selection minus any column the server can't render into a
+  /// file — the client-computed `stock_value`, and the optional date column,
+  /// whose value arrives as a raw epoch int the CSV has no way to format.
+  /// Pass [ordered] to honor the user's column order — the schedule flow
+  /// needs it; export/email don't.
   List<String> serverReportKeys({bool ordered = false}) {
     final base = ordered && _columnOrder.isNotEmpty
         ? _columnOrder.where(_visibleColumnIds.contains)
         : _visibleColumnIds;
-    return base.where((k) => k != _kStockValueId).toList();
+    final extra = definition.optionalDateColumnId;
+    return base.where((k) => k != _kStockValueId && k != extra).toList();
   }
+
+  /// `group_by` safe to send to the server, for the same three flows.
+  ///
+  /// Stripping the key out of [serverReportKeys] is **not** enough on its
+  /// own: `GenericReportRequest::prepareForValidation` does
+  /// `array_unshift($report_keys, $group_by)` for any `group_by` not
+  /// already in the list, so the server would put the column straight back.
+  /// (`BaseExport::groupRows` also groups on the *exact* value with no date
+  /// bucketing, so grouping a file by a per-second timestamp would emit one
+  /// group per row anyway.)
+  String? get serverGroupBy =>
+      _group == definition.optionalDateColumnId ? null : _group;
 
   /// Inject the synthetic `stock_value` (on-hand stock × price) money column
   /// into the Product report so the totals card shows the total inventory value
@@ -972,6 +1168,44 @@ class ReportsViewModel extends ChangeNotifier {
   /// preview-only — [_serverReportKeys] strips it from export/email, so it never
   /// reaches the server (and so isn't in CSV/PDF output).
   ReportPreview _augmentPreview(ReportPreview preview) {
+    return _relabelOptionalDateColumn(_augmentStockValue(preview));
+  }
+
+  /// Replace the optional date column's header. The server resolves it with
+  /// `ctrans('texts.')` — the literal `"texts."` — because the column is in
+  /// none of its report-key maps.
+  ///
+  /// Gated on the label actually being *unresolved* rather than on the
+  /// identifier alone: should the server ever adopt the column properly, its
+  /// own `ctrans` label is in the company's locale and should win.
+  ReportPreview _relabelOptionalDateColumn(ReportPreview preview) {
+    final extra = definition.optionalDateColumnId;
+    if (extra == null) return preview;
+    var touched = false;
+    final columns = [
+      for (final c in preview.columns)
+        if (c.identifier == extra && _looksUnresolved(c.displayLabel))
+          () {
+            touched = true;
+            return ReportColumn(
+              identifier: c.identifier,
+              displayLabel: optionalDateColumnLabel,
+              type: c.type,
+            );
+          }()
+        else
+          c,
+    ];
+    if (!touched) return preview;
+    return ReportPreview(columns: columns, rows: preview.rows);
+  }
+
+  static bool _looksUnresolved(String label) {
+    final t = label.trim();
+    return t.isEmpty || t.startsWith('texts.');
+  }
+
+  ReportPreview _augmentStockValue(ReportPreview preview) {
     if (_reportIdentifier != 'product') return preview;
     if (preview.columns.any((c) => c.identifier == _kStockValueId)) {
       return preview; // defensive: already injected

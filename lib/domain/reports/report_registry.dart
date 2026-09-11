@@ -9,6 +9,7 @@ const kReportDefinitions = <ReportDefinition>[
   // ─── Entity reports ───
   ReportDefinition(
     identifier: 'activity',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/activities',
     labelKey: 'activity',
     icon: EntityType.user,
@@ -19,13 +20,14 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'client',
+    dateRangeKey: 'created_at',
+    optionalDateColumnId: 'client.created_at',
     endpoint: '/api/v1/reports/clients',
     labelKey: 'client',
     icon: EntityType.client,
     requiredPermission: 'view_client',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {
@@ -46,26 +48,26 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'contact',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/contacts',
     labelKey: 'contact',
     icon: EntityType.client,
     requiredPermission: 'view_client',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all', 'date_key': 'created_at'},
   ),
   ReportDefinition(
     identifier: 'credit',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/credits',
     labelKey: 'credit',
     icon: EntityType.credit,
     requiredPermission: 'view_credit',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.status,
       // Entity reports honor only single `client_id` server-side (BaseExport);
       // a CSV `clients` is a silent no-op. Matches React. See S1 in review.
@@ -76,6 +78,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'document',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/documents',
     labelKey: 'document',
     icon: EntityType.document,
@@ -88,13 +91,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'expense',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/expenses',
     labelKey: 'expense',
     icon: EntityType.expense,
     requiredPermission: 'view_expense',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.clientsMulti,
       ReportFilterField.vendorsMulti,
       ReportFilterField.categoriesMulti,
@@ -105,13 +108,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'invoice',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/invoices',
     labelKey: 'invoice',
     icon: EntityType.invoice,
     requiredPermission: 'view_invoice',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
       ReportFilterField.template,
@@ -123,13 +126,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'invoice_item',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/invoice_items',
     labelKey: 'invoice_item',
     icon: EntityType.invoice,
     requiredPermission: 'view_invoice',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.clientSingle,
       ReportFilterField.productKey,
       ReportFilterField.includeDeleted,
@@ -138,13 +141,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'purchase_order',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/purchase_orders',
     labelKey: 'purchase_order',
     icon: EntityType.purchaseOrder,
     requiredPermission: 'view_purchase_order',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.status,
       ReportFilterField.vendorsMulti,
       ReportFilterField.includeDeleted,
@@ -153,6 +156,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'purchase_order_item',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/purchase_order_items',
     labelKey: 'purchase_order_item',
     icon: EntityType.purchaseOrder,
@@ -167,13 +171,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'quote',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/quotes',
     labelKey: 'quote',
     icon: EntityType.quote,
     requiredPermission: 'view_quote',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
       ReportFilterField.includeDeleted,
@@ -182,6 +186,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'quote_item',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/quote_items',
     labelKey: 'quote_item',
     icon: EntityType.quote,
@@ -196,13 +201,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'recurring_invoice',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/recurring_invoices',
     labelKey: 'recurring_invoice',
     icon: EntityType.recurringInvoice,
     requiredPermission: 'view_recurring_invoice',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
       ReportFilterField.includeDeleted,
@@ -211,6 +216,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'recurring_invoice_item',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/recurring_invoice_items',
     labelKey: 'recurring_invoice_item',
     icon: EntityType.recurringInvoice,
@@ -225,13 +231,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'payment',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/payments',
     labelKey: 'payment',
     icon: EntityType.payment,
     requiredPermission: 'view_payment',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
       ReportFilterField.includeDeleted,
@@ -240,6 +246,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'product',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/products',
     labelKey: 'product',
     icon: EntityType.product,
@@ -252,6 +259,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'product_sales',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/product_sales',
     labelKey: 'product_sales',
     icon: EntityType.product,
@@ -266,13 +274,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'task',
+    dateRangeKey: 'calculated_start_date',
     endpoint: '/api/v1/reports/tasks',
     labelKey: 'task',
     icon: EntityType.task,
     requiredPermission: 'view_task',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.status,
       ReportFilterField.clientSingle,
       ReportFilterField.projectsMulti,
@@ -283,13 +291,13 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'vendor',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/vendors',
     labelKey: 'vendor',
     icon: EntityType.vendor,
     requiredPermission: 'view_vendor',
     filterFields: [
       ReportFilterField.dateRange,
-      ReportFilterField.dateColumn,
       ReportFilterField.includeDeleted,
     ],
     defaultFilterValues: {'date_range': 'all'},
@@ -327,6 +335,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'aged_receivable_detailed_report',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/ar_detail_report',
     labelKey: 'aged_receivable_detailed_report',
     icon: EntityType.invoice,
@@ -337,6 +346,11 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'aged_receivable_summary_report',
+    // No `dateRangeKey`: `ARSummaryReport` declares `$date_key = 'date'` and
+    // lists the three date params in its input contract, but never calls
+    // `addDateRange` — its only date predicate is the aging buckets'
+    // `whereBetween('due_date', …)`. Same defect as `project`; naming a
+    // column the server ignores is exactly what this field exists to stop.
     endpoint: '/api/v1/reports/ar_summary_report',
     labelKey: 'aged_receivable_summary_report',
     icon: EntityType.invoice,
@@ -347,6 +361,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'client_balance_report',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/client_balance_report',
     labelKey: 'client_balance_report',
     icon: EntityType.client,
@@ -357,6 +372,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'client_sales_report',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/client_sales_report',
     labelKey: 'client_sales_report',
     icon: EntityType.client,
@@ -367,6 +383,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'tax_summary_report',
+    dateRangeKey: 'date',
     endpoint: '/api/v1/reports/tax_summary_report',
     labelKey: 'tax_summary_report',
     icon: EntityType.invoice,
@@ -387,6 +404,7 @@ const kReportDefinitions = <ReportDefinition>[
   ),
   ReportDefinition(
     identifier: 'user_sales_report',
+    dateRangeKey: 'created_at',
     endpoint: '/api/v1/reports/user_sales_report',
     labelKey: 'user_sales_report',
     icon: EntityType.user,

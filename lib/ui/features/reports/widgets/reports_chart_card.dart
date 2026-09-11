@@ -7,20 +7,54 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/report_preview.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
 import 'package:admin/domain/reports/report_engine.dart';
+import 'package:admin/domain/reports/report_group_label.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/reports/view_models/reports_view_model.dart';
 
-/// Bar chart per group, anchored on the picked numeric column. Renders
-/// between the drill breadcrumb and the totals card in `_ReportTableArea`.
+/// Identifier of the synthetic "how many rows in this bucket" series.
+///
+/// Not a preview column — [GroupTotals.count] already holds the number and
+/// the table's group rows already print it; only the chart couldn't draw
+/// it, which on a report grouped by a date is the one series worth drawing.
+/// It is composed here rather than in the view model because the label
+/// needs a `BuildContext`, and because `setChartColumn` stores an arbitrary
+/// `String` that is never reconciled against the column set.
+///
+/// Named for the server's own key for the same figure (`groupedReturnJson`
+/// appends a `group.count` column), which a preview can never carry: the
+/// app does its grouping locally and never sends `group_by` on preview.
+const String kReportCountSeriesId = 'group.count';
+
+/// Which series a chart shows when the user hasn't picked one.
+///
+/// Count wins in two cases: when the report has no numeric column at all
+/// (which used to be the `no_numeric_values_to_chart` dead end), and when
+/// the grouping is the opted-in date column — grouping clients by *date
+/// created* is unambiguously a "how many" question, and the first numeric
+/// column there is `Balance`, which answers a different one. Everywhere
+/// else the first numeric column still wins, so an invoice report grouped
+/// by date keeps charting Amount.
+String defaultReportSeriesId(ReportsViewModel vm) {
+  final numeric = vm.numericChartColumns();
+  final countWins =
+      numeric.isEmpty ||
+      (vm.group != null && vm.group == vm.definition.optionalDateColumnId);
+  return countWins ? kReportCountSeriesId : numeric.first.identifier;
+}
+
+/// Bar chart per group, anchored on the picked series — the row count or
+/// any numeric column. A date grouping renders a chronological line
+/// instead, with empty periods filled in as zeroes. Renders between the
+/// drill breadcrumb and the totals card in `_ReportTableArea`.
 /// Caller is responsible for the visibility gate — the card assumes it's
 /// mounted only when `view.groups.isNotEmpty && vm.chartVisible`.
 ///
-/// Manages two pieces of local state: the auto-picked chart column (read
-/// back from `vm.chartColumn` after the post-frame callback) and the
-/// active currency for multi-currency views (transient — not persisted on
-/// the VM).
+/// Manages two pieces of local state: the auto-picked series (read back
+/// from `vm.chartColumn` after the post-frame callback) and the active
+/// currency for multi-currency views (transient — not persisted on the
+/// VM, unlike the series, which is).
 class ReportsChartCard extends StatefulWidget {
   const ReportsChartCard({
     super.key,
@@ -50,22 +84,21 @@ class _ReportsChartCardState extends State<ReportsChartCard> {
     _scheduleAutoPick();
   }
 
-  /// Auto-pick the first numeric column when `vm.chartColumn` is null or
-  /// stale (refers to a column the current preview doesn't carry). Runs
-  /// post-frame so we don't notify mid-build; guarded by `mounted` so a
-  /// disposed card (report switch) doesn't fire a stale write.
+  /// Auto-pick a series when `vm.chartColumn` is null or stale (names a
+  /// column the current preview doesn't carry). Runs post-frame so we don't
+  /// notify mid-build; guarded by `mounted` so a disposed card (report
+  /// switch) doesn't fire a stale write. See [defaultReportSeriesId].
   void _scheduleAutoPick() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final vm = context.read<ReportsViewModel>();
-      final numeric = vm.numericChartColumns();
-      if (numeric.isEmpty) return;
       final current = vm.chartColumn;
+      final numeric = vm.numericChartColumns();
       final isValid =
-          current != null && numeric.any((c) => c.identifier == current);
-      if (!isValid) {
-        vm.setChartColumn(numeric.first.identifier);
-      }
+          current == kReportCountSeriesId ||
+          (current != null && numeric.any((c) => c.identifier == current));
+      if (isValid) return;
+      vm.setChartColumn(defaultReportSeriesId(vm));
     });
   }
 
@@ -74,13 +107,20 @@ class _ReportsChartCardState extends State<ReportsChartCard> {
     final vm = context.watch<ReportsViewModel>();
     final tokens = context.inTheme;
     final theme = Theme.of(context);
-    final numeric = vm.numericChartColumns();
+    final numeric = [
+      ReportColumn(
+        identifier: kReportCountSeriesId,
+        displayLabel: context.tr('count'),
+        type: ReportColumnType.number,
+      ),
+      ...vm.numericChartColumns(),
+    ];
     final groupColumnId = vm.group;
     final groupColumn = _findColumn(widget.view, groupColumnId);
     final groupLabel = groupColumn?.displayLabel ?? context.tr('chart');
 
     final picked = _pickedColumn(vm, numeric);
-    final allCurrencies = _allCurrenciesForColumn(picked?.identifier);
+    final allCurrencies = _allCurrenciesForColumn(picked.identifier);
     final defaultCurrency = _defaultCurrency(allCurrencies);
     final currency = _activeCurrency ?? defaultCurrency;
 
@@ -93,7 +133,7 @@ class _ReportsChartCardState extends State<ReportsChartCard> {
         title: groupLabel,
         trailing: _HeaderTrailing(
           numericColumns: numeric,
-          pickedColumnId: picked?.identifier,
+          pickedColumnId: picked.identifier,
           currencies: allCurrencies,
           activeCurrency: currency,
           onColumnChanged: (id) {
@@ -111,6 +151,8 @@ class _ReportsChartCardState extends State<ReportsChartCard> {
           formatter: widget.formatter,
           pickedColumn: picked,
           groupColumn: groupColumn,
+          bucketKeys: vm.chartBucketKeys(widget.view.groups, groupColumn),
+          subgroup: vm.subgroup,
           currency: currency,
           showCurrencyHint: allCurrencies.length > 1 && _activeCurrency == null,
           accent: tokens.accent,
@@ -122,17 +164,16 @@ class _ReportsChartCardState extends State<ReportsChartCard> {
     );
   }
 
-  /// The column currently selected for charting, resolved to a `ReportColumn`
-  /// from the available numeric set. Returns null when no numeric columns
-  /// exist (the body renders the empty-state hint in that case).
-  ReportColumn? _pickedColumn(ReportsViewModel vm, List<ReportColumn> numeric) {
-    if (numeric.isEmpty) return null;
-    final id = vm.chartColumn;
-    if (id == null) return numeric.first;
-    for (final c in numeric) {
+  /// The series currently selected for charting, resolved against [series]
+  /// (the count series plus every numeric column). Falls back to the same
+  /// rule the post-frame auto-pick uses, so the frame before that callback
+  /// lands doesn't chart a different series than the one that sticks.
+  ReportColumn _pickedColumn(ReportsViewModel vm, List<ReportColumn> series) {
+    final id = vm.chartColumn ?? defaultReportSeriesId(vm);
+    for (final c in series) {
       if (c.identifier == id) return c;
     }
-    return numeric.first;
+    return series.first;
   }
 
   ReportColumn? _findColumn(ReportView view, String? id) {
@@ -147,7 +188,9 @@ class _ReportsChartCardState extends State<ReportsChartCard> {
   /// given column. Empty when no column is picked or no group has values
   /// for it.
   Set<String> _allCurrenciesForColumn(String? columnId) {
-    if (columnId == null) return const <String>{};
+    if (columnId == null || columnId == kReportCountSeriesId) {
+      return const <String>{};
+    }
     final out = <String>{};
     for (final g in widget.view.groups) {
       final perCur = g.numericTotals[columnId];
@@ -215,6 +258,7 @@ class _HeaderTrailing extends StatelessWidget {
       children: [
         if (showColumnPicker) ...[
           DropdownButton<String>(
+            key: const Key('report-chart-series'),
             value: pickedColumnId,
             underline: const SizedBox.shrink(),
             isDense: true,
@@ -231,6 +275,7 @@ class _HeaderTrailing extends StatelessWidget {
         ],
         if (showCurrencyPicker) ...[
           DropdownButton<String>(
+            key: const Key('report-chart-currency'),
             value: activeCurrency.isEmpty ? null : activeCurrency,
             underline: const SizedBox.shrink(),
             isDense: true,
@@ -271,6 +316,8 @@ class _Body extends StatelessWidget {
     required this.formatter,
     required this.pickedColumn,
     required this.groupColumn,
+    required this.bucketKeys,
+    required this.subgroup,
     required this.currency,
     required this.showCurrencyHint,
     required this.accent,
@@ -279,8 +326,14 @@ class _Body extends StatelessWidget {
 
   final ReportView view;
   final Formatter? formatter;
-  final ReportColumn? pickedColumn;
+  final ReportColumn pickedColumn;
   final ReportColumn? groupColumn;
+
+  /// Contiguous bucket keys for a date grouping, when the raw buckets have
+  /// gaps. Empty means "plot the buckets as they are". See
+  /// [ReportsViewModel.chartBucketKeys].
+  final List<String> bucketKeys;
+  final ReportSubgroup? subgroup;
   final String currency;
   final bool showCurrencyHint;
   final Color accent;
@@ -288,9 +341,6 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (pickedColumn == null) {
-      return _EmptyHint(message: context.tr('no_numeric_values_to_chart'));
-    }
     // A date/dateTime grouping renders as a chronological line (the engine
     // emits date buckets in ascending order); everything else is a
     // value-sorted bar chart. Mirrors admin-portal's bar-vs-time-series split.
@@ -298,18 +348,23 @@ class _Body extends StatelessWidget {
         groupColumn != null &&
         (groupColumn!.type == ReportColumnType.date ||
             groupColumn!.type == ReportColumnType.dateTime);
+    final isCount = pickedColumn.identifier == kReportCountSeriesId;
     final values = isTimeSeries
-        ? _series(view, pickedColumn!.identifier, currency)
-        : _bars(view, pickedColumn!.identifier, currency);
+        ? _series(view, pickedColumn.identifier, currency)
+        : _bars(view, pickedColumn.identifier, currency);
     if (values.isEmpty) {
       return _EmptyHint(message: context.tr('no_numeric_values_to_chart'));
     }
     final maxY = values
         .map((b) => b.value.toDouble())
         .fold<double>(0, (a, b) => a > b ? a : b);
-    final yMax = maxY <= 0 ? 1.0 : maxY * 1.15;
+    // A count's headroom rounds up to a whole number, so fl_chart's own
+    // interval lands on integers — "New clients: 2.4" is not a reading.
+    final yMax = maxY <= 0
+        ? 1.0
+        : (isCount ? (maxY * 1.15).ceilToDouble() : maxY * 1.15);
     final rotateLabels = values.length > 6;
-    final isMoney = pickedColumn!.type == ReportColumnType.money;
+    final isMoney = pickedColumn.type == ReportColumnType.money;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -327,12 +382,26 @@ class _Body extends StatelessWidget {
         Semantics(
           label:
               '${isTimeSeries ? 'Line chart' : 'Bar chart'}, '
-              '${values.length} groups by ${pickedColumn!.displayLabel}',
+              '${values.length} groups by ${pickedColumn.displayLabel}',
           child: SizedBox(
             height: 240,
             child: isTimeSeries
-                ? _lineChart(context, values, yMax, rotateLabels, isMoney)
-                : _barChart(context, values, yMax, rotateLabels, isMoney),
+                ? _lineChart(
+                    context,
+                    values,
+                    yMax,
+                    rotateLabels,
+                    isMoney,
+                    isCount,
+                  )
+                : _barChart(
+                    context,
+                    values,
+                    yMax,
+                    rotateLabels,
+                    isMoney,
+                    isCount,
+                  ),
           ),
         ),
       ],
@@ -341,20 +410,32 @@ class _Body extends StatelessWidget {
 
   /// Shared left (value) + bottom (group label) axis config. The bottom axis
   /// only labels integer x positions (line charts may sample fractional x).
-  FlTitlesData _axisTitles(List<_Bar> values, bool isMoney, bool rotateLabels) {
+  FlTitlesData _axisTitles(
+    List<_Bar> values,
+    bool isMoney,
+    bool rotateLabels, {
+    bool isCount = false,
+  }) {
     return FlTitlesData(
       leftTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
           reservedSize: 56,
-          getTitlesWidget: (v, _) => Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Text(
-              _formatValue(Decimal.parse(v.toString()), isMoney),
-              style: axisLabelStyle,
-              textAlign: TextAlign.right,
-            ),
-          ),
+          getTitlesWidget: (v, _) {
+            // Same guard the bottom axis uses: fl_chart picks its own
+            // interval, and half a record does not exist.
+            if (isCount && v != v.roundToDouble()) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(
+                _formatValue(Decimal.parse(v.toString()), isMoney),
+                style: axisLabelStyle,
+                textAlign: TextAlign.right,
+              ),
+            );
+          },
         ),
       ),
       bottomTitles: AxisTitles(
@@ -368,7 +449,7 @@ class _Body extends StatelessWidget {
             if (i < 0 || i >= values.length) {
               return const SizedBox.shrink();
             }
-            final label = values[i].key;
+            final label = values[i].label;
             return Padding(
               padding: const EdgeInsets.only(top: 6),
               child: rotateLabels
@@ -396,6 +477,7 @@ class _Body extends StatelessWidget {
     double yMax,
     bool rotateLabels,
     bool isMoney,
+    bool isCount,
   ) {
     return BarChart(
       BarChartData(
@@ -408,7 +490,7 @@ class _Body extends StatelessWidget {
             getTooltipItem: (group, _, rod, _) {
               final bar = values[group.x];
               return BarTooltipItem(
-                '${bar.key}\n${_formatValue(bar.value, isMoney)}',
+                '${bar.label}\n${_formatValue(bar.value, isMoney)}',
                 TextStyle(color: context.inTheme.surface),
               );
             },
@@ -419,10 +501,15 @@ class _Body extends StatelessWidget {
             if (spot == null) return;
             final idx = spot.touchedBarGroupIndex;
             if (idx < 0 || idx >= values.length) return;
-            context.read<ReportsViewModel>().setSelectedGroup(values[idx].key);
+            _drillInto(context, view, values[idx].key);
           },
         ),
-        titlesData: _axisTitles(values, isMoney, rotateLabels),
+        titlesData: _axisTitles(
+          values,
+          isMoney,
+          rotateLabels,
+          isCount: isCount,
+        ),
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         barGroups: [
@@ -451,6 +538,7 @@ class _Body extends StatelessWidget {
     double yMax,
     bool rotateLabels,
     bool isMoney,
+    bool isCount,
   ) {
     final tokens = context.inTheme;
     return LineChart(
@@ -467,7 +555,7 @@ class _Body extends StatelessWidget {
               for (final s in spots)
                 if (s.x.toInt() >= 0 && s.x.toInt() < values.length)
                   LineTooltipItem(
-                    '${values[s.x.toInt()].key}\n'
+                    '${values[s.x.toInt()].label}\n'
                     '${_formatValue(values[s.x.toInt()].value, isMoney)}',
                     TextStyle(color: tokens.surface),
                   ),
@@ -479,10 +567,15 @@ class _Body extends StatelessWidget {
             if (spots == null || spots.isEmpty) return;
             final idx = spots.first.x.toInt();
             if (idx < 0 || idx >= values.length) return;
-            context.read<ReportsViewModel>().setSelectedGroup(values[idx].key);
+            _drillInto(context, view, values[idx].key);
           },
         ),
-        titlesData: _axisTitles(values, isMoney, rotateLabels),
+        titlesData: _axisTitles(
+          values,
+          isMoney,
+          rotateLabels,
+          isCount: isCount,
+        ),
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
         lineBarsData: [
@@ -512,38 +605,80 @@ class _Body extends StatelessWidget {
     return value.toString();
   }
 
+  /// One group's value for the picked series — its row count for the
+  /// synthetic count series, otherwise the per-currency total.
+  Decimal? _valueOf(GroupTotals g, String columnId, String currency) =>
+      columnId == kReportCountSeriesId
+      ? Decimal.fromInt(g.count)
+      : g.numericTotals[columnId]?[currency];
+
   /// Build the bar series for the current column + currency. Sorts by
   /// value descending so the largest bar sits leftmost (more readable
   /// than the engine's alphabetic group order).
   List<_Bar> _bars(ReportView view, String columnId, String currency) {
     final out = <_Bar>[];
     for (final g in view.groups) {
-      final v = g.numericTotals[columnId]?[currency];
+      final v = _valueOf(g, columnId, currency);
       if (v == null || v == Decimal.zero) continue;
-      out.add(_Bar(key: g.key, value: v));
+      out.add(_Bar(key: g.key, value: v, label: _label(g.key)));
     }
     out.sort((a, b) => b.value.compareTo(a.value));
     return out;
   }
 
-  /// Time-series points in the engine's group order (date buckets are emitted
-  /// ascending), so the line reads left-to-right in time. Unlike [_bars] it
-  /// keeps every bucket — including zero totals — so the timeline has no gaps.
+  /// Time-series points in the engine's group order (date buckets are
+  /// emitted ascending), so the line reads left-to-right in time.
+  ///
+  /// Every bucket is kept, zero totals included — and where [bucketKeys]
+  /// supplies a contiguous span, so are the periods that produced no rows
+  /// at all. Without that a month nobody signed up in isn't a zero, it is
+  /// *absent*, and plotting by index draws January next to March as though
+  /// they were consecutive.
   List<_Bar> _series(ReportView view, String columnId, String currency) {
+    final byKey = {
+      for (final g in view.groups) g.key: _valueOf(g, columnId, currency),
+    };
+    final keys = bucketKeys.isEmpty
+        ? [for (final g in view.groups) g.key]
+        : bucketKeys;
     return [
-      for (final g in view.groups)
-        _Bar(
-          key: g.key,
-          value: g.numericTotals[columnId]?[currency] ?? Decimal.zero,
-        ),
+      for (final key in keys)
+        _Bar(key: key, value: byKey[key] ?? Decimal.zero, label: _label(key)),
     ];
   }
+
+  /// Drill into [key], unless it is a bucket the gap fill invented.
+  ///
+  /// A filled bucket has no `GroupTotals`, so `compute` would filter to zero
+  /// rows and strand the user on "No results" with the chart unmounted. That
+  /// is easy to hit by accident: fl_chart's `isInterestedForInteractions`
+  /// does **not** exclude `FlPointerHoverEvent`, so on desktop and web these
+  /// callbacks fire on mouse-over, not just on tap.
+  void _drillInto(BuildContext context, ReportView view, String key) {
+    if (!view.groups.any((g) => g.key == key)) return;
+    context.read<ReportsViewModel>().setSelectedGroup(key);
+  }
+
+  /// Bucket keys are raw ISO dates (identity, not display) — render them
+  /// through the shared formatter so the axis reads "April 2026".
+  String _label(String key) => reportGroupDisplayLabel(
+    key: key,
+    columnType: groupColumn?.type,
+    subgroup: subgroup,
+    formatter: formatter,
+  );
 }
 
 class _Bar {
-  const _Bar({required this.key, required this.value});
+  const _Bar({required this.key, required this.value, required this.label});
+
+  /// The engine's bucket key — identity, and what `setSelectedGroup` must
+  /// be handed so drill-down matches.
   final String key;
   final Decimal value;
+
+  /// What the axis and tooltip show for [key].
+  final String label;
 }
 
 class _EmptyHint extends StatelessWidget {

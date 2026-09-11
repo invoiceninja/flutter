@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/task.dart';
+import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
@@ -49,23 +51,61 @@ class _FakeAuth implements AuthRepository {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
-/// Only `auth.session` is reachable from `MobileDashboardBody`. Its
-/// `enabledModules` mask gates both the quick-action tiles and the trailing
-/// list cards; everything else falls through to [noSuchMethod].
+/// `auth.session` and `tasks` are what `MobileDashboardBody` reaches for. Its
+/// `enabledModules` mask gates the quick-action tiles and the trailing panels;
+/// everything else falls through to [noSuchMethod].
+///
+/// The task repository is stubbed even though most cases here run at `mask = 0`
+/// and never build the task-calendar panel: the moment a test enables the tasks
+/// module it would otherwise hit `noSuchMethod` from inside a widget build,
+/// which reads as a layout failure rather than a missing double.
 class _FakeServices implements Services {
   _FakeServices(this.auth);
   @override
   final AuthRepository auth;
   @override
+  final TaskRepository tasks = _FakeTaskRepo();
+  @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _FakeTaskRepo implements TaskRepository {
+  @override
+  Stream<List<Task>> watchAllActive({
+    required String companyId,
+    states = const {},
+  }) => Stream<List<Task>>.multi((c) {
+    c.add(const <Task>[]);
+    c.close();
+  });
+
+  @override
+  Future<bool> ensurePageLoaded({
+    required String companyId,
+    required int page,
+    String? search,
+    states = const {},
+    Map<String, Set<String>> extraFilters = const {},
+    bool ignoreCursor = false,
+  }) async => false;
+
+  @override
+  Object? noSuchMethod(Invocation i) => throw UnimplementedError();
 }
 
 /// [enabledModules] defaults to the `AuthCompany` default of 0 — every
 /// module-gated tile and list card off — which is what most tests here want.
 /// Pass a real mask only where the assertion depends on a gated widget
 /// actually rendering, or a `findsNothing` proves nothing.
-AuthSession _session({int enabledModules = 0}) => AuthSession(
+/// [permissions] / [isAdmin] matter only for the task-calendar panel, the one
+/// kind whose gate is a module AND a permission. Admin short-circuits `can()`,
+/// so a test proving the permission half must drop it.
+AuthSession _session({
+  int enabledModules = 0,
+  String permissions = '',
+  bool isAdmin = true,
+}) => AuthSession(
   baseUrl: 'https://example.test',
   isHosted: false,
   accountId: 'acct',
@@ -74,9 +114,9 @@ AuthSession _session({int enabledModules = 0}) => AuthSession(
       id: 'co',
       name: 'Acme Corporation',
       displayName: 'Acme Corporation',
-      permissions: '',
-      isAdmin: true,
-      isOwner: true,
+      permissions: permissions,
+      isAdmin: isAdmin,
+      isOwner: isAdmin,
       enabledModules: enabledModules,
     ),
   ],
@@ -129,6 +169,8 @@ void main() {
     double width = 390,
     Size? surface,
     int enabledModules = 0,
+    String permissions = '',
+    bool isAdmin = true,
   }) async {
     if (range != null) await vm.setDateRange(range);
     if (surface != null) {
@@ -138,7 +180,15 @@ void main() {
     await tester.pumpWidget(
       Provider<Services>.value(
         value: _FakeServices(
-          _FakeAuth(ValueNotifier(_session(enabledModules: enabledModules))),
+          _FakeAuth(
+            ValueNotifier(
+              _session(
+                enabledModules: enabledModules,
+                permissions: permissions,
+                isAdmin: isAdmin,
+              ),
+            ),
+          ),
         ),
         child: MaterialApp(
           localizationsDelegates: kTestLocalizationsDelegates,
@@ -306,5 +356,61 @@ void main() {
     // null for it), so this holds at any mask and proves the row itself
     // rendered rather than the whole body coming up empty.
     expect(find.text('New Client'), findsOneWidget);
+  });
+
+  // Everything above runs at `mask = 0`, so until this case the trailing-panel
+  // path had no coverage at all — which is the path that was restructured when
+  // a Drift-backed panel joined the five cache-backed ones (each builder now
+  // returns its own already-wrapped widget instead of the loop wrapping them
+  // all in `sectionListenable`).
+  testWidgets('an enabled module renders its trailing panel', (tester) async {
+    // A tall surface rather than a scroll: the trailing panels sit below the
+    // hero, the quick actions, the chart and the activity feed, and a lazy
+    // `ListView` simply never builds them at the harness's default 600 px.
+    await pumpBody(
+      tester,
+      enabledModules: EnabledModule.quotes.bitmask,
+      surface: const Size(390, 4000),
+    );
+
+    expect(find.text('Upcoming Quotes'), findsOneWidget);
+    // Negative control at the same mask: a panel whose module is off stays off,
+    // so this proves the gate still gates rather than the body rendering
+    // everything.
+    expect(find.text('Upcoming Invoices'), findsNothing);
+  });
+
+  // The task calendar is the one Drift-backed panel, so its `builders` entry is
+  // the line that puts it on screen — and deleting that line, or registering it
+  // under the wrong kind, is invisible to every other test here. This is the
+  // half-ship `enabledPanelKinds` exists to prevent, on the body where it would
+  // actually happen.
+  testWidgets('the task calendar panel renders when tasks are available', (
+    tester,
+  ) async {
+    await pumpBody(
+      tester,
+      enabledModules: EnabledModule.tasks.bitmask,
+      permissions: 'view_task',
+      isAdmin: false,
+      surface: const Size(390, 4000),
+    );
+
+    expect(find.text('Task calendar'), findsOneWidget);
+  });
+
+  testWidgets('the task calendar panel is hidden without view_task', (
+    tester,
+  ) async {
+    // Module on, permission missing: an ungated grid would paint every day
+    // unbooked for a user whose Drift simply holds no tasks.
+    await pumpBody(
+      tester,
+      enabledModules: EnabledModule.tasks.bitmask,
+      isAdmin: false,
+      surface: const Size(390, 4000),
+    );
+
+    expect(find.text('Task calendar'), findsNothing);
   });
 }

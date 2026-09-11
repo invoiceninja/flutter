@@ -8,7 +8,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_panel_pref.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
-import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/features/dashboard/helpers/enabled_panel_kinds.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -284,7 +284,7 @@ class _ManageBodyState extends State<_ManageBody> {
     ];
   }
 
-  // ── Panels tab (reorder + show/hide the six fixed list panels) ────────
+  // ── Panels tab (reorder + show/hide the fixed dashboard panels) ───────
   // One bounded-height pane (Expanded works under the bounded Dialog/sheet in
   // both layouts) + a reset-to-defaults footer.
   List<Widget> _panelsBody(BuildContext context) => [
@@ -737,10 +737,10 @@ class _CardRow extends StatelessWidget {
   }
 }
 
-/// Panels-tab body: a single reorderable list of the six fixed dashboard list
+/// Panels-tab body: a single reorderable list of the fixed dashboard
 /// panels with a per-row show/hide [Switch]. Mirrors `_currentPane` (a
 /// `_PaneCard(fill: true)` wrapping a `ReorderableListView`) so both tabs read
-/// as one family. All six are shown so the reorder index stays 1:1 with
+/// as one family. Every kind is shown so the reorder index stays 1:1 with
 /// `vm.panelPrefs`; module-disabled panels are kept (their saved state survives)
 /// but flagged so toggling them isn't a silent dead control.
 class _PanelsPane extends StatefulWidget {
@@ -749,7 +749,7 @@ class _PanelsPane extends StatefulWidget {
 
   /// True when the dashboard behind this pane is `MobileDashboardBody`, which
   /// pins past-due to its hero zone and drops it from the ordered trailing
-  /// panels — so the row is presented as pinned, and the remaining five
+  /// panels — so the row is presented as pinned, and the rest
   /// reorder through `reorderTrailingPanels`.
   final bool mobileLayout;
 
@@ -775,16 +775,18 @@ class _PanelsPaneState extends State<_PanelsPane> {
     // can read it; only the dashboard's own VM provider sits below the
     // navigator, which is why `vm` is passed in explicitly.
     final company = context.read<Services>().auth.session.value?.currentCompany;
-    bool moduleOn(EntityType t) => company?.moduleEnabled(t) ?? false;
-    final enabledKinds = <String>{
-      if (moduleOn(EntityType.invoice)) DashboardKind.pastDue,
-      if (moduleOn(EntityType.invoice)) DashboardKind.upcomingInvoices,
-      if (moduleOn(EntityType.payment)) DashboardKind.recentPayments,
-      if (moduleOn(EntityType.quote)) DashboardKind.upcomingQuotes,
-      if (moduleOn(EntityType.quote)) DashboardKind.expiredQuotes,
-      if (moduleOn(EntityType.recurringInvoice))
-        DashboardKind.upcomingRecurring,
-    };
+    bool moduleOnFor(String kind) => enabledPanelKinds(
+      moduleOn: (t) => company?.moduleEnabled(t) ?? false,
+      // Permission-blind on purpose: this asks *only* whether the module is on,
+      // so the row can tell the two halves of the gate apart.
+      can: (_) => true,
+    ).contains(kind);
+    // The same gate the two dashboard bodies apply, so a row can never be
+    // toggleable here and unrenderable there (or the reverse).
+    final enabledKinds = enabledPanelKinds(
+      moduleOn: (t) => company?.moduleEnabled(t) ?? false,
+      can: (p) => company?.can(p) ?? false,
+    );
     return _PaneCard(
       title: context.tr('panels'),
       fill: true,
@@ -803,6 +805,14 @@ class _PanelsPaneState extends State<_PanelsPane> {
             title: context.tr(panelTitleKey(p.kind)),
             visible: p.visible,
             moduleEnabled: enabledKinds.contains(p.kind),
+            // Why it is unavailable, not just that it is. The gate is a
+            // conjunction for the task calendar (module AND `view_task`), so a
+            // flat "Module disabled" would tell a permission-blocked user
+            // something false about a module that is switched on — and send
+            // whoever they ask looking for a toggle already in the right place.
+            disabledReasonKey: moduleOnFor(p.kind)
+                ? 'restricted'
+                : 'module_disabled',
             pinned: pinned,
             onToggle: () => vm.togglePanelVisibility(p.kind),
           );
@@ -878,6 +888,7 @@ class _PanelRow extends StatelessWidget {
     required this.title,
     required this.visible,
     required this.moduleEnabled,
+    required this.disabledReasonKey,
     required this.pinned,
     required this.onToggle,
   });
@@ -886,6 +897,9 @@ class _PanelRow extends StatelessWidget {
   final String title;
   final bool visible;
   final bool moduleEnabled;
+
+  /// Localization key explaining why [moduleEnabled] is false.
+  final String disabledReasonKey;
   final bool pinned;
   final VoidCallback onToggle;
 
@@ -935,7 +949,7 @@ class _PanelRow extends StatelessWidget {
                 ),
                 if (!moduleEnabled)
                   Text(
-                    context.tr('module_disabled'),
+                    context.tr(disabledReasonKey),
                     style: TextStyle(fontSize: 11, color: tokens.ink3),
                   ),
               ],

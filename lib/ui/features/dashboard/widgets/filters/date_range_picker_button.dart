@@ -7,6 +7,7 @@ import 'package:admin/app/env.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/calendar_weekday_header.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/calendar_week_start.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
@@ -764,15 +765,9 @@ class _MonthGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    final l = MaterialLocalizations.of(context);
     // Already resolved + normalized by `calendarFirstDayOfWeek` at the popover
     // root — company setting when configured, device locale otherwise.
     final firstWeekday = firstDayOfWeek;
-    // Reorder narrowWeekdays so column 0 matches the first day of week.
-    final headers = <String>[
-      for (var i = 0; i < 7; i++) l.narrowWeekdays[(firstWeekday + i) % 7],
-    ];
-
     // Fixed 6 rows via the shared grid helper. Deriving the row count from the
     // month instead (`ceil((leadingBlanks + daysInMonth) / 7)`) swings between
     // 4 and 6 depending on the month AND the first-day-of-week — Feb 2026 is 4
@@ -806,36 +801,10 @@ class _MonthGrid extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            for (final h in headers)
-              Expanded(
-                // Same treatment as the day numbers: `narrowWeekdays` is two
-                // characters in ru / uk / pl (`вс`, `пн`), so this column can
-                // starve exactly the way the day cells did, and the extent has
-                // to scale or it clips descenders at large text scale.
-                child: SizedBox(
-                  height: MediaQuery.textScalerOf(context).scale(24),
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        h,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: tokens.ink3,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        // Shared with the dashboard's task-calendar panel: `narrowWeekdays` is
+        // two characters in ru / uk / pl, so the scaled height + scale-down
+        // fitting are load-bearing and belong in one place.
+        CalendarWeekdayHeaderRow(firstDayOfWeek: firstWeekday),
         for (var row = 0; row < cells.length / 7; row++)
           Row(
             children: [

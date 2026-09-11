@@ -419,7 +419,7 @@ void main() {
       persistDebounce: persistDebounce ?? const Duration(milliseconds: 500),
     );
 
-    test('defaults to the six panels, in order, all visible', () {
+    test('defaults to every panel kind, in order, all visible', () {
       expect(vm.panelPrefs.map((p) => p.kind), DashboardKind.panelKinds);
       expect(vm.panelPrefs.every((p) => p.visible), isTrue);
       expect(vm.panelsAreDefault, isTrue);
@@ -461,17 +461,18 @@ void main() {
     });
 
     test(
-      'reorderTrailingPanels reorders the five, preserves past-due slot',
+      'reorderTrailingPanels reorders the rest, preserves past-due slot',
       () {
-        // Default: past-due at index 0. Move the first of the five (upcoming
-        // invoices) to the end of the five.
-        vm.reorderTrailingPanels(0, 4);
+        // Default: past-due at index 0. Move the first trailing panel (upcoming
+        // invoices) to the end of the trailing block.
+        vm.reorderTrailingPanels(0, 5);
         expect(vm.panelPrefs.map((p) => p.kind), const [
           'past_due', // pinned, unchanged
           'recent_payments',
           'upcoming_quotes',
           'expired_quotes',
           'upcoming_recurring',
+          'task_calendar',
           'upcoming_invoices',
         ]);
 
@@ -480,7 +481,7 @@ void main() {
         vm.resetPanels();
         vm.reorderPanels(0, 2); // past-due → index 2
         expect(vm.panelPrefs[2].kind, DashboardKind.pastDue);
-        vm.reorderTrailingPanels(0, 1); // swap the first two of the five
+        vm.reorderTrailingPanels(0, 1); // swap the first two trailing panels
         expect(
           vm.panelPrefs[2].kind,
           DashboardKind.pastDue,
@@ -496,6 +497,7 @@ void main() {
             'upcoming_quotes',
             'expired_quotes',
             'upcoming_recurring',
+            'task_calendar',
           ],
         );
       },
@@ -504,7 +506,7 @@ void main() {
     test('persists and rehydrates panel order + visibility', () async {
       final writer = newVm(persistDebounce: const Duration(milliseconds: 5));
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      writer.reorderPanels(0, 5); // pastDue → last
+      writer.reorderPanels(0, 5); // pastDue → mid-list
       writer.togglePanelVisibility(DashboardKind.upcomingQuotes); // hide
       await Future<void>.delayed(const Duration(milliseconds: 40));
       final expectedOrder = writer.panelPrefs.map((p) => p.kind).toList();
@@ -561,7 +563,7 @@ void main() {
       },
     );
 
-    test('absent panels key (pre-upgrade install) → defaults all six '
+    test('absent panels key (pre-upgrade install) → defaults all kinds '
         'visible', () async {
       // A dashboard envelope persisted before panels existed.
       await db.navStateDao.saveFilters(
@@ -610,8 +612,9 @@ void main() {
           'upcoming_quotes',
           'expired_quotes',
           'upcoming_recurring',
+          'task_calendar',
         ]);
-        expect(reader.panelPrefs.length, 6);
+        expect(reader.panelPrefs.length, 7);
         expect(
           reader.panelPrefs
               .firstWhere((p) => p.kind == DashboardKind.recentPayments)

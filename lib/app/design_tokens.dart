@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -134,6 +135,35 @@ class InTheme extends ThemeExtension<InTheme> {
   /// Implemented as a getter (not a field) so adding a new theme variant
   /// doesn't need to wire it through copyWith / lerp / every constant.
   Color get onOverdue => const Color(0xFFFFFFFF);
+
+  /// Foreground colour for content placed *on* the filled [accent] background
+  /// (the calendars' "today" marker, for example).
+  ///
+  /// Not [accentInk], however available that is: `accentInk` is the
+  /// *text-on-surface* accent, derived by shifting `accent`'s HSL lightness by
+  /// ±0.18 precisely *because* `accent` itself fails 4.5:1 as ink — so pairing
+  /// the two gives about **2:1** in either brightness, and every other call
+  /// site correctly pairs `accentInk` with `accentSoft`. Derived rather than a
+  /// constant because `accent` is user-overridable per (company, user): a
+  /// hardcoded white reads 4.34:1 on the stock blue but only 3.3:1 on the
+  /// green swatch, where near-black gives 5.5:1. So this picks whichever of
+  /// white / near-black actually wins for the accent in force. Note 4.34:1 is
+  /// the *ceiling* for the stock blue — no foreground clears 4.5 against it —
+  /// but it is double what `accentInk` manages, and the alternative is
+  /// changing a user-chosen brand colour.
+  Color get onAccent {
+    final l = _relativeLuminance(accent);
+    // Both ratios are scored against the colour that is actually RETURNED.
+    // Comparing the dark candidate against pure black instead — its luminance
+    // is 0.00768, not 0 — inflates it by ~15 %, and the crossover then lands
+    // inside the band the STOCK accent sits in: `#2F7DC3` scored 4.84 against
+    // black and picked dark at a real 4.20, when white was available at 4.34.
+    // A selector that is wrong only on the default theme is the worst place
+    // for it to be wrong.
+    final onLight = _contrastRatio(l, _kOnAccentLightLuminance);
+    final onDark = _contrastRatio(l, _kOnAccentDarkLuminance);
+    return onLight >= onDark ? _kOnAccentLight : _kOnAccentDark;
+  }
 
   // ───────────────────────── Light palettes ─────────────────────────
   //
@@ -767,4 +797,30 @@ class InAvatarPalette {
     Color(0xFF3F8B2F), // forest
     Color(0xFFD04A7A), // magenta
   ];
+}
+
+/// The two candidates [InTheme.onAccent] chooses between, and their
+/// pre-computed luminances.
+///
+/// Near-black rather than pure black because nothing else in the palette is
+/// `#000000`; its luminance is small but **not** zero, which is exactly the
+/// assumption that made the first cut of the selector pick the wrong one on
+/// the stock accent.
+const Color _kOnAccentLight = Color(0xFFFFFFFF);
+const Color _kOnAccentDark = Color(0xFF10161C);
+const double _kOnAccentLightLuminance = 1;
+const double _kOnAccentDarkLuminance = 0.00768;
+
+/// Relative luminance per WCAG 2.x. `Color.r/g/b` are already 0..1.
+double _relativeLuminance(Color c) {
+  double channel(double v) =>
+      v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+  return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+}
+
+/// WCAG contrast ratio between two relative luminances, either order.
+double _contrastRatio(double a, double b) {
+  final hi = a > b ? a : b;
+  final lo = a > b ? b : a;
+  return (hi + 0.05) / (lo + 0.05);
 }

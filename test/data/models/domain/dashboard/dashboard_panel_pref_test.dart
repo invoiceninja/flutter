@@ -62,10 +62,14 @@ void main() {
         panelTitleKey(DashboardKind.upcomingRecurring),
         'upcoming_recurring_invoices',
       );
+      expect(panelTitleKey(DashboardKind.taskCalendar), 'task_calendar');
       expect(panelTitleKey('unknown'), 'unknown'); // fallthrough
     });
 
-    test('panelKinds is the six list panels in default render order', () {
+    test('panelKinds is every orderable panel in default render order', () {
+      // A new kind is APPENDED, never spliced in at its index: the hydrator
+      // appends anything missing from a saved arrangement, so front-loading one
+      // would put it first on a fresh install and last on every existing one.
       expect(DashboardKind.panelKinds, const [
         'past_due',
         'upcoming_invoices',
@@ -73,6 +77,7 @@ void main() {
         'upcoming_quotes',
         'expired_quotes',
         'upcoming_recurring',
+        'task_calendar',
       ]);
     });
   });

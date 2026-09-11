@@ -143,7 +143,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  testWidgets('mobile body: past-due is pinned, the other five reorder', (
+  testWidgets('mobile body: past-due is pinned, the rest reorder', (
     tester,
   ) async {
     await openPanels(tester, mobileLayout: true);
@@ -155,13 +155,13 @@ void main() {
           'past-due renders in the mobile hero zone — its order is ignored, '
           'so a drag handle here is a dead control',
     );
-    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(5));
+    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(6));
   });
 
-  testWidgets('wide body: all six panels reorder', (tester) async {
+  testWidgets('wide body: every panel reorders', (tester) async {
     await openPanels(tester, mobileLayout: false);
 
     expect(find.byIcon(Icons.push_pin_outlined), findsNothing);
-    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(6));
+    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(7));
   });
 }

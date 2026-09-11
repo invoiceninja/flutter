@@ -111,8 +111,9 @@ the honest default.
 | Chart Day/Week/Month grouping | ✅ | ✅ | ✅ | ✅ | |
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |
 | Dashboard cards — task estimate / due / overdue metrics (6 server fields added 2026-08-31) | — | — | ✅ | | |
-| Reorder + show/hide dashboard list panels (device-local) | — | — | ✅ | ✅ | |
+| Reorder + show/hide dashboard panels (device-local) | — | — | ✅ | ✅ | |
 | Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ❌ | ✅ | — |
+| Task calendar panel — month grid, days colour-coded by hours booked | — | — | ✅ | | |
 | Panel → filtered list deep-links (View All / KPI cards carry matching filters) | — | — | ✅ | ✅ | |
 | Freshness label (last data update) | ❌ | ✅ | ✅ | ✅ | |
 | Responsive single-column mobile layout | — | ✅ | ✅ | ✅ | |
@@ -371,6 +372,7 @@ the honest default.
 | Task — daily view | ✅ | ❌ | ✅ |  | |
 | Task — weekly view | ✅ | ❌ | ✅ |  | |
 | Task — calendar view | ✅ | ❌ | ✅ |  | |
+| Task — calendar month window fetched from the server (`date_range` on `calculated_start_date`), shared by the calendar view and the dashboard panel | — | — | ✅ |  | |
 | Task — remembers the chosen view (list / daily / weekly / calendar / kanban) | ❌ | 🟡 | ✅ |  | |
 | Task — connect Google/Microsoft calendar + convert event to task | ✅ | ❌ | 🟡 |  | |
 | Task — detail | ✅ | ✅ | ✅ | ✅ | ✅ |

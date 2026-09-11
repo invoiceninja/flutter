@@ -48,6 +48,18 @@ class _FakeTaskRepo implements TaskRepository {
     states = const {},
   }) => oneShot(const <Task>[]);
 
+  // The VM fires a best-effort month window fetch from its constructor; this
+  // fake answers "no more pages" so no test here depends on the network.
+  @override
+  Future<bool> ensurePageLoaded({
+    required String companyId,
+    required int page,
+    String? search,
+    states = const {},
+    Map<String, Set<String>> extraFilters = const {},
+    bool ignoreCursor = false,
+  }) async => false;
+
   @override
   Object? noSuchMethod(Invocation i) => throw UnimplementedError();
 }

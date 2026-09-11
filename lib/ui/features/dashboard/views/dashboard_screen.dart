@@ -21,6 +21,7 @@ import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
+import 'package:admin/ui/features/dashboard/helpers/enabled_panel_kinds.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
@@ -33,6 +34,7 @@ import 'package:admin/ui/features/dashboard/widgets/mobile_dashboard_body.dart';
 import 'package:admin/ui/features/dashboard/widgets/needs_your_attention_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/recent_payments_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
+import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_invoices_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_quotes_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/upcoming_recurring_invoices_card.dart';
@@ -542,19 +544,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _bottomGrid(BuildContext context, double width, Formatter formatter) {
-    // Hide list cards whose backing module is disabled for this company.
+    // Hide panels whose backing module (or permission) is unavailable for this
+    // company. One shared gate — see `enabledPanelKinds`; the mobile body and
+    // the manage sheet read the same set.
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    final invoicesOn = me?.moduleEnabled(EntityType.invoice) ?? false;
-    final paymentsOn = me?.moduleEnabled(EntityType.payment) ?? false;
-    final quotesOn = me?.moduleEnabled(EntityType.quote) ?? false;
-    final recurringOn = me?.moduleEnabled(EntityType.recurringInvoice) ?? false;
+    final enabled = enabledPanelKinds(
+      moduleOn: (t) => me?.moduleEnabled(t) ?? false,
+      can: (p) => me?.can(p) ?? false,
+    );
+    bool on(String kind) => enabled.contains(kind);
 
     // One builder per panel whose module is enabled; rendered in the user's
     // saved order (`_vm.panelPrefs`), skipping hidden panels. Each card is
     // `KeyedSubtree`-keyed by kind so reorder/hide moves the element (and its
     // section subscription) as a unit instead of re-pointing it by position.
     final builders = <String, Widget Function()>{
-      if (invoicesOn)
+      if (on(DashboardKind.pastDue))
         DashboardKind.pastDue: () => sectionListenable(
           _vm.listenableFor(DashboardKind.pastDue),
           () => NeedsYourAttentionCard(
@@ -566,7 +571,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRetry: () => _vm.retry(DashboardKind.pastDue),
           ),
         ),
-      if (invoicesOn)
+      if (on(DashboardKind.upcomingInvoices))
         DashboardKind.upcomingInvoices: () => sectionListenable(
           _vm.listenableFor(DashboardKind.upcomingInvoices),
           () => UpcomingInvoicesCard(
@@ -579,7 +584,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRetry: () => _vm.retry(DashboardKind.upcomingInvoices),
           ),
         ),
-      if (paymentsOn)
+      if (on(DashboardKind.recentPayments))
         DashboardKind.recentPayments: () => sectionListenable(
           _vm.listenableFor(DashboardKind.recentPayments),
           () => RecentPaymentsCard(
@@ -591,7 +596,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRetry: () => _vm.retry(DashboardKind.recentPayments),
           ),
         ),
-      if (quotesOn)
+      if (on(DashboardKind.upcomingQuotes))
         DashboardKind.upcomingQuotes: () => sectionListenable(
           _vm.listenableFor(DashboardKind.upcomingQuotes),
           () => UpcomingQuotesCard(
@@ -603,7 +608,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRetry: () => _vm.retry(DashboardKind.upcomingQuotes),
           ),
         ),
-      if (quotesOn)
+      if (on(DashboardKind.expiredQuotes))
         DashboardKind.expiredQuotes: () => sectionListenable(
           _vm.listenableFor(DashboardKind.expiredQuotes),
           () => ExpiredQuotesCard(
@@ -615,7 +620,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRetry: () => _vm.retry(DashboardKind.expiredQuotes),
           ),
         ),
-      if (recurringOn)
+      if (on(DashboardKind.upcomingRecurring))
         DashboardKind.upcomingRecurring: () => sectionListenable(
           _vm.listenableFor(DashboardKind.upcomingRecurring),
           () => UpcomingRecurringInvoicesCard(
@@ -626,6 +631,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onViewAll: () => _safeNavigate('/recurring_invoices'),
             onRetry: () => _vm.retry(DashboardKind.upcomingRecurring),
           ),
+        ),
+      // Drift-backed, so no `sectionListenable` wrapper: the card owns its own
+      // `ListenableBuilder` over a task view model, and there is no
+      // `dashboard_cache` section for this kind to listen to.
+      if (on(DashboardKind.taskCalendar))
+        DashboardKind.taskCalendar: () => DashboardTaskCalendarCard(
+          companyId: _companyId,
+          formatter: formatter,
+          refreshNonce: _vm.lastRefreshed,
         ),
     };
 

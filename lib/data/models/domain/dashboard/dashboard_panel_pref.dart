@@ -1,9 +1,11 @@
 import 'package:admin/data/repositories/dashboard_repository.dart';
 
-/// User preference for one Dashboard list panel — its display order (the list
-/// position) and whether it's shown. The panel set is fixed (the six
-/// [DashboardKind.panelKinds] list-card kinds), so unlike [DashboardCardConfig]
-/// there's nothing to compose: a panel is just a [kind] + a [visible] flag.
+/// User preference for one Dashboard panel — its display order (the list
+/// position) and whether it's shown. The panel set is fixed to
+/// [DashboardKind.panelKinds], so unlike [DashboardCardConfig] there's nothing
+/// to compose: a panel is just a [kind] + a [visible] flag. Most of those kinds
+/// are server-cached list cards; [DashboardKind.taskCalendar] is a Drift-backed
+/// month grid, which changes nothing here.
 ///
 /// Persisted device-locally in the `dashboard` nav_state envelope as an ordered
 /// array of `"<kind>|<1|0>"` strings (array order = render order). Hand-written
@@ -56,5 +58,10 @@ String panelTitleKey(String kind) => switch (kind) {
   DashboardKind.upcomingQuotes => 'upcoming_quotes',
   DashboardKind.expiredQuotes => 'expired_quotes',
   DashboardKind.upcomingRecurring => 'upcoming_recurring_invoices',
+  // A no-op by construction — the kind string and the key are both
+  // `task_calendar`, so the `_` arm below would resolve it anyway. Written out
+  // for symmetry with its six siblings, so the switch reads as the complete
+  // map it is rather than leaving one kind to look like an oversight.
+  DashboardKind.taskCalendar => 'task_calendar',
   _ => kind,
 };

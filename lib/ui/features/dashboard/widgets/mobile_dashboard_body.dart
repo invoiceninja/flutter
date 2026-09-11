@@ -13,6 +13,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
+import 'package:admin/ui/features/dashboard/helpers/enabled_panel_kinds.dart';
 import 'package:admin/ui/features/dashboard/helpers/range_dates.dart';
 import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
@@ -26,6 +27,7 @@ import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile/dashboard_mobile_rows.dart';
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
+import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
 
 /// Mobile (<600 px) dashboard body. The header follows `patterns.jsx:375-441`
 /// — eyebrow → dark hero KPI → quick-action tiles → compact past-due table
@@ -94,19 +96,19 @@ class MobileDashboardBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
-    // Module gating, mirroring desktop (`_bottomGrid`) — mobile previously
-    // rendered these list cards unconditionally.
+    // Module + permission gating through the one shared gate the wide body and
+    // the manage sheet also read (`enabledPanelKinds`) — mobile previously
+    // rendered these list cards unconditionally, and then briefly held a
+    // hand-copied second gate.
     final me = context.read<Services>().auth.session.value?.currentCompany;
-    bool moduleOn(EntityType t) => me?.moduleEnabled(t) ?? false;
-    final invoicesOn = moduleOn(EntityType.invoice);
-    final trailingEnabled = <String>{
-      if (invoicesOn) DashboardKind.upcomingInvoices,
-      if (moduleOn(EntityType.payment)) DashboardKind.recentPayments,
-      if (moduleOn(EntityType.quote)) DashboardKind.upcomingQuotes,
-      if (moduleOn(EntityType.quote)) DashboardKind.expiredQuotes,
-      if (moduleOn(EntityType.recurringInvoice))
-        DashboardKind.upcomingRecurring,
-    };
+    final enabled = enabledPanelKinds(
+      moduleOn: (t) => me?.moduleEnabled(t) ?? false,
+      can: (p) => me?.can(p) ?? false,
+    );
+    // Named for the panel, not the module: this asks the shared gate the
+    // precise question the pinned card needs, and stays correct if past-due
+    // ever gains a permission gate of its own.
+    final pastDueEnabled = enabled.contains(DashboardKind.pastDue);
     return ListView(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       children: [
@@ -143,7 +145,7 @@ class MobileDashboardBody extends StatelessWidget {
         // Past-due is pinned to the hero zone on mobile (its order slot is
         // ignored); shown only when visible + invoices enabled. Card + spacer
         // gate together so hiding it leaves no orphan gap before the chart.
-        if (invoicesOn && _panelVisible(DashboardKind.pastDue)) ...[
+        if (pastDueEnabled && _panelVisible(DashboardKind.pastDue)) ...[
           sectionListenable(
             vm.listenableFor(DashboardKind.pastDue),
             () => _needsAttentionCard(context, tokens),
@@ -171,7 +173,7 @@ class MobileDashboardBody extends StatelessWidget {
         // also why nothing replaces the freshness stamp that used to close the
         // page here; it rides the eyebrow at the top now (issue #26), and the
         // ListView's own padding closes the bottom when every panel is hidden.
-        ..._trailingPanels(context, tokens, trailingEnabled),
+        ..._trailingPanels(context, tokens, enabled),
       ],
     );
   }
@@ -185,26 +187,45 @@ class MobileDashboardBody extends StatelessWidget {
     InTheme tokens,
     Set<String> enabled,
   ) {
+    // Each closure returns its widget ALREADY wrapped — the shape `_bottomGrid`
+    // uses. Wrapping every panel in `sectionListenable` from the loop instead
+    // only works while every panel is cache-backed: `listenableFor` happily
+    // mints a notifier for a kind that has no section, so a Drift-backed panel
+    // would hang off a `Listenable` that can never fire and read, wrongly, as
+    // if it were fed by `dashboard_cache`.
     final builders = <String, Widget Function()>{
-      DashboardKind.upcomingInvoices: () =>
-          _upcomingInvoicesCard(context, tokens),
-      DashboardKind.recentPayments: () => _recentPaymentsCard(context, tokens),
-      DashboardKind.upcomingQuotes: () => _upcomingQuotesCard(context, tokens),
-      DashboardKind.expiredQuotes: () => _expiredQuotesCard(context, tokens),
-      DashboardKind.upcomingRecurring: () =>
-          _upcomingRecurringCard(context, tokens),
+      DashboardKind.upcomingInvoices: () => sectionListenable(
+        vm.listenableFor(DashboardKind.upcomingInvoices),
+        () => _upcomingInvoicesCard(context, tokens),
+      ),
+      DashboardKind.recentPayments: () => sectionListenable(
+        vm.listenableFor(DashboardKind.recentPayments),
+        () => _recentPaymentsCard(context, tokens),
+      ),
+      DashboardKind.upcomingQuotes: () => sectionListenable(
+        vm.listenableFor(DashboardKind.upcomingQuotes),
+        () => _upcomingQuotesCard(context, tokens),
+      ),
+      DashboardKind.expiredQuotes: () => sectionListenable(
+        vm.listenableFor(DashboardKind.expiredQuotes),
+        () => _expiredQuotesCard(context, tokens),
+      ),
+      DashboardKind.upcomingRecurring: () => sectionListenable(
+        vm.listenableFor(DashboardKind.upcomingRecurring),
+        () => _upcomingRecurringCard(context, tokens),
+      ),
+      DashboardKind.taskCalendar: () => DashboardTaskCalendarCard(
+        companyId: vm.companyId,
+        formatter: formatter,
+        refreshNonce: vm.lastRefreshed,
+      ),
     };
     final out = <Widget>[];
     for (final p in vm.panelPrefs) {
       final build = builders[p.kind];
       if (build == null) continue; // past-due / unknown → not a trailing panel
       if (!p.visible || !enabled.contains(p.kind)) continue;
-      out.add(
-        KeyedSubtree(
-          key: ValueKey(p.kind),
-          child: sectionListenable(vm.listenableFor(p.kind), build),
-        ),
-      );
+      out.add(KeyedSubtree(key: ValueKey(p.kind), child: build()));
       out.add(SizedBox(height: InSpacing.lg(context)));
     }
     return out;

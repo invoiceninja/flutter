@@ -91,7 +91,7 @@ class DashboardViewModel extends ChangeNotifier {
   /// render order.
   List<DashboardCardConfig> dashboardCards = [];
 
-  /// User ordering + visibility for the six fixed list panels. Defaults to the
+  /// User ordering + visibility for the fixed dashboard panels. Defaults to the
   /// canonical order, all visible; `_hydrate` overlays the saved arrangement.
   /// Persisted in the same `dashboard` nav_state envelope as [dashboardCards].
   List<DashboardPanelPref> panelPrefs = _defaultPanelPrefs();
@@ -287,7 +287,7 @@ class DashboardViewModel extends ChangeNotifier {
 
   /// Reorder only the non-past-due panels, preserving past-due's slot. Used by
   /// the narrow manage layout, where past-due is pinned to the top (it always
-  /// renders in the mobile hero zone) and the remaining five reorder beneath it.
+  /// renders in the mobile hero zone) and the rest reorder beneath it.
   /// [oldIndex]/[newIndex] index the past-due-excluded subsequence.
   void reorderTrailingPanels(int oldIndex, int newIndex) {
     final rest = panelPrefs
@@ -411,6 +411,16 @@ class DashboardViewModel extends ChangeNotifier {
   Future<void> retry(String kind) async {
     if (kind.startsWith('calc:')) {
       await retryCard(kind.substring(5));
+      return;
+    }
+    // Not every panel kind is cache-backed — `DashboardKind.taskCalendar`
+    // watches Drift and has no endpoint here. Falling through the switch would
+    // clear that section's error and report success without fetching anything,
+    // so refuse rather than lie.
+    if (!DashboardKind.listKinds.contains(kind) &&
+        kind != DashboardKind.totalsCurrent &&
+        kind != DashboardKind.totalsPrevious &&
+        kind != DashboardKind.chart) {
       return;
     }
     isAnyRefreshing = true;

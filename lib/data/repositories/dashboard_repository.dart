@@ -31,6 +31,15 @@ class DashboardKind {
   static const String upcomingQuotes = 'upcoming_quotes';
   static const String upcomingRecurring = 'upcoming_recurring';
 
+  /// The task-availability month grid. Unlike every kind above it, this panel
+  /// is **Drift-backed** — it watches the local tasks table rather than a
+  /// `dashboard_cache` row — so it deliberately appears in [panelKinds] only,
+  /// never in [listKinds] (which [DashboardRepository.refreshAll] iterates and
+  /// which would fire a `/dashboard` fetch for an endpoint that has no such
+  /// kind) nor in [allKinds] (which seeds a per-section notifier for a section
+  /// that has no stream).
+  static const String taskCalendar = 'task_calendar';
+
   /// Every list-card kind. These aren't filter-keyed.
   static const List<String> listKinds = [
     activities,
@@ -51,10 +60,17 @@ class DashboardKind {
     ...listKinds,
   ];
 
-  /// The six bottom-grid list panels a user can reorder / show / hide, in the
-  /// default render order (mirrors `_bottomGrid` in `dashboard_screen.dart` —
-  /// note `upcomingQuotes` precedes `expiredQuotes`). Excludes `activities`
-  /// (it rides the chart row, not the orderable grid).
+  /// The bottom-grid panels a user can reorder / show / hide, in the default
+  /// render order (mirrors `_bottomGrid` in `dashboard_screen.dart` — note
+  /// `upcomingQuotes` precedes `expiredQuotes`). Excludes `activities` (it
+  /// rides the chart row, not the orderable grid).
+  ///
+  /// Not all of these are list cards, and not all are cache-backed:
+  /// [taskCalendar] renders a month grid straight off the local tasks table.
+  /// A new kind is **appended**, never spliced in at its index — the hydrator
+  /// appends anything missing from a saved arrangement, so front-loading a
+  /// constant would show it first on a fresh install and last on every
+  /// existing one.
   static const List<String> panelKinds = [
     pastDue,
     upcomingInvoices,
@@ -62,6 +78,7 @@ class DashboardKind {
     upcomingQuotes,
     expiredQuotes,
     upcomingRecurring,
+    taskCalendar,
   ];
 
   /// Per-configured-card cache/section kind. The card's stable

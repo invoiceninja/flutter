@@ -24,6 +24,7 @@ import 'package:admin/ui/features/billing_shared/edit/billing_doc_client_picker.
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_items_body.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_tab_gate.dart';
@@ -1238,31 +1239,17 @@ class _ItemsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BillingDocEditPickerShortcuts(
+    return BillingDocEditItemsBody(
+      heroTag: 'recurring_invoice_picker_fab_mobile',
       onPickItems: onPickItems,
-      child: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: EdgeInsets.all(InSpacing.lg(context)),
-            child: BillingDocItemsTabs(
-              vm: vm,
-              companyId: vm.companyId,
-              lineItems: vm.draft.lineItems,
-              onChanged: vm.replaceLineItems,
-              newItemFactory: emptyLineItem,
-              rowErrors: vm.lineItemRowErrors,
-              onPickItems: onPickItems,
-            ),
-          ),
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: BillingDocEditFab(
-              heroTag: 'recurring_invoice_picker_fab_mobile',
-              onPressed: onPickItems,
-            ),
-          ),
-        ],
+      child: BillingDocItemsTabs(
+        vm: vm,
+        companyId: vm.companyId,
+        lineItems: vm.draft.lineItems,
+        onChanged: vm.replaceLineItems,
+        newItemFactory: emptyLineItem,
+        rowErrors: vm.lineItemRowErrors,
+        onPickItems: onPickItems,
       ),
     );
   }

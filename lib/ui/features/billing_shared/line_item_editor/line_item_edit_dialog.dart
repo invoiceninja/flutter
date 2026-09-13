@@ -9,18 +9,28 @@ import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_colu
 import 'package:admin/utils/formatting.dart';
 
 /// Modal editor for a single line item. The mobile card list opens this
-/// for every tap; the desktop table can also open it when the user wants
-/// the full field set. Returns the edited [LineItem] or null on cancel.
+/// for every tap AND for `Add Item`; the desktop table can also open it when
+/// the user wants the full field set. Returns the edited [LineItem] or null on
+/// cancel.
 ///
 /// All fields surface conditionally based on [config] — minimal config
 /// shows only product key / notes / cost / quantity. The full surface
 /// (3 taxes × name+rate + 4 customs + discount) appears when the company
 /// settings enable them.
+///
+/// [titleKey] / [actionKey] let a caller name the verb it is serving. They
+/// default to the edit wording, and the *create* caller passes `add_line` /
+/// `add`: since invoiceninja/flutter#142 the phone opens this dialog BEFORE
+/// the row exists, so "Save" on a record the user has never seen — and a
+/// Cancel that silently adds nothing — would both be lying about what the
+/// buttons do.
 Future<LineItem?> showLineItemEditDialog(
   BuildContext context, {
   required LineItem initial,
   required LineItemColumnConfig config,
   bool useComma = false,
+  String titleKey = 'line_item',
+  String actionKey = 'save',
 }) {
   return showDialog<LineItem>(
     context: context,
@@ -28,6 +38,8 @@ Future<LineItem?> showLineItemEditDialog(
       initial: initial,
       config: config,
       useComma: useComma,
+      titleKey: titleKey,
+      actionKey: actionKey,
     ),
   );
 }
@@ -37,11 +49,15 @@ class _LineItemEditDialog extends StatefulWidget {
     required this.initial,
     required this.config,
     required this.useComma,
+    required this.titleKey,
+    required this.actionKey,
   });
 
   final LineItem initial;
   final LineItemColumnConfig config;
   final bool useComma;
+  final String titleKey;
+  final String actionKey;
 
   @override
   State<_LineItemEditDialog> createState() => _LineItemEditDialogState();
@@ -141,7 +157,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
     // string, matching the desktop table header.
     String label(String key) => config.labels.resolve(context, key);
     return AlertDialog(
-      title: Text(context.tr('line_item')),
+      title: Text(context.tr(widget.titleKey)),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -265,7 +281,7 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
             ),
             const SizedBox(width: 8),
             PrimaryDialogAction(
-              label: context.tr('save'),
+              label: context.tr(widget.actionKey),
               onPressed: _save,
               // Multi-field editor: Enter advances fields, it doesn't submit —
               // so no Enter hint.

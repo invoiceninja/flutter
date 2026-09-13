@@ -9,11 +9,29 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/l10n/localization.dart';
-import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_card_list_mobile.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_table_desktop.dart';
+
+/// Content width at or above which [LineItemEditor] renders the desktop
+/// inline table instead of the mobile card list.
+const double kLineItemWideTableMinWidth = 700;
+
+/// Whether [LineItemEditor] will render the desktop table for [contentWidth]
+/// — the width of the box the editor itself is laid out in, i.e. *after* the
+/// host's gutters.
+///
+/// Exported because `BillingDocEditItemsBody` has to answer the same question
+/// one level up: the desktop table has no inline picker affordance of its own,
+/// so the Items-tab FAB survives exactly where this is true and is dropped
+/// where it is false (invoiceninja/flutter#142). Two reads of one expression,
+/// never two expressions — the trap CLAUDE.md's Tasks filter-bar rule records.
+///
+/// 700 already implies `Breakpoints.wide` (600), which is why the gate is a
+/// single comparison.
+bool lineItemEditorShowsWideTable(double contentWidth) =>
+    contentWidth >= kLineItemWideTableMinWidth;
 
 /// Entry widget for editing the line-item list on any billing-doc edit
 /// screen (Invoice / Quote / Credit / PO / RecurringInvoice). Switches
@@ -92,10 +110,14 @@ class LineItemEditor extends StatefulWidget {
   /// Surfaced inline in the desktop table and in the mobile dialog.
   final Map<int, Map<String, String>>? rowErrors;
 
-  /// Forwarded to the mobile card list — the empty-state "Add item"
-  /// button routes through this callback (the items-section FAB shares
-  /// the same closure). No-op on desktop; the desktop table's ghost row
-  /// covers the same affordance inline.
+  /// Opens the bulk products / tasks / expenses picker.
+  ///
+  /// Forwarded to the mobile card list, where it backs the `Add Items` button
+  /// in BOTH the empty state and the populated footer — on a phone that button
+  /// is now the only door to the picker, since the Items-tab FAB is gone below
+  /// [kLineItemWideTableMinWidth] (invoiceninja/flutter#142). The desktop table
+  /// has no inline picker; there the affordance is the FAB the items section
+  /// still mounts, which shares this same closure.
   final VoidCallback? onPickItems;
 
   /// Invoice host only — show the bracketed in-stock count on product rows in
@@ -216,8 +238,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide =
-            Breakpoints.isWide(constraints) && constraints.maxWidth >= 700;
+        final wide = lineItemEditorShowsWideTable(constraints.maxWidth);
         if (wide) {
           return LineItemTableDesktop(
             companyId: widget.companyId,

@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/domain/tasks/line_item_notes_display.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_edit_dialog.dart';
 import 'package:admin/utils/formatting.dart';
@@ -17,7 +18,14 @@ import 'package:admin/utils/formatting.dart';
 /// computed gross. Drag-handle on the right enables reorder.
 ///
 /// The caller manages the [LineItem] list and supplies a fresh-row factory
-/// for the "Add item" button. Edits open the shared [showLineItemEditDialog].
+/// for the "Add Line" button. Both that button and a card tap open the shared
+/// [showLineItemEditDialog].
+///
+/// Both add affordances render in BOTH states — empty and populated — via
+/// [_AddItemActions]. That is not cosmetic: the Items-tab FAB that used to
+/// carry the picker is gone on this branch (invoiceninja/flutter#142), so
+/// `Add Items` here is the only door to it on a phone, and it used to exist
+/// only while the list was empty.
 class LineItemCardListMobile extends StatelessWidget {
   const LineItemCardListMobile({
     super.key,
@@ -40,7 +48,8 @@ class LineItemCardListMobile extends StatelessWidget {
   final List<LineItem> items;
   final ValueChanged<List<LineItem>> onChanged;
 
-  /// Factory for a fresh row when the user taps "Add item". Typically
+  /// Factory for a fresh row when the user taps "Add Line" — it seeds the
+  /// draft the editor dialog opens on, not a row in the list. Typically
   /// returns [emptyLineItem]; an entity-specific factory can seed defaults
   /// (e.g. the company's default tax rate names).
   final LineItem Function() newItemFactory;
@@ -51,11 +60,9 @@ class LineItemCardListMobile extends StatelessWidget {
   /// client currency for client-billed docs). Null → company default.
   final String? currencyId;
 
-  /// Opens the bulk products/tasks/expenses picker. When non-null, the
-  /// empty-state "Add item" button on a zero-row draft routes through the
-  /// picker (matches the items-section FAB). When null, the button still
-  /// appears but appends a blank row — only used in test contexts that
-  /// don't wire the picker.
+  /// Opens the bulk products / tasks / expenses picker, behind the
+  /// `Add Items` button. Null hides that button outright — only test contexts
+  /// that don't wire a picker pass null; every host in `lib/` supplies one.
   final VoidCallback? onPickItems;
 
   /// When set, each card gets a "Create Task" button — schedule the work the
@@ -74,6 +81,10 @@ class LineItemCardListMobile extends StatelessWidget {
       useComma: useComma,
     );
     if (result == null) return;
+    // The dialog is a route, so the host can go away under it — a company
+    // switch, or the record closing. `onChanged` writes into the edit VM,
+    // which asserts once disposed.
+    if (!context.mounted) return;
     final next = List<LineItem>.from(items)..[index] = result;
     onChanged(next);
   }
@@ -83,9 +94,32 @@ class LineItemCardListMobile extends StatelessWidget {
     onChanged(next);
   }
 
-  void _add() {
-    final next = List<LineItem>.from(items)..add(newItemFactory());
-    onChanged(next);
+  /// Open the editor on a fresh row and append it only if the user confirms.
+  ///
+  /// The button used to append a blank row immediately, leaving the user to
+  /// find the resulting "Untitled" card and tap it — the modal now comes
+  /// first, so values are set up front and Cancel adds nothing at all. The
+  /// dialog is told which verb it is serving so its title and primary action
+  /// say "Add" rather than "Save" (invoiceninja/flutter#142).
+  ///
+  /// `newItemFactory()` still seeds it, so a host that pre-fills defaults
+  /// (e.g. the company's tax-rate names) keeps them; `emptyLineItem()` carries
+  /// `quantity: 1`, which is why Quantity arrives usefully pre-filled while
+  /// every zero renders as an empty field.
+  Future<void> _add(BuildContext context) async {
+    final fmt = context.read<Services>().formatterIfReady(companyId);
+    final useComma = fmt?.settings.useCommaAsDecimalPlace ?? false;
+    final result = await showLineItemEditDialog(
+      context,
+      initial: newItemFactory(),
+      config: config,
+      useComma: useComma,
+      titleKey: 'add_line',
+      actionKey: 'add',
+    );
+    if (result == null) return;
+    if (!context.mounted) return;
+    onChanged(List<LineItem>.from(items)..add(result));
   }
 
   void _onReorder(int oldIndex, int newIndex) {
@@ -97,58 +131,31 @@ class LineItemCardListMobile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.inTheme;
     if (items.isEmpty) {
-      return Padding(
-        padding: EdgeInsets.symmetric(vertical: InSpacing.lg(context)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.receipt_long_outlined, color: tokens.ink3, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              context.tr('no_line_items'),
-              style: TextStyle(color: tokens.ink3),
-            ),
-            const SizedBox(height: 8),
-            // Two doors, because they do different things: the picker only
-            // offers rows that already exist as a Product / Task / Expense,
-            // so with it as the sole affordance there was no way to type a
-            // one-off line item at all on a phone — the desktop table has
-            // always allowed it (invoiceninja/flutter#87).
-            Wrap(
+      // Centred rather than top-left (invoiceninja/flutter#141). The
+      // horizontal half comes from the host no longer loosening this
+      // subtree's constraints; the vertical half from `Center` shrink-wrapping
+      // to `max(child, minHeight)` under the `ConstrainedBox` that
+      // `BillingDocEditItemsBody` sets to the viewport height — so a short
+      // window or a large text scale scrolls instead of overflowing.
+      //
+      // `EmptyStateBody`, not `EmptyState`: this is already inside a vertical
+      // scroll view and a nested viewport throws on the unbounded height.
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: InSpacing.lg(context)),
+          child: EmptyStateBody(
+            icon: Icons.receipt_long_outlined,
+            title: context.tr('no_line_items'),
+            action: _AddItemActions(
               alignment: WrapAlignment.center,
-              spacing: InSpacing.md(context),
-              runSpacing: InSpacing.sm,
-              children: [
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(64, 40),
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: Text(context.tr('add_item')),
-                  onPressed: _add,
-                ),
-                if (onPickItems != null)
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(64, 40),
-                    ),
-                    icon: const Icon(Icons.list_alt_outlined),
-                    label: Text(context.tr('add_items')),
-                    onPressed: onPickItems,
-                  ),
-              ],
+              onAdd: () => _add(context),
+              onPickItems: onPickItems,
             ),
-          ],
+          ),
         ),
       );
     }
-    // A trailing "+ Add item" below the cards. It was dropped once as a
-    // duplicate of the items-section FAB, but the FAB opens the *picker* —
-    // this adds an empty row to type into, which the picker cannot do
-    // (invoiceninja/flutter#87). Reordering and per-card editing are
-    // unchanged; bulk adds still funnel through the picker.
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,10 +163,10 @@ class LineItemCardListMobile extends StatelessWidget {
         _buildCards(context),
         Padding(
           padding: EdgeInsets.only(top: InSpacing.sm),
-          child: TextButton.icon(
-            icon: const Icon(Icons.add, size: 18),
-            label: Text(context.tr('add_item')),
-            onPressed: _add,
+          child: _AddItemActions(
+            alignment: WrapAlignment.start,
+            onAdd: () => _add(context),
+            onPickItems: onPickItems,
           ),
         ),
       ],
@@ -190,6 +197,66 @@ class LineItemCardListMobile extends StatelessWidget {
               : () => onCreateTaskFromLineItem!(item),
         );
       },
+    );
+  }
+}
+
+/// The two add affordances, rendered identically in the empty state and under
+/// a populated list so they cannot drift apart.
+///
+/// Two doors, because they do different things: the picker only offers rows
+/// that already exist as a Product / Task / Expense, so with it as the sole
+/// affordance there was no way to type a one-off line item at all on a phone —
+/// the desktop table has always allowed it (invoiceninja/flutter#87). The
+/// converse is invoiceninja/flutter#142: `Add Items` used to disappear once a
+/// row existed, and with the FAB gone from this branch that left the picker
+/// unreachable on a phone.
+///
+/// `Wrap`, not `Row` — two labelled buttons take a second run on a 320 px
+/// phone or past ~1.2x text scale, and a `Row` would overflow instead.
+/// `minimumSize: Size(64, 40)` on each, or `theme.dart`'s
+/// `Size.fromHeight(40)` (= infinite width) stretches them edge to edge.
+class _AddItemActions extends StatelessWidget {
+  const _AddItemActions({
+    required this.alignment,
+    required this.onAdd,
+    required this.onPickItems,
+  });
+
+  /// Centred under the empty state's icon + title; leading under a list, where
+  /// the buttons continue the rows above rather than heading the pane.
+  final WrapAlignment alignment;
+
+  final VoidCallback onAdd;
+
+  /// Null hides the picker button — see [LineItemCardListMobile.onPickItems].
+  final VoidCallback? onPickItems;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: alignment,
+      spacing: InSpacing.md(context),
+      runSpacing: InSpacing.sm,
+      children: [
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          icon: const Icon(Icons.add),
+          // "Add Line", not "Add Item": the two buttons are now always
+          // adjacent, and `Add Item` / `Add Items` differ by one letter while
+          // doing different things — which is how #142's reporter came to read
+          // the picker FAB as a duplicate of the button beside it.
+          label: Text(context.tr('add_line')),
+          onPressed: onAdd,
+        ),
+        if (onPickItems != null)
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+            icon: const Icon(Icons.list_alt_outlined),
+            label: Text(context.tr('add_items')),
+            onPressed: onPickItems,
+          ),
+      ],
     );
   }
 }

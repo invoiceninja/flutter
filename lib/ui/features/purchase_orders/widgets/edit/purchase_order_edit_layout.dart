@@ -21,6 +21,7 @@ import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_s
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_items_body.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 import 'package:admin/ui/features/billing_shared/edit/save_default_helper.dart';
@@ -1056,30 +1057,16 @@ class _ItemsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BillingDocEditPickerShortcuts(
+    return BillingDocEditItemsBody(
+      heroTag: 'purchase_order_picker_fab_mobile',
       onPickItems: onPickItems,
-      child: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: EdgeInsets.all(InSpacing.lg(context)),
-            child: LineItemEditor(
-              companyId: vm.companyId,
-              vendorId: vm.draft.vendorId,
-              items: vm.draft.lineItems,
-              onChanged: vm.replaceLineItems,
-              newItemFactory: emptyLineItem,
-              onPickItems: onPickItems,
-            ),
-          ),
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: BillingDocEditFab(
-              heroTag: 'purchase_order_picker_fab_mobile',
-              onPressed: onPickItems,
-            ),
-          ),
-        ],
+      child: LineItemEditor(
+        companyId: vm.companyId,
+        vendorId: vm.draft.vendorId,
+        items: vm.draft.lineItems,
+        onChanged: vm.replaceLineItems,
+        newItemFactory: emptyLineItem,
+        onPickItems: onPickItems,
       ),
     );
   }

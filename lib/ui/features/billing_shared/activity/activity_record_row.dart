@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
+import 'package:admin/app/router.dart';
 import 'package:admin/data/models/domain/activity.dart';
+import 'package:admin/domain/activity/activity_refs.dart';
 import 'package:admin/domain/phone/call_note.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
@@ -9,56 +12,6 @@ import 'package:admin/ui/features/billing_shared/activity/activity_description.d
 import 'package:admin/ui/features/billing_shared/activity/comment_row_menu.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 import 'package:admin/utils/formatting.dart';
-
-/// Priority order for naming the **document** a note was filed against.
-///
-/// Two deliberate departures from the server's own `harvestNoteEntities` list:
-///
-/// `client` is **absent**. `ActivityController::note()` stamps `client_id`
-/// alongside the document id for almost every entity, so leaving it in made a
-/// comment filed on an invoice — read on that same invoice — print the client's
-/// name, which is already in the header and is not the record the note was
-/// filed against. On the client and vendor screens a document token always
-/// matches first, so dropping it changes nothing there.
-///
-/// `purchase_order` and `recurring_expense` sort **before** `expense`, because
-/// `note()` writes `$activity->expense_id = $entity->id` for both of them — the
-/// document's own id in the expense column. The two tables have independent
-/// auto-increment ids, so that frequently resolves to a real but unrelated
-/// expense, and a PO comment would be labelled with its number.
-///
-/// Ordering alone does **not** cover those two on their *own* detail screen —
-/// see [_kExpenseIdAliasHosts].
-const List<String> _kNoteSourceTokens = [
-  'invoice',
-  'quote',
-  'credit',
-  'payment',
-  'task',
-  'purchase_order',
-  'recurring_invoice',
-  'recurring_expense',
-  'expense',
-];
-
-/// Hosts whose own id `ActivityController::note()` *also* writes into
-/// `activities.expense_id` (`ActivityController.php`, the `PurchaseOrder` and
-/// `RecurringExpense` cases both do `$activity->expense_id = $entity->id`).
-///
-/// Sorting these ahead of `expense` in [_kNoteSourceTokens] is enough
-/// everywhere the note is read from *another* record's feed — the document's
-/// own token matches first. It is not enough on the document's own screen,
-/// where that token is skipped as the host and the loop falls straight through
-/// to the aliased `expense` ref. There the ref is never a real relation, only
-/// the id collision, so it is dropped outright.
-///
-/// Not a general "skip the parent" rule: `Credit` copies `$entity->invoice_id`,
-/// the credit's *real* invoice, so a credit's comment naming that invoice is
-/// true and stays.
-const Set<String> _kExpenseIdAliasHosts = {
-  'purchase_order',
-  'recurring_expense',
-};
 
 /// One synced activity / comment row, shared by every detail-screen Activity
 /// tab, the comments-only tab, and the Comments card. Renders a tone-colored
@@ -82,6 +35,18 @@ const Set<String> _kExpenseIdAliasHosts = {
 /// marker stripped — a **split, not a parse**. Nothing is extracted from the
 /// header (a contact name may contain the separator, and the labels are frozen
 /// in the author's locale), and a note with no newline renders whole.
+///
+/// **The row opens the record it is about** (invoiceninja/flutter#143). An
+/// inline span link cannot be hit by a finger: `RenderParagraph` dispatches a
+/// `TextSpan` recognizer only when the pointer lands inside
+/// `glyph.graphemeClusterLayoutBounds` — the ~17 dp font-metric line box inside
+/// this 72 dp row, with no slop — and `hitTestSelf` then swallows the miss, so
+/// three-quarters of the row's height, and every word beside the link, were
+/// dead. So the whole row is now the target, via `activityRowTargetRef`, with a
+/// trailing chevron; on touch the spans drop their recognizers entirely
+/// (`linkRefs`) so the row has exactly one destination and nothing is painted as
+/// a link that a finger cannot reach. `ActivityFeedRow` — `/activity`, the
+/// dashboard card — has always worked this way, and so did Flutter v1.
 class ActivityRecordRow extends StatefulWidget {
   const ActivityRecordRow({
     required this.activity,
@@ -174,6 +139,11 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
       base: body.copyWith(color: tokens.ink),
       strong: body.copyWith(fontWeight: FontWeight.w600, color: tokens.ink),
       link: body.copyWith(fontWeight: FontWeight.w600, color: tokens.accent),
+      // Pointer only. On touch the row owns the tap (see the class doc), and a
+      // ref that stays accent-coloured without a recognizer would be the worse
+      // half of the bug — a link the paint promises and the hit test refuses.
+      // The gate is the input device, not the viewport: a tablet has fingers.
+      linkRefs: !Env.isTouchPrimary,
     );
   }
 
@@ -183,26 +153,13 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
     super.dispose();
   }
 
-  /// The record a note was filed against, when that isn't the one on screen.
+  /// The record a note was filed against, when that isn't the one on screen —
+  /// see [activityNoteSourceRef], which owns the rule.
   ///
-  /// Returns the whole [ActivityRef] rather than its label, because two
-  /// surfaces need different halves of it: the meta line prints the label, and
-  /// [CommentRowMenu] turns the same ref into a `View record` item. That menu
-  /// item is the *only* way this ref is reachable — the note bypass below
-  /// strips the templated sentence, and with it the per-token
-  /// `TapGestureRecognizer` a linked ref would need.
-  ActivityRef? _sourceRef(Activity a) {
-    final host = widget.hostWireName;
-    if (host == null || !a.isComment) return null;
-    final aliasesExpense = _kExpenseIdAliasHosts.contains(host);
-    for (final token in _kNoteSourceTokens) {
-      if (token == host) continue;
-      if (aliasesExpense && token == 'expense') continue;
-      final ref = a.refs[token];
-      if ((ref?.label.trim() ?? '').isNotEmpty) return ref;
-    }
-    return null;
-  }
+  /// Notes only: a templated row names its own records in the sentence, and
+  /// reaches them through [activityRowTargetRef] instead.
+  ActivityRef? _sourceRef(Activity a) =>
+      a.isComment ? activityNoteSourceRef(a, host: widget.hostWireName) : null;
 
   /// Relative under a day, an absolute date beyond it.
   ///

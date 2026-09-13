@@ -19,6 +19,7 @@ import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
@@ -27,6 +28,7 @@ import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_edit
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_table_desktop.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_invoke.dart';
 import 'package:admin/ui/features/billing_shared/markdown_notes_section.dart';
+import 'package:admin/ui/features/billing_shared/pdf/billing_doc_draft_preview.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_tax_surcharge_section.dart';
@@ -35,34 +37,48 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
 /// Tabbed body for the purchase order edit screen. Same shape as the
 /// quote / credit edit layouts — Details / Contacts / Items / Notes /
-/// PDF — but vendor-centric (vendor picker + vendor contacts).
+/// Settings, plus PDF while [PurchaseOrderEditLayout.showPdfTab] — but
+/// vendor-centric (vendor picker + vendor contacts).
 class PurchaseOrderEditLayout extends StatefulWidget {
-  const PurchaseOrderEditLayout({super.key, required this.vm});
+  const PurchaseOrderEditLayout({
+    super.key,
+    required this.vm,
+    this.showPdfTab = true,
+  });
 
   final PurchaseOrderEditViewModel vm;
+
+  /// Whether the narrow strip carries a `PDF` tab. The screen computes this
+  /// once and threads it to both the strip and the header's preview button
+  /// (invoiceninja/flutter#140).
+  final bool showPdfTab;
 
   @override
   State<PurchaseOrderEditLayout> createState() =>
       _PurchaseOrderEditLayoutState();
 }
 
-class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
+/// The narrow strip's tabs, in order. Private per layout so every arm of the
+/// `switch` in [_PurchaseOrderEditLayoutState._tabFor] is reachable.
+enum _Tab { details, contacts, items, notes, settings, pdf }
+
+class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout> {
+  /// The narrow strip's tabs, in order — the only place a tab's presence is
+  /// decided. [BillingDocEditTabStrip] sizes its own controller from the
+  /// list [_buildMobile] hands it, and [_tabFor] pairs each key's label
+  /// with its body so the two cannot fall out of step.
+  List<_Tab> get _tabKeys => [
+    _Tab.details,
+    _Tab.contacts,
+    _Tab.items,
+    _Tab.notes,
+    _Tab.settings,
+    if (widget.showPdfTab) _Tab.pdf,
+  ];
 
   @override
   void initState() {
     super.initState();
-    // 6 tabs: Details / Contacts / Items / Notes / Settings / PDF.
-    // Settings (project / user / exchange-rate) was desktop-only; mobile now
-    // gets it as its own tab so those fields are reachable on a phone.
-    _tab = TabController(length: 6, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
   }
 
   @override
@@ -150,38 +166,40 @@ class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout>
     );
   }
 
+  /// Label + body for one tab, in a single `switch` so a key can never carry
+  /// one and not the other.
+  ({String label, Widget body}) _tabFor(
+    BuildContext context,
+    _Tab key,
+  ) => switch (key) {
+    _Tab.details => (
+      label: context.tr('details'),
+      body: _DetailsTab(vm: widget.vm),
+    ),
+    _Tab.contacts => (
+      label: context.tr('contacts'),
+      body: _ContactsTab(vm: widget.vm),
+    ),
+    _Tab.items => (
+      label: context.tr('items'),
+      body: _ItemsTab(vm: widget.vm, onPickItems: () => _openPicker(context)),
+    ),
+    _Tab.notes => (label: context.tr('notes'), body: _NotesTab(vm: widget.vm)),
+    _Tab.settings => (
+      label: context.tr('settings'),
+      body: _SettingsTab(vm: widget.vm),
+    ),
+    _Tab.pdf => (label: context.tr('pdf'), body: _PdfTab(vm: widget.vm)),
+  };
+
   Widget _buildMobile(BuildContext context) {
     final tokens = context.inTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          color: tokens.surface,
-          child: TabBar(
-            controller: _tab,
-            isScrollable: true,
-            tabs: [
-              Tab(text: context.tr('details')),
-              Tab(text: context.tr('contacts')),
-              Tab(text: context.tr('items')),
-              Tab(text: context.tr('notes')),
-              Tab(text: context.tr('settings')),
-              Tab(text: context.tr('pdf')),
-            ],
-          ),
-        ),
-        Divider(height: 1, color: tokens.border),
         Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _DetailsTab(vm: widget.vm),
-              _ContactsTab(vm: widget.vm),
-              _ItemsTab(vm: widget.vm, onPickItems: () => _openPicker(context)),
-              _NotesTab(vm: widget.vm),
-              _SettingsTab(vm: widget.vm),
-              _PdfTab(vm: widget.vm),
-            ],
+          child: BillingDocEditTabStrip(
+            tabs: [for (final key in _tabKeys) _tabFor(context, key)],
           ),
         ),
         Divider(height: 1, color: tokens.border),
@@ -1130,6 +1148,34 @@ class _NotesTab extends StatelessWidget {
   }
 }
 
+/// The one `live_preview` fetcher for a purchase-order draft — shared by the
+/// PDF tab, the desktop pane and the header's preview button.
+BillingDocPdfFetcher _draftPdfFetcher(
+  BuildContext context,
+  PurchaseOrderEditViewModel vm,
+) {
+  final services = context.read<Services>();
+  return ({String? designId, required bool deliveryNote}) =>
+      services.purchaseOrders.api.downloadPdf(
+        entityJson: vm.draft.toApiJson(),
+        designId:
+            designId ?? (vm.draft.designId.isEmpty ? null : vm.draft.designId),
+      );
+}
+
+/// The narrow edit header's draft-PDF button (invoiceninja/flutter#140).
+/// Gated on the **vendor**, not a client — a purchase order has no client and
+/// the server cannot render one without a vendor.
+Widget purchaseOrderDraftPreviewButton(
+  BuildContext context,
+  PurchaseOrderEditViewModel vm,
+) => BillingDocPreviewButton(
+  entity: BillingDocType.purchaseOrder,
+  entityNumber: vm.draft.number,
+  enabled: vm.draft.vendorId.isNotEmpty,
+  fetcher: _draftPdfFetcher(context, vm),
+);
+
 class _PdfTab extends StatelessWidget {
   const _PdfTab({required this.vm});
   final PurchaseOrderEditViewModel vm;
@@ -1147,18 +1193,11 @@ class _PdfTab extends StatelessWidget {
         ),
       );
     }
-    final services = context.read<Services>();
     return BillingDocPdfView(
       entity: BillingDocType.purchaseOrder,
       entityNumber: vm.draft.number,
       revision: vm.draft,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
-          services.purchaseOrders.api.downloadPdf(
-            entityJson: vm.draft.toApiJson(),
-            designId:
-                designId ??
-                (vm.draft.designId.isEmpty ? null : vm.draft.designId),
-          ),
+      fetcher: _draftPdfFetcher(context, vm),
     );
   }
 }

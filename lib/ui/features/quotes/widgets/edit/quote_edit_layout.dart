@@ -19,6 +19,7 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_client_picker.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
@@ -26,6 +27,7 @@ import 'package:admin/ui/features/billing_shared/edit/save_default_helper.dart';
 import 'package:admin/ui/features/billing_shared/items/billing_doc_items_tabs.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_invoke.dart';
 import 'package:admin/ui/features/billing_shared/markdown_notes_section.dart';
+import 'package:admin/ui/features/billing_shared/pdf/billing_doc_draft_preview.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_tax_surcharge_section.dart';
@@ -34,29 +36,45 @@ import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
 
 /// Tabbed body for the quote edit screen. Same shape as the invoice edit
-/// layout — Details / Contacts / Items / Notes / PDF. No E-Invoice tab
-/// for quotes today (PEPPOL submission applies to invoices only).
+/// layout — Details / Contacts / Items / Notes / Settings, plus PDF while
+/// [QuoteEditLayout.showPdfTab]. No E-Invoice tab for quotes today (PEPPOL
+/// submission applies to invoices only).
 class QuoteEditLayout extends StatefulWidget {
-  const QuoteEditLayout({super.key, required this.vm});
+  const QuoteEditLayout({super.key, required this.vm, this.showPdfTab = true});
 
   final QuoteEditViewModel vm;
+
+  /// Whether the narrow strip carries a `PDF` tab. See
+  /// `InvoiceEditLayout.showPdfTab` — the screen computes this once and
+  /// threads it to both the strip and the header's preview button
+  /// (invoiceninja/flutter#140).
+  final bool showPdfTab;
 
   @override
   State<QuoteEditLayout> createState() => _QuoteEditLayoutState();
 }
 
-class _QuoteEditLayoutState extends State<QuoteEditLayout>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
+/// The narrow strip's tabs, in order. Private per layout so every arm of the
+/// `switch` in [_QuoteEditLayoutState._tabFor] is reachable.
+enum _Tab { details, contacts, items, notes, settings, pdf }
+
+class _QuoteEditLayoutState extends State<QuoteEditLayout> {
+  /// The narrow strip's tabs, in order — the only place a tab's presence is
+  /// decided. [BillingDocEditTabStrip] sizes its own controller from the
+  /// list [_buildMobile] hands it, and [_tabFor] pairs each key's label
+  /// with its body so the two cannot fall out of step.
+  List<_Tab> get _tabKeys => [
+    _Tab.details,
+    _Tab.contacts,
+    _Tab.items,
+    _Tab.notes,
+    _Tab.settings,
+    if (widget.showPdfTab) _Tab.pdf,
+  ];
 
   @override
   void initState() {
     super.initState();
-    // 6 tabs: Details / Contacts / Items / Notes / Settings / PDF.
-    // Settings (project / vendor / user / exchange-rate) was desktop-only;
-    // mobile now gets it as its own tab so those fields are reachable on a
-    // phone.
-    _tab = TabController(length: 6, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final services = context.read<Services>();
@@ -65,12 +83,6 @@ class _QuoteEditLayoutState extends State<QuoteEditLayout>
         companyId: widget.vm.companyId,
       );
     });
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
   }
 
   @override
@@ -173,42 +185,45 @@ class _QuoteEditLayoutState extends State<QuoteEditLayout>
     );
   }
 
+  /// Label + body for one tab, in a single `switch` so a key can never carry
+  /// one and not the other.
+  ({String label, Widget body}) _tabFor(BuildContext context, _Tab key) =>
+      switch (key) {
+        _Tab.details => (
+          label: context.tr('details'),
+          body: _DetailsTab(vm: widget.vm),
+        ),
+        _Tab.contacts => (
+          label: context.tr('contacts'),
+          body: _ContactsTab(vm: widget.vm),
+        ),
+        _Tab.items => (
+          label: context.tr('items'),
+          body: _ItemsTab(
+            vm: widget.vm,
+            onPickItems: () => _openPicker(context),
+            onCreateTask: _createTaskHandler(context),
+          ),
+        ),
+        _Tab.notes => (
+          label: context.tr('notes'),
+          body: _NotesTab(vm: widget.vm),
+        ),
+        _Tab.settings => (
+          label: context.tr('settings'),
+          body: _SettingsTab(vm: widget.vm),
+        ),
+        _Tab.pdf => (label: context.tr('pdf'), body: _PdfTab(vm: widget.vm)),
+      };
+
   Widget _buildMobile(BuildContext context) {
     final tokens = context.inTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          color: tokens.surface,
-          child: TabBar(
-            controller: _tab,
-            isScrollable: true,
-            tabs: [
-              Tab(text: context.tr('details')),
-              Tab(text: context.tr('contacts')),
-              Tab(text: context.tr('items')),
-              Tab(text: context.tr('notes')),
-              Tab(text: context.tr('settings')),
-              Tab(text: context.tr('pdf')),
-            ],
-          ),
-        ),
-        Divider(height: 1, color: tokens.border),
         Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _DetailsTab(vm: widget.vm),
-              _ContactsTab(vm: widget.vm),
-              _ItemsTab(
-                vm: widget.vm,
-                onPickItems: () => _openPicker(context),
-                onCreateTask: _createTaskHandler(context),
-              ),
-              _NotesTab(vm: widget.vm),
-              _SettingsTab(vm: widget.vm),
-              _PdfTab(vm: widget.vm),
-            ],
+          child: BillingDocEditTabStrip(
+            tabs: [for (final key in _tabKeys) _tabFor(context, key)],
           ),
         ),
         Divider(height: 1, color: tokens.border),
@@ -1210,6 +1225,32 @@ class _NotesTab extends StatelessWidget {
   }
 }
 
+/// The one `live_preview` fetcher for a quote draft — shared by the PDF tab,
+/// the desktop pane and the header's preview button.
+BillingDocPdfFetcher _draftPdfFetcher(
+  BuildContext context,
+  QuoteEditViewModel vm,
+) {
+  final services = context.read<Services>();
+  return ({String? designId, required bool deliveryNote}) =>
+      services.quotes.api.downloadPdf(
+        entityJson: vm.draft.toApiJson(),
+        designId:
+            designId ?? (vm.draft.designId.isEmpty ? null : vm.draft.designId),
+      );
+}
+
+/// The narrow edit header's draft-PDF button, sitting between `Save` and the
+/// `⋮` (invoiceninja/flutter#140). Built under the same `narrow` bool that
+/// drops [QuoteEditLayout.showPdfTab], so exactly one of the two exists.
+Widget quoteDraftPreviewButton(BuildContext context, QuoteEditViewModel vm) =>
+    BillingDocPreviewButton(
+      entity: BillingDocType.quote,
+      entityNumber: vm.draft.number,
+      enabled: vm.draft.clientId.isNotEmpty,
+      fetcher: _draftPdfFetcher(context, vm),
+    );
+
 class _PdfTab extends StatelessWidget {
   const _PdfTab({required this.vm});
   final QuoteEditViewModel vm;
@@ -1227,18 +1268,11 @@ class _PdfTab extends StatelessWidget {
         ),
       );
     }
-    final services = context.read<Services>();
     return BillingDocPdfView(
       entity: BillingDocType.quote,
       entityNumber: vm.draft.number,
       revision: vm.draft,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
-          services.quotes.api.downloadPdf(
-            entityJson: vm.draft.toApiJson(),
-            designId:
-                designId ??
-                (vm.draft.designId.isEmpty ? null : vm.draft.designId),
-          ),
+      fetcher: _draftPdfFetcher(context, vm),
     );
   }
 }

@@ -18,6 +18,7 @@ class BillingDocPdfScreen extends StatelessWidget {
     required this.entityNumber,
     required this.fetcher,
     this.initialDeliveryNote = false,
+    this.deliveryNoteAvailable = true,
   });
 
   final BillingDocType entity;
@@ -32,6 +33,13 @@ class BillingDocPdfScreen extends StatelessWidget {
   /// preview with the delivery-note variant pre-selected (invoices only).
   final bool initialDeliveryNote;
 
+  /// Forwarded to [BillingDocPdfView.deliveryNoteAvailable]. The
+  /// delivery-note route needs a real (saved) id, so the draft preview
+  /// opened from an edit screen passes `false` while the doc is still
+  /// `tmp_<uuid>`; the `/:id/pdf` routes watch saved records and keep the
+  /// default.
+  final bool deliveryNoteAvailable;
+
   @override
   Widget build(BuildContext context) {
     final number = entityNumber.isEmpty ? '' : ' · #$entityNumber';
@@ -42,6 +50,7 @@ class BillingDocPdfScreen extends StatelessWidget {
         entityNumber: entityNumber,
         fetcher: fetcher,
         initialDeliveryNote: initialDeliveryNote,
+        deliveryNoteAvailable: deliveryNoteAvailable,
       ),
     );
   }

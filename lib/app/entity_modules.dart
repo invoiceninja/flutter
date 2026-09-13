@@ -498,10 +498,8 @@ final kWiredEntityModules = <EntityModuleSpec>[
   // DI: wire<InvoiceItemApi, InvoiceApi>(...) in
   // lib/app/services_entity_wiring.dart. Document-bearing, with eleven
   // non-CRUD custom actions (markSent/markPaid/email/scheduleEmail/cloneTo*
-  // /autoBill/cancel/runTemplate). M1 ships the read-only list + detail
-  // header + stub edit; M2 adds PDF/email; M3 adds the full edit form
-  // (Details / Contacts / Items / Notes / PDF / E-Invoice tabs); M4 adds
-  // payment-schedule wizard + Verifactu + reminders.
+  // /autoBill/cancel/runTemplate). The edit form's tab set lives in
+  // `invoice_edit_layout.dart` and is conditional — don't mirror it here.
   EntityModuleSpec(
     type: EntityType.invoice,
     wireName: 'invoice',

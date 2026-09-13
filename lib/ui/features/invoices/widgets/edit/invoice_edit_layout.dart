@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,14 +21,17 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_client_picker.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
+import 'package:admin/ui/features/billing_shared/edit/e_invoice_tab_gate.dart';
 import 'package:admin/ui/features/billing_shared/edit/save_default_helper.dart';
 import 'package:admin/ui/features/billing_shared/items/billing_doc_items_tabs.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_invoke.dart';
 import 'package:admin/ui/features/billing_shared/markdown_notes_section.dart';
+import 'package:admin/ui/features/billing_shared/pdf/billing_doc_draft_preview.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_tax_surcharge_section.dart';
@@ -36,8 +41,10 @@ import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet
 
 /// Tabbed body for the invoice edit screen.
 ///
-/// Tabs: Details / Contacts / Items / Notes / PDF / E-Invoice (last tab
-/// surfaces only when company has eInvoice enabled — gated in M4).
+/// Narrow tabs, in order: Details / Contacts / Items / Notes / Settings, then
+/// PDF while [InvoiceEditLayout.showPdfTab] and E-Invoice while the company
+/// files them (`eInvoiceTabVisible`). Both are conditional, so the strip's
+/// length is whatever `_tabKeys` returns — never a hardcoded `length:`.
 /// Sticky-bottom [BillingEditTotals] sits below the tabs and updates live from
 /// `vm.totals` as the user edits.
 ///
@@ -45,26 +52,61 @@ import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet
 /// under `/settings/...` — so the wide-screen layout stretches to fill
 /// the available width rather than capping at the settings-form max.
 class InvoiceEditLayout extends StatefulWidget {
-  const InvoiceEditLayout({super.key, required this.vm});
+  const InvoiceEditLayout({
+    super.key,
+    required this.vm,
+    this.showPdfTab = true,
+  });
 
   final InvoiceEditViewModel vm;
+
+  /// Whether the narrow strip carries a `PDF` tab.
+  ///
+  /// False below `Breakpoints.wide`, where the strip is over its width budget
+  /// and the PDF moves to the header's preview button
+  /// (invoiceninja/flutter#140). The **screen** computes this once and threads
+  /// it here: the AppBar is built outside the body, so no `LayoutBuilder` in
+  /// this file could inform it, and reading the width in both places yields a
+  /// band showing both chromes or neither. Ignored by the >= 1024 desktop
+  /// layout, which has no tab strip at all.
+  final bool showPdfTab;
 
   @override
   State<InvoiceEditLayout> createState() => _InvoiceEditLayoutState();
 }
 
-class _InvoiceEditLayoutState extends State<InvoiceEditLayout>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
+/// The narrow strip's tabs, in order. Private per layout so every arm of the
+/// `switch` in [_InvoiceEditLayoutState._tabFor] is reachable and the compiler
+/// checks the map is total.
+enum _Tab { details, contacts, items, notes, settings, pdf, eInvoice }
+
+class _InvoiceEditLayoutState extends State<InvoiceEditLayout> {
+  /// Hidden until the settings cascade answers — see
+  /// [resolveEInvoiceTabVisible].
+  bool _showEInvoice = false;
+
+  /// The narrow strip's tabs, in order — the only place a tab's presence is
+  /// decided. [BillingDocEditTabStrip] sizes its own controller from the
+  /// list [_buildMobile] hands it, and [_tabFor] maps each key to its label
+  /// AND its body in one `switch`, so no second count and no parallel
+  /// `tabs:` / `children:` list can fall out of step.
+  List<_Tab> get _tabKeys => [
+    _Tab.details,
+    _Tab.contacts,
+    _Tab.items,
+    _Tab.notes,
+    // Settings (project / vendor / user / exchange-rate / auto-bill) was
+    // desktop-only; mobile gets it as its own tab so those fields are
+    // reachable on a phone.
+    _Tab.settings,
+    if (widget.showPdfTab) _Tab.pdf,
+    if (_showEInvoice) _Tab.eInvoice,
+  ];
 
   @override
   void initState() {
     super.initState();
-    // 7 tabs: Details / Contacts / Items / Notes / Settings / PDF / E-Invoice.
-    // Settings (project / vendor / user / exchange-rate / auto-bill) was
-    // desktop-only; mobile now gets it as its own tab so those fields are
-    // reachable on a phone.
-    _tab = TabController(length: 7, vsync: this);
+    unawaited(_resolveEInvoiceGate());
     // Best-effort async fetch of any existing task/expense line items'
     // source clientIds so the cross-client save validator catches drift
     // on legacy / API-imported invoices. No-op when the draft has no
@@ -79,10 +121,15 @@ class _InvoiceEditLayoutState extends State<InvoiceEditLayout>
     });
   }
 
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
+  /// Reveal the E-Invoice tab if this company files them. The strip resizes
+  /// its own controller when the list grows.
+  Future<void> _resolveEInvoiceGate() async {
+    final visible = await resolveEInvoiceTabVisible(
+      context,
+      widget.vm.companyId,
+    );
+    if (!mounted || visible == _showEInvoice) return;
+    setState(() => _showEInvoice = visible);
   }
 
   @override
@@ -137,58 +184,60 @@ class _InvoiceEditLayoutState extends State<InvoiceEditLayout>
     );
   }
 
+  /// Label + body for one tab, in a single `switch` so a key can never carry
+  /// one and not the other.
+  ({String label, Widget body}) _tabFor(BuildContext context, _Tab key) =>
+      switch (key) {
+        _Tab.details => (
+          label: context.tr('details'),
+          body: _DetailsTab(vm: widget.vm),
+        ),
+        _Tab.contacts => (
+          label: context.tr('contacts'),
+          body: _ContactsTab(vm: widget.vm),
+        ),
+        _Tab.items => (
+          label: context.tr('items'),
+          body: _ItemsTab(
+            vm: widget.vm,
+            onPickItems: () => _openPicker(context),
+            onCreateTask: _createTaskHandler(context),
+          ),
+        ),
+        _Tab.notes => (
+          label: context.tr('notes'),
+          body: _NotesTab(vm: widget.vm),
+        ),
+        _Tab.settings => (
+          label: context.tr('settings'),
+          body: _SettingsTab(vm: widget.vm),
+        ),
+        _Tab.pdf => (label: context.tr('pdf'), body: _PdfTab(vm: widget.vm)),
+        _Tab.eInvoice => (
+          label: context.tr('e_invoice'),
+          body: EInvoiceFieldsTab<Invoice>(
+            vm: widget.vm,
+            entityKind: EInvoiceEntityKind.invoice,
+            documentType: _invoiceDocType(widget.vm.draft),
+            formatter: context.read<Services>().formatterIfReady(
+              widget.vm.companyId,
+            ),
+          ),
+        ),
+      };
+
   Widget _buildMobile(BuildContext context) {
     final tokens = context.inTheme;
-    // Embedded/pane mode has no Scaffold, so the TabBarView pages would
-    // otherwise have no Material ancestor — every TextField / RawAutocomplete
-    // in a narrow tab throws "No Material widget found". A transparency
-    // Material supplies the ancestor with zero visual change (mirrors what
-    // BillingDocEditDesktopShell provides for the wide layout).
+    // The transparency Material here covers the sticky totals; the strip
+    // brings its own for the tab bodies.
     return Material(
       type: MaterialType.transparency,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Material(
-            color: tokens.surface,
-            child: TabBar(
-              controller: _tab,
-              isScrollable: true,
-              tabs: [
-                Tab(text: context.tr('details')),
-                Tab(text: context.tr('contacts')),
-                Tab(text: context.tr('items')),
-                Tab(text: context.tr('notes')),
-                Tab(text: context.tr('settings')),
-                Tab(text: context.tr('pdf')),
-                Tab(text: context.tr('e_invoice')),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: tokens.border),
           Expanded(
-            child: TabBarView(
-              controller: _tab,
-              children: [
-                _DetailsTab(vm: widget.vm),
-                _ContactsTab(vm: widget.vm),
-                _ItemsTab(
-                  vm: widget.vm,
-                  onPickItems: () => _openPicker(context),
-                  onCreateTask: _createTaskHandler(context),
-                ),
-                _NotesTab(vm: widget.vm),
-                _SettingsTab(vm: widget.vm),
-                _PdfTab(vm: widget.vm),
-                EInvoiceFieldsTab<Invoice>(
-                  vm: widget.vm,
-                  entityKind: EInvoiceEntityKind.invoice,
-                  documentType: _invoiceDocType(widget.vm.draft),
-                  formatter: context.read<Services>().formatterIfReady(
-                    widget.vm.companyId,
-                  ),
-                ),
-              ],
+            child: BillingDocEditTabStrip(
+              tabs: [for (final key in _tabKeys) _tabFor(context, key)],
             ),
           ),
           Divider(height: 1, color: tokens.border),
@@ -211,7 +260,10 @@ class _InvoiceEditLayoutState extends State<InvoiceEditLayout>
         onPickItems: () => _openPicker(context),
         onCreateTask: _createTaskHandler(context),
       ),
-      notesTabsCard: _NotesTabsCardDesktop(vm: widget.vm),
+      notesTabsCard: _NotesTabsCardDesktop(
+        vm: widget.vm,
+        showEInvoice: _showEInvoice,
+      ),
       totalsCard: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -580,21 +632,45 @@ class _ItemsSectionDesktop extends StatelessWidget {
 }
 
 class _NotesTabsCardDesktop extends StatefulWidget {
-  const _NotesTabsCardDesktop({required this.vm});
+  const _NotesTabsCardDesktop({required this.vm, required this.showEInvoice});
   final InvoiceEditViewModel vm;
+
+  /// Threaded down from the layout's own gate rather than resolved again
+  /// here: the narrow strip and this card must agree, and one cascade read
+  /// per screen is enough.
+  final bool showEInvoice;
 
   @override
   State<_NotesTabsCardDesktop> createState() => _NotesTabsCardDesktopState();
 }
 
 class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
-    with SingleTickerProviderStateMixin {
-  late final TabController _ctl;
+        // PLURAL `TickerProviderStateMixin` — the sub-tab count changes when the
+        // parent's E-Invoice gate resolves, and the single-ticker mixin asserts
+        // on the second controller.
+        with
+        TickerProviderStateMixin {
+  late TabController _ctl;
+
+  int get _length => widget.showEInvoice ? 6 : 5;
 
   @override
   void initState() {
     super.initState();
-    _ctl = TabController(length: 6, vsync: this);
+    _ctl = TabController(length: _length, vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(_NotesTabsCardDesktop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.showEInvoice == widget.showEInvoice) return;
+    final previousIndex = _ctl.index;
+    _ctl.dispose();
+    _ctl = TabController(
+      length: _length,
+      vsync: this,
+      initialIndex: previousIndex.clamp(0, _length - 1),
+    );
   }
 
   @override
@@ -623,7 +699,7 @@ class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
             Tab(text: context.tr('public_notes')),
             Tab(text: context.tr('private_notes')),
             Tab(text: context.tr('settings')),
-            Tab(text: context.tr('e_invoice')),
+            if (widget.showEInvoice) Tab(text: context.tr('e_invoice')),
           ],
         ),
         Divider(height: 1, color: tokens.border),
@@ -707,14 +783,15 @@ class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
                     onAutoBillEnabledChanged: vm.setAutoBillEnabled,
                   ),
                 ),
-                EInvoiceFieldsTab<Invoice>(
-                  vm: vm,
-                  entityKind: EInvoiceEntityKind.invoice,
-                  documentType: _invoiceDocType(vm.draft),
-                  formatter: context.read<Services>().formatterIfReady(
-                    vm.companyId,
+                if (widget.showEInvoice)
+                  EInvoiceFieldsTab<Invoice>(
+                    vm: vm,
+                    entityKind: EInvoiceEntityKind.invoice,
+                    documentType: _invoiceDocType(vm.draft),
+                    formatter: context.read<Services>().formatterIfReady(
+                      vm.companyId,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1314,6 +1391,45 @@ class _NotesTab extends StatelessWidget {
 
 // ── PDF tab ──────────────────────────────────────────────────────────
 
+/// Delivery-note PDF lives behind a dedicated GET route that needs a real
+/// (saved) invoice id, so the toggle stays hidden until the first save
+/// round-trips.
+bool _draftIsSaved(InvoiceEditViewModel vm) =>
+    vm.draft.id.isNotEmpty && !vm.draft.id.startsWith('tmp_');
+
+/// The one `live_preview` fetcher for an invoice draft — shared by the PDF
+/// tab, the desktop pane and the header's preview button, so the three can't
+/// disagree about which design or which variant they render.
+BillingDocPdfFetcher _draftPdfFetcher(
+  BuildContext context,
+  InvoiceEditViewModel vm,
+) {
+  final services = context.read<Services>();
+  return ({String? designId, required bool deliveryNote}) =>
+      services.invoices.api.downloadPdf(
+        entityJson: vm.draft.toApiJson(),
+        designId:
+            designId ?? (vm.draft.designId.isEmpty ? null : vm.draft.designId),
+        deliveryNote: deliveryNote,
+      );
+}
+
+/// The narrow edit header's draft-PDF button, sitting between `Save` and the
+/// `⋮` (invoiceninja/flutter#140). Built by `InvoiceEditScreen`'s
+/// `actionsBuilder` under the same `narrow` bool that drops
+/// [InvoiceEditLayout.showPdfTab], so exactly one of the two surfaces exists
+/// at any width.
+Widget invoiceDraftPreviewButton(
+  BuildContext context,
+  InvoiceEditViewModel vm,
+) => BillingDocPreviewButton(
+  entity: BillingDocType.invoice,
+  entityNumber: vm.draft.number,
+  enabled: vm.draft.clientId.isNotEmpty,
+  deliveryNoteAvailable: _draftIsSaved(vm),
+  fetcher: _draftPdfFetcher(context, vm),
+);
+
 class _PdfTab extends StatelessWidget {
   const _PdfTab({required this.vm});
   final InvoiceEditViewModel vm;
@@ -1331,24 +1447,12 @@ class _PdfTab extends StatelessWidget {
         ),
       );
     }
-    final services = context.read<Services>();
-    final draftId = vm.draft.id;
-    final saved = draftId.isNotEmpty && !draftId.startsWith('tmp_');
     return BillingDocPdfView(
       entity: BillingDocType.invoice,
       entityNumber: vm.draft.number,
       revision: vm.draft,
-      // Delivery note PDF lives behind a dedicated GET route that needs a real
-      // (saved) invoice id — hide the toggle until the first save round-trips.
-      deliveryNoteAvailable: saved,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
-          services.invoices.api.downloadPdf(
-            entityJson: vm.draft.toApiJson(),
-            designId:
-                designId ??
-                (vm.draft.designId.isEmpty ? null : vm.draft.designId),
-            deliveryNote: deliveryNote,
-          ),
+      deliveryNoteAvailable: _draftIsSaved(vm),
+      fetcher: _draftPdfFetcher(context, vm),
     );
   }
 }

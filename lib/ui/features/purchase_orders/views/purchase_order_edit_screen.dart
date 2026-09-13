@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/edit/after_save_create_action.dart';
+import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
@@ -25,6 +27,19 @@ class PurchaseOrderEditScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ONE width read, threaded into BOTH halves below: the strip and the
+    // header button must appear together or not at all, and the AppBar is
+    // built outside the body so no `LayoutBuilder` in the layout could inform
+    // it (invoiceninja/flutter#140). `InvoiceEditScreen` carries the full
+    // note — the threshold, and the separate measurement
+    // `EntityEditScaffold` makes for its own spread-vs-compact branch.
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          _scaffold(context, narrow: !Breakpoints.isWide(constraints)),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, {required bool narrow}) {
     return EntityEditScreenScaffold<PurchaseOrder, PurchaseOrderEditViewModel>(
       existingId: existingId,
       entityTypeName: 'purchase_order',
@@ -64,12 +79,23 @@ class PurchaseOrderEditScreen extends StatelessWidget {
           : (vm.draft.number.isNotEmpty
                 ? '${ctx.tr('edit')} · #${vm.draft.number}'
                 : ctx.tr('edit')),
-      bodyBuilder: (ctx, vm) => PurchaseOrderEditLayout(vm: vm),
+      bodyBuilder: (ctx, vm) =>
+          PurchaseOrderEditLayout(vm: vm, showPdfTab: !narrow),
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (p) => p.id,
       actionsBuilder: (ctx, vm, onTap, saveButton) =>
           EntityOverflowActionBar<PurchaseOrderAction>(
-            leading: saveButton,
+            // `Preview · Save · ⋮` — secondary, primary, overflow.
+            leading: narrow
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      purchaseOrderDraftPreviewButton(ctx, vm),
+                      SizedBox(width: InSpacing.md(ctx)),
+                      saveButton,
+                    ],
+                  )
+                : saveButton,
             items: filterForEditScreen(
               PurchaseOrderActions.itemsFor(ctx, vm.draft, (a) => onTap(a)),
               isCreate: vm.isCreate,

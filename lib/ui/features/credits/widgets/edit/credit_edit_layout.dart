@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,15 +21,18 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_client_picker.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
 import 'package:admin/ui/features/billing_shared/edit/credit_billing_reference_field.dart';
 import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
+import 'package:admin/ui/features/billing_shared/edit/e_invoice_tab_gate.dart';
 import 'package:admin/ui/features/billing_shared/edit/save_default_helper.dart';
 import 'package:admin/ui/features/billing_shared/items/billing_doc_items_tabs.dart';
 import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_invoke.dart';
 import 'package:admin/ui/features/billing_shared/markdown_notes_section.dart';
+import 'package:admin/ui/features/billing_shared/pdf/billing_doc_draft_preview.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_tax_surcharge_section.dart';
@@ -35,28 +40,50 @@ import 'package:admin/ui/features/credits/view_models/credit_edit_view_model.dar
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
 /// Tabbed body for the credit edit screen. Same shape as the quote edit
-/// layout — Details / Contacts / Items / Notes / PDF.
+/// layout — Details / Contacts / Items / Notes / Settings — plus PDF while
+/// [CreditEditLayout.showPdfTab] and E-Invoice while the company files them
+/// (`eInvoiceTabVisible`).
 class CreditEditLayout extends StatefulWidget {
-  const CreditEditLayout({super.key, required this.vm});
+  const CreditEditLayout({super.key, required this.vm, this.showPdfTab = true});
 
   final CreditEditViewModel vm;
+
+  /// Whether the narrow strip carries a `PDF` tab. The screen computes this
+  /// once and threads it to both the strip and the header's preview button
+  /// (invoiceninja/flutter#140).
+  final bool showPdfTab;
 
   @override
   State<CreditEditLayout> createState() => _CreditEditLayoutState();
 }
 
-class _CreditEditLayoutState extends State<CreditEditLayout>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
+/// The narrow strip's tabs, in order. Private per layout so every arm of the
+/// `switch` in [_CreditEditLayoutState._tabFor] is reachable.
+enum _Tab { details, contacts, items, notes, settings, pdf, eInvoice }
+
+class _CreditEditLayoutState extends State<CreditEditLayout> {
+  /// Hidden until the settings cascade answers — see
+  /// [resolveEInvoiceTabVisible].
+  bool _showEInvoice = false;
+
+  /// The narrow strip's tabs, in order — the only place a tab's presence is
+  /// decided. [BillingDocEditTabStrip] sizes its own controller from the
+  /// list [_buildMobile] hands it, and [_tabFor] pairs each key's label
+  /// with its body so the two cannot fall out of step.
+  List<_Tab> get _tabKeys => [
+    _Tab.details,
+    _Tab.contacts,
+    _Tab.items,
+    _Tab.notes,
+    _Tab.settings,
+    if (widget.showPdfTab) _Tab.pdf,
+    if (_showEInvoice) _Tab.eInvoice,
+  ];
 
   @override
   void initState() {
     super.initState();
-    // 7 tabs: Details / Contacts / Items / Notes / Settings / PDF / E-Invoice.
-    // Settings (project / vendor / user / exchange-rate) was desktop-only;
-    // mobile now gets it as its own tab so those fields are reachable on a
-    // phone.
-    _tab = TabController(length: 7, vsync: this);
+    unawaited(_resolveEInvoiceGate());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final services = context.read<Services>();
@@ -67,10 +94,15 @@ class _CreditEditLayoutState extends State<CreditEditLayout>
     });
   }
 
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
+  /// Reveal the E-Invoice tab if this company files them. The strip resizes
+  /// its own controller when the list grows.
+  Future<void> _resolveEInvoiceGate() async {
+    final visible = await resolveEInvoiceTabVisible(
+      context,
+      widget.vm.companyId,
+    );
+    if (!mounted || visible == _showEInvoice) return;
+    setState(() => _showEInvoice = visible);
   }
 
   @override
@@ -158,53 +190,57 @@ class _CreditEditLayoutState extends State<CreditEditLayout>
     );
   }
 
+  /// Label + body for one tab, in a single `switch` so a key can never carry
+  /// one and not the other.
+  ({String label, Widget body}) _tabFor(
+    BuildContext context,
+    _Tab key,
+  ) => switch (key) {
+    _Tab.details => (
+      label: context.tr('details'),
+      body: _DetailsTab(vm: widget.vm),
+    ),
+    _Tab.contacts => (
+      label: context.tr('contacts'),
+      body: _ContactsTab(vm: widget.vm),
+    ),
+    _Tab.items => (
+      label: context.tr('items'),
+      body: _ItemsTab(vm: widget.vm, onPickItems: () => _openPicker(context)),
+    ),
+    _Tab.notes => (label: context.tr('notes'), body: _NotesTab(vm: widget.vm)),
+    _Tab.settings => (
+      label: context.tr('settings'),
+      body: _SettingsTab(vm: widget.vm),
+    ),
+    _Tab.pdf => (label: context.tr('pdf'), body: _PdfTab(vm: widget.vm)),
+    _Tab.eInvoice => (
+      label: context.tr('e_invoice'),
+      body: EInvoiceFieldsTab<Credit>(
+        vm: widget.vm,
+        entityKind: EInvoiceEntityKind.credit,
+        formatter: context.read<Services>().formatterIfReady(
+          widget.vm.companyId,
+        ),
+        leading: CreditBillingReferenceField(
+          vm: widget.vm,
+          companyId: widget.vm.companyId,
+          formatter: context.read<Services>().formatterIfReady(
+            widget.vm.companyId,
+          ),
+        ),
+      ),
+    ),
+  };
+
   Widget _buildMobile(BuildContext context) {
     final tokens = context.inTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          color: tokens.surface,
-          child: TabBar(
-            controller: _tab,
-            isScrollable: true,
-            tabs: [
-              Tab(text: context.tr('details')),
-              Tab(text: context.tr('contacts')),
-              Tab(text: context.tr('items')),
-              Tab(text: context.tr('notes')),
-              Tab(text: context.tr('settings')),
-              Tab(text: context.tr('pdf')),
-              Tab(text: context.tr('e_invoice')),
-            ],
-          ),
-        ),
-        Divider(height: 1, color: tokens.border),
         Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _DetailsTab(vm: widget.vm),
-              _ContactsTab(vm: widget.vm),
-              _ItemsTab(vm: widget.vm, onPickItems: () => _openPicker(context)),
-              _NotesTab(vm: widget.vm),
-              _SettingsTab(vm: widget.vm),
-              _PdfTab(vm: widget.vm),
-              EInvoiceFieldsTab<Credit>(
-                vm: widget.vm,
-                entityKind: EInvoiceEntityKind.credit,
-                formatter: context.read<Services>().formatterIfReady(
-                  widget.vm.companyId,
-                ),
-                leading: CreditBillingReferenceField(
-                  vm: widget.vm,
-                  companyId: widget.vm.companyId,
-                  formatter: context.read<Services>().formatterIfReady(
-                    widget.vm.companyId,
-                  ),
-                ),
-              ),
-            ],
+          child: BillingDocEditTabStrip(
+            tabs: [for (final key in _tabKeys) _tabFor(context, key)],
           ),
         ),
         Divider(height: 1, color: tokens.border),
@@ -225,7 +261,10 @@ class _CreditEditLayoutState extends State<CreditEditLayout>
         vm: widget.vm,
         onPickItems: () => _openPicker(context),
       ),
-      notesTabsCard: _NotesTabsCardDesktop(vm: widget.vm),
+      notesTabsCard: _NotesTabsCardDesktop(
+        vm: widget.vm,
+        showEInvoice: _showEInvoice,
+      ),
       totalsCard: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -578,21 +617,45 @@ class _ItemsSectionDesktop extends StatelessWidget {
 }
 
 class _NotesTabsCardDesktop extends StatefulWidget {
-  const _NotesTabsCardDesktop({required this.vm});
+  const _NotesTabsCardDesktop({required this.vm, required this.showEInvoice});
   final CreditEditViewModel vm;
+
+  /// Threaded down from the layout's own gate rather than resolved again
+  /// here: the narrow strip and this card must agree, and one cascade read
+  /// per screen is enough.
+  final bool showEInvoice;
 
   @override
   State<_NotesTabsCardDesktop> createState() => _NotesTabsCardDesktopState();
 }
 
 class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
-    with SingleTickerProviderStateMixin {
-  late final TabController _ctl;
+        // PLURAL `TickerProviderStateMixin` — the sub-tab count changes when the
+        // parent's E-Invoice gate resolves, and the single-ticker mixin asserts
+        // on the second controller.
+        with
+        TickerProviderStateMixin {
+  late TabController _ctl;
+
+  int get _length => widget.showEInvoice ? 6 : 5;
 
   @override
   void initState() {
     super.initState();
-    _ctl = TabController(length: 6, vsync: this);
+    _ctl = TabController(length: _length, vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(_NotesTabsCardDesktop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.showEInvoice == widget.showEInvoice) return;
+    final previousIndex = _ctl.index;
+    _ctl.dispose();
+    _ctl = TabController(
+      length: _length,
+      vsync: this,
+      initialIndex: previousIndex.clamp(0, _length - 1),
+    );
   }
 
   @override
@@ -621,7 +684,7 @@ class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
             Tab(text: context.tr('public_notes')),
             Tab(text: context.tr('private_notes')),
             Tab(text: context.tr('settings')),
-            Tab(text: context.tr('e_invoice')),
+            if (widget.showEInvoice) Tab(text: context.tr('e_invoice')),
           ],
         ),
         Divider(height: 1, color: context.inTheme.border),
@@ -701,20 +764,21 @@ class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
                     onExchangeRateChanged: vm.setExchangeRate,
                   ),
                 ),
-                EInvoiceFieldsTab<Credit>(
-                  vm: vm,
-                  entityKind: EInvoiceEntityKind.credit,
-                  formatter: context.read<Services>().formatterIfReady(
-                    vm.companyId,
-                  ),
-                  leading: CreditBillingReferenceField(
+                if (widget.showEInvoice)
+                  EInvoiceFieldsTab<Credit>(
                     vm: vm,
-                    companyId: vm.companyId,
+                    entityKind: EInvoiceEntityKind.credit,
                     formatter: context.read<Services>().formatterIfReady(
                       vm.companyId,
                     ),
+                    leading: CreditBillingReferenceField(
+                      vm: vm,
+                      companyId: vm.companyId,
+                      formatter: context.read<Services>().formatterIfReady(
+                        vm.companyId,
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1207,6 +1271,30 @@ class _NotesTab extends StatelessWidget {
   }
 }
 
+/// The one `live_preview` fetcher for a credit draft — shared by the PDF tab,
+/// the desktop pane and the header's preview button.
+BillingDocPdfFetcher _draftPdfFetcher(
+  BuildContext context,
+  CreditEditViewModel vm,
+) {
+  final services = context.read<Services>();
+  return ({String? designId, required bool deliveryNote}) =>
+      services.credits.api.downloadPdf(
+        entityJson: vm.draft.toApiJson(),
+        designId:
+            designId ?? (vm.draft.designId.isEmpty ? null : vm.draft.designId),
+      );
+}
+
+/// The narrow edit header's draft-PDF button (invoiceninja/flutter#140).
+Widget creditDraftPreviewButton(BuildContext context, CreditEditViewModel vm) =>
+    BillingDocPreviewButton(
+      entity: BillingDocType.credit,
+      entityNumber: vm.draft.number,
+      enabled: vm.draft.clientId.isNotEmpty,
+      fetcher: _draftPdfFetcher(context, vm),
+    );
+
 class _PdfTab extends StatelessWidget {
   const _PdfTab({required this.vm});
   final CreditEditViewModel vm;
@@ -1224,18 +1312,11 @@ class _PdfTab extends StatelessWidget {
         ),
       );
     }
-    final services = context.read<Services>();
     return BillingDocPdfView(
       entity: BillingDocType.credit,
       entityNumber: vm.draft.number,
       revision: vm.draft,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
-          services.credits.api.downloadPdf(
-            entityJson: vm.draft.toApiJson(),
-            designId:
-                designId ??
-                (vm.draft.designId.isEmpty ? null : vm.draft.designId),
-          ),
+      fetcher: _draftPdfFetcher(context, vm),
     );
   }
 }

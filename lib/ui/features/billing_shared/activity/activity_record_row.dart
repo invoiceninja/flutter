@@ -100,6 +100,11 @@ class ActivityRecordRow extends StatefulWidget {
   /// populating `:invoice` / `:task` / … even though the template has no
   /// tokens for them); naming the first one that isn't the host is what makes
   /// them legible. Null disables the suffix.
+  ///
+  /// It also decides **whether the row is a navigation target**: the record on
+  /// screen is skipped when resolving one, so a row that names only its own
+  /// host is inert. A host that forgets to pass this ships a chevron that
+  /// re-opens the screen you are standing on.
   final String? hostWireName;
 
   @override
@@ -240,71 +245,170 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
       ],
     );
 
-    // Merged only for a note, and merged around the **text column only**. A
-    // templated sentence carries a `TapGestureRecognizer` per linked token, and
-    // `SemanticsConfiguration` absorbs descendant actions into a single one —
-    // so merging there would leave a screen reader one tap for a row that has
-    // two or three destinations. A note has no links by construction (the
-    // bypass above never builds spans), so the merge is pure gain: one stop
-    // instead of two. It must not reach as far as the row, though — the `⋯`
-    // menu is a descendant, and a merge over it would announce the button but
-    // swallow its tap action, exactly the failure this comment describes for
-    // the recognizers. The badge stays outside too, harmlessly: it is a bare
-    // `Icon` with no semantics label.
+    // The record this row opens, or null for one that must stay inert: a note
+    // (its menu owns that navigation), a row naming only the record on screen,
+    // or one whose template names nothing routable. `refTokens` is the filter
+    // that keeps this honest — `refs` carries ids the sentence never mentions.
+    // Recomputed per build rather than cached beside `_spans`: that rebuild
+    // is driven by `didUpdateWidget` watching `activity` alone (and by every
+    // dependency change), so a cached target would go stale the moment a host
+    // passed a different `hostWireName` for the same row.
+    final target = a.isComment
+        ? null
+        : activityRowTargetRef(
+            a,
+            host: widget.hostWireName,
+            namedTokens: _spans?.refTokens ?? const {},
+          );
+
+    Widget content = Padding(
+      padding: EdgeInsetsDirectional.fromSTEB(
+        widget.horizontalPadding,
+        14,
+        widget.horizontalPadding,
+        14,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(InRadii.r2),
+            ),
+            child: Icon(icon, size: 16, color: fg),
+          ),
+          SizedBox(width: InSpacing.md(context)),
+          // Merged only for a note, and merged around the **text column
+          // only**. A templated sentence carries a `TapGestureRecognizer`
+          // per linked token, and `SemanticsConfiguration` absorbs
+          // descendant actions into a single one — so merging there would
+          // leave a screen reader one tap for a row that has two or three
+          // destinations. A note has no links by construction (the bypass
+          // above never builds spans), so the merge is pure gain: one stop
+          // instead of two. It must not reach as far as the row, though —
+          // the `⋯` menu is a descendant, and a merge over it would
+          // announce the button but swallow its tap action, exactly the
+          // failure this comment describes for the recognizers. The badge
+          // stays outside too, harmlessly: it is a bare `Icon` with no
+          // semantics label.
+          Expanded(child: a.isComment ? MergeSemantics(child: body) : body),
+          // Comment rows only. A templated system sentence has nothing to
+          // copy and nothing to delete, and a menu on every row would put a
+          // `⋯` beside a hundred audit lines to reach two notes. The
+          // ragged right edge that leaves in the Activity tab is the same
+          // trade the narrow list rows make for the call button
+          // (invoiceninja/flutter#111): mount nothing rather than reserve
+          // width for an affordance that would be dead.
+          if (a.isComment)
+            CommentRowMenu(
+              // What the row displays, not the wire form — a logged
+              // call's marker is stripped above and must be stripped here
+              // too, or Copy yields a leading marker glyph nobody typed.
+              text: a.isCallNote ? stripCallNoteMarker(a.notes) : a.notes,
+              source: sourceRef,
+              // No `onDelete`: a synced note is immutable server-side. See
+              // [CommentRowMenu] and BACKEND.md § F3d.
+            )
+          // Never both: a comment never has a target. No hand-mirroring for
+          // RTL — `Icons.chevron_right` is declared `matchTextDirection: true`.
+          else if (target != null) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 16, color: tokens.ink3),
+          ],
+        ],
+      ),
+    );
+
+    if (target != null) {
+      void open() => goEntityRecord(context, target.type!, target.id);
+      content = Material(
+        // Transparency, and *inside* the decorated box: the nearest ancestor
+        // Material sits above `ActivityListCard`'s opaque surface fill, and an
+        // ink feature registered there paints under the card — invisible. The
+        // padding is inside the InkWell too, so the whole 72 dp band is the
+        // target rather than just the text.
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: open,
+          // Three states, three answers, and `null` is not one of them: a
+          // null *result* falls through to the theme
+          // (`overlayColor?.resolve(…) ?? theme.hoverColor`, `ink_well.dart`),
+          // which paints 4% black on top of the row's own `surfaceAlt` and
+          // makes a targetable row hover darker than the comment beside it.
+          // **Hover** is transparent because the `MouseRegion` below already
+          // paints it; **focus** must not be, because that same `MouseRegion`
+          // only sees pointer enter/exit, so silencing the ink layer there
+          // would move keyboard focus across the tab invisibly — the shape
+          // both `ActivityFeedRow` and `KpiCard` already resolve explicitly.
+          overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            if (states.contains(WidgetState.pressed)) return tokens.border;
+            if (states.contains(WidgetState.focused)) return tokens.surfaceAlt;
+            return Colors.transparent;
+          }),
+          child: content,
+        ),
+      );
+      // One stop instead of three, but only when the sentence has no links of
+      // its own to absorb — always the case on touch, which is where this
+      // matters. With recognizers present the merge is exactly what the note
+      // block above forbids: `SemanticsConfiguration` folds descendant actions
+      // into one, so a row with two or three destinations would offer a screen
+      // reader a single ambiguous tap. There the InkWell's own node carries the
+      // tap and the link nodes stay beneath it, unmerged.
+      //
+      // `onTap` and `tooltip` are **re-declared**, not inherited: excluding the
+      // subtree drops everything in it, and what it drops here is exactly the
+      // two things worth keeping — `InkResponse`'s own `Semantics(onTap:)`
+      // (which is where the tap action lives, and which notably does *not* set
+      // `button`), and the meta line's `Tooltip(message: absolute)`. Without
+      // the first, this row announces as a button that TalkBack and switch
+      // access cannot invoke — the rule `linkOrText` and the task-calendar cell
+      // already carry, on the one platform this whole fix exists for.
+      if (_spans?.recognizers.isEmpty ?? true) {
+        final sentence = TextSpan(
+          children: _spans?.spans ?? const [],
+        ).toPlainText().trim();
+        content = Semantics(
+          button: true,
+          label: sentence.isEmpty ? meta : '$sentence $meta',
+          // Only once the company `Formatter` has arrived: `absolute` falls
+          // back to a raw ISO string until then, and iOS appends a tooltip to
+          // the accessibility label rather than offering it separately — so
+          // the fallback would have VoiceOver read
+          // `2026-05-18T12:00:00.000Z` after a label that already ends in the
+          // relative time.
+          tooltip: widget.formatter == null ? null : absolute,
+          onTap: open,
+          child: ExcludeSemantics(child: content),
+        );
+      }
+    }
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: kEntityListRowHeight),
         child: Container(
-          padding: EdgeInsetsDirectional.fromSTEB(
-            widget.horizontalPadding,
-            14,
-            widget.horizontalPadding,
-            14,
-          ),
           decoration: BoxDecoration(
-            color: _hovered ? tokens.surfaceAlt : null,
+            // Only a row that does something highlights. Once some rows open a
+            // record, a hover fill on an inert one is the desktop version of
+            // the false affordance #143 was filed about. A comment counts: its
+            // `⋯` is the affordance.
+            color: _hovered && (target != null || a.isComment)
+                ? tokens.surfaceAlt
+                : null,
             border: Border(
               bottom: widget.isLast
                   ? BorderSide.none
                   : BorderSide(color: tokens.border),
             ),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: BorderRadius.circular(InRadii.r2),
-                ),
-                child: Icon(icon, size: 16, color: fg),
-              ),
-              SizedBox(width: InSpacing.md(context)),
-              Expanded(child: a.isComment ? MergeSemantics(child: body) : body),
-              // Comment rows only. A templated system sentence has nothing to
-              // copy and nothing to delete, and a menu on every row would put a
-              // `⋯` beside a hundred audit lines to reach two notes. The
-              // ragged right edge that leaves in the Activity tab is the same
-              // trade the narrow list rows make for the call button
-              // (invoiceninja/flutter#111): mount nothing rather than reserve
-              // width for an affordance that would be dead.
-              if (a.isComment)
-                CommentRowMenu(
-                  // What the row displays, not the wire form — a logged
-                  // call's marker is stripped above and must be stripped here
-                  // too, or Copy yields a leading marker glyph nobody typed.
-                  text: a.isCallNote ? stripCallNoteMarker(a.notes) : a.notes,
-                  source: sourceRef,
-                  // No `onDelete`: a synced note is immutable server-side. See
-                  // [CommentRowMenu] and BACKEND.md § F3d.
-                ),
-            ],
-          ),
+          child: content,
         ),
       ),
     );

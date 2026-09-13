@@ -14,13 +14,17 @@ class ActivitySpans {
   final List<InlineSpan> spans;
   final List<TapGestureRecognizer> recognizers;
 
-  /// The template tokens that resolved to an [ActivityRef] — i.e. the records
-  /// this sentence actually names. `activityRowTargetRef` filters the row's
-  /// destination on it, because `Activity.refs` carries related ids the
-  /// template never mentions and a row may only open a record it names
-  /// (invoiceninja/flutter#143). Collected by the substitution loop itself, so
-  /// nothing is parsed twice; empty for a missing template, which is what makes
-  /// an `activity_unknown` row correctly inert.
+  /// Every template token this sentence substituted from a ref — **not** only
+  /// the routable ones: `user`, `payment_amount`, `adjustment`, `subscription`
+  /// and `contact` land here too. `activityRowTargetRef` intersects it with
+  /// `kActivityDocumentTokens` and `ref.isLink`, so the extras are inert; do
+  /// not read this set as "the records this row can open".
+  ///
+  /// It exists because `Activity.refs` is broader than the template — the
+  /// server stamps related ids the sentence never mentions — and a row may
+  /// only open a record it names (invoiceninja/flutter#143). Collected by the
+  /// substitution loop itself, so nothing is parsed twice; empty for a missing
+  /// template, which is what makes an `activity_unknown` row correctly inert.
   final Set<String> refTokens;
 
   void dispose() {

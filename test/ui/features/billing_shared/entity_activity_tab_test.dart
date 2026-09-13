@@ -76,14 +76,19 @@ class _FakeOutboxDao implements OutboxDao {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
-ActivityApi _row({required int typeId, String id = 'a1', String notes = ''}) =>
-    ActivityApi(
-      id: id,
-      activityTypeId: typeId,
-      notes: notes,
-      createdAt: 1778990481,
-      ip: '1.2.3.4',
-    );
+ActivityApi _row({
+  required int typeId,
+  String id = 'a1',
+  String notes = '',
+  ActivityLabelApi? quote,
+}) => ActivityApi(
+  id: id,
+  activityTypeId: typeId,
+  notes: notes,
+  createdAt: 1778990481,
+  ip: '1.2.3.4',
+  quote: quote,
+);
 
 void main() {
   EntityActivityViewModel vmWith(_FakeActivitiesApi api) =>
@@ -103,6 +108,7 @@ void main() {
     bool commentsOnly = false,
     double width = 700,
     double textScale = 1.0,
+    String? hostWireName,
   }) async {
     addTearDown(vm.dispose);
     tester.view.physicalSize = Size(width, 900);
@@ -129,6 +135,7 @@ void main() {
               vm: vm,
               actions: actions,
               commentsOnly: commentsOnly,
+              hostWireName: hostWireName,
             ),
           ),
         ),
@@ -329,6 +336,43 @@ void main() {
 
       gate.complete();
       await tester.pumpAndSettle();
+    });
+  });
+
+  group('row navigation (invoiceninja/flutter#143)', () {
+    testWidgets('a row naming another record is a tap target', (tester) async {
+      // `activity_19` = ":user updated quote :quote", read on a client.
+      final vm = vmWith(
+        _FakeActivitiesApi([
+          _row(
+            typeId: 19,
+            quote: const ActivityLabelApi(label: '0092', hashedId: 'q1'),
+          ),
+        ]),
+      );
+      await pump(tester, vm, actions: both, hostWireName: 'client');
+
+      expect(find.byType(ActivityRecordRow), findsOneWidget);
+      expect(
+        find.byIcon(Icons.chevron_right),
+        findsOneWidget,
+        reason: 'the tab is where the hosts mount the row — pin it here too',
+      );
+    });
+
+    testWidgets('a row about the record on screen is inert', (tester) async {
+      final vm = vmWith(
+        _FakeActivitiesApi([
+          _row(
+            typeId: 19,
+            quote: const ActivityLabelApi(label: '0092', hashedId: 'q1'),
+          ),
+        ]),
+      );
+      await pump(tester, vm, actions: both, hostWireName: 'quote');
+
+      expect(find.byType(ActivityRecordRow), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right), findsNothing);
     });
   });
 }

@@ -60,18 +60,19 @@ const Set<String> kExpenseIdAliasHosts = {
 };
 
 /// First ref in [kActivityDocumentTokens] order that isn't the record on screen
-/// and that [accept]s. [accept] takes the token as well as the ref, because the
-/// row target tests the token (was it named by the sentence?) and the note
-/// source tests the ref.
+/// and that [accept]s.
+///
+/// [accept] takes the token as well as the ref, because the two callers ask
+/// different questions of it: the row target asks whether the *sentence* named
+/// this token, and the note source asks whether the ref carries a label — and
+/// [kExpenseIdAliasHosts] applies to one of them and not the other.
 ActivityRef? _firstDocumentRef(
   Activity a, {
   required String? host,
   required bool Function(String token, ActivityRef ref) accept,
 }) {
-  final aliasesExpense = kExpenseIdAliasHosts.contains(host);
   for (final token in kActivityDocumentTokens) {
     if (token == host) continue;
-    if (aliasesExpense && token == 'expense') continue;
     final ref = a.refs[token];
     if (ref != null && accept(token, ref)) return ref;
   }
@@ -92,11 +93,21 @@ ActivityRef? _firstDocumentRef(
 /// surfaces need different halves of it — the meta line prints the label, and
 /// `CommentRowMenu` turns the same ref into a `View record` item.
 ActivityRef? activityNoteSourceRef(Activity a, {required String? host}) {
-  if (host == null) return null;
+  // Notes only, enforced here rather than at the call site: the rule this
+  // function owns — refs are *harvested* for a type-141 row, so an `expense`
+  // on an alias host is an id collision — is only true of a note, and
+  // `activityRowTargetRef` is the answer for everything else.
+  if (host == null || !a.isComment) return null;
+  final aliasesExpense = kExpenseIdAliasHosts.contains(host);
   return _firstDocumentRef(
     a,
     host: host,
-    accept: (_, ref) => ref.label.trim().isNotEmpty,
+    // The alias skip belongs here and **only** here: a note's refs are
+    // harvested rather than named, so on those two hosts an `expense` ref is
+    // an id collision rather than a relation. A templated row is the opposite
+    // case — see [activityRowTargetRef].
+    accept: (token, ref) =>
+        !(aliasesExpense && token == 'expense') && ref.label.trim().isNotEmpty,
   );
 }
 
@@ -120,8 +131,19 @@ ActivityRef? activityNoteSourceRef(Activity a, {required String? host}) {
 /// Ties break on [kActivityDocumentTokens] order, never on the order the tokens
 /// appear in the sentence, which is not stable across locales. The one template
 /// where that order is observable is `activity_10` (payment *and* invoice are
-/// both named); invoice wins, matching `activityDeepLinkTarget` so the `/activity`
-/// feed and the detail tab agree.
+/// both named); invoice wins, which is also what `activityDeepLinkTarget`
+/// answers, so the two agree *there*. They do not agree in general, and the
+/// difference is this filter: the global feed still walks raw ids, so a refund
+/// row — which names no invoice — opens the payment here and the invoice from
+/// `/activity`. Fixing that means teaching `ActivityFormatter` to report the
+/// tokens it substituted; until then the divergence is known, not accidental.
+///
+/// It deliberately does **not** take [kExpenseIdAliasHosts]' skip. That rule
+/// exists because `note()` *harvests* refs the sentence never mentions, which
+/// is exactly what [namedTokens] already excludes — and seven templates
+/// (`activity_34/35/36/37/47/139/148`) do name `:expense`, so applying it here
+/// would strand a genuinely-named expense on a purchase-order or
+/// recurring-expense tab with no chevron, no row tap and, on touch, no link.
 ActivityRef? activityRowTargetRef(
   Activity a, {
   required String? host,

@@ -174,10 +174,17 @@ class KpiCard extends StatelessWidget {
       child: surface,
     );
     if (semanticsLabel == null) return result;
+    // `onTap` is **re-declared**: `ExcludeSemantics` drops the whole subtree,
+    // taking the `InkWell`'s own `Semantics(onTap:)` with it, so without this
+    // a clickable card announces as a button that TalkBack and switch access
+    // cannot invoke. Null when `clickable` is false, which is the same answer
+    // `button: clickable` gives. See
+    // `test/lint/semantics_excludes_need_ontap_test.dart`.
     return Semantics(
       container: true,
       label: semanticsLabel,
       button: clickable,
+      onTap: onTap,
       child: ExcludeSemantics(child: result),
     );
   }

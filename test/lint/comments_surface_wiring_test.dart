@@ -227,6 +227,67 @@ void main() {
       );
     }
   });
+
+  test('every host names itself, because that now decides navigation', () {
+    // `hostWireName` started as a label — which record a *note* was filed
+    // against (#121) — so a host that forgot it lost a meta-line suffix and
+    // nothing else. Since invoiceninja/flutter#143 it also decides whether a
+    // row is a navigation target at all: the record on screen is skipped when
+    // resolving one, so a host that omits it ships a chevron on every row
+    // about itself, opening the screen the user is already standing on.
+    // Silent, and only on the one screen that forgot.
+    //
+    // Sliced per `EntityActivityTab(` call rather than searched across the
+    // file: every host also passes `hostWireName` to `EntityCommentsCard`, so
+    // a whole-file `contains` stays green for exactly the mistake this is
+    // here to catch — dropping it from the *tab* alone.
+    for (final entry in pairs.entries) {
+      final joined = entry.value
+          .map(File.new)
+          .map((f) => f.readAsStringSync())
+          .join('\n');
+      final mounts = _argumentsOf(joined, 'EntityActivityTab(');
+      expect(
+        mounts,
+        isNotEmpty,
+        reason: '${entry.key} no longer mounts the tab this pins',
+      );
+      for (final args in mounts) {
+        expect(
+          args,
+          contains('hostWireName:'),
+          reason:
+              '${entry.key} mounts the Activity tab without a hostWireName, '
+              'so its rows link back to the record already on screen',
+        );
+      }
+    }
+  });
+}
+
+/// The argument text of every `name` invocation in [source], parens balanced.
+/// Value-blind on purpose: what has to hold is that the argument reaches *this*
+/// call, not which literal it carries.
+List<String> _argumentsOf(String source, String name) {
+  final out = <String>[];
+  for (
+    var at = source.indexOf(name);
+    at >= 0;
+    at = source.indexOf(name, at + 1)
+  ) {
+    var depth = 1;
+    var i = at + name.length;
+    while (i < source.length && depth > 0) {
+      if (source[i] == '(') {
+        depth++;
+      } else if (source[i] == ')') {
+        depth--;
+      }
+      i++;
+    }
+    out.add(source.substring(at + name.length, i - 1));
+  }
+  return out;
 }
 
 Iterable<File> _dartFiles(String root) => Directory(root)

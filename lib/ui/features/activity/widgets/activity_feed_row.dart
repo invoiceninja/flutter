@@ -162,9 +162,17 @@ class ActivityFeedRow extends StatelessWidget {
         child: content,
       ),
     );
+    // `onTap` is **re-declared**: `ExcludeSemantics` drops the whole subtree,
+    // and the tap action lives on `InkResponse`'s own `Semantics(onTap:)` —
+    // which does not set `button`, so the two halves of an activatable button
+    // come from different nodes. Without this the row announces as a button
+    // that TalkBack and switch access cannot invoke. Same rule as `linkOrText`
+    // and the task-calendar cell; `semantics_excludes_need_ontap_test.dart`
+    // pins it.
     return Semantics(
       button: true,
       label: '${render.title} $meta',
+      onTap: onTap,
       child: ExcludeSemantics(child: tappable),
     );
   }

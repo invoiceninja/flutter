@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -36,6 +37,8 @@ Future<void> _pump(
   WidgetTester tester, {
   List<double>? sparkline,
   List<LocalizationsDelegate<dynamic>> delegates = kTestLocalizationsDelegates,
+  VoidCallback? onTap,
+  String? semanticsLabel,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -53,6 +56,8 @@ Future<void> _pump(
               deltaPercent: 4.2,
               goodDirection: GoodDirection.down,
               sparklineValues: sparkline,
+              onTap: onTap,
+              semanticsLabel: semanticsLabel,
             ),
           ),
         ),
@@ -91,5 +96,46 @@ void main() {
       delegates: const [_SentinelLocalizationDelegate()],
     );
     expect(find.text('VS_PRIOR_FROM_BUNDLE'), findsOneWidget);
+  });
+
+  testWidgets('a clickable card is a button a screen reader can invoke', (
+    tester,
+  ) async {
+    // `ExcludeSemantics` drops the whole subtree, taking the `InkWell`'s own
+    // `Semantics(onTap:)` with it — so the wrapper has to re-declare the
+    // action it already declares the role for. Without that the card is
+    // announced as a button that TalkBack and switch access cannot activate.
+    final handle = tester.ensureSemantics();
+    var taps = 0;
+    await _pump(
+      tester,
+      onTap: () => taps++,
+      semanticsLabel: 'Outstanding, one thousand dollars',
+    );
+
+    final node = tester.getSemantics(find.byType(KpiCard));
+    final data = node.getSemanticsData();
+    expect(data.flagsCollection.isButton, isTrue);
+    expect(data.hasAction(SemanticsAction.tap), isTrue);
+
+    // Through the semantics layer, not `tester.tap` — the point is that an
+    // assistive technology can invoke it, which is exactly what was broken.
+    tester.semantics.tap(
+      find.semantics.byLabel('Outstanding, one thousand dollars'),
+    );
+    await tester.pump();
+    expect(taps, 1, reason: 're-declaring the action must actually run it');
+    handle.dispose();
+  });
+
+  testWidgets('a non-clickable card declares neither role nor action', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, semanticsLabel: 'Outstanding, one thousand dollars');
+    final data = tester.getSemantics(find.byType(KpiCard)).getSemanticsData();
+    expect(data.flagsCollection.isButton, isFalse);
+    expect(data.hasAction(SemanticsAction.tap), isFalse);
+    handle.dispose();
   });
 }

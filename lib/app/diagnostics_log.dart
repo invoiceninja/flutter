@@ -194,7 +194,7 @@ class DiagnosticsLog {
     if (isKnownBenignFrameworkNoise(error, stack)) return false;
     final body = redact(error.toString());
     // Signature excludes the timestamp so a repeating assertion matches.
-    final sig = '${context ?? ''} $body';
+    final sig = '${context ?? ''}\u0000$body';
     if (sig == _lastErrorSig) {
       _repeatCount++;
       return false;

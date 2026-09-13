@@ -1325,6 +1325,8 @@ Field-level breakdown of every option under each advanced settings panel. Source
 |---|---|---|---|---|---|
 | Template editor (subject + body, per entity type) | ✅ | ✅ | ✅ | ✅ | |
 | Template variables reference | ✅ | ✅ | ✅ | ✅ | |
+| Template variables render as chips — friendly labels, tap to change / remove (with Undo), Insert variable, default template shown as muted chips until customised | — | — | ✅ | | |
+| Send Email — subject variables show the document's real values (server probe), unknown tokens flagged, rendered subject shown on phones | — | — | ✅ | | |
 | First reminder rule (days before / after due + email) | ✅ | ✅ | ✅ | ✅ | |
 | Second reminder rule | ✅ | ✅ | ✅ | ✅ | |
 | Third reminder rule | ✅ | ✅ | ✅ | ✅ | |

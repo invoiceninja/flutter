@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/template_variables/template_variable_field_shell.dart';
+import 'package:admin/ui/core/widgets/template_variables/template_variable_text_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_field.dart';
 import 'package:admin/ui/features/settings/widgets/settings_field_bindings.dart';
@@ -33,6 +36,8 @@ class OverridableTextField extends StatefulWidget {
     this.textCapitalization = TextCapitalization.none,
     this.autofillHints,
     this.autocorrect = true,
+    this.templateVariables,
+    this.defaultValue,
   });
 
   final String label;
@@ -78,6 +83,18 @@ class OverridableTextField extends StatefulWidget {
   /// `enableSuggestions`, which travels with it.
   final bool autocorrect;
 
+  /// Makes this an email-template subject (invoiceninja/flutter#139): its
+  /// `$variables` render as chips at rest (tap one to change or remove it)
+  /// and as tinted raw text while editing — [TemplateVariableFieldShell].
+  final TemplateVariableScope? templateVariables;
+
+  /// With [templateVariables]: the template the server uses when the value
+  /// is empty. At company scope an empty field shows it (muted), editing works
+  /// on a copy, text equal to it writes `''`, and a customised value offers
+  /// "Reset to default". Ignored at group/client scope, where the inherited
+  /// value is what shows.
+  final String? defaultValue;
+
   @override
   State<OverridableTextField> createState() => _OverridableTextFieldState();
 }
@@ -88,6 +105,10 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
   late final SettingsWrite _write;
   late bool _obscured;
 
+  /// Template fields only: the shell swaps the field in and out, so it needs
+  /// a node it can focus when edit mode begins.
+  FocusNode? _focusNode;
+
   @override
   void initState() {
     super.initState();
@@ -96,13 +117,50 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
     _write = widget.write ?? binding.write;
     _obscured = widget.obscureToggle;
     final host = context.read<SettingsDraftHost>();
-    _controller = TextEditingController(text: _read(host.settings) ?? '');
+    final text = _read(host.settings) ?? '';
+    final scope = widget.templateVariables;
+    _controller = scope == null
+        ? TextEditingController(text: text)
+        : TemplateVariableTextController(text: text, scope: scope);
+    if (scope != null) _focusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(OverridableTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final controller = _controller;
+    final scope = widget.templateVariables;
+    if (controller is TemplateVariableTextController && scope != null) {
+      controller.scope = scope;
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode?.dispose();
     super.dispose();
+  }
+
+  /// The default template this field shows when empty — company scope only.
+  String? _companyDefault(SettingsDraftHost host) {
+    final value = widget.defaultValue;
+    if (widget.templateVariables == null || host.isCascadeScope) return null;
+    return (value ?? '').isEmpty ? null : value;
+  }
+
+  void _commit(SettingsDraftHost host, String text) {
+    // Text equal to the default template is the default: keep the value empty,
+    // so the server goes on sending its own per-language default.
+    final isDefault = text.isNotEmpty && text == _companyDefault(host);
+    final effective = isDefault ? '' : text;
+    // At group/client (cascade) scope, clearing the text removes the
+    // override (write null) rather than persisting '' — the server treats a
+    // zero-length override as inherit, so '' would render the company
+    // default while the app still showed it as overridden-to-empty (L12).
+    // At company scope '' stays the correct clear sentinel.
+    final value = host.isCascadeScope && effective.isEmpty ? null : effective;
+    host.updateSettings((s) => _write(s, value));
   }
 
   @override
@@ -117,7 +175,14 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
     // the host was updated by something else (override toggle), this pulls
     // the new value in and parks the cursor at the end.
     final hostValue = _read(host.settings) ?? '';
-    if (_controller.text != hostValue) {
+    final companyDefault = _companyDefault(host);
+    // A template field editing its default works on a seeded copy while the
+    // stored value stays empty — that is in sync, not a stale controller.
+    final editingDefault =
+        hostValue.isEmpty &&
+        companyDefault != null &&
+        _controller.text == companyDefault;
+    if (_controller.text != hostValue && !editingDefault) {
       _controller.value = TextEditingValue(
         text: hostValue,
         selection: TextSelection.collapsed(offset: hostValue.length),
@@ -132,8 +197,45 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
     final errorText = (errors != null && errors.isNotEmpty)
         ? errors.first
         : null;
-    final field = TextField(
+    final templateScope = widget.templateVariables;
+    final canResetToDefault =
+        templateScope != null &&
+        companyDefault != null &&
+        hostValue.isNotEmpty &&
+        widget.enabled;
+    final decoration = InputDecoration(
+      labelText: widget.label,
+      hintText: widget.hintText,
+      helperText: widget.helperText,
+      errorText: errorText,
+      suffixIcon: widget.obscureToggle
+          ? IconButton(
+              icon: Icon(
+                _obscured
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+              ),
+              onPressed: () => setState(() => _obscured = !_obscured),
+              tooltip: context.tr(_obscured ? 'show' : 'hide'),
+            )
+          : canResetToDefault
+          ? IconButton(
+              icon: const Icon(Icons.restart_alt),
+              tooltip: context.tr('reset_to_default'),
+              onPressed: () {
+                _controller.clear();
+                host.updateSettings((s) => _write(s, ''));
+              },
+            )
+          : null,
+    );
+    Widget buildField(
+      InputDecoration decoration, {
+      TapRegionCallback? onTapOutside,
+    }) => TextField(
       controller: _controller,
+      focusNode: _focusNode,
+      onTapOutside: onTapOutside,
       enabled: widget.enabled,
       maxLines: _obscured ? 1 : widget.maxLines,
       obscureText: _obscured,
@@ -151,34 +253,32 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
       textInputAction: isSingleLine
           ? TextInputAction.done
           : TextInputAction.newline,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        hintText: widget.hintText,
-        helperText: widget.helperText,
-        errorText: errorText,
-        suffixIcon: widget.obscureToggle
-            ? IconButton(
-                icon: Icon(
-                  _obscured
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                ),
-                onPressed: () => setState(() => _obscured = !_obscured),
-                tooltip: context.tr(_obscured ? 'show' : 'hide'),
-              )
-            : null,
-      ),
-      onChanged: (v) {
-        // At group/client (cascade) scope, clearing the text removes the
-        // override (write null) rather than persisting '' — the server treats a
-        // zero-length override as inherit, so '' would render the company
-        // default while the app still showed it as overridden-to-empty (L12).
-        // At company scope '' stays the correct clear sentinel.
-        final value = host.isCascadeScope && v.isEmpty ? null : v;
-        host.updateSettings((s) => _write(s, value));
-      },
+      decoration: decoration,
+      onChanged: (v) => _commit(host, v),
       onSubmitted: scope == null ? null : (_) => scope.trySubmit(),
     );
+    final focusNode = _focusNode;
+    final controller = _controller;
+    final Widget field =
+        templateScope != null &&
+            focusNode != null &&
+            controller is TemplateVariableTextController
+        ? TemplateVariableFieldShell(
+            controller: controller,
+            focusNode: focusNode,
+            decoration: decoration,
+            enabled: widget.enabled,
+            // An inherited value renders but stays inert — and unfocusable,
+            // which the `IgnorePointer` in `OverridableField` can't make it.
+            interactive:
+                !host.isCascadeScope || host.isOverridden(widget.apiKey),
+            defaultText: companyDefault,
+            style: widget.style,
+            onEdited: (text) => _commit(host, text),
+            fieldBuilder: (context, decoration, onTapOutside) =>
+                buildField(decoration, onTapOutside: onTapOutside),
+          )
+        : buildField(decoration);
     return OverridableField.bind(
       apiKey: widget.apiKey,
       label: widget.label,

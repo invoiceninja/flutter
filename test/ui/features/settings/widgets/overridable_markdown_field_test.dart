@@ -7,6 +7,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_settings.dart';
+import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -114,6 +115,48 @@ void main() {
     // Retire SuperReader's double-tap countdown, started by the pointer down.
     // That it exists at all is the point: the reader's recognizers are live.
     await tester.pump(const Duration(milliseconds: 100));
+  });
+
+  testWidgets('at company scope a customised template offers Reset to '
+      'default, which empties the value and shows the default again', (
+    tester,
+  ) async {
+    final host = _FakeHost(CompanySettings(invoiceTerms: r'Custom $amount'));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildInTheme(InTheme.light),
+        localizationsDelegates: kTestLocalizationsDelegates,
+        supportedLocales: kTestSupportedLocales,
+        home: Scaffold(
+          body: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<SettingsLevelController>.value(
+                value: SettingsLevelController(),
+              ),
+              ChangeNotifierProvider<SettingsDraftHost>.value(value: host),
+            ],
+            child: const SizedBox(
+              width: 480,
+              child: OverridableMarkdownField(
+                label: 'Body',
+                apiKey: 'invoice_terms',
+                templateVariables: TemplateVariableScope.invoice,
+                defaultValue: r'Pay $amount now',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Default'), findsNothing);
+
+    await tester.tap(find.text('Reset to default'));
+    await tester.pump();
+    expect(host.settings.invoiceTerms, '');
+    expect(find.text('Reset to default'), findsNothing);
+    expect(find.text('Default'), findsOneWidget);
+    expect(find.text('Amount'), findsOneWidget);
   });
 
   testWidgets('other variants stay pointer-blocked when not overridden', (

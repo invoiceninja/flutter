@@ -2201,6 +2201,31 @@ or anyone reading the database directly.
 
 ---
 
+## Scheduled emails drop the subject/body the user edited — **O (silent data loss in the composer)**
+
+**Provenance** — 2026-09-11, found while working on invoiceninja/flutter#139
+(template variables as chips in the Send Email composer), verified against
+`v5-develop`.
+
+The composer lets the user edit the subject and body, then either Send or
+Schedule. Send honours the edits (`EmailController::send` uses `subject` / `body`
+when longer than 3 characters). Schedule does not: the app sends them with the
+scheduler payload, but `app/Services/Scheduler/EmailRecord.php` (lines ~40-42)
+calls only `sendEmail(email_type: $template)`, so the scheduled email goes out
+with the saved template and the user's edits are silently discarded.
+
+**Requested change.** Persist the optional `subject` / `body` (and `cc_email`)
+overrides on an `email_record` schedule's `parameters` and pass them through to
+the send, exactly as the immediate send does.
+
+**Acceptance.** Schedule an invoice email with an edited subject; when the
+scheduler fires, the delivered email carries the edited subject.
+
+**Client status.** `admin` (v2) now asks before scheduling after an edit
+("Scheduled emails are sent with the saved template, so your edits … won't be
+included"), rather than dropping the edit silently. Remove that confirmation
+(`BillingDocEmailScreen._schedule`) once this ships.
+
 ## Reports: no entity report exposes a "date created" column — **O (client works around it; also affects React)**
 
 **Provenance** — 2026-09-11, invoiceninja/flutter#138 ("a `report` to show new

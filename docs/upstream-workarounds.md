@@ -129,6 +129,28 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 
 ---
 
+## 9. super_editor: the markdown serializer has no hook for inline placeholders
+
+- Issue / waiting on: no upstream issue filed — `serializeDocumentToMarkdown` (pinned FBH `2408aa52…`) hard-wires `AttributedText.toMarkdown()`, which writes each inline placeholder as a literal U+FFFC; there is no attribution or placeholder serializer parameter (the Quill serializer has `serializeInlinePlaceholder`, the markdown one doesn't). Copy (`TextNode.copyContent` → `toPlainText()`) puts U+FFFC on the clipboard for the same reason. • Found: 2026-09-11 (invoiceninja/flutter#139) • Flutter: 3.44.1
+- Symptom: a template-variable chip (a `TemplateVariablePlaceholder`) would serialize as `￼` instead of its `$token`; a copied chip pastes back as a stray `￼`.
+- Root cause: no placeholder hook in the markdown serializer.
+- Commit ref: not yet committed
+- Change(s):
+  - `lib/ui/core/widgets/template_variables/markdown_template_variables.dart` — **MUST-REVERT** (the detokenize half): `detokenizeTemplateVariables` widens every chip back into its token (and drops a stray U+FFFC) before each serialize; `MarkdownTextField._serialize()` routes every serialize through it. **KEEP**: tokenize-on-seed, the chip builder, the tap delegate and hit-test — those are the feature, not the workaround.
+- Revert: when the serializer can encode a placeholder, serialize `TemplateVariablePlaceholder` through that hook instead and delete `detokenizeTemplateVariables`/`detokenizeTemplateVariableText`; keep the byte-identical round-trip test (`test/ui/core/widgets/template_variables/markdown_template_variables_test.dart`) and make it pass. A chip that copies as its token would also lift the copy/paste limitation.
+- Recheck trigger: any super_editor bump — run that test file first.
+
+## 10. super_editor: `LinkifyReaction` links a typed `$client.name`
+
+- Issue / waiting on: not filed upstream — `LinkifyReaction` (`default_document_editor_reactions.dart`) runs linkify with `looseUrl: true`, whose pattern (`…{2,256}\.[a-z]{2,4}\b`) accepts `client.name`, `client.city`, `invoice.date`, and links the whole space-delimited word as `https://` + the word (paste goes through the same loose match). • Found: 2026-09-11 (invoiceninja/flutter#139) • Flutter: 3.44.1
+- Symptom: typing `Dear $client.name, ` in any markdown field saved `[$client.name,](https://$client.name,)`; the server substitutes the token in both halves and the email or PDF shows broken link markup.
+- Root cause: a loose-URL heuristic meeting Invoice Ninja's `$entity.field` variable syntax.
+- Commit ref: not yet committed
+- Change(s):
+  - `markdown_template_variables.dart` — **KEEP**: `TemplateVariableLinkScrubReaction` (installed right after `LinkifyReaction` on every `MarkdownTextField`) removes a link whose URL is `https://` + its own text when that text holds a variable; `healTemplateVariableLinks` applies the same predicate on seed. Correct whatever linkify does — a real URL never matches.
+- Revert: nothing to revert; if super_editor ever stops linking such words, the reaction simply finds nothing. Keep the regression tests ("the unguarded editor links a typed variable — the bug" will then fail and should be flipped, not deleted).
+- Recheck trigger: a super_editor or linkify bump.
+
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 
 These look workaround-shaped but are correct-forever (or inherent), not "waiting on an upstream fix". Listed so they aren't re-litigated:

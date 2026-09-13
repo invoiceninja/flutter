@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/value/static_template.dart';
+import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -24,9 +25,10 @@ import 'package:admin/utils/formatting.dart';
 
 /// Localization keys surfaced by the in-app settings search. Spread into
 /// `kSettingsSearchCatalog['templates_and_reminders']` in
-/// `settings_search_catalog.dart`. The `search_catalog_consistency_test`
-/// enforces this list matches every `context.tr(...)` literal used by
-/// this screen + its sub-widgets.
+/// `settings_search_catalog.dart`. `search_catalog_consistency_test` checks
+/// one direction only: every key declared here must be referenced by
+/// `context.tr(...)` in this screen's files. A new `tr()` elsewhere can't
+/// break it, and needs no entry here unless it should be searchable.
 const kTemplatesRemindersSearchKeys = <String>[
   'template',
   'subject',
@@ -355,13 +357,19 @@ class _Editor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Show the statics-default subject as a placeholder hint at company
-    // scope. At group/client scope the override-checkbox machinery in
-    // `OverridableField.bind` already surfaces the cascaded parent value,
-    // so doubling up with a statics hint would just be noise.
-    final defaultSubject = isCompanyScope
-        ? (staticTemplates[template.key]?.subject ?? '')
-        : '';
+    // Most companies never customise a template, so an empty subject and body
+    // are the common case — and the server's default is what they send. Show
+    // that default, as muted chips, at company scope (invoiceninja/flutter#139);
+    // editing works on a copy and only a real edit saves one. At group/client
+    // scope the override machinery in `OverridableField.bind` already shows
+    // the inherited value. The statics key isn't always the template id
+    // (`staticTemplateKeyFor`), and credit / custom templates have no entry.
+    final defaults = isCompanyScope
+        ? staticTemplates[staticTemplateKeyFor(template.key)]
+        : null;
+    final defaultSubject = defaults?.subject ?? '';
+    final defaultBody = defaults?.body ?? '';
+    final scope = templateVariableScopeForTemplate(template.key);
     return FormSection(
       title: context.tr(template.labelKey),
       children: [
@@ -369,13 +377,9 @@ class _Editor extends StatelessWidget {
           label: context.tr('subject'),
           apiKey: template.subjectKey,
           enabled: isProOrEnterprise,
-          hintText: defaultSubject.isEmpty ? null : defaultSubject,
+          templateVariables: scope,
+          defaultValue: defaultSubject.isEmpty ? null : defaultSubject,
         ),
-        // Unlike the subject, the body shows no statics-default placeholder:
-        // MarkdownTextField/super_editor exposes no placeholder slot, and the
-        // default body is a full template blob that reads poorly as a caption.
-        // Harmless — an empty body still renders the server default, and the
-        // subject hint already signals that defaults exist.
         OverridableMarkdownField(
           label: context.tr('body'),
           apiKey: template.templateKey,
@@ -383,6 +387,10 @@ class _Editor extends StatelessWidget {
           // 150 ms is tight enough to keep the downstream preview debounce
           // (400 ms) under a 600 ms total perceived latency.
           debounce: const Duration(milliseconds: 150),
+          templateVariables: scope,
+          // The statics body is the server's HTML; the field folds it into
+          // markdown like any other inbound HTML.
+          defaultValue: defaultBody.isEmpty ? null : defaultBody,
         ),
       ],
     );

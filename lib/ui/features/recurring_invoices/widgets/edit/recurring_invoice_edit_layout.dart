@@ -191,6 +191,7 @@ class _RecurringInvoiceEditLayoutState
       currentLineItems: vm.draft.lineItems,
       currentProjectId: vm.draft.projectId,
       currentClientId: vm.draft.clientId,
+      isCreate: vm.isCreate,
       replaceLineItems: vm.replaceLineItems,
       setProjectId: vm.setProjectId,
       setClientId: vm.setClientId,

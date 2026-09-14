@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -12,6 +10,7 @@ import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
+import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/projects/view_models/project_edit_view_model.dart';
@@ -68,6 +67,15 @@ class ProjectEditDetailsSection extends StatelessWidget {
 
 /// Searchable client picker for new projects; locked tap-to-navigate row
 /// once the project exists (matches React's `ClientActionButtons`).
+///
+/// The server's variant of the freeze is the *silent* one —
+/// `UpdateProjectRequest::prepareForValidation` overwrites
+/// `$input['client_id'] = $this->project->client_id` with no 422 at all, so a
+/// change appears to work and then snaps back on the next sync. The UI lock is
+/// the only signal the user ever gets — which is also why the gate is
+/// `!vm.isCreate` with no empty-id fall-through: `validate()` here returns
+/// `const {}` on an edit, so an empty client would have handed the user a live
+/// picker whose every edit the server discards without a word.
 class _ClientPicker extends StatelessWidget {
   const _ClientPicker({required this.vm});
   final ProjectEditViewModel vm;
@@ -77,9 +85,10 @@ class _ClientPicker extends StatelessWidget {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
     if (!vm.isCreate) {
-      return _LockedClientRow(
+      return LockedClientFieldRow(
         clientId: vm.draft.clientId,
-        companyId: companyId,
+        helperText: context.tr('locked_after_save_clone'),
+        errorText: vm.fieldErrorFor('client_id'),
       );
     }
     return StreamBuilder<List<Client>>(
@@ -117,50 +126,6 @@ class _ClientPicker extends StatelessWidget {
           errorText: vm.fieldErrorFor('client_id'),
         );
       },
-    );
-  }
-}
-
-/// Renders the client picker as a read-only InputDecorator-wrapped row
-/// matching the surrounding [EntityEditField] chrome — outlined border,
-/// floating label, lock-icon suffix to signal the field is server-bound.
-/// Tap navigates to the linked client.
-class _LockedClientRow extends StatelessWidget {
-  const _LockedClientRow({required this.clientId, required this.companyId});
-  final String clientId;
-  final String companyId;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final tokens = context.inTheme;
-    final me = services.auth.session.value?.currentCompany;
-    final canView = me?.can('view_client') ?? false;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: InkWell(
-        onTap: canView && clientId.isNotEmpty
-            ? () => goEntityFullDetail(context, '/clients', clientId)
-            : null,
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: context.tr('client'),
-            suffixIcon: Icon(Icons.lock_outline, size: 18, color: tokens.ink3),
-          ),
-          child: StreamBuilder<Client?>(
-            stream: services.clients.watch(companyId: companyId, id: clientId),
-            builder: (context, snap) {
-              final c = snap.data;
-              final name = c == null
-                  ? clientId
-                  : (c.displayName.isNotEmpty
-                        ? c.displayName
-                        : (c.name.isEmpty ? clientId : c.name));
-              return Text(name, style: TextStyle(color: tokens.ink));
-            },
-          ),
-        ),
-      ),
     );
   }
 }

@@ -512,6 +512,8 @@
   "loading_gateway_types": "Loading gateway types…",
   "lock": "Lock",
   "lock_invoices_help": "Choose when an invoice becomes read-only. Status changes such as marking it sent or paid are still allowed.",
+  "locked_after_save": "This can't be changed once the record is saved.",
+  "locked_after_save_clone": "This can't be changed once the record is saved \u2014 use Clone to start a copy.",
   "log_call": "Log Call",
   "logged_call": "Call logged",
   "logged_hours": "Logged Hours",

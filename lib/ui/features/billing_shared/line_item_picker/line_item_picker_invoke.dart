@@ -14,11 +14,15 @@ import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_pick
 ///      the draft — the new rows sit at the end of the real list.
 ///   3. If a picked task carries a `projectId` and the draft has none yet,
 ///      adopt it via the per-doc `setProjectId` callback.
-///   4. If picked tasks/expenses carry a `clientId` and the draft has no
-///      client yet, adopt the first non-blank source `clientId` via
-///      `setClientId`. Mirrors admin-portal's `invoice_edit_vm.dart:204-212`
-///      cascade. The picker filter (Round 2) already prevents cross-client
-///      picks, so this only fires when the draft is genuinely client-less.
+///   4. If picked tasks/expenses carry a `clientId` and the draft is a
+///      CREATE with no client yet, adopt the first non-blank source
+///      `clientId` via `setClientId`. Mirrors admin-portal's
+///      `invoice_edit_vm.dart:204-212` cascade. The picker filter (Round 2)
+///      already prevents cross-client picks, so this only fires when the draft
+///      is genuinely client-less. The `isCreate` half is the back door
+///      invoiceninja/flutter#158 left open: the server freezes `client_id` on
+///      UPDATE, so on a saved document — where the picker is now a locked row —
+///      silently seeding one here would 422 on a field the user cannot see.
 ///   5. The picked tasks'/expenses' `taskId → clientId` maps are pushed
 ///      back to the host VM via `registerSourceClientIds` so the
 ///      cross-client save validator can use the cached lookup instead of
@@ -38,6 +42,7 @@ Future<void> openLineItemPicker(
   required List<LineItem> currentLineItems,
   required String currentProjectId,
   required String currentClientId,
+  required bool isCreate,
   required void Function(List<LineItem> next) replaceLineItems,
   required void Function(String projectId) setProjectId,
   required void Function(String clientId) setClientId,
@@ -101,8 +106,8 @@ Future<void> openLineItemPicker(
     );
   }
 
-  // ClientId carry-over — only when the draft has none.
-  if (result.clientIdHint.isNotEmpty && currentClientId.isEmpty) {
+  // ClientId carry-over — only on a create, and only when the draft has none.
+  if (result.clientIdHint.isNotEmpty && currentClientId.isEmpty && isCreate) {
     setClientId(result.clientIdHint);
   }
 

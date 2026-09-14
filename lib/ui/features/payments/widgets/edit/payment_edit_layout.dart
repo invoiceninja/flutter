@@ -14,6 +14,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/payment_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
+import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
@@ -343,12 +344,30 @@ class _CustomFieldsSection extends StatelessWidget {
   }
 }
 
+/// The payment's Client.
+///
+/// **Frozen once the payment exists**, like the Amount field below —
+/// `UpdatePaymentRequest` pins it (`'client_id' => ['sometimes','bail',
+/// Rule::in([$this->payment->client_id])]`), and the invoices and credits a
+/// payment is applied to are validated against that same client. A changed
+/// client 422s into a dead outbox row the user can only discard
+/// (invoiceninja/flutter#158).
+///
+/// Payment is the one locked host with no Clone action, so it gets the plain
+/// copy rather than the one that names Clone as the way out.
 class _ClientPicker extends StatelessWidget {
   const _ClientPicker({required this.vm});
   final PaymentEditViewModel vm;
 
   @override
   Widget build(BuildContext context) {
+    if (!vm.isCreate) {
+      return LockedClientFieldRow(
+        clientId: vm.draft.clientId,
+        helperText: context.tr('locked_after_save'),
+        errorText: vm.fieldErrorFor('client_id'),
+      );
+    }
     final services = context.read<Services>();
     return StreamBuilder<List<Client>>(
       stream: services.clients.watchPage(

@@ -17,6 +17,8 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
+import 'package:admin/ui/core/widgets/client_picker_field.dart';
+import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_doc_client_picker.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
 
@@ -29,7 +31,10 @@ class _Doc {
 }
 
 class _Vm extends GenericBillingDocEditViewModel<_Doc> {
-  _Vm() : super(initialDraft: const _Doc());
+  /// [original] is what `isCreate` reads (`_original == null`), so leaving it
+  /// null keeps a VM on the create path — which is what every pre-existing test
+  /// below relies on.
+  _Vm({_Doc draft = const _Doc(), super.original}) : super(initialDraft: draft);
 
   @override
   List<LineItem> lineItemsOf(_Doc d) => const [];
@@ -94,6 +99,13 @@ class _FakeClientRepo implements ClientRepository {
     Map<String, Set<String>> extraFilters = const {},
     String? badgeModeId,
   }) => Stream<List<Client>>.value(const []);
+
+  /// `ClientNameLabel` fires this on mount for the locked row.
+  @override
+  Future<void> ensureLoaded({
+    required String companyId,
+    required String id,
+  }) async {}
 
   @override
   Future<bool> ensurePageLoaded({
@@ -321,5 +333,90 @@ void main() {
     // The late arrival must not clobber the current selection.
     expect(vm.draft.clientId, 'other');
     expect(vm.draft.invitations.map((i) => i.clientContactId), ['ct-9']);
+  });
+
+  // ── The client is frozen once the document exists (flutter#158) ──────
+  //
+  // Every one of the four server UPDATE requests pins `client_id` to its
+  // current value, so a changed client 422s into a `SaveFailedBanner` the user
+  // can only discard. The picker must not be offered at all.
+
+  Future<void> pumpPicker(WidgetTester tester, _Vm vm) async {
+    final services = _FakeServices(
+      clients: _FakeClientRepo(),
+      auth: _FakeAuth(
+        ValueNotifier<AuthSession?>(
+          const AuthSession(
+            baseUrl: '',
+            isHosted: false,
+            accountId: '',
+            currentCompanyId: 'co',
+            companies: [
+              AuthCompany(
+                id: 'co',
+                name: 'Co',
+                displayName: 'Co',
+                permissions: '',
+                isAdmin: true,
+                isOwner: false,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      Provider<Services>.value(
+        value: services,
+        child: MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          home: Scaffold(
+            body: BillingDocClientPicker<_Doc>(vm: vm, companyId: 'co'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('an existing document renders the locked row, not the picker', (
+    tester,
+  ) async {
+    await pumpPicker(
+      tester,
+      _Vm(
+        draft: const _Doc(clientId: 'c1'),
+        original: const _Doc(clientId: 'c1'),
+      ),
+    );
+
+    expect(find.byType(LockedClientFieldRow), findsOneWidget);
+    expect(find.byType(ClientPickerField), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('a create keeps the live picker', (tester) async {
+    await pumpPicker(tester, _Vm(draft: const _Doc(clientId: 'c1')));
+
+    expect(find.byType(ClientPickerField), findsOneWidget);
+    expect(find.byType(LockedClientFieldRow), findsNothing);
+  });
+
+  // An empty client does NOT fall back to the live picker. The server pins
+  // `client_id` to its current value on UPDATE, so a picker there could only
+  // 422 or be silently discarded — offering one is a lie, not a rescue. The row
+  // renders a muted em dash with no tap target and the reason still shows, so
+  // it is not the silent dead box `docs/pickers.md` warns about. (An earlier
+  // revision did fall through, justified by a `validate()` guard that turns out
+  // not to exist on two of the four hosts.)
+  testWidgets('an existing document with NO client is still locked', (
+    tester,
+  ) async {
+    await pumpPicker(tester, _Vm(original: const _Doc()));
+
+    expect(find.byType(LockedClientFieldRow), findsOneWidget);
+    expect(find.byType(ClientPickerField), findsNothing);
   });
 }

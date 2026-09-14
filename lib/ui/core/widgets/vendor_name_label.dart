@@ -5,13 +5,30 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/vendor.dart';
+import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 
 /// Resolves the vendor display name from the local Drift cache and
-/// renders it as a `Text` (or a link when [link]). Falls back to the
-/// raw `vendorId` while the watch is empty; on a cache miss it triggers
+/// renders it as a `Text` (or a link when [link]). On a cache miss it triggers
 /// a lazy per-id hydrate (`VendorRepository.ensureLoaded`) so the name
 /// resolves even when the vendor isn't on the prefetched first page.
+///
+/// **Never renders the raw `vendorId`** — the same rule, and the same
+/// reasoning, as its older sibling [ClientNameLabel]: a hashid is meaningless
+/// to the user in every state (loading, deleted, permission-denied), so
+/// unresolved renders the muted em dash and the id rides along in [Semantics]
+/// for screen readers and `debugDumpApp`. This label used to fall back to the
+/// id, which was survivable in a table cell and not in a **labelled form
+/// slot** — `LockedVendorFieldRow` (`locked_entity_field_row.dart`) paints a
+/// saved purchase order's Vendor field, where an uncached vendor showed
+/// `Wpmbk5ezJn` under a `Vendor` label, with no way to act on it. Note the
+/// picker it replaced showed *nothing* there rather than an id
+/// (`EntityPickerField._optionsWithSelection` hands a null selection through),
+/// so the id was never the established behaviour for that slot.
+///
+/// Resolved-but-nameless is NOT unresolved, and the two read differently: a
+/// vendor row that loaded fine but carries no `name` gets `(no name)`, because
+/// claiming it can't be resolved is a lie the user can't act on.
 ///
 /// Drift dedupes identical watch queries (and the repo dedupes the
 /// hydrate fetch), so N rows for the same vendor share one subscription
@@ -85,7 +102,7 @@ class _VendorNameLabelState extends State<VendorNameLabel> {
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId == null || companyId.isEmpty) {
-      return _text(context, widget.vendorId);
+      return _unresolved(context, tokens);
     }
     return StreamBuilder<Vendor?>(
       initialData: services.vendors.peek(
@@ -95,13 +112,26 @@ class _VendorNameLabelState extends State<VendorNameLabel> {
       stream: services.vendors.watch(companyId: companyId, id: widget.vendorId),
       builder: (context, snapshot) {
         final vendor = snapshot.data;
-        final name = vendor == null || vendor.name.isEmpty
-            ? widget.vendorId
-            : vendor.name;
-        return _text(context, name);
+        if (vendor == null) return _unresolved(context, tokens);
+        if (vendor.name.isEmpty) {
+          return _text(context, context.tr('no_name_fallback'));
+        }
+        return _text(context, vendor.name);
       },
     );
   }
+
+  /// Shown while the name is resolving AND when it never will (deleted vendor,
+  /// no permission). Deliberately the same in both: the user can act on
+  /// neither, and distinguishing them would just be a second thing that
+  /// flickers. The id rides along in [Semantics] so it stays debuggable.
+  Widget _unresolved(BuildContext context, InTheme tokens) => Semantics(
+    label: widget.vendorId,
+    child: Text(
+      '—',
+      style: widget.style ?? TextStyle(fontSize: 13, color: tokens.ink3),
+    ),
+  );
 
   Widget _text(BuildContext context, String text) => linkOrText(
     context: context,

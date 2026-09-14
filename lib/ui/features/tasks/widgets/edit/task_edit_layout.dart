@@ -14,6 +14,7 @@ import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
 import 'package:admin/ui/features/tasks/widgets/edit/task_edit_times_section.dart';
@@ -375,7 +376,6 @@ class _ClientPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    final tokens = context.inTheme;
     // The view model's company, not the session's: it is the company this form
     // is bound to, and all four pickers here read the same field. Locality
     // rather than a bug fix — no divergence between the two has been observed.
@@ -383,27 +383,16 @@ class _ClientPicker extends StatelessWidget {
     final lockedByProject = vm.draft.projectId.isNotEmpty;
 
     if (lockedByProject) {
-      return InputDecorator(
-        decoration: InputDecoration(
-          labelText: context.tr('client'),
-          helperText: context.tr('project_drives_client'),
-          suffixIcon: Icon(Icons.lock_outline, size: 18, color: tokens.ink3),
-        ),
-        child: StreamBuilder<Client?>(
-          stream: services.clients.watch(
-            companyId: companyId,
-            id: vm.draft.clientId,
-          ),
-          builder: (context, snap) {
-            final c = snap.data;
-            final name = c == null
-                ? vm.draft.clientId
-                : (c.displayName.isNotEmpty
-                      ? c.displayName
-                      : (c.name.isEmpty ? vm.draft.clientId : c.name));
-            return Text(name, style: TextStyle(color: tokens.ink));
-          },
-        ),
+      // `tappable: false` — unlike the billing-doc and project locks, this one
+      // is not a server freeze and the client is not a destination the user
+      // should be sent to. They unlock it by clearing the Project, which is
+      // what the helper text says. (The branch also sits deliberately OUTSIDE
+      // `_Lockable`, so making it navigable would hand an invoiced task a live
+      // tap target it does not have today.)
+      return LockedClientFieldRow(
+        clientId: vm.draft.clientId,
+        helperText: context.tr('project_drives_client'),
+        tappable: false,
       );
     }
 

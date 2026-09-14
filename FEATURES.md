@@ -1561,6 +1561,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Deep links (open a record from a shared link — https or `invoiceninja://`) | — | ❌ | ✅ |  | v1 has no incoming-link handling at all — its only URL scheme is the Google OAuth callback |
 | Copy Link on a record — shareable deep link, auto-switches company | — | — | ✅ | | https link (`/app/…`) on touch shares via the system sheet; #144 |
 | View client / vendor from a record's actions menu | ✅ | ✅ | ✅ | | Replaced the narrow row's tappable client name (#128); permission-gated, excluded from edit screens |
+| Client / vendor frozen once the record is saved (locked row + reason, taps through to the record) | ✅ | ❌ | ✅ | | The server pins `client_id` / `vendor_id` on UPDATE for invoice / quote / credit / recurring / payment, `vendor_id` for PO, and silently ignores it for project; #158. React renders a read-only `ClientSelector`; the lock glyph + reason + Clone pointer are v2-only |
 | Paste a record link into the command palette (covers web / Linux) | — | — | ✅ | | both link shapes |
 | Detail screen hydrates an uncached record on arrival (deep link / dashboard tap / restored route) | — | — | ✅ | | |
 | Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |

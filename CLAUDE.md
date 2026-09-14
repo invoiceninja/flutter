@@ -34,6 +34,7 @@ Plus two non-negotiables carried from admin-portal:
 | A picker popover that won't close on touch or Android back, the ✕, or the ▾ on a picker | `docs/popup-dismissal.md` · `lib/ui/core/widgets/picker_dismissal.dart` · `test/lint/picker_popover_wiring_test.dart` |
 | Adding a hand-rolled `OverlayPortal`, or Android back not closing one | `docs/popup-dismissal.md` § Android back is the other dismissal · `test/lint/overlay_back_dismiss_test.dart` |
 | A picker showing a dead empty box or stuck on "Loading", or blanking when its value is archived | `docs/pickers.md` § A picker's empty state has to say something · `lib/ui/core/widgets/entity_picker_field.dart` |
+| A Client / Vendor field that must stop being editable once the record is saved | `docs/pickers.md` § A field the server freezes is a locked row, not a disabled picker · `lib/ui/core/widgets/locked_entity_field_row.dart` · `test/lint/frozen_party_field_wiring_test.dart` |
 | Adding an Assigned User or task Status picker, or a field to the create-task-from-a-line sheet | `docs/pickers.md` § The assignee roster has one home · `lib/ui/core/widgets/assigned_user_picker_field.dart` |
 | Hiding unverified users from Assigned User fields, or the "never onboarded" rule | `docs/pickers.md` § Hiding unverified users · `lib/domain/assignable_users.dart` · `test/lint/assigned_user_picker_wiring_test.dart` |
 | Anything money / date / parsing | § Strict rules + § Forms |
@@ -274,6 +275,7 @@ Don't introduce new `DropdownButtonFormField`s for long lists. They're fine only
 - **The create-task-from-a-line sheet seeds the Status and deliberately does not seed the assignee.** → `docs/pickers.md` § The create-task-from-a-line sheet seeds the Status, not the assignee
 - **A re-pick of the value the field already holds is a real command, not a no-op.** → `docs/pickers.md` § Re-picking the value the field already holds is a real command
 - **A picker that needs inline "create new \<entity\>" can't be a `SearchableDropdownField`.** → `docs/pickers.md` § A picker needing inline create can't be a `SearchableDropdownField`
+- **A field the server freezes on UPDATE is a locked row, not a disabled picker, and the reason sits outside its tap surface.** → `docs/pickers.md` § A field the server freezes is a locked row, not a disabled picker
 
 ### Input types
 

@@ -15,6 +15,7 @@ import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/entity_picker_field.dart';
+import 'package:admin/ui/core/widgets/locked_entity_field_row.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
@@ -160,6 +161,7 @@ class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout> {
       currentLineItems: vm.draft.lineItems,
       currentProjectId: vm.draft.projectId,
       currentClientId: '',
+      isCreate: vm.isCreate,
       replaceLineItems: vm.replaceLineItems,
       setProjectId: vm.setProjectId,
       setClientId: (_) {},
@@ -968,12 +970,32 @@ class _DesignPicker extends StatelessWidget {
   }
 }
 
+/// The purchase order's Vendor.
+///
+/// **Frozen once the PO exists.** `UpdatePurchaseOrderRequest` pins it —
+/// `$rules['vendor_id'] = ['bail','sometimes', Rule::in([$this->purchase_order->vendor_id])]`
+/// — so a changed vendor 422s into a dead outbox row the user can only discard
+/// (invoiceninja/flutter#158). Note this is the PO's `vendor_id` only: its
+/// `client_id` is NOT frozen server-side, and neither is the `vendor_id` the
+/// other four billing docs carry on their Settings tab.
+///
+/// The gate is `!vm.isCreate` alone — see `BillingDocClientPicker` for why an
+/// empty-id fall-through to the live picker would be a lie rather than a
+/// rescue.
 class _VendorPicker extends StatelessWidget {
   const _VendorPicker({required this.vm});
   final PurchaseOrderEditViewModel vm;
 
   @override
   Widget build(BuildContext context) {
+    if (!vm.isCreate) {
+      return LockedVendorFieldRow(
+        vendorId: vm.draft.vendorId,
+        // Clone is how you raise the same order against a different vendor.
+        helperText: context.tr('locked_after_save_clone'),
+        errorText: vm.fieldErrorFor('vendor_id'),
+      );
+    }
     final services = context.read<Services>();
     return EntityPickerField<Vendor>(
       label: context.tr('vendor'),

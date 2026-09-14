@@ -66,6 +66,12 @@ Accounts and **roles** that must exist before any credential can be minted. The 
 | **GitHub** | **Admin** on `invoiceninja/flutter` (required to add secrets) | AppImage additionally needs Settings → Actions → General → **Workflow permissions = Read and write** (§3A). |
 | **Sentry** | A project DSN | Optional. An empty or unset `IN_SENTRY_DSN` is a safe no-op — `Env.sentryDsn` defaults to `''` and Sentry stays disabled. |
 
+> **Shared record links need two console steps of their own**, and one of them
+> blocks Apple builds entirely: Associated Domains must be enabled on the App ID
+> before `ios/Runner/Runner.entitlements` will sign, and `assetlinks.json` needs
+> the Play **app signing** SHA-256 from Play Console → Setup → App integrity.
+> Both, plus the order they go in, are in **`APP_LINKS.md`**.
+
 The Play, Partner Center, and Snap Store **listings already exist** — you are wiring credentials to existing apps, not creating new ones. That matters for Google Play in particular: a brand-new package requires one manual bundle upload in the Console before the API will accept anything, and that is already satisfied here. **Confirm the Apple side yourself** — the iOS and macOS app records must exist on App Store Connect (§3E step 5); unlike Play, ASC then accepts the very first build over the API with no prior manual upload.
 
 ---

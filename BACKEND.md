@@ -27,6 +27,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**SHIPPED** 2026-09-08, § F5; both halves fixed, but the transformer emits `0` rather than `null` for "never").
 - `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
+- App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**R**, PR written in the fork, unmerged; § App Links).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 
 **Shipped since this file was written** (kept for the record, no action left):
@@ -2297,3 +2298,66 @@ Either apply the range or drop the params from the documented contracts.
 control from a per-report table mirroring each export's `$date_key`, and
 deliberately renders nothing for `project` or `aged_receivable_summary_report`
 rather than naming a column the server ignores.
+
+## App Links — `.well-known` documents + an `/app/{path}` bridge page — **R (PR written, unmerged)**
+
+**Provenance** — 2026-09-14, invoiceninja/flutter#144, written against `v5-develop`
+and verified with live probes of `invoicing.co`.
+
+A record link shared out of the apps was `invoiceninja://app/invoices/<id>?company=<id>`,
+and **no messenger linkifies a custom scheme** — WhatsApp, Element, Slack and mail
+clients match `http(s)` — so it arrived as inert text the recipient had to copy by
+hand. The link is now an ordinary https URL on the sender's own instance:
+
+```
+https://invoicing.co/app/invoices/rlNbW6Jayg?company=VolejRejNm
+https://billing.example.com/app/invoices/rlNbW6Jayg?company=VolejRejNm
+```
+
+**Required change** (three routes, no database, no session — written in
+`hillelcoren/invoiceninja-backend`):
+
+```php
+Route::get('.well-known/assetlinks.json', [AppLinksController::class, 'assetLinks']);
+Route::get('.well-known/apple-app-site-association', [AppLinksController::class, 'appleAppSiteAssociation']);
+Route::get('app/{path?}', [AppLinksController::class, 'bridge'])->where('path', '[A-Za-z0-9/_-]*');
+```
+
+Four things about it are load-bearing:
+
+- **Both documents are served by a route, not as files in `public/`.** Verified
+  live: `https://invoicing.co/.well-known/apple-developer-merchantid-domain-association`
+  returns 200 (so `.well-known` does reach Laravel) — but as
+  `application/octet-stream`, and Apple rejects a non-JSON association file.
+- **The Apple document is scoped to `/app/*`**, never a wildcard: a wildcard would
+  make the admin app swallow every client-portal and payment link on iOS.
+- **Neither is throttled.** Google and Apple fetch them to verify the app and
+  Android re-verifies on every app update; a 429 reads as a failed verification.
+- **The bridge page is what keeps self-hosted installs in the feature.** Android
+  and Apple both need the host as a build-time literal in the app, so only the
+  hosted domain can ever be verified; everywhere else the browser loads
+  `/app/{path}`, which offers the `invoiceninja://` launch and then continues to
+  the web client. It also forwards `server=<origin>` on that scheme URL, because a
+  custom-scheme link carries no origin and company hashids are per-instance — two
+  self-hosted servers with default salts number their companies identically, so
+  without it a link from one could open a *different* company's record on another.
+
+**`/app` is now a contract spanning two repos and nothing can check both.** The
+Dart constant (`kAppLinkPathPrefix`), the Android `pathPrefix`, the Apple
+`components` entry and this route must agree; `test/lint/universal_links_test.dart`
+sees the first three. The same applies to `AppLinkPath::routeMap()`, which
+translates an app route to the web client's — they differ on four screens, and a
+new entity needs a new entry or its links lose the `/edit` the web client needs.
+
+**Acceptance.** `curl -s https://invoicing.co/.well-known/assetlinks.json` returns
+JSON (not the SPA shell) carrying the Play **app signing** SHA-256;
+`curl -sI …/apple-app-site-association` reports `application/json` with no
+redirect; `adb shell pm get-app-links com.invoiceninja.admin` reports `verified`;
+and `https://<any instance>/app/invoices/<id>?company=<id>` renders a page
+offering the app and continuing to that instance's web client.
+
+**Client status.** Shipped on the app side (the `/app/` claim, both `app_links`
+shims, the share sheet). Until this deploys, a shared link is tappable but 404s in
+a browser, and only the hosted host can open the app at all. The manual console
+steps — the Apple capability and the Play fingerprints `assetlinks.json` needs —
+are in `APP_LINKS.md`.

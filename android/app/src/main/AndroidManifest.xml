@@ -36,6 +36,27 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Flutter's own deep linking is ON by default (the engine's
+                 `deepLinkEnabled` returns true when this key is absent) and
+                 would push the raw intent URI in as the initial route, and on
+                 `onNewIntent` as route information — bypassing
+                 DeepLinkRouter's validation, its company switch and the
+                 biometric hold. For the https form below the path is
+                 `/app/...`, which matches no go_router route, so the top-level
+                 errorBuilder would replace the WHOLE app with the route-error
+                 screen; NavStatePersister has no filter for error locations, so
+                 that URL then gets restored on every later launch too.
+                 `app_links` receives the intent either way — cold through
+                 getIntent() in onAttachedToActivity, warm through onNewIntent,
+                 which is forwarded to plugins regardless of this flag — so
+                 turning it off costs no delivery.
+                 MUST sit on the ACTIVITY: shouldHandleDeeplinking() reads
+                 ActivityInfo meta-data, and an <application> entry is silently
+                 ignored. Pinned by test/lint/universal_links_test.dart. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false"
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -61,6 +82,30 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="invoiceninja" android:host="app"/>
                 <data android:scheme="invoiceninja" android:host="calendar_connection"/>
+            </intent-filter>
+            <!-- https App Links for shared record links
+                 (invoiceninja/flutter#144), e.g.
+                 https://invoicing.co/app/invoices/<id>?company=<id>.
+                 Its own filter, per the note above: a <data> added to the
+                 filter above would cross-product into https://app/... too.
+                 Only the hosted host can be here — Android needs a build-time
+                 literal, so a self-hosted origin can never be verified; those
+                 links route through that instance's own /app/ bridge page,
+                 which offers the invoiceninja:// launch instead. See
+                 APP_LINKS.md.
+                 `pathPrefix` is load-bearing: invoicing.co also serves the
+                 client portal and payment pages, and a host-wide claim would
+                 hijack them. The trailing slash keeps it off /apply.
+                 autoVerify stays OFF the custom-scheme filter above — before
+                 Android 12 one failing host failed verification for every
+                 autoVerify host in the app. With no assetlinks.json live yet
+                 this simply fails verification and links keep opening in the
+                 browser; nothing breaks at build or install time. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="invoicing.co" android:pathPrefix="/app/"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

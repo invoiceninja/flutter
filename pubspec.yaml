@@ -69,6 +69,10 @@ dependencies:
   re_editor: ^0.9.0
   re_highlight: ^0.0.3
   sentry_flutter: ^9.21.0
+  # Record links go out through the system share sheet on touch, where
+  # "copy, leave the app, paste" is three steps for what the platform
+  # does in one (invoiceninja/flutter#144). Desktop still copies.
+  share_plus: ^13.3.0
   sign_in_with_apple: ^8.1.0
   sqlite3: ^3.3.2
   super_editor: any

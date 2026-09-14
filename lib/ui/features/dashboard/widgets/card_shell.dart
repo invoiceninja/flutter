@@ -18,9 +18,11 @@ class DashboardCardShell extends StatelessWidget {
     required this.child,
   }) : assert(
          onHeaderTap == null || title != null || trailing != null,
-         'onHeaderTap needs a header to sit in: the whole band is gated on '
+         'onHeaderTap needs a header to sit in: the band is gated on '
          '`title != null || trailing != null`, so on a bare shell it would '
-         'compile, analyze clean and do nothing.',
+         'compile, analyze clean and do nothing. A navigating `trailing` is '
+         'the real requirement — a title-only header is tolerated only so the '
+         'touch floor has something to raise, and it pays 4 px for it.',
        );
 
   final String? title;
@@ -28,7 +30,8 @@ class DashboardCardShell extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   /// Makes the whole header band a tap target for whatever [trailing] already
-  /// links to, at no extra height (invoiceninja/flutter#145).
+  /// links to, at no extra height wherever [trailing] is present
+  /// (invoiceninja/flutter#145).
   ///
   /// **Only valid when [trailing] NAVIGATES to a superset of the card body**,
   /// and that is a narrow licence: of the ten shells that pass a [trailing]
@@ -40,8 +43,24 @@ class DashboardCardShell extends StatelessWidget {
   /// `reports_chart_card.dart` has two pickers and no single answer, and
   /// `project_progress_card.dart`'s status pill is not interactive at all.
   /// Leave this null wherever the trailing widget is an action rather than a
-  /// destination, and never hand it to a card whose body carries a
-  /// `CopyableValue`.
+  /// destination.
+  ///
+  /// **Wire it only where the input device is touch**, i.e. behind
+  /// `Env.isTouchPrimary` at the call site — this is a thumb-ergonomics fix and
+  /// on a pointer platform it buys nothing and costs an interaction. A host
+  /// inside a `SelectionArea` (`EntityDetailScaffold` wraps every detail body
+  /// in one on everything but native mobile) hands this detector the single
+  /// clicks `SelectableRegion` uses to place and clear a selection, taking the
+  /// first click of a double-click-to-select-a-word with it. The gate belongs
+  /// at the call site because only the host knows whether it is in such a
+  /// region — a dashboard card is not. `party_call_button.dart` gates its
+  /// secondary gestures on the same flag for the same reason, with the same
+  /// warning: no test sees it, because `flutter test` reports android.
+  ///
+  /// The `Env.isTouchPrimary` ternary on the floor below is **defensive, not an
+  /// invitation** — it honours `InSizes.touchTarget`'s own "touch only"
+  /// contract for a caller who ignores the paragraph above. Passing this on a
+  /// pointer platform is tolerated, never supported.
   ///
   /// It is also the shape CLAUDE.md's #128 paragraph bans — an opaque
   /// `GestureDetector` and an `InkWell` nested over one another, where the

@@ -107,6 +107,14 @@ The signed `.aab` is published to the **Internal testing** track of the existing
 
 ## iOS / macOS — App Store & TestFlight
 
+> **Associated Domains must be enabled on the App ID before an iOS build will
+> sign.** `ios/Runner/Runner.entitlements` claims `applinks:invoicing.co` for
+> shared record links, and iOS has a single entitlements file for Debug and
+> Release — so a missing capability breaks `flutter run -d ios` on a device as
+> well as the archive. The portal steps, the Play fingerprints the server needs
+> and the order they go in are in **`APP_LINKS.md`**.
+
+
 Both Apple targets are published to **TestFlight** by two manually-triggered workflows — `.github/workflows/appstore-ios.yml` and `appstore-macos.yml` (`workflow_dispatch` only; publishing is a deliberate release action, not a per-push gate). TestFlight is the Apple analogue of the snap's `edge` / Play's `internal`: builds reach internal/external testers (the shared join link `testflight.apple.com/join/YY1BZ7uR`, used for both iOS and macOS), never straight to the store. **Uploading to TestFlight does not submit the build for App Store review** — promotion to the store is a separate, manual App Store Connect action. Both jobs run on `macos-26` + Xcode 26.4.1 (matching the CI `apple` gate), pin Flutter 3.44.1, and bake `IN_SENTRY_DSN` in at compile time like every other publish pipeline. (A hand-built **Product → Archive** from Xcode also bakes the DSN in now, via a Runner scheme pre-action — but it needs `tools/prepare_ios_archive.sh` run first, or SwiftPM resolution fails; see § Release builds with Sentry.)
 
 **macOS is a Mac App Store build, not Developer ID.** The app is sandboxed (`macos/Runner/Release.entitlements`: app-sandbox, network.client, files, print, keychain-access-groups, applesignin), so its channel is the Mac App Store / TestFlight, not a notarized direct download. `flutter build macos` only produces a `.app` — there is no `flutter build` MAS equivalent to `flutter build ipa` — so the macOS workflow drives `xcodebuild` directly: `flutter build macos --release --config-only --dart-define=IN_SENTRY_DSN=…` (writes the dart-define into the generated xcconfig the build reads) → `xcodebuild archive` (signed) → `xcodebuild -exportArchive -exportOptionsPlist macos/ExportOptions.plist` with `method: app-store` (emits a signed `.pkg`) → `xcrun altool --upload-app --type macos`. This is the same `--config-only` then explicit-`xcodebuild` seam the unsigned `apple` gate in `ci.yaml` uses, but with real distribution signing instead of the `CODE_SIGN_IDENTITY="-"` overrides.

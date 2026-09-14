@@ -81,6 +81,17 @@ void main() {
       expect(hit.path, 'invoiceninja://app/clients/abc?company=co1');
     });
 
+    test('resolves the https form too — the shape Copy Link now emits, and '
+        'the only way a colleague on Linux or web follows one at all', () {
+      final hit = deepLinkSearchHit(
+        'https://invoicing.co/app/clients/abc?company=co1',
+        registry,
+      );
+      expect(hit, isNotNull);
+      expect(hit!.name, '/clients/abc');
+      expect(hit.path, 'https://invoicing.co/app/clients/abc?company=co1');
+    });
+
     test('ignores ordinary search text', () {
       expect(deepLinkSearchHit('acme corp', registry), isNull);
       expect(deepLinkSearchHit('', registry), isNull);

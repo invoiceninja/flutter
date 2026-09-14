@@ -151,6 +151,18 @@ When an upstream fix ships: follow the revert, verify, then **delete the entry**
 - Revert: nothing to revert; if super_editor ever stops linking such words, the reaction simply finds nothing. Keep the regression tests ("the unguarded editor links a typed variable — the bug" will then fail and should be flipped, not deleted).
 - Recheck trigger: a super_editor or linkify bump.
 
+## 11. app_links: no cold-start link under the iOS scene lifecycle, and no macOS universal links at all
+
+- Issue / waiting on: <https://github.com/llfbandit/app_links> — the plugin registers only as a `UIApplicationDelegate` (`registrar.addApplicationDelegate`), implementing `application:openURL:options:` and `application:continue:restorationHandler:`; it implements no `didFinishLaunchingWithOptions:`, and its macOS `application(_:continue:restorationHandler:)` is **commented out** in the shipped source (`AppLinksMacosPlugin.swift:49-60`). • Found: 2026-09-14 (invoiceninja/flutter#144) • app_links: 6.4.1 • Flutter: 3.44.1
+- Symptom: with Flutter's own deep linking disabled (which it must be — see CLAUDE.md § Deep links), a link tapped on iOS with the app **not running** does nothing at all; on macOS a claimed https link brings the app forward and then does nothing, which is worse than not claiming it.
+- Root cause: under `UIScene` the launch URL arrives only in `connectionOptions`, and Flutter's `sceneWillConnectFallback:` converts it into `application:didFinishLaunchingWithOptions:` (`FlutterPluginAppLifeCycleDelegate.mm`) — a callback the plugin does not implement. Warm links are unaffected: `scene:openURLContexts:` and `scene:continueUserActivity:` do fall back to the app-delegate plugin list. On macOS there is no built-in deep linking to fall back on either (no `FlutterDeepLinkingEnabled` exists in that embedder).
+- Commit ref: not yet committed
+- Change(s):
+  - `ios/Runner/SceneDelegate.swift` — **MUST-REVERT** once the plugin handles scenes: overrides `scene(_:willConnectTo:options:)` and hands the launching URL (custom scheme or `NSUserActivityTypeBrowsingWeb`) to `AppLinks.shared.handleLink(url:)`. Safe to keep in the meantime — `handleLink` sets `initialLink` only when nil, and `DeepLinkRouter` de-dups anyway.
+  - `macos/Runner/AppDelegate.swift` — **MUST-REVERT** once the plugin ships its macOS handler: implements `application(_:continue:restorationHandler:)` and forwards to `AppLinks.shared.handleLink(link:)`. **Revert it together with the `applinks:` entry in `macos/Runner/Release.entitlements`** — the entitlement without a handler is the regression described above.
+- Revert: delete the override in each file (leaving `SceneDelegate` an empty `FlutterSceneDelegate` subclass and `AppDelegate` with its two existing overrides), then confirm a cold-start link on an iOS device and a universal link on a macOS release build. `test/lint/universal_links_test.dart` asserts both shims exist, so it fails first and points here.
+- Recheck trigger: an `app_links` bump — check its iOS plugin for a scene-lifecycle registration (`addSceneDelegate`) and its macOS plugin for an uncommented `continue userActivity`.
+
 ## Considered but NOT tracked (permanent adaptations — do not revert)
 
 These look workaround-shaped but are correct-forever (or inherent), not "waiting on an upstream fix". Listed so they aren't re-litigated:

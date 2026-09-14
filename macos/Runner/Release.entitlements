@@ -7,9 +7,25 @@
 	    enabled in Release.
 	  * `com.apple.developer.applesignin` is Release-only (Apple's dev
 	    provisioning doesn't include the capability, so Debug omits it).
+	  * `com.apple.developer.associated-domains` is Release-only for the same
+	    reason — see the note on it below.
 -->
 <plist version="1.0">
 <dict>
+	<!-- Universal Links for shared record links, invoiceninja/flutter#144.
+	     Release-only, like applesignin above: Debug/Profile sign with Apple
+	     Development provisioning that doesn't carry the capability, and adding it
+	     there breaks `flutter run -d macos` for everyone. Nothing is lost — a
+	     universal link can't be exercised from a local debug build anyway, since
+	     it needs the AASA served from the claimed host.
+	     Ships together with AppDelegate's `continue userActivity` shim and must
+	     be reverted with it: the entitlement alone takes the click away from the
+	     browser and then does nothing, because app_links has no macOS
+	     universal-link handler. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:invoicing.co</string>
+	</array>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 	<key>com.apple.security.network.client</key>

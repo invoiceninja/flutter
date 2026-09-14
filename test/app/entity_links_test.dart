@@ -138,6 +138,183 @@ void main() {
     });
   });
 
+  group('appLinkBaseFrom', () {
+    test('keeps a plain origin, and everything Uri.origin normalises', () {
+      expect(appLinkBaseFrom('https://invoicing.co'), 'https://invoicing.co');
+      expect(
+        appLinkBaseFrom('  https://invoicing.co  '),
+        'https://invoicing.co',
+      );
+      expect(appLinkBaseFrom('HTTPS://INVOICING.CO'), 'https://invoicing.co');
+      // A default port is noise; a real one is part of the address.
+      expect(appLinkBaseFrom('https://acme.test:443'), 'https://acme.test');
+      expect(
+        appLinkBaseFrom('http://192.168.0.10:8080'),
+        'http://192.168.0.10:8080',
+      );
+    });
+
+    test(
+      'drops credentials — a base URL can carry them, a shared link must not',
+      () {
+        expect(appLinkBaseFrom('https://u:p@acme.test'), 'https://acme.test');
+      },
+    );
+
+    test('strips trailing slashes and a trailing /api/v1, in that order', () {
+      expect(appLinkBaseFrom('https://acme.test/'), 'https://acme.test');
+      expect(appLinkBaseFrom('https://acme.test///'), 'https://acme.test');
+      expect(appLinkBaseFrom('https://acme.test/api/v1'), 'https://acme.test');
+      expect(appLinkBaseFrom('https://acme.test/api/v1/'), 'https://acme.test');
+    });
+
+    test('keeps a sub-path install, minus its own /api/v1', () {
+      expect(
+        appLinkBaseFrom('https://acme.test/billing'),
+        'https://acme.test/billing',
+      );
+      expect(
+        appLinkBaseFrom('https://acme.test/billing/api/v1'),
+        'https://acme.test/billing',
+      );
+      // Not the FIRST /api/v1 anywhere in the string — that is connectBankUrl's
+      // rule, and it would eat a directory legitimately named that.
+      expect(
+        appLinkBaseFrom('https://acme.test/api/v1/billing'),
+        'https://acme.test/api/v1/billing',
+      );
+    });
+
+    test(
+      'a base whose own path ends in /app still resolves, via the LAST /app/',
+      () {
+        final link = buildEntityDeepLink(
+          handlers: _of(EntityType.client),
+          entityId: 'abc',
+          companyId: 'co1',
+          baseUrl: 'https://acme.test/app',
+        );
+        expect(link, 'https://acme.test/app/app/clients/abc?company=co1');
+        expect(
+          parseAppDeepLink(Uri.parse(link!), _registry())?.path,
+          '/clients/abc',
+        );
+      },
+    );
+
+    test('null for anything that cannot carry a link', () {
+      for (final raw in <String?>[
+        null,
+        '',
+        '   ',
+        'not a url',
+        'demo.invoiceninja.com', // scheme-less: Uri parses it as a bare path
+        'ftp://acme.test',
+        'invoiceninja://app',
+        'https://', // no host
+      ]) {
+        expect(appLinkBaseFrom(raw), isNull, reason: 'should reject $raw');
+      }
+    });
+  });
+
+  group('buildEntityDeepLink https form', () {
+    String? link(EntityType type, {required String? base, String id = 'abc'}) =>
+        buildEntityDeepLink(
+          handlers: _of(type),
+          entityId: id,
+          companyId: 'co1',
+          baseUrl: base,
+        );
+
+    test('builds <base>/app/<route>?company=<id>', () {
+      expect(
+        link(EntityType.client, base: 'https://invoicing.co'),
+        'https://invoicing.co/app/clients/abc?company=co1',
+      );
+    });
+
+    test('a settings-nested root keeps its whole path', () {
+      expect(
+        link(EntityType.bankAccount, base: 'https://invoicing.co'),
+        'https://invoicing.co/app/settings/bank_accounts/abc?company=co1',
+      );
+    });
+
+    test('an entity with no detail screen keeps its /edit suffix', () {
+      expect(
+        link(EntityType.transactionRule, base: 'https://invoicing.co'),
+        'https://invoicing.co/app/settings/bank_accounts/transaction_rules/abc/edit'
+        '?company=co1',
+      );
+    });
+
+    test('a sub-path install keeps its own path ahead of the prefix', () {
+      expect(
+        link(EntityType.client, base: 'https://acme.test/billing'),
+        'https://acme.test/billing/app/clients/abc?company=co1',
+      );
+    });
+
+    test('falls back to the custom scheme when the base cannot carry one', () {
+      // The no-session case, and the reason `baseUrl` is optional rather than
+      // required: a link is still better than no link.
+      expect(
+        link(EntityType.client, base: null),
+        'invoiceninja://app/clients/abc?company=co1',
+      );
+      expect(
+        link(EntityType.client, base: 'nonsense'),
+        'invoiceninja://app/clients/abc?company=co1',
+      );
+    });
+
+    test('the company id is encoded, not interpolated', () {
+      final built = buildEntityDeepLink(
+        handlers: _of(EntityType.client),
+        entityId: 'abc',
+        companyId: 'co 1&x',
+        baseUrl: 'https://invoicing.co',
+      );
+      expect(built, isNot(contains('co 1&x')));
+      expect(
+        parseAppDeepLink(Uri.parse(built!), _registry())?.companyId,
+        'co 1&x',
+      );
+    });
+
+    test(
+      'every guard that nulls the custom scheme nulls the https form too',
+      () {
+        for (final id in const ['', 'new', 'tmp_1f3c']) {
+          expect(
+            link(EntityType.client, base: 'https://invoicing.co', id: id),
+            isNull,
+            reason: 'id $id should not be linkable',
+          );
+        }
+        expect(
+          buildEntityDeepLink(
+            handlers: _of(EntityType.client),
+            entityId: 'abc',
+            companyId: '',
+            baseUrl: 'https://invoicing.co',
+          ),
+          isNull,
+        );
+        expect(
+          buildEntityDeepLink(
+            handlers: _of(EntityType.taxRate), // disabled
+            entityId: 'abc',
+            companyId: 'co1',
+            baseUrl: 'https://invoicing.co',
+          ),
+          isNull,
+        );
+      },
+    );
+  });
+
   group('parseAppDeepLink', () {
     final registry = _registry();
     DeepLinkTarget? parse(String s) => parseAppDeepLink(Uri.parse(s), registry);
@@ -362,27 +539,39 @@ void main() {
     test('every wired entity round-trips build -> parse unchanged', () {
       final registry = realRegistry();
       const id = 'AbC_123-x'; // every character class a server hashid can use
-      for (final module in kWiredEntityModules) {
-        final handlers = registry[module.type]!;
-        final link = buildEntityDeepLink(
-          handlers: handlers,
-          entityId: id,
-          companyId: 'co1',
-        );
-        expect(link, isNotNull, reason: '${module.type} produced no link');
-        final target = parseAppDeepLink(Uri.parse(link!), registry);
-        expect(
-          target?.path,
-          entityRecordPath(
-            routePath: handlers.routePath,
-            id: id,
-            hasDetailScreen: handlers.detailBuilder != null,
-          ),
-          reason:
-              '${module.type} (${handlers.routePath}) does not survive its own '
-              'link grammar — a route root has to stay path-safe',
-        );
-        expect(target?.companyId, 'co1');
+      // Both forms, and a sub-path install: the https one is what ships to a
+      // messenger, so a root that survives the custom scheme but not the https
+      // path would be a link that only breaks once it leaves the device.
+      const bases = <String?>[
+        null,
+        'https://invoicing.co',
+        'https://acme.test/billing',
+      ];
+      for (final base in bases) {
+        for (final module in kWiredEntityModules) {
+          final handlers = registry[module.type]!;
+          final link = buildEntityDeepLink(
+            handlers: handlers,
+            entityId: id,
+            companyId: 'co1',
+            baseUrl: base,
+          );
+          expect(link, isNotNull, reason: '${module.type} produced no link');
+          final target = parseAppDeepLink(Uri.parse(link!), registry);
+          expect(
+            target?.path,
+            entityRecordPath(
+              routePath: handlers.routePath,
+              id: id,
+              hasDetailScreen: handlers.detailBuilder != null,
+            ),
+            reason:
+                '${module.type} (${handlers.routePath}) does not survive its own '
+                'link grammar on base $base — a route root has to stay '
+                'path-safe',
+          );
+          expect(target?.companyId, 'co1');
+        }
       }
     });
 

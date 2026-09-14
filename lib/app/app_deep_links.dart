@@ -7,16 +7,24 @@ import 'package:admin/app/deep_link_router.dart';
 
 /// Bridges OS deep links into the app.
 ///
-/// The OS hands us `invoiceninja://…` URIs — a record link a colleague shared
-/// (`invoiceninja://app/clients/<id>?company=<id>`), or the calendar OAuth
-/// return the backend redirects to after consent
-/// (`invoiceninja://calendar_connection/complete?…handoff=…`). This class only
-/// *transports* them; [DeepLinkRouter] decides what each one means. Covers
-/// cold-start (the launching link) and warm (stream) deliveries.
+/// The OS hands us two shapes. A **record link** a colleague shared, which is
+/// now an ordinary `https://<instance>/app/clients/<id>?company=<id>` — a
+/// custom scheme is not hyperlinked by any messenger, so that is the only form
+/// that survives being sent to someone (invoiceninja/flutter#144) — and reaches
+/// us on the one host the manifest and entitlements claim. And the
+/// `invoiceninja://` scheme, still carrying the calendar OAuth return
+/// (`invoiceninja://calendar_connection/complete?…handoff=…`), every record
+/// link already in the wild, and the hand-off from the server's `/app/` bridge
+/// page on hosts that can never be verified.
 ///
-/// No-op on web, where there is no custom-scheme hop to intercept: an OAuth
-/// return is an ordinary route load, and a record link arrives by paste
-/// instead (the command palette accepts one).
+/// This class only *transports* them; [DeepLinkRouter] decides what each one
+/// means. Covers cold-start (the launching link) and warm (stream) deliveries —
+/// though on iOS the cold-start half depends on `SceneDelegate.swift` handing
+/// the launch URL over by hand; see docs/upstream-workarounds.md.
+///
+/// No-op on web, where there is no native hop to intercept: an OAuth return is
+/// an ordinary route load, and a record link arrives by paste instead (the
+/// command palette accepts one).
 class AppDeepLinks {
   AppDeepLinks(this._deepLinks) {
     if (kIsWeb) return;

@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// CI lint: every entity actions menu offers "Copy Link".
+/// CI lint: every entity actions menu offers the share-a-link action —
+/// labelled "Share Link" on touch and "Copy Link" on a pointer device.
 ///
 /// A shareable link to a record (invoiceninja/flutter#96) is only useful if it
 /// exists on every record, and one half of that is invisible to the compiler.

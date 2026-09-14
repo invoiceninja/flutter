@@ -130,6 +130,69 @@ void main() {
     expect(h.navigations, ['/clients/abc']);
   });
 
+  test('the https form navigates exactly like the custom scheme', () async {
+    final h = _Harness()..attach();
+    addTearDown(h.dispose);
+    // The session's own host — this is what a colleague on the same instance
+    // shares once Copy Link emits https.
+    await h.router.open(
+      Uri.parse('https://example.test/app/invoices/xyz?company=co1'),
+    );
+    expect(h.navigations, ['/invoices/xyz']);
+  });
+
+  testWidgets('a link from ANOTHER install never navigates, however well its '
+      'company id happens to resolve here — hashids are per-instance, so two '
+      'self-hosted servers number their companies identically', (tester) async {
+    final h = _Harness()..attach();
+    addTearDown(h.dispose);
+    await h.mountContext(tester);
+
+    await h.router.open(
+      Uri.parse('https://elsewhere.test/app/clients/abc?company=co1'),
+    );
+
+    expect(h.navigations, isEmpty);
+    expect(h.toasts.toasts, hasLength(1));
+    h.toasts.clearAll();
+  });
+
+  testWidgets('…and the bridge page\'s custom-scheme hand-off is caught by the '
+      'same check, which is the only thing that can see it', (tester) async {
+    final h = _Harness()..attach();
+    addTearDown(h.dispose);
+    await h.mountContext(tester);
+
+    // `server=` is what the server-side bridge forwards; without it a custom
+    // scheme URL says nothing about where it came from.
+    await h.router.open(
+      Uri.parse(
+        'invoiceninja://app/clients/abc?company=co1&server=https://elsewhere.test',
+      ),
+    );
+    expect(h.navigations, isEmpty);
+    expect(h.toasts.toasts, hasLength(1));
+    h.toasts.clearAll();
+
+    // The same instance, spelled with a trailing slash and an /api/v1 suffix
+    // the way a user may have typed it at login, still matches.
+    await h.router.open(
+      Uri.parse(
+        'invoiceninja://app/clients/abc?company=co1&server=https://example.test/api/v1/',
+      ),
+    );
+    expect(h.navigations, ['/clients/abc']);
+  });
+
+  test('a plain custom-scheme link is untouched by the origin check — it '
+      'carries no origin, and refusing every one of them would break every '
+      'link already in the wild', () async {
+    final h = _Harness()..attach();
+    addTearDown(h.dispose);
+    await h.router.open(Uri.parse('invoiceninja://app/clients/abc'));
+    expect(h.navigations, ['/clients/abc']);
+  });
+
   test('a cold-start link delivered twice is handled once — every native '
       'plugin replays the launch link into the stream AND returns it from '
       'getInitialLink, and the bridge subscribes to both', () async {

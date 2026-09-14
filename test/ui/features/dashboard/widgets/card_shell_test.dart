@@ -16,9 +16,10 @@ import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 /// under test here.
 void main() {
   /// [width] drives `InSpacing`, which reads the **window**, so a phone-width
-  /// view is what puts the header band near the floor: 40 px with a title
-  /// alone, 45 with a `DashboardCardFooterLink` beside it (16/12 and 53 at the
-  /// 600 px break). Those five px are the whole subject of this file.
+  /// view is what puts the header band near the floor. Measured: below 600 the
+  /// vertical insets are 12/8 and the band is 40 px with a title alone, 45 with
+  /// a `DashboardCardFooterLink` beside it; at >= 600 they are 16/12 and the
+  /// band is 48 / 53. Those five px are the whole subject of this file.
   Future<void> pump(
     WidgetTester tester, {
     VoidCallback? onHeaderTap,
@@ -110,6 +111,12 @@ void main() {
     // `InSizes.touchTarget`'s own doc says it is applied only when
     // `Env.isTouchPrimary`; a pointer platform keeps its denser metrics, so the
     // same shell that measures 44 above must measure its natural 40 here.
+    //
+    // This pins the floor's *defensive* branch — it is not a statement that a
+    // pointer platform is a supported place to pass `onHeaderTap`. It is not:
+    // a host inside a `SelectionArea` loses click-to-place to the detector,
+    // which is why `EntityCommentsCard` gates the callback on
+    // `Env.isTouchPrimary` before it ever reaches this shell.
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     try {
       await pump(tester, onHeaderTap: () {});
@@ -128,24 +135,32 @@ void main() {
     // It carries a tap action with neither a role nor a label, so announcing it
     // would give a screen reader a second, silent actionable for one
     // destination. The trailing link stays the only announced target.
+    // `try`/`finally`, not `addTearDown`: `_endOfTestVerifications` asserts every
+    // `SemanticsHandle` is disposed at the end of the test *body*, which runs
+    // before teardowns — so an `addTearDown(handle.dispose)` fails the test it
+    // was meant to tidy. Disposing inline still leaks on a failed expect, hence
+    // the `finally`.
     final handle = tester.ensureSemantics();
-    await pump(tester, onHeaderTap: () {}, trailing: link());
-    expect(
-      tester
-          .getSemantics(find.text('View All'))
-          .getSemanticsData()
-          .hasAction(SemanticsAction.tap),
-      isTrue,
-      reason: 'the link stays the announced, activatable target',
-    );
-    expect(
-      tester
-          .getSemantics(find.text('Comments'))
-          .getSemanticsData()
-          .hasAction(SemanticsAction.tap),
-      isFalse,
-      reason: 'the band announces nothing, so the title node gains no action',
-    );
-    handle.dispose();
+    try {
+      await pump(tester, onHeaderTap: () {}, trailing: link());
+      expect(
+        tester
+            .getSemantics(find.text('View All'))
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+        reason: 'the link stays the announced, activatable target',
+      );
+      expect(
+        tester
+            .getSemantics(find.text('Comments'))
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isFalse,
+        reason: 'the band announces nothing, so the title node gains no action',
+      );
+    } finally {
+      handle.dispose();
+    }
   });
 }

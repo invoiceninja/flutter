@@ -243,8 +243,8 @@ void main() {
 
     testWidgets('a single comment shows no link', (tester) async {
       await pump(tester, vmWithComments(1), onViewAll: () {});
-      expect(find.text('Will pay Friday'), findsNothing);
       expect(find.text('Comments'), findsOneWidget);
+      expect(find.text('note 0'), findsOneWidget);
       expect(find.text('View All'), findsNothing);
     });
 

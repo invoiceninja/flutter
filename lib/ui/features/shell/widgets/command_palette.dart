@@ -28,10 +28,12 @@ const String kDeepLinkSearchGroup = 'link';
 /// A record deep link the user pasted into the palette, as a single hit — or
 /// null when [query] isn't one.
 ///
-/// This is the only way to follow a shared link on **web and Linux**, where
-/// the OS never hands the app a custom-scheme URI, and the fallback anywhere a
-/// messenger renders `invoiceninja://…` as inert text rather than a tappable
-/// link. Pure + unit-tested.
+/// Accepts both shapes a shared link can take — the https form Copy/Share
+/// emits and the older `invoiceninja://` one. It is the only way to follow
+/// either on **web and Linux**, where the OS never hands the app a link at all,
+/// and the way in anywhere the OS declined to claim one: an unverified host,
+/// a messenger's in-app browser, or a link someone pasted as text.
+/// Pure + unit-tested.
 SearchResult? deepLinkSearchHit(String query, EntityRegistry registry) {
   final raw = query.trim();
   if (raw.isEmpty) return null;

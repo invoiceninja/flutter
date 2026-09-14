@@ -62,11 +62,15 @@ class DeepLinkRouter {
   /// URIs currently queued on [_inFlight] or being handled.
   ///
   /// Every native plugin hands a cold-start link over **twice** — Android,
-  /// iOS, macOS and Windows all replay the cached `initialLink` into the event
+  /// macOS and Windows all replay the cached `initialLink` into the event
   /// stream on `onListen` *and* return it from `getInitialLink()`, and the
-  /// bridge subscribes to both. A duplicate `go()` was harmless for the
-  /// calendar return, but a record link can switch company, and running that
-  /// twice means two unsaved-changes prompts and two pending-outbox prompts.
+  /// bridge subscribes to both. (iOS delivers it once, and only because
+  /// `SceneDelegate` hands the launch URL to the plugin by hand: under the
+  /// scene lifecycle UIKit routes it somewhere app_links does not listen.)
+  ///
+  /// A duplicate `go()` was harmless for the calendar return, but a record link
+  /// can switch company, and running that twice means two unsaved-changes
+  /// prompts and two pending-outbox prompts.
   ///
   /// Scoped to what is in flight rather than to history, deliberately: the
   /// command palette feeds the same [open], and there a repeat is an ordinary
@@ -169,6 +173,25 @@ class DeepLinkRouter {
     }
 
     final session = _session.value;
+
+    // A link from a *different* install must not be followed, and until the
+    // https form shipped there was no way to tell: company hashids are
+    // per-instance and derived from sequential ids, so two self-hosted servers
+    // with default salts number their companies identically. Following one
+    // would silently open the wrong record — the app's own `?company=` guard
+    // can't see it, because the id genuinely resolves here.
+    //
+    // It is reachable by construction: the manifest claims the hosted host for
+    // *every* install, so a self-hosted user is handed their hosted colleague's
+    // links, and the bridge page hands the custom-scheme form to anyone.
+    final linkHost = _instanceHostFrom(uri);
+    final ourHost = _hostOf(appLinkBaseFrom(session?.baseUrl));
+    if (linkHost != null && ourHost != null && linkHost != ourHost) {
+      _log.warning('deep link for another server: $linkHost (we are $ourHost)');
+      _toastKey('link_other_server', isError: true);
+      return;
+    }
+
     final companyId = target.companyId;
     final needsSwitch =
         session != null &&
@@ -218,6 +241,31 @@ class DeepLinkRouter {
     // open dirty edit form still gets its prompt: the edit routes carry
     // `onExit: _confirmExitIfDirty`, which fires on this `go()`.
     go(target.path);
+  }
+
+  /// The host of an already-normalised base URL, or null when there isn't one
+  /// — which is every state before a session exists, and is why a missing
+  /// session simply skips the comparison rather than refusing the link.
+  String? _hostOf(String? base) {
+    if (base == null) return null;
+    final host = Uri.tryParse(base)?.host ?? '';
+    return host.isEmpty ? null : host.toLowerCase();
+  }
+
+  /// The instance a link belongs to, or null when it doesn't say.
+  ///
+  /// An https link says it in its host. The custom scheme has no origin at all,
+  /// so the server's bridge page forwards `server=<its own origin>` — that is
+  /// the only way the self-hosted path (browser → bridge → `invoiceninja://`)
+  /// can be told apart, and it is exactly the path where two installs are most
+  /// likely to collide. The value is only ever *compared*, never navigated to,
+  /// so a forged one is inert.
+  String? _instanceHostFrom(Uri uri) {
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme == 'http' || scheme == 'https') {
+      return uri.host.isEmpty ? null : uri.host.toLowerCase();
+    }
+    return _hostOf(appLinkBaseFrom(uri.queryParameters['server']));
   }
 
   /// Signed in, session materialised, and past the biometric lock. Reads all

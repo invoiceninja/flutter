@@ -1546,12 +1546,12 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Real-time WebSocket / Pusher notifications | ✅ | ✅ | ❌ |  | |
 | Live UI refresh on server-side change | ✅ | ✅ | ❌ |  | |
 | Push notifications (FCM / APNs) | 🟡 | ✅ | ❌ |  | |
-| Deep links (open a record from a shared `invoiceninja://` link) | — | ❌ | ✅ |  | v1 has no incoming-link handling at all — its only URL scheme is the Google OAuth callback |
-| Copy Link on a record — shareable deep link, auto-switches company | — | — | ✅ | | |
+| Deep links (open a record from a shared link — https or `invoiceninja://`) | — | ❌ | ✅ |  | v1 has no incoming-link handling at all — its only URL scheme is the Google OAuth callback |
+| Copy Link on a record — shareable deep link, auto-switches company | — | — | ✅ | | https link (`/app/…`) on touch shares via the system sheet; #144 |
 | View client / vendor from a record's actions menu | ✅ | ✅ | ✅ | | Replaced the narrow row's tappable client name (#128); permission-gated, excluded from edit screens |
-| Paste a record link into the command palette (covers web / Linux / non-linkifying messengers) | — | — | ✅ | | |
+| Paste a record link into the command palette (covers web / Linux) | — | — | ✅ | | both link shapes |
 | Detail screen hydrates an uncached record on arrival (deep link / dashboard tap / restored route) | — | — | ✅ | | |
-| Native share sheet | — | ✅ | 🟡 | ✅ | v2: PDFs only, via `Printing.sharePdf` — no `share_plus` |
+| Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
 | Responsive layout — mobile | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — tablet | ✅ | ✅ | ✅ | ✅ | |
 | Responsive layout — desktop | ✅ | ✅ | ✅ | ✅ | |
@@ -1604,9 +1604,9 @@ Field-level breakdown of every option under each advanced settings panel. Source
 |---|---|---|---|---|---|
 | Biometric lock (Touch ID / Face ID / fingerprint) | — | ✅ | ✅ | ✅ | |
 | Push notifications (FCM / APNs) | — | ✅ | ❌ |  | |
-| Native share sheet | — | ✅ | 🟡 | ✅ | v2: PDFs only, via `Printing.sharePdf` |
-| OS deep links (custom scheme) | — | ❌ | ✅ | ✅ | `invoiceninja://app/…`; v1 registers a scheme for Google OAuth only |
-| Universal / App Links (https) | — | ❌ | ❌ | | needs server-hosted `.well-known` + an associated-domains entitlement |
+| Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
+| OS deep links (custom scheme) | — | ❌ | ✅ | ✅ | `invoiceninja://app/…`, now the fallback behind the https form; v1 registers a scheme for Google OAuth only |
+| Universal / App Links (https) | — | ❌ | 🟡 | | client side done (`/app/` claim + shims); 🟡 until the server's `.well-known` routes deploy and the Apple capability is enabled — see `APP_LINKS.md` |
 | Native window-state persistence (macOS + Windows) | — | ❌ | ✅ | ✅ | |
 | Frameless app-painted title bar (macOS + Windows + Linux) | — | ❌ | ✅ | | nav arrows share the window caption band; band follows the light/dark theme |
 | OAuth deep-link handler (callback URL) | — | ✅ | ✅ | ✅ | |

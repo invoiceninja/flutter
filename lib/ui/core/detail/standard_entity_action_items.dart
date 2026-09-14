@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:admin/app/env.dart';
 import 'package:admin/app/mdi_icons.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
@@ -177,9 +178,14 @@ EntityActionItem<A> pdfGroupActionItem<A>({
   children: children,
 );
 
-/// "Copy Link" — puts a shareable `invoiceninja://` deep link to this record
-/// on the clipboard, so a colleague can open it straight on the record
-/// instead of being told an id to search for (invoiceninja/flutter#96).
+/// "Share Link" on touch, "Copy Link" everywhere else — hands a colleague a
+/// link that opens straight on the record instead of an id to search for
+/// (invoiceninja/flutter#96).
+///
+/// The label follows what the tap actually does: `copyEntityLink` raises the
+/// system share sheet on touch and writes the clipboard on pointer devices
+/// (invoiceninja/flutter#144). Keeping one action rather than two is why the
+/// `copyLink` name stays on both sides — see that function's doc.
 ///
 /// Returns null — i.e. the item doesn't exist — for a record that has no
 /// shareable identity: a create form (empty id) or an offline create still
@@ -199,7 +205,7 @@ EntityActionItem<A>? copyLinkActionItem<A>({
     kind: kind,
     // `Icons.link`, not `Icons.copy_outlined` — that one is Clone's.
     icon: Icons.link,
-    label: context.tr('copy_link'),
+    label: context.tr(Env.isTouchPrimary ? 'share_link' : 'copy_link'),
     enabled: true,
     onTap: onTap,
   );

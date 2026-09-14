@@ -44,7 +44,9 @@ bool entityTypeHasRecordRoute(EntityType type) =>
 const String kAppLinkScheme = 'invoiceninja';
 
 /// Constant host for *in-app route* links, e.g.
-/// `invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq`.
+/// `invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq`, and — as
+/// [kAppLinkPathPrefix] — the first path segment of the https form,
+/// `https://invoicing.co/app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq`.
 ///
 /// The whole route lives in the URI **path**, never the host, and that is
 /// load-bearing: `Uri.parse` lower-cases a reg-name host (`_normalizeRegName`
@@ -57,6 +59,25 @@ const String kAppLinkScheme = 'invoiceninja';
 /// Android keep host-pinned intent filters instead of claiming the whole
 /// scheme.
 const String kAppLinkHost = 'app';
+
+/// The https form's path prefix — the same segment as [kAppLinkHost], derived
+/// from it so the two can never drift.
+///
+/// It is what makes the OS claim **scoped**: Android matches an `<intent-filter>`
+/// on scheme/host/path, so `pathPrefix="/app/"` claims shared links and nothing
+/// else on the host. `invoicing.co` also serves the client portal and payment
+/// pages, and a host-wide claim would hijack them.
+const String kAppLinkPathPrefix = '/$kAppLinkHost';
+
+/// The one host whose https links the OS can hand us: Android's
+/// `<intent-filter>` and Apple's `applinks:` entitlement both need a literal at
+/// build time, so a self-hosted origin can never be verified.
+///
+/// Those links still work — they route through the server's `/app/` bridge
+/// page, which offers the `invoiceninja://` launch and then falls through to the
+/// web client. See `APP_LINKS.md`. Pinned against `Env.hostedApiUrl`, the
+/// manifest and both entitlements by `test/lint/universal_links_test.dart`.
+const String kHostedAppLinkHost = 'invoicing.co';
 
 /// OAuth-return host used by the calendar connection handshake.
 const String kCalendarLinkHost = 'calendar_connection';
@@ -78,8 +99,62 @@ String entityRecordPath({
   required bool hasDetailScreen,
 }) => hasDetailScreen ? '$routePath/$id' : '$routePath/$id/edit';
 
+/// The https origin (plus any sub-path) a shareable link is built on, or null
+/// when [baseUrl] can't carry one.
+///
+/// Named *base* rather than *origin* because it keeps a sub-path: a
+/// self-hosted install at `https://example.com/invoiceninja` is real, and
+/// [parseAppDeepLink] already accepts that shape.
+///
+/// `Uri.origin` does most of the work and is stdlib-tested — it lower-cases
+/// scheme and host, **drops `userInfo`** (a credentialed base URL must never
+/// reach the clipboard), drops a default port while keeping a non-default one,
+/// and brackets IPv6 — and it throws only for the two cases rejected above it.
+///
+/// Deliberately NOT `canonicalBaseUrl` (`lib/data/repositories/auth/`): that is
+/// a data-layer file, so importing it would drag the data layer into this leaf,
+/// and its contract is tuned so that a false positive wipes a database — the
+/// wrong bias for a URL someone is about to share. Nor `connectBankUrl`, which
+/// strips the **first** `/api/v1` anywhere in the string rather than a trailing
+/// segment.
+///
+/// `http` is accepted: LAN self-hosting is real (`resolveSelfHostedBaseUrl`
+/// permits it), and such a link can never be an App Link anyway, which costs
+/// nothing because its host is unverifiable either way.
+String? appLinkBaseFrom(String? baseUrl) {
+  final raw = baseUrl?.trim() ?? '';
+  if (raw.isEmpty) return null;
+  final uri = Uri.tryParse(raw);
+  if (uri == null) return null;
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme != 'http' && scheme != 'https') return null;
+  if (uri.host.isEmpty) return null;
+  var path = _withoutTrailingSlashes(uri.path);
+  const apiSuffix = '/api/v1';
+  if (path.toLowerCase().endsWith(apiSuffix)) {
+    path = _withoutTrailingSlashes(
+      path.substring(0, path.length - apiSuffix.length),
+    );
+  }
+  return '${uri.origin}$path';
+}
+
+String _withoutTrailingSlashes(String path) {
+  var end = path.length;
+  while (end > 0 && path[end - 1] == '/') {
+    end--;
+  }
+  return path.substring(0, end);
+}
+
 /// Shareable deep link to one record, or null when the record isn't
 /// linkable.
+///
+/// Two shapes, one grammar. With a usable [baseUrl] this is the **https** form,
+/// `<base>/app/<route>?company=<id>` — the only kind a messenger will linkify,
+/// which is the whole of invoiceninja/flutter#144, and the only kind an OS can
+/// hand back to the app. Without one it falls back to the `invoiceninja://`
+/// form, which is what every link already in the wild looks like.
 ///
 /// Null for a sync-only / `disabled` / routeless entity, for an empty id, for
 /// a `tmp_` id (a local-only offline-create id means nothing on another
@@ -94,6 +169,7 @@ String? buildEntityDeepLink({
   required EntityHandlers? handlers,
   required String entityId,
   required String companyId,
+  String? baseUrl,
 }) {
   if (handlers == null ||
       handlers.disabled ||
@@ -108,15 +184,30 @@ String? buildEntityDeepLink({
   if (!_isPlausibleRecordId(id)) return null;
   final company = companyId.trim();
   if (company.isEmpty) return null;
+  final route = entityRecordPath(
+    routePath: handlers.routePath,
+    id: id,
+    hasDetailScreen: handlers.detailBuilder != null,
+  );
+  final query = {'company': company};
+  final base = appLinkBaseFrom(baseUrl);
+  if (base != null) {
+    // Through `Uri.replace`, never interpolation: it percent-encodes the id and
+    // keeps a sub-path install's own path ahead of the prefix. `Uri.resolve`
+    // would eat that path's last segment instead.
+    final origin = Uri.parse(base);
+    return origin
+        .replace(
+          path: '${origin.path}$kAppLinkPathPrefix$route',
+          queryParameters: query,
+        )
+        .toString();
+  }
   return Uri(
     scheme: kAppLinkScheme,
     host: kAppLinkHost,
-    path: entityRecordPath(
-      routePath: handlers.routePath,
-      id: id,
-      hasDetailScreen: handlers.detailBuilder != null,
-    ),
-    queryParameters: {'company': company},
+    path: route,
+    queryParameters: query,
   ).toString();
 }
 
@@ -155,9 +246,12 @@ String? parseCalendarCompleteLink(Uri uri) {
 ///   * `invoiceninja://app/<route>` — canonical.
 ///   * `invoiceninja:/app/<route>` — empty authority; some senders normalise
 ///     `scheme://x` to `scheme:/x`.
-///   * `https://<host>/…/app/<route>` — defensive, so that turning on
-///     universal links later is a manifest + entitlement + `.well-known`
-///     change with no Dart change.
+///   * `https://<host>/…/app/<route>` — what [buildEntityDeepLink] now emits,
+///     and what the OS hands back for a verified App Link / Universal Link.
+///     The host is deliberately not checked here: only [kHostedAppLinkHost] can
+///     ever be verified, but a self-hosted link reaches us through that
+///     instance's own bridge page, and `DeepLinkRouter` is where a link
+///     belonging to another server is caught.
 ///
 /// `<route>` must be `<routePath>`, `<routePath>/<id>` or
 /// `<routePath>/<id>/edit` for a registered, non-`disabled` entity.
@@ -251,10 +345,15 @@ String? _appRouteFrom(Uri uri) {
   return trimmed;
 }
 
-/// The part of [path] after its last `/app` segment, or null when it has none.
+/// The part of [path] after its last [kAppLinkPathPrefix] segment, or null when
+/// it has none.
+///
+/// The **last**, so a sub-path install (`https://example.com/app/app/clients/x`,
+/// for a site that itself lives at `/app`) resolves to the route rather than to
+/// the host's own prefix.
 String? _afterAppSegment(String path) {
-  if (path == '/app') return '/';
-  const marker = '/app/';
+  if (path == kAppLinkPathPrefix) return '/';
+  const marker = '$kAppLinkPathPrefix/';
   final i = path.lastIndexOf(marker);
   if (i < 0) return null;
   return path.substring(i + marker.length - 1);

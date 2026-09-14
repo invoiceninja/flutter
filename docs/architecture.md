@@ -76,9 +76,15 @@ Two sources feed one entry point, `Services.deepLinks.open(Uri)`
 palette — which is the only path on web and Linux, where the OS never hands the
 app a custom-scheme URI.
 
-`open` validates the URI against the entity registry, holds it if the app is
-signed out or biometric-locked, switches company through the same guarded
-helper the company picker uses, and only then `go()`s to the record. The link
+The OS hands over two shapes now: the `invoiceninja://` scheme it always did,
+and — on the one host the manifest and entitlements can claim — the `https`
+links Copy/Share actually emits (invoiceninja/flutter#144). Both reach the same
+entry point.
+
+`open` validates the URI against the entity registry, refuses one that names a
+different instance, holds it if the app is signed out or biometric-locked,
+switches company through the same guarded helper the company picker uses, and
+only then `go()`s to the record. The link
 grammar, the reasons behind the constant `app` host, and the five silent
 failure modes are in CLAUDE.md § Deep links; the parse/build helpers are a leaf
 (`lib/app/entity_links.dart`) so they unit-test without a widget tree.

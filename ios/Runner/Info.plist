@@ -78,7 +78,14 @@
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>
-		<key>CFBundleURLTypes</key>
+		<!-- app_links owns deep links; Flutter's built-in handling defaults to YES
+	     when this key is absent and would push the raw URI at go_router as well,
+	     bypassing DeepLinkRouter's validation, company switch and biometric hold
+	     (and, for an https link, landing on the route-error screen). The
+	     SceneDelegate shim is what keeps cold starts working with it off. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
+	<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
 				<key>CFBundleURLName</key>

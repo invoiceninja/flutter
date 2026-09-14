@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcuts/shortcut_catalog.dart';
+import 'package:admin/domain/leader_shortcuts.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/widgets/key_cap.dart';
@@ -54,7 +55,7 @@ class _KeyboardShortcutsDialog extends StatelessWidget {
           ...rowsFor(ShortcutGroup.create),
           _LeaderRow(
             leader: 'G',
-            targets: ['D', 'C', 'I', 'P', 'S', 'T'],
+            targets: kLeaderTargets,
             description: context.tr('jump_to_section'),
           ),
         ],
@@ -345,7 +346,7 @@ class _LeaderRow extends _RowSpec {
   });
 
   final String leader;
-  final List<String> targets;
+  final List<LeaderTarget> targets;
   @override
   final String description;
 }
@@ -411,8 +412,8 @@ class _RowView extends StatelessWidget {
         ],
       ),
       _LeaderRow r => Wrap(
-        spacing: 4,
-        runSpacing: 4,
+        spacing: 10,
+        runSpacing: 6,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           KeyCap(label: r.leader),
@@ -423,17 +424,16 @@ class _RowView extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: tokens.ink3),
             ),
           ),
-          for (var i = 0; i < r.targets.length; i++) ...[
-            if (i > 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Text(
-                  context.tr('or'),
-                  style: TextStyle(fontSize: 11, color: tokens.ink3),
-                ),
-              ),
-            KeyCap(label: r.targets[i]),
-          ],
+          // Each destination carries its own name. A bare `D or C or I or …`
+          // chain was readable at six letters and is not at fifteen — and it
+          // never said which letter went where, which is the one thing this
+          // row exists to teach.
+          for (final target in r.targets)
+            KeyCapRow(
+              keys: [target.key],
+              label: context.tr(target.labelKey),
+              dense: true,
+            ),
         ],
       ),
     };

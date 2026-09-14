@@ -19,6 +19,65 @@ import 'package:admin/utils/formatting.dart';
 ///
 /// Layout switches at 1100 px: horizontal row with vertical dividers vs
 /// 2×2 grid on narrow widths.
+/// A KPI number with a small muted line under it — how the plan sits beside the
+/// actual without buying a second row of cells. `KpiStripLayout` is two cells
+/// per row below 1100 px, so a phone pays a whole extra row for a fifth cell;
+/// stacking costs one 11-px line instead. `ProjectProgressCard._HeroStrip`
+/// makes the same trade for the same reason.
+class _StackedValue extends StatelessWidget {
+  const _StackedValue({
+    required String this.primaryText,
+    required this.primaryColor,
+    required this.secondary,
+    required this.theme,
+  }) : primaryWidget = null;
+
+  const _StackedValue.widget({
+    required Widget primary,
+    required this.secondary,
+    required this.theme,
+  }) : primaryWidget = primary,
+       primaryText = null,
+       primaryColor = null;
+
+  final String? primaryText;
+  final Color? primaryColor;
+  final Widget? primaryWidget;
+  final ({String text, Color color})? secondary;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = secondary;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        primaryWidget ??
+            Text(
+              primaryText!,
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: primaryColor,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+        if (sub != null)
+          Text(
+            sub.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: sub.color,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class TaskDetailKpiStrip extends StatelessWidget {
   const TaskDetailKpiStrip({
     super.key,
@@ -61,7 +120,15 @@ class TaskDetailKpiStrip extends StatelessWidget {
     // `billable` here would freeze the duration for a non-billable timer now
     // that the static value is the all-entries `loggedDuration`.
     final hasRunning = runningEntry?.start != null;
-    final durationText = formatDuration(t.loggedDuration(), compactDays: true);
+    // WORKED time, not `loggedDuration()`: a stopped entry that ends in the
+    // future is a booking, and totalling it here would claim hours nobody has
+    // put in — the display half of what `Task.billableDuration` now refuses to
+    // invoice. Identical to `loggedDuration()` for a task with nothing booked,
+    // which is almost all of them.
+    final now = DateTime.now();
+    final worked = t.workedTime(now);
+    final booked = t.bookedTime(now);
+    final durationText = formatDuration(worked, compactDays: true);
 
     final rateStyle = theme.textTheme.titleLarge
         ?.copyWith(
@@ -82,9 +149,6 @@ class TaskDetailKpiStrip extends StatelessWidget {
             ),
           );
 
-    final entryCount = t.timeLog.length;
-    final entryCountText = entryCount == 0 ? '—' : '$entryCount';
-
     // Duration value — accent while a timer runs so the running state reads
     // instantly; the cell still ticks live via RunningDurationLabel.
     final Widget durationValue = hasRunning
@@ -101,28 +165,40 @@ class TaskDetailKpiStrip extends StatelessWidget {
         : Text(
             durationText,
             style: theme.textTheme.titleLarge?.copyWith(
-              color: t.loggedDuration() == Duration.zero
-                  ? tokens.ink3
-                  : tokens.ink,
+              color: worked == Duration.zero ? tokens.ink3 : tokens.ink,
               fontWeight: FontWeight.w600,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           );
 
     final restCells = <Widget>[
-      KpiCell(label: context.tr('rate'), value: rateValue, tokens: tokens),
-      KpiCell(
-        label: context.tr('entries'),
-        value: Text(
-          entryCountText,
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: entryCountText == '—' ? tokens.ink3 : tokens.ink,
-            fontWeight: FontWeight.w600,
-            fontFeatures: const [FontFeature.tabularFigures()],
+      // `Estimated` earns a cell only when the company uses it — the 2026-08-31
+      // field is null on every task that predates it, and a labelled dash on
+      // "Estimated" reads as "this job was budgeted at nothing" (the #113 rule:
+      // the word is what gets read, not the value). It takes the slot the
+      // entry COUNT used to hold, which the Time Log card one scroll down
+      // states exactly, by listing them.
+      if (t.estimatedSeconds > 0)
+        KpiCell(
+          label: context.tr('estimated_duration'),
+          value: _StackedValue(
+            primaryText: formatDuration(
+              Duration(seconds: t.estimatedSeconds),
+              compactDays: true,
+              showSeconds: false,
+            ),
+            primaryColor: tokens.ink,
+            secondary: _estimateDelta(
+              context,
+              tokens,
+              worked,
+              t.estimatedSeconds,
+            ),
+            theme: theme,
           ),
+          tokens: tokens,
         ),
-        tokens: tokens,
-      ),
+      KpiCell(label: context.tr('rate'), value: rateValue, tokens: tokens),
       KpiCell(
         label: context.tr('status'),
         value: t.statusId.isEmpty
@@ -145,6 +221,19 @@ class TaskDetailKpiStrip extends StatelessWidget {
       ),
     ];
 
+    final Widget durationCellValue = booked == Duration.zero
+        ? durationValue
+        : _StackedValue.widget(
+            primary: durationValue,
+            secondary: (
+              text:
+                  '+${formatDuration(booked, compactDays: true, showSeconds: false)} '
+                  '${context.tr('booked').toLowerCase()}',
+              color: tokens.ink3,
+            ),
+            theme: theme,
+          );
+
     return DashboardCardShell(
       padding: EdgeInsets.symmetric(
         horizontal: InSpacing.lg(context),
@@ -164,12 +253,12 @@ class TaskDetailKpiStrip extends StatelessWidget {
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Flexible(child: durationValue),
+                      Flexible(child: durationCellValue),
                       const SizedBox(width: InSpacing.sm),
                       InlineTimerToggleButton(task: t, companyId: companyId),
                     ],
                   )
-                : durationValue,
+                : durationCellValue,
             tokens: tokens,
           );
           // Keeps its own LayoutBuilder — unlike the other strips, the first
@@ -181,4 +270,32 @@ class TaskDetailKpiStrip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Worked time measured against the estimate: what's left, or how far past.
+///
+/// Null when nothing has been worked yet — "3 h remaining" under an untouched
+/// estimate just restates the estimate, and the strip is dense enough.
+({String text, Color color})? _estimateDelta(
+  BuildContext context,
+  InTheme tokens,
+  Duration worked,
+  int estimatedSeconds,
+) {
+  if (worked == Duration.zero) return null;
+  final estimate = Duration(seconds: estimatedSeconds);
+  if (worked >= estimate) {
+    final over = worked - estimate;
+    if (over == Duration.zero) return null;
+    return (
+      text: '+${formatDuration(over, compactDays: true, showSeconds: false)}',
+      color: tokens.overdue,
+    );
+  }
+  return (
+    text:
+        '${formatDuration(estimate - worked, compactDays: true, showSeconds: false)} '
+        '${context.tr('remaining').toLowerCase()}',
+    color: tokens.ink3,
+  );
 }

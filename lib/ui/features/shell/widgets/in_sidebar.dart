@@ -13,6 +13,7 @@ import 'package:admin/data/models/domain/saved_view.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/leader_shortcuts.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/domain/sidebar_menu.dart';
 import 'package:admin/l10n/localization.dart';
@@ -1135,7 +1136,7 @@ class _InSidebarState extends State<InSidebar> {
       countLabel: countLabel,
       onTap: onTap,
       trailingHover: hoverAdd,
-      leaderKey: branch == null ? null : _entityLeaderKey(handlers.type),
+      leaderKey: branch == null ? null : leaderKeyForEntity(handlers.type),
     );
 
     final badge = handlers.badgeStream;
@@ -1219,7 +1220,7 @@ class _InSidebarState extends State<InSidebar> {
       trailing: trailing,
       trailingHover: trailingHover,
       onTap: branch == null ? null : () => widget.onSelectBranch(branch),
-      leaderKey: branch == null ? null : _fixedLeaderKey(kind),
+      leaderKey: branch == null ? null : leaderKeyForFixed(kind),
     );
     if (badgeStream == null) return buildTile();
     final companyId = services.auth.session.value?.currentCompanyId ?? '';
@@ -1258,36 +1259,6 @@ class _CachedStream<T> {
   void close() {
     unawaited(_sub.cancel());
     unawaited(_controller.close());
-  }
-}
-
-/// The `G`-leader second key for the sidebar entity rows that have one
-/// (mirrors `_leaderTarget` in scaffold_with_nav.dart). Null → no leader
-/// jump, so the row shows no shortcut hint.
-String? _entityLeaderKey(EntityType type) {
-  switch (type) {
-    case EntityType.client:
-      return 'C';
-    case EntityType.invoice:
-      return 'I';
-    case EntityType.product:
-      return 'P';
-    case EntityType.task:
-      return 'T';
-    default:
-      return null;
-  }
-}
-
-/// The `G`-leader second key for the fixed sidebar rows that have one.
-String? _fixedLeaderKey(FixedBranchKind kind) {
-  switch (kind) {
-    case FixedBranchKind.dashboard:
-      return 'D';
-    case FixedBranchKind.settings:
-      return 'S';
-    default:
-      return null;
   }
 }
 

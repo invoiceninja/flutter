@@ -16,10 +16,12 @@ import 'package:admin/app/shortcuts/shortcut_catalog.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/leader_shortcuts.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
+import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/offline_banner.dart';
 import 'package:admin/ui/features/settings/views/advanced/debug_panel_section.dart';
@@ -63,6 +65,13 @@ import 'package:admin/ui/features/tasks/widgets/running_timer_pill.dart';
 /// character, layout-independently — `Shift+/` on US, `Shift+Comma` on
 /// AZERTY, etc. Letter activators (`⌘B`, `G + letter`) use
 /// [SingleActivator] on logical keys (no layout ambiguity).
+///
+/// All of it — the map, the leader, and every per-screen `Shortcuts` below —
+/// is reachable only while primary focus stays at or below the shell's own
+/// focus node, which is why the whole subtree is wrapped in a
+/// [FocusOwnerKeeper]. Read that class before changing anything about focus
+/// here: the failure it prevents is app-wide, silent, and un-recoverable
+/// without a mouse click.
 class ScaffoldWithNav extends StatefulWidget {
   const ScaffoldWithNav({required this.navigationShell, super.key});
 
@@ -79,6 +88,15 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
   // 1.5 s to complete the sequence before it resets silently.
   Timer? _leaderTimer;
   static const Duration _kLeaderTimeout = Duration(milliseconds: 1500);
+
+  /// The shell's resting focus owner — the node the leader `Focus` below is
+  /// built with. Retained (rather than the anonymous one `Focus` would create)
+  /// so [FocusOwnerKeeper] can put focus back on it. `autofocus: true` seeds it
+  /// once and can never re-seed it, and every shortcut in the app is dead while
+  /// primary focus sits above this node, because Flutter walks *up* from
+  /// primary focus and never down. See [FocusOwnerKeeper] for the four ways
+  /// that happens.
+  final FocusNode _shellFocus = FocusNode(debugLabel: 'shell');
 
   /// Shared with `AppDrawer` via Provider — resets a branch's preserved
   /// stack when it is re-entered under a different company (see
@@ -152,12 +170,9 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     return hints;
   }
 
-  late final int? _dashboardIndex = _indexOfFixed(FixedBranchKind.dashboard);
+  /// Backs `⌘,`. The leader jumps resolve their branch through
+  /// [kLeaderTargets] instead, so there is no per-destination field here.
   late final int? _settingsIndex = _indexOfFixed(FixedBranchKind.settings);
-  late final int? _clientsIndex = _indexOfEntity(EntityType.client);
-  late final int? _productsIndex = _indexOfEntity(EntityType.product);
-  late final int? _tasksIndex = _indexOfEntity(EntityType.task);
-  late final int? _invoicesIndex = _indexOfEntity(EntityType.invoice);
 
   static int? _indexOfFixed(FixedBranchKind kind) {
     final i = kBranchOrder.indexWhere(
@@ -182,6 +197,8 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     _keyboardShortcuts.removeListener(_refreshGlobalHints);
     _shortcutHints.unregister(_globalHintToken);
     _shellMounted.value = false;
+    // `Focus` only disposes the node it created itself, never one handed in.
+    _shellFocus.dispose();
     super.dispose();
   }
 
@@ -222,6 +239,14 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
             services.auth.session.value?.currentCompany?.enabledModules ?? 0;
         if (!isEntityModuleEnabledForCompany(branch.type, modules)) return;
       }
+      // Reports is the one fixed branch the sidebar can omit outright, on
+      // `view_reports` — so a leader jump has to honour the same permission or
+      // `G R` reaches a screen the user has no row for. (The Pro lock beside
+      // that row is only a hint; the row itself still navigates.)
+      if (branch is FixedBranch && branch.kind == FixedBranchKind.reports) {
+        final me = services.auth.session.value?.currentCompany;
+        if (!(me?.can('view_reports') ?? false)) return;
+      }
     }
     final guard = services.unsavedChangesGuard;
     if (!await guard.confirmIfDirty(context)) return;
@@ -237,6 +262,29 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
       initialLocation:
           staleCompanyStack || index == widget.navigationShell.currentIndex,
     );
+  }
+
+  /// Whether [primary] is parked inside a branch that is no longer on screen.
+  /// `StatefulShellRoute.indexedStack` keeps every visited branch mounted
+  /// behind an `Offstage`, and `Offstage` does not move focus — so after a
+  /// switch the outgoing branch can still hold focus, and being leaf-first, its
+  /// `Shortcuts` then service a bare `N` / `E` / arrow aimed at the screen the
+  /// user is actually looking at. Asked positively (is it in a *hidden* branch)
+  /// rather than as "not in the active one", which would also catch the shell's
+  /// own chrome — a tabbed-to sidebar row is in no branch at all.
+  bool _focusInHiddenBranch(FocusNode? primary) {
+    if (primary == null) return false;
+    final shell = widget.navigationShell;
+    final branches = shell.route.branches;
+    for (var i = 0; i < branches.length; i++) {
+      if (i == shell.currentIndex) continue;
+      final node = branches[i].navigatorKey.currentState?.focusNode;
+      if (node == null) continue;
+      if (identical(primary, node) || primary.ancestors.contains(node)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _enterLeaderMode() {
@@ -257,14 +305,21 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     leaderModeArmed = false;
   }
 
+  /// The branch a leader second key jumps to, or null if the letter is
+  /// unbound. Resolved through [kLeaderTargets] — the one copy of the table,
+  /// shared with the sidebar's per-row hints and the `?` dialog.
+  ///
+  /// Matching on `keyLabel` rather than on `LogicalKeyboardKey` constants keeps
+  /// the table free of a `flutter/services` import; for a letter the two are
+  /// the same thing, since a logical key already *is* the character the user's
+  /// layout produces.
   int? _leaderTarget(LogicalKeyboardKey key) {
-    if (key == LogicalKeyboardKey.keyD) return _dashboardIndex;
-    if (key == LogicalKeyboardKey.keyC) return _clientsIndex;
-    if (key == LogicalKeyboardKey.keyI) return _invoicesIndex;
-    if (key == LogicalKeyboardKey.keyP) return _productsIndex;
-    if (key == LogicalKeyboardKey.keyS) return _settingsIndex;
-    if (key == LogicalKeyboardKey.keyT) return _tasksIndex;
-    return null;
+    final target = leaderTargetForKey(key.keyLabel);
+    if (target == null) return null;
+    final entity = target.entity;
+    return entity != null
+        ? _indexOfEntity(entity)
+        : _indexOfFixed(target.fixed!);
   }
 
   /// Leader-key key handler attached to the shell's focus node. Sees the
@@ -381,7 +436,19 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     // history the sidebar arrows walk. `ScaffoldWithNav` is the
     // `StatefulShellRoute` page — the root navigator's route — which is exactly
     // where a last-resort back handler belongs (issue #39).
-    return SystemBackGate(child: _buildShell(context));
+    // `FocusOwnerKeeper` sits here for the same reason: it is the one spot that
+    // covers every branch of the shell, and its guards read the shell page's
+    // own `ModalRoute`. Without it the whole keyboard layer below switches off
+    // — silently, and until the user clicks — whenever primary focus escapes
+    // above this subtree.
+    return SystemBackGate(
+      child: FocusOwnerKeeper(
+        node: _shellFocus,
+        revision: widget.navigationShell.currentIndex,
+        focusIsStale: _focusInHiddenBranch,
+        child: _buildShell(context),
+      ),
+    );
   }
 
   Widget _buildShell(BuildContext context) {
@@ -491,6 +558,10 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
           ),
         },
         child: Focus(
+          // Retained node (see [_shellFocus]) — the plain `Focus(focusNode:)`
+          // constructor, never `Focus.withExternalFocusNode`, which would stop
+          // applying `onKeyEvent` to it.
+          focusNode: _shellFocus,
           autofocus: true,
           onKeyEvent: _handleLeaderKey,
           child: MultiProvider(

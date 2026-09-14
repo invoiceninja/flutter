@@ -311,4 +311,31 @@ void main() {
       expect(notes, startsWith('<div class="task-time-details">'));
     });
   });
+  group('a booking is never printed on the invoice (flutter#149)', () {
+    test('a future block is skipped, so the note matches the quantity', () {
+      // `Task.billableDuration` excludes a booking from the quantity, so
+      // printing its window here would list a block the line isn't charging
+      // for — and, on a quote-seeded task, one nobody has done yet.
+      final start = DateTime.now().add(const Duration(hours: 3));
+      final s = start.millisecondsSinceEpoch ~/ 1000;
+      final worked = DateTime.now().subtract(const Duration(hours: 3));
+      final w = worked.millisecondsSinceEpoch ~/ 1000;
+
+      final notes = taskInvoiceNotes(
+        _task(
+          description: 'Boiler service',
+          timeLog: '[[$w,${w + 3600},"",true],[$s,${s + 7200},"",true]]',
+        ),
+        company: _company(datelog: true, timelog: true),
+        project: _project(),
+      );
+
+      // One time line, not two — the worked hour only.
+      final timeLines = notes
+          .split('\n')
+          .where((l) => l.contains(' - '))
+          .toList();
+      expect(timeLines, hasLength(1));
+    });
+  });
 }

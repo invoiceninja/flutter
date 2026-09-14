@@ -150,8 +150,26 @@ class _TokenSearchFieldState extends State<TokenSearchField> {
     _lastSyncedSearch = widget.vm.search;
     _controller.text.addListener(_onTextChange);
     widget.vm.addListener(_onVmChange);
-    _searchFocus = context.read<Services>().searchFocus
-      ..current = _controller.focus;
+    // The slot itself is claimed in [didChangeDependencies], not here — see the
+    // TickerMode note there.
+    _searchFocus = context.read<Services>().searchFocus;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // `StatefulShellRoute.indexedStack` keeps every visited branch mounted, so
+    // several `TokenSearchField`s are alive at once and an `initState`-only
+    // registration leaves the single slot pointing at whichever mounted *last*
+    // — `/` then focuses an offstage branch's box, and because that box takes
+    // focus it also latches `isTextInputFocused()` on for the whole app,
+    // standing every `GuardedShortcutAction` down. go_router mutes the inactive
+    // branches' `TickerMode`, so claim the slot whenever ours is the on-stage
+    // one; reading it here is also what subscribes us to the offstage→onstage
+    // flip. Same gate, same finding (#40), as `ShortcutHintScope`.
+    if (TickerMode.valuesOf(context).enabled) {
+      _searchFocus?.current = _controller.focus;
+    }
   }
 
   @override

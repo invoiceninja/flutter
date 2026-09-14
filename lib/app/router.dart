@@ -371,6 +371,12 @@ class _SelectedIdScope extends InheritedWidget {
   static _SelectedIdScope? _maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_SelectedIdScope>();
 
+  /// Same read without subscribing. For a caller that is re-run by something
+  /// else and only needs the value as a *guard* at that moment — see
+  /// [paneIsOpenForList].
+  static _SelectedIdScope? _peek(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_SelectedIdScope>();
+
   @override
   bool updateShouldNotify(_SelectedIdScope oldWidget) =>
       selectedId != oldWidget.selectedId ||
@@ -382,6 +388,17 @@ class _SelectedIdScope extends InheritedWidget {
 /// auto-scroll — always the raw id, regardless of editor mode.
 String? selectedIdFromRoute(BuildContext context) =>
     _SelectedIdScope._maybeOf(context)?.selectedId;
+
+/// Whether a master-detail pane is showing a record over/beside this list.
+///
+/// **Registers no dependency**, deliberately: the list scaffold consults this
+/// only as a guard, from a focus check that something else already triggered
+/// (`FocusOwnerKeeper` runs on a `FocusManager` notification, and closing a
+/// pane always moves focus). Subscribing instead would rebuild the entire list
+/// scaffold on every row click — the cost `settingsBackTargetFor`'s comment in
+/// `entity_list_screen_scaffold.dart` already warns about.
+bool paneIsOpenForList(BuildContext context) =>
+    _SelectedIdScope._peek(context)?.selectedId != null;
 
 /// The `selectedId` to use for the **visual** row-selection highlight.
 /// Null while navigating to a full-width editor (the editor covers the

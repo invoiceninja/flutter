@@ -121,9 +121,15 @@ String taskInvoiceNotes(
   // 01/15) and format once at the end.
   final perDayHours = <String, double>{};
 
+  final asOf = now ?? DateTime.now();
   for (final entry in task.timeLog) {
     if (entry.start == null || entry.stop == null || !entry.billable) continue;
-    final hours = entry.durationUpTo(now ?? DateTime.now()).inSeconds / 3600;
+    // A booking never reaches the invoice. `Task.billableDuration` already
+    // excludes it from the quantity, so printing its window here would list a
+    // block of work the line isn't charging for — and, on a quote-seeded task
+    // (invoiceninja/flutter#88), one nobody has done yet.
+    if (entry.stop!.isAfter(asOf)) continue;
+    final hours = entry.durationUpTo(asOf).inSeconds / 3600;
     final hoursText = _hoursText(hours, formatter, hourLabel, hoursLabel);
     final hoursSuffix = company.invoiceTaskHours ? ' • $hoursText' : '';
 

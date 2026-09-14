@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/tasks/task_day.dart';
 
@@ -16,8 +17,17 @@ class TaskCalendarChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    // Running wins, then "you are due on site now" — the two states worth
+    // finding at a glance in a month grid. A booking further out keeps the
+    // neutral border: on a calendar, *every* future chip is booked, so tinting
+    // them all would say nothing.
+    final dueNow =
+        !task.isRunning &&
+        task.scheduleStateAt(DateTime.now()) == TaskScheduleState.dueNow;
     final borderColor = task.isRunning
         ? tokens.accent
+        : dueNow
+        ? tokens.warning
         : (task.isInvoiced ? tokens.paid : tokens.border);
     return Tooltip(
       message: taskPrimaryLabel(task),

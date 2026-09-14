@@ -36,6 +36,15 @@ class TaskFieldIds {
   /// First time-log entry's start. Derived from the payload — display-only.
   static const String date = 'date';
 
+  /// The day the work is promised for (`tasks.due_date`). Payload-only here —
+  /// no Drift column — so display-only, like [date] and `duration`.
+  static const String dueDate = 'due_date';
+
+  /// Allocated time in seconds (`tasks.estimated_duration`). Payload-only,
+  /// and null on every task created before the field existed, so ordering by
+  /// it would move nothing visible on a page — display-only.
+  static const String estimatedDuration = 'estimated_duration';
+
   /// Column id only — the `tasks` table has no `assigned_user_id` column (the
   /// value lives in the payload JSON), so this is never a valid *sort* field.
   /// See the `assigned_user` column in `task_columns.dart`.
@@ -89,12 +98,72 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
   }) => switch (modeId) {
     // Same predicate as `watchRunningCount` — work literally in progress.
     'running' => tasks.isRunning.equals(true),
+    // Booked but not started (invoiceninja/flutter#149).
+    // `invoice_id = ''` to match `watchBooked`: an invoiced task is
+    // server-immutable, so Start is a no-op on it — listing one under a tab
+    // whose whole point is "these are startable" is a dead row.
+    kBadgeModeUpcoming =>
+      tasks.isRunning.equals(false) &
+          tasks.invoiceId.equals('') &
+          _startsInTheFuture(),
     // Time logged but not yet billed: the backlog to invoice.
     'uninvoiced' => tasks.invoiceId.equals(''),
     // No `assigned_user_id` column on this table — read it out of the payload.
     kBadgeModeAssignedToMe => assignedToUserFilter(currentUserId),
     _ => null,
   };
+
+  /// "The last time-log entry **starts** after now" — the SQL half of
+  /// `taskScheduleState`'s `upcoming` arm, and the tab's whole meaning:
+  /// *booked ahead*.
+  ///
+  /// Reads the START, not the stop. `stop > now` looks like the more complete
+  /// test and is the one this shipped with — but it also matches every
+  /// ordinary forward-looking entry: the weekly grid synthesizes each cell at
+  /// local 09:00, so "8" typed into today's column is `09:00–17:00` and sat in
+  /// this tab all afternoon. A start in the future is unambiguous — nobody
+  /// works in the future — and needs no `due_date` anchor, unlike the
+  /// straddling case `_isBooking` has to disambiguate in Dart.
+  ///
+  /// The accepted cost is that a job whose slot is live *right now* is not in
+  /// this tab; it surfaces on its own row (`Now`, warning-toned) and on the
+  /// shell's "Due now" pill instead.
+  ///
+  /// Reads the **last** entry because the log is sorted by start on every save
+  /// (`TaskRepository::save` server-side, `TaskRepository.save` here), so
+  /// `\$[#-1][0]` is the greatest start — a far weaker premise than the max-stop
+  /// one this replaces, which `roundTimeLog` could violate.
+  ///
+  /// **The nested `CASE` is load-bearing.** `TaskTransformer` emits
+  /// `time_log: ''` for a task with no entries, and SQLite does not guarantee
+  /// short-circuit evaluation of scalar functions — so `json_valid(x) AND
+  /// json_extract(x, …)` in one condition can still raise `malformed JSON` and
+  /// abort the whole list query. Nesting makes the guard structural.
+  ///
+  /// `now` is baked in when the stream is built, the same staleness every
+  /// date-sensitive badge mode carries (CLAUDE.md § Sidebar counters),
+  /// truncated to the minute so the badge's stream and the list's — built at
+  /// different moments — agree unless a booking begins between them.
+  Expression<bool> _startsInTheFuture() {
+    final now = DateTime.now();
+    final nowSeconds =
+        DateTime(
+          now.year,
+          now.month,
+          now.day,
+          now.hour,
+          now.minute,
+        ).millisecondsSinceEpoch ~/
+        1000;
+    // `\$` is an escaped dollar: these are SQLite JSON paths, not Dart
+    // interpolation. `\$nowSeconds` alone is interpolated.
+    return CustomExpression<bool>(
+      'CASE WHEN json_valid(payload) THEN '
+      "CASE WHEN json_valid(json_extract(payload, '\$.time_log')) THEN "
+      "CAST(json_extract(json_extract(payload, '\$.time_log'), "
+      "'\$[#-1][0]') AS INTEGER) END END > $nowSeconds",
+    );
+  }
 
   Stream<List<TaskRow>> watchPage({
     required String companyId,
@@ -319,6 +388,35 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
       ])
       ..limit(1);
     return q.watchSingleOrNull();
+  }
+
+  /// Active tasks holding an unfinished booking, with no timer running —
+  /// the candidate set for the shell pill's "Due now".
+  ///
+  /// Returns the whole (small) set rather than the one row the pill shows,
+  /// because "is the clock inside this block?" needs `taskScheduleState`, and
+  /// that is Dart: the SQL half can only answer "does a block end after now",
+  /// which is also true of a job booked for next Tuesday. Capped so a company
+  /// that books months ahead can't hand the shell a thousand rows to decode.
+  Stream<List<TaskRow>> watchBooked({required String companyId}) {
+    final q = select(tasks)
+      ..where(
+        (t) =>
+            t.companyId.equals(companyId) &
+            t.isRunning.equals(false) &
+            t.isDeleted.equals(false) &
+            t.archivedAt.isNull() &
+            t.invoiceId.equals('') &
+            _startsInTheFuture(),
+      )
+      // DESC: the cap keeps the 50 most recently touched booked tasks. Ascending
+      // threw away the job the user had just booked, which is the one the pill
+      // exists to surface.
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+      ])
+      ..limit(50);
+    return q.watch().distinctRows();
   }
 
   /// Live count of running (non-deleted) timers for the company. Backs the

@@ -7,6 +7,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/task_api_model.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/data/services/tasks_api.dart';
 
@@ -21,7 +22,9 @@ void main() {
     String projectId = '',
     List<String> tagIds = const <String>[],
     List<TimeEntry> timeLog = const <TimeEntry>[],
+    Date? dueDate,
   }) => Task(
+    dueDate: dueDate,
     id: '',
     number: '',
     description: '',
@@ -68,6 +71,188 @@ void main() {
       expect(byStatus['s1']!.single.isInvoiced, isFalse);
     },
   );
+
+  group('startTimer vs. a booking (flutter#149)', () {
+    TimeEntry block(DateTime start, Duration length) =>
+        TimeEntry(start: start, stop: start.add(length));
+
+    test('a live booking becomes the running entry — no second row', () async {
+      final repo = makeRepo();
+      final now = DateTime.now();
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(
+          // A live booking needs the task's own `due_date` to be a booking at
+          // all — without it a block spanning `now` is an ordinary
+          // forward-looking timesheet row, which must never be claimed.
+          dueDate: Date(now.year, now.month, now.day),
+          timeLog: [
+            block(
+              now.subtract(const Duration(minutes: 30)),
+              const Duration(hours: 2),
+            ),
+          ],
+        ),
+      );
+
+      final result = await repo.startTimer(
+        companyId: 'co',
+        taskId: created.entity.id,
+      );
+
+      expect(result, TaskStartResult.claimed);
+      final stored = await repo
+          .watch(companyId: 'co', id: created.entity.id)
+          .first;
+      // The point: ONE entry, not two. Appending here is the 422 —
+      // `checkTimeLog` rejects an entry that starts inside another.
+      expect(stored!.timeLog, hasLength(1));
+      expect(stored.timeLog.single.isRunning, isTrue);
+      expect(stored.isRunning, isTrue);
+    });
+
+    test('a booking on another day writes NOTHING until confirmed', () async {
+      final repo = makeRepo();
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(timeLog: [block(tomorrow, const Duration(hours: 2))]),
+      );
+
+      expect(
+        await repo.startTimer(companyId: 'co', taskId: created.entity.id),
+        TaskStartResult.needsConfirmation,
+      );
+      var stored = await repo
+          .watch(companyId: 'co', id: created.entity.id)
+          .first;
+      expect(stored!.isRunning, isFalse, reason: 'nothing may be written');
+      expect(stored.timeLog.single.isRunning, isFalse);
+
+      expect(
+        await repo.startTimer(
+          companyId: 'co',
+          taskId: created.entity.id,
+          confirmClaim: true,
+        ),
+        TaskStartResult.claimed,
+      );
+      stored = await repo.watch(companyId: 'co', id: created.entity.id).first;
+      expect(stored!.timeLog.single.isRunning, isTrue);
+    });
+
+    test('two unfinished bookings are refused, not half-applied', () async {
+      final repo = makeRepo();
+      final now = DateTime.now();
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(
+          timeLog: [
+            block(now.add(const Duration(hours: 2)), const Duration(hours: 1)),
+            block(now.add(const Duration(days: 1)), const Duration(hours: 1)),
+          ],
+        ),
+      );
+
+      expect(
+        await repo.startTimer(
+          companyId: 'co',
+          taskId: created.entity.id,
+          confirmClaim: true,
+        ),
+        TaskStartResult.blocked,
+      );
+      final stored = await repo
+          .watch(companyId: 'co', id: created.entity.id)
+          .first;
+      expect(stored!.timeLog, hasLength(2));
+      expect(stored.isRunning, isFalse);
+    });
+
+    test('a claim can carry the task onto the In-progress status', () async {
+      final repo = makeRepo();
+      final now = DateTime.now();
+      final created = await repo.create(
+        companyId: 'co',
+        draft: task(
+          statusId: 'backlog-id',
+          dueDate: Date(now.year, now.month, now.day),
+          timeLog: [
+            block(
+              now.subtract(const Duration(minutes: 5)),
+              const Duration(hours: 1),
+            ),
+          ],
+        ),
+      );
+
+      await repo.startTimer(
+        companyId: 'co',
+        taskId: created.entity.id,
+        claimStatusId: 'in-progress-id',
+      );
+      final stored = await repo
+          .watch(companyId: 'co', id: created.entity.id)
+          .first;
+      expect(stored!.statusId, 'in-progress-id');
+    });
+
+    test(
+      'a plain append never moves the status, even when one is offered',
+      () async {
+        final repo = makeRepo();
+        final created = await repo.create(
+          companyId: 'co',
+          draft: task(statusId: 'backlog-id'),
+        );
+
+        expect(
+          await repo.startTimer(
+            companyId: 'co',
+            taskId: created.entity.id,
+            claimStatusId: 'in-progress-id',
+          ),
+          TaskStartResult.started,
+        );
+        final stored = await repo
+            .watch(companyId: 'co', id: created.entity.id)
+            .first;
+        expect(stored!.statusId, 'backlog-id');
+      },
+    );
+
+    test('the is_running COLUMN and the payload can never disagree', () async {
+      // The desync this whole sorting discipline exists to prevent: the column
+      // is written from the in-memory list's `.last`, the payload from
+      // `toApiJson`, and `_fromRow` reads the domain back out of the payload.
+      // Save an out-of-order log — `weekly_merge` and `addEntry` both can —
+      // and if the two orders differ, `watchRunning` counts a timer that
+      // `stopRunningTimer` then refuses to stop.
+      final repo = makeRepo();
+      final now = DateTime.now();
+      final created = await repo.create(companyId: 'co', draft: task());
+      final id = created.entity.id;
+      await repo.save(
+        companyId: 'co',
+        task: created.entity.copyWith(
+          timeLog: [
+            TimeEntry(start: now, stop: null),
+            block(
+              now.subtract(const Duration(hours: 3)),
+              const Duration(hours: 1),
+            ),
+          ],
+        ),
+      );
+
+      final stored = await repo.watch(companyId: 'co', id: id).first;
+      expect(stored!.timeLog.last.isRunning, isTrue);
+      expect(stored.isRunning, isTrue);
+      expect(await repo.watchRunningCount(companyId: 'co').first, 1);
+      await repo.stopRunningTimer(companyId: 'co', taskId: id);
+      expect(await repo.watchRunningCount(companyId: 'co').first, 0);
+    });
+  });
 
   test('startTimer appends a running entry (B7 bulk start)', () async {
     final repo = makeRepo();

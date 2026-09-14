@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -355,17 +357,67 @@ void main() {
   // -- Task -----------------------------------------------------------------
   entities[EntityType.task] = (
     seed: () async {
-      for (final (id, running, invoiceId) in [
-        ('t-running', true, ''),
-        ('t-idle', false, ''),
-        ('t-invoiced', false, 'inv1'),
+      // `upcoming` reads the LAST time-log entry's stop out of the payload
+      // JSON, so `payload: '{}'` exercises none of it — a wholly broken
+      // predicate would ship green against an all-`{}` fixture. These rows
+      // cover a real booking, a finished block, and the three malformed
+      // shapes that make SQLite's `json_extract` throw: the server's own
+      // `time_log: ''` for a task with no entries, a payload that isn't an
+      // object, and one that isn't JSON at all.
+      final soon = DateTime.now().add(const Duration(hours: 2));
+      final earlier = DateTime.now().subtract(const Duration(hours: 3));
+      String logPayload(List<List<int>> spans) =>
+          jsonEncode({'time_log': jsonEncode(spans)});
+      int secs(DateTime t) => t.millisecondsSinceEpoch ~/ 1000;
+
+      for (final (id, running, invoiceId, payload) in [
+        ('t-running', true, '', '{}'),
+        ('t-idle', false, '', '{}'),
+        ('t-invoiced', false, 'inv1', '{}'),
+        (
+          't-booked',
+          false,
+          '',
+          logPayload([
+            [secs(soon), secs(soon.add(const Duration(hours: 1))), 0, 1],
+          ]),
+        ),
+        (
+          't-worked',
+          false,
+          '',
+          logPayload([
+            [secs(earlier), secs(earlier.add(const Duration(hours: 1))), 0, 1],
+          ]),
+        ),
+        (
+          't-running-booked',
+          true,
+          '',
+          logPayload([
+            [secs(soon), secs(soon.add(const Duration(hours: 1))), 0, 1],
+          ]),
+        ),
+        // An invoiced task is server-immutable, so Start is a no-op on it —
+        // it must stay out of a tab whose point is "these are startable".
+        (
+          't-booked-invoiced',
+          false,
+          'inv2',
+          logPayload([
+            [secs(soon), secs(soon.add(const Duration(hours: 1))), 0, 1],
+          ]),
+        ),
+        ('t-emptylog', false, '', jsonEncode({'time_log': ''})),
+        ('t-nolog', false, '', jsonEncode({'description': 'x'})),
+        ('t-notjson', false, '', 'not json at all'),
       ]) {
         await db.taskDao.upsert(
           TasksCompanion.insert(
             id: id,
             companyId: co,
             updatedAt: 1,
-            payload: '{}',
+            payload: payload,
             isRunning: Value(running),
             invoiceId: Value(invoiceId),
           ),
@@ -655,5 +707,26 @@ void main() {
     final total = await entities[EntityType.invoice]!.rows(kBadgeModeTotal);
     expect(total, unfiltered);
     expect(unfiltered, hasLength(5)); // archived + deleted excluded
+  });
+
+  test('task `upcoming` selects exactly the booked row, and survives every '
+      'malformed payload', () async {
+    // The sweep above proves rows == count, which an all-zero predicate also
+    // satisfies. This names the row, so a predicate that silently matches
+    // nothing — or everything — fails here. The malformed rows are the reason
+    // the SQL wraps its `json_extract` in a `CASE WHEN`: SQLite does not
+    // guarantee short-circuit evaluation, and a bare `AND` raises "malformed
+    // JSON", which aborts the whole query rather than returning no rows.
+    await entities[EntityType.task]!.seed();
+    expect(await entities[EntityType.task]!.rows('upcoming'), ['t-booked']);
+    expect(await entities[EntityType.task]!.count('upcoming'), 1);
+    // `t-running-booked` holds BOTH a live timer and a future block, which is
+    // the invariant this line is about — the previous version asserted on the
+    // `running` tab using a fixture that held no booking at all, so it proved
+    // nothing.
+    expect(
+      await entities[EntityType.task]!.rows('running'),
+      containsAll(['t-running', 't-running-booked']),
+    );
   });
 }

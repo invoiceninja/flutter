@@ -1,5 +1,7 @@
 import 'package:admin/data/models/api/calendar_connection_api_model.dart';
 import 'package:admin/ui/features/tasks/widgets/calendar/calendar_event_seed.dart';
+import 'package:admin/ui/features/tasks/widgets/calendar/convert_event_to_task_sheet.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -74,6 +76,43 @@ void main() {
     test('isCancelled reflects the status', () {
       expect(const CalendarEvent(status: 'cancelled').isCancelled, isTrue);
       expect(const CalendarEvent(status: 'confirmed').isCancelled, isFalse);
+    });
+  });
+  group('seedTaskForEvent carries the plan beside the block', () {
+    // Claiming a booking rewrites its start to `now`, so `due_date` and
+    // `estimated_duration` are the only part of the promise that survives the
+    // work starting — and `due_date` is what lets `taskScheduleState` tell a
+    // booking from an ordinary forward-looking entry at all.
+    test('due date is the block\'s LOCAL day, estimate its length', () {
+      const e = CalendarEvent(
+        start: '2026-06-14T09:00:00Z',
+        end: '2026-06-14T10:30:00Z',
+      );
+      final task = seedTaskForEvent(e);
+      final localStart = task.timeLog.single.start!.toLocal();
+
+      expect(task.estimatedSeconds, const Duration(minutes: 90).inSeconds);
+      expect(
+        task.dueDate,
+        Date(localStart.year, localStart.month, localStart.day),
+        reason: 'the anchor must name the day the block renders on',
+      );
+    });
+
+    test('the plan always matches whatever block was seeded', () {
+      // An event with no usable window still seeds a 1 h block (the same
+      // fallback `seedTimeLogForEvent` applies to an all-day event), so the
+      // estimate must follow it rather than stay unset — otherwise the task
+      // would carry a booking with no anchor and read as ordinary worked time
+      // the moment its window closed.
+      const e = CalendarEvent(start: '', end: '');
+      final task = seedTaskForEvent(e);
+      final entry = task.timeLog.single;
+      expect(
+        task.estimatedSeconds,
+        entry.stop!.difference(entry.start!).inSeconds,
+      );
+      expect(task.dueDate, isNotNull);
     });
   });
 }

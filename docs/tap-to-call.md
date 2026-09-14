@@ -476,3 +476,138 @@ burst dedupe and not a cache — `SettingsRepository.resolved` stays uncached, a
   `"<value>zone"`, which then never matches — rendered garbage that no `tr()` lint catches. Five
   bundled keys have the same shape (`activity_10`/`_39`/`_40`/`_41`, `entity_number_placeholder`);
   the activity templates dodge it only because they tokenize with a regex instead.
+
+## Non-obvious rules
+
+Moved here from CLAUDE.md § Tap to call, which now carries one line per rule. These are the traps: each one compiles, runs, and produces a wrong number, a wrong-sized button or a missing prompt rather than an error.
+
+## The `tapToCall` default is the platform, not `true`
+
+**The `tapToCall` default is `Env.isTouchPrimary`, not `true`** — which is *why* it is a JSON blob
+and not typed columns. The app cannot ask whether a `tel:` handler exists (`canLaunchUrl` is
+banned — see `test/lint/no_can_launch_url_test.dart`), so on a Windows/Linux desktop with no
+dialer an on-by-default link would stop the number selecting as text **and** report "Couldn't open
+the link" to someone who never asked for the feature. A null column means "ask this device"; a SQL
+`withDefault` could only pick one answer for a phone and a desktop alike. A *stored* blob is then
+taken literally — the platform must never re-decide for a user who already chose.
+
+## `tel:` / `sms:` deliberately bypass `isSafeWebUrl`
+
+**`tel:` / `sms:` deliberately bypass `isSafeWebUrl`.** That predicate stops a *server-supplied*
+URL becoming a `javascript:` / `file:` / `intent:` launch and rejects `tel:` by design; here the
+scheme is a compile-time constant and `cleanPhoneNumber` has already reduced the payload to
+`[+]?\d+`. Use `launchExternalUri(Uri)`, not `openExternalUrl(String)`. Android also needs
+`<queries>` `<intent>` entries for both schemes, asserted by `android_url_queries_test`;
+`CALL_PHONE` in that manifest is for `ACTION_CALL` and stays unused, because `ACTION_VIEW` keeps
+the OS's own confirm step — which is what lets the in-app "Confirm before calling" switch default
+**off** instead of double-prompting.
+
+## `cleanPhoneNumber` is where a wrong number comes from
+
+**`cleanPhoneNumber` is where a wrong number comes from.** A `+` **before the first digit**
+survives — `startsWith('+')` is the wrong test, since `(+1) 415…` and `Mobile: +44 …` are ordinary
+stored formats — but only when punctuation alone separates it from that digit, or the `+` in
+`Tel + Fax 020 …` marks a country code that isn't there. It cuts at an extension marker rather
+than inlining its digits (`555-1234 x22` must not dial `555123422`), and every spelling has to be
+covered (`extn`, `ext-`, `;ext=`, `,,`, `w`/`p`) because a miss inlines them. The converse costs a
+number too: a marker matched inside a **label** cuts away the digits it introduces, which is why
+`ext`/`x` are anchored on a word boundary (`Fax 555 1234`, `Text: 555-1234`) and `,`/`;` on a
+preceding digit (`Mobile, 555-1234`) — and why `,` additionally needs a space or a second
+separator after it, since it is also a thousands separator (`1,800,555,1212`). It drops a
+bracketed trunk prefix from an **international number wherever it sits**, not only where it abuts
+the country code (`Mobile: +44 (0)20 …` → `+4420…`; in a national number the same `(0)` is real).
+And it discards anything under five digits so a field holding `1-800-FLOWERS` stays inert text
+instead of becoming a link to `tel:1800`.
+
+## Every phone surface listens via `PhoneActionsScope`
+
+**Every phone surface listens via `PhoneActionsScope`.** A detail screen stays mounted behind the
+`/settings/**` route while the switch is flipped, so a build-time read with no listener leaves it
+styling numbers with the old value until an unrelated rebuild. The out-of-hours warning resolves
+the callee's zone through the settings cascade (client override → company) and **skips itself when
+no timezone resolves** rather than judging against the caller's own clock. The clock comes from
+`package:timezone` via the IANA `Timezone.name`, **not** the server's `utc_offset`: that field is
+standard-time only, and comparing it against the DST-aware `DateTime.now().timeZoneOffset` told a
+New York user their New York client was in a foreign zone for eight months a year, then showed
+them a clock an hour behind.
+
+## The billing-doc header button is sized on the axis that has room
+
+**The billing-doc header call button is sized on the axis that has room** (#110). `PartyCallButton`
+puts a phone glyph beside the client / vendor name on all five billing-doc detail headers: one tap
+for a single number, a picker otherwise (the picker is the *common* path — an office line plus a
+contact mobile is already two). Its box is `actionButtonSize()` **wide** and only as tall as the
+name row's 20 px line box, never the 44 px floor — touch-target **trap 4** ("cap trailing widgets
+to the row's content box, not the target"), and the thing that stops a 44 px box pushing the dates
++ KPI strip down on five screens *a frame or two late*, once the party resolves from Drift. Three
+more silent failure modes it already avoids: `Semantics` goes **inside** the `InkWell` (an
+outer `excludeSemantics: true` prunes the ink's own tap action, leaving a button a screen reader
+can announce but not activate); the picker **returns** a candidate and the button dials with its
+own context (`callPhoneNumber` re-checks `context.mounted` only *after* an await, so dialling from
+a mid-pop route silently drops the call and its confirm dialog); and the picker re-provides
+`Services`, since a route's subtree can hang off a `Navigator` above the caller's provider. Zero
+candidates or `tapToCall: false` collapse it to nothing **before** the Drift watch is mounted.
+
+## The list-row button reclaims the target on the axis the row has
+
+**The list-row call button reclaims the touch target on the axis the *row* has** (#111). The same
+`PhoneCallButton` sits in a **narrow** Clients / Vendors row that has a number to dial, after the
+money column and status pill and before the `…` menu, selected by
+`PhoneCallButtonVariant.listRow` — the mirror image of trap 4 above: a
+header had no vertical room so the box stayed 20 px tall and grew sideways, while a row is already
+floored at `kEntityListRowHeight` and its sibling `…` is already `actionButtonSize()` tall, so the
+box is **square** and the *width* is what must not grow (the caret is fitted inside the 44 px
+target instead of adding 12 px, which is worth 7.2 px of overflow at the 500 px sweep floor at
+1.4× text). Icons go 20/18 in **`ink2`**, not 16/14 in `ink3`, because the `…` beside it is an M3
+`IconButton` — 24 px in `onSurfaceVariant`, which `theme.dart` maps to `ink2`. Four more rules,
+each silent if broken: the variant **drops the secondary gesture** so long-press falls through to
+the row (it enters multi-select — a copy toast there is the wrong trade); the button is **hidden
+in multi-select**, like the `…` menu, because the row's tap means "toggle"; a row with no dialable
+number **mounts nothing at all**, so the candidate walk deliberately runs *before* the preference
+check (a listener per row is heavier than the walk, and a row that has a number keeps its scope
+while `tapToCall` is off so flipping the switch heals it in place); and the picker's "View client"
+footer is wired from the **screen** (`onViewRecord`), not the tile, because it must navigate
+unconditionally where `onTap` toggles or closes, and because `goEntityRecord` needs a `GoRouter`
+the tile is otherwise pumpable without. The 8 px it needs beside the `…` (Material's floor between
+adjacent tap targets, widened from the tiles' usual 4 only when the button is there) is
+**`InSpacing.sm`, never `kColActionsClusterGap`** — identical value, but that constant feeds
+`colWMoreMenu()` and through it `computeTableMinWidth`, so borrowing it to retune a *narrow*
+cluster would silently move every entity's wide column headers. Narrow only — a wide-table slot
+would have to be mirrored into that same shared strip, so a landscape phone and every tablet get
+no button.
+
+## A logged call is an activity note, and the note is the only storage
+
+**A logged call is an activity *note*, and the note is the only storage there is** (#120).
+`POST /api/v1/activities/notes` writes an `activity_type_id = 141` row — the same
+`MutationKind.addComment` outbox path "Add comment" already used, so offline queueing and the
+optimistic "Syncing…" row come free, and a note filed against an invoice reaches the client's
+feed too because the server stamps `client_id`. Invoice Ninja's own Pancake importer stores
+imported call logs this way, and `composeCallNote` (`lib/domain/phone/call_note.dart`) mirrors
+its shape. Four things follow, each silent if broken. The note is **append-only** — no `PUT`, no
+`DELETE`, no `deleted_at` — so a composed string is permanent in the author's locale and date
+format for every client that ever reads it; get it right once and **never parse it back** (a
+contact name may contain the ` · ` separator). The leading **`📞` is cosmetic**: it drives the
+row's phone icon and the Calls lens on `/activity` and nothing else may key off it, because the
+wire carries no note subtype. Compose the time with **`formatTimeOfDay`, never
+`Formatter.date(..., showTime: true)`** — that path assumes a server-UTC string (appends `Z`,
+calls `.toLocal()`) and would shift a locally-picked wall clock by the device's offset, reading
+correct only on CI. And the capture sheet's direction control is a **`SegmentedButton`, never a
+`RadioGroup`**: `RadioGroup` mutates its subtree mid-frame and crashes inside sheet/dialog
+layout, which is why `entity_sort_filter_sheet.dart` and `tax_category_dialog.dart` hand-roll a
+list; its contact field is a plain `TextField` for the same class of reason — a
+`SearchableDropdownField` sets `TextInputType.none` at ≤6 options and disables itself at zero,
+between them making an unstored number impossible to type.
+
+## The post-call offer is gated on `Env.isMobile`
+
+**The post-call offer is gated on `Env.isMobile`, not `Env.isTouchPrimary`** (#120).
+`CallLogPrompter` (mounted beside `ToastHost`) turns a background→foreground round trip into a
+dismissible "Log call" toast, so it inherits `SyncLifecycleObserver`'s rule that only
+`paused`/`detached` → `resumed` counts — iOS fires `inactive` for a notification-shade peek. The
+wider `isTouchPrimary` would arm it on mobile *web*, where `AppLifecycleState` follows page
+visibility and every tab switch looks like a finished call. `launchExternalUri` returning `true`
+means the **intent started**, never that a call connected, so the copy says "Log call" and never
+"Call completed". The pending call is a plain record held **in memory only** — a closure would
+pin the widget tree across the call, and persisting it would need expiry, company scoping and a
+logout wipe to avoid offering a note against a workspace the user has left.

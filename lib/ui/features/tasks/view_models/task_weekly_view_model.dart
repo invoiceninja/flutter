@@ -7,6 +7,7 @@ import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/domain/tasks/task_day.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/ui/features/tasks/view_models/task_filters_mixin.dart';
 import 'package:admin/ui/features/tasks/widgets/weekly/weekly_merge.dart';
 import 'package:admin/utils/date_ranges.dart';
@@ -106,8 +107,14 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
       // will reject the input) rather than flashing 0.
     }
     final n = _now();
+    final dueDate = _tasksById[taskId]?.dueDate;
     var total = 0;
     for (final e in _logsFor(taskId)) {
+      // Bookings are excluded: this grid is a timesheet of time WORKED, and
+      // `applyCellEditToLogs` now preserves a booking rather than collapsing
+      // it — so counting both would leave a cell reading `5:00` right after
+      // the user typed `3` into it.
+      if (isTimeEntryBooking(e, now: n, dueDate: dueDate)) continue;
       if (timeEntryLocalDate(e) == day) {
         total += e.durationUpTo(n).inSeconds;
       }
@@ -244,20 +251,35 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
     var logs = _logsFor(taskId);
     var anyApplied = false;
     var anyFailed = false;
+    TimeLogProblem? overlap;
     for (final entry in snapshot.entries) {
       final day = Date.tryParse(entry.key);
       if (day == null) continue;
-      final next = applyCellEditToLogs(logs, day, entry.value, _now());
-      if (next == null) {
-        // One cell's duration is invalid — discard just that cell so it can't
-        // take valid sibling edits (other days) down with it.
+      final next = applyCellEditToLogs(
+        logs,
+        day,
+        entry.value,
+        _now(),
+        dueDate: task.dueDate,
+      );
+      if (next.logs == null) {
+        // One cell is refused — discard just that cell so it can't take valid
+        // sibling edits (other days) down with it. The two refusals get
+        // different messages: an unparseable duration is the user's typing, an
+        // overlap is the log's shape, and telling someone to "enter a valid
+        // duration" for a duration that parsed fine is the lie this splits.
         anyFailed = true;
+        overlap ??= next.problem;
         continue;
       }
-      logs = next;
+      logs = next.logs!;
       anyApplied = true;
     }
-    if (anyFailed) _emitError('please_enter_a_valid_duration');
+    if (anyFailed) {
+      _emitError(
+        overlap == null ? 'please_enter_a_valid_duration' : 'time_log_overlap',
+      );
+    }
     // Drop the whole snapshot: applied cells are now in `logs`, and the failed
     // cell reverts to its last-good value on the next emission (no re-arm loop).
     _dropSnapshot(taskId, snapshot);

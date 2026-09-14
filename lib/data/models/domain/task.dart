@@ -4,8 +4,10 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:admin/data/models/api/task_api_model.dart';
 import 'package:admin/data/models/domain/document.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/money.dart';
 import 'package:admin/data/models/value/parsing.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 
 part 'task.freezed.dart';
 
@@ -33,6 +35,17 @@ abstract class Task with _$Task {
     /// display-only.
     @Default('') String userId,
     required List<TimeEntry> timeLog,
+
+    /// The day the work is promised for (`tasks.due_date`, 2026-08-31).
+    /// DATE-only on the wire, so it cannot carry a booked *time* — that still
+    /// lives in a future `time_log` block. See `task_schedule.dart`.
+    Date? dueDate,
+
+    /// Allocated / budgeted time in SECONDS (`tasks.estimated_duration`),
+    /// against which `workedDuration` is the actual. 0 means unset: the
+    /// server distinguishes a stored `0` from `null` and we deliberately
+    /// collapse them, because "estimated: zero" is not a thing a user means.
+    @Default(0) int estimatedSeconds,
     required String customValue1,
     required String customValue2,
     required String customValue3,
@@ -63,7 +76,13 @@ abstract class Task with _$Task {
     statusOrder: a.statusOrder ?? 0,
     assignedUserId: a.assignedUserId,
     userId: a.userId,
-    timeLog: TimeEntry.parseLog(a.timeLog),
+    // Sorted at the domain boundary, never inside `encodeLog`: the Drift
+    // `is_running` column is written from this list's `.last` while `payload`
+    // is written from `toApiJson`, so the two must see one order or a running
+    // timer becomes unstoppable (`task_schedule.dart`).
+    timeLog: sortTimeLog(TimeEntry.parseLog(a.timeLog)),
+    dueDate: Date.tryParse(a.dueDate),
+    estimatedSeconds: a.estimatedDuration ?? 0,
     customValue1: a.customValue1,
     customValue2: a.customValue2,
     customValue3: a.customValue3,
@@ -105,33 +124,69 @@ extension TaskDerived on Task {
   /// (server flag is stale until the next save).
   bool get isRunning => timeLog.isNotEmpty && timeLog.last.isRunning;
 
-  /// Billable elapsed time across the log, measured against [now] — the
-  /// quantity that drives the invoice line (`rate × hours`). Non-billable
-  /// entries are excluded, matching admin-portal's "billable hours".
+  /// Billable time **worked** by [now] — the quantity that drives the invoice
+  /// line (`rate × hours`). Non-billable entries are excluded, matching
+  /// admin-portal's "billable hours".
   /// **Use this ONLY for invoicing**; the UI displays [loggedDuration].
-  Duration billableDuration([DateTime? now]) {
-    final n = now ?? DateTime.now();
-    var total = Duration.zero;
-    for (final e in timeLog) {
-      if (!e.billable) continue;
-      total += e.durationUpTo(n);
-    }
-    return total;
-  }
+  ///
+  /// Delegates to `workedDuration`, so a booking — a stopped entry that ends
+  /// in the future — contributes **nothing**. Before that, converting a quote
+  /// line into a dated task (invoiceninja/flutter#88) and then invoicing it
+  /// billed the schedule: the hours were counted the moment they were booked,
+  /// and again when the work was actually logged. That is the money half of
+  /// invoiceninja/flutter#149's "allocated vs. worked", and it is why
+  /// [loggedDuration] — which still totals every entry — must not be used
+  /// for an invoice.
+  /// Where this task sits relative to its own bookings at [now].
+  ///
+  /// Binds `due_date` and `estimated_duration` to the pure rules in
+  /// `task_schedule.dart` in ONE place. Every UI surface asks the task, not the
+  /// log — passing the log alone silently drops the anchor that tells a
+  /// booking from a forward-looking timesheet entry, which is the whole point
+  /// of the distinction.
+  TaskScheduleState scheduleStateAt(DateTime now) => taskScheduleState(
+    timeLog,
+    now: now,
+    dueDate: dueDate,
+    estimatedSeconds: estimatedSeconds,
+  );
 
-  /// Total wall-clock elapsed time across EVERY entry (billable or not),
-  /// measured against [now] — the duration shown everywhere in the UI
-  /// (list, detail, kanban, editor). Matches admin-portal's
-  /// `calculateDuration()` default. Use [billableDuration] for invoice
-  /// quantities.
-  Duration loggedDuration([DateTime? now]) {
-    final n = now ?? DateTime.now();
-    var total = Duration.zero;
-    for (final e in timeLog) {
-      total += e.durationUpTo(n);
-    }
-    return total;
-  }
+  /// Time actually worked by [now] — every entry that isn't a booking.
+  Duration workedTime([DateTime? now]) =>
+      workedDuration(timeLog, now: now ?? DateTime.now(), dueDate: dueDate);
+
+  /// Time booked and not yet worked — [workedTime]'s exact complement.
+  Duration bookedTime([DateTime? now]) =>
+      scheduledDuration(timeLog, now: now ?? DateTime.now(), dueDate: dueDate);
+
+  /// How far past its booked start an unworked booking is, or null when this
+  /// task isn't [TaskScheduleState.late].
+  Duration? lateByAt(DateTime now) => lateBy(
+    timeLog,
+    now: now,
+    dueDate: dueDate,
+    estimatedSeconds: estimatedSeconds,
+  );
+
+  Duration billableDuration([DateTime? now]) => workedDuration(
+    [
+      for (final e in timeLog)
+        if (e.billable) e,
+    ],
+    now: now ?? DateTime.now(),
+    dueDate: dueDate,
+  );
+
+  /// Wall-clock time **worked**, billable or not — what every duration surface
+  /// in the app displays.
+  ///
+  /// Delegates to [workedTime], so a booking contributes nothing. It used to
+  /// total every entry, which meant the same booked task read `09:00` on a
+  /// phone and `2:00` on a desktop, and an unstarted job showed
+  /// `Duration 2:00 / Estimated 2:00` — "done". The billable/non-billable
+  /// distinction this getter has always drawn against [billableDuration] is
+  /// unchanged.
+  Duration loggedDuration([DateTime? now]) => workedTime(now);
 }
 
 /// Serialize back to the JSON shape the server expects. `preserveTempId`
@@ -158,6 +213,14 @@ extension TaskPayload on Task {
       // emitted exactly as Client and Product already do.
       if (userId.isNotEmpty) 'user_id': userId,
       'time_log': TimeEntry.encodeLog(timeLog),
+      // Emitted unconditionally, both of them: `_domainToCompanion` stores
+      // this map as the Drift `payload` and `_fromRow` reads the domain back
+      // out of it, so an omitted key round-trips to "unset" and a local edit
+      // would blank a value the user never touched. `''` is safe for the date
+      // because Invoice Ninja runs `ConvertEmptyStringsToNull` globally, so
+      // it reaches the `nullable` rule as null rather than failing `date:Y-m-d`.
+      'due_date': dueDate?.toIso() ?? '',
+      'estimated_duration': estimatedSeconds > 0 ? estimatedSeconds : null,
       'custom_value1': customValue1,
       'custom_value2': customValue2,
       'custom_value3': customValue3,

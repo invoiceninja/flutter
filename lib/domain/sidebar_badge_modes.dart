@@ -67,6 +67,14 @@ const String kBadgeModeNone = 'none';
 /// expenses) read it out of the payload JSON instead.
 const String kBadgeModeAssignedToMe = 'assigned_to_me';
 
+/// Tasks booked ahead — a time-log entry that has not started yet.
+///
+/// Named rather than spelled out because four places have to agree on it: the
+/// mode below, its status-tab spec, `TaskDao.badgeModePredicate`, and the list
+/// VM's cache top-up. Three of them agreeing on a bare string is how that top-up
+/// came to be unreachable.
+const String kBadgeModeUpcoming = 'upcoming';
+
 const SidebarBadgeMode _total = SidebarBadgeMode(
   kBadgeModeTotal,
   labelKey: 'total',
@@ -208,6 +216,11 @@ const List<SidebarBadgeMode> kProjectBadgeModes = [
 
 const List<SidebarBadgeMode> kTaskBadgeModes = [
   _total,
+  // Booked work that hasn't started: a future `time_log` block with no timer
+  // running (invoiceninja/flutter#149). Neutral, not `warning` — a count of
+  // jobs on the calendar is information, not an alarm, and the row itself
+  // carries the "due now" tone.
+  SidebarBadgeMode(kBadgeModeUpcoming, labelKey: 'upcoming'),
   SidebarBadgeMode('running', labelKey: 'running'),
   SidebarBadgeMode(
     'uninvoiced',

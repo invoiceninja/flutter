@@ -1027,6 +1027,12 @@ List<({DateTime t, double hours})> buildCumulativeSeries(
   for (final task in tasks) {
     for (final entry in task.timeLog) {
       if (!entry.billable || entry.start == null) continue;
+      // A booking is a plan, not logged hours — a stopped entry ending in the
+      // future contributes nothing, matching `Task.billableDuration`. Without
+      // this a project reads "over budget" from work nobody has started
+      // (invoiceninja/flutter#149).
+      final stop = entry.stop;
+      if (stop != null && stop.isAfter(now)) continue;
       final duration = entry.durationUpTo(now);
       if (duration <= Duration.zero) continue;
       // `TimeEntry.start/stop` come from `epochSecondsToUtc` so they're UTC.

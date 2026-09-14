@@ -118,6 +118,11 @@ void main() {
       // deliberate edit here, with the superset argument made in review.
       const localOnly = {
         (EntityType.expense, 'unpaid'),
+        // Nothing server-side can express "the last time-log entry ends in
+        // the future" — `TaskFilters::client_status` offers only `is_running`
+        // and `invoice_id`. `TaskListViewModel` tops the local cache up by
+        // `calculated_start_date` instead of relying on the auto-chain alone.
+        (EntityType.task, 'upcoming'),
         (EntityType.purchaseOrder, 'sent'),
         // Both were mapped once and deliberately un-mapped: the only available
         // superset is nearly the whole table, so it bought no narrowing while

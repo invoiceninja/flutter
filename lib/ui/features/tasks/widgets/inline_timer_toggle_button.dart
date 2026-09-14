@@ -41,6 +41,13 @@ class InlineTimerToggleButton extends StatefulWidget {
 class _InlineTimerToggleButtonState extends State<InlineTimerToggleButton> {
   bool _hovering = false;
 
+  /// Re-tap guard. `toggleTimer` awaits a Drift read and a save before the row
+  /// rebuilds, and two taps inside that window both read `isRunning == false`
+  /// from the same stale copy — two outbox rows, two toasts, two Undo buttons
+  /// pointing at the same snapshot. `TaskDailyActions.duplicateYesterday`
+  /// carries the same guard for the same reason.
+  bool _busy = false;
+
   @override
   Widget build(BuildContext context) {
     final task = widget.task;
@@ -62,6 +69,18 @@ class _InlineTimerToggleButtonState extends State<InlineTimerToggleButton> {
         if (_hovering) setState(() => _hovering = false);
       },
       child: IconButton(
+        // `play_circle_outlined`, pairing with `stop_circle_outlined`. Every
+        // task timer control in the app uses this pair — the list row, the
+        // kanban card, the detail KPI strip, the daily timeline, the edit
+        // screen, the bulk toolbar and the ⋮ menu. They used to split between
+        // a circled play here and a bare `play_arrow_outlined` on Daily and
+        // the edit form, which is invoiceninja/flutter#153: the same verb
+        // wearing two glyphs one tab apart. The circled pair wins because the
+        // stop glyph has no un-circled sibling in Material, so the other
+        // direction leaves Start and Stop mismatched wherever they alternate
+        // in one slot — which is every slot here.
+        // `test/lint/task_start_rules_test.dart` fails the build on a bare
+        // `play_arrow` under `lib/ui/features/tasks/`.
         tooltip: context.tr(running ? 'stop' : 'start'),
         icon: Icon(
           running ? Icons.stop_circle_outlined : Icons.play_circle_outlined,
@@ -74,8 +93,21 @@ class _InlineTimerToggleButtonState extends State<InlineTimerToggleButton> {
           minWidth: widget.minTapTarget,
           minHeight: widget.minTapTarget,
         ),
-        onPressed: () =>
-            TaskActions.toggleTimer(context, services, widget.companyId, task),
+        onPressed: _busy
+            ? null
+            : () async {
+                setState(() => _busy = true);
+                try {
+                  await TaskActions.toggleTimer(
+                    context,
+                    services,
+                    widget.companyId,
+                    task,
+                  );
+                } finally {
+                  if (mounted) setState(() => _busy = false);
+                }
+              },
       ),
     );
   }

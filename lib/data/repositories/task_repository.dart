@@ -22,6 +22,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 
 /// Source of truth for Task data. Mirrors `ProductRepository`'s shape with
 /// two task-specific additions:
@@ -256,6 +257,8 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     final stored = draft.copyWith(
       id: tmpId,
       tagIds: await canonicalizeTagIds(draft.tagIds),
+      // See `save` — one sorted list feeds both `is_running` and `payload`.
+      timeLog: sortTimeLog(draft.timeLog),
     );
     // Resolved OUTSIDE the transaction — see TagNameResolver.
     final tagNames = await resolveTagNames(companyId, stored.tagIds);
@@ -300,6 +303,18 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     // Unconditional: a `!=` here would be List *identity*, correct only by an
     // invariant nothing enforces, and the copy is free when nothing changed.
     task = task.copyWith(tagIds: await canonicalizeTagIds(task.tagIds));
+
+    // Normalize the log ONCE, here at the domain boundary — never inside
+    // `TimeEntry.encodeLog`. `_domainToCompanion` writes the `is_running`
+    // COLUMN from `t.isRunning` (this list's `.last`) and the `payload` from
+    // `toApiJson`, and `_fromRow` rebuilds the domain out of that payload. Sort
+    // in the encoder and the two disagree the moment an unsorted list is
+    // saved: `watchRunning` / `watchRunningCount` / `runningTaskIds` read the
+    // column and say "running" while `RunningTimerPill` and
+    // [stopRunningTimer] read the payload and say "not" — so the badge counts
+    // a timer that no surface can stop. `weekly_merge.applyCellEditToLogs`
+    // and `TaskEditViewModel.addEntry` can both produce such a list.
+    task = task.copyWith(timeLog: sortTimeLog(task.timeLog));
 
     // Resolved OUTSIDE the transaction — see TagNameResolver.
     final tagNames = await resolveTagNames(companyId, task.tagIds);
@@ -352,44 +367,123 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     );
   }
 
-  /// Surgical "start the timer" — appends a running entry through the outbox.
-  /// Used by the bulk-action toolbar and every inline 1-tap toggle. No-op on
-  /// an invoiced task (server-immutable) or one that's already running.
-  /// Atomically stops any prior running entry first so we never have two
-  /// running at once. Carries the last entry's description onto the new entry
-  /// (convenience), but NOT its billable flag — a new timer keeps the default
-  /// `billable: true` so a "Start" can't silently create a non-billable entry
-  /// from a prior non-billable one. A brand-new task with no history starts
-  /// blank.
-  Future<void> startTimer({
+  /// Start [taskId]'s timer through the outbox, consuming a booking rather
+  /// than adding a second entry beside it.
+  ///
+  /// Every start path funnels here (the inline toggles, the bulk toolbar, and
+  /// the ⋮ menu via `TaskActions`), because appending blindly is not merely
+  /// untidy: `Request::checkTimeLog` rejects a running entry that precedes
+  /// anything, so a plain append on a task with a future booking is a
+  /// guaranteed 422 and a dead outbox row — and once that booking's window has
+  /// passed the append *succeeds* and silently bills hours nobody worked.
+  /// [planTaskStart] owns the decision; this owns the write.
+  ///
+  /// [confirmClaim] is the caller's answer to
+  /// [TaskStartResult.needsConfirmation]: without it, a booking on another day
+  /// or one that has already passed writes **nothing**, so the bulk toolbar —
+  /// which cannot prompt — can never eat a booking. [claimStatusId] is applied
+  /// only when a booking is actually claimed, and is resolved by the caller
+  /// because `builtInTaskStatusKey` lives in `lib/ui` and `layering_test`
+  /// forbids reaching it from here.
+  Future<TaskStartResult> startTimer({
     required String companyId,
     required String taskId,
+    bool confirmClaim = false,
+    String? claimStatusId,
+  }) async {
+    final row = await db.taskDao
+        .watchById(companyId: companyId, id: taskId)
+        .first;
+    if (row == null) return TaskStartResult.noop;
+    final task = _fromRow(row);
+    // Refuse invoiced (server-immutable), already-running, and soft-deleted
+    // tasks — no path should re-arm a timer on a deleted row.
+    if (task.isInvoiced || task.isRunning || task.isDeleted) {
+      return TaskStartResult.noop;
+    }
+
+    final plan = planTaskStart(
+      task.timeLog,
+      // The repository's injectable clock, not `DateTime.now()`: this decision
+      // turns on the calendar day (claim vs. claimOtherDay), so a test that
+      // cannot stub it cannot cover a midnight boundary — and two of them were
+      // wall-clock flaky against a real one.
+      now: now(),
+      dueDate: task.dueDate,
+      estimatedSeconds: task.estimatedSeconds,
+    );
+    if (plan.outcome == TaskStartOutcome.blocked) {
+      return TaskStartResult.blocked;
+    }
+    final needsConfirm =
+        plan.outcome == TaskStartOutcome.claimOtherDay ||
+        plan.outcome == TaskStartOutcome.claimLate;
+    if (needsConfirm && !confirmClaim) return TaskStartResult.needsConfirmation;
+
+    var next = task.copyWith(timeLog: plan.entries);
+    if (plan.claimed != null &&
+        claimStatusId != null &&
+        claimStatusId.isNotEmpty) {
+      next = next.copyWith(statusId: claimStatusId);
+    }
+    await save(companyId: companyId, task: next);
+    return plan.claimed == null
+        ? TaskStartResult.started
+        : TaskStartResult.claimed;
+  }
+
+  /// The task the user is due on site for right now: a booking whose window
+  /// contains `now`, with nothing running. Null when there is none.
+  ///
+  /// The shell pill is the app's only always-present task control and it
+  /// renders nothing unless a timer is going — which is exactly backwards for
+  /// someone standing outside a customer's house with one hand free. Ordered
+  /// by the booking's start so the pill names the job that began soonest, not
+  /// whichever row was touched last.
+  Stream<Task?> watchDueNow({required String companyId}) =>
+      db.taskDao.watchBooked(companyId: companyId).map((rows) {
+        final asOf = DateTime.now();
+        final due = <Task>[];
+        for (final row in rows) {
+          final task = _fromRow(row);
+          if (task.scheduleStateAt(asOf) == TaskScheduleState.dueNow) {
+            due.add(task);
+          }
+        }
+        if (due.isEmpty) return null;
+        // By the BOOKING's start, not `timeLog.first` — the earliest entry is
+        // often a worked block hours before it, so the pill named whichever job
+        // had the oldest history rather than the one the user is due at.
+        DateTime bookedStart(Task t) => t.timeLog
+            .where((e) => !e.isRunning && e.stop!.isAfter(asOf))
+            .map((e) => e.start!)
+            .reduce((a, b) => a.isBefore(b) ? a : b);
+        due.sort((a, b) => bookedStart(a).compareTo(bookedStart(b)));
+        return due.first;
+      });
+
+  /// Put a task's `time_log` and status back — the inverse of a claim, for the
+  /// Undo on its toast.
+  ///
+  /// Re-reads the row and restores **only** those two fields. Handing `save` a
+  /// whole `Task` captured before the claim would also rewrite the
+  /// description, rate, tags, client, assignee and custom fields to their
+  /// values at that moment — and PUT them — so a sync landing inside the
+  /// toast's few seconds would be silently reverted.
+  Future<void> restoreTimeLog({
+    required String companyId,
+    required String taskId,
+    required List<TimeEntry> timeLog,
+    required String statusId,
   }) async {
     final row = await db.taskDao
         .watchById(companyId: companyId, id: taskId)
         .first;
     if (row == null) return;
     final task = _fromRow(row);
-    // Refuse invoiced (server-immutable), already-running, and soft-deleted
-    // tasks — no path should re-arm a timer on a deleted row.
-    if (task.isInvoiced || task.isRunning || task.isDeleted) return;
-    final entries = <TimeEntry>[...task.timeLog];
-    if (entries.isNotEmpty && entries.last.isRunning) {
-      entries[entries.length - 1] = entries.last.copyWith(stop: DateTime.now());
-    }
-    final last = entries.isNotEmpty ? entries.last : null;
-    entries.add(
-      TimeEntry(
-        start: DateTime.now(),
-        stop: null,
-        // Carry only the description; billable keeps its default (true) so a
-        // "Start" never silently inherits a prior non-billable flag.
-        description: last?.description ?? '',
-      ),
-    );
     await save(
       companyId: companyId,
-      task: task.copyWith(timeLog: entries),
+      task: task.copyWith(timeLog: timeLog, statusId: statusId),
     );
   }
 
@@ -626,7 +720,11 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
   // -------------------- conversions --------------------
 
   TasksCompanion _apiToCompanion(TaskApi a, String companyId) {
-    final entries = TimeEntry.parseLog(a.timeLog);
+    // Sorted, because `_fromRow` rebuilds the domain through `Task.fromApi`,
+    // which sorts — so deriving the COLUMN from the raw order would let the
+    // two disagree for any server row whose log isn't already ordered. That is
+    // the same desync `save` guards against, one mapper over.
+    final entries = sortTimeLog(TimeEntry.parseLog(a.timeLog));
     final isRunning = entries.isNotEmpty && entries.last.isRunning;
     return TasksCompanion.insert(
       id: a.id,
@@ -764,4 +862,29 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
             (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
           ))
           .write(TasksCompanion(documents: Value(json)));
+}
+
+/// What [TaskRepository.startTimer] did — or why it declined.
+///
+/// Deliberately a return value rather than a thrown error: three of the five
+/// outcomes are ordinary product states a caller must render differently, and
+/// only one of them is a failure.
+enum TaskStartResult {
+  /// A fresh running entry was appended — the long-standing behaviour, and
+  /// still what happens on a task with nothing booked.
+  started,
+
+  /// A booking became the running entry. The caller should offer Undo.
+  claimed,
+
+  /// A booking sits on another calendar day, or has already passed unworked.
+  /// **Nothing was written.** Ask, then call again with `confirmClaim: true`.
+  needsConfirmation,
+
+  /// Two or more unfinished bookings: no legal `time_log` exists in either
+  /// direction. Send the user to the time log.
+  blocked,
+
+  /// Nothing to do — missing, invoiced, deleted, or already running.
+  noop,
 }

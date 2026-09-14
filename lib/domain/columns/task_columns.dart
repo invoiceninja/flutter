@@ -113,6 +113,43 @@ final List<TaskColumn> kAllTaskColumns = <TaskColumn>[
         : cellText(formatDuration(t.loggedDuration(), compactDays: true)),
     valueBuilder: (t) => formatDuration(t.loggedDuration(), compactDays: true),
   ),
+  // The plan, beside the actual. Both are payload-only (no Drift column), so
+  // both are display-only for the same reason `duration` and `date` above
+  // are — and `estimated_duration` is null on every task predating the
+  // 2026-08-31 server field, which sorts first ascending and would move
+  // nothing visible on a 50-row page.
+  TaskColumn(
+    id: TaskFieldIds.dueDate,
+    labelKey: 'due_date',
+    width: 120,
+    sortable: false,
+    cellBuilder: (t, ctx) {
+      final due = t.dueDate;
+      return due == null ? cellEmpty() : cellDate(due.toDateTime(), ctx);
+    },
+    valueBuilder: (t) => t.dueDate?.toIso(),
+  ),
+  TaskColumn(
+    id: TaskFieldIds.estimatedDuration,
+    labelKey: 'estimated_duration',
+    width: 120,
+    align: ColumnAlign.end,
+    sortable: false,
+    cellBuilder: (t, _) => t.estimatedSeconds <= 0
+        ? cellEmpty()
+        : cellText(
+            formatDuration(
+              Duration(seconds: t.estimatedSeconds),
+              compactDays: true,
+            ),
+          ),
+    valueBuilder: (t) => t.estimatedSeconds <= 0
+        ? null
+        : formatDuration(
+            Duration(seconds: t.estimatedSeconds),
+            compactDays: true,
+          ),
+  ),
   TaskColumn(
     id: TaskFieldIds.taskStatusId,
     labelKey: 'status',

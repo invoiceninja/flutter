@@ -1,4 +1,5 @@
 import 'package:admin/data/models/domain/time_entry.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/utils/formatting.dart';
@@ -61,12 +62,20 @@ int? durationStringToSeconds(String raw) {
 /// synthesized 09:00 start are computed in local wall-clock, then stored as
 /// UTC — [TimeEntry.start] is UTC on the wire. An existing entry's start is
 /// preserved verbatim so re-editing a cell never drifts its clock time.
-List<TimeEntry>? applyCellEditToLogs(
+/// Result of a cell edit: the new log, or the reason it was refused.
+///
+/// Two refusals, and they must not share a message — `null` used to mean both,
+/// and the view model could only report "Please enter a valid duration" for a
+/// duration that was perfectly valid.
+typedef CellEditResult = ({List<TimeEntry>? logs, TimeLogProblem? problem});
+
+CellEditResult applyCellEditToLogs(
   List<TimeEntry> logs,
   Date day,
   CellEdit edit,
-  DateTime now,
-) {
+  DateTime now, {
+  Date? dueDate,
+}) {
   // ── Note / billable-only edit: don't collapse; overlay onto the first
   // same-day entry and preserve every other entry (and its hours). ──────────
   if (edit.duration == null) {
@@ -89,28 +98,42 @@ List<TimeEntry>? applyCellEditToLogs(
         result.add(e);
       }
     }
-    if (applied) return result;
+    if (applied) return (logs: result, problem: null);
     // No existing entry on this day → create one (local 09:00, zero duration)
     // carrying the note, unless it would be empty (then it's a no-op).
     final description = edit.description ?? '';
-    if (description.isEmpty) return logs;
+    if (description.isEmpty) return (logs: logs, problem: null);
     final startUtc = DateTime(day.year, day.month, day.day, 9).toUtc();
-    return [
-      ...logs,
-      TimeEntry(
-        start: startUtc,
-        stop: startUtc,
-        description: description,
-        billable: edit.billable ?? true,
-      ),
-    ];
+    return (
+      logs: [
+        ...logs,
+        TimeEntry(
+          start: startUtc,
+          stop: startUtc,
+          description: description,
+          billable: edit.billable ?? true,
+        ),
+      ],
+      problem: null,
+    );
   }
 
   // ── Duration edit: collapse every same-day entry into one. ────────────────
   TimeEntry? existing;
   final remaining = <TimeEntry>[];
   for (final e in logs) {
-    if (timeEntryLocalDate(e) == day) {
+    // A booking is a plan, not logged time. Collapsing one into the cell's
+    // total silently overwrites the slot the user reserved — and, because the
+    // collapsed entry inherits the *first* same-day entry's start, it would
+    // also re-label the reserved window as work. Typing `3` into the Thursday
+    // cell of a task booked 14:00–16:00 Thursday used to do exactly that.
+    // The SHARED predicate, anchored on the task's own `due_date` — not
+    // `stop > now`, which also matches the block this grid synthesizes for
+    // today (every cell starts at local 09:00, so "8" typed this morning is
+    // 09:00–17:00). Treating that as a booking made the grid refuse every
+    // further edit to today's cell until 17:00.
+    if (!isTimeEntryBooking(e, now: now, dueDate: dueDate) &&
+        timeEntryLocalDate(e) == day) {
       // First same-day entry seeds description/billable/start; any further
       // same-day entries are intentionally collapsed away.
       existing ??= e;
@@ -120,7 +143,7 @@ List<TimeEntry>? applyCellEditToLogs(
   }
 
   final parsed = durationStringToSeconds(edit.duration!);
-  if (parsed == null) return null;
+  if (parsed == null) return (logs: null, problem: null);
   final seconds = parsed;
 
   final description = edit.description ?? existing?.description ?? '';
@@ -128,7 +151,7 @@ List<TimeEntry>? applyCellEditToLogs(
 
   // Zero duration and no description → delete the entry.
   if (seconds <= 0 && description.isEmpty) {
-    return remaining;
+    return (logs: remaining, problem: null);
   }
 
   final DateTime startUtc;
@@ -146,5 +169,11 @@ List<TimeEntry>? applyCellEditToLogs(
       billable: billable,
     ),
   );
-  return remaining;
+  // Refuse an edit the server would reject rather than queueing a 422: the
+  // synthesized block can still run into a preserved booking on the same day,
+  // and `remaining.add` leaves a running entry on another day no longer last.
+  // The caller discards just this cell and reverts it on the next emission.
+  final problem = timeLogProblem(remaining);
+  if (problem != null) return (logs: null, problem: problem);
+  return (logs: remaining, problem: null);
 }

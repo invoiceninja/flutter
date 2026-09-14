@@ -20,9 +20,11 @@ Task _task({
   String rate = '0',
   String timeLog = '',
   String invoiceId = '',
+  int? estimatedDuration,
 }) => Task.fromApi(
   TaskApi(
     id: id,
+    estimatedDuration: estimatedDuration,
     description: description,
     number: number,
     rate: rate,
@@ -482,6 +484,38 @@ void main() {
         invoiceInclusive: false,
       );
       expect(noCascade.single.cost, Decimal.zero);
+    });
+  });
+  group('billing a booking (flutter#149)', () {
+    /// A block two hours from now: booked, not worked.
+    String booked() {
+      final start = DateTime.now().add(const Duration(hours: 2));
+      final s = start.millisecondsSinceEpoch ~/ 1000;
+      return '[[$s,${s + 7200},"",true]]';
+    }
+
+    test('booked-but-unworked time is not billed as hours', () {
+      // `billableDuration` counts worked time only, so the quote → dated task
+      // → invoice flow must not charge the schedule.
+      expect(_task(timeLog: booked()).billableDuration().inSeconds, 0);
+    });
+
+    test('the quantity falls back to the ESTIMATE, not to one hour', () {
+      // The round trip `line_item_task_seed.dart` documents: a 2 h quote line
+      // seeds a 2 h booking, and invoicing it before the work happens must
+      // still read 2 h. The bare `Decimal.one` fallback silently billed one.
+      final li = taskToLineItem(
+        _task(
+          rate: '100',
+          timeLog: booked(),
+          estimatedDuration: const Duration(hours: 2).inSeconds,
+        ),
+      );
+      expect(li.quantity, Decimal.parse('2'));
+    });
+
+    test('with neither worked time nor an estimate it is still 1', () {
+      expect(taskToLineItem(_task()).quantity, Decimal.one);
     });
   });
 }

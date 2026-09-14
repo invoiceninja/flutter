@@ -178,6 +178,11 @@ class TaskListScreen extends StatelessWidget {
         return TaskListTile(
           task: task,
           companyId: vm.companyId,
+          // Only the booked-time slot needs it, for `enableMilitaryTime`.
+          // `formatterIfReady` because a row must render before the company
+          // settings land; the slot then falls back to 12-hour, matching the
+          // server's own `military_time` default rather than guessing.
+          formatter: context.read<Services>().formatterIfReady(vm.companyId),
           columns: options.wide ? vm.columns : const [],
           wide: options.wide,
           editable: options.editable,
@@ -209,7 +214,7 @@ class TaskListScreen extends StatelessWidget {
       bulkActions: [
         const EntityListBulkAction(
           actionId: 'start',
-          icon: Icons.play_arrow_outlined,
+          icon: Icons.play_circle_outlined,
           tooltipKey: 'start',
           singleSuccessKey: 'started_task',
           pluralSuccessKey: 'started_tasks',

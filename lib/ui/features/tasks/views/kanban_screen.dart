@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/features/tasks/view_models/kanban_view_model.dart';
@@ -111,18 +112,28 @@ class _KanbanScreenState extends State<KanbanScreen> {
           // calendar's only other create is convert-this-event. React's kanban has
           // no page-level create control either (invoiceninja/flutter#135).
           // `test/lint/tasks_view_wiring_test.dart` fails the build if one returns.
-          body: ChangeNotifierProvider<KanbanViewModel>.value(
-            value: _vm,
-            child: Column(
-              children: [
-                TaskFilterBar(
-                  filters: _vm,
-                  companyId: _vm.companyId,
-                  inline: inline,
-                  onEditFilters: _openFilters,
-                ),
-                const Expanded(child: KanbanBoard()),
-              ],
+          // The board doesn't go through `EntityListScreenScaffold`, which is
+          // what provides this everywhere else — so without it a card's booked
+          // time rendered 12-hour while the same task's list row rendered the
+          // company's clock.
+          body: FormatterScope(
+            // Nullable on purpose, and mounted unconditionally — see
+            // `FormatterScope`: branching on readiness changes the tree shape
+            // and remounts the whole board when the formatter lands.
+            formatter: context.read<Services>().formatterIfReady(_vm.companyId),
+            child: ChangeNotifierProvider<KanbanViewModel>.value(
+              value: _vm,
+              child: Column(
+                children: [
+                  TaskFilterBar(
+                    filters: _vm,
+                    companyId: _vm.companyId,
+                    inline: inline,
+                    onEditFilters: _openFilters,
+                  ),
+                  const Expanded(child: KanbanBoard()),
+                ],
+              ),
             ),
           ),
         );

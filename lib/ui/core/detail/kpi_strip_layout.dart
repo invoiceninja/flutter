@@ -82,7 +82,13 @@ class _HorizontalStrip extends StatelessWidget {
       children.add(Expanded(child: cells[i]));
     }
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      // `start`, so the CAPTIONS line up. Every cell used to be a single-line
+      // value, which made centring indistinguishable — the moment one cell
+      // carries a sub-line (the task strip's booked/remaining figures) a
+      // centred row floats its caption above its neighbours', against the
+      // 36 px divider that stays put. `_CellGrid` below has always used
+      // `start` for the same reason.
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
     );
   }

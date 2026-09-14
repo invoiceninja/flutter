@@ -331,9 +331,40 @@ class _TimeEntrySummary extends StatelessWidget {
         : '${_formatDate(start.toLocal())} '
               '${_hhmm(start.toLocal())}';
 
-    final dateText = Text(
-      dateLabel,
-      style: TextStyle(color: tokens.ink2, fontSize: 13),
+    // A booking — a stopped entry that ends in the future — is a plan, not
+    // logged time. This card is where the difference is most visible, and it
+    // used to render the two identically: the same date line, the same
+    // duration, the same weight, one above the other. It is also the row that
+    // `Task.billableDuration` now refuses to invoice, so leaving it
+    // indistinguishable would make the totals look wrong rather than right.
+    final booked =
+        stop != null && !entry.isRunning && stop.isAfter(DateTime.now());
+    final dateText = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            dateLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: booked ? tokens.ink3 : tokens.ink2,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        if (booked) ...[
+          const SizedBox(width: 6),
+          Text(
+            context.tr('booked'),
+            style: TextStyle(
+              color: tokens.ink3,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
     );
     final descriptionText = Text(
       entry.description.isEmpty ? '—' : entry.description,
@@ -354,7 +385,7 @@ class _TimeEntrySummary extends StatelessWidget {
               compactDays: true,
             ),
             style: TextStyle(
-              color: tokens.ink,
+              color: booked ? tokens.ink3 : tokens.ink,
               fontSize: 13,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),

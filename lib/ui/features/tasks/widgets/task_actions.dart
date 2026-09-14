@@ -1,21 +1,30 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/data/repositories/task_repository.dart';
 import 'package:admin/data/models/domain/task.dart';
+import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/tasks/task_day.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_start_scheduled_dialog.dart';
 import 'package:admin/ui/core/detail/copy_entity_link.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/core/utils/task_status_colors.dart';
 import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/invoice_append_context.dart';
@@ -103,20 +112,19 @@ class TaskActions {
     // through to requireSynced below, keeping its "not synced yet" toast.
     if (task.isInvoiced || task.isDeleted) return;
     if (!requireSynced(context, task.id)) return;
-    final wasRunning = task.isRunning;
-    if (wasRunning) {
-      await services.tasks.stopRunningTimer(
-        companyId: companyId,
-        taskId: task.id,
-      );
-    } else {
-      await services.tasks.startTimer(companyId: companyId, taskId: task.id);
+    if (!task.isRunning) {
+      // Starting is never a bare `save` from here: it may need to claim a
+      // booking, prompt, or refuse outright. [_beginTimer] owns the toast too,
+      // because three of the five outcomes write nothing.
+      await _beginTimer(context, services, companyId, task);
+      return;
     }
-    if (!context.mounted) return;
-    Notify.success(
-      context,
-      context.tr(wasRunning ? 'stopped_task' : 'started_task'),
+    await services.tasks.stopRunningTimer(
+      companyId: companyId,
+      taskId: task.id,
     );
+    if (!context.mounted) return;
+    Notify.success(context, context.tr('stopped_task'));
   }
 
   /// Display label for the "Are you sure?" prompt, so a confirm fired
@@ -150,7 +158,13 @@ class TaskActions {
           enabled: true,
           onTap: () => onTap(TaskAction.stop),
         );
-      } else if (task.timeLog.isNotEmpty) {
+      } else if (task.timeLog.isNotEmpty &&
+          task.workedTime() > Duration.zero &&
+          task.scheduleStateAt(DateTime.now()) != TaskScheduleState.late) {
+        // "Resume" claims previously-worked time, so it may only appear when
+        // there IS some. A task whose log is a booking has never been worked
+        // — offering to resume it was invoiceninja/flutter#149's opening
+        // complaint, and the word is the part that misleads.
         timerItem = EntityActionItem(
           kind: TaskAction.resume,
           icon: Icons.play_circle_outlined,
@@ -161,7 +175,7 @@ class TaskActions {
       } else {
         timerItem = EntityActionItem(
           kind: TaskAction.start,
-          icon: Icons.play_arrow_outlined,
+          icon: Icons.play_circle_outlined,
           label: context.tr('start'),
           enabled: true,
           onTap: () => onTap(TaskAction.start),
@@ -268,13 +282,13 @@ class TaskActions {
         // tmp ids haven't synced yet — server can't accept a time-log
         // change for an entity it doesn't know exists.
         if (!requireSynced(context, task.id)) return;
-        await _startTimer(context, services, companyId, task);
+        await _beginTimer(context, services, companyId, task);
       case TaskAction.stop:
         if (!requireSynced(context, task.id)) return;
         await _stopTimer(context, services, companyId, task);
       case TaskAction.resume:
         if (!requireSynced(context, task.id)) return;
-        await _resumeTimer(context, services, companyId, task);
+        await _beginTimer(context, services, companyId, task);
       case TaskAction.viewClient:
         if (task.clientId.isEmpty) return;
         goEntityFullDetail(context, '/clients', task.clientId);
@@ -502,23 +516,186 @@ class TaskActions {
     );
   }
 
-  /// Start a fresh timer on [task]. Atomically stops any currently-
-  /// running entry first (the running case is reachable via Stop, not
-  /// Start, but the guard is cheap and defensive).
-  static Future<void> _startTimer(
+  /// Begin work on [task] — the single write shared by the ⋮ menu's Start and
+  /// Resume items and by every inline one-tap toggle.
+  ///
+  /// The decision belongs to `planTaskStart`, which the repository applies;
+  /// this owns the three things only a widget can do: ask before overwriting a
+  /// booking the user isn't looking at, resolve the In-progress status (the
+  /// repository can't — `builtInTaskStatusKey` is a `lib/ui` symbol and
+  /// `layering_test` forbids reaching it from `lib/data`), and offer Undo.
+  static Future<void> _beginTimer(
     BuildContext context,
     Services services,
     String companyId,
     Task task,
   ) async {
-    final now = DateTime.now();
-    final entries = <TimeEntry>[...task.timeLog];
-    if (entries.isNotEmpty && entries.last.isRunning) {
-      entries[entries.length - 1] = entries.last.copyWith(stop: now);
+    // Everything the feedback needs is resolved BEFORE the first await.
+    //
+    // Claiming makes the task running, which removes its row from the Upcoming
+    // tab's own query and swaps the shell pill's "Due now" body out — so on
+    // both of this feature's surfaces the widget that started the timer is
+    // unmounted *by its own write*. Reading `context` afterwards would drop
+    // the toast and, with it, the only Undo. `Notify.capture` exists for
+    // exactly this: the toast host is global and outlives any context.
+    final toasts = Notify.capture(context);
+    final startedMsg = context.tr('started_task');
+    final claimedDetail = context.tr('booking_moved_to_now');
+    final blockedMsg = context.tr('task_time_log_blocks_start');
+    final undoLabel = context.tr('undo');
+    final formatter = services.formatterIfReady(companyId);
+
+    // Captured before the write so Undo can put the log — and the status —
+    // back. Restored through a targeted primitive, not a whole-record save:
+    // re-saving this snapshot would also revert any field a sync landed in the
+    // meantime.
+    final beforeLog = task.timeLog;
+    final beforeStatusId = task.statusId;
+
+    // Resolved only when a claim is on the table. The status move is the app's
+    // own plan→actual transition, never something a plain Start does, and
+    // skipping it keeps the common path free of a Drift query.
+    final couldClaim =
+        task.scheduleStateAt(DateTime.now()) != TaskScheduleState.none;
+    final claimStatusId = couldClaim
+        ? await _inProgressStatusId(context, services, companyId, task)
+        : null;
+
+    Future<TaskStartResult> start({bool confirmed = false}) =>
+        services.tasks.startTimer(
+          companyId: companyId,
+          taskId: task.id,
+          confirmClaim: confirmed,
+          claimStatusId: claimStatusId,
+        );
+
+    var result = await start();
+
+    if (result == TaskStartResult.needsConfirmation) {
+      // The only branch that genuinely needs a live context — a dialog has to
+      // be pushed on a navigator. Nothing has been written yet, so bailing
+      // here loses nothing.
+      if (!context.mounted) return;
+      final confirmed = await showConfirmStartScheduledDialog(
+        context,
+        message: _claimPrompt(context, task, formatter),
+        subject: _confirmSubject(task),
+      );
+      if (!confirmed) return;
+      result = await start(confirmed: true);
     }
-    entries.add(TimeEntry(start: now, stop: null));
-    final next = task.copyWith(timeLog: entries);
-    await services.tasks.save(companyId: companyId, task: next);
+
+    switch (result) {
+      case TaskStartResult.blocked:
+        toasts?.warning(blockedMsg);
+      case TaskStartResult.noop:
+      case TaskStartResult.needsConfirmation:
+        // Nothing was written and nothing changed. `noop` is reachable when
+        // this widget's copy is a beat stale (the task is already running, or
+        // has just been invoiced), and silence there is the honest answer —
+        // the surface it came from is about to rebuild with the truth.
+        break;
+      case TaskStartResult.started:
+        toasts?.success(startedMsg);
+      case TaskStartResult.claimed:
+        toasts?.success(
+          startedMsg,
+          detail: claimedDetail,
+          action: NotifyAction(
+            undoLabel,
+            () => unawaited(
+              services.tasks.restoreTimeLog(
+                companyId: companyId,
+                taskId: task.id,
+                timeLog: beforeLog,
+                statusId: beforeStatusId,
+              ),
+            ),
+          ),
+        );
+    }
+  }
+
+  /// The body of the claim prompt, phrased for whichever case triggered it.
+  static String _claimPrompt(
+    BuildContext context,
+    Task task,
+    Formatter? formatter,
+  ) {
+    final now = DateTime.now();
+    final state = task.scheduleStateAt(now);
+    final sorted = sortTimeLog(task.timeLog);
+    if (state == TaskScheduleState.late && sorted.isNotEmpty) {
+      final entry = sorted.first;
+      final start = entry.start!.toLocal();
+      // Name the duration, not just the time. `late` is *inferred* — one entry,
+      // on the task's due date, matching its estimate — and confirming replaces
+      // that entry outright. If the inference is wrong the user is about to
+      // discard real logged work, so the prompt has to say how much.
+      return context.tr('start_booked_late', {
+        'time': formatTimeOfDay(
+          start.hour,
+          start.minute,
+          military: formatter?.settings.enableMilitaryTime ?? false,
+        ),
+        'duration': formatDuration(
+          entry.durationUpTo(now),
+          compactDays: true,
+          showSeconds: false,
+        ),
+      });
+    }
+    // `firstWhere`-with-fallback, not `.first`: the repository re-reads the
+    // row before deciding, so this widget's copy can be a beat stale — and a
+    // throw out of an `onPressed` is the worst possible way to learn that.
+    // The generic prompt is honest in that case; only the date is lost.
+    Date? day;
+    for (final e in sortTimeLog(task.timeLog)) {
+      if (!e.isRunning && e.stop!.isAfter(now)) {
+        day = timeEntryLocalDate(e);
+        break;
+      }
+    }
+    if (day == null) return context.tr('start_booked_time');
+    return context.tr('start_booked_other_day', {
+      'date': formatter?.date(day.toIso()) ?? day.toIso(),
+    });
+  }
+
+  /// The company's "In progress" status, when moving [task] onto it is the
+  /// app's call to make rather than the user's — i.e. the task is still
+  /// sitting in a status that means "not started".
+  ///
+  /// Null (leave the status alone) whenever the current status is anything
+  /// else, including any status this app can't recognise: `builtInTaskStatusKey`
+  /// matches the server's seeded names against English and the active locale
+  /// only, so a company created in a third language falls through here by
+  /// design. Null also for the bulk toolbar, which passes no context at all.
+  static Future<String?> _inProgressStatusId(
+    BuildContext context,
+    Services services,
+    String companyId,
+    Task task,
+  ) async {
+    final statuses = await services.taskStatuses
+        .watchAll(companyId: companyId)
+        .first;
+    if (!context.mounted) return null;
+    String? keyOf(String name) => builtInTaskStatusKey(name, tr: context.tr);
+
+    if (task.statusId.isNotEmpty) {
+      TaskStatus? current;
+      for (final s in statuses) {
+        if (s.id == task.statusId) current = s;
+      }
+      if (current == null) return null;
+      final key = keyOf(current.name);
+      if (key != 'backlog' && key != 'ready_to_do') return null;
+    }
+    for (final s in statuses) {
+      if (keyOf(s.name) == 'in_progress') return s.id;
+    }
+    return null;
   }
 
   /// Stop the running entry, leaving everything else untouched.
@@ -532,33 +709,6 @@ class TaskActions {
     final now = DateTime.now();
     final entries = <TimeEntry>[...task.timeLog];
     entries[entries.length - 1] = entries.last.copyWith(stop: now);
-    final next = task.copyWith(timeLog: entries);
-    await services.tasks.save(companyId: companyId, task: next);
-  }
-
-  /// Append a new running entry seeded from the previous entry's
-  /// description + billable. Matches admin-portal's "Resume" semantics.
-  static Future<void> _resumeTimer(
-    BuildContext context,
-    Services services,
-    String companyId,
-    Task task,
-  ) async {
-    if (task.timeLog.isEmpty) {
-      await _startTimer(context, services, companyId, task);
-      return;
-    }
-    final last = task.timeLog.last;
-    final now = DateTime.now();
-    final entries = <TimeEntry>[
-      ...task.timeLog,
-      TimeEntry(
-        start: now,
-        stop: null,
-        description: last.description,
-        billable: last.billable,
-      ),
-    ];
     final next = task.copyWith(timeLog: entries);
     await services.tasks.save(companyId: companyId, task: next);
   }

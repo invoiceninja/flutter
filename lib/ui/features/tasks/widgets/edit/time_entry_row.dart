@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
@@ -13,6 +15,7 @@ class TimeEntryRow extends StatelessWidget {
   const TimeEntryRow({
     super.key,
     required this.entry,
+    this.dueDate,
     required this.onTap,
     required this.onRemove,
     this.enabled = true,
@@ -20,6 +23,10 @@ class TimeEntryRow extends StatelessWidget {
   });
 
   final TimeEntry entry;
+
+  /// The task's own due date — the anchor that tells a booking from an
+  /// ordinary forward-looking entry. See `task_schedule.dart`.
+  final Date? dueDate;
   final VoidCallback onTap;
   final VoidCallback onRemove;
   final bool enabled;
@@ -41,11 +48,20 @@ class TimeEntryRow extends StatelessWidget {
     final tokens = context.inTheme;
     final start = entry.start;
     final stop = entry.stop;
+    // A booking is a plan, not logged time — and since `loggedDuration` now
+    // excludes it, an unmarked row here would sit under a total that doesn't
+    // add up. The detail screen's Time Log card marks it the same way.
+    final booked = isTimeEntryBooking(
+      entry,
+      now: DateTime.now(),
+      dueDate: dueDate,
+    );
     final dateLabel = start == null
         ? '—'
         : '${_formatDate(start.toLocal())} '
               '${_hhmm(start.toLocal())}'
-              '${stop == null ? '' : ' – ${_hhmm(stop.toLocal())}'}';
+              '${stop == null ? '' : ' – ${_hhmm(stop.toLocal())}'}'
+              '${booked ? ' · ${context.tr('booked')}' : ''}';
 
     Widget durationWidget() => entry.isRunning && entry.start != null
         ? RunningDurationLabel(start: entry.start!)

@@ -386,6 +386,14 @@ class _CreateTaskFromLineItemSheetState
       duration: _duration,
       billable: _billable,
     ),
+    // The booking's *plan*, stored where claiming it can't destroy it.
+    // Starting work rewrites the block's start to now, so without these two
+    // the promise ("2 h on the 14th") is gone the moment someone turns up.
+    // They also give the row its late state: `taskScheduleState` anchors on
+    // `dueDate` to tell an unworked booking from a finished session once the
+    // window has closed. See `task_schedule.dart`.
+    dueDate: _day,
+    estimatedSeconds: _duration.inSeconds,
   );
 
   Future<void> _save() async {

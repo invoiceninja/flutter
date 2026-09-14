@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
@@ -296,6 +297,50 @@ class _IdentitySection extends StatelessWidget {
                 onFieldSubmitted: submit,
               );
             },
+          ),
+          SizedBox(height: InSpacing.md(context)),
+          // The plan, beside the rate that prices it. `due_date` is the day
+          // the work is promised for and `estimated_duration` the time
+          // allocated to it (both 2026-08-31 server fields); together they are
+          // what survives a booking being claimed, since claiming rewrites the
+          // booked block's start to now. See `task_schedule.dart`.
+          Row(
+            children: [
+              Expanded(
+                child: InDateField(
+                  value: vm.draft.dueDate?.toDateTime(),
+                  onChanged: vm.setDueDate,
+                  formatter: formatter,
+                  enabled: !locked,
+                  // Clearable, like every other optional date in the app — and
+                  // more than usually load-bearing here: this field is the only
+                  // input to the booking anchor, so a date set by accident must
+                  // be removable from the form that set it.
+                  clearable: true,
+                  labelText: context.tr('due_date'),
+                ),
+              ),
+              const SizedBox(width: InSpacing.sm),
+              Expanded(
+                child: TextFormField(
+                  initialValue: vm.draft.estimatedSeconds <= 0
+                      ? ''
+                      : formatDuration(
+                          Duration(seconds: vm.draft.estimatedSeconds),
+                          compactDays: true,
+                          showSeconds: false,
+                        ),
+                  enabled: !locked,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    labelText: context.tr('estimated_duration'),
+                    hintText: '1h 30m',
+                  ),
+                  onChanged: vm.setEstimatedDuration,
+                  onFieldSubmitted: submit,
+                ),
+              ),
+            ],
           ),
           SizedBox(height: InSpacing.md(context)),
           EntityTagsField(

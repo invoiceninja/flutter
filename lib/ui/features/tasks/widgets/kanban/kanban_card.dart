@@ -6,6 +6,7 @@ import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
+import 'package:admin/ui/features/tasks/widgets/task_schedule_slot.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/utils/formatting.dart';
@@ -95,17 +96,28 @@ class KanbanCard extends StatelessWidget {
                     ),
                   )
                 else
-                  Text(
-                    formatDuration(
-                      task.loggedDuration(),
-                      compactDays: true,
-                      showSeconds: false,
-                    ),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: tokens.ink3,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
+                  // Same swap as the narrow list row: a booked-but-unstarted
+                  // task shows WHEN rather than a `0:00` that says nothing.
+                  Builder(
+                    builder: (context) {
+                      final slot = taskScheduleSlot(context, task);
+                      return Text(
+                        slot?.text ??
+                            formatDuration(
+                              task.loggedDuration(),
+                              compactDays: true,
+                              showSeconds: false,
+                            ),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: slot?.color ?? tokens.ink3,
+                          fontWeight: slot == null
+                              ? FontWeight.normal
+                              : FontWeight.w600,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      );
+                    },
                   ),
                 if (showTimerButton && TaskActions.canToggleTimer(task)) ...[
                   const Spacer(),

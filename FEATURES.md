@@ -383,6 +383,12 @@ the honest default.
 | Task — timer stop | ✅ | ✅ | ✅ | ✅ | |
 | Task — timer resume from time log | ✅ | ✅ | ✅ | ✅ | |
 | Task — time-log entries (edit each row) | ✅ | ✅ | ✅ | ✅ | |
+| Task — due date (`tasks.due_date`) | ❌ | ❌ | ✅ |  | Server field added 2026-08-31 |
+| Task — estimated duration (`tasks.estimated_duration`) | ❌ | ❌ | ✅ |  | Allocated time, beside worked time on the detail strip |
+| Task — booked time vs. time worked (a future time-log block is a booking, not hours) | ❌ | ❌ | ✅ |  | flutter#149; billing counts worked time only |
+| Task — starting a booked job claims the booking instead of overlapping it | ❌ | ❌ | ✅ |  | The server rejects a running entry beside a future block |
+| Task — `Upcoming` status tab + sidebar counter | ❌ | ❌ | ✅ |  | flutter#149 |
+| Task — "Due now" on the shell timer pill | ❌ | ❌ | ✅ |  | flutter#149 |
 | Task — kanban drag-to-reorder within status | ✅ | ✅ | ✅ | ✅ | |
 | Task — kanban filter by project / client / assignee | ✅ | ✅ | ✅ | ✅ | |
 | Task — narrow panes collapse the Project / Client / Assignee filters to an AppBar icon + removable chips | ❌ | ❌ | ✅ | | |

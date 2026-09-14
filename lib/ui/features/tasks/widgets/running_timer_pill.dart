@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
+import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/l10n/localization.dart';
@@ -12,15 +14,51 @@ import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 /// timer from anywhere — not just from the task edit screen.
 ///
 /// Mount once at the AppShell level (above `NavigationRail` / below
-/// `NavigationBar`). Subscribes to `services.tasks.watchRunning(companyId)`:
-/// hidden when nothing is running; renders a compact pill with the
-/// description + live duration + stop button when one entry is active.
+/// `NavigationBar`). Two modes in one slot, and they can never collide —
+/// claiming a booking is what makes it running:
+///
+///  * a timer is running → the description + live duration + stop button;
+///  * nothing running, but a booked block's window is open → "Due now" and a
+///    start button (invoiceninja/flutter#149). This is the app's only task
+///    control reachable from every screen, which is the point: the alternative
+///    is finding the Tasks list, picking a view and scrolling.
+///
+/// Hidden when neither holds.
 ///
 /// Tapping the pill body → opens the task's edit screen.
 /// Tapping the stop icon → enqueues a save with `stop = now` on the
 /// running entry; no edit-screen detour required.
-class RunningTimerPill extends StatelessWidget {
+class RunningTimerPill extends StatefulWidget {
   const RunningTimerPill({super.key});
+
+  @override
+  State<RunningTimerPill> createState() => _RunningTimerPillState();
+}
+
+class _RunningTimerPillState extends State<RunningTimerPill>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// "Due now" is computed against `DateTime.now()` at build time, and Drift
+  /// only emits when a row changes — so a booking whose window opens while the
+  /// app sits in a pocket would never surface it. A periodic ticker is the
+  /// wrong tool for one transition per booking (and `task_day_load.dart`
+  /// refuses one for far less); the frame that actually matters to someone
+  /// between jobs is the first one after they unlock the phone.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +86,16 @@ class RunningTimerPill extends StatelessWidget {
           builder: (context, snapshot) {
             final task = snapshot.data;
             if (task == null || !task.isRunning || task.timeLog.isEmpty) {
-              return const SizedBox.shrink();
+              // Nothing running — but a booked job whose window is open right
+              // now is the other thing worth a permanent, thumb-height
+              // control. This pill is the only task affordance reachable from
+              // every screen, and for someone standing outside a customer's
+              // house it beats finding the Tasks list, picking a view and
+              // scrolling (invoiceninja/flutter#149).
+              return _DueNowPill(
+                services: services,
+                companyId: session.currentCompanyId,
+              );
             }
             return StreamBuilder<int>(
               stream: services.tasks.watchRunningCount(
@@ -176,6 +223,128 @@ class _Pill extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// "Due now" — the shell pill's second mode, shown only when no timer is
+/// running and a booked block's window contains the current moment.
+///
+/// Deliberately the same slot, chrome and geometry as the running pill: one
+/// place on screen means one thing ("the job you are on"), and the two states
+/// can never collide, since claiming a booking is what makes it running.
+class _DueNowPill extends StatefulWidget {
+  const _DueNowPill({required this.services, required this.companyId});
+
+  final Services services;
+  final String companyId;
+
+  @override
+  State<_DueNowPill> createState() => _DueNowPillState();
+}
+
+class _DueNowPillState extends State<_DueNowPill> {
+  late Stream<Task?> _stream = _open();
+
+  /// Held in `State`, not rebuilt in `build`. `watchDueNow` selects up to 50
+  /// rows and decodes each one's payload, and the parent rebuilds on every
+  /// emission of the running-task stream — so an inline stream re-subscribed
+  /// on any task write, with a null frame in between that blinks the pill.
+  ///
+  /// The freshness this used to get for free from that churn now comes from
+  /// [_RunningTimerPillState.didChangeAppLifecycleState], which re-creates this
+  /// element on resume — the frame that matters between jobs.
+  Stream<Task?> _open() =>
+      widget.services.tasks.watchDueNow(companyId: widget.companyId);
+
+  @override
+  void didUpdateWidget(_DueNowPill old) {
+    super.didUpdateWidget(old);
+    if (old.companyId != widget.companyId) _stream = _open();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final services = widget.services;
+    final companyId = widget.companyId;
+    final tokens = context.inTheme;
+    return StreamBuilder<Task?>(
+      stream: _stream,
+      builder: (context, snap) {
+        final task = snap.data;
+        if (task == null) return const SizedBox.shrink();
+        final label = taskPrimaryLabel(task);
+        // `Ink` idiom (CLAUDE.md): the FILL rides on the `Material`, above its
+        // own ink layer, and the `Container` carries the border only — an
+        // opaque child would paint over the fill, the border and the ripple.
+        return Material(
+          color: tokens.warningSoft,
+          borderRadius: BorderRadius.circular(InRadii.r2),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(InRadii.r2),
+            onTap: () => context.go('/tasks/${task.id}/edit'),
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: InSpacing.md(context),
+                vertical: InSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                border: Border.all(color: tokens.border),
+                borderRadius: BorderRadius.circular(InRadii.r2),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    context.tr('due_now'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: tokens.warning,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 160),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: tokens.ink2),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // The whole point: start the job without leaving the screen
+                  // you are on. Routed through `TaskActions.toggleTimer` so it
+                  // claims the booking, moves the status and offers Undo
+                  // exactly as the list row does.
+                  IconButton(
+                    tooltip: context.tr('start'),
+                    icon: const Icon(Icons.play_circle_outlined, size: 18),
+                    // Same box as `_Pill`'s stop button — without the zeroed
+                    // padding an `IconButton`'s default `EdgeInsets.all(8)`
+                    // makes this pill taller than the one it alternates with,
+                    // in the same slot.
+                    padding: EdgeInsets.zero,
+                    color: tokens.warning,
+                    onPressed: () => TaskActions.toggleTimer(
+                      context,
+                      services,
+                      companyId,
+                      task,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

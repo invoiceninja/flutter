@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/ui/features/tasks/widgets/task_list_tile.dart';
 
 import '../shell/_shell_test_helpers.dart';
@@ -21,7 +22,11 @@ Task _task({
   String invoiceId = '',
   bool deleted = false,
   List<TimeEntry> log = const [],
+  Date? dueDate,
+  int estimatedSeconds = 0,
 }) => Task(
+  estimatedSeconds: estimatedSeconds,
+  dueDate: dueDate,
   id: id,
   number: '1',
   description: 'Task',
@@ -146,4 +151,76 @@ void main() {
       expect(find.byIcon(Icons.play_circle_outlined), findsNothing);
     });
   }
+  group('the booked-time slot (flutter#149)', () {
+    // A booked-but-unstarted task renders WHEN in the slot the duration
+    // normally occupies, never a second chip — the narrow row's identity
+    // column has no width to give up.
+    List<TimeEntry> blockAt(DateTime start, Duration length) => [
+      TimeEntry(start: start, stop: start.add(length)),
+    ];
+
+    testWidgets('a booking later today shows its start time, not 0:00', (
+      tester,
+    ) async {
+      final start = DateTime.now().add(const Duration(hours: 3));
+      await pumpTile(
+        tester,
+        task: _task(log: blockAt(start, const Duration(hours: 2))),
+        wide: false,
+      );
+      expect(find.text('0:00'), findsNothing);
+      final hour12 = start.hour % 12 == 0 ? 12 : start.hour % 12;
+      final mm = start.minute.toString().padLeft(2, '0');
+      expect(
+        find.text('$hour12:$mm ${start.hour >= 12 ? 'PM' : 'AM'}'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a booking whose window is open reads "Now"', (tester) async {
+      await pumpTile(
+        tester,
+        task: _task(
+          // Anchored: a block spanning `now` is only a booking when the task's
+          // own due date says so — otherwise it is today's timesheet row.
+          dueDate: Date.today(),
+          log: blockAt(
+            DateTime.now().subtract(const Duration(minutes: 20)),
+            const Duration(hours: 2),
+          ),
+        ),
+        wide: false,
+      );
+      expect(find.text('Now'), findsOneWidget);
+    });
+
+    testWidgets('a passed booking on the due date reads how late it is', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      final start = now.subtract(const Duration(hours: 2));
+      await pumpTile(
+        tester,
+        task: _task(
+          log: blockAt(start, const Duration(minutes: 30)),
+          dueDate: Date(start.year, start.month, start.day),
+          // `late` also requires the estimate to match the block — without
+          // that clause a single real logged entry on its due date reads as an
+          // unworked booking, and claiming offers to discard it.
+          estimatedSeconds: const Duration(minutes: 30).inSeconds,
+        ),
+        wide: false,
+      );
+      // The exact lateness, not merely "something with a plus in it": measured
+      // from the booked START, which is when the user promised to be there.
+      expect(find.text('+2:00'), findsOneWidget);
+    });
+
+    testWidgets('a task with nothing booked is untouched', (tester) async {
+      await pumpTile(tester, task: _task(log: _stopped), wide: false);
+      // Unchanged from before this feature: the plain logged total,
+      // seconds and all (the tile passes no `showSeconds: false`).
+      expect(find.text('1:00:00'), findsOneWidget);
+    });
+  });
 }

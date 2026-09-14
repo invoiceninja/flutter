@@ -50,14 +50,27 @@ class TaskNoteLabels {
   final String project;
 }
 
-/// Billable time-log hours, 3-decimal `Decimal`. Falls back to `1` when the
-/// task has no logged time so the appended row is a sane editable default
-/// rather than a zero-quantity ghost.
+/// Billable hours for an invoice line, 3-decimal `Decimal`.
+///
+/// Falls back through **the estimate** before the historical `1`, because
+/// `billableDuration` counts only time *worked*: a task booked from a quote
+/// line and invoiced before anyone turns up has zero worked seconds, and the
+/// bare `1` silently billed one hour for a two-hour booking — quietly breaking
+/// the quote → dated task → invoice round trip
+/// (`line_item_task_seed.dart`, invoiceninja/flutter#88). Both scheduling
+/// sheets seed `estimated_duration` from the booked block's own length, so
+/// "nothing logged yet, bill what was budgeted" restores it exactly. The `1`
+/// remains for a task with neither, where the appended row is a sane editable
+/// default rather than a zero-quantity ghost.
 Decimal taskBillableHours(Task task, {DateTime? now}) {
   final seconds = task.billableDuration(now).inSeconds;
-  if (seconds <= 0) return Decimal.one;
-  return Decimal.parse((seconds / 3600).toStringAsFixed(3));
+  if (seconds > 0) return _hours(seconds);
+  if (task.estimatedSeconds > 0) return _hours(task.estimatedSeconds);
+  return Decimal.one;
 }
+
+Decimal _hours(int seconds) =>
+    Decimal.parse((seconds / 3600).toStringAsFixed(3));
 
 LineItem taskToLineItem(
   Task task, {

@@ -1,6 +1,9 @@
 import 'package:decimal/decimal.dart';
 
 import 'package:admin/data/models/domain/project.dart';
+import 'package:admin/utils/formatting.dart';
+import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/data/models/domain/task.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
@@ -84,6 +87,26 @@ class TaskEditViewModel extends GenericEditViewModel<Task> {
   void setAssignedUserId(String v) =>
       updateDraft(draft.copyWith(assignedUserId: v));
   void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
+
+  /// The day the work is promised for. Date-only server-side, so it cannot
+  /// carry a booked *time* — that stays a future `time_log` block.
+  void setDueDate(DateTime? v) => updateDraft(
+    draft.copyWith(dueDate: v == null ? null : Date(v.year, v.month, v.day)),
+  );
+
+  /// Allocated time, from the form's duration shorthand (`1h 30m`, `2`, …).
+  /// Unparseable input is ignored so a half-typed value can't destroy the
+  /// committed one — the field reconciles itself on blur, the contract
+  /// `InDateField` and the create-from-line-item sheet already implement.
+  void setEstimatedDuration(String input) {
+    final parsed = parseDurationInput(input);
+    if (input.trim().isEmpty) {
+      updateDraft(draft.copyWith(estimatedSeconds: 0));
+      return;
+    }
+    if (parsed == null || parsed.isNegative) return;
+    updateDraft(draft.copyWith(estimatedSeconds: parsed.inSeconds));
+  }
 
   /// Pick a project (or clear with null). Mirrors React's `TaskDetails`
   /// bidirectional pick: setting a project also sets the clientId from the
@@ -198,24 +221,47 @@ class TaskEditViewModel extends GenericEditViewModel<Task> {
     updateDraft(draft.copyWith(timeLog: entries));
   }
 
-  /// Begin a fresh timer. Atomically stops any currently-running entry
-  /// first so we never have two running entries at once.
+  /// Begin a fresh timer. Routed through [planTaskStart] like every other
+  /// start path, so this form cannot build a log the server will reject —
+  /// which matters more here than anywhere else, because the alternative is a
+  /// draft the user can see, edit and then fail to save.
+  ///
+  /// Unlike the list and menu paths this one never prompts before claiming a
+  /// booking: the whole time log is on screen, the claimed row visibly changes,
+  /// and nothing is persisted until Save. [TaskStartOutcome.blocked] is a
+  /// no-op — [timeLogProblem] is already reporting why.
   void startTimer({String description = '', bool billable = true}) {
-    final n = now();
-    final entries = <TimeEntry>[...draft.timeLog];
-    if (entries.isNotEmpty && entries.last.isRunning) {
-      entries[entries.length - 1] = entries.last.copyWith(stop: n);
-    }
-    entries.add(
-      TimeEntry(
-        start: n,
-        stop: null,
+    final plan = planTaskStart(
+      draft.timeLog,
+      now: now(),
+      dueDate: draft.dueDate,
+      estimatedSeconds: draft.estimatedSeconds,
+    );
+    if (plan.outcome == TaskStartOutcome.blocked) return;
+    final entries = <TimeEntry>[...plan.entries];
+    // The caller's seed wins over the plan's carried-over description; a claim
+    // keeps the booking's own, which is the note the user wrote when booking.
+    if (plan.claimed == null) {
+      entries[entries.length - 1] = entries.last.copyWith(
         description: description,
         billable: billable,
-      ),
-    );
+      );
+    }
     updateDraft(draft.copyWith(timeLog: entries));
   }
+
+  /// Why the server would reject this draft's `time_log`, or null when it
+  /// wouldn't. Surfaced on the form so an overlap is a visible, fixable field
+  /// error rather than a 422 that dead-letters in the outbox after Save.
+  ///
+  /// Named for the draft rather than after the free function it calls, which
+  /// a bare `timeLogProblem` getter would shadow inside this class.
+  TimeLogProblem? get draftTimeLogProblem => timeLogProblem(draft.timeLog);
+
+  /// Where the draft sits relative to its own bookings — what makes the times
+  /// section offer Start rather than Resume on a task that has never been
+  /// worked.
+  TaskScheduleState get scheduleState => draft.scheduleStateAt(now());
 
   /// Stop the currently-running entry. No-op when nothing is running.
   void stopTimer() {
@@ -228,9 +274,10 @@ class TaskEditViewModel extends GenericEditViewModel<Task> {
     updateDraft(draft.copyWith(timeLog: entries));
   }
 
-  /// Resume tracking by appending a new running entry seeded with the
-  /// previous entry's description + billable. Saves the user from
-  /// re-typing context for an ongoing work session.
+  /// Resume tracking, seeded with the previous entry's description +
+  /// billable so the user doesn't re-type context for an ongoing session.
+  /// Falls through to [startTimer], which decides whether this is an append or
+  /// a claim.
   void resumeTimer() {
     final entries = draft.timeLog;
     if (entries.isEmpty) {

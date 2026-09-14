@@ -166,7 +166,14 @@ class _TaskEditScreenState extends State<TaskEditScreen>
       // Invoiced tasks are server-immutable — hide the Save button so the
       // user can't enqueue a doomed mutation. The lockout banner inside
       // the body explains why the form is read-only.
-      canSave: (vm) => !vm.isSaving && !vm.draft.isInvoiced,
+      // A log the server would reject can't be saved: `checkTimeLog` 422s the
+      // whole payload, and the outbox has no way to show that as a field error
+      // — the row just dead-letters minutes later. The times section names the
+      // problem inline; this stops it being queued at all.
+      canSave: (vm) =>
+          !vm.isSaving &&
+          !vm.draft.isInvoiced &&
+          vm.draftTimeLogProblem == null,
       bodyBuilder: (ctx, vm) => TaskEditLayout(vm: vm, formatter: formatter),
       resetToEmpty: (vm) => vm.resetToEmpty(),
       entityIdOf: (t) => t.id,

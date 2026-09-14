@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
@@ -100,6 +101,76 @@ class TaskEditTimesSection extends StatelessWidget {
     vm.addEntry();
   }
 
+  /// The server's own verdict on this draft's `time_log`, rendered where the
+
+  /// rows are.
+
+  ///
+
+  /// `Request::checkTimeLog` rejects the whole payload on an overlap, an
+
+  /// inverted entry, or a running entry that isn't last — and a rejected save
+
+  /// is invisible until the outbox row dies. Save is gated on this too
+
+  /// (`task_edit_screen.dart`), so the message is the explanation for a
+
+  /// disabled button rather than a warning nobody has to act on.
+
+  Widget _problemBanner(BuildContext context) {
+    final problem = vm.draftTimeLogProblem;
+
+    if (problem == null) return const SizedBox.shrink();
+
+    final tokens = context.inTheme;
+
+    final military = formatter?.settings.enableMilitaryTime ?? false;
+
+    String clock(DateTime? t) {
+      final local = t?.toLocal();
+
+      return local == null
+          ? ''
+          : formatTimeOfDay(local.hour, local.minute, military: military);
+    }
+
+    final message = switch (problem.kind) {
+      TimeLogProblemKind.inverted => context.tr('time_log_inverted'),
+
+      TimeLogProblemKind.runningNotLast => context.tr(
+        'time_log_running_not_last',
+      ),
+
+      TimeLogProblemKind.overlap => context.tr('time_log_overlap', {
+        'from': clock(problem.from),
+
+        'to': clock(problem.to),
+      }),
+    };
+
+    return Padding(
+      padding: EdgeInsets.only(top: InSpacing.sm),
+
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 16, color: tokens.warning),
+
+          const SizedBox(width: InSpacing.sm),
+
+          Expanded(
+            child: Text(
+              message,
+
+              style: TextStyle(color: tokens.warning, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _timerButton(BuildContext context, {bool compact = false}) {
     // Per-call minimumSize override — `FilledButton.tonal` inherits
     // `Size.fromHeight(44)` from the theme, which is infinite-width and
@@ -117,9 +188,12 @@ class TaskEditTimesSection extends StatelessWidget {
       VoidCallback? onPressed,
     ) = vm.hasRunningEntry
         ? (Icons.stop_circle_outlined, 'stop', locked ? null : vm.stopTimer)
-        : vm.hasStoppedEntries
-        ? (Icons.play_arrow_outlined, 'resume', locked ? null : vm.resumeTimer)
-        : (Icons.play_arrow_outlined, 'start', locked ? null : vm.startTimer);
+        // `hasStoppedEntries` is true for a booking too, so it alone offered
+        // "Resume" on a task that has never been worked — the mislabel
+        // invoiceninja/flutter#149 opens with, on the third of four surfaces.
+        : (vm.hasStoppedEntries && vm.scheduleState == TaskScheduleState.none)
+        ? (Icons.play_circle_outlined, 'resume', locked ? null : vm.resumeTimer)
+        : (Icons.play_circle_outlined, 'start', locked ? null : vm.startTimer);
     if (compact) {
       return FilledButton.tonal(
         style: compactStyle,
@@ -175,66 +249,74 @@ class TaskEditTimesSection extends StatelessWidget {
                   // `DashboardCardShell`, and the identity card above.
                   Padding(
                     padding: EdgeInsets.all(InSpacing.lg(context)),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Flexible(
-                          child: Text(
-                            context.tr('time_log').toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: tokens.ink3,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: InSpacing.md(context)),
-                        // Live wall-clock total — ticks every second when an
-                        // entry is running, otherwise renders statically.
-                        TaskTotalDurationLabel(vm: vm),
-                        const Spacer(),
-                        if (!locked) ...[
-                          // Per-call minimumSize override: lib/app/theme.dart
-                          // sets `Size.fromHeight(40)` on OutlinedButton which
-                          // is `Size(double.infinity, 40)` — fine in a column,
-                          // fatal in this Row. Same story for the
-                          // FilledButton.tonalIcon returned by `_timerButton`.
-                          // See CLAUDE.md § Design system (v2) "Default to
-                          // side-by-side dialog actions" for the verbatim rule.
-                          if (compact)
-                            IconButton(
-                              tooltip: context.tr('add_time'),
-                              icon: const Icon(Icons.add),
-                              onPressed: wide
-                                  ? _addEntryInline
-                                  : () => _addEntryViaSheet(
-                                      context,
-                                      allowBillable: allowBillable,
-                                      showEndDate: showEndDate,
-                                      showItemDescription: showItemDescription,
-                                    ),
-                            )
-                          else
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(64, 40),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                context.tr('time_log').toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: tokens.ink3,
+                                  letterSpacing: 0.4,
+                                ),
                               ),
-                              icon: const Icon(Icons.add, size: 16),
-                              label: Text(context.tr('add_time')),
-                              onPressed: wide
-                                  ? _addEntryInline
-                                  : () => _addEntryViaSheet(
-                                      context,
-                                      allowBillable: allowBillable,
-                                      showEndDate: showEndDate,
-                                      showItemDescription: showItemDescription,
-                                    ),
                             ),
-                          const SizedBox(width: InSpacing.sm),
-                          _timerButton(context, compact: compact),
-                        ],
+                            SizedBox(width: InSpacing.md(context)),
+                            // Live wall-clock total — ticks every second when an
+                            // entry is running, otherwise renders statically.
+                            TaskTotalDurationLabel(vm: vm),
+                            const Spacer(),
+                            if (!locked) ...[
+                              // Per-call minimumSize override: lib/app/theme.dart
+                              // sets `Size.fromHeight(40)` on OutlinedButton which
+                              // is `Size(double.infinity, 40)` — fine in a column,
+                              // fatal in this Row. Same story for the
+                              // FilledButton.tonalIcon returned by `_timerButton`.
+                              // See CLAUDE.md § Design system (v2) "Default to
+                              // side-by-side dialog actions" for the verbatim rule.
+                              if (compact)
+                                IconButton(
+                                  tooltip: context.tr('add_time'),
+                                  icon: const Icon(Icons.add),
+                                  onPressed: wide
+                                      ? _addEntryInline
+                                      : () => _addEntryViaSheet(
+                                          context,
+                                          allowBillable: allowBillable,
+                                          showEndDate: showEndDate,
+                                          showItemDescription:
+                                              showItemDescription,
+                                        ),
+                                )
+                              else
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(64, 40),
+                                  ),
+                                  icon: const Icon(Icons.add, size: 16),
+                                  label: Text(context.tr('add_time')),
+                                  onPressed: wide
+                                      ? _addEntryInline
+                                      : () => _addEntryViaSheet(
+                                          context,
+                                          allowBillable: allowBillable,
+                                          showEndDate: showEndDate,
+                                          showItemDescription:
+                                              showItemDescription,
+                                        ),
+                                ),
+                              const SizedBox(width: InSpacing.sm),
+                              _timerButton(context, compact: compact),
+                            ],
+                          ],
+                        ),
+                        _problemBanner(context),
                       ],
                     ),
                   ),
@@ -265,6 +347,7 @@ class TaskEditTimesSection extends StatelessWidget {
                       children: [
                         for (var i = 0; i < entries.length; i++)
                           TimeEntryRow(
+                            dueDate: vm.draft.dueDate,
                             entry: entries[i],
                             enabled: !locked,
                             formatter: formatter,

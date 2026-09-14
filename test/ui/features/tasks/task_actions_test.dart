@@ -131,4 +131,73 @@ void main() {
     expect(label, 'Add To Invoice');
     expect(label, isNot(contains(':')));
   });
+  group('Start vs Resume (flutter#149)', () {
+    // "Resume" claims previously-worked time. Offering it on a task whose log
+    // is a booking — which `timeLog.isNotEmpty` and `hasStoppedEntries` both
+    // answer yes to — was the issue's opening complaint. Exercised through
+    // `itemsFor` rather than by grepping for a token, which cannot tell this
+    // gate from any other use of the same enum.
+    TimeEntry blockAt(DateTime start, Duration length) =>
+        TimeEntry(start: start, stop: start.add(length));
+
+    Future<Set<TaskAction>> kindsFor(WidgetTester tester, Task task) async {
+      late List<EntityActionItem<TaskAction>> items;
+      await tester.pumpWidget(
+        wrapWithShell(
+          (await buildFixture(
+            companies: [const FakeCompany(id: 'co1', name: 'Co')],
+          )).services,
+          Builder(
+            builder: (context) {
+              items = TaskActions.itemsFor(context, task, (_) {});
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+      return items.map((i) => i.kind).toSet();
+    }
+
+    testWidgets('a task booked ahead offers Start, never Resume', (
+      tester,
+    ) async {
+      final kinds = await kindsFor(
+        tester,
+        _task(
+          log: [
+            blockAt(
+              DateTime.now().add(const Duration(hours: 3)),
+              const Duration(hours: 2),
+            ),
+          ],
+        ),
+      );
+      expect(kinds, contains(TaskAction.start));
+      expect(kinds, isNot(contains(TaskAction.resume)));
+    });
+
+    testWidgets('a task with real worked time still offers Resume', (
+      tester,
+    ) async {
+      final kinds = await kindsFor(
+        tester,
+        _task(
+          log: [
+            blockAt(
+              DateTime.now().subtract(const Duration(hours: 3)),
+              const Duration(hours: 1),
+            ),
+          ],
+        ),
+      );
+      expect(kinds, contains(TaskAction.resume));
+      expect(kinds, isNot(contains(TaskAction.start)));
+    });
+
+    testWidgets('a task with no log at all offers Start', (tester) async {
+      final kinds = await kindsFor(tester, _task());
+      expect(kinds, contains(TaskAction.start));
+    });
+  });
 }

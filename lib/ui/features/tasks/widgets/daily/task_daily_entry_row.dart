@@ -11,6 +11,7 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/daily/task_daily_actions.dart';
+import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -55,7 +56,10 @@ class TaskDailyEntryRow extends StatelessWidget {
         ? '${_clock(entry.start, military)} · ${context.tr('running')}'
         : '${_clock(entry.start, military)} – ${_clock(entry.stop, military)}';
 
-    final canToggle = !task.isInvoiced && !task.id.startsWith('tmp_');
+    // The shared gate, not a fourth hand-rolled copy: this one was missing
+    // `isDeleted`, so a soft-deleted task's row still offered a timer that
+    // `TaskRepository.startTimer` then refuses — a button that does nothing.
+    final canToggle = TaskActions.canToggleTimer(task);
 
     return InkWell(
       onTap: () => context.go('/tasks/${task.id}/edit'),
@@ -129,7 +133,7 @@ class TaskDailyEntryRow extends StatelessWidget {
                 icon: Icon(
                   taskRunning
                       ? Icons.stop_circle_outlined
-                      : Icons.play_arrow_outlined,
+                      : Icons.play_circle_outlined,
                 ),
                 onPressed: () => TaskDailyActions.toggleTimer(
                   context,

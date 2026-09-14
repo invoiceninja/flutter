@@ -12,6 +12,7 @@ import 'package:admin/ui/core/widgets/leading_select_slot.dart';
 import 'package:admin/ui/core/widgets/user_avatar.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/features/tasks/widgets/inline_timer_toggle_button.dart';
+import 'package:admin/ui/features/tasks/widgets/task_schedule_slot.dart';
 import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/ui/features/tasks/widgets/task_status_pill.dart';
@@ -36,6 +37,7 @@ class TaskListTile extends StatefulWidget {
     this.urlSelected = false,
     this.selecting = false,
     this.hideBottomDivider = false,
+    this.formatter,
   });
 
   final Task task;
@@ -43,6 +45,11 @@ class TaskListTile extends StatefulWidget {
   /// Active company id — threaded to the inline timer toggle so a 1-tap
   /// start/stop enqueues against the right company.
   final String companyId;
+
+  /// Only for the booked-time slot's clock format (`enableMilitaryTime`).
+  /// Threaded from the screen rather than read here, since a tile is pumped
+  /// in tests with no `Provider<Services>` in the tree.
+  final Formatter? formatter;
   final List<ColumnDefinition<Task>> columns;
   final VoidCallback onTap;
   final bool wide;
@@ -223,12 +230,32 @@ class _TaskListTileState extends State<TaskListTile> {
             ),
           )
         else
-          Text(
-            formatDuration(t.loggedDuration(), compactDays: true),
-            style: TextStyle(
-              color: tokens.ink,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+          // A booked-but-unstarted task SWAPS this slot rather than adding to
+          // the row: its worked time is `0:00`, a number that says nothing,
+          // and the identity column beside it has none to spare. See
+          // `taskScheduleSlot`.
+          Builder(
+            builder: (context) {
+              final slot = taskScheduleSlot(context, t, formatter: w.formatter);
+              // Clamped: a 12-hour clock is `12:00 PM`, roughly double the
+              // `0:00` it displaces and ~87 px at the app's 1.4x scale — all
+              // of it taken from the identity `Expanded`, which the comment
+              // above records as already the most truncated thing on the row.
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 76),
+                child: Text(
+                  slot?.text ??
+                      formatDuration(t.loggedDuration(), compactDays: true),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: slot?.color ?? tokens.ink,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              );
+            },
           ),
         if (!w.selecting && TaskActions.canToggleTimer(t)) ...[
           const SizedBox(width: InSpacing.sm),

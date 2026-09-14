@@ -78,8 +78,14 @@ class _RunningDurationLabelState extends State<RunningDurationLabel>
     // field would freeze for ~60s at a time — looks like a bug. Drop
     // seconds from the rendered text in that case (kanban cards opt in).
     final showSeconds = widget.precision < const Duration(minutes: 1);
+    // Clamped at zero. `TimeEntryX.durationUpTo` already clamps, so nothing
+    // this app writes can get here negative — but a foreign client can store a
+    // running entry whose start is in the future, and `formatDuration` renders
+    // that as `-0:30` (it splits `Duration.toString()`), on the app's most
+    // prominent always-visible surface.
+    final elapsed = DateTime.now().difference(widget.start);
     return formatDuration(
-      widget.base + DateTime.now().difference(widget.start),
+      widget.base + (elapsed.isNegative ? Duration.zero : elapsed),
       compactDays: widget.compactDays,
       showSeconds: showSeconds,
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/api/calendar_connection_api_model.dart';
@@ -17,12 +18,29 @@ import 'package:admin/utils/formatting.dart';
 
 /// Build the seed task for a calendar event: description (title + body), a
 /// single time-log entry derived from the event's start/end (rules in
-/// [seedTimeLogForEvent]), and the dedupe `meta.calendar_event_id`.
-Task seedTaskForEvent(CalendarEvent event) => emptyTask().copyWith(
-  description: seedDescriptionForEvent(event),
-  timeLog: seedTimeLogForEvent(event),
-  meta: TaskMeta(calendarEventId: event.calendarEventId),
-);
+/// [seedTimeLogForEvent]), the plan that block represents, and the dedupe
+/// `meta.calendar_event_id`.
+///
+/// `due_date` + `estimated_duration` are written alongside the block for the
+/// same reason the line-item sheet writes them: claiming a booking rewrites
+/// its start to now, so they are the only part of the promise that survives
+/// the work starting — and `dueDate` is what lets `taskScheduleState` call a
+/// passed, unworked booking *late*. See `task_schedule.dart`.
+Task seedTaskForEvent(CalendarEvent event) {
+  final log = seedTimeLogForEvent(event);
+  final first = log.isEmpty ? null : log.first;
+  final start = first?.start?.toLocal();
+  final stop = first?.stop;
+  return emptyTask().copyWith(
+    description: seedDescriptionForEvent(event),
+    timeLog: log,
+    dueDate: start == null ? null : Date(start.year, start.month, start.day),
+    estimatedSeconds: first?.start == null || stop == null
+        ? 0
+        : stop.difference(first!.start!).inSeconds,
+    meta: TaskMeta(calendarEventId: event.calendarEventId),
+  );
+}
 
 /// Open the in-context "convert event → task" sheet. Stays on the calendar:
 /// **Convert** creates the task through the normal outbox path and removes the

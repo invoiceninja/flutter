@@ -6,6 +6,7 @@ import 'package:admin/app/router.dart'
         entityRecordPath,
         goEntityRecord,
         highlightSelectedIdFromRoute,
+        paneIsOpenForList,
         selectedIdFromRoute,
         settingsIndexRedirect;
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ import 'package:admin/domain/permissions.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
+import 'package:admin/ui/core/widgets/focus_owner_keeper.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/list/entity_bulk_message.dart';
 import 'package:admin/ui/core/list/embedded_list_scope.dart';
@@ -589,6 +591,9 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     if (c != null) _checkLoadMore(c);
   }
 
+  /// This list's resting focus owner — see the `FocusOwnerKeeper` below.
+  final FocusNode _bodyFocus = FocusNode(debugLabel: 'entity-list');
+
   @override
   void dispose() {
     _services.auth.session.removeListener(_onSessionChanged);
@@ -597,6 +602,7 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
     // _outerScroll is owned by EntityDetailScaffold — detach only.
     _outerScroll?.removeListener(_onOuterScroll);
     _hScroll.dispose();
+    _bodyFocus.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -897,7 +903,37 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
                   },
                 ),
         },
-        child: _buildBody(context),
+        // Every shortcut above is dead without a focus owner below it.
+        // `Shortcuts` mounts a `Focus(canRequestFocus: false)`, so it is only
+        // ever *walked past*: key dispatch runs from `primaryFocus` upward, and
+        // a freshly opened list focuses nothing — primary focus sits on the
+        // shell's own node or on the branch route's `FocusScopeNode`, both of
+        // them *ancestors* of this `Shortcuts`. So `N`, `↑` / `↓` and every
+        // entity `selectionShortcuts` letter (Tasks' `S`) only ever fired after
+        // the user had clicked or tabbed into the list. `_PaneRoot` has carried
+        // such a node since it shipped, which is why the pane's `Esc` / `F` /
+        // `J` / `K` do work; the list never had one.
+        //
+        // `Focus(autofocus: true)` is NOT enough and was tried first: it is
+        // applied once and only while the enclosing scope has no focused child,
+        // so it is silently dropped on a hot reload, on a list rebuilt under a
+        // route that already existed, and any time focus has already been
+        // somewhere — and it can never re-fire after a pane closes and takes
+        // the focused node with it. Hence the keeper.
+        //
+        // Three gates, and each prevents a fight rather than an edge case:
+        // `embedded` (a detail screen mounts several list tabs at once and the
+        // host owns the page), `TickerMode` (go_router keeps every visited
+        // branch mounted, so without it the hidden branch's list and the
+        // visible one would both claim, forever), and `paneIsOpenForList` (the
+        // pane is a *sibling* of this node, not a descendant, so an open pane
+        // reads as "focus escaped" and we would steal its Esc / J / K).
+        child: FocusOwnerKeeper(
+          node: _bodyFocus,
+          enabled: !widget.embedded && TickerMode.valuesOf(context).enabled,
+          canClaim: () => !paneIsOpenForList(context),
+          child: Focus(focusNode: _bodyFocus, child: _buildBody(context)),
+        ),
       ),
     );
   }

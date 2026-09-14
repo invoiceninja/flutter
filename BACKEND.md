@@ -803,6 +803,31 @@ canonical name — `category_id` was never a method; the client now sends
 `categories`, fixed). `project_ids`/`vendor_ids` ❌ → § C.
 `custom_value1..4` ❌ → § B.
 
+### Task scheduling fields — what exists, and the one gap
+
+`tasks.due_date` (DATE) and `tasks.estimated_duration` (unsigned int, **seconds**)
+shipped 2026-08-31 (`2026_08_31_002012_add_due_date_to_tasks_table.php`); both
+are `$fillable`, validated `bail|sometimes|nullable|…`, and in `TaskTransformer`
+(read from the server checkout, not asserted from memory). A demo-server `GET
+/api/v1/tasks` row carries both keys — `due_date: ''`, `estimated_duration: null`
+— so the fields are deployed on hosted. This client reads and writes them
+(invoiceninja/flutter#149).
+
+**The gap: there is no scheduled start *time*.** `due_date` is date-only and
+`estimated_duration` has no anchor, so a job booked for 14:00–16:00 can only be
+expressed as a future `time_log` block — and `Request::checkTimeLog` forbids a
+running entry that precedes anything, so starting work on such a task must
+consume the block, losing the booked clock time for good. A nullable
+`tasks.scheduled_start` (DATETIME) would close it; nothing else can, since the
+time-log entry is capped at four elements (`StoreTaskRequest.php`) and
+`TaskMeta` is a closed single-field DTO.
+
+Two smaller notes. `TaskRepository::roundTimeLog` rounds each entry's end
+*after* `checkTimeLog` has run, so a **stored** log can overlap even though a
+submitted one cannot — a client reading "the last entry's stop is the max stop"
+relies on that not happening. And `is_date_based` is parsed by this client's
+`TaskApi` and read nowhere; React sets it for quick-log and weekly entries.
+
 ### GET /api/v1/tasks — `app/Filters/TaskFilters.php`
 
 Canonical server names: `project_tasks=<hashid>` (single, `:97`,

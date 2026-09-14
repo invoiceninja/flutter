@@ -254,6 +254,12 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
   // `TaskFilters::client_status` — `is_running = true` / `invoice_id IS NULL`,
   // exactly the two badge predicates.
   EntityType.task: [
+    // Local-only by necessity, not by choice: `TaskFilters` can filter on
+    // `is_running` and `invoice_id`, but nothing server-side can express "the
+    // last time-log entry ends in the future". `TaskListViewModel` tops the
+    // local cache up by `calculated_start_date` instead — see its page-1
+    // hydration — so the auto-chain isn't the only thing filling this tab.
+    ListStatusTabSpec(kBadgeModeUpcoming),
     ListStatusTabSpec(
       'running',
       serverFilters: {

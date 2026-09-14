@@ -37,6 +37,13 @@ abstract class TaskApi with _$TaskApi {
     @JsonKey(name: 'is_deleted') @Default(false) bool isDeleted,
     @JsonKey(name: 'is_running') @Default(false) bool isRunning,
     @JsonKey(name: 'is_date_based') @Default(false) bool isDateBased,
+    // The 2026-08-31 server fields (`tasks.due_date`, date-only, and
+    // `tasks.estimated_duration`, SECONDS). Absent from any self-hosted
+    // install older than that migration, so both must tolerate a missing key
+    // — and sending them to such a server is harmless, since `fill()` ignores
+    // a column that isn't `$fillable` there.
+    @JsonKey(name: 'due_date') @Default('') String dueDate,
+    @JsonKey(name: 'estimated_duration') int? estimatedDuration,
     // Nullable so JSON-omitted (→ null) is distinguishable from
     // JSON-present-and-empty (→ const []). Same convention as `ExpenseApi`.
     List<DocumentApi>? documents,

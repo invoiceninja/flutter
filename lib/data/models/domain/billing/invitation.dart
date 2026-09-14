@@ -149,3 +149,56 @@ extension InvitationClone on Invitation {
     vendorContactId: vendorContactId,
   );
 }
+
+/// Who looked at the document, and when — the one home for that scan
+/// (invoiceninja/flutter#154).
+///
+/// Three surfaces need it and they need different parts of the same row: the
+/// header caption wants [newestViewed]'s `viewedDate`, the pill's tooltip wants
+/// that same row's contact id, and the multi-viewer suffix wants
+/// [viewedCount]. A bare "newest ISO string" helper could only serve the first,
+/// so this returns the `Invitation` itself.
+///
+/// It lives here rather than in a `lib/domain/` leaf because it is the same
+/// kind of rule as [InvitationAccessors.sendState] — resolved on the model so
+/// it is unit-testable and carries no `dart:ui` — and because
+/// `docs/contacts-and-invitations.md` is already this file's doc home.
+extension InvitationViewers on Iterable<Invitation> {
+  /// Every invitation that has been viewed, most recent first.
+  ///
+  /// **Ordered by parsed instant, never by `String.compareTo`.** `viewedDate`
+  /// is a raw wire string typed as `String`, and the server currently sends a
+  /// MySQL datetime (`2026-09-11 15:50:31`). A lexical sort happens to be
+  /// correct while every value shares that shape, and becomes silently wrong
+  /// the first time one arrives ISO-`T`-separated: `'T'` (84) sorts above `' '`
+  /// (32), so the T-form row would beat a space-form row at the same instant.
+  /// Values that will not parse fall back to lexical order among themselves
+  /// rather than being dropped — an unparseable date is still a view.
+  List<Invitation> get viewedNewestFirst {
+    final rows = where((i) => i.hasBeenViewed).toList();
+    rows.sort((a, b) {
+      final da = DateTime.tryParse(a.viewedDate);
+      final db = DateTime.tryParse(b.viewedDate);
+      if (da != null && db != null) return db.compareTo(da);
+      if (da != null) return -1;
+      if (db != null) return 1;
+      return b.viewedDate.compareTo(a.viewedDate);
+    });
+    return rows;
+  }
+
+  /// The most recently viewed invitation, or null if nobody has looked.
+  Invitation? get newestViewed {
+    final rows = viewedNewestFirst;
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  /// How many contacts have viewed the document.
+  ///
+  /// **Contacts, not views.** `markViewed()` is gated on
+  /// `! $invitation->viewed_date` (`ClientPortal/InvitationController.php`), so
+  /// `viewed_date` records the *first* view per contact and the server keeps no
+  /// count of repeat visits. Anything rendered from this must say "people", not
+  /// "times".
+  int get viewedCount => where((i) => i.hasBeenViewed).length;
+}

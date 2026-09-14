@@ -98,6 +98,7 @@ class EntityActivityViewModel extends ChangeNotifier {
   Object? get error => _error;
 
   bool _kicked = false;
+  bool _settled = false;
 
   /// A drain edge that arrived mid-fetch. See [_onPendingTick].
   bool _refetchWanted = false;
@@ -132,6 +133,18 @@ class EntityActivityViewModel extends ChangeNotifier {
     });
   }
 
+  /// True once a [refresh] has finished — with rows, with an error, or without
+  /// going out at all for a `tmp_` id.
+  ///
+  /// The gate for *giving up* on an [ActivityRevealController] request: a
+  /// consumer that asked for a row the feed does not have must not keep hoping
+  /// forever, and "the list is empty" alone cannot tell it whether the fetch
+  /// has landed. Deliberately not a notifier of its own — every path that sets
+  /// it either notifies immediately after (the `finally` below) or is the
+  /// `tmp_` early return, which no reveal can reach anyway: a `tmp_` document
+  /// has never been sent, so it has never been viewed.
+  bool get hasSettled => _settled;
+
   Future<void> refresh() async {
     if (_disposed) return;
     // A `tmp_` record exists only in the outbox. `ShowActivityRequest`
@@ -139,6 +152,7 @@ class EntityActivityViewModel extends ChangeNotifier {
     // 422 — so this would burn a request to learn nothing.
     if (isUnsynced(entityId)) {
       _started = true;
+      _settled = true;
       return;
     }
     _started = true;
@@ -165,6 +179,7 @@ class EntityActivityViewModel extends ChangeNotifier {
       _log.warning('activity feed failed for $entityWireName', e, st);
     } finally {
       _isLoading = false;
+      _settled = true;
       // The fetch is awaited — the screen may have been disposed while it was
       // in flight, and `ChangeNotifier` asserts on a post-dispose notify.
       if (!_disposed) notifyListeners();

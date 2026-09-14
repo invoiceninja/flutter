@@ -10,15 +10,19 @@ import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart' show OutboxRow;
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/invoice.dart';
+import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -41,6 +45,7 @@ import 'package:admin/ui/features/invoices/widgets/detail/invoice_reminders_summ
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_unapplied_payments_section.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_payment_schedule_tab.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
+import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/invoices/widgets/rectify_invoice.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -72,6 +77,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
   late final EntityActivityViewModel _activityVm;
   final TabSelectionController _selectTab = TabSelectionController();
 
+  /// Carries "reveal the view activity" from the header's `Viewed` pill to the
+  /// Activity tab, which is not mounted when the tap happens
+  /// (invoiceninja/flutter#154).
+  final ActivityRevealController _revealActivity = ActivityRevealController();
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +107,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
   void dispose() {
     _activityVm.dispose();
     _selectTab.dispose();
+    _revealActivity.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -123,6 +134,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
           companyId: _companyId,
           activityVm: _activityVm,
           selectTab: _selectTab,
+          revealActivity: _revealActivity,
         );
         // Always mounted, even while `formatter` is still null: branching
         // here would change the tree shape and remount the whole body when
@@ -272,6 +284,7 @@ class _Body extends StatelessWidget {
     required this.companyId,
     required this.activityVm,
     required this.selectTab,
+    required this.revealActivity,
   });
 
   final Invoice invoice;
@@ -279,6 +292,7 @@ class _Body extends StatelessWidget {
   final String companyId;
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
 
   @override
   Widget build(BuildContext context) {
@@ -332,7 +346,12 @@ class _Body extends StatelessWidget {
                 label: invoice.number.isEmpty
                     ? context.tr('invoice')
                     : '#${invoice.number}',
-                child: _Header(invoice: invoice, companyId: companyId),
+                child: _Header(
+                  invoice: invoice,
+                  companyId: companyId,
+                  selectTab: selectTab,
+                  revealActivity: revealActivity,
+                ),
               ),
               SizedBox(height: InSpacing.lg(context)),
               EntityCommentsCard(
@@ -340,7 +359,7 @@ class _Body extends StatelessWidget {
                 formatter: FormatterScope.maybeOf(context),
                 actions: notes,
                 hostWireName: 'invoice',
-                onViewAll: () => selectTab.select(0),
+                onViewAll: () => selectTab.select(kCommentsTabIndex),
               ),
               EntityDetailTabs(
                 initialIndex: 2,
@@ -365,6 +384,7 @@ class _Body extends StatelessWidget {
                       formatter: FormatterScope.maybeOf(context),
                       actions: notes,
                       hostWireName: 'invoice',
+                      reveal: revealActivity,
                     ),
                   ),
                   EntityDetailTab(
@@ -449,9 +469,16 @@ class _Body extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.invoice, required this.companyId});
+  const _Header({
+    required this.invoice,
+    required this.companyId,
+    required this.selectTab,
+    required this.revealActivity,
+  });
   final Invoice invoice;
   final String companyId;
+  final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
 
   @override
   Widget build(BuildContext context) {
@@ -487,9 +514,29 @@ class _Header extends StatelessWidget {
                 ),
               ),
               SizedBox(width: InSpacing.md(context)),
-              InvoiceStatusPill(
-                statusId: invoice.calculatedStatusId,
-                hasBounce: invoice.hasBouncedInvitation,
+              ViewedStatusPillLink(
+                isViewed:
+                    invoice.calculatedStatusId == InvoiceStatusComputed.viewed,
+                invitations: invoice.invitations,
+                entityWireName: 'invoice',
+                companyId: companyId,
+                clients: services.clients,
+                vendors: services.vendors,
+                clientId: invoice.clientId,
+                selectTab: selectTab,
+                reveal: revealActivity,
+                formatter: formatter,
+                builder: (context, tooltip, semanticsLabel, onTap) =>
+                    InvoiceStatusPill(
+                      statusId: invoice.calculatedStatusId,
+                      hasBounce: invoice.hasBouncedInvitation,
+                      tooltip: tooltip,
+                      onTap: onTap,
+                      semanticsLabel: semanticsLabel,
+                      semanticsHint: onTap == null
+                          ? null
+                          : context.tr('activity'),
+                    ),
               ),
             ],
           ),
@@ -557,6 +604,8 @@ class _Header extends StatelessWidget {
             overdueDays: invoice.isPastDue && effectiveDue != null
                 ? Date.today().differenceInDays(effectiveDue)
                 : null,
+            viewedLabel: context.tr('viewed'),
+            viewedIso: invoice.invitations.newestViewed?.viewedDate,
           ),
           const SizedBox(height: 16),
           WatchBuilder<Client?>(

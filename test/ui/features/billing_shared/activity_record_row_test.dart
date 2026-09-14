@@ -430,10 +430,17 @@ void main() {
     });
   });
 
-  group('a comment\'s timestamp', () {
+  group('a row\'s timestamp', () {
     // `formatRelativeTime` bottoms out at `2w` / `3w`, and the exact stamp is a
     // `Tooltip` — long-press only on touch. "3w" is not an answer to "when did
     // they promise Friday?".
+    //
+    // This applied to comments only until invoiceninja/flutter#154, guarded by
+    // a case named "a system row keeps relative time however old" — inverted
+    // below, on purpose. Deep-linking the `Viewed` pill exists to answer *when*
+    // the client looked; landing the user on a row reading `3w` would move the
+    // complaint one tab over. Nothing ever recorded a reason for the split, and
+    // the argument above never depended on the row being a comment.
     Formatter dateFormatter() => Formatter(
       settings: CompanyFormatSettings.fallback,
       currencies: const {},
@@ -491,7 +498,7 @@ void main() {
       expect(text, contains(localDay));
     });
 
-    testWidgets('a system row keeps relative time however old', (tester) async {
+    testWidgets('a system row becomes a date beyond a day too', (tester) async {
       final text = await _render(
         tester,
         _activity(
@@ -500,7 +507,19 @@ void main() {
         ),
         formatter: dateFormatter(),
       );
-      expect(text, contains('ago'));
+      expect(text, isNot(contains('ago')));
+    });
+
+    testWidgets('a system row under a day is still relative', (tester) async {
+      final text = await _render(
+        tester,
+        _activity(
+          typeId: 6,
+          createdAt: DateTime.now().toUtc().subtract(const Duration(hours: 3)),
+        ),
+        formatter: dateFormatter(),
+      );
+      expect(text, contains('h ago'));
     });
   });
 
@@ -1124,5 +1143,95 @@ void main() {
         );
       }
     }
+  });
+
+  // -------------------------------------------------------------------
+  // The reveal flash (invoiceninja/flutter#154).
+  group('highlighted', () {
+    Future<ScrollController> pumpInList(
+      WidgetTester tester, {
+      required bool highlighted,
+      bool tickerEnabled = true,
+    }) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          home: Scaffold(
+            body: SizedBox(
+              height: 300,
+              child: SingleChildScrollView(
+                controller: controller,
+                child: TickerMode(
+                  enabled: tickerEnabled,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 900, key: Key('spacer')),
+                      ActivityRecordRow(
+                        activity: _activity(typeId: 7),
+                        formatter: null,
+                        highlighted: highlighted,
+                      ),
+                      const SizedBox(height: 900),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return controller;
+    }
+
+    Color flashColour(WidgetTester tester) {
+      final box = tester.widget<AnimatedContainer>(
+        find.byType(AnimatedContainer).first,
+      );
+      return (box.decoration as BoxDecoration?)?.color ?? Colors.transparent;
+    }
+
+    testWidgets('paints accentSoft, and nothing when it is not', (
+      tester,
+    ) async {
+      await pumpInList(tester, highlighted: false);
+      expect(flashColour(tester), Colors.transparent);
+
+      await pumpInList(tester, highlighted: true);
+      expect(flashColour(tester), InTheme.light.accentSoft);
+    });
+
+    testWidgets('scrolls itself into view', (tester) async {
+      // The row does this from its own build phase rather than being scrolled
+      // by the tab through a GlobalKey. Two reasons, and the second is the one
+      // that bites: a post-frame callback registered during build always lands
+      // after the tab strip's own `ensureVisible`, which would otherwise cancel
+      // this one; and a conditionally-attached GlobalKey would change the
+      // element's identity at both ends of the flash, tearing down this State.
+      final inert = await pumpInList(tester, highlighted: false);
+      expect(inert.offset, 0);
+
+      final revealed = await pumpInList(tester, highlighted: true);
+      expect(revealed.offset, greaterThan(0));
+    });
+
+    testWidgets('does not scroll while its tab is offstage', (tester) async {
+      // A reveal can resolve after the user has moved on — tap the pill, the
+      // fetch lands two seconds later, and by then they are reading another
+      // tab. Scrolling an offstage row jerks the page under them. The flash is
+      // kept (a return within the window should still show it); only the scroll
+      // is skipped.
+      final controller = await pumpInList(
+        tester,
+        highlighted: true,
+        tickerEnabled: false,
+      );
+      expect(controller.offset, 0);
+      expect(flashColour(tester), InTheme.light.accentSoft);
+    });
   });
 }

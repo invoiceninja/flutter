@@ -22,6 +22,7 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
 import 'package:admin/domain/date_placeholders.dart';
@@ -199,7 +200,7 @@ class _Body extends StatelessWidget {
                 formatter: formatter,
                 actions: notes,
                 hostWireName: 'recurring_invoice',
-                onViewAll: () => selectTab.select(0),
+                onViewAll: () => selectTab.select(kCommentsTabIndex),
               ),
               EntityDetailTabs(
                 initialIndex: 2,

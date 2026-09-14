@@ -6,11 +6,15 @@ import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/ui/core/widgets/invoice_name_label.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/quote.dart';
+import 'package:admin/data/models/domain/quote_status.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -28,6 +32,7 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/quotes/view_models/quote_detail_view_model.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_actions.dart';
+import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_status_pill.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -52,6 +57,11 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
   late final String _companyId;
   late final EntityActivityViewModel _activityVm;
   final TabSelectionController _selectTab = TabSelectionController();
+
+  /// Carries "reveal the view activity" from the header's `Viewed` pill to the
+  /// Activity tab, which is not mounted when the tap happens
+  /// (invoiceninja/flutter#154).
+  final ActivityRevealController _revealActivity = ActivityRevealController();
 
   @override
   void initState() {
@@ -78,6 +88,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
   void dispose() {
     _activityVm.dispose();
     _selectTab.dispose();
+    _revealActivity.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -107,6 +118,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
           companyId: _companyId,
           activityVm: _activityVm,
           selectTab: _selectTab,
+          revealActivity: _revealActivity,
         );
         // Always mounted, even while `formatter` is still null: branching
         // here would change the tree shape and remount the whole body when
@@ -124,6 +136,7 @@ class _Body extends StatelessWidget {
     required this.companyId,
     required this.activityVm,
     required this.selectTab,
+    required this.revealActivity,
   });
 
   final Quote quote;
@@ -131,6 +144,7 @@ class _Body extends StatelessWidget {
   final String companyId;
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +189,11 @@ class _Body extends StatelessWidget {
                 label: quote.number.isEmpty
                     ? context.tr('quote')
                     : '#${quote.number}',
-                child: _Header(quote: quote),
+                child: _Header(
+                  quote: quote,
+                  selectTab: selectTab,
+                  revealActivity: revealActivity,
+                ),
               ),
               SizedBox(height: InSpacing.lg(context)),
               EntityCommentsCard(
@@ -183,7 +201,7 @@ class _Body extends StatelessWidget {
                 formatter: FormatterScope.maybeOf(context),
                 actions: notes,
                 hostWireName: 'quote',
-                onViewAll: () => selectTab.select(0),
+                onViewAll: () => selectTab.select(kCommentsTabIndex),
               ),
               EntityDetailTabs(
                 initialIndex: 2,
@@ -208,6 +226,7 @@ class _Body extends StatelessWidget {
                       formatter: FormatterScope.maybeOf(context),
                       actions: notes,
                       hostWireName: 'quote',
+                      reveal: revealActivity,
                     ),
                   ),
                   EntityDetailTab(
@@ -294,8 +313,14 @@ class _Body extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.quote});
+  const _Header({
+    required this.quote,
+    required this.selectTab,
+    required this.revealActivity,
+  });
   final Quote quote;
+  final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
 
   @override
   Widget build(BuildContext context) {
@@ -328,9 +353,29 @@ class _Header extends StatelessWidget {
                 ),
               ),
               SizedBox(width: InSpacing.md(context)),
-              QuoteStatusPill(
-                statusId: quote.calculatedStatusId,
-                hasBounce: quote.hasBouncedInvitation,
+              ViewedStatusPillLink(
+                isViewed:
+                    quote.calculatedStatusId == QuoteStatusComputed.viewed,
+                invitations: quote.invitations,
+                entityWireName: 'quote',
+                companyId: companyId,
+                clients: services.clients,
+                vendors: services.vendors,
+                clientId: quote.clientId,
+                selectTab: selectTab,
+                reveal: revealActivity,
+                formatter: formatter,
+                builder: (context, tooltip, semanticsLabel, onTap) =>
+                    QuoteStatusPill(
+                      statusId: quote.calculatedStatusId,
+                      hasBounce: quote.hasBouncedInvitation,
+                      tooltip: tooltip,
+                      onTap: onTap,
+                      semanticsLabel: semanticsLabel,
+                      semanticsHint: onTap == null
+                          ? null
+                          : context.tr('activity'),
+                    ),
               ),
             ],
           ),
@@ -369,6 +414,8 @@ class _Header extends StatelessWidget {
             overdueDays: quote.isExpired && quote.dueDate != null
                 ? Date.today().differenceInDays(quote.dueDate!)
                 : null,
+            viewedLabel: context.tr('viewed'),
+            viewedIso: quote.invitations.newestViewed?.viewedDate,
           ),
           const SizedBox(height: 16),
           WatchBuilder<Client?>(

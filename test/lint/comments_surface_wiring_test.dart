@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/domain/activity/activity_view_events.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
+
 /// Source-level guards for the comments surfaces (invoiceninja/flutter#121).
 ///
 /// Scanned rather than exercised, for the reason `call_note_wiring_test.dart`
@@ -132,39 +135,128 @@ void main() {
     }
   });
 
-  test('every View All link targets the Comments tab at index 0', () {
-    // What makes the hardcoded 0 safe. Project and Task used to say `-2`
-    // because Comments sat second-to-last there; a host that reorders its
-    // strip without re-aiming this opens the wrong tab, silently.
+  test('every tab selection in lib/ui names one of the two constants', () {
+    // What makes the index safe. Project and Task used to say `-2` because
+    // Comments sat second-to-last there; a host that reorders its strip
+    // without re-aiming this opens the wrong tab, silently.
     //
-    // Every `select(…)` argument is checked, not just "the source contains
-    // `select(0)` somewhere" — that weaker form passes a host whose View All
-    // regressed to `select(3)` as long as a stray `select(0)` survives
-    // elsewhere in either paired file.
-    final selectArg = RegExp(r'\.select\((-?\d+)\)');
+    // Three things changed with invoiceninja/flutter#154, each making this
+    // stricter rather than looser:
+    //
+    // 1. The literal `0` became `kCommentsTabIndex`, and a second channel
+    //    (`kActivityTabIndex`, the `Viewed` status pill) joined it. A bare `0`
+    //    still passes a host whose Comments tab has MOVED; a named constant
+    //    cannot, because `detail_tab_indices_test.dart` pins the values to the
+    //    strip's real shape and "the strip leads with Comments then Activity"
+    //    above pins that shape.
+    // 2. The scan is every file under `lib/ui`, not just the paired hosts, so
+    //    the shared link widget — and the next file anyone writes — is covered
+    //    by construction. (Drift's `.select(<Table>)` lives in `lib/data`.)
+    // 3. The capture is deliberately `[^()]+` and not `\w+`: a regressed
+    //    `select(-2)` must be CAUGHT and fail the membership check, not slip
+    //    past the regex unseen. Negative indices are a documented API.
+    const allowed = {'kCommentsTabIndex', 'kActivityTabIndex'};
+    final selectArg = RegExp(r'\.select\(([^()]+)\)');
+    final offenders = <String>[];
+    var seen = 0;
+    for (final f in _dartFiles('lib/ui')) {
+      for (final m in selectArg.allMatches(f.readAsStringSync())) {
+        seen++;
+        final arg = m.group(1)!.trim();
+        if (!allowed.contains(arg)) offenders.add('${f.path}: select($arg)');
+      }
+    }
+    expect(
+      seen,
+      greaterThan(0),
+      reason: 'the scan found no tab selections at all — regex rotted?',
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'A tab selection must name kCommentsTabIndex or kActivityTabIndex '
+          '(lib/ui/core/detail/detail_tab_indices.dart) so it survives the '
+          'strip being reordered: $offenders',
+    );
+  });
+
+  test('every View All link aims at Comments', () {
+    // The membership test above cannot tell the two constants apart, so this
+    // pins the *aim*: a `View All` that started opening the Activity tab would
+    // pass there and fail here.
+    final viewAll = RegExp(r'onViewAll:[^,]*?\.select\(([^()]+)\)');
     for (final entry in pairs.entries) {
       final joined = entry.value
           .map(File.new)
           .map((f) => f.readAsStringSync())
           .join('\n');
       if (!joined.contains('onViewAll:')) continue;
-      final args = selectArg
+      final args = viewAll
           .allMatches(joined)
-          .map((m) => m.group(1))
-          .toList(growable: false);
+          .map((m) => m.group(1)!.trim())
+          .toSet();
       expect(
         args,
-        isNotEmpty,
-        reason: '${entry.key} renders a View All link that selects no tab',
-      );
-      expect(
-        args.toSet(),
-        {'0'},
+        {'kCommentsTabIndex'},
         reason:
-            '${entry.key} aims a tab selection somewhere other than the '
-            'leading Comments tab',
+            '${entry.key} renders a View All link that opens something other '
+            'than the leading Comments tab',
       );
     }
+  });
+
+  test('the two constants match the strip they name', () {
+    // Closes the chain the membership test leans on: constant value <-> strip
+    // position <-> what `select()` is handed. "The strip leads with Comments
+    // then Activity" above already proves entry 0 is the `commentsOnly` tab and
+    // entry 1 the Activity one, on all eleven hosts.
+    expect(kCommentsTabIndex, 0);
+    expect(kActivityTabIndex, 1);
+  });
+
+  test('every billing doc with a viewed status links its pill', () {
+    // invoiceninja/flutter#154. Nothing in the type system notices a fifth
+    // billing doc gaining a viewed status with no link, or one of the four
+    // losing its — and there is no widget test on any of the four detail
+    // headers to catch it either. Derived from the id map rather than a list,
+    // the idiom `entity_copy_link_coverage_test.dart` uses.
+    final mountPattern = RegExp(r'ViewedStatusPillLink\(');
+    final wireNamePattern = RegExp("entityWireName:\\s*'([a-z_]+)'");
+    final wired = <String>{};
+    for (final f in _dartFiles('lib/ui')) {
+      final src = f.readAsStringSync();
+      if (!mountPattern.hasMatch(src)) continue;
+      if (f.path.endsWith('viewed_status_pill_link.dart')) continue;
+      wired.addAll(wireNamePattern.allMatches(src).map((m) => m.group(1)!));
+      // A leaked controller is silent — no error, no log, just a live listener
+      // per record visited. Mirrors the ViewModel arm/dispose test below.
+      expect(
+        src,
+        contains('ActivityRevealController('),
+        reason:
+            '${f.path} links its status pill but builds no reveal '
+            'controller, so the tap changes tabs and highlights nothing',
+      );
+      // The controller by name, not a bare `.dispose()`: every detail screen
+      // already disposes a view model and a tab controller, so the loose form
+      // passes whatever happens to the reveal controller — which is the leak
+      // (a live listener per record visited) this is here to catch.
+      expect(
+        src,
+        contains('_revealActivity.dispose()'),
+        reason: '${f.path} builds a reveal controller it never disposes',
+      );
+    }
+    expect(
+      wired,
+      kViewActivityTypeIds.keys.toSet(),
+      reason:
+          'The set of entities whose status pill links to their view activity '
+          'must equal the set that HAS a view activity id. A mismatch means '
+          'either a doc shipped with no way to reach the record of who looked, '
+          'or a link aimed at an entity the server writes no view event for.',
+    );
   });
 
   test('every host keeps its landing tab with initialIndex: 2', () {

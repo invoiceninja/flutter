@@ -11,6 +11,7 @@ import 'package:admin/data/models/api/activity_api_model.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/data/services/activities_api.dart';
 import 'package:admin/ui/core/detail/activity_note_buttons.dart';
+import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_record_row.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_tab.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
@@ -58,6 +59,43 @@ class _FakeActivitiesApi implements ActivitiesApi {
 /// over a live query, it just burns its ten-minute timeout. `Stream.multi`
 /// rather than `Stream.value` because more than one thing may listen over the
 /// widget's life, and a single-subscription stream throws the second time.
+/// An outbox whose pending rows can be changed after the tab is mounted, so a
+/// drain landing mid-flash can be simulated.
+class _PushableOutboxDao implements OutboxDao {
+  final _rows = StreamController<List<OutboxRow>>.broadcast();
+
+  void push(List<OutboxRow> rows) => _rows.add(rows);
+
+  @override
+  Stream<List<OutboxRow>> watchPendingForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+    MutationKind? kind,
+  }) async* {
+    yield const <OutboxRow>[];
+    yield* _rows.stream;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+OutboxRow _pendingComment({int id = 1}) => OutboxRow(
+  id: id,
+  companyId: 'co',
+  entityType: 'invoice',
+  entityId: 'i1',
+  mutationKind: 'add_comment',
+  payload: '{"entity_id":"i1","notes":"typing"}',
+  idempotencyKey: 'k$id',
+  state: 'pending',
+  attempts: 0,
+  createdAt: 0,
+  nextAttemptAt: 0,
+  requiresPassword: false,
+);
+
 class _FakeOutboxDao implements OutboxDao {
   const _FakeOutboxDao();
 
@@ -81,20 +119,21 @@ ActivityApi _row({
   String id = 'a1',
   String notes = '',
   ActivityLabelApi? quote,
+  int createdAt = 1778990481,
 }) => ActivityApi(
   id: id,
   activityTypeId: typeId,
   notes: notes,
-  createdAt: 1778990481,
+  createdAt: createdAt,
   ip: '1.2.3.4',
   quote: quote,
 );
 
 void main() {
-  EntityActivityViewModel vmWith(_FakeActivitiesApi api) =>
+  EntityActivityViewModel vmWith(_FakeActivitiesApi api, {OutboxDao? outbox}) =>
       EntityActivityViewModel(
         api: api,
-        outbox: const _FakeOutboxDao(),
+        outbox: outbox ?? const _FakeOutboxDao(),
         companyId: 'co',
         entityWireName: 'invoice',
         entityId: 'i1',
@@ -109,6 +148,7 @@ void main() {
     double width = 700,
     double textScale = 1.0,
     String? hostWireName,
+    ActivityRevealController? reveal,
   }) async {
     addTearDown(vm.dispose);
     tester.view.physicalSize = Size(width, 900);
@@ -136,6 +176,7 @@ void main() {
               actions: actions,
               commentsOnly: commentsOnly,
               hostWireName: hostWireName,
+              reveal: reveal,
             ),
           ),
         ),
@@ -373,6 +414,146 @@ void main() {
 
       expect(find.byType(ActivityRecordRow), findsOneWidget);
       expect(find.byIcon(Icons.chevron_right), findsNothing);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // Revealing a view activity (invoiceninja/flutter#154).
+  //
+  // The header's `Viewed` pill selects this tab and asks for the newest
+  // `VIEW_INVOICE` row. Everything load-bearing here is about *timing*: on the
+  // first tap this tab does not exist yet, and the feed it needs is behind a
+  // debounced fetch.
+  group('revealing a view activity', () {
+    Color? flashOf(WidgetTester tester, String text) {
+      final box = tester.widget<AnimatedContainer>(
+        find
+            .ancestor(
+              of: find.textContaining(text),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first,
+      );
+      return (box.decoration as BoxDecoration?)?.color ?? Colors.transparent;
+    }
+
+    testWidgets('a request made before the feed lands still flashes', (
+      tester,
+    ) async {
+      // The common path: the tap happens while the 300 ms-debounced fetch is
+      // still out, so there is nothing to resolve against yet — and this tab is
+      // built the frame after the tab switch, so it never heard the
+      // notification either. It reads the standing request at mount instead.
+      final reveal = ActivityRevealController()..reveal(7);
+      addTearDown(reveal.dispose);
+      final vm = vmWith(
+        _FakeActivitiesApi([
+          _row(typeId: 6, id: 'emailed', createdAt: 1778990000),
+          _row(typeId: 7, id: 'viewed', createdAt: 1778990481),
+        ]),
+      );
+      await pump(tester, vm, actions: both, reveal: reveal);
+
+      expect(find.textContaining('viewed invoice'), findsOneWidget);
+      expect(flashOf(tester, 'viewed invoice'), isNot(Colors.transparent));
+    });
+
+    testWidgets('the flash clears, and leaves no pending timer behind', (
+      tester,
+    ) async {
+      final reveal = ActivityRevealController()..reveal(7);
+      addTearDown(reveal.dispose);
+      final vm = vmWith(_FakeActivitiesApi([_row(typeId: 7, id: 'viewed')]));
+      await pump(tester, vm, actions: both, reveal: reveal);
+
+      // Never `pumpAndSettle` for this: it does not drain a bare `Timer`, and
+      // one still pending at teardown fails the test outright.
+      await tester.pump(const Duration(milliseconds: 1600));
+      await tester.pump();
+      expect(flashOf(tester, 'viewed invoice'), Colors.transparent);
+    });
+
+    testWidgets('a type the feed does not carry flashes nothing', (
+      tester,
+    ) async {
+      // Legitimate, not a bug: the view event is written once on first view, so
+      // it is the oldest row in a capped feed and the first to age out — and a
+      // CSV import marks a document viewed without firing the event at all.
+      final reveal = ActivityRevealController()..reveal(7);
+      addTearDown(reveal.dispose);
+      final vm = vmWith(_FakeActivitiesApi([_row(typeId: 6, id: 'emailed')]));
+      await pump(tester, vm, actions: both, reveal: reveal);
+
+      expect(flashOf(tester, 'emailed'), Colors.transparent);
+      expect(vm.hasSettled, isTrue);
+    });
+
+    testWidgets('the comments-only tab ignores a reveal', (tester) async {
+      final reveal = ActivityRevealController()..reveal(7);
+      addTearDown(reveal.dispose);
+      final vm = vmWith(_FakeActivitiesApi([_row(typeId: 7, id: 'viewed')]));
+      await pump(tester, vm, actions: both, commentsOnly: true, reveal: reveal);
+      // A view event is not a comment, so it is not even in this list.
+      expect(find.textContaining('viewed invoice'), findsNothing);
+    });
+
+    testWidgets('the flash follows the ROW when the list shifts under it', (
+      tester,
+    ) async {
+      // The index the flash resolves to is only valid against the list it was
+      // computed from, and `_buildList` re-reads `vm.pendingRows` and
+      // `vm.activities` on every notify while the flash is still on (1600 ms).
+      // An outbox drain retiring a pending comment shrinks `pendingRows` by one
+      // and shifts every activity row up — so a *stored index* silently moves
+      // the highlight, and with it the self-scroll, onto the neighbouring row.
+      final outbox = _PushableOutboxDao();
+      final reveal = ActivityRevealController()..reveal(7);
+      addTearDown(reveal.dispose);
+      final vm = vmWith(
+        _FakeActivitiesApi([
+          _row(typeId: 7, id: 'viewed', createdAt: 1778990481),
+          _row(typeId: 6, id: 'emailed', createdAt: 1778990000),
+        ]),
+        outbox: outbox,
+      );
+      await pump(tester, vm, actions: both, reveal: reveal);
+
+      // A pending comment lands: it renders ABOVE the activities, so every
+      // activity row shifts down by one.
+      outbox.push([_pendingComment()]);
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        flashOf(tester, 'viewed invoice'),
+        isNot(Colors.transparent),
+        reason: 'the view row must stay highlighted after the list shifts',
+      );
+      expect(
+        flashOf(tester, 'emailed'),
+        Colors.transparent,
+        reason: 'the highlight must not slide onto the neighbouring row',
+      );
+
+      await tester.pump(const Duration(milliseconds: 1600));
+      await tester.pump();
+    });
+
+    testWidgets('a repeat request re-flashes the same row', (tester) async {
+      final reveal = ActivityRevealController()..reveal(7);
+      addTearDown(reveal.dispose);
+      final vm = vmWith(_FakeActivitiesApi([_row(typeId: 7, id: 'viewed')]));
+      await pump(tester, vm, actions: both, reveal: reveal);
+
+      await tester.pump(const Duration(milliseconds: 1600));
+      await tester.pump();
+      expect(flashOf(tester, 'viewed invoice'), Colors.transparent);
+
+      reveal.reveal(7);
+      await tester.pump();
+      expect(flashOf(tester, 'viewed invoice'), isNot(Colors.transparent));
+      await tester.pump(const Duration(milliseconds: 1600));
+      await tester.pump();
     });
   });
 }

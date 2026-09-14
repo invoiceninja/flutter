@@ -9,6 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
@@ -104,7 +105,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 vm: _activityVm,
                 formatter: formatter,
                 hostWireName: 'project',
-                onViewAll: () => _selectTab.select(0),
+                onViewAll: () => _selectTab.select(kCommentsTabIndex),
                 matchFormColumn: true,
               ),
               // Detail cards sit above the tab strip (Client-style); the

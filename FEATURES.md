@@ -182,6 +182,7 @@ the honest default.
 | Billing-doc edit — items-section FAB → tabbed multi-select picker (Products / Tasks / Expenses; tasks+expenses client-scoped to uninvoiced; exclude already-attached; Select All per tab; projectId carry-over) — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — picker Tasks tab grouped by project with per-project select-all | ❌ | ❌ | ✅ | | |
 | Billing-doc detail — call the client/vendor from the header: one tap for a single number, a contact picker when there are several — invoice / quote / credit / recurring / PO | ❌ | ❌ | ✅ | | |
+| Billing-doc detail — who viewed it and when: a `Viewed <date>` line in the header on every status, and a `Viewed` pill that opens the Activity tab and flashes the entry — invoice / quote / credit / PO | ❌ | ❌ | ✅ | | |
 | Billing-doc edit — document-level tax rates (1–3) + custom surcharges (1–4) + inclusive-taxes toggle, gated on company `enabled_tax_rates` / surcharge custom-fields — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | | |
 | Invoice — create | ✅ | ✅ | ✅ | ✅ | |
 | Edit/create screen action bar (Save & mark sent/paid/cancel/auto-bill via save query-param; email/clone/etc. after-save) — all entities | ✅ | ✅ | ✅ | | |

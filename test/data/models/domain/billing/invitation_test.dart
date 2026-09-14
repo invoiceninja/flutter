@@ -206,4 +206,66 @@ void main() {
       }
     });
   });
+
+  group('who viewed it, and when (invoiceninja/flutter#154)', () {
+    test('orders by parsed instant, not by string compare', () {
+      // The trap this exists for: `viewedDate` is a raw wire String and the
+      // server sends a MySQL datetime (space-separated). A lexical sort is
+      // correct only while every value shares that shape — 'T' (84) sorts above
+      // ' ' (32), so an ISO-T row would beat a space-form row at the same
+      // instant. Both spellings here, deliberately.
+      const rows = [
+        Invitation(id: 'a', viewedDate: '2026-03-01 10:00:00'),
+        Invitation(id: 'b', viewedDate: '2026-05-01T09:00:00'),
+        Invitation(id: 'c', viewedDate: '2026-04-01 23:59:59'),
+      ];
+      expect(rows.viewedNewestFirst.map((i) => i.id), ['b', 'c', 'a']);
+      expect(rows.newestViewed?.id, 'b');
+    });
+
+    test('ignores invitations nobody opened', () {
+      const rows = [
+        Invitation(id: 'sent', sentDate: '2026-03-01 10:00:00'),
+        Invitation(id: 'seen', viewedDate: '2026-03-02 10:00:00'),
+      ];
+      expect(rows.viewedNewestFirst.map((i) => i.id), ['seen']);
+      expect(rows.viewedCount, 1);
+    });
+
+    test('an unparseable date is still a view', () {
+      // Dropping it would under-report; it sorts last among its own kind.
+      const rows = [
+        Invitation(id: 'junk', viewedDate: 'not-a-date'),
+        Invitation(id: 'real', viewedDate: '2026-03-01 10:00:00'),
+      ];
+      expect(rows.viewedCount, 2);
+      expect(rows.newestViewed?.id, 'real');
+    });
+
+    test('nobody looked', () {
+      const rows = [Invitation(id: 'a'), Invitation(id: 'b')];
+      expect(rows.newestViewed, isNull);
+      expect(rows.viewedCount, 0);
+      expect(const <Invitation>[].newestViewed, isNull);
+    });
+
+    test('the count is contacts, not views', () {
+      // `markViewed()` is gated on `! $invitation->viewed_date`, so the server
+      // records the FIRST view per contact and keeps no repeat count. Anything
+      // rendered from this must say "people".
+      const rows = [
+        Invitation(
+          id: 'a',
+          clientContactId: 'c1',
+          viewedDate: '2026-03-01 10:00:00',
+        ),
+        Invitation(
+          id: 'b',
+          clientContactId: 'c2',
+          viewedDate: '2026-03-02 10:00:00',
+        ),
+      ];
+      expect(rows.viewedCount, 2);
+    });
+  });
 }

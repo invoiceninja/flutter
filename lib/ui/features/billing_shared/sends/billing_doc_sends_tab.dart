@@ -7,13 +7,12 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart' show OutboxRow;
 import 'package:admin/data/models/domain/billing/invitation.dart';
-import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify_async.dart';
+import 'package:admin/ui/core/widgets/party_contacts_builder.dart';
 import 'package:admin/ui/core/widgets/status_pill.dart';
 import 'package:admin/ui/features/billing_shared/activity/activity_list_card.dart';
 import 'package:admin/utils/formatting.dart';
@@ -149,7 +148,7 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
   /// cannot cross entities or companies: those clauses still AND, and only
   /// the kind clause was conditional.
   late final Stream<List<OutboxRow>> _pendingMutations;
-  late final Stream<Map<String, ({String label, String email})>> _contacts;
+  late final Stream<PartyContacts> _contacts;
 
   @override
   void initState() {
@@ -194,12 +193,12 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: InSpacing.lg(context)),
-      child: StreamBuilder<Map<String, ({String label, String email})>>(
+      child: StreamBuilder<PartyContacts>(
         stream: _contacts,
         builder: (context, contactsSnap) {
           final contacts =
               contactsSnap.data ??
-              const <String, ({String label, String email})>{};
+              const <String, ({String name, String email})>{};
           return StreamBuilder<List<OutboxRow>>(
             stream: _pendingMutations,
             builder: (context, pendingSnap) {
@@ -238,7 +237,7 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
 
   Widget _buildList(
     BuildContext context,
-    Map<String, ({String label, String email})> contacts,
+    PartyContacts contacts,
     Set<String> pendingIds,
     bool sendQueued,
   ) {
@@ -264,13 +263,10 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
     ];
     for (var i = 0; i < invitations.length; i++) {
       final inv = invitations[i];
-      final contactId = inv.clientContactId.isNotEmpty
-          ? inv.clientContactId
-          : inv.vendorContactId;
       children.add(
         _InvitationRow(
           invitation: inv,
-          contact: contacts[contactId],
+          contact: contacts[invitationContactId(inv)],
           formatter: _formatter,
           isHosted: widget.isHosted,
           isReactivating: pendingIds.contains(inv.messageId),
@@ -288,38 +284,18 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
 
   /// Builds a `contactId → (label, email)` map from the doc's client or
   /// vendor. Falls back to an empty map until the entity loads.
-  Stream<Map<String, ({String label, String email})>> _contactsLookup() {
+  Stream<PartyContacts> _contactsLookup() {
     if (widget.clientId.isNotEmpty) {
       return widget.services.clients
           .watch(companyId: widget.companyId, id: widget.clientId)
-          .map((client) => _fromClient(client));
+          .map(contactsOfClient);
     }
     if (widget.vendorId.isNotEmpty) {
       return widget.services.vendors
           .watch(companyId: widget.companyId, id: widget.vendorId)
-          .map((vendor) => _fromVendor(vendor));
+          .map(contactsOfVendor);
     }
     return Stream.value(const {});
-  }
-
-  static Map<String, ({String label, String email})> _fromClient(
-    Client? client,
-  ) {
-    if (client == null) return const {};
-    return {
-      for (final c in client.contacts)
-        c.id: (label: '${c.firstName} ${c.lastName}'.trim(), email: c.email),
-    };
-  }
-
-  static Map<String, ({String label, String email})> _fromVendor(
-    Vendor? vendor,
-  ) {
-    if (vendor == null) return const {};
-    return {
-      for (final c in vendor.contacts)
-        c.id: (label: '${c.firstName} ${c.lastName}'.trim(), email: c.email),
-    };
   }
 
   static Set<String> _pendingMessageIds(Iterable<OutboxRow> rows) {
@@ -451,7 +427,7 @@ class _InvitationRow extends StatelessWidget {
   });
 
   final Invitation invitation;
-  final ({String label, String email})? contact;
+  final ({String name, String email})? contact;
   final Formatter? formatter;
   final bool isHosted;
   final bool isReactivating;
@@ -510,11 +486,9 @@ class _InvitationRow extends StatelessWidget {
     final theme = Theme.of(context);
     final state = invitation.sendState;
     final pill = _pill(tokens);
-    final name = (contact?.label.isNotEmpty ?? false)
-        ? contact!.label
-        : (contact?.email.isNotEmpty ?? false)
-        ? contact!.email
-        : context.tr('contact');
+    // The cascade lives in `party_contacts_builder.dart` so this tab and the
+    // `Viewed` pill's tooltip, which show the same fact, cannot drift.
+    final name = contactLabelOf(contact, fallback: context.tr('contact'));
     final lifecycle = <String>[
       if (invitation.hasBeenSent)
         '${context.tr('sent')}: ${_fmt(context, invitation.sentDate)}',

@@ -16,6 +16,10 @@ class QuoteStatusPill extends StatelessWidget {
     this.dotSize = 8,
     this.textStyle,
     this.hasBounce = false,
+    this.onTap,
+    this.tooltip,
+    this.semanticsLabel,
+    this.semanticsHint,
   });
 
   final String statusId;
@@ -25,6 +29,20 @@ class QuoteStatusPill extends StatelessWidget {
   /// Overlays a red alert badge when an invitation bounced/errored
   /// (`quote.hasBouncedInvitation`).
   final bool hasBounce;
+
+  /// Makes the pill a control — see [StatusPill.onTap], which carries the
+  /// rules. Left null everywhere but a detail header: a list row and a table
+  /// cell each already have exactly one destination.
+  final VoidCallback? onTap;
+
+  /// Hover text; on touch there is no hover and this never renders, which is
+  /// why the caller must not make it the only home for anything.
+  final String? tooltip;
+
+  /// Announced instead of the status name when [onTap] is set, and the hint
+  /// that names where the tap goes.
+  final String? semanticsLabel;
+  final String? semanticsHint;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +57,10 @@ class QuoteStatusPill extends StatelessWidget {
         bgColor: colors.bg,
         dotSize: dotSize,
         textStyle: textStyle ?? TextStyle(fontSize: 13, color: tokens.ink),
+        onTap: onTap,
+        tooltip: tooltip,
+        semanticsLabel: semanticsLabel,
+        semanticsHint: semanticsHint,
       ),
     );
   }

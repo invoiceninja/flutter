@@ -9,6 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
@@ -97,7 +98,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen>
                 vm: _activityVm,
                 formatter: formatter,
                 hostWireName: 'task',
-                onViewAll: () => _selectTab.select(0),
+                onViewAll: () => _selectTab.select(kCommentsTabIndex),
               ),
               EntityDetailTabs(
                 // 2: the Comments + Activity pair leads, so the landing tab is

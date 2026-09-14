@@ -148,6 +148,8 @@ class BillingDatesCaption extends StatelessWidget {
     required this.secondary,
     this.overduePrefix,
     this.overdueDays,
+    this.viewedLabel,
+    this.viewedIso,
   });
 
   final Formatter? formatter;
@@ -163,6 +165,29 @@ class BillingDatesCaption extends StatelessWidget {
   /// `<prefix> · Nd` chip renders.
   final int? overdueDays;
 
+  /// Localized "Viewed" and the `viewed_date` of the most recently viewed
+  /// invitation — `null` when nobody has opened the document
+  /// (invoiceninja/flutter#154).
+  ///
+  /// **Independent of status, which is the whole point.** `calculatedStatusId`
+  /// checks its viewed branch last, so the pill reads `Past Due` / `Paid` /
+  /// `Approved` the moment anything outranks it — and *"they're 40 days late,
+  /// did they ever even open it?"* is the most valuable form of the question.
+  /// A door hung only off the pill does not exist there. This segment does.
+  ///
+  /// **Date-only, deliberately**, though the underlying value carries a time.
+  /// Three reasons: at 12.5 px the with-time segment is half again as wide and
+  /// does not fit one run in the wide branch's pane with the PDF open; both
+  /// neighbours are date-only, so a clock here would pull the eye to the least
+  /// urgent fact in a header that also has a red overdue chip; and the Activity
+  /// row this pairs with reads `activity.created_at`, which `ShouldQueue` +
+  /// `public $delay = 5` puts at least five seconds later — with the minutes
+  /// shown, the door and the destination can visibly disagree about one event.
+  /// The time survives in the pill's tooltip, the Activity row and Email
+  /// History.
+  final String? viewedLabel;
+  final String? viewedIso;
+
   String _fmt(Date d) => formatter?.date(d.toIso()) ?? d.toIso();
 
   @override
@@ -170,6 +195,16 @@ class BillingDatesCaption extends StatelessWidget {
     final tokens = context.inTheme;
     final past = (overdueDays ?? 0) > 0;
     final muted = TextStyle(fontSize: 12.5, color: tokens.ink3);
+    // `Formatter.date` answers '' for a value it cannot parse and the fallback
+    // below yields the raw wire string, so both are filtered rather than
+    // rendered as a bare label with nothing after it.
+    final viewedRaw = viewedIso ?? '';
+    final viewedText = (viewedLabel == null || viewedRaw.isEmpty)
+        ? ''
+        : () {
+            final when = formatter?.date(viewedRaw) ?? '';
+            return when.isEmpty ? '' : '$viewedLabel $when';
+          }();
     return Wrap(
       spacing: 14,
       runSpacing: 4,
@@ -195,6 +230,14 @@ class BillingDatesCaption extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+        // Last, and `muted` like the first two. Last because the overdue chip
+        // is an annotation glued to the Due Date value it recolours — insert
+        // anything before it and the narrow branch wraps the *red* chip away
+        // from its date. Muted because the caption has exactly one loud thing
+        // in it; reaching for `partial` here to match the Activity row's eye
+        // icon would add a second, and colour cannot carry meaning in this app
+        // anyway (`accent` is user-overridable per company).
+        if (viewedText.isNotEmpty) Text(viewedText, style: muted),
       ],
     );
   }

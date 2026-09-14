@@ -5,11 +5,15 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
 import 'package:admin/ui/core/widgets/client_name_label.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/credit.dart';
+import 'package:admin/data/models/domain/credit_status.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -27,6 +31,7 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/credits/view_models/credit_detail_view_model.dart';
 import 'package:admin/ui/features/credits/widgets/credit_actions.dart';
+import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/credits/widgets/credit_status_pill.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
@@ -50,6 +55,11 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
   late final String _companyId;
   late final EntityActivityViewModel _activityVm;
   final TabSelectionController _selectTab = TabSelectionController();
+
+  /// Carries "reveal the view activity" from the header's `Viewed` pill to the
+  /// Activity tab, which is not mounted when the tap happens
+  /// (invoiceninja/flutter#154).
+  final ActivityRevealController _revealActivity = ActivityRevealController();
 
   @override
   void initState() {
@@ -76,6 +86,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
   void dispose() {
     _activityVm.dispose();
     _selectTab.dispose();
+    _revealActivity.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -105,6 +116,7 @@ class _CreditDetailScreenState extends State<CreditDetailScreen>
           companyId: _companyId,
           activityVm: _activityVm,
           selectTab: _selectTab,
+          revealActivity: _revealActivity,
         );
         // Always mounted, even while `formatter` is still null: branching
         // here would change the tree shape and remount the whole body when
@@ -122,6 +134,7 @@ class _Body extends StatelessWidget {
     required this.companyId,
     required this.activityVm,
     required this.selectTab,
+    required this.revealActivity,
   });
 
   final Credit credit;
@@ -129,6 +142,7 @@ class _Body extends StatelessWidget {
   final String companyId;
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +187,11 @@ class _Body extends StatelessWidget {
                 label: credit.number.isEmpty
                     ? context.tr('credit')
                     : '#${credit.number}',
-                child: _Header(credit: credit),
+                child: _Header(
+                  credit: credit,
+                  selectTab: selectTab,
+                  revealActivity: revealActivity,
+                ),
               ),
               SizedBox(height: InSpacing.lg(context)),
               EntityCommentsCard(
@@ -181,7 +199,7 @@ class _Body extends StatelessWidget {
                 formatter: FormatterScope.maybeOf(context),
                 actions: notes,
                 hostWireName: 'credit',
-                onViewAll: () => selectTab.select(0),
+                onViewAll: () => selectTab.select(kCommentsTabIndex),
               ),
               EntityDetailTabs(
                 initialIndex: 2,
@@ -206,6 +224,7 @@ class _Body extends StatelessWidget {
                       formatter: FormatterScope.maybeOf(context),
                       actions: notes,
                       hostWireName: 'credit',
+                      reveal: revealActivity,
                     ),
                   ),
                   EntityDetailTab(
@@ -292,8 +311,14 @@ class _Body extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.credit});
+  const _Header({
+    required this.credit,
+    required this.selectTab,
+    required this.revealActivity,
+  });
   final Credit credit;
+  final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
 
   @override
   Widget build(BuildContext context) {
@@ -325,9 +350,29 @@ class _Header extends StatelessWidget {
                 ),
               ),
               SizedBox(width: InSpacing.md(context)),
-              CreditStatusPill(
-                statusId: credit.calculatedStatusId,
-                hasBounce: credit.hasBouncedInvitation,
+              ViewedStatusPillLink(
+                isViewed:
+                    credit.calculatedStatusId == CreditStatusComputed.viewed,
+                invitations: credit.invitations,
+                entityWireName: 'credit',
+                companyId: companyId,
+                clients: services.clients,
+                vendors: services.vendors,
+                clientId: credit.clientId,
+                selectTab: selectTab,
+                reveal: revealActivity,
+                formatter: formatter,
+                builder: (context, tooltip, semanticsLabel, onTap) =>
+                    CreditStatusPill(
+                      statusId: credit.calculatedStatusId,
+                      hasBounce: credit.hasBouncedInvitation,
+                      tooltip: tooltip,
+                      onTap: onTap,
+                      semanticsLabel: semanticsLabel,
+                      semanticsHint: onTap == null
+                          ? null
+                          : context.tr('activity'),
+                    ),
               ),
             ],
           ),
@@ -362,6 +407,8 @@ class _Header extends StatelessWidget {
             issued: credit.date,
             secondaryLabel: context.tr('due_date'),
             secondary: credit.partialDueDate ?? credit.dueDate,
+            viewedLabel: context.tr('viewed'),
+            viewedIso: credit.invitations.newestViewed?.viewedDate,
           ),
           const SizedBox(height: 16),
           WatchBuilder<Client?>(

@@ -127,43 +127,70 @@ class ActivityFormatter {
   }
 }
 
-/// Approximate mapping from `activity_type_id` → tone. Drawn from
-/// Invoice Ninja's activity catalog — covers the top dozen common types.
-/// Shared by the dashboard card and the detail-screen activity rows.
-ActivityTone activityToneFor(int id) {
-  // 1=created_client, 2=archived_client, 3=deleted_client → neutral
-  // 4=created_invoice, 5=updated_invoice → draft
-  // 6=emailed_invoice → sent
-  // 10=viewed_invoice → viewed
-  // 11=marked_paid → paid; 19=paid_invoice → paid
-  // 23=updated_quote, 24=emailed_quote → sent
-  // 25=viewed_quote → viewed
-  // 26=approved_quote, 30=archived_quote → paid
-  // 36=created_expense → expense
-  switch (id) {
-    case 6:
-    case 24:
-    case 32:
-      return ActivityTone.sent;
-    case 10:
-    case 25:
-      return ActivityTone.viewed;
-    case 11:
-    case 19:
-    case 22:
-    case 26:
-    case 27:
-      return ActivityTone.paid;
-    case 36:
-    case 37:
-      return ActivityTone.expense;
-    case 4:
-    case 5:
-    case 23:
-      return ActivityTone.draft;
-  }
-  return ActivityTone.neutral;
-}
+/// `activity_type_id` → tone, taken from the server's own catalog
+/// (`~/Code/invoiceninja/app/Models/Activity.php`) rather than guessed.
+///
+/// **Deliberately partial.** Only events whose *meaning* maps onto one of the
+/// five tones are listed; archive / delete / restore, and the payment-failure
+/// ids (39 `VOIDED_PAYMENT`, 40 `REFUNDED_PAYMENT`, 41 `FAILED_PAYMENT`), fall
+/// through to [ActivityTone.neutral] on purpose. There is no failure tone, and
+/// [ActivityTone.expense] paints `overdueSoft`/`overdue` — red — so widening it
+/// to cover failures would shout at the user about the wrong rows.
+///
+/// The tone follows what the event *means*, not the verb: a payment being
+/// entered is money arriving (`paid`), a payment being edited is a record
+/// changing (`draft`).
+///
+/// The map shipped wrong and nothing noticed, because a wrong tone is a grey
+/// circle rather than an error. It mapped 10 and 25 to `viewed` —
+/// `CREATE_PAYMENT` and `RESTORE_INVOICE` — while the four real view events
+/// (7 / 21 / 60 / 136) fell through to neutral, so "the client opened your
+/// invoice" rendered identically to "someone archived a vendor". Eight arms
+/// were dropped outright (22, 23, 24, 26, 27, 32, 36, 37 — all archive, delete
+/// or restore) and one re-homed (10, to `paid`). `activity_formatter_test.dart`
+/// now derives the `viewed` and `sent` sets from the bundled `en.json`
+/// templates in both directions, so the same class of drift fails the build.
+const Map<int, ActivityTone> kActivityTones = {
+  // The other side looked at the document.
+  7: ActivityTone.viewed, // VIEW_INVOICE
+  21: ActivityTone.viewed, // VIEW_QUOTE
+  56: ActivityTone.viewed, // (no server constant — vestigial "viewed ticket")
+  60: ActivityTone.viewed, // VIEW_CREDIT
+  136: ActivityTone.viewed, // VIEW_PURCHASE_ORDER
+  // Something left the building.
+  6: ActivityTone.sent, // EMAIL_INVOICE
+  20: ActivityTone.sent, // EMAIL_QUOTE
+  53: ActivityTone.sent, // MARK_SENT_INVOICE
+  63: ActivityTone.sent, // INVOICE_REMINDER1_SENT
+  64: ActivityTone.sent, // INVOICE_REMINDER2_SENT
+  65: ActivityTone.sent, // INVOICE_REMINDER3_SENT
+  66: ActivityTone.sent, // INVOICE_REMINDER_ENDLESS_SENT
+  135: ActivityTone.sent, // EMAIL_PURCHASE_ORDER
+  138: ActivityTone.sent, // payment emailed
+  139: ActivityTone.sent, // expense notification sent
+  140: ActivityTone.sent, // statement sent
+  142: ActivityTone.sent, // quote reminder 1 sent
+  145: ActivityTone.sent, // e-invoice sent
+  149: ActivityTone.sent, // credit emailed
+  154: ActivityTone.sent, // e-invoice sent to AEAT
+  156: ActivityTone.sent, // invoice cancellation sent to AEAT
+  // Money arrived, or the other side said yes.
+  10: ActivityTone.paid, // CREATE_PAYMENT
+  29: ActivityTone.paid, // APPROVE_QUOTE
+  54: ActivityTone.paid, // PAID_INVOICE
+  // A record was created or edited.
+  4: ActivityTone.draft, // CREATE_INVOICE
+  5: ActivityTone.draft, // UPDATE_INVOICE
+  11: ActivityTone.draft, // UPDATE_PAYMENT — an edit, not a receipt
+  18: ActivityTone.draft, // CREATE_QUOTE
+  19: ActivityTone.draft, // UPDATE_QUOTE
+
+  34: ActivityTone.expense, // CREATE_EXPENSE
+  47: ActivityTone.expense, // UPDATE_EXPENSE
+};
+
+ActivityTone activityToneFor(int id) =>
+    kActivityTones[id] ?? ActivityTone.neutral;
 
 IconData activityIconFor(ActivityTone tone) {
   switch (tone) {

@@ -12,6 +12,7 @@ import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/detail/activity_note_actions.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
@@ -131,7 +132,7 @@ class _PaymentDetailScreenState extends State<PaymentDetailScreen>
                   formatter: formatter,
                   actions: notes,
                   hostWireName: 'payment',
-                  onViewAll: () => _selectTab.select(0),
+                  onViewAll: () => _selectTab.select(kCommentsTabIndex),
                 ),
                 EntityDetailTabs(
                   initialIndex: 2,

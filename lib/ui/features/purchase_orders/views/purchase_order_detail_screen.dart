@@ -9,12 +9,16 @@ import 'package:admin/ui/core/widgets/party_call_button.dart';
 import 'package:admin/ui/core/widgets/vendor_name_label.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/purchase_order.dart';
+import 'package:admin/data/models/domain/purchase_order_status.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/activity_reveal_controller.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/recent_visit_recorder.dart';
 import 'package:admin/domain/date_placeholders.dart';
@@ -34,6 +38,7 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_detail_view_model.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions.dart';
+import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_status_pill.dart';
 
 class PurchaseOrderDetailScreen extends StatefulWidget {
@@ -52,6 +57,11 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   late final String _companyId;
   late final EntityActivityViewModel _activityVm;
   final TabSelectionController _selectTab = TabSelectionController();
+
+  /// Carries "reveal the view activity" from the header's `Viewed` pill to the
+  /// Activity tab, which is not mounted when the tap happens
+  /// (invoiceninja/flutter#154).
+  final ActivityRevealController _revealActivity = ActivityRevealController();
 
   @override
   void initState() {
@@ -78,6 +88,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   void dispose() {
     _activityVm.dispose();
     _selectTab.dispose();
+    _revealActivity.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -125,6 +136,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
         formatter: formatter,
         activityVm: _activityVm,
         selectTab: _selectTab,
+        revealActivity: _revealActivity,
       ),
     );
   }
@@ -138,6 +150,7 @@ class _Body extends StatelessWidget {
     this.formatter,
     required this.activityVm,
     required this.selectTab,
+    required this.revealActivity,
   });
 
   final PurchaseOrder purchaseOrder;
@@ -145,6 +158,7 @@ class _Body extends StatelessWidget {
   final String companyId;
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
   final Formatter? formatter;
 
   @override
@@ -198,6 +212,9 @@ class _Body extends StatelessWidget {
                 child: _Header(
                   purchaseOrder: purchaseOrder,
                   formatter: formatter,
+                  companyId: companyId,
+                  selectTab: selectTab,
+                  revealActivity: revealActivity,
                 ),
               ),
               SizedBox(height: InSpacing.lg(context)),
@@ -206,7 +223,7 @@ class _Body extends StatelessWidget {
                 formatter: formatter,
                 actions: notes,
                 hostWireName: 'purchase_order',
-                onViewAll: () => selectTab.select(0),
+                onViewAll: () => selectTab.select(kCommentsTabIndex),
               ),
               EntityDetailTabs(
                 initialIndex: 2,
@@ -231,6 +248,7 @@ class _Body extends StatelessWidget {
                       formatter: formatter,
                       actions: notes,
                       hostWireName: 'purchase_order',
+                      reveal: revealActivity,
                     ),
                   ),
                   EntityDetailTab(
@@ -321,8 +339,17 @@ class _Body extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.purchaseOrder, this.formatter});
+  const _Header({
+    required this.purchaseOrder,
+    required this.companyId,
+    required this.selectTab,
+    required this.revealActivity,
+    this.formatter,
+  });
   final PurchaseOrder purchaseOrder;
+  final String companyId;
+  final TabSelectionController selectTab;
+  final ActivityRevealController revealActivity;
 
   /// Company-scoped formatter for money/date. Null until it resolves; callers
   /// fall back to the raw value so the row never renders blank.
@@ -331,6 +358,15 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final services = context.read<Services>();
+    final viewed = purchaseOrder.invitations.newestViewed;
+    // Date-only, matching the caption the other three headers use: the time
+    // lives in the pill's tooltip and in the Activity row. `Formatter.date`
+    // answers '' for anything it cannot parse, so an empty string means
+    // "render nothing" rather than a label with a gap after it.
+    final viewedCell = viewed == null
+        ? ''
+        : (formatter?.date(viewed.viewedDate) ?? '');
     return Container(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       decoration: BoxDecoration(
@@ -343,18 +379,50 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                purchaseOrder.number.isEmpty ? '—' : '#${purchaseOrder.number}',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: tokens.ink,
+              // `Flexible` + ellipsis, as the other three billing headers
+              // already do. This one shipped with a bare `Text`, so nothing
+              // absorbed the pill growing — and the pill is the row's only
+              // non-flexible child, so every pixel it gains comes out of the
+              // number.
+              Flexible(
+                child: Text(
+                  purchaseOrder.number.isEmpty
+                      ? '—'
+                      : '#${purchaseOrder.number}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: tokens.ink,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
-              PurchaseOrderStatusPill(
-                statusId: purchaseOrder.calculatedStatusId,
-                hasBounce: purchaseOrder.hasBouncedInvitation,
+              ViewedStatusPillLink(
+                isViewed:
+                    purchaseOrder.calculatedStatusId ==
+                    PurchaseOrderStatusComputed.viewed,
+                invitations: purchaseOrder.invitations,
+                entityWireName: 'purchase_order',
+                companyId: companyId,
+                clients: services.clients,
+                vendors: services.vendors,
+                vendorId: purchaseOrder.vendorId,
+                selectTab: selectTab,
+                reveal: revealActivity,
+                formatter: formatter,
+                builder: (context, tooltip, semanticsLabel, onTap) =>
+                    PurchaseOrderStatusPill(
+                      statusId: purchaseOrder.calculatedStatusId,
+                      hasBounce: purchaseOrder.hasBouncedInvitation,
+                      tooltip: tooltip,
+                      onTap: onTap,
+                      semanticsLabel: semanticsLabel,
+                      semanticsHint: onTap == null
+                          ? null
+                          : context.tr('activity'),
+                    ),
               ),
             ],
           ),
@@ -423,6 +491,17 @@ class _Header extends StatelessWidget {
                         formatter?.date(purchaseOrder.dueDate!.toIso()) ??
                         purchaseOrder.dueDate!.toIso(),
                   ),
+                // A `_LabelValue`, not the muted caption the other three
+                // headers grow: this header has no 12.5 px register at all, so
+                // a lone muted line would read as debug text. At this rank it
+                // sits beside Due Date, which is the same kind of fact.
+                //
+                // Status-independent on purpose — `calculatedStatusId` checks
+                // its viewed branch last, so the pill stops saying `Viewed` the
+                // moment the PO is accepted or cancelled, and "did they ever
+                // even open it?" outlives that.
+                if (viewedCell.isNotEmpty)
+                  _LabelValue(label: context.tr('viewed'), value: viewedCell),
                 if (purchaseOrder.expenseId.isNotEmpty)
                   _RecordLink(
                     captionKey: 'expense',

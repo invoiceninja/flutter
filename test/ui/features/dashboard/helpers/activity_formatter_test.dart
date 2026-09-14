@@ -16,12 +16,16 @@
 // once the server moves the target into `:notes` the count drops to one and
 // the translated template comes back with no change here.
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/domain/phone/call_note.dart';
+import 'package:admin/data/static/activity_types_catalog.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/dashboard/helpers/activity_formatter.dart';
 
@@ -245,6 +249,110 @@ void main() {
       expect(plain.icon, isNot(Icons.phone_in_talk_outlined));
       expect(plain.icon, blank.icon);
       expect(plain.title, contains('Chasing this up'));
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // The tone catalog (invoiceninja/flutter#154).
+  //
+  // `kActivityTones` mapped 10 and 25 to `viewed` — `CREATE_PAYMENT` and
+  // `RESTORE_INVOICE` per the server's `Activity.php` — while the four real
+  // view events fell through to neutral. Nothing caught it because a wrong
+  // tone is a grey circle, not an error, and no test asserted a tone at all.
+  //
+  // These sweeps derive the expectation from the bundled `en.json` templates
+  // rather than restating the map, and they run in **both** directions: a new
+  // `viewed` id that isn't in the arm fails, and an id in the arm whose
+  // template says nothing about viewing fails too. Restating the map would
+  // only pin today's mistake.
+  group('the tone catalog', () {
+    late Map<String, String> en;
+
+    setUpAll(() async {
+      en =
+          (jsonDecode(File('assets/i18n/en.json').readAsStringSync())
+                  as Map<String, dynamic>)
+              .cast<String, String>();
+    });
+
+    /// Every `activity_<N>` id whose English template matches [word].
+    Set<int> idsWhoseTemplateMatches(RegExp word) => {
+      for (final e in en.entries)
+        if (RegExp(r'^activity_(\d+)$').firstMatch(e.key) case final m?)
+          if (word.hasMatch(e.value)) int.parse(m.group(1)!),
+    };
+
+    Set<int> idsWithTone(ActivityTone tone) => {
+      for (final e in kActivityTones.entries)
+        if (e.value == tone) e.key,
+    };
+
+    test('the viewed arm is exactly the templates that say "viewed"', () {
+      // 7 VIEW_INVOICE, 21 VIEW_QUOTE, 60 VIEW_CREDIT, 136 VIEW_PURCHASE_ORDER
+      // — plus 56, a vestigial "viewed ticket" key with no server constant,
+      // mapped rather than allowlisted so this stays a pure derivation.
+      final lexical = idsWhoseTemplateMatches(RegExp(r'\bviewed\b'));
+      expect(lexical, {7, 21, 56, 60, 136});
+      expect(idsWithTone(ActivityTone.viewed), lexical);
+    });
+
+    test(
+      'the sent arm is exactly the templates that say "sent" or "emailed"',
+      () {
+        final lexical = idsWhoseTemplateMatches(
+          RegExp(r'\bemailed\b|\bsent\b'),
+        );
+        expect(idsWithTone(ActivityTone.sent), lexical);
+      },
+    );
+
+    test('every toned id agrees with the React-derived label catalog', () {
+      // A second, independent source for the same ids: `kActivityTypeLabelKeys`
+      // is ported 1:1 from React's `ACTIVITY_TYPES`. The two lexical families
+      // are checked by *substring* — the catalog spells "sent" many ways
+      // (`payment_emailed`, `email_statement`, `einvoice_sent`, `remind_*`) and
+      // a prefix rule would only pin today's spellings. The three arms with no
+      // lexical signal are checked against their exact keys, which is the point
+      // of the cross-check: it fails if an id is re-pointed at another record.
+      const contains = <ActivityTone, Set<String>>{
+        ActivityTone.viewed: {'view'},
+        ActivityTone.sent: {'sent', 'email', 'remind'},
+      };
+      const exact = <ActivityTone, Set<String>>{
+        ActivityTone.paid: {'create_payment', 'approve_quote', 'paid_invoice'},
+        ActivityTone.draft: {
+          'create_invoice',
+          'update_invoice',
+          'update_payment',
+          'create_quote',
+          'update_quote',
+        },
+        ActivityTone.expense: {'create_expense', 'update_expense'},
+      };
+      final offenders = <String>[];
+      for (final e in kActivityTones.entries) {
+        final key = kActivityTypeLabelKeys[e.key];
+        // 56 has no server constant and so no catalog entry; the lexical sweep
+        // above is what pins it.
+        if (key == null) continue;
+        final ok =
+            contains[e.value]?.any(key.contains) ??
+            exact[e.value]!.contains(key);
+        if (!ok) offenders.add('${e.key} ($key) is toned ${e.value.name}');
+      }
+      expect(offenders, isEmpty);
+    });
+
+    test('the ids that shipped wrong are no longer viewed', () {
+      // 10 is re-homed rather than dropped, or payment rows go grey.
+      expect(activityToneFor(10), ActivityTone.paid);
+      expect(activityToneFor(25), ActivityTone.neutral); // RESTORE_INVOICE
+    });
+
+    test('an unmapped id is neutral, not a crash', () {
+      expect(activityToneFor(99999), ActivityTone.neutral);
+      expect(activityIconFor(ActivityTone.neutral), Icons.circle_outlined);
+      expect(activityIconFor(ActivityTone.viewed), Icons.visibility_outlined);
     });
   });
 }

@@ -56,6 +56,7 @@ class ActivityRecordRow extends StatefulWidget {
     this.horizontalPadding = 16,
     this.bodyMaxLines,
     this.hostWireName,
+    this.highlighted = false,
     super.key,
   });
 
@@ -107,17 +108,45 @@ class ActivityRecordRow extends StatefulWidget {
   /// re-opens the screen you are standing on.
   final String? hostWireName;
 
+  /// Flashes the row and scrolls it into view — set by [EntityActivityTab] for
+  /// the row an [ActivityRevealController] request resolved to
+  /// (invoiceninja/flutter#154).
+  ///
+  /// **The row scrolls itself**, from its own `State.context`, and that is not
+  /// a convenience. `EntityDetailTabs` arms a post-frame
+  /// `Scrollable.ensureVisible` on the *strip* during the tap handler, and each
+  /// `ensureVisible` cancels the previous one — so whichever is registered last
+  /// wins. A callback registered from this row's build phase always lands in
+  /// the same frame's snapshot *after* the tap-phase ones, on the
+  /// first-activation path and the already-mounted one alike, with no ordering
+  /// rule for a caller to remember. Doing it from the tab instead would need a
+  /// `GlobalKey`, and a *conditionally attached* key is worse than useless
+  /// here: `Element.canUpdate` matches on `runtimeType + key`, so the key
+  /// arriving and leaving would re-inflate this element at both ends of the
+  /// flash — taking the `AnimatedContainer`'s tween (which then initialises at
+  /// its target, i.e. no fade either way), this `State`'s `_spans` and their
+  /// recognizers, and the row's `Material`/`InkWell` focus with it.
+  final bool highlighted;
+
   @override
   State<ActivityRecordRow> createState() => _ActivityRecordRowState();
 }
 
 class _ActivityRecordRowState extends State<ActivityRecordRow> {
+  /// Latches the one scroll a flash is allowed, so a rebuild mid-flash does not
+  /// re-drive the scroll position under the user.
+  bool _revealed = false;
+
   ActivitySpans? _spans;
   bool _hovered = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // First mount included: a reveal resolved before this row existed (the
+    // Activity tab is built the frame *after* the tab switch) arrives as a row
+    // that is born highlighted, with no `didUpdateWidget` edge to catch.
+    if (widget.highlighted) _scheduleReveal();
     _rebuildSpans();
   }
 
@@ -125,6 +154,8 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
   void didUpdateWidget(ActivityRecordRow old) {
     super.didUpdateWidget(old);
     if (old.activity != widget.activity) _rebuildSpans();
+    if (widget.highlighted && !old.highlighted) _scheduleReveal();
+    if (!widget.highlighted) _revealed = false;
   }
 
   void _rebuildSpans() {
@@ -168,11 +199,21 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
 
   /// Relative under a day, an absolute date beyond it.
   ///
-  /// `formatRelativeTime` bottoms out at `2w` / `3w`, which is not an answer to
-  /// "when did they promise Friday?" — and the exact stamp is a `Tooltip`,
-  /// which on touch is long-press only.
+  /// `formatRelativeTime` bottoms out at `2w` / `3w` — it just keeps counting
+  /// weeks, so an eight-month-old row reads `35w` — which is not an answer to
+  /// "when did they promise Friday?", and the exact stamp is a `Tooltip`, i.e.
+  /// long-press only on touch.
+  ///
+  /// This used to apply to **comments only** (`|| !a.isComment`), and that was
+  /// pinned by a test named "a system row keeps relative time however old".
+  /// invoiceninja/flutter#154 reversed it deliberately: the whole point of
+  /// deep-linking the `Viewed` pill is to answer *when* the client looked, and
+  /// landing the user on a row that says `3w` relocates the complaint rather
+  /// than fixing it. No reason was ever recorded for holding system rows to the
+  /// opposite rule, and the argument in this comment never depended on the row
+  /// being a comment.
   String _timestamp(Activity a, Duration elapsed) {
-    if (elapsed.inHours < 24 || !a.isComment) {
+    if (elapsed.inHours < 24) {
       return formatRelativeTime(context, elapsed);
     }
     // `.toLocal()` first, and date-only. `Formatter.date` applies `.toLocal()`
@@ -186,6 +227,37 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
           a.createdAt.toLocal().toIso8601String().split('T').first,
         ) ??
         formatRelativeTime(context, elapsed);
+  }
+
+  void _scheduleReveal() {
+    if (_revealed) return;
+    _revealed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Read the ticker mode HERE, not when the flash was requested. On the
+      // path where the Activity tab is already mounted, `TabController
+      // .animateTo` notifies synchronously but the `AnimatedBuilder` that
+      // rebuilds the `Offstage`/`TickerMode` pair only runs on the next frame —
+      // so a read at request time is always stale-false. By the time this
+      // callback runs the frame has been built and the answer is real.
+      //
+      // It matters because a reveal can also resolve *after* the user has moved
+      // on: tap the pill, the fetch lands two seconds later, and by then they
+      // are reading the Overview tab. Scrolling an offstage row jerks the page
+      // under them. Keep the flash — a return within the window should still
+      // show it — and skip only the scroll.
+      // `getValuesNotifier(...).value`, not `valuesOf(...)`: this runs outside
+      // build, and `valuesOf` calls `dependOnInheritedWidgetOfExactType`, i.e.
+      // it would register an inherited-widget dependency from a non-build
+      // phase. The notifier form reads through `getInheritedWidgetOfExactType`
+      // and registers nothing. (`getNotifier` is the deprecated spelling.)
+      if (!TickerMode.getValuesNotifier(context).value.enabled) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 250),
+        alignment: 0.5,
+      );
+    });
   }
 
   @override
@@ -408,7 +480,18 @@ class _ActivityRecordRowState extends State<ActivityRecordRow> {
                   : BorderSide(color: tokens.border),
             ),
           ),
-          child: content,
+          // The flash is its own layer, deliberately: making the box above an
+          // `AnimatedContainer` would put a 250 ms ramp on *hover* for every
+          // row on all eleven hosts — five times the framework's own 50 ms —
+          // which reads as lag when the pointer runs down a long audit list.
+          // Nested, it also paints over the hover fill (a flashed row you
+          // happen to be hovering should read as flashed) and stays mounted, so
+          // the tween is continuous instead of depending on a widget appearing.
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            color: widget.highlighted ? tokens.accentSoft : Colors.transparent,
+            child: content,
+          ),
         ),
       ),
     );

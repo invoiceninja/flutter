@@ -172,6 +172,75 @@ void main() {
       expect(find.textContaining('2022-02-08'), findsNothing);
       expect(find.textContaining('Feb 8, 2022'), findsOneWidget);
     });
+
+    // invoiceninja/flutter#154. The segment is the only part of this feature
+    // that survives the status moving on: `calculatedStatusId` checks its
+    // viewed branch last, so an invoice that was read and then went overdue
+    // shows a `Past Due` pill and no link. "Did they ever even open it?" is at
+    // its most valuable exactly there.
+    testWidgets('carries the viewed date whatever the status says', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        BillingDatesCaption(
+          formatter: _usdFormatter(),
+          issuedLabel: 'Date',
+          issued: Date.tryParse('2022-01-07'),
+          secondaryLabel: 'Due Date',
+          secondary: Date.tryParse('2022-02-08'),
+          overduePrefix: 'Overdue',
+          overdueDays: 32,
+          viewedLabel: 'Viewed',
+          viewedIso: '2022-02-20 15:50:31',
+        ),
+      );
+      await tester.pump();
+
+      // Date-only, even though the value carries a time: both neighbours are
+      // date-only, the with-time segment does not fit one run beside the PDF
+      // pane, and the Activity row it pairs with reads `created_at`, which the
+      // server's queued listener puts at least five seconds later.
+      expect(find.textContaining('Viewed Feb 20, 2022'), findsOneWidget);
+      expect(find.textContaining('3:50'), findsNothing);
+    });
+
+    testWidgets('renders nothing when nobody has looked', (tester) async {
+      await pump(
+        tester,
+        BillingDatesCaption(
+          formatter: _usdFormatter(),
+          issuedLabel: 'Date',
+          issued: Date.tryParse('2022-01-07'),
+          secondaryLabel: 'Due Date',
+          secondary: Date.tryParse('2022-02-08'),
+          viewedLabel: 'Viewed',
+          viewedIso: null,
+        ),
+      );
+      await tester.pump();
+      expect(find.textContaining('Viewed'), findsNothing);
+    });
+
+    testWidgets('renders nothing rather than a label with a gap after it', (
+      tester,
+    ) async {
+      // `Formatter.date` answers '' for a value it cannot parse.
+      await pump(
+        tester,
+        BillingDatesCaption(
+          formatter: _usdFormatter(),
+          issuedLabel: 'Date',
+          issued: Date.tryParse('2022-01-07'),
+          secondaryLabel: 'Due Date',
+          secondary: Date.tryParse('2022-02-08'),
+          viewedLabel: 'Viewed',
+          viewedIso: 'not-a-date',
+        ),
+      );
+      await tester.pump();
+      expect(find.textContaining('Viewed'), findsNothing);
+    });
   });
 
   group('LineItemsReadonlyTable', () {

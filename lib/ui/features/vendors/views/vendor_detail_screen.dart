@@ -8,6 +8,7 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/core/detail/build_standard_documents_tab.dart';
 import 'package:admin/ui/core/detail/entity_list_empty_action.dart';
@@ -131,7 +132,7 @@ class _VendorDetailScreenState extends State<VendorDetailScreen>
                 formatter: formatter,
                 actions: notes,
                 hostWireName: 'vendor',
-                onViewAll: () => _selectTab.select(0),
+                onViewAll: () => _selectTab.select(kCommentsTabIndex),
                 matchFormColumn: true,
               ),
               VendorDetailCardsGrid(vendor: v, formatter: formatter),

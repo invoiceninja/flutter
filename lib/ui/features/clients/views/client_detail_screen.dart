@@ -9,6 +9,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/detail/detail_scroll_scope.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/detail/entity_detail_scaffold.dart';
+import 'package:admin/ui/core/detail/detail_tab_indices.dart';
 import 'package:admin/ui/core/detail/entity_detail_tabs.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_model.dart';
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
@@ -130,7 +131,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen>
             formatter: formatter,
             actions: notes,
             hostWireName: 'client',
-            onViewAll: () => _selectTab.select(0),
+            onViewAll: () => _selectTab.select(kCommentsTabIndex),
             matchFormColumn: true,
           ),
           ClientDetailCardsGrid(client: c, formatter: formatter),

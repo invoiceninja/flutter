@@ -106,9 +106,30 @@ class _ClientEmailHistoryTabState extends State<ClientEmailHistoryTab> {
       );
     }
     if (_vm.records.isEmpty) {
+      // This feed is the server's `SystemLog` mail log, which only a
+      // webhook-capable ESP populates — so an empty result means either "no
+      // mail yet" or "this sender reports nothing", and the tab cannot tell
+      // which. It therefore states the neutral fact and explains the gate,
+      // rather than asserting nothing was sent the way the billing docs'
+      // Email History tab can (there the invitations are local truth).
+      //
+      // NOT branched on `isHosted`: hosted is not always Postmark.
+      // `Email::MAIL_DRIVER_MAP` offers gmail / office365 / microsoft and the
+      // `client_*` methods, and hosted free/trial routes to Mailgun — so a
+      // hosted account sending through Gmail gets no webhook, an always-empty
+      // feed, and would have been told its mail was never sent.
+      //
+      // `no_history` is not an option for the title: `fr.json` carries it as
+      // Greek ("Κανένα Ιστορικό") and `zh_CN` falls back to English, and
+      // `_app_pending.json` can only add a key, never override a
+      // present-but-wrong locale value. `email_history_empty` stays the
+      // SUBTITLE — `EmptyStateBody` gives the title no `textAlign`, so a
+      // 90-character sentence there wraps ragged-left inside a centred
+      // column. Both keys are translated in every bundle.
       return EmptyState(
-        icon: Icons.mail_outline,
+        icon: Icons.outgoing_mail,
         title: context.tr('no_records_found'),
+        subtitle: context.tr('email_history_empty'),
       );
     }
     final children = <Widget>[];
@@ -227,7 +248,7 @@ class _EventRow extends StatelessWidget {
       if (dateLabel.isNotEmpty) dateLabel,
       if (event.status.isNotEmpty) event.status,
       if (event.recipient.isNotEmpty) event.recipient,
-    ].join('  •  ');
+    ].join(' · ');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

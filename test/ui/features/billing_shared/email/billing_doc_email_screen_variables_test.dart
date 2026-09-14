@@ -165,6 +165,7 @@ Future<_FakeTemplatesApi> _pump(
           invitations: withInvitation
               ? const [Invitation(id: 'i1', clientContactId: 'c1')]
               : const [],
+          isDirty: false,
           clientId: 'cl1',
           vendorId: '',
           isHosted: false,

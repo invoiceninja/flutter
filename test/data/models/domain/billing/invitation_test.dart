@@ -36,4 +36,174 @@ void main() {
     // A cloned draft must not inherit a bounce flag.
     expect(fresh.hasBounced, isFalse);
   });
+
+  group('hasSendHistory', () {
+    // The server seeds one invitation per send-email contact when the
+    // DOCUMENT is saved, so this — not `invitations.isNotEmpty` — is what the
+    // Email History tab filters on (invoiceninja/flutter#146).
+    test('a freshly seeded invitation has none', () {
+      const inv = Invitation(id: 'i1', clientContactId: 'cc1');
+      expect(inv.hasSendHistory, isFalse);
+    });
+
+    test('any single lifecycle field alone is enough', () {
+      const base = Invitation(id: 'i1', clientContactId: 'cc1');
+      expect(base.copyWith(sentDate: '2026-01-01').hasSendHistory, isTrue);
+      expect(base.copyWith(openedDate: '2026-01-01').hasSendHistory, isTrue);
+      // A portal view rather than a send — still history, deliberately.
+      expect(base.copyWith(viewedDate: '2026-01-01').hasSendHistory, isTrue);
+    });
+
+    // The two disjuncts that keep Reactivate reachable. `showReactivate` is
+    // gated on `hasBounced || hasError`, both strict subsets of these, so a
+    // pending reactivate can never belong to a filtered-out row.
+    test('a bounce with no sent_date survives', () {
+      const inv = Invitation(
+        id: 'i1',
+        clientContactId: 'cc1',
+        emailStatus: 'bounced',
+        messageId: 'm1',
+      );
+      expect(inv.sentDate, isEmpty);
+      expect(inv.hasSendHistory, isTrue);
+      expect(inv.hasBounced, isTrue);
+    });
+
+    test('a failed send (email_error, no sent_date) survives', () {
+      // NinjaMailerJob writes email_error without ever stamping sent_date.
+      const inv = Invitation(
+        id: 'i1',
+        clientContactId: 'cc1',
+        emailError: 'Connection refused',
+      );
+      expect(inv.sentDate, isEmpty);
+      expect(inv.hasSendHistory, isTrue);
+      expect(inv.hasError, isTrue);
+    });
+
+    test('a clone starts with an empty history', () {
+      const inv = Invitation(
+        id: 'i1',
+        clientContactId: 'cc1',
+        sentDate: '2026-01-01',
+        emailStatus: 'delivered',
+      );
+      expect(inv.hasSendHistory, isTrue);
+      expect(inv.freshClone().hasSendHistory, isFalse);
+    });
+  });
+
+  group('sendState', () {
+    const base = Invitation(id: 'i1', clientContactId: 'cc1');
+
+    test('resolves each server-written email_status', () {
+      expect(base.sendState, InvitationSendState.none);
+      expect(
+        base.copyWith(emailStatus: 'bounced').sendState,
+        InvitationSendState.bounced,
+      );
+      expect(
+        base.copyWith(emailStatus: 'spam').sendState,
+        InvitationSendState.spam,
+      );
+      expect(
+        base.copyWith(emailStatus: 'delivered').sendState,
+        InvitationSendState.delivered,
+      );
+      expect(
+        base.copyWith(emailError: 'boom').sendState,
+        InvitationSendState.errored,
+      );
+    });
+
+    test('a sent-but-unacknowledged row gets no pill', () {
+      // Self-hosted SMTP never receives a webhook, so email_status stays
+      // empty and the row carries only its `Sent:` line.
+      expect(
+        base.copyWith(sentDate: '2026-01-01').sendState,
+        InvitationSendState.none,
+      );
+    });
+
+    test('email_status wins over email_error whenever it is set', () {
+      // The shape every webhook ESP actually produces: Postmark assigns
+      // `email_error = Details` BEFORE branching on record type, and its
+      // Delivery payload carries `Details` — the MTA's success line. Ranking
+      // `errored` first would paint every successful hosted send red.
+      final delivered = base.copyWith(
+        emailStatus: 'delivered',
+        emailError: 'smtp;250 2.0.0 OK 1615496594 z6si',
+      );
+      expect(delivered.sendState, InvitationSendState.delivered);
+      // …and the same for the two failure states, which also carry Details.
+      expect(
+        base
+            .copyWith(emailStatus: 'bounced', emailError: 'mailbox full')
+            .sendState,
+        InvitationSendState.bounced,
+      );
+      expect(
+        base
+            .copyWith(emailStatus: 'spam', emailError: 'marked as spam')
+            .sendState,
+        InvitationSendState.spam,
+      );
+    });
+
+    test('errored is reached only when no webhook has spoken', () {
+      // An MTA failure (NinjaMailerJob) and the VeriFactu 'primed' sentinel
+      // are the two states that set email_error with no email_status.
+      expect(
+        base.copyWith(emailError: 'Connection refused').sendState,
+        InvitationSendState.errored,
+      );
+      expect(
+        base.copyWith(emailError: 'primed').sendState,
+        InvitationSendState.errored,
+      );
+    });
+
+    test('the dead email_status == error arm still resolves', () {
+      // The server never writes it (the column is an enum of the other
+      // three), but hasError's clause is still live code.
+      expect(
+        base.copyWith(emailStatus: 'error').sendState,
+        InvitationSendState.errored,
+      );
+    });
+  });
+
+  group('hasSendHistory delegates its delivery half to sendState', () {
+    const base = Invitation(id: 'i1', clientContactId: 'c1');
+
+    test('an unmapped email_status cannot slip through as a bare row', () {
+      // Unreachable today — the column is enum('delivered','bounced','spam') —
+      // but the two predicates are one expression so a fourth value can never
+      // pass the filter without a pill to render.
+      final unknown = base.copyWith(emailStatus: 'deferred');
+      expect(unknown.sendState, InvitationSendState.none);
+      expect(unknown.hasSendHistory, isFalse);
+    });
+
+    test('every surviving row has a pill or a lifecycle line', () {
+      const rows = [
+        Invitation(id: 'a', sentDate: '2026-01-01'),
+        Invitation(id: 'b', openedDate: '2026-01-01'),
+        Invitation(id: 'c', viewedDate: '2026-01-01'),
+        Invitation(id: 'd', emailStatus: 'bounced'),
+        Invitation(id: 'e', emailStatus: 'spam'),
+        Invitation(id: 'f', emailStatus: 'delivered'),
+        Invitation(id: 'g', emailError: 'boom'),
+      ];
+      for (final row in rows.where((r) => r.hasSendHistory)) {
+        final hasLifecycle =
+            row.hasBeenSent || row.hasBeenOpened || row.hasBeenViewed;
+        expect(
+          hasLifecycle || row.sendState != InvitationSendState.none,
+          isTrue,
+          reason: 'row ${row.id} would render bare',
+        );
+      }
+    });
+  });
 }

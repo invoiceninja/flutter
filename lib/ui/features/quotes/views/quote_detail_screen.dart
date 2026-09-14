@@ -263,6 +263,7 @@ class _Body extends StatelessWidget {
                       entityWireName: 'quote',
                       entityId: quote.id,
                       invitations: quote.invitations,
+                      isDirty: quote.isDirty,
                       clientId: quote.clientId,
                       isHosted: services.auth.session.value?.isHosted ?? false,
                       onReactivate: (messageId) =>

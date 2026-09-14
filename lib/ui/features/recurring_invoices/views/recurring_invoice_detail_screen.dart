@@ -292,6 +292,7 @@ class _Body extends StatelessWidget {
                       entityWireName: 'recurring_invoice',
                       entityId: recurringInvoice.id,
                       invitations: recurringInvoice.invitations,
+                      isDirty: recurringInvoice.isDirty,
                       clientId: recurringInvoice.clientId,
                       isHosted: services.auth.session.value?.isHosted ?? false,
                       onReactivate: (messageId) =>

@@ -59,16 +59,46 @@ Confirm: a device build signs, and an archive completes.
 wrong one — or none — fails verification **silently**: no error anywhere, links
 just keep opening in the browser.
 
-1. Play Console → your app → Test and release → Setup → **App integrity**
-2. Copy the SHA-256 of the **app signing key certificate**. That is what users'
+1. Play Console → your app → **Protected with Play** → the **Play Store
+   protection / distribution** card → **Go to Play app signing**
+2. Scroll to **App signing key** and copy its **SHA-256**. That is what users'
    installs are signed with when the app is enrolled in Play App Signing
-3. Also copy the **upload key** SHA-256, so a release you build and install
-   locally verifies too
+3. Scroll on to **Upload key certificate** and copy that SHA-256 too, so a
+   release you build and install locally verifies as well
 4. Optionally add the debug key, if you want to test from a debug build:
    `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android`
 
-If the app turns out **not** to be enrolled in Play App Signing, the local
-keystore is the app signing key:
+> Google moves this page. It was Release → Setup → App integrity, then
+> Test and release → Setup → App integrity, and as of 2026 the signing keys
+> live under **Protected with Play** while "App integrity" now means the Play
+> Integrity API — a different thing that is not what you want here. If the
+> names have moved again, the method below does not depend on them.
+
+**The console-independent way, which is also the better check.** The console
+tells you what Google *says* it signs with; the device tells you what an install
+actually carries, which is what verification compares. On a phone that installed
+the app from Play (an internal-test build counts):
+
+```bash
+adb shell pm path com.invoiceninja.admin          # note the base.apk line
+adb pull /data/app/.../base.apk /tmp/in.apk
+~/Library/Android/sdk/build-tools/35.0.0/apksigner verify --print-certs /tmp/in.apk
+```
+
+`apksigner` prints the digest as unbroken lowercase hex, and `assetlinks.json`
+wants colon-separated pairs — this reformats it:
+
+```bash
+apksigner verify --print-certs /tmp/in.apk \
+  | awk '/SHA-256 digest/ {print toupper($NF)}' \
+  | sed 's/../&:/g; s/:$//'
+```
+
+(Use `apksigner`, not `keytool -printcert -jarfile`: modern Play APKs are signed
+with scheme v2/v3 only, which `keytool` cannot read.)
+
+If the app turns out **not** to be enrolled in Play App Signing, there is no app
+signing key page at all, and the local keystore *is* the signing key:
 `keytool -list -v -keystore android/app/key.jks -alias key`
 
 > This repo records neither the fingerprint nor whether Play App Signing is
@@ -147,6 +177,10 @@ what the server publishes against what the device actually has:
 curl -s https://invoicing.co/.well-known/assetlinks.json | python3 -m json.tool
 adb shell pm get-app-links com.invoiceninja.admin        # shows the domain + state
 ```
+
+The decisive comparison is against the installed APK rather than the console —
+see § 2's `apksigner` recipe. If that digest is not in the published file, this
+is your bug and nothing else here matters.
 
 **The document isn't JSON.** Check the **body**, never the status code — a host
 that answers unknown paths with an SPA shell returns a cheerful `200 text/html`:

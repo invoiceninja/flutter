@@ -74,6 +74,7 @@ class BillingDocEmailScreen extends StatefulWidget {
     required this.entityId,
     required this.entityNumber,
     required this.invitations,
+    required this.isDirty,
     required this.clientId,
     required this.vendorId,
     required this.isHosted,
@@ -90,6 +91,10 @@ class BillingDocEmailScreen extends StatefulWidget {
   final String entityId;
   final String entityNumber;
   final List<Invitation> invitations;
+
+  /// Forwarded to the History pane's [BillingDocSendsTab] — see its `isDirty`
+  /// doc. Nothing on this screen reads it.
+  final bool isDirty;
 
   /// Exactly one of [clientId] / [vendorId] is non-empty — names the entity
   /// whose contacts label the recipient line (vendors for purchase orders).
@@ -729,6 +734,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
       entityWireName: widget.type.wireName,
       entityId: widget.entityId,
       invitations: widget.invitations,
+      isDirty: widget.isDirty,
       isHosted: widget.isHosted,
       onReactivate: widget.onReactivate,
       clientId: widget.clientId,

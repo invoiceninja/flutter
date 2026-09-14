@@ -290,6 +290,7 @@ class _Body extends StatelessWidget {
                       entityWireName: 'purchase_order',
                       entityId: purchaseOrder.id,
                       invitations: purchaseOrder.invitations,
+                      isDirty: purchaseOrder.isDirty,
                       vendorId: purchaseOrder.vendorId,
                       isHosted: services.auth.session.value?.isHosted ?? false,
                       onReactivate: (messageId) =>

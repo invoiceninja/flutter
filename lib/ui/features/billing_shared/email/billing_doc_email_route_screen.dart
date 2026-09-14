@@ -136,6 +136,7 @@ class _BillingDocEmailRouteScreenState
 
   Widget _screen({
     required List<Invitation> invitations,
+    required bool isDirty,
     required String clientId,
     required String vendorId,
     required String number,
@@ -154,6 +155,7 @@ class _BillingDocEmailRouteScreenState
     entityId: widget.id,
     entityNumber: number,
     invitations: invitations,
+    isDirty: isDirty,
     clientId: clientId,
     vendorId: vendorId,
     isHosted: _isHosted,
@@ -174,6 +176,7 @@ class _BillingDocEmailRouteScreenState
       if (e == null) return _notFound(context);
       return _screen(
         invitations: e.invitations,
+        isDirty: e.isDirty,
         clientId: e.clientId,
         vendorId: '',
         number: e.number,
@@ -222,6 +225,7 @@ class _BillingDocEmailRouteScreenState
       if (e == null) return _notFound(context);
       return _screen(
         invitations: e.invitations,
+        isDirty: e.isDirty,
         clientId: e.clientId,
         vendorId: '',
         number: e.number,
@@ -269,6 +273,7 @@ class _BillingDocEmailRouteScreenState
       if (e == null) return _notFound(context);
       return _screen(
         invitations: e.invitations,
+        isDirty: e.isDirty,
         clientId: e.clientId,
         vendorId: '',
         number: e.number,
@@ -316,6 +321,7 @@ class _BillingDocEmailRouteScreenState
       if (e == null) return _notFound(context);
       return _screen(
         invitations: e.invitations,
+        isDirty: e.isDirty,
         clientId: '',
         vendorId: e.vendorId,
         number: e.number,
@@ -363,6 +369,7 @@ class _BillingDocEmailRouteScreenState
       if (e == null) return _notFound(context);
       return _screen(
         invitations: e.invitations,
+        isDirty: e.isDirty,
         clientId: e.clientId,
         vendorId: '',
         number: e.number,

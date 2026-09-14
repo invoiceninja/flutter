@@ -1842,6 +1842,61 @@ the same file is a malformed rule — the `|` sits inside an array element, so t
 whole string is treated as one rule name and `new_value` is never actually
 required. Harmless, but worth fixing in the same pass.
 
+## `POST /api/v1/emails` with `entity=recurring_invoice` always fatals — **R (server bug)**
+
+Found 2026-09-14 by source inspection while fixing invoiceninja/flutter#146.
+Client-triggerable: the v2 client offers **Send Email** on a recurring invoice
+(`RecurringInvoiceAction.sendEmail` → `/recurring_invoices/:id/email`), which
+enqueues an `emailEntity` outbox row that can only die.
+
+`app/Http/Requests/Email/SendEmailRequest.php:34` accepts the entity:
+
+```php
+'recurring_invoice' => RecurringInvoice::class,
+```
+
+so validation passes and `EmailController::send` hydrates a `RecurringInvoice`.
+It then calls, inside the per-invitation loop and **before** dispatching any
+mail (`app/Http/Controllers/EmailController.php`):
+
+```php
+$entity_obj->invitations()
+    ->whereHas('contact', …)
+    ->each(function ($invitation) use ($entity_obj, $mo, $template) {
+        $entity_obj->service()->markSent()->save();   // <-- here
+        …
+        Email::dispatch($mo, $invitation->company);
+```
+
+`RecurringInvoice::service()` returns `RecurringService`
+(`app/Models/RecurringInvoice.php:808-811`), which has **no `markSent()`** and no
+`__call` — `Invoice`, `Quote`, `Credit` and `PurchaseOrder` each have one on
+their own service, `RecurringService` does not. So the call raises
+`Error: Call to undefined method App\Services\Recurring\RecurringService::markSent()`
+and the request 500s with nothing sent.
+
+Knock-on: a `RecurringInvoiceInvitation` can therefore never receive a
+`sent_date` from this path (`SendRecurring` marks the **generated child
+invoice** sent, not the template), so a recurring invoice's own email history is
+permanently empty.
+
+**Required change** — either give `RecurringService` a `markSent()` that stamps
+the template's invitations (mirroring `Invoice::markInvitationsSent`), or skip
+the `markSent()` call for `RecurringInvoice` in `EmailController::send`. The
+latter is the smaller fix and matches the semantics: a recurring invoice has no
+draft→sent status to advance.
+
+**Acceptance** — `POST /api/v1/emails` with `entity=recurring_invoice` and a
+valid `entity_id` returns 200, the mail is delivered to the template's
+contacts, and each of its invitations carries a `sent_date`.
+
+### Client status
+
+The v2 client leaves the action wired and treats the failure as an ordinary dead
+outbox row. Its Email History tab on a recurring invoice reads "No emails have
+been sent", which is accurate today; the generated invoices carry their own
+history on their own tabs. No client change is needed when this ships.
+
 ## `status_id` is implemented only on invoices — recurring-invoice + bank-transaction status filters are silently ignored — **O (client filters narrow locally only)**
 
 Found while auditing filter semantics for the list status tabs (invoiceninja/flutter#98).

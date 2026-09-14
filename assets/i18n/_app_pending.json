@@ -606,6 +606,7 @@
   "no_deleted_recurring_invoices": "No deleted recurring invoices",
   "no_deleted_vendors": "No deleted vendors",
   "no_email_on_file": "No email address on file for the recipient",
+  "no_emails_sent": "No emails have been sent",
   "no_entries": "No entries yet",
   "no_errors_found": "No errors found",
   "no_expense_categories": "No expense categories",

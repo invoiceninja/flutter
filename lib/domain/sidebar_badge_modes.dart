@@ -181,6 +181,12 @@ const List<SidebarBadgeMode> kQuoteBadgeModes = [
   SidebarBadgeMode('draft', labelKey: 'draft', tone: SidebarBadgeTone.muted),
   SidebarBadgeMode('sent', labelKey: 'sent'),
   SidebarBadgeMode('approved', labelKey: 'approved'),
+  // Deliberately `neutral`, not `danger`: a badge's tone is an urgency claim,
+  // and a rejected quote is terminal — there is nothing to act on. The row's
+  // own pill still paints it red (`QuoteStatusPill`), which is where the
+  // outcome belongs. A second red bucket would also compete with `expired`
+  // for the same attention on the dashboard's Invoices & Quotes strip.
+  SidebarBadgeMode('rejected', labelKey: 'rejected'),
   _assignedToMe,
   _none,
 ];

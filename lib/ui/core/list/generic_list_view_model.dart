@@ -1089,8 +1089,10 @@ abstract class GenericListViewModel<T> extends ChangeNotifier {
     _customFilters = const {};
     // `ListFilterIntent.extraFilters` is a verbatim passthrough by contract, and
     // `_init` persists whatever lands here — so it gets the same sanitizing the
-    // nav_state restore path does. No producer emits `badge_mode` today; this
-    // is the guard for the day one does.
+    // nav_state restore path does. The dashboard's Invoices & Quotes panel is
+    // the producer this was written for: its footer links carry the panel's
+    // selected bucket as a `badge_mode`, so the destination list opens on the
+    // matching tab.
     final next = <String, Set<String>>{
       for (final e in intent.extraFilters.entries)
         if (e.value.isNotEmpty) e.key: Set<String>.unmodifiable(e.value),

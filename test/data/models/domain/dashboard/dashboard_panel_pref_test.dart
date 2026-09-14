@@ -63,15 +63,23 @@ void main() {
         'upcoming_recurring_invoices',
       );
       expect(panelTitleKey(DashboardKind.taskCalendar), 'task_calendar');
+      expect(
+        panelTitleKey(DashboardKind.invoicesAndQuotes),
+        'invoices_and_quotes',
+      );
       expect(panelTitleKey('unknown'), 'unknown'); // fallthrough
     });
 
     test('panelKinds is every orderable panel in default render order', () {
-      // A new kind is APPENDED, never spliced in at its index: the hydrator
-      // appends anything missing from a saved arrangement, so front-loading one
-      // would put it first on a fresh install and last on every existing one.
+      // A new kind goes at the slot it should occupy: `_hydrate` places
+      // anything missing from a saved arrangement at its CANONICAL RANK here,
+      // relative to the kinds that arrangement already holds. (It appended,
+      // once, which made a declared slot unreachable for anyone who had ever
+      // changed the date range — the panel then landed last on every existing
+      // install and first on a fresh one.)
       expect(DashboardKind.panelKinds, const [
         'past_due',
+        'invoices_and_quotes',
         'upcoming_invoices',
         'recent_payments',
         'upcoming_quotes',
@@ -79,6 +87,21 @@ void main() {
         'upcoming_recurring',
         'task_calendar',
       ]);
+    });
+
+    test('the Drift-backed kinds stay out of listKinds and allKinds', () {
+      // Both failures are silent: `refreshAll` iterates `listKinds` and would
+      // fire a `/dashboard` fetch for a kind that endpoint has no concept of,
+      // and `allKinds` seeds a per-section notifier that could never fire —
+      // which reads, from the panel, exactly like a section that is merely slow.
+      for (final kind in const [
+        DashboardKind.taskCalendar,
+        DashboardKind.invoicesAndQuotes,
+      ]) {
+        expect(DashboardKind.listKinds, isNot(contains(kind)), reason: kind);
+        expect(DashboardKind.allKinds, isNot(contains(kind)), reason: kind);
+        expect(DashboardKind.panelKinds, contains(kind), reason: kind);
+      }
     });
   });
 }

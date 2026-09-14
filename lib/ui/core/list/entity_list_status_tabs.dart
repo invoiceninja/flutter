@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsRole;
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/env.dart';
@@ -101,6 +102,7 @@ class EntityListStatusTabs extends StatefulWidget {
     required this.onTap,
     this.contentPadding = EdgeInsetsDirectional.zero,
     this.enabled = true,
+    this.wrap = false,
     super.key,
   });
 
@@ -130,15 +132,33 @@ class EntityListStatusTabs extends StatefulWidget {
 
   final void Function(ResolvedStatusTab tab) onTap;
 
-  /// Inset for the tabs themselves. Applied inside the scroller so the strip's
-  /// bottom rule stays full-bleed — insetting the whole widget would leave a
-  /// divider that starts 24 px in and runs to the screen edge.
+  /// Inset for the tabs themselves. Applied inside the scroller (or around the
+  /// [wrap] layout) so the strip's bottom rule stays full-bleed — insetting the
+  /// whole widget would leave a divider that starts 24 px in and runs to the
+  /// screen edge.
   final EdgeInsetsDirectional contentPadding;
 
   /// False while the list is in multi-select. The strip stays laid out (so the
   /// body doesn't jump on every enter/exit) but stops accepting taps — a tap
   /// would reload the list and silently clear the user's selection.
   final bool enabled;
+
+  /// Lay the tabs out in a [Wrap] instead of a horizontal scroller.
+  ///
+  /// Off for entity lists, where the strip is chrome above rows that render
+  /// either way and a scrolled-off tab costs nothing but a swipe. **On for the
+  /// dashboard's Invoices & Quotes panel**, where the strip *is* the feature:
+  /// its items carry counts, so an item pushed off the edge hides state rather
+  /// than a navigation target — the same reason the Tasks filter chips wrap
+  /// (`docs/pane-width-and-overflow.md`). Seven tabs are ~615 px against a
+  /// ~334 px phone card and a ~570 px card in the desktop two-column band, so
+  /// scrolled it would hide four counts including a red one.
+  ///
+  /// Self-measuring, so there is no breakpoint to pass: one run where it fits,
+  /// two (three in German, or at a large text scale) where it doesn't. Safe
+  /// under the wide dashboard grid's `IntrinsicHeight` — `RenderWrap` answers
+  /// intrinsics via `getDryLayout`, it is not a `LayoutBuilder`.
+  final bool wrap;
 
   @override
   State<EntityListStatusTabs> createState() => _EntityListStatusTabsState();
@@ -237,14 +257,59 @@ class _EntityListStatusTabsState extends State<EntityListStatusTabs> {
     // safe here only because `_bodyWithBanner` mounts this strip as a plain
     // `Column` sibling of the list — the walk finds nothing but our own
     // horizontal scroller. Don't move the strip inside a scroll view without
-    // switching to `_scroll.position.ensureVisible`.
+    // switching to `_scroll.position.ensureVisible` (which takes a
+    // `RenderObject`, not a context, and needs a `hasClients` guard). The one
+    // host that IS inside one — the dashboard's Invoices & Quotes panel — uses
+    // `wrap: true`, which has no scroller and never reaches this.
     Scrollable.ensureVisible(ctx, alignment: 0.5, duration: Duration.zero);
   }
 
+  /// The tab buttons, in strip order. Shared by both layout modes so the two
+  /// cannot drift apart.
+  List<Widget> _buttons(InTheme tokens) => [
+    for (var i = 0; i < widget.tabs.length; i++)
+      _StatusTabButton(
+        key: _tabKeys[i],
+        tab: widget.tabs[i],
+        active: i == widget.selectedIndex,
+        tokens: tokens,
+        wrapped: widget.wrap,
+        countStream: widget.showCounts
+            ? _streams[widget.tabs[i].countModeId]
+            : null,
+        onTap: widget.enabled ? () => widget.onTap(widget.tabs[i]) : null,
+      ),
+  ];
+
+  /// Wrapped layout: every tab visible at rest, the strip growing by a run
+  /// rather than hiding its trailing counts. No scroller, so no fades, no
+  /// reveal and no first-frame rebuild to schedule.
+  Widget _wrapped(InTheme tokens) => Padding(
+    padding: widget.contentPadding,
+    child: Wrap(
+      spacing: InSpacing.sm,
+      runSpacing: InSpacing.sm,
+      children: _buttons(tokens),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    _scheduleFirstFrame();
     final tokens = context.inTheme;
+    if (widget.wrap) {
+      return Material(
+        type: MaterialType.transparency,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _wrapped(tokens),
+            Divider(height: 1, thickness: 1, color: tokens.border),
+          ],
+        ),
+      );
+    }
+    _scheduleFirstFrame();
     // The strip can be hosted without a Scaffold (embedded / test pumps), so it
     // supplies the Material its InkWells need. Transparent = no visual change.
     return Material(
@@ -271,21 +336,7 @@ class _EntityListStatusTabsState extends State<EntityListStatusTabs> {
                   padding: widget.contentPadding,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < widget.tabs.length; i++)
-                        _StatusTabButton(
-                          key: _tabKeys[i],
-                          tab: widget.tabs[i],
-                          active: i == widget.selectedIndex,
-                          tokens: tokens,
-                          countStream: widget.showCounts
-                              ? _streams[widget.tabs[i].countModeId]
-                              : null,
-                          onTap: widget.enabled
-                              ? () => widget.onTap(widget.tabs[i])
-                              : null,
-                        ),
-                    ],
+                    children: _buttons(tokens),
                   ),
                 ),
                 // Fades hinting that more tabs scroll off-screen, GATED on the
@@ -372,12 +423,21 @@ class _StatusTabButton extends StatelessWidget {
     required this.tokens,
     required this.countStream,
     required this.onTap,
+    this.wrapped = false,
     super.key,
   });
 
   final ResolvedStatusTab tab;
   final bool active;
   final InTheme tokens;
+
+  /// In a wrapped strip the 2 px underline is wrong: it takes its meaning from
+  /// sitting on the strip's bottom rule, and on the first run it would float
+  /// mid-surface reading as a stray line. Selection becomes an `accentSoft`
+  /// fill instead — the treatment `SidebarNavItem` uses for this same
+  /// vocabulary (a label plus a `SidebarBadge` count, no rule beneath), and the
+  /// one `SidebarBadge.active` already exists to retune its palette against.
+  final bool wrapped;
 
   /// Null hides the badge entirely (archived / deleted view).
   final Stream<int>? countStream;
@@ -391,8 +451,32 @@ class _StatusTabButton extends StatelessWidget {
     // clearly readable against the active state.
     final color = active ? tokens.ink : tokens.ink2;
     final stream = countStream;
+    // `MergeSemantics` OUTSIDE, so the role node and the `InkWell`'s gesture
+    // node collapse into one: `SemanticsRole.tab` asserts that the node
+    // carrying it also carries a tap action, which the role node alone
+    // does not.
+    return MergeSemantics(
+      child: Semantics(
+        // Without this the strip is seven unrelated nodes: a screen reader
+        // reads "Draft", then "12", and never says which of them is showing.
+        // `tab` is the role Material's own `TabBar` declares, and its debug
+        // check requires `selected` alongside — the same fix `SidebarNavItem`
+        // carries, for a stronger at-rest cue than this underline.
+        // Only while it is actually activatable: the role asserts a tap
+        // action, and during multi-select the strip stays laid out with
+        // `onTap` null (a tap would clear the user's selection). A tab nobody
+        // can activate should not announce itself as one either.
+        role: onTap == null ? null : SemanticsRole.tab,
+        selected: active,
+        child: _button(context, color, stream),
+      ),
+    );
+  }
+
+  Widget _button(BuildContext context, Color color, Stream<int>? stream) {
     return InkWell(
       onTap: onTap,
+      borderRadius: wrapped ? BorderRadius.circular(InRadii.r2) : null,
       child: ConstrainedBox(
         // A floor, never a fixed height: clamping the line box slices Inter
         // Tight's descenders once the UI text scale passes ~1.14.
@@ -400,54 +484,70 @@ class _StatusTabButton extends StatelessWidget {
           minHeight: Env.isTouchPrimary ? InSizes.touchTarget : 0,
         ),
         child: Container(
-          alignment: Alignment.center,
           padding: EdgeInsets.symmetric(
             horizontal: InSpacing.md(context),
             vertical: InSpacing.md(context),
           ),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: active ? tokens.accent : Colors.transparent,
-                width: 2,
-              ),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                context.tr(tab.labelKey),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                  color: color,
+          decoration: wrapped
+              ? BoxDecoration(
+                  color: active ? tokens.accentSoft : Colors.transparent,
+                  borderRadius: BorderRadius.circular(InRadii.r2),
+                )
+              : BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: active ? tokens.accent : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
                 ),
-              ),
-              if (stream != null) ...[
-                const SizedBox(width: InSpacing.sm),
-                StreamBuilder<int>(
-                  stream: stream,
-                  builder: (context, snap) {
-                    final count = snap.data;
-                    // Nothing until the first emission — a flash of "0" that
-                    // then jumps reads as a bug, and the strip is meant to be
-                    // glanced at.
-                    if (count == null) return const SizedBox.shrink();
-                    return SidebarBadge(
-                      count: count,
-                      active: active,
-                      // Zero wears the neutral palette whatever the bucket's
-                      // tone: a red "0" would claim urgency about the one
-                      // outcome that means there's nothing to do. Unlike the
-                      // rail, the badge still renders at zero — "Draft 0" is
-                      // the answer to the question the tab asks.
-                      tone: count == 0 ? SidebarBadgeTone.neutral : tab.tone,
-                    );
-                  },
+          // `Align(widthFactor: 1)` rather than the `Container`'s own
+          // `alignment`: a `Container` with an alignment expands to its
+          // incoming maxWidth, which is infinite inside the scrolling `Row`
+          // (so it shrink-wrapped) but FINITE inside the `Wrap` — where every
+          // tab would stretch to the full card width and the strip would
+          // render one tab per line. The factors size it to the row instead,
+          // while the heightFactor still centres it in the touch-target floor.
+          child: Align(
+            alignment: Alignment.center,
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.tr(tab.labelKey),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                    color: color,
+                  ),
                 ),
+                if (stream != null) ...[
+                  const SizedBox(width: InSpacing.sm),
+                  StreamBuilder<int>(
+                    stream: stream,
+                    builder: (context, snap) {
+                      final count = snap.data;
+                      // Nothing until the first emission — a flash of "0" that
+                      // then jumps reads as a bug, and the strip is meant to be
+                      // glanced at.
+                      if (count == null) return const SizedBox.shrink();
+                      return SidebarBadge(
+                        count: count,
+                        active: active,
+                        // Zero wears the neutral palette whatever the bucket's
+                        // tone: a red "0" would claim urgency about the one
+                        // outcome that means there's nothing to do. Unlike the
+                        // rail, the badge still renders at zero — "Draft 0" is
+                        // the answer to the question the tab asks.
+                        tone: count == 0 ? SidebarBadgeTone.neutral : tab.tone,
+                      );
+                    },
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

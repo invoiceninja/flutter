@@ -88,7 +88,12 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
     'expired' ||
     'draft' ||
     'sent' ||
-    'approved' => quoteClientStatusFilter(quotes, modeId, Date.today().toIso()),
+    'approved' ||
+    // No new SQL: `quoteClientStatusFilter` already models `rejected`, and its
+    // `notTerminal` clause excludes `status_id = '5'`, so `rejected` is
+    // provably disjoint from `expired` / `upcoming` — the buckets can't
+    // double-count the same quote.
+    'rejected' => quoteClientStatusFilter(quotes, modeId, Date.today().toIso()),
     kBadgeModeAssignedToMe => assignedToUserFilter(
       currentUserId,
       column: quotes.assignedUserId,
@@ -122,6 +127,33 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
     String? dueDateStart,
     String? dueDateEnd,
     String? badgeModeId,
+
+    /// Optional secondary sort key, applied between [sortField] and the `id`
+    /// backstop.
+    ///
+    /// Exists because `date` is date-only: every document a company issued today
+    /// ties on it, and the `id` backstop is a hashid in ASCENDING order, so
+    /// "the five most recent" silently returns an arbitrary — effectively
+    /// oldest — five. Three properties are load-bearing:
+    ///
+    ///  * it **appends**, never replaces. Rows can tie on both keys (a bulk
+    ///    import shares `date` and a whole-second `created_at`), and without the
+    ///    final `id` the order is non-deterministic, so `distinctRows()` can flap
+    ///    between emissions.
+    ///  * it carries **its own direction** ([tieBreakAscending]) — the `id`
+    ///    backstop is ascending whatever [sortAscending] says, so a caller
+    ///    wanting `date desc, created_at desc` cannot inherit one.
+    ///  * `created_at` **defaults to 0** and an offline create stamps epoch 0, so
+    ///    a plain `created_at DESC` sorts the row the user just made LAST.
+    ///    [_tieBreakExpression] maps 0 to the max signed 64-bit value for that
+    ///    reason — NOT to null, which is the same bug by a prettier route; see
+    ///    there.
+    ///
+    /// Validated eagerly: drift invokes these generators inside `orderBy`, so an
+    /// unmapped field throws [ArgumentError] at the call site rather than inside
+    /// a stream nobody is listening to yet.
+    String? tieBreakField,
+    bool tieBreakAscending = false,
   }) {
     final q = select(quotes)..where((e) => e.companyId.equals(companyId));
     // Status-tab strip (#98): the SAME predicate the tab's count uses, so
@@ -242,11 +274,37 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
         expression: _sortExpression(e, sortField),
         mode: sortAscending ? OrderingMode.asc : OrderingMode.desc,
       ),
+      // Optional secondary key, APPENDED before the `id` backstop rather than
+      // replacing it — see [tieBreakField].
+      if (tieBreakField != null)
+        (e) => OrderingTerm(
+          expression: _tieBreakExpression(e, tieBreakField),
+          mode: tieBreakAscending ? OrderingMode.asc : OrderingMode.desc,
+        ),
       (e) => OrderingTerm(expression: e.id),
     ]);
 
     q.limit(limit, offset: offset);
     return q.watch().distinctRows();
+  }
+
+  /// [tieBreakField] resolved to an expression, with one correction.
+  ///
+  /// `created_at` is `withDefault(0)` and `<Entity>EditViewModel` stamps epoch 0
+  /// on a local create, so under DESC a plain column would sort the row the user
+  /// just made to the BOTTOM — the exact inversion a "most recent first" caller
+  /// is asking this to prevent. Mapping 0 to the max signed 64-bit value makes
+  /// an unsynced create lead instead.
+  ///
+  /// Deliberately NOT `NULLIF(created_at, 0)`: SQLite ranks NULL below every
+  /// value, so under DESC those rows would sort LAST — the same bug, reached by
+  /// a more idiomatic-looking route.
+  Expression _tieBreakExpression(Quotes e, String field) {
+    final expr = _sortExpression(e, field);
+    if (field != QuoteFieldIds.createdAt) return expr;
+    return CustomExpression<int>(
+      'CASE created_at WHEN 0 THEN 9223372036854775807 ELSE created_at END',
+    );
   }
 
   Expression _sortExpression(Quotes e, String field) {

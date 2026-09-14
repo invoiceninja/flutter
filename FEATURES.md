@@ -114,6 +114,8 @@ the honest default.
 | Reorder + show/hide dashboard panels (device-local) | — | — | ✅ | ✅ | |
 | Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ❌ | ✅ | — |
 | Task calendar panel — month grid, days colour-coded by hours booked | — | — | ✅ | | |
+| Invoices & Quotes panel — one card, status tabs with live counts, most recent first | ❌ | ❌ | ✅ | | flutter#155 |
+| Dashboard panel order — a new panel lands at its declared slot, not last | — | — | ✅ | | |
 | Panel → filtered list deep-links (View All / KPI cards carry matching filters) | — | — | ✅ | ✅ | |
 | Freshness label (last data update) | ❌ | ✅ | ✅ | ✅ | |
 | Responsive single-column mobile layout | — | ✅ | ✅ | ✅ | |
@@ -242,6 +244,7 @@ the honest default.
 | Quote — email history | ✅ | ✅ | ✅ | | |
 | Quote — email bounce indicator + reactivate | ✅ | ✅ | ✅ | | |
 | Quote — list bounce status badge | 🟡 | ✅ | ✅ | | |
+| Quote — `Rejected` status tab + sidebar counter | ❌ | ❌ | ✅ | | Local-only until the server adds `client_status=rejected` (BACKEND.md § F1) |
 | Quote — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Quote — archive / restore / delete | ✅ | ✅ | ✅ | ✅ | |
 | Quote — bulk actions | ✅ | ✅ | ✅ | ✅ | |

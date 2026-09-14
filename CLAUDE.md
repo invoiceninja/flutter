@@ -441,7 +441,7 @@ Rule of thumb: small / mostly-read / company-shared / rarely-paginated (≲ a fe
 
 1. the per-entity `SidebarBadgeMode` list here (+ its `badgeModes:` reference in `kWiredEntityModules`),
 2. a case in that DAO's `badgeModePredicate` (`BaseEntityDao`; `BankTransactionDao` hand-rolls the same hook),
-3. the mode's `labelKey` in `kSidebarBadgeModeLabelKeys`, which the settings-search catalog spreads,
+3. the mode's `labelKey`, plus an entry in `kSidebarBadgeModeSearchKeys` if it is a *specific* word worth surfacing in settings search (the generic status words — `draft` / `sent` / `approved` / `rejected` — are deliberately excluded, so most modes need no edit here),
 4. a `ListStatusTabSpec` in `lib/domain/list_status_tabs.dart` — `list_status_tabs_test` fails the build if the two catalogs disagree, so a new mode can't quietly ship as a counter with no way to filter by it.
 
 `sidebar_badge_count_test` fails the build if a declared mode has no predicate — the failure mode otherwise is silent, since a null predicate makes the badge count *every* row and still look like it works. Both pickers (the row's right-click menu and Settings → Device Settings → Sidebar counters) read the same registry list through `availableBadgeModes(...)`, so they can't drift apart.
@@ -490,6 +490,8 @@ A one-tap status strip above every entity list — `All / Draft / Unpaid / Overd
 - Counts are **active-only**, so the badges stand down (tabs keep filtering) when the list is showing archived / deleted rows, and they carry the same local-cache under-reporting caveat as the rail. A zero renders in the neutral palette whatever the bucket's tone — a red `0` would claim urgency about the one outcome that means there's nothing to do.
 - Device-toggleable, default **on**: Settings → Device Settings → Status tabs (`nav_state.status_tabs`, schema v6, `StatusTabsController`).
 - **The strip's edge fades are gated on the scroll position, like `EntityDetailTabs`'.** → `docs/entity-lists.md` § The strip's edge fades are gated on scroll position
+- **The strip has a second, wrapped layout, used only by the dashboard's Invoices & Quotes panel — and selection there is a fill, not the underline.** → `docs/dashboard-panels.md` § A strip of counts is payload, so it wraps
+- **Quote `rejected` is a tab but not a chip, and the difference is what reaches the wire.** → `docs/entity-lists.md` § Quote `rejected` is a tab but not a chip
 
 ## List state filter
 
@@ -515,13 +517,17 @@ The Tasks screen has five layouts (list / daily / weekly / calendar / kanban). T
 
 ## Dashboard panels
 
-The bottom grid's panels are ordered and hidden per device — `DashboardKind.panelKinds` is the registry, `DashboardPanelPref` the stored `"<kind>|<1|0>"` entry, and `DashboardViewModel._hydrate` **appends** any kind missing from a saved arrangement, visible-by-default. So a new panel needs no schema bump and no migration, and it must be appended rather than spliced in at its index: the hydrator appends regardless, so front-loading the constant would show it first on a fresh install and last on every existing one. `panelTitleKey` maps a kind to its l10n key (its `_ => kind` fallthrough makes an arm whose kind and key coincide a no-op — write it anyway, so the switch reads as the complete map it is). **The module gate lives in exactly one place**, `enabledPanelKinds` (`lib/ui/features/dashboard/helpers/enabled_panel_kinds.dart`): it was copied three times — the wide `_bottomGrid`, the mobile body's trailing list, and the manage sheet's Panels pane — and those three copies are precisely where a new panel half-ships, rendered on desktop, missing on mobile and inert in the manage sheet, each failure looking correct on its own screen. It takes predicates rather than a session so it stays a leaf and the whole module × permission matrix is unit-testable.
+The bottom grid's panels are ordered and hidden per device — `DashboardKind.panelKinds` is the registry, `DashboardPanelPref` the stored `"<kind>|<1|0>"` entry, and `DashboardViewModel._hydrate` places any kind missing from a saved arrangement **at its canonical rank** in `panelKinds`, visible-by-default. So a new panel needs no schema bump and no migration, and it goes at the slot it should occupy. (It used to append, which made a declared slot unreachable for anyone who had ever changed the date range — that persists the blob — so a new panel landed last on every existing install and first on a fresh one. → `docs/dashboard-panels.md` § A new panel goes at its canonical rank) `panelTitleKey` maps a kind to its l10n key (its `_ => kind` fallthrough makes an arm whose kind and key coincide a no-op — write it anyway, so the switch reads as the complete map it is). **The module gate lives in exactly one place**, `enabledPanelKinds` (`lib/ui/features/dashboard/helpers/enabled_panel_kinds.dart`): it was copied three times — the wide `_bottomGrid`, the mobile body's trailing list, and the manage sheet's Panels pane — and those three copies are precisely where a new panel half-ships, rendered on desktop, missing on mobile and inert in the manage sheet, each failure looking correct on its own screen. It takes predicates rather than a session so it stays a leaf and the whole module × permission matrix is unit-testable.
 
 - **The task-calendar panel (invoiceninja/flutter#137) is the first Drift-backed one, and almost everything load-bearing about it is invisible at the call site.** → `docs/dashboard-panels.md` § The task-calendar panel, and the eleven things that hold it up
 - **Per-day load is one rule in one leaf, and it buckets per time ENTRY.** → `docs/dashboard-panels.md` § Per-day load buckets per time entry, not per task
 - **The month window is fetched from the server, by the view model, and it is month-aligned for a reason.** → `docs/dashboard-panels.md` § The month window is fetched by the view model, month-aligned
 - **`hasLoaded` is not enough to claim availability, and the gate for that claim is not `Opacity`.** → `docs/dashboard-panels.md` § `hasLoaded` is not enough to claim availability
 - **The "today" marker takes `onAccent`, never `accentInk`.** → `docs/dashboard-panels.md` § The today marker takes `onAccent`, never `accentInk`
+- **The consolidated Invoices & Quotes panel is a *view* over two badge catalogs, and both DAO seams fail OPEN on a mode they don't recognise.** → `docs/dashboard-panels.md` § The Invoices & Quotes panel, and why its per-entity ids are explicit
+- **A strip whose items carry counts wraps; one that carries navigation scrolls.** → `docs/dashboard-panels.md` § A strip of counts is payload, so it wraps
+- **"Most recent" needs a tie-break, and `created_at == 0` means *newest*, not oldest.** → `docs/dashboard-panels.md` § Most recent needs a tie-break, and epoch 0 leads
+- **A tabbed card is the one dashboard panel whose empty state may be the generic string.** → `docs/dashboard-panels.md` § A tabbed card is the one place the generic empty string is right
 
 ## Tap to call
 

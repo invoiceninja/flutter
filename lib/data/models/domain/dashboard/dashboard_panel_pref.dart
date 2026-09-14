@@ -4,12 +4,17 @@ import 'package:admin/data/repositories/dashboard_repository.dart';
 /// position) and whether it's shown. The panel set is fixed to
 /// [DashboardKind.panelKinds], so unlike [DashboardCardConfig] there's nothing
 /// to compose: a panel is just a [kind] + a [visible] flag. Most of those kinds
-/// are server-cached list cards; [DashboardKind.taskCalendar] is a Drift-backed
-/// month grid, which changes nothing here.
+/// are server-cached list cards; [DashboardKind.taskCalendar] and
+/// [DashboardKind.invoicesAndQuotes] are Drift-backed, which changes nothing
+/// here.
 ///
 /// Persisted device-locally in the `dashboard` nav_state envelope as an ordered
 /// array of `"<kind>|<1|0>"` strings (array order = render order). Hand-written
 /// to match the rest of `models/domain/dashboard/`.
+///
+/// A kind missing from a stored array is placed at its **canonical rank** in
+/// [DashboardKind.panelKinds] by `DashboardViewModel._hydrate`, not appended —
+/// see `docs/dashboard-panels.md` § A new panel goes at its canonical rank.
 class DashboardPanelPref {
   const DashboardPanelPref({required this.kind, required this.visible});
 
@@ -63,5 +68,7 @@ String panelTitleKey(String kind) => switch (kind) {
   // for symmetry with its six siblings, so the switch reads as the complete
   // map it is rather than leaving one kind to look like an oversight.
   DashboardKind.taskCalendar => 'task_calendar',
+  // Also a no-op by construction, and written out for the same reason.
+  DashboardKind.invoicesAndQuotes => 'invoices_and_quotes',
   _ => kind,
 };

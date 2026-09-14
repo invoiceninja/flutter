@@ -124,6 +124,11 @@ void main() {
         // `calculated_start_date` instead of relying on the auto-chain alone.
         (EntityType.task, 'upcoming'),
         (EntityType.purchaseOrder, 'sent'),
+        // `QuoteFilters::client_status` has no `rejected` branch and
+        // `status_id` is invoice-only, so both params hit the silent-no-op and
+        // would return the UNFILTERED set — which is how the `rejected` *chip*
+        // failed before it was removed. Tracked as BACKEND.md § F1.
+        (EntityType.quote, 'rejected'),
         // Both were mapped once and deliberately un-mapped: the only available
         // superset is nearly the whole table, so it bought no narrowing while
         // costing the delta cursor and the auto-chain.

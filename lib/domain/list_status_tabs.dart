@@ -125,7 +125,8 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
   // client_status` clause-for-clause, incl. `sent`'s not-yet-expired guard —
   // so those three are exact. `expired` is NOT: the server requires
   // `status_id = 2`, while the app also counts a past-due *draft* as expired.
-  // The `,draft` widens it back to a superset.
+  // The `,draft` widens it back to a superset. `rejected` has no server clause
+  // at all — see its own comment below.
   EntityType.quote: [
     ListStatusTabSpec(
       'draft',
@@ -145,6 +146,18 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
         'client_status': {'approved'},
       },
     ),
+    // LOCAL-ONLY, and the one tab here where that is a server gap rather than a
+    // choice: `QuoteFilters::client_status` handles only
+    // `sent/draft/approved/expired/upcoming/converted` — there is no `rejected`
+    // branch, and `status_id` is implemented on `InvoiceFilters` alone, so both
+    // params hit the global silent-no-op and would return the UNFILTERED set.
+    // That is exactly how the `rejected` *chip* failed before it was removed
+    // (see `QuoteClientStatusFilterKey`): it put the value on the wire, the
+    // server ignored it, and a refresh wiped the locally-narrowed rows. A tab
+    // sends nothing — `statusTabServerFilters` returns null for an empty map —
+    // so the fetch stays unnarrowed and only the local predicate narrows.
+    // Tracked as BACKEND.md § F1; swap in `client_status` when that ships.
+    ListStatusTabSpec('rejected'),
     ListStatusTabSpec(
       'expired',
       serverFilters: {

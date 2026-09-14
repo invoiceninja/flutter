@@ -19,6 +19,7 @@ import 'package:admin/ui/features/dashboard/helpers/totals_math.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
+import 'package:admin/ui/features/dashboard/widgets/billing_pipeline_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
@@ -214,6 +215,23 @@ class MobileDashboardBody extends StatelessWidget {
         vm.listenableFor(DashboardKind.upcomingRecurring),
         () => _upcomingRecurringCard(context, tokens),
       ),
+      DashboardKind.invoicesAndQuotes: () {
+        final me = context.read<Services>().auth.session.value?.currentCompany;
+        final halves = billingPipelineHalves(
+          moduleOn: (t) => me?.moduleEnabled(t) ?? false,
+          can: (p) => me?.can(p) ?? false,
+        );
+        return DashboardBillingPipelineCard(
+          companyId: vm.companyId,
+          formatter: formatter,
+          refreshNonce: vm.lastRefreshed,
+          narrow: true,
+          includeInvoices: halves.invoices,
+          includeQuotes: halves.quotes,
+          initialTabId: vm.billingTab,
+          onTabChanged: vm.setBillingTab,
+        );
+      },
       DashboardKind.taskCalendar: () => DashboardTaskCalendarCard(
         companyId: vm.companyId,
         formatter: formatter,

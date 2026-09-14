@@ -267,9 +267,20 @@ hits the global silent-no-op (returns the unfiltered set). Quotes do carry
 `STATUS_REJECTED = 5` (set when a client rejects in the portal), and the
 official clients expose a "Rejected" filter chip. Requested: add
 `if (in_array('rejected', $status_parameters)) $query->orWhere('status_id',
-Quote::STATUS_REJECTED);`. Low priority — the v2 client already filters
-`rejected` **locally** as a deliberate approximation (the chip narrows
-cached rows), so this only improves server-side narrowing for large lists.
+Quote::STATUS_REJECTED);`.
+
+**Raised from low priority (2026-09-14, invoiceninja/flutter#155.)** The closing
+note here used to say the v2 client "already filters `rejected` locally as a
+deliberate approximation (the chip narrows cached rows)" — that is no longer
+true in either half. The chip was **removed**, precisely because it put
+`client_status=rejected` on the wire, hit this silent no-op, and had its
+locally-narrowed rows wiped by the next refresh. What ships now is a *tab*
+(Quotes list + the consolidated dashboard panel), which sends **nothing** and
+narrows the local cache only. That is correct but permanently under-reports a
+count the dashboard displays, and no client-side change can fix it: nothing the
+server exposes is a superset of "rejected". Adding the branch above lets the tab
+declare `client_status: {'rejected'}` and drop out of `list_status_tabs_test`'s
+`localOnly` set.
 
 ### F2. `app/Filters/PaymentFilters.php` — `company_gateway_id` — **O**
 

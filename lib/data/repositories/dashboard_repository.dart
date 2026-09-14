@@ -31,14 +31,22 @@ class DashboardKind {
   static const String upcomingQuotes = 'upcoming_quotes';
   static const String upcomingRecurring = 'upcoming_recurring';
 
-  /// The task-availability month grid. Unlike every kind above it, this panel
-  /// is **Drift-backed** — it watches the local tasks table rather than a
+  /// The task-availability month grid. Unlike every *server-fed* kind above it,
+  /// this panel is **Drift-backed** — it watches the local tasks table rather than a
   /// `dashboard_cache` row — so it deliberately appears in [panelKinds] only,
   /// never in [listKinds] (which [DashboardRepository.refreshAll] iterates and
   /// which would fire a `/dashboard` fetch for an endpoint that has no such
   /// kind) nor in [allKinds] (which seeds a per-section notifier for a section
   /// that has no stream).
   static const String taskCalendar = 'task_calendar';
+
+  /// The consolidated Invoices & Quotes strip (invoiceninja/flutter#155). Like
+  /// [taskCalendar] it is **Drift-backed** — it watches the local invoices and
+  /// quotes tables — so it belongs in [panelKinds] only, never in [listKinds]
+  /// (which `refreshAll` iterates, firing a `/dashboard` fetch for an endpoint
+  /// that has no such kind) nor in [allKinds] (which seeds a per-section
+  /// notifier for a section that has no stream).
+  static const String invoicesAndQuotes = 'invoices_and_quotes';
 
   /// Every list-card kind. These aren't filter-keyed.
   static const List<String> listKinds = [
@@ -66,13 +74,22 @@ class DashboardKind {
   /// rides the chart row, not the orderable grid).
   ///
   /// Not all of these are list cards, and not all are cache-backed:
-  /// [taskCalendar] renders a month grid straight off the local tasks table.
-  /// A new kind is **appended**, never spliced in at its index — the hydrator
-  /// appends anything missing from a saved arrangement, so front-loading a
-  /// constant would show it first on a fresh install and last on every
-  /// existing one.
+  /// [taskCalendar] renders a month grid straight off the local tasks table,
+  /// and [invoicesAndQuotes] a status strip off the local invoices and quotes
+  /// tables.
+  /// A new kind goes at the slot it should occupy: `DashboardViewModel._hydrate`
+  /// places anything missing from a saved arrangement **at its canonical rank**
+  /// here, relative to the kinds that arrangement already holds. (It appended,
+  /// once, which made a declared slot unreachable for anyone who had ever
+  /// changed the date range — the panel then landed last on every existing
+  /// install and first on a fresh one.)
   static const List<String> panelKinds = [
     pastDue,
+    // Second, immediately below "Needs your attention": it is a superset of
+    // three of the panels beneath it, so leading with it is the honest order —
+    // and a strip of counts is the one panel meant to be glanced at rather
+    // than read, which is worth little at the bottom of a phone page.
+    invoicesAndQuotes,
     upcomingInvoices,
     recentPayments,
     upcomingQuotes,

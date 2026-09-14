@@ -24,7 +24,7 @@ const _allModules = {
   EntityType.task,
 };
 
-const _allPermissions = {'view_task'};
+const _allPermissions = {'view_task', 'view_invoice', 'view_quote'};
 
 void main() {
   test('everything enabled → every orderable panel', () {
@@ -72,9 +72,10 @@ void main() {
     });
   });
 
-  group('the task calendar is permission-gated, unlike its siblings', () {
-    test('module on but no view_task → hidden', () {
-      // Its six siblings render server-fed data the API has already
+  group('the two Drift-backed panels are permission-gated, unlike the six '
+      'server-fed ones', () {
+    test('task module on but no view_task → hidden', () {
+      // The six server-fed panels render data the API has already
       // permission-scoped, so an empty card there honestly means "nothing to
       // show". This one reads the LOCAL tasks table: a user who cannot view
       // tasks has none in Drift, so an ungated grid would paint every day
@@ -83,7 +84,7 @@ void main() {
     });
 
     test('view_task but module off → hidden', () {
-      expect(_for(const {}, permissions: _allPermissions), isEmpty);
+      expect(_for(const {}, permissions: const {'view_task'}), isEmpty);
     });
 
     test('both → shown', () {
@@ -92,11 +93,68 @@ void main() {
       });
     });
 
+    test('billing modules on but neither view permission → hidden', () {
+      // Same argument: it reads the local invoices/quotes tables, so without
+      // the permission its strip would paint seven confident zeroes.
+      // Not `isEmpty`: the four server-fed invoice/quote panels are
+      // module-gated only and still render — that is the asymmetry.
+      expect(
+        _for(const {EntityType.invoice, EntityType.quote}),
+        isNot(contains(DashboardKind.invoicesAndQuotes)),
+      );
+    });
+
+    test('either half alone is enough to render the panel', () {
+      // The panel is a union: a quotes-only company still gets a useful strip,
+      // it just has fewer tabs and one footer link.
+      expect(
+        _for(const {EntityType.invoice}, permissions: _allPermissions),
+        contains(DashboardKind.invoicesAndQuotes),
+      );
+      expect(
+        _for(const {EntityType.quote}, permissions: _allPermissions),
+        contains(DashboardKind.invoicesAndQuotes),
+      );
+    });
+
+    test('billingPipelineHalves reports exactly which halves participate', () {
+      // The panel needs more than a bool — which tabs exist, which streams to
+      // open and which footer links to show all follow from this, and
+      // re-deriving it inside the widget would be the copy this file prevents.
+      bool on(Set<EntityType> m, EntityType t) => m.contains(t);
+      ({bool invoices, bool quotes}) halves(
+        Set<EntityType> modules,
+        Set<String> perms,
+      ) => billingPipelineHalves(
+        moduleOn: (t) => on(modules, t),
+        can: perms.contains,
+      );
+
+      expect(
+        halves(const {EntityType.invoice, EntityType.quote}, _allPermissions),
+        (invoices: true, quotes: true),
+      );
+      expect(halves(const {EntityType.invoice}, _allPermissions), (
+        invoices: true,
+        quotes: false,
+      ));
+      expect(
+        halves(
+          const {EntityType.invoice, EntityType.quote},
+          const {'view_quote'},
+        ),
+        (invoices: false, quotes: true),
+      );
+    });
+
     test('no other panel is permission-gated', () {
-      // Dropping every permission must leave exactly one kind behind.
+      // Dropping every permission must leave exactly these two behind.
       final withPerms = _for(_allModules, permissions: _allPermissions);
       final without = _for(_allModules);
-      expect(withPerms.difference(without), {DashboardKind.taskCalendar});
+      expect(withPerms.difference(without), {
+        DashboardKind.taskCalendar,
+        DashboardKind.invoicesAndQuotes,
+      });
     });
   });
 }

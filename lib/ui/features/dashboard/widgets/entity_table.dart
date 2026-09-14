@@ -22,6 +22,7 @@ class DashboardEntityTable extends StatelessWidget {
     required this.rows,
     this.compact = true,
     this.cellAlignments = const {},
+    this.cellPadding,
   });
 
   /// One label per column; pass `''` for the trailing menu column. Length
@@ -44,18 +45,30 @@ class DashboardEntityTable extends StatelessWidget {
   /// matches the full invoice-list page.
   final bool compact;
 
+  /// Horizontal cell padding override, applied to the header row as well as the
+  /// body — 16 px each side by default, i.e. **32 px per column** before a
+  /// glyph is drawn. That is affordable at five columns and is not at six in a
+  /// ~570 px dashboard card, where it spends a third of the width on gutters
+  /// and squeezes the client name to a few characters.
+  ///
+  /// It must reach [_HeaderCell] too: under `IntrinsicColumnWidth` the table
+  /// takes the max intrinsic across *all* rows, so a header still padded at 16
+  /// keeps setting the floor and a body-only override saves almost nothing.
+  final double? cellPadding;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final h = cellPadding ?? 16;
     final rowPadding = compact
-        ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
-        : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
+        ? EdgeInsets.symmetric(horizontal: h, vertical: 10)
+        : EdgeInsets.symmetric(horizontal: h, vertical: 14);
 
     return Table(
       columnWidths: columnWidths,
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
-        _headerRow(tokens),
+        _headerRow(tokens, h),
         for (var i = 0; i < rows.length; i++)
           _dataRow(
             context,
@@ -68,7 +81,7 @@ class DashboardEntityTable extends StatelessWidget {
     );
   }
 
-  TableRow _headerRow(InTheme tokens) {
+  TableRow _headerRow(InTheme tokens, double h) {
     return TableRow(
       decoration: BoxDecoration(
         color: tokens.surfaceAlt,
@@ -80,6 +93,7 @@ class DashboardEntityTable extends StatelessWidget {
             label: headers[i],
             alignment: cellAlignments[i] ?? Alignment.centerLeft,
             tokens: tokens,
+            horizontalPadding: h,
           ),
       ],
     );
@@ -105,6 +119,10 @@ class DashboardEntityTable extends StatelessWidget {
             padding: padding,
             alignment: cellAlignments[i] ?? Alignment.centerLeft,
             onTap: i < (row.cellTaps?.length ?? 0) ? row.cellTaps![i] : null,
+            // The label rides cell 0 and the rest fall silent, so the row is a
+            // single announced target rather than one per column.
+            semanticsLabel: i == 0 ? row.semanticsLabel : null,
+            muteSemantics: i > 0 && row.semanticsLabel != null,
           ),
       ],
     );
@@ -115,11 +133,19 @@ class DashboardEntityTable extends StatelessWidget {
     required EdgeInsets padding,
     required Alignment alignment,
     VoidCallback? onTap,
+    String? semanticsLabel,
+    bool muteSemantics = false,
   }) {
-    final inner = Padding(
+    Widget inner = Padding(
       padding: padding,
       child: Align(alignment: alignment, child: child),
     );
+    // `ExcludeSemantics` drops the subtree's nodes but keeps the widgets, so
+    // the cell still paints and still takes the tap — it just stops speaking.
+    // Safe against `semantics_excludes_need_ontap_test`, which fires on an
+    // exclude that swallows an interactive role's own tap: here the row's
+    // single announced target is cell 0, which is not excluded.
+    if (muteSemantics) inner = ExcludeSemantics(child: inner);
     if (onTap == null) {
       return TableCell(child: inner);
     }
@@ -139,7 +165,18 @@ class DashboardEntityTable extends StatelessWidget {
               }
               return null;
             }),
-            child: inner,
+            child: semanticsLabel == null
+                ? inner
+                : Semantics(
+                    button: true,
+                    label: semanticsLabel,
+                    // Re-declared, not inherited: the subtree's own nodes are
+                    // excluded below, and the `TableRowInkWell` carrying the
+                    // real gesture is this node's PARENT — so without it a
+                    // screen reader announces a button it cannot activate.
+                    onTap: onTap,
+                    child: ExcludeSemantics(child: inner),
+                  ),
           );
         },
       ),
@@ -152,18 +189,23 @@ class _HeaderCell extends StatelessWidget {
     required this.label,
     required this.alignment,
     required this.tokens,
+    required this.horizontalPadding,
   });
 
   final String label;
   final Alignment alignment;
   final InTheme tokens;
+  final double horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
     return TableCell(
       verticalAlignment: TableCellVerticalAlignment.middle,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 10,
+        ),
         child: Align(
           alignment: alignment,
           child: Text(
@@ -182,7 +224,23 @@ class _HeaderCell extends StatelessWidget {
 }
 
 class DashboardEntityTableRow {
-  const DashboardEntityTableRow({required this.cells, this.cellTaps});
+  const DashboardEntityTableRow({
+    required this.cells,
+    this.cellTaps,
+    this.semanticsLabel,
+  });
+
+  /// One announcement for the whole row, replacing the per-cell nodes.
+  ///
+  /// Only for a row whose cells all share a single destination. A `Table` has
+  /// no widget to wrap a `TableRow` in, so the cells are separately actionable
+  /// by construction: six cells over five rows is thirty nodes, each speaking a
+  /// fragment with no row identity. Given this, cell 0 carries the composed
+  /// label and every other cell's own node is excluded — one target, one
+  /// announcement. Leave it null where the cells route to different places
+  /// (`DashboardInvoiceTable`'s client cell does), since there each node is a
+  /// genuinely distinct destination.
+  final String? semanticsLabel;
 
   /// One widget per column. Length must equal `headers.length` in the
   /// surrounding table.

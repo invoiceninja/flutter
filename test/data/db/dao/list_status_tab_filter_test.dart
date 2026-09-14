@@ -127,6 +127,10 @@ void main() {
       await quote('q-approved', status: '3');
       await quote('q-expired', status: '2', dueDate: past);
       await quote('q-converted', status: '4', invoiceId: 'inv1');
+      // Without a status-5 row the `rejected` tab asserts 0 == 0 — green, and
+      // proving nothing. Given a past due date too, so it also proves
+      // `rejected` and `expired` stay disjoint (`notTerminal` excludes '5').
+      await quote('q-rejected', status: '5', dueDate: past);
     },
     rows: (m) => db.quoteDao
         .watchPage(companyId: co, offset: 0, limit: 500, badgeModeId: m)

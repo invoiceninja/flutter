@@ -1,10 +1,17 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/value/date.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/client_name_label.dart';
+import 'package:admin/ui/core/widgets/party_money_cell.dart';
+import 'package:admin/ui/features/dashboard/view_models/billing_pipeline_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/status_badge.dart';
+import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
+import 'package:admin/ui/features/quotes/widgets/quote_status_pill.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Mobile-stacked row widgets shared by the mobile dashboard cards. Each row
@@ -74,7 +81,7 @@ class MobileInvoiceRow extends StatelessWidget {
       onTap: onTap,
       leading: _LeadingIdentity(
         number: row.number,
-        clientName: row.clientName,
+        client: Text(row.clientName),
         statusBadge: StatusBadge(tone: tone, label: statusLabel),
       ),
       trailing: _TrailingAmountDate(
@@ -114,7 +121,7 @@ class MobilePaymentRow extends StatelessWidget {
       onTap: onTap,
       leading: _LeadingIdentity(
         number: row.number,
-        clientName: row.clientName,
+        client: Text(row.clientName),
         statusBadge: StatusBadge(tone: statusTone, label: statusLabel),
       ),
       trailing: _TrailingAmountDate(
@@ -164,7 +171,7 @@ class MobileQuoteRow extends StatelessWidget {
       onTap: onTap,
       leading: _LeadingIdentity(
         number: row.number,
-        clientName: row.clientName,
+        client: Text(row.clientName),
         statusBadge: StatusBadge(tone: tone, label: statusLabel),
       ),
       trailing: _TrailingAmountDate(
@@ -206,7 +213,7 @@ class MobileRecurringInvoiceRow extends StatelessWidget {
       onTap: onTap,
       leading: _LeadingIdentity(
         number: row.number,
-        clientName: row.clientName,
+        client: Text(row.clientName),
         statusBadge: null,
       ),
       trailing: _TrailingAmountDate(
@@ -219,6 +226,80 @@ class MobileRecurringInvoiceRow extends StatelessWidget {
 }
 
 // ── Internal shells ────────────────────────────────────────────────────
+
+/// Stacked row for the consolidated Invoices & Quotes panel
+/// (invoiceninja/flutter#155).
+///
+/// The one row here built from domain models rather than a cache-backed DTO, so
+/// the client name resolves through [ClientNameLabel] instead of arriving
+/// denormalized, and the status pill takes `calculatedStatusId` (past-due /
+/// expired / viewed come out right for free).
+///
+/// [showType] names the source record on a tab where both entities
+/// participate — inline in the number line, never as a third line.
+class MobileBillingPipelineRow extends StatelessWidget {
+  const MobileBillingPipelineRow({
+    super.key,
+    required this.row,
+    required this.formatter,
+    required this.showType,
+    required this.onTap,
+  });
+
+  final BillingPipelineRow row;
+  final Formatter formatter;
+  final bool showType;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    final isInvoice = row.type == EntityType.invoice;
+    final dateText = row.date is Date
+        ? formatter.date((row.date! as Date).toIso())
+        : '—';
+    final pillStyle = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      color: tokens.ink,
+    );
+
+    return _RowShell(
+      onTap: onTap,
+      leading: _LeadingIdentity(
+        number: row.number,
+        numberPrefix: showType
+            ? context.tr(isInvoice ? 'invoice' : 'quote')
+            : null,
+        client: ClientNameLabel(clientId: row.clientId),
+        statusBadge: isInvoice
+            ? InvoiceStatusPill(
+                statusId: row.statusId,
+                dotSize: 6,
+                textStyle: pillStyle,
+                hasBounce: row.hasBounce,
+              )
+            : QuoteStatusPill(
+                statusId: row.statusId,
+                dotSize: 6,
+                textStyle: pillStyle,
+                hasBounce: row.hasBounce,
+              ),
+      ),
+      trailing: PartyCurrencyBuilder(
+        clientId: row.clientId,
+        builder: (context, currencyId) => _TrailingAmountDate(
+          amountText: formatter.money(
+            row.amount as Decimal,
+            clientCurrencyId: currencyId,
+          ),
+          dateText: dateText,
+          dateColor: tokens.ink3,
+        ),
+      ),
+    );
+  }
+}
 
 class _RowShell extends StatelessWidget {
   const _RowShell({
@@ -259,19 +340,33 @@ class _RowShell extends StatelessWidget {
 class _LeadingIdentity extends StatelessWidget {
   const _LeadingIdentity({
     required this.number,
-    required this.clientName,
+    required this.client,
     required this.statusBadge,
+    this.numberPrefix,
   });
 
   final String number;
-  final String clientName;
+
+  /// The client line. A **widget**, not a string: the dashboard's cache-backed
+  /// rows carry a denormalized `clientName`, while a Drift-backed panel has
+  /// only a `clientId` and must resolve it through `ClientNameLabel`. Styling
+  /// stays here — see the `DefaultTextStyle` in [build] — so a label that
+  /// brings its own lighter fallback still reads like its four siblings.
+  final Widget client;
+
   final Widget? statusBadge;
+
+  /// Prepended to the number, `Invoice · INV-2041`, to name the source record
+  /// on a list that mixes two entities. Inline rather than a third line: the
+  /// row is ~63 px and a third line takes five rows from ~315 to ~425 px.
+  final String? numberPrefix;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
+    final label = number.isEmpty ? '—' : number;
     final numberText = Text(
-      number.isEmpty ? '—' : number,
+      numberPrefix == null ? label : '$numberPrefix · $label',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(fontSize: 11.5),
@@ -292,8 +387,10 @@ class _LeadingIdentity extends StatelessWidget {
         else
           numberText,
         const SizedBox(height: 3),
-        Text(
-          clientName,
+        // The style lives here, not in the caller's widget: `ClientNameLabel`'s
+        // own fallback is `13 / ink3`, a lighter colour and weight, so without
+        // this the panel's row would read subtly unlike its four siblings.
+        DefaultTextStyle.merge(
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -301,6 +398,7 @@ class _LeadingIdentity extends StatelessWidget {
             fontWeight: FontWeight.w500,
             color: tokens.ink,
           ),
+          child: client,
         ),
       ],
     );

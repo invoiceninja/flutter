@@ -139,6 +139,39 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     currentUserId: currentUserId,
   );
 
+  /// The [limit] most recent rows for the dashboard's Invoices & Quotes panel
+  /// (invoiceninja/flutter#155), optionally narrowed to one status bucket.
+  ///
+  /// Not expressible through [watchPage]: that one takes `loadedPages` and
+  /// translates to `limit: pageSize * loadedPages`, so it cannot ask for five
+  /// rows. The DAO applies [badgeModeId] pre-`LIMIT`, so this really is the top
+  /// N *of the bucket* rather than the bucket's share of the top N.
+  ///
+  /// Ordered `date desc, created_at desc, id` — the tie-break matters because
+  /// `date` is date-only and everything issued today ties on it. The panel
+  /// merges this with the sibling entity's stream using the SAME total order,
+  /// which is what makes merging two top-Ns and truncating exact.
+  Stream<List<Quote>> watchRecent({
+    required String companyId,
+    required int limit,
+    String? badgeModeId,
+    Set<EntityState> states = const {EntityState.active},
+  }) {
+    if (limit <= 0) return Stream<List<Quote>>.value(const <Quote>[]);
+    return db.quoteDao
+        .watchPage(
+          companyId: companyId,
+          offset: 0,
+          limit: limit,
+          states: states,
+          sortField: QuoteFieldIds.date,
+          sortAscending: false,
+          tieBreakField: QuoteFieldIds.createdAt,
+          badgeModeId: badgeModeId,
+        )
+        .map((rows) => rows.map(_fromRow).toList(growable: false));
+  }
+
   Stream<List<Quote>> watchForClient({
     required String companyId,
     required String clientId,

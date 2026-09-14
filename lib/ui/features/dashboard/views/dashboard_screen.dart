@@ -23,6 +23,7 @@ import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
 import 'package:admin/ui/features/dashboard/helpers/enabled_panel_kinds.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
+import 'package:admin/ui/features/dashboard/widgets/billing_pipeline_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
@@ -635,6 +636,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Drift-backed, so no `sectionListenable` wrapper: the card owns its own
       // `ListenableBuilder` over a task view model, and there is no
       // `dashboard_cache` section for this kind to listen to.
+      // Drift-backed, so no `sectionListenable` wrapper here either.
+      if (on(DashboardKind.invoicesAndQuotes))
+        DashboardKind.invoicesAndQuotes: () {
+          final halves = billingPipelineHalves(
+            moduleOn: (t) => me?.moduleEnabled(t) ?? false,
+            can: (p) => me?.can(p) ?? false,
+          );
+          return DashboardBillingPipelineCard(
+            companyId: _companyId,
+            formatter: formatter,
+            refreshNonce: _vm.lastRefreshed,
+            narrow: false,
+            includeInvoices: halves.invoices,
+            includeQuotes: halves.quotes,
+            initialTabId: _vm.billingTab,
+            onTabChanged: _vm.setBillingTab,
+          );
+        },
       if (on(DashboardKind.taskCalendar))
         DashboardKind.taskCalendar: () => DashboardTaskCalendarCard(
           companyId: _companyId,

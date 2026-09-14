@@ -69,6 +69,14 @@ class QuoteClientStatusFilterKey extends FilterKey {
   /// a valid *displayed* status but NOT a server filter dimension, so it's
   /// intentionally absent (offering it showed locally-cached rows that a
   /// refresh then wiped). React omits it too.
+  ///
+  /// **That is a rule about this CHIP, not about surfacing `rejected` at all.**
+  /// A chip writes its value to `extraFilters` under `_serverKey`, so it
+  /// reaches the wire, hits the server's silent no-op and gets the unfiltered
+  /// set back — which is what wiped the rows. The Quotes status *tab* is
+  /// local-only: `statusTabServerFilters` returns null for it, nothing is
+  /// sent, and only `badgeModePredicate` narrows. Point this list at
+  /// `rejected` again only once BACKEND.md § F1 ships.
   static const List<(String, String)> _statuses = [
     ('draft', 'draft'),
     ('sent', 'sent'),

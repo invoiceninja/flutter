@@ -1196,5 +1196,8 @@
   "width_px": "Width (px)",
   "would_be_hidden_count_plural": ":count users would be hidden",
   "would_be_hidden_count_singular": ":count user would be hidden",
-  "wrote_stale_rows": "Wrote :count stale row(s) to the diagnostics log"
+  "wrote_stale_rows": "Wrote :count stale row(s) to the diagnostics log",
+  "invoices_and_quotes": "Invoices & Quotes",
+  "none_synced_yet": "None synced yet",
+  "counted_from_local_data": "Counted from data on this device"
 }

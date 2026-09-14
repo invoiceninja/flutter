@@ -19,6 +19,13 @@ import 'package:admin/data/models/value/datetime_format.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
+import 'package:admin/data/models/domain/invoice.dart';
+import 'package:admin/data/models/domain/quote.dart';
+import 'package:admin/data/repositories/invoice_repository.dart';
+import 'package:admin/data/repositories/quote_repository.dart';
+import 'package:admin/domain/entity_state.dart';
+import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
@@ -65,9 +72,85 @@ class _FakeServices implements Services {
   final AuthRepository auth;
   @override
   final TaskRepository tasks = _FakeTaskRepo();
+
+  // The Invoices & Quotes panel is the second Drift-backed one, and it renders
+  // for either billing module — so these are reached by every test here that
+  // enables invoices or quotes, not just the one that names the panel.
+  @override
+  final InvoiceRepository invoices = _FakeInvoiceRepo();
+  @override
+  final QuoteRepository quotes = _FakeQuoteRepo();
+
+  // The panel builds its tab set from the two entities' own `badgeModes`, and
+  // resolves a row tap through the registry's route paths.
+  @override
+  final EntityRegistry entityRegistry = EntityRegistry(const {});
+
+  @override
+  Stream<int> watchEntityCount(
+    EntityType type,
+    String companyId, {
+    String modeId = 'total',
+  }) => Stream<int>.multi((c) {
+    c.add(0);
+    c.close();
+  });
+
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _FakeInvoiceRepo implements InvoiceRepository {
+  @override
+  Stream<List<Invoice>> watchRecent({
+    required String companyId,
+    required int limit,
+    String? badgeModeId,
+    Set<EntityState> states = const {EntityState.active},
+  }) => Stream<List<Invoice>>.multi((c) {
+    c.add(const <Invoice>[]);
+    c.close();
+  });
+
+  @override
+  Future<bool> ensurePageLoaded({
+    required String companyId,
+    required int page,
+    String? search,
+    Set<EntityState> states = const {EntityState.active},
+    Map<String, Set<String>> extraFilters = const {},
+    bool ignoreCursor = false,
+  }) async => false;
+
+  @override
+  Object? noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+class _FakeQuoteRepo implements QuoteRepository {
+  @override
+  Stream<List<Quote>> watchRecent({
+    required String companyId,
+    required int limit,
+    String? badgeModeId,
+    Set<EntityState> states = const {EntityState.active},
+  }) => Stream<List<Quote>>.multi((c) {
+    c.add(const <Quote>[]);
+    c.close();
+  });
+
+  @override
+  Future<bool> ensurePageLoaded({
+    required String companyId,
+    required int page,
+    String? search,
+    Set<EntityState> states = const {EntityState.active},
+    Map<String, Set<String>> extraFilters = const {},
+    bool ignoreCursor = false,
+  }) async => false;
+
+  @override
+  Object? noSuchMethod(Invocation i) => throw UnimplementedError();
 }
 
 class _FakeTaskRepo implements TaskRepository {

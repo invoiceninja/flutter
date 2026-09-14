@@ -171,6 +171,22 @@ class DashboardViewModel extends ChangeNotifier {
 
   // ─── Public actions ──────────────────────────────────────────────────
 
+  /// Selected tab of the Invoices & Quotes panel, null for `All`.
+  ///
+  /// Per company, because which tabs exist depends on the company's modules and
+  /// the user's permissions there. The panel heals a value it can no longer
+  /// offer back to `All` rather than rendering nothing selected.
+  String? get billingTab => _billingTab;
+  String? _billingTab;
+
+  /// Called on a user tap only — never on hydrate, or every cold start would
+  /// rewrite `nav_state`.
+  void setBillingTab(String? id) {
+    if (_billingTab == id) return;
+    _billingTab = id;
+    _schedulePersist();
+  }
+
   Future<void> setFilter(DashboardFilter next) async {
     if (next == _filter) return;
     final wasFilterKeyedChange =
@@ -686,6 +702,15 @@ class DashboardViewModel extends ChangeNotifier {
         dashboardCards = loaded;
       }
 
+      // The Invoices & Quotes panel's selected tab. Restored alongside the date
+      // range, which is a far stronger filter living in this same blob — it
+      // re-scopes the KPIs, the chart and every list card, where this narrows
+      // one card whose own control sits 8 px above the rows it filters.
+      final billingTab = dash['billingTab'];
+      if (billingTab is String && billingTab.isNotEmpty) {
+        _billingTab = billingTab;
+      }
+
       // When `panels` is absent (every pre-upgrade install), panelPrefs keeps
       // its all-visible default — no else branch.
       final panels = dash['panels'];
@@ -701,13 +726,41 @@ class DashboardViewModel extends ChangeNotifier {
             loaded.add(pref);
           }
         }
-        // Append any panel missing from the saved list (e.g. a panel added in a
-        // later release) visible-by-default, so the set is always complete and
-        // in a stable order.
+        // Place any panel missing from the saved list (e.g. one added in a
+        // later release) visible-by-default, AT ITS CANONICAL RANK rather than
+        // at the end.
+        //
+        // Appending was the old rule, and it made a new panel's declared slot
+        // unreachable for anyone who had ever changed the date range — which
+        // persists this blob — so it always landed last on every existing
+        // install. The rule has to be stated precisely, because the obvious
+        // version is wrong:
+        //
+        //  * walk `panelKinds` in ASCENDING canonical order, so several
+        //    missing kinds keep their relative order rather than landing
+        //    arbitrarily;
+        //  * insert each immediately AFTER the last already-placed kind of
+        //    smaller canonical index (position 0 if there is none). Anchoring
+        //    on the predecessor is what keeps a new kind below `past_due` even
+        //    in a save where the user dragged `past_due` down.
+        //
+        // Never `loaded.insert(canonicalIndex, …)`: on a reordered save that
+        // shoves unrelated panels around, and it `RangeError`s whenever the
+        // saved list is shorter than the index — which the `catch` below would
+        // swallow, silently discarding the user's whole arrangement.
+        final rank = {
+          for (var i = 0; i < DashboardKind.panelKinds.length; i++)
+            DashboardKind.panelKinds[i]: i,
+        };
         for (final k in DashboardKind.panelKinds) {
-          if (seen.add(k)) {
-            loaded.add(DashboardPanelPref(kind: k, visible: true));
+          if (!seen.add(k)) continue;
+          final mine = rank[k]!;
+          var at = 0;
+          for (var i = 0; i < loaded.length; i++) {
+            final other = rank[loaded[i].kind];
+            if (other != null && other < mine) at = i + 1;
           }
+          loaded.insert(at, DashboardPanelPref(kind: k, visible: true));
         }
         panelPrefs = loaded;
       }
@@ -751,6 +804,7 @@ class DashboardViewModel extends ChangeNotifier {
         'chartGrouping': chartGrouping.name,
         'dashboardCards': dashboardCards.map((c) => c.toJson()).toList(),
         'panels': panelPrefs.map((p) => p.toJson()).toList(),
+        if (_billingTab != null) 'billingTab': _billingTab,
       };
       doc[companyId] = companyMap;
       await navStateDao.saveFilters(

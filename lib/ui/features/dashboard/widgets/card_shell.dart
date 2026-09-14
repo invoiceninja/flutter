@@ -182,10 +182,24 @@ class DashboardCardShell extends StatelessWidget {
 /// Standard "View all"-style footer link. Capitalisation and copy varies by
 /// card — pass the desired label.
 class DashboardCardFooterLink extends StatelessWidget {
-  const DashboardCardFooterLink({super.key, required this.label, this.onTap});
+  const DashboardCardFooterLink({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.touchFloor = false,
+  });
 
   final String label;
   final VoidCallback? onTap;
+
+  /// Raise the link to [InSizes.touchTarget] on a touch platform.
+  ///
+  /// Off by default because in a card *header* the band already carries the
+  /// floor whenever [DashboardCardShell.onHeaderTap] is wired. A card that
+  /// cannot wire that — because its trailing widget has more than one
+  /// destination, which is precisely what `onHeaderTap` forbids — has to carry
+  /// the floor on the link itself, and this is that opt-in.
+  final bool touchFloor;
 
   @override
   Widget build(BuildContext context) {
@@ -193,17 +207,22 @@ class DashboardCardFooterLink extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(InRadii.r1),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            LinkText(
-              label: label,
-              style: TextStyle(fontSize: 12, color: tokens.ink3),
-            ),
-            Icon(Icons.chevron_right, size: 14, color: tokens.ink3),
-          ],
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: touchFloor && Env.isTouchPrimary ? InSizes.touchTarget : 0,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinkText(
+                label: label,
+                style: TextStyle(fontSize: 12, color: tokens.ink3),
+              ),
+              Icon(Icons.chevron_right, size: 14, color: tokens.ink3),
+            ],
+          ),
         ),
       ),
     );

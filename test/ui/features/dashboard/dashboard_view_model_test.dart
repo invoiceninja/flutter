@@ -429,7 +429,7 @@ void main() {
       var globalHits = 0;
       vm.addListener(() => globalHits++);
       vm.reorderPanels(0, 2); // pastDue → index 2
-      expect(vm.panelPrefs.first.kind, DashboardKind.upcomingInvoices);
+      expect(vm.panelPrefs.first.kind, DashboardKind.invoicesAndQuotes);
       expect(vm.panelPrefs[2].kind, DashboardKind.pastDue);
       expect(vm.panelsAreDefault, isFalse);
       expect(globalHits, greaterThanOrEqualTo(1));
@@ -463,17 +463,23 @@ void main() {
     test(
       'reorderTrailingPanels reorders the rest, preserves past-due slot',
       () {
-        // Default: past-due at index 0. Move the first trailing panel (upcoming
-        // invoices) to the end of the trailing block.
-        vm.reorderTrailingPanels(0, 5);
+        // Default: past-due at index 0. Move the first trailing panel
+        // (invoices & quotes) to the end of the trailing block — the target
+        // index is the trailing COUNT, so it tracks the panel set rather than
+        // being a literal that silently stops meaning "the end".
+        final trailing = vm.panelPrefs
+            .where((p) => p.kind != DashboardKind.pastDue)
+            .length;
+        vm.reorderTrailingPanels(0, trailing);
         expect(vm.panelPrefs.map((p) => p.kind), const [
           'past_due', // pinned, unchanged
+          'upcoming_invoices',
           'recent_payments',
           'upcoming_quotes',
           'expired_quotes',
           'upcoming_recurring',
           'task_calendar',
-          'upcoming_invoices',
+          'invoices_and_quotes',
         ]);
 
         // Now move past-due off slot 0, then reorder the five again and confirm
@@ -492,8 +498,9 @@ void main() {
               .where((p) => p.kind != DashboardKind.pastDue)
               .map((p) => p.kind),
           const [
-            'recent_payments',
             'upcoming_invoices',
+            'invoices_and_quotes',
+            'recent_payments',
             'upcoming_quotes',
             'expired_quotes',
             'upcoming_recurring',
@@ -584,7 +591,7 @@ void main() {
     });
 
     test(
-      'hydrate drops unknown + duplicate kinds and appends missing',
+      'hydrate drops unknown + duplicate kinds and places missing at rank',
       () async {
         await db.navStateDao.saveFilters(
           filtersJson: jsonEncode({
@@ -603,18 +610,26 @@ void main() {
         );
         final reader = newVm();
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        // Saved (deduped, known) first, then missing kinds appended in
-        // panelKinds order.
+        // Saved (deduped, known) keep their relative order; each missing kind
+        // lands at its CANONICAL RANK relative to them rather than at the end.
+        //
+        // This fixture is the reason the rule is anchored on the PREDECESSOR:
+        // the save puts `recent_payments` above `past_due`, so "before the
+        // first kind of greater rank" would hoist `invoices_and_quotes` to the
+        // very top, above the past-due card it is meant to sit under. Anchoring
+        // on the last smaller-ranked kind keeps it directly below `past_due`
+        // wherever the user has dragged that.
         expect(reader.panelPrefs.map((p) => p.kind), const [
           'recent_payments',
           'past_due',
+          'invoices_and_quotes',
           'upcoming_invoices',
           'upcoming_quotes',
           'expired_quotes',
           'upcoming_recurring',
           'task_calendar',
         ]);
-        expect(reader.panelPrefs.length, 7);
+        expect(reader.panelPrefs.length, 8);
         expect(
           reader.panelPrefs
               .firstWhere((p) => p.kind == DashboardKind.recentPayments)
@@ -627,10 +642,56 @@ void main() {
               .firstWhere((p) => p.kind == DashboardKind.upcomingInvoices)
               .visible,
           isTrue,
-          reason: 'appended panels default to visible',
+          reason: 'newly placed panels default to visible',
         );
         reader.dispose();
       },
     );
+
+    test('the billing tab round-trips, and hydrate never writes', () async {
+      final writer = newVm(persistDebounce: const Duration(milliseconds: 5));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(writer.billingTab, isNull, reason: 'All is the resting state');
+      writer.setBillingTab('expired');
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      writer.dispose();
+
+      final reader = newVm();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(reader.billingTab, 'expired');
+
+      // A no-op set must not schedule a write, or an unrelated rebuild could
+      // churn nav_state.
+      final before = await db.navStateDao.current();
+      reader.setBillingTab('expired');
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect((await db.navStateDao.current())?.updatedAt, before?.updatedAt);
+      reader.dispose();
+    });
+
+    test('a save that was the OLD default hydrates to the NEW default', () async {
+      // The upgrade case, and the reason the placement rule is worth having:
+      // under the append rule every existing user's arrangement became
+      // non-default the moment a kind shipped, permanently disabling the manage
+      // dialog's Reset for them. Placed at rank, the old default is still the
+      // default.
+      final old = [
+        for (final k in DashboardKind.panelKinds)
+          if (k != DashboardKind.invoicesAndQuotes) '$k|1',
+      ];
+      await db.navStateDao.saveFilters(
+        filtersJson: jsonEncode({
+          'co': {
+            'dashboard': {'panels': old},
+          },
+        }),
+        now: 1,
+      );
+      final reader = newVm();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(reader.panelPrefs.map((p) => p.kind), DashboardKind.panelKinds);
+      expect(reader.panelsAreDefault, isTrue);
+      reader.dispose();
+    });
   });
 }

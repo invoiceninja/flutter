@@ -8,6 +8,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
@@ -155,13 +156,20 @@ void main() {
           'past-due renders in the mobile hero zone — its order is ignored, '
           'so a drag handle here is a dead control',
     );
-    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(6));
+    // Every kind but the pinned past-due one.
+    expect(
+      find.byIcon(Icons.drag_indicator),
+      findsNWidgets(DashboardKind.panelKinds.length - 1),
+    );
   });
 
   testWidgets('wide body: every panel reorders', (tester) async {
     await openPanels(tester, mobileLayout: false);
 
     expect(find.byIcon(Icons.push_pin_outlined), findsNothing);
-    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(7));
+    expect(
+      find.byIcon(Icons.drag_indicator),
+      findsNWidgets(DashboardKind.panelKinds.length),
+    );
   });
 }

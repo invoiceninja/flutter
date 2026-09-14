@@ -34,6 +34,7 @@ void main() {
     bool enabled = true,
     String streamKey = 'invoice:co',
     Map<String, int> counts = const {'total': 12, 'draft': 3, 'overdue': 0},
+    bool wrap = false,
   }) => MaterialApp(
     theme: buildInTheme(InTheme.light),
     localizationsDelegates: kTestLocalizationsDelegates,
@@ -41,6 +42,7 @@ void main() {
     home: Scaffold(
       body: EntityListStatusTabs(
         tabs: tabs,
+        wrap: wrap,
         selectedIndex: selectedIndex,
         showCounts: showCounts,
         enabled: enabled,
@@ -222,6 +224,63 @@ void main() {
     await tester.pumpWidget(host(streamKey: 'invoice:other-co'));
     await tester.pumpAndSettle();
     expect(streamsBuilt, afterFirst * 2);
+  });
+
+  group('wrap mode', () {
+    testWidgets('lays tabs out side by side, not one per line', (tester) async {
+      // The bug this exists for: a `Container` with an `alignment` expands to
+      // its incoming maxWidth — infinite inside the scrolling `Row` (so it
+      // shrink-wrapped) but FINITE inside a `Wrap`, where every tab stretched
+      // to the full card width and the strip rendered one tab per line. It
+      // analyzed clean and only a screenshot showed it.
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(host(wrap: true));
+      await tester.pumpAndSettle();
+
+      final all = tester.getRect(find.text('All'));
+      final draft = tester.getRect(find.text('Draft'));
+      expect(draft.top, all.top, reason: 'the first two tabs share a run');
+      expect(draft.left, greaterThan(all.right));
+      // And a tab is nothing like the full width.
+      expect(all.width, lessThan(200));
+    });
+
+    testWidgets('has no scroller, so nothing can be off-screen', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(host(wrap: true));
+      await tester.pumpAndSettle();
+      expect(find.byType(SingleChildScrollView), findsNothing);
+      // Every tab is laid out, which is the entire point of the mode.
+      for (final label in ['All', 'Draft', 'Unpaid', 'Overdue']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+    });
+
+    testWidgets('selection is a fill, not the strip underline', (tester) async {
+      // On the first run of a wrapped strip a 2 px bottom border floats
+      // mid-surface and reads as a stray rule, so selection moves to the
+      // `accentSoft` treatment `SidebarNavItem` uses for the same vocabulary.
+      await tester.pumpWidget(host(wrap: true, selectedIndex: 1));
+      await tester.pumpAndSettle();
+      final decorated = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((c) {
+            final d = c.decoration;
+            return d is BoxDecoration && d.color != null;
+          })
+          .toList();
+      expect(
+        decorated,
+        isNotEmpty,
+        reason: 'the selected tab paints a filled background',
+      );
+    });
   });
 
   group('edge fades', () {

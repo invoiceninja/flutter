@@ -1,5 +1,7 @@
 # Tap to call — dialling a phone number from the app
 
+Companion to CLAUDE.md § Tap to call, which carries one line per rule. This doc carries the feature shape and the evidence.
+
 Settings → Device Settings → **Phone numbers**. Tapping a phone number opens the platform dialer;
 contact rows also get a Message button, a billing document's header offers a call button beside the
 client's name, and on a phone a Clients / Vendors row with a number stored carries one too. Device-local, with two
@@ -115,7 +117,7 @@ did is worse than no gesture.
 Six things here are load-bearing, and most of them fail silently:
 
 - **The trigger's box is `actionButtonSize()` wide and only as tall as the name row's line box**
-  (20 px), never the 44 px touch floor. That is CLAUDE.md's touch-target **trap 4** — *cap trailing
+  (20 px), never the 44 px touch floor. That is `docs/touch-targets.md`'s **trap 4** — *cap trailing
   widgets to the row's content box, not the target* — and it is what keeps the affordance from
   pushing the dates + KPI strip down ~24 px on five screens, and from doing it *a frame or two late*
   once the party resolves from Drift. `party_call_button_test.dart`'s `layout` group pins the row

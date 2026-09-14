@@ -4,13 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
-import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/data/models/value/industry.dart';
 import 'package:admin/data/models/value/language.dart';
 import 'package:admin/data/models/value/size.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/labeled_switch_group.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/clients/view_models/client_edit_view_model.dart';
@@ -84,7 +84,11 @@ class ClientEditSettingsSection extends StatelessWidget {
           // sets the id back to '' (none / unassigned).
           ClientEditFieldPair(
             left: _GroupPicker(vm: vm),
-            right: _AssignedUserPicker(vm: vm),
+            right: AssignedUserPickerField(
+              companyId: vm.companyId,
+              selectedId: vm.draft.assignedUserId,
+              onChanged: vm.setAssignedUserId,
+            ),
           ),
           ClientEditFieldPair(
             left: SearchableDropdownField<Currency>(
@@ -216,39 +220,6 @@ class _GroupPicker extends StatelessWidget {
           displayString: (g) => g.name.isEmpty ? g.id : g.name,
           idOf: (g) => g.id,
           onChanged: (g) => vm.setGroupSettingsId(g?.id ?? ''),
-        );
-      },
-    );
-  }
-}
-
-/// Assigned-user picker — mirrors the project edit screen's picker. Streams
-/// the company's users and resolves the current `assigned_user_id`.
-class _AssignedUserPicker extends StatelessWidget {
-  const _AssignedUserPicker({required this.vm});
-  final ClientEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    return StreamBuilder<List<User>>(
-      stream: services.user.watchAllForPicker(companyId: vm.companyId),
-      builder: (context, snapshot) {
-        final users = snapshot.data ?? const <User>[];
-        User? selected;
-        for (final u in users) {
-          if (u.id == vm.draft.assignedUserId) {
-            selected = u;
-            break;
-          }
-        }
-        return SearchableDropdownField<User>(
-          label: context.tr('assigned_user'),
-          items: users,
-          initialValue: selected,
-          displayString: (u) => u.displayName,
-          idOf: (u) => u.id,
-          onChanged: (u) => vm.setAssignedUserId(u?.id ?? ''),
         );
       },
     );

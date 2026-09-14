@@ -35,6 +35,7 @@ Plus two non-negotiables carried from admin-portal:
 | Adding a hand-rolled `OverlayPortal`, or Android back not closing one | `docs/popup-dismissal.md` § Android back is the other dismissal · `test/lint/overlay_back_dismiss_test.dart` |
 | A picker showing a dead empty box or stuck on "Loading", or blanking when its value is archived | `docs/pickers.md` § A picker's empty state has to say something · `lib/ui/core/widgets/entity_picker_field.dart` |
 | Adding an Assigned User or task Status picker, or a field to the create-task-from-a-line sheet | `docs/pickers.md` § The assignee roster has one home · `lib/ui/core/widgets/assigned_user_picker_field.dart` |
+| Hiding unverified users from Assigned User fields, or the "never onboarded" rule | `docs/pickers.md` § Hiding unverified users · `lib/domain/assignable_users.dart` · `test/lint/assigned_user_picker_wiring_test.dart` |
 | Anything money / date / parsing | § Strict rules + § Forms |
 | Changing invoice / quote / credit totals math | `docs/sync.md` § The server's rounding scale is a two-level map · `tool/totals_oracle.php` |
 | Dialog buttons rendering stacked | § Design system (v2) |

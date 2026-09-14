@@ -429,7 +429,12 @@
   "hide_empty_columns": "Hide empty columns",
   "hide_events": "Hide events",
   "hide_grid": "Hide grid",
+  "hide_unverified_users": "Hide unverified users",
+  "hide_unverified_users_help": "Keeps people who show no sign of having signed in — no confirmed email, no password — out of assignee fields. You, account owners and anyone already assigned still appear.",
   "hide_window_buttons": "Hide window buttons",
+  "hidden_from_assignment": "Hidden from assignment",
+  "hidden_from_assignment_count_plural": ":count users hidden from assignee fields",
+  "hidden_from_assignment_count_singular": ":count user hidden from assignee fields",
   "hold_modifier_to_preview": "Hold :modifier to preview shortcuts for the current screen.",
   "hours_ago_short": ":count h ago",
   "hours_logged_count": ":hours h logged",
@@ -1189,5 +1194,7 @@
   "web_php_version": "Web",
   "weeks_ago_short": ":count w ago",
   "width_px": "Width (px)",
+  "would_be_hidden_count_plural": ":count users would be hidden",
+  "would_be_hidden_count_singular": ":count user would be hidden",
   "wrote_stale_rows": "Wrote :count stale row(s) to the diagnostics log"
 }

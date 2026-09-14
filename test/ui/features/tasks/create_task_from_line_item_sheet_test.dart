@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/hide_unverified_users_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
@@ -17,6 +18,7 @@ import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/company_repository.dart';
 import 'package:admin/data/repositories/task_status_repository.dart';
 import 'package:admin/data/repositories/task_repository.dart';
@@ -117,6 +119,16 @@ class _FakeServices implements Services {
 
   @override
   final UserRepository user = FakeUserRepo();
+
+  // Both reached by `AssignedUserPickerField`, which this sheet mounts:
+  // `auth` for the signed-in id the hide rule exempts, and the preference
+  // itself (invoiceninja/flutter#150).
+  @override
+  final AuthRepository auth = FakeAuthRepo();
+
+  @override
+  final HideUnverifiedUsersController hideUnverifiedUsers =
+      HideUnverifiedUsersController(db: throwawayDb());
 
   @override
   dynamic noSuchMethod(Invocation i) =>

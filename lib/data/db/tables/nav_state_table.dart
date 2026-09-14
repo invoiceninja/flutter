@@ -127,6 +127,22 @@ class NavState extends Table {
   /// build, then downgraded) parses back to null rather than throwing.
   TextColumn get tasksView => text().named('tasks_view').nullable()();
 
+  /// Device-local "keep people who have never confirmed their email address
+  /// out of Assigned User fields" preference (Settings → Device Settings →
+  /// Users), invoiceninja/flutter#150.
+  ///
+  /// Defaults to **off**, unlike the two bool columns above — `confirm_actions`
+  /// and `status_tabs` default on because they only add chrome, whereas this
+  /// one *removes people from a form*. `email_verified_at` conflates four
+  /// states (BACKEND.md § F4), so shipping it on would silently delete
+  /// colleagues from everyone's pickers; `lib/domain/assignable_users.dart`
+  /// narrows the rule and this default is the other half of that trade.
+  /// `sidebar_collapsed` is the existing `false` precedent for the shape.
+  /// Added in schema v10.
+  BoolColumn get hideUnverifiedUsers => boolean()
+      .named('hide_unverified_users')
+      .withDefault(const Constant(false))();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

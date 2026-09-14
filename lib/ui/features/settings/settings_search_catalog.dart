@@ -569,6 +569,12 @@ const kSettingsSearchCatalog = <String, List<String>>{
   'schedules': [...kSchedulesSearchKeys],
   'users': [
     'user_management',
+    // Not rendered as a field on that screen — it is the roster badge
+    // (`user_management_screen.dart`). Catalogued so that someone who saw
+    // "Verification Pending" and went looking lands on User Management, where
+    // Resend Email is, rather than on the Device Settings toggle that merely
+    // hides such users from Assigned User fields (invoiceninja/flutter#150).
+    'verification_pending',
     'new_user',
     'edit_user',
     'first_name',

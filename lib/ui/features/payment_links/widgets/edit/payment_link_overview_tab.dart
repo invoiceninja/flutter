@@ -5,8 +5,8 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/domain/product.dart';
-import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/payment_links/view_models/payment_link_edit_view_model.dart';
@@ -40,7 +40,11 @@ class PaymentLinkOverviewTab extends StatelessWidget {
               externalSyncKey: vm.original?.id,
             ),
             _GroupPicker(vm: vm, services: services),
-            _AssignedUserPicker(vm: vm, services: services),
+            AssignedUserPickerField(
+              companyId: vm.companyId,
+              selectedId: vm.draft.assignedUserId,
+              onChanged: vm.setAssignedUserId,
+            ),
             // Purchase Page is server-computed — read-only and only
             // meaningful on edit. Hide on Create.
             if (!vm.isCreate) _PurchasePageReadOnly(url: vm.draft.purchasePage),
@@ -120,43 +124,6 @@ class _GroupPicker extends StatelessWidget {
           idOf: (g) => g.id,
           onChanged: (g) => vm.setGroupId(g?.id ?? ''),
           errorText: vm.fieldErrorFor('group_id'),
-        );
-      },
-    );
-  }
-}
-
-/// Assigned-user picker. Present in both React and admin-portal but was
-/// missing here even though the VM already exposes `setAssignedUserId`.
-/// Mirrors `project_edit_details_section.dart`'s `_AssignedUserPicker`.
-class _AssignedUserPicker extends StatelessWidget {
-  const _AssignedUserPicker({required this.vm, required this.services});
-  final PaymentLinkEditViewModel vm;
-  final Services services;
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<User>>(
-      stream: services.user.watchPage(
-        companyId: vm.companyId,
-        loadedPages: 100,
-      ),
-      builder: (context, snapshot) {
-        final users = snapshot.data ?? const <User>[];
-        User? selected;
-        for (final u in users) {
-          if (u.id == vm.draft.assignedUserId) {
-            selected = u;
-            break;
-          }
-        }
-        return SearchableDropdownField<User>(
-          label: context.tr('assigned_user'),
-          items: users,
-          initialValue: selected,
-          displayString: (u) => u.displayName,
-          idOf: (u) => u.id,
-          onChanged: (u) => vm.setAssignedUserId(u?.id ?? ''),
         );
       },
     );

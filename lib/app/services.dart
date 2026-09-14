@@ -28,6 +28,7 @@ import 'package:admin/app/shell_mounted_notifier.dart';
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/sidebar_menu_controller.dart';
+import 'package:admin/app/hide_unverified_users_controller.dart';
 import 'package:admin/app/status_tabs_controller.dart';
 import 'package:admin/app/tasks_view_controller.dart';
 import 'package:admin/app/text_scale_controller.dart';
@@ -301,6 +302,7 @@ class Services implements SidebarBadgeContext {
     required this.appLocale,
     required this.confirmActions,
     required this.statusTabs,
+    required this.hideUnverifiedUsers,
     required this.tasksView,
     required this.phoneActions,
     required this.pendingCall,
@@ -617,6 +619,17 @@ class Services implements SidebarBadgeContext {
   /// `EntityListScreenScaffold` — the list's own `ListenableBuilder` watches
   /// the ViewModel, which never fires when this flips.
   final StatusTabsController statusTabs;
+
+  /// Device-local "keep people who have never confirmed their email address
+  /// out of Assigned User fields" preference (Settings → Device Settings →
+  /// Users, invoiceninja/flutter#150). Off by default.
+  ///
+  /// Read live via a `ValueListenableBuilder` — `AssignedUserPickerField` and
+  /// the User Management roster stay mounted behind `/settings/**` while the
+  /// switch is flipped, so a build-time read with no listener keeps the stale
+  /// answer. The picker also feeds it into its `WatchBuilder` cache key, which
+  /// is what re-creates the filtered stream.
+  final HideUnverifiedUsersController hideUnverifiedUsers;
 
   /// Device-local Tasks layout (list / daily / weekly / calendar / kanban), as
   /// last picked from the Tasks AppBar toggle. Read live via a
@@ -1448,6 +1461,7 @@ class Services implements SidebarBadgeContext {
     );
     final confirmActions = ConfirmActionsController(db: db);
     final statusTabs = StatusTabsController(db: db);
+    final hideUnverifiedUsers = HideUnverifiedUsersController(db: db);
     final tasksView = TasksViewController(db: db);
     final phoneActions = PhoneActionsController(db: db);
     final pendingCall = PendingCallController();
@@ -1729,6 +1743,7 @@ class Services implements SidebarBadgeContext {
       appLocale: appLocale,
       confirmActions: confirmActions,
       statusTabs: statusTabs,
+      hideUnverifiedUsers: hideUnverifiedUsers,
       tasksView: tasksView,
       phoneActions: phoneActions,
       pendingCall: pendingCall,

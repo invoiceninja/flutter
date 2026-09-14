@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The two task pickers must stay on their shared leaves, and the invoiced-task
-/// lock must stay wrapped around them.
+/// Every "Assigned User" field must stay on its shared leaf, the two task
+/// pickers on theirs, and the invoiced-task lock wrapped around both.
 ///
 /// Structural, and it has to be. `AssignedUserPickerField` and
 /// `TaskStatusPickerField` have their own suites, which prove the *mechanism*
@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// Three regressions this catches, all of which compile, run and look right:
 ///
-/// 1. **The window scan comes back.** Both hosts used to resolve the selection
+/// 1. **The window scan comes back.** Six hosts used to resolve the selection
 ///    out of `services.user.watchPage(loadedPages: 100)` / `taskStatuses
 ///    .watchAll` with a linear scan — so archiving the assigned user (or the
 ///    status) dropped the row from `items`,
@@ -47,8 +47,75 @@ void main() {
   const sheet =
       'lib/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
 
+  /// Every host that writes an `assigned_user_id`. The four below were the
+  /// hand-rolled window scans CLAUDE.md used to list as "owed the migration";
+  /// they came onto the leaf with invoiceninja/flutter#150, because the hide
+  /// rule cannot be applied to a picker that resolves its selection by scanning
+  /// `items` — narrowing the list there blanks a field that holds a value.
+  ///
+  /// Pinned here because **none of the four has a widget test of its own**, and
+  /// neither do the five billing edit layouts the last one feeds. A revert
+  /// would compile, run, look right on screen, and silently opt those screens
+  /// out of the preference.
+  const assignmentHosts = <String>[
+    editLayout,
+    sheet,
+    'lib/ui/features/projects/widgets/edit/project_edit_details_section.dart',
+    'lib/ui/features/clients/widgets/edit/client_edit_settings_section.dart',
+    'lib/ui/features/payment_links/widgets/edit/payment_link_overview_tab.dart',
+    'lib/ui/features/billing_shared/edit/billing_doc_settings_tab.dart',
+  ];
+
   late final String edit = codeOf(editLayout);
   late final String sheetCode = codeOf(sheet);
+
+  /// The billing tab is the one host that overrides the label, and nothing else
+  /// can see it: `AssignedUserPickerField` defaults to `'assigned_user'`, none
+  /// of the five billing edit layouts it feeds has a widget test, and the rule
+  /// above only checks that the widget is *present*. Deleting this one argument
+  /// silently renames the field on all five screens.
+  test('the billing settings tab keeps its own label', () {
+    const billing =
+        'lib/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
+    expect(
+      _dense(codeOf(billing)).contains("labelKey:'user'"),
+      isTrue,
+      reason:
+          "$billing must pass `labelKey: 'user'` — the leaf defaults to "
+          "'assigned_user', which is not what this field has ever been called "
+          'on the five billing edit screens.',
+    );
+  });
+
+  test('every assignment host uses the shared picker', () {
+    for (final path in assignmentHosts) {
+      final code = codeOf(path);
+      expect(
+        code.contains('AssignedUserPickerField('),
+        isTrue,
+        reason:
+            'Expected `AssignedUserPickerField(` in $path — the roster query, '
+            'the active filter, the sort and the #150 hide rule all live in '
+            'that one leaf so these call sites cannot drift.',
+      );
+      expect(
+        code.contains('SearchableDropdownField<User>'),
+        isFalse,
+        reason:
+            'A raw SearchableDropdownField<User> in $path resolves the '
+            'selection by scanning the offered list, so narrowing that list '
+            'blanks a field that still holds a value.',
+      );
+      expect(
+        _dense(code).contains('user.watchPage('),
+        isFalse,
+        reason:
+            '$path: `watchPage` is a paged entity read — it offers only what '
+            'page 1 of the login prefetch left in Drift, and decodes every row '
+            'to do it. The leaf uses `watchAllForPicker`.',
+      );
+    }
+  });
 
   test('both hosts use the shared pickers', () {
     for (final entry in {editLayout: edit, sheet: sheetCode}.entries) {

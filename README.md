@@ -101,11 +101,14 @@ mirror `Client`.
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md), start here: the five layers, the login and
   create-product code flows, and cross-cutting concerns.
-- [`CLAUDE.md`](CLAUDE.md): strict rules and invariants.
+- [`CLAUDE.md`](CLAUDE.md): the index of rules and invariants — one or two lines each,
+  each pointing at the `docs/` file carrying its evidence.
 - [`FEATURES.md`](FEATURES.md): live parity tracker (React vs Flutter v1 vs this rebuild).
 - [`BACKEND.md`](BACKEND.md): upstream API gaps this client depends on.
-- [`docs/`](docs/), deep dives: [adding an entity](docs/adding-an-entity.md),
-  [settings screens](docs/settings-screens.md),
+- [`docs/`](docs/README.md), deep dives — one topic per file, indexed in
+  [`docs/README.md`](docs/README.md). The rule lives in `CLAUDE.md`; the evidence behind it
+  lives in the doc named beside the rule. Frequent entry points:
+  [adding an entity](docs/adding-an-entity.md), [settings screens](docs/settings-screens.md),
   [the offline write pipeline](docs/architecture.md),
   [probing the demo API](docs/probing-the-demo-api.md),
   [integration tests](docs/integration-tests.md), [diagnostics](docs/diagnostics.md),

@@ -2,10 +2,11 @@
 
 > **Audience:** new developers joining the Invoice Ninja Flutter v2 admin app.
 > Read this top-to-bottom before opening the code. Companion docs:
-> - [`CLAUDE.md`](CLAUDE.md) — strict rules and invariants (read second)
+> - [`CLAUDE.md`](CLAUDE.md) — the index of rules and invariants (read second)
 > - [`docs/architecture.md`](docs/architecture.md) — layer-level technical reference
 > - [`docs/adding-an-entity.md`](docs/adding-an-entity.md) — the 13-step recipe for a new CRUD entity
 > - [`docs/settings-screens.md`](docs/settings-screens.md) — recipes for new settings panels
+> - [`docs/README.md`](docs/README.md) — index of every topic doc, one line each
 
 ## The 30-second version
 

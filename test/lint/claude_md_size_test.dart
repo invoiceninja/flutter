@@ -178,10 +178,15 @@ void main() {
           // wrap mid-heading (`§ Design` / `(v2)` on the next line) or trail
           // off into prose (`§ Sync forbids…`). Word boundaries both ways, so
           // a two-letter fragment cannot match everything.
+          // BACKEND.md numbers its asks `F4`, `F7`, `F3d` — two characters is
+          // a legitimate section name there, so allow that shape explicitly
+          // rather than dropping the length floor for everything.
+          final sectionCode = RegExp(r'^[a-z]\d+[a-z]?$');
           final ok = prefixes.any(
             (p) =>
                 headings.contains(p) ||
-                (p.length >= 3 && headings.any((h) => h.startsWith('$p '))),
+                ((p.length >= 3 || sectionCode.hasMatch(p)) &&
+                    headings.any((h) => h.startsWith('$p '))),
           );
           if (!ok) offenders.add('${e.path}: § ${m.group(1)!.trim()}');
         }

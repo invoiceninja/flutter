@@ -39,6 +39,8 @@ _UserApi _$UserApiFromJson(Map<String, dynamic> json) => _UserApi(
   hasPassword: json['has_password'] as bool? ?? false,
   lastLogin: (json['last_login'] as num?)?.toInt() ?? 0,
   emailVerifiedAt: (json['email_verified_at'] as num?)?.toInt() ?? 0,
+  lastConfirmedEmailAddress:
+      json['last_confirmed_email_address'] as String? ?? '',
   userLoggedInNotification: json['user_logged_in_notification'] == null
       ? false
       : _boolFromJson(json['user_logged_in_notification']),
@@ -71,6 +73,7 @@ Map<String, dynamic> _$UserApiToJson(_UserApi instance) => <String, dynamic>{
   'has_password': instance.hasPassword,
   'last_login': instance.lastLogin,
   'email_verified_at': instance.emailVerifiedAt,
+  'last_confirmed_email_address': instance.lastConfirmedEmailAddress,
   'user_logged_in_notification': instance.userLoggedInNotification,
   'created_at': instance.createdAt,
   'updated_at': instance.updatedAt,

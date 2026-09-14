@@ -496,7 +496,18 @@ distinguishes case 3 and could stay as-is.
   email, are distinguishable from the payload alone. Today they are identical.
 
 **Fixed client-side (no PR required):** the roster badge now says only what the
-flag supports — verification pending — on every platform. It deliberately does
+flag supports — verification pending — on every platform. Since
+invoiceninja/flutter#150 the client also *acts* on the flag, for the optional
+"hide unverified users from Assigned User fields" preference, and it separates
+case 1 from cases 2-4 without any server change by conjoining three fields the
+transformer already sends: `has_password` (`UserFactory::create`, the invite
+path, never sets a password, so every other case has one), `oauth_provider_id`
+(an OAuth signup is password-less *and* unverified), and
+`last_confirmed_email_address` (an OAuth user who changes their address trips
+all three of the others at once, because `UserController::update` nulls
+`email_verified_at` and the four `oauth_*` columns together). The **O** below
+still stands and would let the client drop all three heuristics: a derived
+`is_invite_pending` would answer directly what this has to infer. It deliberately does
 **not** gate the per-user activity feed, since cases 2-4 legitimately have
 history, and it is deliberately not suppressed per-platform either: per the
 table above, the invite path leaves the column null on hosted and self-hosted

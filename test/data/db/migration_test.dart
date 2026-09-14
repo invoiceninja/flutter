@@ -44,6 +44,7 @@ void main() {
     7: '13773cfe170d086a17c91ce69d08c5914f065a8773202859009d0ccad74dc196',
     8: 'c1269adc91f8f62e33e1fe3fdf02c24509a69e96aa50613438d71e4319c3f7c8',
     9: 'ad33ee319136e8eca6f5cf450f4d9031c304a02e711a75565c5221deac952d83',
+    10: '603ef90e495e502e8526107a50d57baf58286e2e05b1ff9e026bb05b2b3cdf4f',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -180,6 +181,10 @@ void main() {
       // The v9 column has no backfill: an upgraded install is on the list until
       // the user picks a view, exactly like a fresh one.
       expect(row?.tasksView, isNull);
+      // The v10 column's `ADD COLUMN ... DEFAULT 0` backfills an upgraded
+      // install to off — the same state a fresh one gets, so the feature never
+      // switches itself on under an existing user (invoiceninja/flutter#150).
+      expect(row?.hideUnverifiedUsers, isFalse);
       await db.close();
     });
   });
@@ -216,6 +221,7 @@ void main() {
             'text_scale',
             'contacts_sync_json',
             'status_tabs',
+            'hide_unverified_users',
             'sidebar_menu_json',
           }),
         );

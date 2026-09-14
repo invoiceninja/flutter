@@ -86,7 +86,7 @@ different instance, holds it if the app is signed out or biometric-locked,
 switches company through the same guarded helper the company picker uses, and
 only then `go()`s to the record. The link
 grammar, the reasons behind the constant `app` host, and the five silent
-failure modes are in CLAUDE.md § Deep links; the parse/build helpers are a leaf
+failure modes are in `docs/deep-links.md` (CLAUDE.md § Deep links has the rules); the parse/build helpers are a leaf
 (`lib/app/entity_links.dart`) so they unit-test without a widget tree.
 
 ## Offline-first write pipeline

@@ -1103,6 +1103,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Sync (pushes queued edits, re-downloads, shows last-updated) | — | ✅ | ✅ | ✅ | ✅ |
 | Contacts sync — push client contacts to the device address book, under a label, with an All / Assigned-to-me scope (mobile only, local, off by default) | — | — | ✅ | | |
 | Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop). Also gates the billing-doc header and list-row call buttons | — | — | ✅ | | |
+| Hide unverified users — keep people with no sign-in evidence out of Assigned User fields, with a live count of who is affected (local, off by default) | — | — | ✅ | | |
 
 ---
 

@@ -164,6 +164,23 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Hide-unverified-users-only update — [HideUnverifiedUsersController] calls
+  /// this when the user flips the switch. Same partial-write pattern as
+  /// [saveStatusTabs]: never widen `save()` to carry it, or an unrelated route
+  /// write would clobber the preference.
+  Future<void> saveHideUnverifiedUsers({
+    required bool enabled,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        hideUnverifiedUsers: Value(enabled),
+        updatedAt: now,
+      ),
+    );
+  }
+
   /// Phone-actions-only update — [PhoneActionsController] calls this when the
   /// user changes anything on the "Phone numbers" card. Same partial-write
   /// pattern as [saveContactsSync]; the whole preference is one blob, so there

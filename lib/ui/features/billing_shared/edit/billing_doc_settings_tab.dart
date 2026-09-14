@@ -5,9 +5,9 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/models/domain/project.dart';
-import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
@@ -89,26 +89,14 @@ class BillingDocSettingsTab extends StatelessWidget {
       },
     );
 
-    Widget user() => StreamBuilder<List<User>>(
-      stream: services.user.watchPage(companyId: companyId, loadedPages: 100),
-      builder: (context, snap) {
-        final users = snap.data ?? const <User>[];
-        User? sel;
-        for (final u in users) {
-          if (u.id == userId) {
-            sel = u;
-            break;
-          }
-        }
-        return SearchableDropdownField<User>(
-          label: context.tr('user'),
-          items: users,
-          initialValue: sel,
-          displayString: (u) => u.displayName,
-          idOf: (u) => u.id,
-          onChanged: (u) => onUserChanged(u?.id ?? ''),
-        );
-      },
+    // `labelKey: 'user'` keeps the label this field has always had on the five
+    // billing edit screens — the shared leaf defaults to `assigned_user`, which
+    // is what its other five hosts use.
+    Widget user() => AssignedUserPickerField(
+      companyId: companyId,
+      selectedId: userId,
+      onChanged: onUserChanged,
+      labelKey: 'user',
     );
 
     Widget project() => StreamBuilder<List<Project>>(

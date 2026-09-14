@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/user.dart';
+import 'package:admin/domain/assignable_users.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -268,53 +269,64 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   );
                 }
 
-                return SettingsFormShell(
-                  sections: [
-                    FormSection(
-                      title: context.tr('user_management'),
-                      spacing: 0,
-                      children: [
-                        if (active.isNotEmpty)
-                          for (final user in active)
-                            _UserRow(
-                              user: user,
-                              isSelf: user.id == authUserId,
-                              selected: _selected.containsKey(user.id),
-                              selectionActive: _selected.isNotEmpty,
-                              onToggle: _canModify(user, authUserId)
-                                  ? () => _toggle(user, authUserId)
-                                  : null,
-                            ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(Icons.add),
-                          title: Text(context.tr('new_user')),
-                          enabled: hasAccess,
-                          onTap: hasAccess
-                              ? () => context.go('/settings/users/new')
-                              : null,
-                        ),
-                      ],
-                    ),
-                    if (_showArchived && archived.isNotEmpty)
+                // Listened rather than read: `_UserRow` is const-built inside
+                // this StreamBuilder, so reading the notifier down there would
+                // be a build-time read with no listener and the badge would
+                // lag the switch until some unrelated rebuild — the
+                // `PhoneActionsScope` trap. Resolve it once here and pass a
+                // plain bool down.
+                return ValueListenableBuilder<bool>(
+                  valueListenable: services.hideUnverifiedUsers,
+                  builder: (context, hidingUnverified, _) => SettingsFormShell(
+                    sections: [
                       FormSection(
-                        title: context.tr('archived'),
+                        title: context.tr('user_management'),
                         spacing: 0,
                         children: [
-                          for (final user in archived)
-                            _UserRow(
-                              user: user,
-                              isArchived: true,
-                              isSelf: user.id == authUserId,
-                              selected: _selected.containsKey(user.id),
-                              selectionActive: _selected.isNotEmpty,
-                              onToggle: _canModify(user, authUserId)
-                                  ? () => _toggle(user, authUserId)
-                                  : null,
-                            ),
+                          if (active.isNotEmpty)
+                            for (final user in active)
+                              _UserRow(
+                                user: user,
+                                isSelf: user.id == authUserId,
+                                hidingUnverified: hidingUnverified,
+                                selected: _selected.containsKey(user.id),
+                                selectionActive: _selected.isNotEmpty,
+                                onToggle: _canModify(user, authUserId)
+                                    ? () => _toggle(user, authUserId)
+                                    : null,
+                              ),
+                          const Divider(height: 1),
+                          ListTile(
+                            leading: const Icon(Icons.add),
+                            title: Text(context.tr('new_user')),
+                            enabled: hasAccess,
+                            onTap: hasAccess
+                                ? () => context.go('/settings/users/new')
+                                : null,
+                          ),
                         ],
                       ),
-                  ],
+                      if (_showArchived && archived.isNotEmpty)
+                        FormSection(
+                          title: context.tr('archived'),
+                          spacing: 0,
+                          children: [
+                            for (final user in archived)
+                              _UserRow(
+                                user: user,
+                                isArchived: true,
+                                isSelf: user.id == authUserId,
+                                hidingUnverified: hidingUnverified,
+                                selected: _selected.containsKey(user.id),
+                                selectionActive: _selected.isNotEmpty,
+                                onToggle: _canModify(user, authUserId)
+                                    ? () => _toggle(user, authUserId)
+                                    : null,
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -432,6 +444,7 @@ class _UserRow extends StatelessWidget {
     required this.user,
     this.isArchived = false,
     this.isSelf = false,
+    this.hidingUnverified = false,
     this.selected = false,
     this.selectionActive = false,
     this.onToggle,
@@ -442,6 +455,10 @@ class _UserRow extends StatelessWidget {
 
   /// Marks the row as the logged-in user, for the `current_user` badge.
   final bool isSelf;
+
+  /// Whether Settings → Device Settings → Users → "Hide unverified users" is
+  /// on, resolved by the screen so this row stays a listener-free const build.
+  final bool hidingUnverified;
   final bool selected;
   final bool selectionActive;
   final VoidCallback? onToggle;
@@ -467,6 +484,35 @@ class _UserRow extends StatelessWidget {
       // and self-hosted alike, so there is nowhere it is safe to suppress.
       if (user.isEmailUnconfirmed)
         _Badge(labelKey: 'verification_pending', tone: _BadgeTone.warning),
+      // The badge above and this one deliberately do NOT cover the same rows,
+      // and this is the only screen where that is visible. "Verification
+      // pending" is broad by #47's decision — it is also true of an active
+      // owner and of anyone who changed their address — while the hide rule is
+      // narrow, so without this a hidden row and a visible one look identical
+      // on the one screen someone visits when a colleague has gone missing
+      // from their Assigned User fields. Resolved through
+      // `isHiddenFromAssignment`, the *same* predicate the picker applies, so
+      // the two can never drift.
+      //
+      // Muted, not warning: the `current_user` badge above sets the precedent
+      // ("context, not a warning"), and two warning chips side by side read as
+      // two separate problems.
+      //
+      // `isSelf ? user.id : ''` reproduces the leaf's self-exemption without
+      // threading the id down a second time: an empty id matches nobody, so a
+      // row that is not you is never exempted by it.
+      //
+      // `!isArchived` is load-bearing and is NOT part of the shared predicate:
+      // `assignableUsers` drops archived and soft-deleted rows *before* the
+      // hide step, so an archived user is absent from every picker whether the
+      // preference is on or off. Badging one here would claim an effect the
+      // toggle does not have — and would disagree with
+      // `hiddenFromAssignmentCount`, which excludes them, so the Device
+      // Settings count would say "1 user hidden" while this screen badged two.
+      if (!isArchived &&
+          hidingUnverified &&
+          isHiddenFromAssignment(user, signedInUserId: isSelf ? user.id : ''))
+        _Badge(labelKey: 'hidden_from_assignment', tone: _BadgeTone.muted),
       if (isArchived) _Badge(labelKey: 'archived', tone: _BadgeTone.muted),
     ];
 

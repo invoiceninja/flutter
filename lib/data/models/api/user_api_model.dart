@@ -66,6 +66,18 @@ abstract class UserApi with _$UserApi {
     @JsonKey(name: 'has_password') @Default(false) bool hasPassword,
     @JsonKey(name: 'last_login') @Default(0) int lastLogin,
     @JsonKey(name: 'email_verified_at') @Default(0) int emailVerifiedAt,
+
+    /// The address this user had *before* their last email change, or `''`.
+    /// `UserController::update` moves the old address here and nulls
+    /// `email_verified_at` whenever the email changes, so a non-empty value
+    /// means "has confirmed an address at some point, just not this one" —
+    /// the only wire signal that separates § F4 case 3 from a never-accepted
+    /// invite. Read-only server-side (not in `User::$fillable`), but it must
+    /// stay in `toJson()` anyway: that is also what produces the Drift
+    /// payload (`UserRepository._apiToCompanion`).
+    @JsonKey(name: 'last_confirmed_email_address')
+    @Default('')
+    String lastConfirmedEmailAddress,
     @JsonKey(name: 'user_logged_in_notification', fromJson: _boolFromJson)
     @Default(false)
     bool userLoggedInNotification,

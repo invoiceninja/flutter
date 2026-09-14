@@ -5059,6 +5059,20 @@ class $NavStateTable extends NavState
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _hideUnverifiedUsersMeta =
+      const VerificationMeta('hideUnverifiedUsers');
+  @override
+  late final GeneratedColumn<bool> hideUnverifiedUsers = GeneratedColumn<bool>(
+    'hide_unverified_users',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("hide_unverified_users" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _recentEntitiesJsonMeta =
       const VerificationMeta('recentEntitiesJson');
   @override
@@ -5116,6 +5130,7 @@ class $NavStateTable extends NavState
     phoneActionsJson,
     sidebarMenuJson,
     tasksView,
+    hideUnverifiedUsers,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
@@ -5273,6 +5288,15 @@ class $NavStateTable extends NavState
         tasksView.isAcceptableOrUnknown(data['tasks_view']!, _tasksViewMeta),
       );
     }
+    if (data.containsKey('hide_unverified_users')) {
+      context.handle(
+        _hideUnverifiedUsersMeta,
+        hideUnverifiedUsers.isAcceptableOrUnknown(
+          data['hide_unverified_users']!,
+          _hideUnverifiedUsersMeta,
+        ),
+      );
+    }
     if (data.containsKey('recent_entities_json')) {
       context.handle(
         _recentEntitiesJsonMeta,
@@ -5380,6 +5404,10 @@ class $NavStateTable extends NavState
         DriftSqlType.string,
         data['${effectivePrefix}tasks_view'],
       ),
+      hideUnverifiedUsers: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hide_unverified_users'],
+      )!,
       recentEntitiesJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}recent_entities_json'],
@@ -5513,6 +5541,20 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   /// build, then downgraded) parses back to null rather than throwing.
   final String? tasksView;
 
+  /// Device-local "keep people who have never confirmed their email address
+  /// out of Assigned User fields" preference (Settings → Device Settings →
+  /// Users), invoiceninja/flutter#150.
+  ///
+  /// Defaults to **off**, unlike the two bool columns above — `confirm_actions`
+  /// and `status_tabs` default on because they only add chrome, whereas this
+  /// one *removes people from a form*. `email_verified_at` conflates four
+  /// states (BACKEND.md § F4), so shipping it on would silently delete
+  /// colleagues from everyone's pickers; `lib/domain/assignable_users.dart`
+  /// narrows the rule and this default is the other half of that trade.
+  /// `sidebar_collapsed` is the existing `false` precedent for the shape.
+  /// Added in schema v10.
+  final bool hideUnverifiedUsers;
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,
@@ -5539,6 +5581,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     this.phoneActionsJson,
     this.sidebarMenuJson,
     this.tasksView,
+    required this.hideUnverifiedUsers,
     this.recentEntitiesJson,
     required this.sidebarCollapsed,
     required this.updatedAt,
@@ -5594,6 +5637,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     if (!nullToAbsent || tasksView != null) {
       map['tasks_view'] = Variable<String>(tasksView);
     }
+    map['hide_unverified_users'] = Variable<bool>(hideUnverifiedUsers);
     if (!nullToAbsent || recentEntitiesJson != null) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson);
     }
@@ -5652,6 +5696,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       tasksView: tasksView == null && nullToAbsent
           ? const Value.absent()
           : Value(tasksView),
+      hideUnverifiedUsers: Value(hideUnverifiedUsers),
       recentEntitiesJson: recentEntitiesJson == null && nullToAbsent
           ? const Value.absent()
           : Value(recentEntitiesJson),
@@ -5690,6 +5735,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       phoneActionsJson: serializer.fromJson<String?>(json['phoneActionsJson']),
       sidebarMenuJson: serializer.fromJson<String?>(json['sidebarMenuJson']),
       tasksView: serializer.fromJson<String?>(json['tasksView']),
+      hideUnverifiedUsers: serializer.fromJson<bool>(
+        json['hideUnverifiedUsers'],
+      ),
       recentEntitiesJson: serializer.fromJson<String?>(
         json['recentEntitiesJson'],
       ),
@@ -5723,6 +5771,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
       'phoneActionsJson': serializer.toJson<String?>(phoneActionsJson),
       'sidebarMenuJson': serializer.toJson<String?>(sidebarMenuJson),
       'tasksView': serializer.toJson<String?>(tasksView),
+      'hideUnverifiedUsers': serializer.toJson<bool>(hideUnverifiedUsers),
       'recentEntitiesJson': serializer.toJson<String?>(recentEntitiesJson),
       'sidebarCollapsed': serializer.toJson<bool>(sidebarCollapsed),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -5748,6 +5797,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     Value<String?> phoneActionsJson = const Value.absent(),
     Value<String?> sidebarMenuJson = const Value.absent(),
     Value<String?> tasksView = const Value.absent(),
+    bool? hideUnverifiedUsers,
     Value<String?> recentEntitiesJson = const Value.absent(),
     bool? sidebarCollapsed,
     int? updatedAt,
@@ -5784,6 +5834,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
         ? sidebarMenuJson.value
         : this.sidebarMenuJson,
     tasksView: tasksView.present ? tasksView.value : this.tasksView,
+    hideUnverifiedUsers: hideUnverifiedUsers ?? this.hideUnverifiedUsers,
     recentEntitiesJson: recentEntitiesJson.present
         ? recentEntitiesJson.value
         : this.recentEntitiesJson,
@@ -5836,6 +5887,9 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ? data.sidebarMenuJson.value
           : this.sidebarMenuJson,
       tasksView: data.tasksView.present ? data.tasksView.value : this.tasksView,
+      hideUnverifiedUsers: data.hideUnverifiedUsers.present
+          ? data.hideUnverifiedUsers.value
+          : this.hideUnverifiedUsers,
       recentEntitiesJson: data.recentEntitiesJson.present
           ? data.recentEntitiesJson.value
           : this.recentEntitiesJson,
@@ -5867,6 +5921,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           ..write('phoneActionsJson: $phoneActionsJson, ')
           ..write('sidebarMenuJson: $sidebarMenuJson, ')
           ..write('tasksView: $tasksView, ')
+          ..write('hideUnverifiedUsers: $hideUnverifiedUsers, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -5894,6 +5949,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
     phoneActionsJson,
     sidebarMenuJson,
     tasksView,
+    hideUnverifiedUsers,
     recentEntitiesJson,
     sidebarCollapsed,
     updatedAt,
@@ -5920,6 +5976,7 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
           other.phoneActionsJson == this.phoneActionsJson &&
           other.sidebarMenuJson == this.sidebarMenuJson &&
           other.tasksView == this.tasksView &&
+          other.hideUnverifiedUsers == this.hideUnverifiedUsers &&
           other.recentEntitiesJson == this.recentEntitiesJson &&
           other.sidebarCollapsed == this.sidebarCollapsed &&
           other.updatedAt == this.updatedAt);
@@ -5944,6 +6001,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
   final Value<String?> phoneActionsJson;
   final Value<String?> sidebarMenuJson;
   final Value<String?> tasksView;
+  final Value<bool> hideUnverifiedUsers;
   final Value<String?> recentEntitiesJson;
   final Value<bool> sidebarCollapsed;
   final Value<int> updatedAt;
@@ -5966,6 +6024,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.phoneActionsJson = const Value.absent(),
     this.sidebarMenuJson = const Value.absent(),
     this.tasksView = const Value.absent(),
+    this.hideUnverifiedUsers = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -5989,6 +6048,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     this.phoneActionsJson = const Value.absent(),
     this.sidebarMenuJson = const Value.absent(),
     this.tasksView = const Value.absent(),
+    this.hideUnverifiedUsers = const Value.absent(),
     this.recentEntitiesJson = const Value.absent(),
     this.sidebarCollapsed = const Value.absent(),
     required int updatedAt,
@@ -6012,6 +6072,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Expression<String>? phoneActionsJson,
     Expression<String>? sidebarMenuJson,
     Expression<String>? tasksView,
+    Expression<bool>? hideUnverifiedUsers,
     Expression<String>? recentEntitiesJson,
     Expression<bool>? sidebarCollapsed,
     Expression<int>? updatedAt,
@@ -6037,6 +6098,8 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       if (phoneActionsJson != null) 'phone_actions_json': phoneActionsJson,
       if (sidebarMenuJson != null) 'sidebar_menu_json': sidebarMenuJson,
       if (tasksView != null) 'tasks_view': tasksView,
+      if (hideUnverifiedUsers != null)
+        'hide_unverified_users': hideUnverifiedUsers,
       if (recentEntitiesJson != null)
         'recent_entities_json': recentEntitiesJson,
       if (sidebarCollapsed != null) 'sidebar_collapsed': sidebarCollapsed,
@@ -6063,6 +6126,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     Value<String?>? phoneActionsJson,
     Value<String?>? sidebarMenuJson,
     Value<String?>? tasksView,
+    Value<bool>? hideUnverifiedUsers,
     Value<String?>? recentEntitiesJson,
     Value<bool>? sidebarCollapsed,
     Value<int>? updatedAt,
@@ -6088,6 +6152,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
       phoneActionsJson: phoneActionsJson ?? this.phoneActionsJson,
       sidebarMenuJson: sidebarMenuJson ?? this.sidebarMenuJson,
       tasksView: tasksView ?? this.tasksView,
+      hideUnverifiedUsers: hideUnverifiedUsers ?? this.hideUnverifiedUsers,
       recentEntitiesJson: recentEntitiesJson ?? this.recentEntitiesJson,
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -6155,6 +6220,9 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
     if (tasksView.present) {
       map['tasks_view'] = Variable<String>(tasksView.value);
     }
+    if (hideUnverifiedUsers.present) {
+      map['hide_unverified_users'] = Variable<bool>(hideUnverifiedUsers.value);
+    }
     if (recentEntitiesJson.present) {
       map['recent_entities_json'] = Variable<String>(recentEntitiesJson.value);
     }
@@ -6188,6 +6256,7 @@ class NavStateCompanion extends UpdateCompanion<NavStateData> {
           ..write('phoneActionsJson: $phoneActionsJson, ')
           ..write('sidebarMenuJson: $sidebarMenuJson, ')
           ..write('tasksView: $tasksView, ')
+          ..write('hideUnverifiedUsers: $hideUnverifiedUsers, ')
           ..write('recentEntitiesJson: $recentEntitiesJson, ')
           ..write('sidebarCollapsed: $sidebarCollapsed, ')
           ..write('updatedAt: $updatedAt')
@@ -47603,6 +47672,7 @@ typedef $$NavStateTableCreateCompanionBuilder =
       Value<String?> phoneActionsJson,
       Value<String?> sidebarMenuJson,
       Value<String?> tasksView,
+      Value<bool> hideUnverifiedUsers,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       required int updatedAt,
@@ -47627,6 +47697,7 @@ typedef $$NavStateTableUpdateCompanionBuilder =
       Value<String?> phoneActionsJson,
       Value<String?> sidebarMenuJson,
       Value<String?> tasksView,
+      Value<bool> hideUnverifiedUsers,
       Value<String?> recentEntitiesJson,
       Value<bool> sidebarCollapsed,
       Value<int> updatedAt,
@@ -47728,6 +47799,11 @@ class $$NavStateTableFilterComposer
 
   ColumnFilters<String> get tasksView => $composableBuilder(
     column: $table.tasksView,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hideUnverifiedUsers => $composableBuilder(
+    column: $table.hideUnverifiedUsers,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -47846,6 +47922,11 @@ class $$NavStateTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get hideUnverifiedUsers => $composableBuilder(
+    column: $table.hideUnverifiedUsers,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => ColumnOrderings(column),
@@ -47951,6 +48032,11 @@ class $$NavStateTableAnnotationComposer
   GeneratedColumn<String> get tasksView =>
       $composableBuilder(column: $table.tasksView, builder: (column) => column);
 
+  GeneratedColumn<bool> get hideUnverifiedUsers => $composableBuilder(
+    column: $table.hideUnverifiedUsers,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get recentEntitiesJson => $composableBuilder(
     column: $table.recentEntitiesJson,
     builder: (column) => column,
@@ -48014,6 +48100,7 @@ class $$NavStateTableTableManager
                 Value<String?> phoneActionsJson = const Value.absent(),
                 Value<String?> sidebarMenuJson = const Value.absent(),
                 Value<String?> tasksView = const Value.absent(),
+                Value<bool> hideUnverifiedUsers = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -48036,6 +48123,7 @@ class $$NavStateTableTableManager
                 phoneActionsJson: phoneActionsJson,
                 sidebarMenuJson: sidebarMenuJson,
                 tasksView: tasksView,
+                hideUnverifiedUsers: hideUnverifiedUsers,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,
@@ -48060,6 +48148,7 @@ class $$NavStateTableTableManager
                 Value<String?> phoneActionsJson = const Value.absent(),
                 Value<String?> sidebarMenuJson = const Value.absent(),
                 Value<String?> tasksView = const Value.absent(),
+                Value<bool> hideUnverifiedUsers = const Value.absent(),
                 Value<String?> recentEntitiesJson = const Value.absent(),
                 Value<bool> sidebarCollapsed = const Value.absent(),
                 required int updatedAt,
@@ -48082,6 +48171,7 @@ class $$NavStateTableTableManager
                 phoneActionsJson: phoneActionsJson,
                 sidebarMenuJson: sidebarMenuJson,
                 tasksView: tasksView,
+                hideUnverifiedUsers: hideUnverifiedUsers,
                 recentEntitiesJson: recentEntitiesJson,
                 sidebarCollapsed: sidebarCollapsed,
                 updatedAt: updatedAt,

@@ -5,10 +5,10 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/router.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
@@ -48,7 +48,11 @@ class ProjectEditDetailsSection extends StatelessWidget {
               readOnly: true,
             ),
           _ClientPicker(vm: vm),
-          _AssignedUserPicker(vm: vm),
+          AssignedUserPickerField(
+            companyId: vm.companyId,
+            selectedId: vm.draft.assignedUserId,
+            onChanged: vm.setAssignedUserId,
+          ),
           _DueDateField(vm: vm),
           ColorField(initial: vm.draft.color, onChanged: vm.setColor),
           EntityTagsField(
@@ -111,41 +115,6 @@ class _ClientPicker extends StatelessWidget {
             }
           },
           errorText: vm.fieldErrorFor('client_id'),
-        );
-      },
-    );
-  }
-}
-
-/// Searchable picker for the team member responsible for the project.
-/// Editable on both create and edit (unlike client, which locks post-create).
-/// Mirrors the billing-doc settings user picker.
-class _AssignedUserPicker extends StatelessWidget {
-  const _AssignedUserPicker({required this.vm});
-  final ProjectEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    return StreamBuilder<List<User>>(
-      stream: services.user.watchPage(companyId: companyId, loadedPages: 100),
-      builder: (context, snapshot) {
-        final users = snapshot.data ?? const <User>[];
-        User? selected;
-        for (final u in users) {
-          if (u.id == vm.draft.assignedUserId) {
-            selected = u;
-            break;
-          }
-        }
-        return SearchableDropdownField<User>(
-          label: context.tr('assigned_user'),
-          items: users,
-          initialValue: selected,
-          displayString: (u) => u.displayName,
-          idOf: (u) => u.id,
-          onChanged: (u) => vm.setAssignedUserId(u?.id ?? ''),
         );
       },
     );

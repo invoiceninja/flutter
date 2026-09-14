@@ -12,6 +12,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/settings/settings_actions.dart';
 import 'package:admin/ui/features/settings/widgets/biometric_toggle_tile.dart';
 import 'package:admin/ui/features/settings/widgets/confirm_actions_tile.dart';
+import 'package:admin/ui/features/settings/widgets/assigned_users_section.dart';
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
@@ -42,6 +43,7 @@ const kDeviceSettingsSearchKeys = <String>[
   'biometric_authentication',
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
+  ...kAssignedUsersSearchKeys,
   ...kListStatusTabsSearchKeys,
   ...kSidebarMenuSearchKeys,
   ...kSidebarCountersSearchKeys,
@@ -109,6 +111,13 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Native mobile only — hides itself where the app can't write
               // the address book (desktop, web).
               const ContactsSyncSection(),
+              // Between the phone/contacts pair and the list/rail block on
+              // purpose: the three cards below change chrome, this one changes
+              // what a *form* offers. The load-bearing reason to keep it here
+              // rather than lower is scroll reach — Sidebar counters alone can
+              // render 14 rows, and a settings-search hit lands at the top of
+              // the screen with no per-field anchor.
+              const AssignedUsersSection(),
               const ListStatusTabsSection(),
               // Both are about the rail, but one is what the rows *are* and the
               // other is what their numbers count — see ListStatusTabsSection.

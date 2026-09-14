@@ -24,7 +24,11 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:drift/native.dart';
+
+import 'package:admin/app/hide_unverified_users_controller.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/db/app_database.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -91,24 +95,52 @@ class _FakeAuth implements AuthRepository {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
+/// One lazily-opened in-memory database for the whole file. It exists only to
+/// satisfy [HideUnverifiedUsersController]'s constructor — the screen only ever
+/// reads `.value` and listens, so `restore()` / `set()` are never called and no
+/// Drift stream is opened on it. Per-instance would mean one full `onCreate`
+/// per test for nothing.
+AppDatabase? _prefDb;
+AppDatabase _throwawayDb() => _prefDb ??= AppDatabase(NativeDatabase.memory());
+
 class _FakeServices implements Services {
-  _FakeServices({required this.auth, required this.user});
+  _FakeServices({required this.auth, required this.user})
+    : hideUnverifiedUsers = HideUnverifiedUsersController(db: _throwawayDb());
   @override
   final AuthRepository auth;
   @override
   final UserRepository user;
+
+  /// Read by the roster to decide whether to badge a row "Hidden from
+  /// assignment" (invoiceninja/flutter#150). The database is only touched by
+  /// `restore()` / `set()`, neither of which the screen calls.
+  @override
+  final HideUnverifiedUsersController hideUnverifiedUsers;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
-User _user(String id, String first, String last, {bool isOwner = false}) =>
-    const User().copyWith(
-      id: id,
-      firstName: first,
-      lastName: last,
-      email: '$id@example.com',
-      companyUser: CompanyUser(isOwner: isOwner, isAdmin: true),
-    );
+User _user(
+  String id,
+  String first,
+  String last, {
+  bool isOwner = false,
+  bool archived = false,
+  // Defaults match `const User()` — i.e. unverified and password-less — because
+  // the flutter#47 badge tests below are built on that premise. The #150 group
+  // opts in explicitly instead.
+  bool onboarded = false,
+}) => const User().copyWith(
+  id: id,
+  firstName: first,
+  lastName: last,
+  email: '$id@example.com',
+  emailVerifiedAt: onboarded ? 1700000000 : 0,
+  hasPassword: onboarded,
+  archivedAt: archived ? 1700000000 : 0,
+  companyUser: CompanyUser(isOwner: isOwner, isAdmin: true),
+);
 
 void main() {
   late _FakeUserRepo repo;
@@ -367,6 +399,81 @@ void main() {
       // and not a truncated list.
       expect(find.text('Olivia Owner'), findsOneWidget);
       expect(find.text('Riley Staff'), findsOneWidget);
+    });
+  });
+  group('hidden-from-assignment badge (invoiceninja/flutter#150)', () {
+    /// The badge and the `verification_pending` chip beside it deliberately do
+    /// NOT cover the same rows, and this screen is the only place that is
+    /// visible — so each exemption gets its own case.
+    Future<void> pumpWith(
+      WidgetTester tester,
+      List<User> rows, {
+      required bool hiding,
+    }) async {
+      wire(rows);
+      services.hideUnverifiedUsers.value = hiding;
+      await pump(tester);
+    }
+
+    final invitee = _user('u_inv', 'Ivy', 'Invitee', onboarded: false);
+
+    testWidgets('badges an un-accepted invite while the preference is on', (
+      tester,
+    ) async {
+      await pumpWith(tester, [self, invitee], hiding: true);
+      expect(find.text('Hidden from assignment'), findsOneWidget);
+    });
+
+    testWidgets('badges nothing while the preference is off', (tester) async {
+      await pumpWith(tester, [self, invitee], hiding: false);
+      expect(find.text('Hidden from assignment'), findsNothing);
+      // The broad chip is unaffected by the preference either way — and it is
+      // on *both* rows here, which is the divergence this badge exists to make
+      // visible: `self` is exempt from hiding but still unconfirmed.
+      expect(find.text('Verification Pending'), findsNWidgets(2));
+    });
+
+    testWidgets('never badges the account owner', (tester) async {
+      // Unverified *and* password-less — an OAuth signup — so only `is_owner`
+      // stands between this row and the badge.
+      final unverifiedOwner = _user(
+        'u_ow2',
+        'Otto',
+        'Owner',
+        isOwner: true,
+        onboarded: false,
+      );
+      await pumpWith(tester, [self, unverifiedOwner], hiding: true);
+      expect(find.text('Hidden from assignment'), findsNothing);
+    });
+
+    testWidgets('never badges your own row', (tester) async {
+      // `_persistAndActivate` writes your own row without the three signals,
+      // so after a delta refresh you look exactly like an un-accepted invite.
+      final unverifiedSelf = _user('u_self', 'Sam', 'Self', onboarded: false);
+      await pumpWith(tester, [unverifiedSelf], hiding: true);
+      expect(find.text('Hidden from assignment'), findsNothing);
+    });
+
+    testWidgets('never badges an archived row', (tester) async {
+      // The regression this group exists for. `assignableUsers` drops archived
+      // rows *before* the hide step, so they are absent from every picker
+      // whether the preference is on or off — badging one claims an effect the
+      // toggle does not have, and contradicts `hiddenFromAssignmentCount`,
+      // which excludes them.
+      final archivedInvitee = _user(
+        'u_arch',
+        'Avery',
+        'Archived',
+        onboarded: false,
+        archived: true,
+      );
+      await pumpWith(tester, [self, archivedInvitee], hiding: true);
+      await tester.tap(find.text('Show archived'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Avery Archived'), findsOneWidget);
+      expect(find.text('Hidden from assignment'), findsNothing);
     });
   });
 }

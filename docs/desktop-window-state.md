@@ -1,5 +1,7 @@
 # Desktop window state
 
+Companion to CLAUDE.md § Desktop window state and § Design system (v2) (the drawn window buttons). The main file carries the one-line rules; this doc carries the per-platform contract and the caption-button treatment.
+
 Each desktop runner persists window size, position, and fullscreen across launches via the host OS's native preference store. No Dart or Flutter package involvement — the goal is one short native function per platform, idiomatic to that platform's APIs. **N/A on web** — the browser owns the window chrome; there is nothing to persist.
 
 > **Linux status:** the runner ships (`linux/`, distributed as a Snap — see `docs/setup.md`) and the **hidden title bar is done** (§ Desktop hidden title bar). Window-STATE **persistence is still not done** — the `setup_window_state_persistence()` / `GKeyFile` references below are the plan, not the current state.

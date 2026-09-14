@@ -412,6 +412,34 @@ void main() {
       ]);
     });
 
+    test('last_confirmed_email_address survives the domain round trip', () {
+      // Not decoration. `_apiToCompanion` stores `toJson()` as the Drift
+      // `payload` and `_fromRow` reads the domain back out of it, so a field
+      // present on `UserApi` but dropped by `User.toApi()` round-trips to `''`
+      // on the first local save — invisible until the *second* one (the #116
+      // `portalPlaceholderEmail` failure mode). Here that would silently flip
+      // an ordinary colleague into "never onboarded" and hide them from every
+      // Assigned User field (invoiceninja/flutter#150).
+      //
+      // It is also why `@JsonKey(includeToJson: false)` is not an option for
+      // keeping this server-computed column off the PUT body: `toJson()` is
+      // the same method that builds the payload. The server ignores it — the
+      // column is not in `User::$fillable`.
+      const api = UserApi(
+        id: 'u_8',
+        lastConfirmedEmailAddress: 'old@example.com',
+      );
+      final json = jsonEncode(User.fromApi(api).toApi().toJson());
+      expect(
+        jsonDecode(json),
+        containsPair('last_confirmed_email_address', 'old@example.com'),
+      );
+      final decoded = UserApi.fromJson(
+        jsonDecode(json) as Map<String, dynamic>,
+      );
+      expect(decoded.lastConfirmedEmailAddress, 'old@example.com');
+    });
+
     test('notification placement — login flag top-level, special codes in '
         'notifications.email, none leak into company_user.settings', () {
       final user = const User().copyWith(

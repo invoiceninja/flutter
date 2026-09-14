@@ -64,6 +64,10 @@ abstract class User with _$User {
     @Default('') String customValue4,
     @Default(0) int lastLogin,
     @Default(0) int emailVerifiedAt,
+
+    /// The address held before this user's last email change, or `''`. See
+    /// [looksNeverOnboarded] and `UserApi.lastConfirmedEmailAddress`.
+    @Default('') String lastConfirmedEmailAddress,
     @Default(0) int createdAt,
     @Default(0) int updatedAt,
     @Default(0) int archivedAt,
@@ -99,6 +103,7 @@ abstract class User with _$User {
       customValue4: api.customValue4,
       lastLogin: api.lastLogin,
       emailVerifiedAt: api.emailVerifiedAt,
+      lastConfirmedEmailAddress: api.lastConfirmedEmailAddress,
       createdAt: api.createdAt,
       updatedAt: api.updatedAt,
       archivedAt: api.archivedAt,
@@ -148,6 +153,44 @@ abstract class User with _$User {
   /// action be the answer either way. See BACKEND.md § F4.
   bool get isEmailUnconfirmed => emailVerifiedAt == 0;
 
+  /// `true` when nothing in this record's payload shows the user has ever
+  /// signed in: no confirmed email, **no password**, no linked OAuth provider
+  /// and no previously-confirmed address.
+  ///
+  /// Strictly narrower than [isEmailUnconfirmed], and deliberately so — that
+  /// flag conflates four states (see its doc above and BACKEND.md § F4) and
+  /// three of them are active, working users. Each extra conjunct here rules
+  /// one of them out by *mechanism* rather than by heuristic:
+  ///
+  ///  * `!hasPassword` — every § F4 case but the first has set a password.
+  ///    `UserFactory::create` (the `POST /users` invite path) never sets one;
+  ///    `VerifiesUserEmail::confirmWithPassword` is what sets it when an
+  ///    invite is accepted.
+  ///  * `oauthProviderId.isEmpty` — an OAuth signup writes `'password' => ''`
+  ///    and leaves `email_verified_at` null (`LoginController`'s
+  ///    `email_verified_at = now()` there is commented out), so a
+  ///    Google/Apple/OIDC owner is password-less *and* unverified. Every
+  ///    OAuth path that can authenticate someone sets this column first.
+  ///  * `lastConfirmedEmailAddress.isEmpty` — an OAuth user who changes their
+  ///    email trips all three conjuncts above at once, because
+  ///    `UserController::update` nulls `email_verified_at` and all four
+  ///    `oauth_*` columns together. This is the only thing left standing.
+  ///
+  /// Owner and self exemptions are *policy*, not a property of the record, so
+  /// they live in `lib/domain/assignable_users.dart` instead.
+  ///
+  /// Note `hasPassword` had no other consumer in `lib/` when this shipped, so
+  /// it has never been validated end-to-end here; the conjunction contains
+  /// that risk — a wrongly-`false` `hasPassword` degrades this to roughly
+  /// [isEmailUnconfirmed] and never widens past it. `passkey_enabled` /
+  /// `passkey_count` are on the wire but unmodelled: if a passkey-only signup
+  /// path ever ships, a fifth conjunct belongs here.
+  bool get looksNeverOnboarded =>
+      isEmailUnconfirmed &&
+      !hasPassword &&
+      oauthProviderId.trim().isEmpty &&
+      lastConfirmedEmailAddress.trim().isEmpty;
+
   /// Parsed permission tokens (`view_client`, `edit_invoice`, `create_all`, …).
   /// Empty when `is_admin = true` — administrators implicitly have all perms.
   List<String> get permissions {
@@ -185,6 +228,7 @@ abstract class User with _$User {
       customValue4: customValue4,
       lastLogin: lastLogin,
       emailVerifiedAt: emailVerifiedAt,
+      lastConfirmedEmailAddress: lastConfirmedEmailAddress,
       createdAt: createdAt,
       updatedAt: updatedAt,
       archivedAt: archivedAt,

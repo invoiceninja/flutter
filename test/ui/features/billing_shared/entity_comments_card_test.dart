@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -76,14 +77,14 @@ ActivityApi _row({
   ip: '1.2.3.4',
 );
 
-OutboxRow _pending(String notes) => OutboxRow(
-  id: 1,
+OutboxRow _pending(String notes, {int id = 1}) => OutboxRow(
+  id: id,
   companyId: 'co',
   entityType: 'client',
   entityId: 'c1',
   mutationKind: 'add_comment',
   payload: '{"entity_id":"c1","notes":"$notes"}',
-  idempotencyKey: 'k1',
+  idempotencyKey: 'k$id',
   state: 'pending',
   attempts: 0,
   createdAt: 0,
@@ -205,6 +206,216 @@ void main() {
     expect(find.byType(ActivityRecordRow), findsNWidgets(2));
     await tester.tap(find.text('View All'));
     expect(viewedAll, 1);
+  });
+
+  group('View All is gated on rows being held back '
+      '(invoiceninja/flutter#145)', () {
+    // The link used to be gated only on `onViewAll != null`, i.e. never — so on
+    // the great majority of commented records it pointed at a Comments tab
+    // rendering exactly the rows already on screen, which is what the reporter
+    // read as "it doesn't do anything when tapped".
+    EntityActivityViewModel vmWithComments(int count, {int pending = 0}) =>
+        vmWith(
+          _FakeApi([
+            for (var i = 0; i < count; i++)
+              _row(
+                typeId: 141,
+                id: 'c$i',
+                notes: 'note $i',
+                createdAt: 1778990481 - i,
+              ),
+          ]),
+          outbox: _FakeOutbox([
+            for (var i = 0; i < pending; i++) _pending('queued $i', id: i + 1),
+          ]),
+        );
+
+    /// The band the tap slop covers. Nearest ancestor — and in this tree the
+    /// only one, since nothing above the card mounts a `GestureDetector`
+    /// (`Scrollable` builds a `RawGestureDetector`), so it cannot resolve to an
+    /// outer detector and pass the height assertion for free.
+    Finder headerBand() => find
+        .ancestor(
+          of: find.text('Comments'),
+          matching: find.byType(GestureDetector),
+        )
+        .first;
+
+    testWidgets('a single comment shows no link', (tester) async {
+      await pump(tester, vmWithComments(1), onViewAll: () {});
+      expect(find.text('Will pay Friday'), findsNothing);
+      expect(find.text('Comments'), findsOneWidget);
+      expect(find.text('View All'), findsNothing);
+    });
+
+    testWidgets('exactly the inline limit shows no link', (tester) async {
+      // The boundary, which is where a `>=` would slip in: the card renders
+      // both rows, so the tab has nothing to add.
+      await pump(
+        tester,
+        vmWithComments(kCommentsCardInlineLimit),
+        onViewAll: () {},
+      );
+      expect(find.byType(ActivityRecordRow), findsNWidgets(2));
+      expect(find.text('View All'), findsNothing);
+    });
+
+    testWidgets('one more than the limit shows the link, and it fires once', (
+      tester,
+    ) async {
+      var viewedAll = 0;
+      await pump(
+        tester,
+        vmWithComments(kCommentsCardInlineLimit + 1),
+        onViewAll: () => viewedAll++,
+      );
+      expect(find.text('View All'), findsOneWidget);
+      await tester.tap(find.text('View All'));
+      // Exactly one: the link keeps its own `InkWell` inside the header's tap
+      // slop, and the innermost recognizer has to win the arena outright.
+      expect(viewedAll, 1);
+    });
+
+    testWidgets('queued rows count toward the limit', (tester) async {
+      // `_body` spends the inline budget on pending rows first and the tab
+      // shows them too, so they belong on the same side of the comparison.
+      await pump(
+        tester,
+        vmWithComments(1, pending: 1),
+        onViewAll: () {},
+        settle: false,
+      );
+      expect(find.text('View All'), findsNothing);
+
+      await pump(
+        tester,
+        vmWithComments(1, pending: 2),
+        onViewAll: () {},
+        settle: false,
+      );
+      expect(find.text('View All'), findsOneWidget);
+    });
+
+    testWidgets('the whole header band is the tap target on touch', (
+      tester,
+    ) async {
+      // The link's own box is ~25 dp tall against a 44 dp floor, and the rest
+      // of the header had no handler at all — so a near miss was
+      // indistinguishable from a dead link.
+      var viewedAll = 0;
+      await pump(
+        tester,
+        vmWithComments(kCommentsCardInlineLimit + 1),
+        onViewAll: () => viewedAll++,
+      );
+      expect(
+        tester.getSize(headerBand()).height,
+        greaterThanOrEqualTo(InSizes.touchTarget),
+      );
+      await tester.tapAt(tester.getCenter(find.text('Comments')));
+      expect(viewedAll, 1);
+    });
+
+    testWidgets('a hidden link takes the enlarged target with it', (
+      tester,
+    ) async {
+      // Otherwise the header navigates with nothing on it saying so.
+      var viewedAll = 0;
+      await pump(tester, vmWithComments(1), onViewAll: () => viewedAll++);
+      await tester.tapAt(tester.getCenter(find.text('Comments')));
+      expect(viewedAll, 0);
+    });
+
+    testWidgets('the link and the rows are one decision', (tester) async {
+      // The targeted cases above can drift apart; this is the invariant that
+      // cannot. The card shows `min(total, limit)` rows and offers the link
+      // exactly when it is holding one back — both read off the same seed, and
+      // pending rows spend the budget first.
+      const cases = <(int, int)>[
+        (0, 0),
+        (1, 0),
+        (0, 1),
+        (2, 0),
+        (1, 1),
+        (0, 2),
+        (3, 0),
+        (2, 1),
+        (1, 2),
+        (0, 3),
+        (4, 0),
+      ];
+      for (final (synced, pending) in cases) {
+        final total = synced + pending;
+        final seed = '$synced synced + $pending queued';
+        await pump(
+          tester,
+          vmWithComments(synced, pending: pending),
+          onViewAll: () {},
+          // A queued row spins a progress indicator that never settles.
+          settle: pending == 0,
+        );
+        expect(
+          find.byType(ActivityRecordRow).evaluate().length +
+              find.byType(PendingCommentRow).evaluate().length,
+          total > kCommentsCardInlineLimit ? kCommentsCardInlineLimit : total,
+          reason: seed,
+        );
+        expect(
+          find.text('View All'),
+          total > kCommentsCardInlineLimit ? findsOneWidget : findsNothing,
+          reason: seed,
+        );
+      }
+    });
+
+    testWidgets('the link and its band survive the responsive sweep', (
+      tester,
+    ) async {
+      // The file's other sweep seeds one comment and passes no `onViewAll`, so
+      // post-#145 it renders neither the link nor the band — the one path with
+      // a `ConstrainedBox` in it would get no sweep coverage at all.
+      for (final width in kResponsiveWidths) {
+        await pump(
+          tester,
+          vmWithComments(kCommentsCardInlineLimit + 1),
+          onViewAll: () {},
+          actions: EntityNoteActions(onAddComment: () async {}),
+          width: width,
+          textScale: kTextScaleMax,
+        );
+        expectNoOverflow(tester);
+        expect(find.text('View All'), findsOneWidget);
+        expect(
+          tester.getSize(headerBand()).height,
+          greaterThanOrEqualTo(InSizes.touchTarget),
+          reason: 'width $width',
+        );
+      }
+    });
+
+    testWidgets('desktop keeps its selectable header and only the link taps', (
+      tester,
+    ) async {
+      // Everywhere but native mobile the detail body sits inside a
+      // `SelectionArea`, where an opaque tap over the header would claim the
+      // clicks `SelectableRegion` uses to place and clear a selection. Invisible
+      // by default: `flutter test` reports android.
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        var viewedAll = 0;
+        await pump(
+          tester,
+          vmWithComments(kCommentsCardInlineLimit + 1),
+          onViewAll: () => viewedAll++,
+        );
+        await tester.tapAt(tester.getCenter(find.text('Comments')));
+        expect(viewedAll, 0);
+        await tester.tap(find.text('View All'));
+        expect(viewedAll, 1);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
   });
 
   testWidgets('the footer offers Add comment, never Log call', (tester) async {

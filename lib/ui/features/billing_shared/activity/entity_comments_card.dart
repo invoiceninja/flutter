@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/env.dart';
 import 'package:admin/data/models/domain/activity.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -55,7 +56,8 @@ class EntityCommentsCard extends StatelessWidget {
   /// menu and the post-call prompter — see [ActivityNoteButtons].
   final EntityNoteActions actions;
 
-  /// Selects the Comments tab. Null hides the `View All` link.
+  /// Selects the Comments tab. Null hides the `View All` link — and so does
+  /// having nothing to defer to it; see [_defersRows].
   final VoidCallback? onViewAll;
 
   /// Forwarded to [ActivityRecordRow.hostWireName].
@@ -68,6 +70,50 @@ class EntityCommentsCard extends StatelessWidget {
   /// true there would double-wrap.
   final bool matchFormColumn;
 
+  /// Whether the Comments tab holds anything this card is not already showing
+  /// — the only thing that earns `View All` its place
+  /// (invoiceninja/flutter#145, which reported it as a link that "doesn't do
+  /// anything when tapped").
+  ///
+  /// The exact complement of what [_body] renders, rather than a second rule
+  /// about it: the card shows `min(pending + comments, kCommentsCardInlineLimit)`
+  /// rows by construction, so the two cannot drift. It is honest about the
+  /// *destination* too — with `commentsOnly: true` the Comments tab renders
+  /// precisely these same two lists off this same view model, and both are
+  /// bounded by the one `kEntityActivityRows` fetch window, so neither the tab
+  /// nor the window can make it lie.
+  ///
+  /// **Queued rows count.** [_body] spends the inline budget on them first and
+  /// the tab shows them too. A server echo landing before its outbox row is
+  /// deleted double-counts one note for a frame; de-duplicating by note text
+  /// would be worse than a flicker.
+  ///
+  /// **The tab is not a pure superset of rows, so "nothing further to display"
+  /// is about rows and nothing else.** Three things it still adds at any count,
+  /// and hiding the link gives up the one-tap route to all three: the body is
+  /// clamped here (`bodyMaxLines: 2`) and unclamped there; `showIp: false` here
+  /// against [ActivityRecordRow]'s default true; and the tab heads itself with
+  /// [ActivityNoteButtons], i.e. `Log call` as well as `Add comment`, where
+  /// this card's footer deliberately offers only the latter. Each keeps another
+  /// route — `Copy` in the row's own `⋯` menu yields the unclamped text, the IP
+  /// is an audit detail the Activity lens owns, `Log call` lives in the entity
+  /// `⋯` menu and the post-call prompter, and the tab itself is still one tap
+  /// away in the strip below. Detecting real clamping would mean measuring text
+  /// against the live font, locale and text scale, and the flat row cap is what
+  /// keeps this an index rather than a second feed (see
+  /// [kCommentsCardInlineLimit]).
+  ///
+  /// **Adding a comment to a record that already had two makes the link blink**
+  /// — shown while the row is queued, hidden the moment the outbox drains
+  /// (`_onPendingTick` empties `pendingRows` before the refetch it triggers can
+  /// land), shown again one round trip later. That is the same window the
+  /// card's own `hasAnyComment` visibility has always had on a record whose
+  /// *first* comment is being added, and a ~5 px header change is the smaller
+  /// half of it; closing it means holding drained rows in the view model, which
+  /// is the reasoning `_onPendingTick` already weighs and declines.
+  bool get _defersRows =>
+      vm.pendingRows.length + vm.comments.length > kCommentsCardInlineLimit;
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -78,6 +124,12 @@ class EntityCommentsCard extends StatelessWidget {
         // whenever the network is down is worse than silence. The tab owns the
         // error and its Retry.
         final visible = vm.hasAnyComment;
+        // Resolved once and threaded into both halves of the header: the link
+        // and the forgiving target around it have to appear and disappear
+        // together, or a header navigates with nothing on it saying so.
+        final onViewAllTap = onViewAll == null || !_defersRows
+            ? null
+            : onViewAll;
         return AnimatedSize(
           duration: const Duration(milliseconds: 200),
           alignment: Alignment.topCenter,
@@ -86,7 +138,7 @@ class EntityCommentsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _card(context),
+                    _card(context, onViewAllTap),
                     SizedBox(height: InSpacing.lg(context)),
                   ],
                 )
@@ -96,19 +148,46 @@ class EntityCommentsCard extends StatelessWidget {
     );
   }
 
-  Widget _card(BuildContext context) {
+  Widget _card(BuildContext context, VoidCallback? onViewAllTap) {
     final card = DashboardCardShell(
       title: context.tr('comments'),
       // A compact link, where two labelled buttons would overflow the header
       // `Row` — and the destination the overflow belongs in. An inline
       // expander would undo the height cap this card is built around, and is
       // one-way besides. Same shape as the dashboard's own Activity card.
-      trailing: onViewAll == null
+      //
+      // Countless on purpose. The app has two disjoint idioms and this is the
+      // second: `+N more` (`plus_n_more`) is a body/footer button meaning "this
+      // container is truncating a list you can also see here", hard-gated on
+      // `n > 0` at all five of its sites; `view_all` is a header link meaning
+      // "this card is an index, the real surface is elsewhere", and carries no
+      // N at any of its four. Moving the count in here would also swap a
+      // Transifex-translated string for an app-local English-only one on eleven
+      // detail screens, and the N would be silently bounded by the feed window.
+      trailing: onViewAllTap == null
           ? null
           : DashboardCardFooterLink(
               label: context.tr('view_all'),
-              onTap: onViewAll,
+              onTap: onViewAllTap,
             ),
+      // The link's own box is ~25 dp tall — well under `InSizes.touchTarget` —
+      // and the rest of the header had no handler at all, so a near miss was
+      // indistinguishable from a dead link.
+      //
+      // Touch only, and the gate belongs here rather than in the shell because
+      // it is a property of *this* host: `EntityDetailScaffold` wraps the whole
+      // detail body in a `SelectionArea` on everything but native mobile, and
+      // an opaque tap over the header would claim the single clicks
+      // `SelectableRegion` uses to place and clear a selection — taking the
+      // first click of a double-click-to-select-a-word with it. A dashboard
+      // card sits in no such region, so the shell must not decide this.
+      // `party_call_button.dart` gates its secondary gestures on the same flag
+      // for the same reason, and carries the same warning: no test sees it,
+      // because `flutter test` reports android. Mobile **web** is the one
+      // configuration that gets both (`Env.isMobile` is native-only while
+      // `Env.isTouchPrimary` is not) — accepted, since drag-select still works
+      // and tap-to-place is not the touch interaction.
+      onHeaderTap: Env.isTouchPrimary ? onViewAllTap : null,
       // The rows bring their own inset and a full-bleed bottom border — they
       // are built for `ActivityListCard`, which supplies no padding. Zeroing
       // the body lines those borders up with the header's divider; the header

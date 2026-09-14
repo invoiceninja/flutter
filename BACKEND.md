@@ -27,6 +27,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**SHIPPED** 2026-09-08, § F5; both halves fixed, but the transformer emits `0` rather than `null` for "never").
 - `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
 - Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
+- `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**O**, § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148)).
 - App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**R**, PR written in the fork, unmerged; § App Links).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
 
@@ -594,6 +595,33 @@ each listener and retemplate to `":user created user :notes"`.
 actor-only sentence ("Alice created a user") when the template still carries
 two `:user` tokens. The check counts tokens rather than hardcoding the types,
 so the translated template comes back on its own once this ships.
+
+### F7. `TaskAssigned` never fires — assigning a task notifies nobody — **O** ([flutter#148](https://github.com/invoiceninja/flutter/issues/148))
+
+`TaskRepository::save` has two branches — the calendar-event one under a cache lock
+(`app/Repositories/TaskRepository.php:181-196`) and the ordinary one (`:197-202`) — and **both** run
+`$task->fill($data); $task->saveQuietly();`, at `:187` and `:200`. The notification guard sits after
+them, at `:204`:
+
+```php
+if (isset($data['assigned_user_id']) && $data['assigned_user_id'] != $task->assigned_user_id) {
+    TaskAssigned::dispatch($task, $task->company->db)->delay(2);
+}
+```
+
+`assigned_user_id` is `$fillable` (`app/Models/Task.php:105`), so by the time the comparison runs
+`fill()` has already copied `$data['assigned_user_id']` onto the model and the two sides cannot
+differ. `grep -rn "TaskAssigned" app/` finds exactly one dispatch site, so
+`app/Jobs/Task/TaskAssigned.php` is unreachable: no assignment notification has ever been sent, on
+create **or** on reassignment — the latter being the case a user is most likely to report.
+
+Nothing changes client-side. The app has always sent `assigned_user_id` on every task write
+(`Task.toApiJson`), and flutter#148 added the picker that makes an assignment easy to set from an
+invoice or quote line, which is what surfaced this.
+
+**O.** Capture the previous value *before* `fill()` — e.g. `$previous = $task->assigned_user_id;`
+above the branch — and compare against that after the save. Note `getOriginal('assigned_user_id')`
+is not a substitute: `saveQuietly()` resyncs the original before the guard runs.
 
 ### H. `task_statuses/sort` endpoint — **O** (client now works around it)
 

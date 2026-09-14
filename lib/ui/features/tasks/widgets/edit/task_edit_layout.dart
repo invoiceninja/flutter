@@ -8,16 +8,15 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/task.dart';
-import 'package:admin/data/models/domain/task_status.dart';
-import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
-import 'package:admin/ui/core/utils/task_status_colors.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart';
 import 'package:admin/ui/features/tasks/widgets/edit/task_edit_times_section.dart';
+import 'package:admin/ui/features/tasks/widgets/task_status_picker_field.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// Form body for the Task edit / create screen. Composes the identity
@@ -253,9 +252,23 @@ class _IdentitySection extends StatelessWidget {
           SizedBox(height: InSpacing.md(context)),
           _ProjectPicker(vm: vm, locked: locked),
           SizedBox(height: InSpacing.md(context)),
-          _StatusPicker(vm: vm, locked: locked),
+          _Lockable(
+            locked: locked,
+            child: TaskStatusPickerField(
+              companyId: vm.companyId,
+              selectedId: vm.draft.statusId,
+              onChanged: vm.setStatusId,
+            ),
+          ),
           SizedBox(height: InSpacing.md(context)),
-          _AssignedUserPicker(vm: vm, locked: locked),
+          _Lockable(
+            locked: locked,
+            child: AssignedUserPickerField(
+              companyId: vm.companyId,
+              selectedId: vm.draft.assignedUserId,
+              onChanged: vm.setAssignedUserId,
+            ),
+          ),
           SizedBox(height: InSpacing.md(context)),
           StreamBuilder<Company?>(
             stream: context.read<Services>().company.watchCompany(vm.companyId),
@@ -318,7 +331,10 @@ class _ClientPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final services = context.read<Services>();
     final tokens = context.inTheme;
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
+    // The view model's company, not the session's: it is the company this form
+    // is bound to, and all four pickers here read the same field. Locality
+    // rather than a bug fix — no divergence between the two has been observed.
+    final companyId = vm.companyId;
     final lockedByProject = vm.draft.projectId.isNotEmpty;
 
     if (lockedByProject) {
@@ -390,7 +406,7 @@ class _ProjectPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
+    final companyId = vm.companyId;
     // Empty client → no projects to choose from; render a disabled picker
     // so the form layout doesn't shift when the user does pick a client.
     return StreamBuilder<List<Project>>(
@@ -437,97 +453,6 @@ class _ProjectPicker extends StatelessWidget {
                 ),
               ),
           ],
-        );
-      },
-    );
-  }
-}
-
-/// Searchable status picker. Reads `services.taskStatuses.watchAll`.
-class _StatusPicker extends StatelessWidget {
-  const _StatusPicker({required this.vm, required this.locked});
-
-  final TaskEditViewModel vm;
-  final bool locked;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    return StreamBuilder<List<TaskStatus>>(
-      stream: services.taskStatuses.watchAll(companyId: companyId),
-      builder: (context, snapshot) {
-        final statuses = snapshot.data ?? const <TaskStatus>[];
-        TaskStatus? selected;
-        for (final s in statuses) {
-          if (s.id == vm.draft.statusId) {
-            selected = s;
-            break;
-          }
-        }
-        return _Lockable(
-          locked: locked,
-          child: SearchableDropdownField<TaskStatus>(
-            label: context.tr('status'),
-            items: statuses,
-            initialValue: selected,
-            displayString: (s) => s.name.isEmpty ? s.id : s.name,
-            idOf: (s) => s.id,
-            // Same dot the list pill, kanban header and settings rows use, so
-            // the picker reads like the rest of the task UI.
-            optionLeadingBuilder: (context, status) => Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: taskStatusColors(
-                  context,
-                  name: status.name,
-                  color: status.color,
-                ).fg,
-                shape: BoxShape.circle,
-              ),
-            ),
-            onChanged: (s) => vm.setStatusId(s?.id ?? ''),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Searchable assigned-user picker. Reads `services.user.watchPage` —
-/// mirrors the kanban filter bar's assignee picker.
-class _AssignedUserPicker extends StatelessWidget {
-  const _AssignedUserPicker({required this.vm, required this.locked});
-
-  final TaskEditViewModel vm;
-  final bool locked;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    final companyId = services.auth.session.value?.currentCompanyId ?? '';
-    return StreamBuilder<List<User>>(
-      stream: services.user.watchPage(companyId: companyId, loadedPages: 100),
-      builder: (context, snapshot) {
-        final users = snapshot.data ?? const <User>[];
-        User? selected;
-        for (final u in users) {
-          if (u.id == vm.draft.assignedUserId) {
-            selected = u;
-            break;
-          }
-        }
-        return _Lockable(
-          locked: locked,
-          child: SearchableDropdownField<User>(
-            label: context.tr('assigned_user'),
-            items: users,
-            initialValue: selected,
-            displayString: (u) => u.displayName.isEmpty ? u.id : u.displayName,
-            idOf: (u) => u.id,
-            onChanged: (u) => vm.setAssignedUserId(u?.id ?? ''),
-          ),
         );
       },
     );

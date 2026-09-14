@@ -169,7 +169,7 @@ class _TimeEntryTableState extends State<TimeEntryTable> {
       ],
     );
 
-    // Lock-state pattern matches `_ClientPicker` / `_StatusPicker` in
+    // Lock-state pattern matches `_ClientPicker` / `_Lockable` in
     // task_edit_layout.dart — IgnorePointer kills hit-testing without
     // graying out individual fields, Opacity reads as "muted content".
     return IgnorePointer(

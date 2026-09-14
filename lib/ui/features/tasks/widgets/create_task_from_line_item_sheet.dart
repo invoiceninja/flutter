@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/task.dart';
+import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -14,6 +17,7 @@ import 'package:admin/domain/tasks/line_item_task_seed.dart';
 import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/list/entity_list_constants.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/in_time_field.dart';
@@ -21,6 +25,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart'
     show emptyTask;
+import 'package:admin/ui/features/tasks/widgets/task_status_picker_field.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// "Create Task" from an invoice / quote line item — schedule the work a line
@@ -183,6 +188,14 @@ class _CreateTaskFromLineItemSheetState
   bool _billable = true;
   bool _busy = false;
 
+  String _assignedUserId = '';
+
+  /// Seeded once from the company's first status — see [_watchStatusSeed].
+  /// After that it is the user's, a clear included.
+  String _statusId = '';
+  bool _statusSeeded = false;
+  StreamSubscription<List<TaskStatus>>? _statusSeed;
+
   @override
   void initState() {
     super.initState();
@@ -207,6 +220,55 @@ class _CreateTaskFromLineItemSheetState
     _durationFocus.addListener(() {
       if (!_durationFocus.hasFocus) _syncDurationText();
     });
+    _watchStatusSeed();
+  }
+
+  /// Default the status to the company's first one, so the task lands in a
+  /// kanban column immediately.
+  ///
+  /// Without it `emptyTask()` leaves `statusId: ''` and `watchAllByStatus`
+  /// groups strictly on that key, so the task sits in **no** column until the
+  /// server's `TaskRepository::setDefaultStatus` assigns one on the round trip
+  /// — i.e. never, offline. Same defect the kanban FAB had
+  /// (invoiceninja/flutter#135), in a second place.
+  ///
+  /// Four things here are load-bearing:
+  ///
+  ///  * **A subscription of its own, not the picker's.** `EntityPickerField`
+  ///    requires `itemsStream` to return a fresh stream per call, so the sheet
+  ///    must not also listen to the one it hands over. Drift dedupes the
+  ///    identical query, so the second watch costs effectively nothing.
+  ///  * **`initState`, not a `StreamBuilder`** — seeding inside `build` is a
+  ///    `setState` during build.
+  ///  * **It is a ONE-SHOT: the first non-empty emission wins and the watch is
+  ///    cancelled.** A default only needs one answer, and leaving the
+  ///    subscription live makes a later emission able to move a selection the
+  ///    user is looking at. Worse, if that emission lands while the Status
+  ///    field has focus, `SearchableDropdownField.didUpdateWidget` skips its
+  ///    resync (it guards on `!_focusNode.hasFocus`) and `_onFocusChange` then
+  ///    restores the stale committed text on blur — leaving the field showing
+  ///    one status while `_seed()` saves another, with no id change left to
+  ///    trigger a correction. An empty list is not an answer, so it does not
+  ///    arm the latch: a company whose statuses have not synced yet is still
+  ///    seeded when they arrive.
+  ///  * **"First" is `watchAll`'s first row** (`statusOrder`, then name), which
+  ///    is the board's leftmost column. The server picks its own default by
+  ///    `id ASC` instead; ours is deliberately the order the user can see, and
+  ///    there is no post-sync jump either way because `setDefaultStatus` only
+  ///    runs when `status_id` arrives empty — and now it won't.
+  void _watchStatusSeed() {
+    _statusSeed = _services.taskStatuses
+        .watchAll(companyId: widget.companyId)
+        .listen((statuses) {
+          if (!mounted || _statusSeeded || statuses.isEmpty) return;
+          _statusSeeded = true;
+          // Safe from inside the listener, and null-safe against the
+          // (impossible today, but free to guard) case of a stream that
+          // delivers before `listen` has returned.
+          _statusSeed?.cancel();
+          _statusSeed = null;
+          setState(() => _statusId = statuses.first.id);
+        }, onError: (Object _) {});
   }
 
   /// Re-render the Duration field from the value that will actually be saved.
@@ -226,6 +288,7 @@ class _CreateTaskFromLineItemSheetState
 
   @override
   void dispose() {
+    _statusSeed?.cancel();
     _description.dispose();
     _durationText.dispose();
     _rate.dispose();
@@ -316,6 +379,8 @@ class _CreateTaskFromLineItemSheetState
     clientId: widget.clientId,
     // A project always belongs to a client; sending one without the other 422s.
     projectId: widget.clientId.isEmpty ? '' : widget.projectId,
+    statusId: _statusId,
+    assignedUserId: _assignedUserId,
     timeLog: seedTimeLogForLineItem(
       start: _start,
       duration: _duration,
@@ -422,6 +487,38 @@ class _CreateTaskFromLineItemSheetState
                     ),
                   ),
                 ],
+              ),
+              SizedBox(height: InSpacing.md(context)),
+              // Below the scheduling block, not above it. This sheet exists to
+              // answer "when does this work happen" (invoiceninja/flutter#88),
+              // so Date / Start time / Duration stay in the first screenful of
+              // a phone bottom sheet; Status and Assigned User are the
+              // secondary decision. The full task form agrees about the
+              // relative order — there they are the last two of the identity
+              // block, sixth and seventh of eight — and the only reason they
+              // land after the rate here rather than before it is that this
+              // sheet pairs Rate with Duration in one row.
+              //
+              // Stacked full width, never paired into one `Row` like the two
+              // above: on touch a populated picker spends 96 px of its width
+              // on the ✕ + ▾ pair, so half a phone leaves under 100 px for a
+              // name — and a `TextField` scrolls rather than ellipsising, so a
+              // long one would clip with no cue at all.
+              TaskStatusPickerField(
+                companyId: widget.companyId,
+                selectedId: _statusId,
+                onChanged: (id) => setState(() => _statusId = id),
+              ),
+              SizedBox(height: InSpacing.md(context)),
+              AssignedUserPickerField(
+                companyId: widget.companyId,
+                selectedId: _assignedUserId,
+                // Deliberately no default: `emptyTask()` leaves this empty and
+                // an assignee has no correct default — an invoice's own
+                // assignee is usually whoever raised it, not whoever does the
+                // work. The status above is the opposite case, which is why
+                // only it is seeded.
+                onChanged: (id) => setState(() => _assignedUserId = id),
               ),
               SizedBox(height: InSpacing.md(context)),
               _DaySchedule(

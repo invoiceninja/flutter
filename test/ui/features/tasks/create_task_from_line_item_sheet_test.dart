@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,20 +9,25 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/api/task_status_api_model.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/models/domain/task.dart';
+import 'package:admin/data/models/domain/task_status.dart';
 import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/company_repository.dart';
+import 'package:admin/data/repositories/task_status_repository.dart';
 import 'package:admin/data/repositories/task_repository.dart';
+import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart'
     show emptyTask;
 import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
 
 import '../../../_localization_helper.dart';
 import '../shell/_shell_test_helpers.dart';
+import 'widgets/_task_filter_doubles.dart';
 
 /// Streams are `Stream.value(...)`, never a real Drift watch — `pumpAndSettle`
 /// over a live watch stream never settles.
@@ -51,6 +58,41 @@ class _FakeTasks implements TaskRepository {
       throw UnimplementedError(i.memberName.toString());
 }
 
+/// Every stream here is multi-subscription (`oneShot`, or `Stream.multi`
+/// inline): `EntityPickerField` re-subscribes to `watchById` on every
+/// `selectedId` change, and a single-subscription `Stream.value` throws the
+/// second time — the finding `_task_filter_doubles.dart` records.
+class _FakeTaskStatuses implements TaskStatusRepository {
+  _FakeTaskStatuses(this.statuses);
+
+  final List<TaskStatus> statuses;
+
+  /// Lets a test push a *second* emission — a Drift table update — so the
+  /// seeding latch can be exercised rather than assumed.
+  final StreamController<List<TaskStatus>> _later =
+      StreamController<List<TaskStatus>>.broadcast();
+
+  void reemit() => _later.add(statuses);
+
+  Future<void> close() => _later.close();
+
+  @override
+  Stream<List<TaskStatus>> watchAll({required String companyId}) =>
+      Stream<List<TaskStatus>>.multi((c) {
+        c.add(statuses);
+        final sub = _later.stream.listen(c.add);
+        c.onCancel = sub.cancel;
+      });
+
+  @override
+  Stream<TaskStatus?> watch({required String companyId, required String id}) =>
+      oneShot(statuses.where((s) => s.id == id).firstOrNull);
+
+  @override
+  dynamic noSuchMethod(Invocation i) =>
+      throw UnimplementedError(i.memberName.toString());
+}
+
 class _FakeCompany implements CompanyRepository {
   @override
   Stream<Company?> watchCompany(String companyId) =>
@@ -62,13 +104,19 @@ class _FakeCompany implements CompanyRepository {
 }
 
 class _FakeServices implements Services {
-  _FakeServices(this.tasks);
+  _FakeServices(this.tasks, this.taskStatuses);
 
   @override
   final TaskRepository tasks;
 
   @override
+  final TaskStatusRepository taskStatuses;
+
+  @override
   final CompanyRepository company = _FakeCompany();
+
+  @override
+  final UserRepository user = FakeUserRepo();
 
   @override
   dynamic noSuchMethod(Invocation i) =>
@@ -88,16 +136,37 @@ Task _taskAt(String description, int fromHour, int toHour) =>
       ],
     );
 
+/// The kanban board's column order — `TaskStatusDao.watchAll` sorts by
+/// `status_order`, so `first` is the leftmost column.
+TaskStatus _status(String id, String name, int order) =>
+    TaskStatus.fromApi(TaskStatusApi(id: id, name: name, statusOrder: order));
+
+final List<TaskStatus> _kStatuses = [
+  _status('s1', 'Backlog', 0),
+  _status('s2', 'In Progress', 1),
+];
+
+/// Label-anchored, not `find.byType(TextField).at(n)`. The Status and Assigned
+/// User pickers went in *after* the Rate row, so the existing indices happened
+/// to survive — which is the point: a positional index silently retargets an
+/// assertion at whatever moves into that slot, and nothing about the next
+/// insertion would look wrong.
+Finder _field(String label) => find.widgetWithText(TextField, label);
+
 void main() {
   late _FakeTasks tasks;
+  late _FakeTaskStatuses statusRepo;
 
   Future<void> open(
     WidgetTester tester, {
     required LineItem item,
     List<Task> existing = const <Task>[],
+    List<TaskStatus>? statuses,
     Size size = const Size(900, 900),
   }) async {
     tasks = _FakeTasks(existing);
+    statusRepo = _FakeTaskStatuses(statuses ?? _kStatuses);
+    addTearDown(statusRepo.close);
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -105,7 +174,7 @@ void main() {
       // Provider above MaterialApp, as `main.dart` has it — `showDialog` pushes
       // onto the root navigator, whose overlay sits above `home:`.
       Provider<Services>.value(
-        value: _FakeServices(tasks),
+        value: _FakeServices(tasks, statusRepo),
         child: MaterialApp(
           theme: buildInTheme(InTheme.light),
           localizationsDelegates: kTestLocalizationsDelegates,
@@ -206,10 +275,9 @@ void main() {
     tester,
   ) async {
     await open(tester, item: line());
-    // Duration is field 3: description, date, time, duration, rate.
-    await tester.enterText(find.byType(TextField).at(3), '');
+    await tester.enterText(_field('Duration'), '');
     // Blur it — the field must not keep showing something it won't save.
-    await tester.tap(find.byType(TextField).at(0));
+    await tester.tap(_field('Description'));
     await tester.pumpAndSettle();
 
     expect(find.text('2:00'), findsOneWidget);
@@ -222,7 +290,7 @@ void main() {
 
   testWidgets('an edited duration reaches the created task', (tester) async {
     await open(tester, item: line());
-    await tester.enterText(find.byType(TextField).at(3), '0:45');
+    await tester.enterText(_field('Duration'), '0:45');
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
@@ -259,7 +327,7 @@ void main() {
   testWidgets('changing the date preserves the duration', (tester) async {
     await open(tester, item: line());
 
-    await tester.enterText(find.byType(TextField).at(1), '2026-06-20');
+    await tester.enterText(_field('Date'), '2026-06-20');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
@@ -269,6 +337,86 @@ void main() {
     final entry = tasks.created.single.timeLog.single;
     expect(entry.start, DateTime(2026, 6, 20, 9));
     expect(entry.stop!.difference(entry.start!), const Duration(hours: 2));
+  });
+
+  testWidgets('an untouched sheet saves the first status and no assignee', (
+    tester,
+  ) async {
+    await open(tester, item: line());
+
+    // Seeded from the stream, so it is on screen before Save.
+    expect(find.text('Backlog'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    final draft = tasks.created.single;
+    // `statusId: ''` would put the task in NO kanban column until the create
+    // round-trips — i.e. never, offline (invoiceninja/flutter#135's defect).
+    expect(draft.statusId, 's1');
+    expect(draft.assignedUserId, '');
+  });
+
+  testWidgets('an empty status list leaves the status unset', (tester) async {
+    await open(tester, item: line(), statuses: const <TaskStatus>[]);
+
+    // The field is the disabled placeholder, and it reads "Loading" rather
+    // than "No records found": statuses arrive bundled on `/refresh`, so an
+    // empty list is a loading state and neither picker passes `emptyHintKey`.
+    // Without this the test's only teeth were that `statuses.first` did not
+    // throw on an empty list — it passed with the whole seed deleted.
+    expect(find.text('Loading'), findsOneWidget);
+    expect(find.text('No records found'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(tasks.created.single.statusId, '');
+  });
+
+  testWidgets('a picked assignee reaches the created task', (tester) async {
+    await open(tester, item: line());
+
+    await tester.tap(_field('Assigned User'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ada Lovelace').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(tasks.created.single.assignedUserId, 'u1');
+  });
+
+  testWidgets('a picked status survives a later stream emission', (
+    tester,
+  ) async {
+    await open(tester, item: line());
+
+    await tester.tap(_field('Status'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('In Progress').last);
+    await tester.pumpAndSettle();
+
+    // Blur first, or the display half of this is vacuous:
+    // `SearchableDropdownField.didUpdateWidget` guards its resync on
+    // `!_focusNode.hasFocus`, and `RawAutocomplete._select` does not unfocus —
+    // so with the field still focused the text would read 'In Progress'
+    // whatever the seed did.
+    await tester.tap(_field('Description'));
+    await tester.pumpAndSettle();
+
+    // The seed must be a one-shot, or this next Drift emission silently
+    // reverts the user to the first status.
+    statusRepo.reemit();
+    await tester.pumpAndSettle();
+    expect(find.text('In Progress'), findsOneWidget);
+    expect(find.text('Backlog'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(tasks.created.single.statusId, 's2');
   });
 
   group('createTaskFromLineItemHandler', _handlerGateTests);

@@ -1,6 +1,8 @@
-// Shared doubles for the Tasks filter surfaces: the filter bar, the filter
-// sheet and the calendar header all need the same `Services` shape and the same
-// filter notifier, and three hand-copied sets is how they drift.
+// Shared doubles for the Tasks surfaces: the filter bar, the filter sheet and
+// the calendar header all need the same `Services` shape and the same filter
+// notifier, and three hand-copied sets is how they drift. The create-task sheet
+// test borrows `oneShot` / `FakeUserRepo` / `kFakeUser` from here for the same
+// reason.
 //
 // Not a `_test.dart` file, so the runner ignores it — the convention
 // `test/ui/features/dashboard/_fake_dashboard_repo.dart` and

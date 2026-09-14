@@ -388,6 +388,7 @@ the honest default.
 | Task — narrow panes collapse the Project / Client / Assignee filters to an AppBar icon + removable chips | ❌ | ❌ | ✅ | | |
 | Task — invoice from task | ✅ | ✅ | ✅ | ✅ | |
 | Task — create/convert a quote or invoice line item into a dated task | ❌ | ❌ | ✅ | | |
+| Task — set the status and assignee while creating one from a quote / invoice line | ❌ | ❌ | ✅ | | |
 | Task — add to existing invoice | ✅ | ✅ | ✅ | | |
 | Task — bulk invoice / add to invoice from a multi-select (multi-client rejected, multi-project grouped) | ✅ | ✅ | ✅ | | |
 | Task — generated line items carry the project header + time-log details per Task Settings (`invoice_task_project` / `_project_header` / `_datelog` / `_timelog` / `_hours` / `_item_description`) | 🟡 | ✅ | ✅ | | |

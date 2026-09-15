@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -8,8 +9,12 @@ import 'package:http/testing.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/dashboard_cache_dao.dart';
+import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
+
+import '../ui/features/shell/_shell_test_helpers.dart';
 
 /// Guards the issue #14 logout wiring.
 ///
@@ -202,6 +207,190 @@ void main() {
         reason:
             'the header must read the shared controller, not a local flag, or '
             'a pass started elsewhere leaves the rail showing an idle button.',
+      );
+    });
+  });
+
+  _syncTailTests();
+}
+
+/// Minimal `/api/v1/refresh` body for company `c1`. Without a valid envelope
+/// `_persistAndActivate` finds no company and the pass aborts before ever
+/// reaching the tail these tests are about.
+String _refreshEnvelope() => jsonEncode({
+  'data': [
+    {
+      'is_owner': true,
+      'is_admin': true,
+      'company': {'id': 'c1', 'name': 'Acme Co'},
+      'token': {'token': 'tok'},
+      'account': {
+        'id': 'acct1',
+        'default_company_id': 'c1',
+        'plan': 'pro',
+        'hosted_company_count': 10,
+      },
+    },
+  ],
+});
+
+/// invoiceninja/flutter#160 — a Sync pass used to walk the fourteen entity
+/// tables and nothing else, leaving three caches that hang off exactly those
+/// rows on pre-sync state: the `dashboard_cache` row both activity surfaces
+/// watch, the in-memory per-record feed cache, and the memoized `Formatter`.
+///
+/// Neither activity screen re-runs its constructor — the shell is a
+/// `StatefulShellRoute.indexedStack`, so it stays mounted for the session — so
+/// the AppBar refresh button was the only way to see a row the sync had
+/// already earned.
+void _syncTailTests() {
+  group('a Sync pass re-seeds the caches hanging off the entity tables', () {
+    late ShellFixture fixture;
+    late List<String> paths;
+
+    Future<void> buildWith({Set<String> failPaths = const {}}) async {
+      paths = <String>[];
+      fixture = await buildFixture(
+        companies: const [FakeCompany(id: 'c1', name: 'Acme Co')],
+        currentCompanyId: 'c1',
+        httpClient: MockClient((req) async {
+          paths.add(req.url.path);
+          if (failPaths.any(req.url.path.contains)) {
+            return http.Response('{"message":"boom"}', 500);
+          }
+          if (req.url.path.contains('/api/v1/refresh')) {
+            return http.Response(_refreshEnvelope(), 200);
+          }
+          return http.Response('{"data":[]}', 200);
+        }),
+      );
+    }
+
+    tearDown(() => fixture.dispose());
+
+    Future<dynamic> readList(String kind) => fixture.db.dashboardCacheDao.read(
+      companyId: 'c1',
+      kind: kind,
+      filterHash: kDashboardListFilterHash,
+    );
+
+    test('refreshes the activity feed both activity surfaces watch', () async {
+      await buildWith();
+
+      await fixture.services.syncNow(companyId: 'c1');
+
+      expect(paths, contains('/api/v1/activities'));
+      expect(
+        await readList(DashboardKind.activities),
+        isNotNull,
+        reason:
+            'the exact `(company, activities, _)` row that the /activity '
+            'screen and the dashboard Activity card both watch',
+      );
+      expect(
+        await readList(DashboardKind.recentPayments),
+        isNotNull,
+        reason:
+            'the fix is the whole filter-free list-card set, not activities '
+            'alone — a sibling card left stale would be the same bug reported '
+            'again from the dashboard',
+      );
+    });
+
+    test('drops the per-record activity cache', () async {
+      await buildWith();
+      final api = fixture.services.activities;
+      await api.fetchForEntity(entity: 'client', entityId: 'cl_1');
+      expect(api.peekForEntity(entity: 'client', entityId: 'cl_1'), isNotNull);
+
+      await fixture.services.syncNow(companyId: 'c1');
+
+      expect(
+        api.peekForEntity(entity: 'client', entityId: 'cl_1'),
+        isNull,
+        reason:
+            'a record opened after the sync must not paint its first frame '
+            'from a peek that predates the sync',
+      );
+    });
+
+    test('rebuilds the memoized Formatter', () async {
+      await buildWith();
+      await fixture.services.formatterFor('c1');
+      expect(fixture.services.formatterIfReady('c1'), isNotNull);
+
+      await fixture.services.syncNow(companyId: 'c1');
+
+      expect(
+        fixture.services.formatterIfReady('c1'),
+        isNull,
+        reason:
+            'the pass rewrote the companies row this Formatter is derived '
+            'from, and nothing else invalidates it: onSettingsWritten fires '
+            'only on a local save, and the company-activation hooks are gated '
+            'on an actual company change',
+      );
+    });
+
+    test('a cancelled pass leaves the caches alone', () async {
+      await buildWith();
+      // False on the first poll (so the pass starts), true on every later one
+      // — which is the shape logout and a company switch produce.
+      var polls = 0;
+      await fixture.services.syncNow(
+        companyId: 'c1',
+        isCancelled: () => polls++ > 0,
+      );
+
+      expect(
+        paths,
+        isNot(contains('/api/v1/activities')),
+        reason:
+            'cancellation means the Drift wipe is imminent (logout) or the '
+            'next request goes out under another company token — either way '
+            'the write must not happen',
+      );
+      expect(await readList(DashboardKind.activities), isNull);
+    });
+
+    test('a failing list-card refresh does not fail the pass', () async {
+      await buildWith(failPaths: {'/api/v1/activities'});
+
+      final failed = await fixture.services.syncNow(companyId: 'c1');
+
+      expect(
+        failed,
+        isEmpty,
+        reason:
+            'the returned list names entity downloads and drives the '
+            'sync_failed toast — a 500 from one dashboard card endpoint must '
+            'not report the whole sync as failed',
+      );
+    });
+  });
+
+  group('sync tail wiring (issue #160)', () {
+    final source = File('lib/app/services.dart').readAsStringSync();
+
+    test('syncNow re-seeds all three caches', () {
+      expect(
+        source.contains('dashboard.refreshListCards('),
+        isTrue,
+        reason:
+            'without it the /activity screen and every dashboard list card '
+            'keep painting pre-sync rows (#160)',
+      );
+      expect(
+        source.contains('activities.clearCache()'),
+        isTrue,
+        reason: 'a per-record Activity tab would seed from a stale peek (#160)',
+      );
+      expect(
+        source.contains('invalidateFormatter(companyId)'),
+        isTrue,
+        reason:
+            'the pass rewrites the companies row the Formatter is derived '
+            'from, and nothing else invalidates it (#160)',
       );
     });
   });

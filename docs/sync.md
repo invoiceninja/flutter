@@ -1,6 +1,6 @@
 # Sync — the non-obvious rules, with evidence
 
-Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states all 27 rules, one line each — it is the most-cited anchor in the repo. This doc carries the evidence behind the seventeen that needed more than a line: the status-code map, the cursor and paging gates, the company-token guard, and the offline-retry policy.
+Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states all 28 rules, one line each — it is the most-cited anchor in the repo. This doc carries the evidence behind the eighteen that needed more than a line: the status-code map, the cursor and paging gates, the company-token guard, and the offline-retry policy.
 
 ## A discard abandons the row, not the entity
 
@@ -69,3 +69,91 @@ Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states
 ## The server's rounding scale is a two-level map, not one precision
 
 **The server's rounding scale is a two-level map, not one precision.** Line totals and the per-item tax base round at **2**; the subtotal and each grouped *line* tax round at the currency's `precision`; invoice-level tax tiers round at **2** and live in a **separate** map from the line-tax groups (`InvoiceSum::$total_tax_map` vs `$tax_map`), merged only for display — so a line tax and an invoice-level tax sharing a name ("VAT" on both, the normal case) must not be summed and re-rounded together. The final total is **not** re-rounded at precision. Deriving `taxAmount` and `total` from two different sums is how they came to contradict each other on a JPY invoice. Parity is proven, not argued: `tool/totals_oracle.php` runs the REAL `InvoiceSum` / `InvoiceItemSum` / their inclusive twins out of the canonical server checkout (dispatching on `uses_inclusive_taxes`, mirroring `Invoice::calc()`), and `test/domain/billing/totals_parity_test.dart` asserts `computeTotals` against it. Careful hand-derivation disagreed with the real code on one of four cases; a full green suite certified a cent-level error on the default currency. **Change nothing in `totals_calculator.dart` without running the oracle** — and note it reports as *skipped*, never passed, when the server source is absent.
+
+## A Sync pass re-downloads the entity tables and nothing else
+
+`Services.syncNow` pushes the outbox, then `resyncAllEntities` walks the fourteen types in
+`_resyncSteps` — and for a long time that was the whole pass. Three caches hang off exactly the
+rows it rewrites, and none of them were re-seeded, which shipped as
+[invoiceninja/flutter#160](https://github.com/invoiceninja/flutter/issues/160): tapping **Sync
+now** left the Activity screen showing pre-sync rows, and the AppBar refresh button was the only
+way out. The reporter's users were told new information was available, checked Activity, and saw
+nothing.
+
+**Why it was a dead end rather than a delay.** `ActivityViewModel` calls `refresh()` only in its
+constructor, and the shell is a `StatefulShellRoute.indexedStack` (`router.dart`) — so once
+`/activity` has been visited the screen stays mounted for the whole session and that constructor
+never runs again. Navigating away and back does not re-fetch. The dashboard's Activity card reads
+the *same* `dashboard_cache` row (kind `activities`, filter hash `kDashboardListFilterHash`), so
+both surfaces were stale together, and both are fixed by one write.
+
+**The three caches, and why each needed its own line.**
+
+1. **`dashboard_cache`** — server-fed rows, refreshed by `DashboardRepository.refreshListCards`.
+   It covers all of `DashboardKind.listKinds`, not just `activities`: Past due, Upcoming invoices,
+   Recent payments, Expired/Upcoming quotes and Upcoming recurring are the identical mechanism, so
+   fixing activities alone would have left a stale card on the very screen beside the fixed one.
+   The filter-keyed half (totals, chart, configured cards) is deliberately excluded — it is keyed
+   by a `DashboardFilter` that is UI state owned by `DashboardViewModel`, and a caller with no
+   dashboard mounted would have to invent one and would write a row under a hash nothing watches.
+   Those keep the dashboard's own Refresh button.
+2. **`ActivitiesApi._feedCache`** — the in-memory per-record feed behind the Activity / Comments
+   tabs, dropped with `clearCache()`. This fixes the *next* record opened; a tab already on screen
+   is not repainted, because `EntityActivityViewModel` has no Drift subscription for synced rows
+   (it re-kicks only on an outbox tick for its own record). Doing that properly needs a broadcast
+   sync-generation notifier, which is not built.
+3. **The memoized `Formatter` and the resolved-settings cascade** — `invalidateFormatter` /
+   `settings.clearResolvedCache`. `invalidateFormatter`'s own contract is "call after writing the
+   company's settings **or after a statics refresh**", and the pass does both:
+   `auth.refresh(fullSync: true)` sends `include_static=true` and rewrites the `companies` row,
+   and `company.refresh` rewrites it again. Nothing else covers it —
+   `CompanyRepository.onSettingsWritten` fires only on a local *save*, and the company-activation
+   warm-up hooks are gated on an actual company *change*, so a pass for the current company
+   re-runs none of them. Without these two lines a date format or currency changed on another
+   device downloads but never renders until logout or a company switch.
+
+**Why the tail runs last.** The rows the user is chasing are written by server-side queued jobs
+the push kicks off — an email send logs its activity when the job runs, not when the HTTP request
+returns — so `flushNow` returning is not "the rows exist". The later the 250-row window
+(`kActivityFeedRows`) is taken, the more of them it holds; running it first is the position most
+likely to miss the very rows in the bug report. It also keeps the cards consistent with the entity
+tables the pass just rewrote, and lets cancellation fall out for free. Same precedent as
+`contactsSync.run`, which runs "off the back of the pass that just refreshed the data it reads".
+
+**Why it is best-effort, and excluded from the failed-entity list.** `syncNow`'s return value names
+*entity* downloads that failed and drives the `sync_failed` toast. A 500 from one dashboard card
+endpoint is not an entity download failure and must not report the whole sync as failed, so
+`refreshListCards`' per-kind errors are logged and swallowed. `refreshListCards` folds failures
+into a map rather than throwing; the `try` around it guards that contract changing.
+
+**Why `onProgress`'s `total` is not extended by one.** `total` is the module-filtered *entity*
+plan and is what the failed-entity list is counted against; a phantom step would make
+`resyncAllEntities` report a step it does not own. While the tail runs, progress is parked at
+`(n, n)` and the pass is still `isRunning`, so the Sync button stays inert and spinning — and its
+spinner is indeterminate on purpose even once `total` is known. This is already the status quo:
+`contactsSync.run` has run past 100% since it shipped.
+
+**The residual company-switch window.** The list-card fetches are issued in parallel, so there is
+no boundary to poll `isCancelled` at once they are on the wire; a switch landing mid-flight files
+the new company's rows under the old id. `resync.cancel()` on a company switch plus the tail's
+pre-flight poll leave roughly a 1–2 s window, and `dashboard_cache` is a single overwritable
+snapshot per `(company, kind, hash)` rather than an accumulating table, so the next refresh
+repairs it — worst observable symptom is one frame of the wrong company's rows.
+`company_scoped_write_guard_test` does not catch this: it fires only on repos calling
+`upsertAllPreservingDirty`, and `DashboardRepository` writes via `_dao.upsert`. Closing it properly
+means giving that repo the `activeCompanyId` / `companyStillActive` hook every entity repo has.
+
+**One concurrency trap the fix had to design around.** `refreshAll` and `refreshFilterKeyed` each
+used to construct their own `_Semaphore(_maxConcurrent)`, so writing `refreshAll` as "filter-keyed,
+then list cards" would have silently run the dashboard at a multiple of the cap — invisible in
+review, visible only as a burst of parallel requests on a slow connection. Only one private driver
+(`_runJobs`) may construct a semaphore now; the public methods compose *job lists*, never each
+other. `dashboard_repository_test` pins it with a peak-in-flight counter, asserted two-sidedly so
+it cannot pass vacuously. Note the cap is on *jobs*: `refreshTotals` deliberately fires its current
+and previous periods in parallel inside its single slot, so the fetch-level peak sits exactly one
+above the job-level cap.
+
+**A note for whoever debugs a test fixture later.** A Sync pass now also issues
+`/api/v1/activities` and the six sibling card paths (`/api/v1/invoices`, `/api/v1/payments`,
+`/api/v1/quotes`, `/api/v1/recurring_invoices`), so a strict `MockClient` that 404s unknown paths
+will see them where it previously did not.

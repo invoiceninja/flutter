@@ -954,6 +954,24 @@ class Services implements SidebarBadgeContext {
   /// failed drain must not block the download, since the queued rows stay
   /// queued and retry on their own schedule (and conflicts / 412s raised by the
   /// drain surface through `SyncEventListener` as usual).
+  ///
+  /// The tail is the **cache** half, and its absence was invoiceninja/flutter
+  /// #160: [resyncAllEntities] walks the fourteen browsable entity tables and
+  /// nothing else, while three caches hang off exactly the rows it rewrites.
+  /// The `/activity` screen and the dashboard's Activity card share one
+  /// `dashboard_cache` row; the per-record Activity / Comments tabs seed from
+  /// an in-memory cache on [activities]; and the memoized [Formatter] plus the
+  /// settings cascade are derived from the `companies` row the pass just
+  /// re-downloaded. Neither activity screen re-runs its constructor (the shell
+  /// is a `StatefulShellRoute.indexedStack`, so it stays mounted all session),
+  /// so the AppBar refresh button was the only way to see a row the sync had
+  /// already earned. See `docs/sync.md` § A Sync pass re-downloads the entity
+  /// tables and nothing else.
+  ///
+  /// Every tail step is **best-effort and cannot fail the pass.** The returned
+  /// list names *entity* downloads that failed and drives the `sync_failed`
+  /// toast; a 500 from one dashboard card endpoint must not report the whole
+  /// sync as failed, so it is logged and swallowed instead.
   Future<List<String>> syncNow({
     required String companyId,
     void Function(int completed, int total)? onProgress,
@@ -965,11 +983,51 @@ class Services implements SidebarBadgeContext {
       _servicesLog.warning('syncNow: outbox flush failed', e, st);
     }
     if (isCancelled?.call() ?? false) return const <String>[];
-    return resyncAllEntities(
+    final failed = await resyncAllEntities(
       companyId: companyId,
       onProgress: onProgress,
       isCancelled: isCancelled,
     );
+    // Skipped when cancelled: cancellation means logout (the Drift wipe is
+    // imminent, and these writes would land in the wiped database) or a company
+    // switch (the next request goes out under a different token yet would still
+    // be filed under `companyId`).
+    if (isCancelled?.call() ?? false) return failed;
+    // Synchronous and unable to throw, so this goes before the network call: a
+    // failure below must not leave a per-record Activity / Comments tab seeding
+    // from a `peekForEntity` hit that predates the sync. The peek is a
+    // first-frame seed, so a stale hit paints old rows for the moment before
+    // the fetch lands — and its TTL is 2 minutes, shorter than a large pass.
+    activities.clearCache();
+    // [invalidateFormatter]'s own contract is "call after writing the company's
+    // settings or after a statics refresh". This pass does both: the forced
+    // `auth.refresh` sends `include_static=true` and rewrites the companies
+    // row, and `company.refresh` rewrites it again — and neither fires
+    // `CompanyRepository.onSettingsWritten`, which only runs on a local *save*.
+    // The company-activation warm-up hooks don't cover it either: they're gated
+    // on an actual company *change*. Without these two lines a date format or
+    // currency changed on another device downloads but never renders until
+    // logout or a company switch.
+    invalidateFormatter(companyId);
+    settings.clearResolvedCache();
+    try {
+      final errors = await dashboard.refreshListCards(companyId);
+      if (errors.isNotEmpty) {
+        _servicesLog.warning(
+          'syncNow: dashboard list cards failed: ${errors.keys.join(', ')}',
+        );
+      }
+    } catch (e, st) {
+      // `refreshListCards` folds per-kind failures into its result rather than
+      // throwing; this keeps that contract from ever becoming the pass's
+      // problem if it changes.
+      _servicesLog.warning(
+        'syncNow: dashboard list card refresh failed',
+        e,
+        st,
+      );
+    }
+    return failed;
   }
 
   /// The own-route entities a Sync pass re-pulls, each paired with the

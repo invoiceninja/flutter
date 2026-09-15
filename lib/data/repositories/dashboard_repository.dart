@@ -104,6 +104,14 @@ class DashboardKind {
   static String calc(String cardKey) => 'calc:$cardKey';
 }
 
+/// One unit of refresh work: the cache `kind` a failure is filed under, paired
+/// with the call that does it.
+///
+/// A list of pairs rather than two parallel lists — same shape as
+/// `Services._resyncSteps` — so a job can never be reported under a peer's
+/// kind.
+typedef _RefreshJob = (String, Future<void> Function());
+
 /// Source of truth for dashboard data. The UI watches per-kind streams; the
 /// network only writes. There is no outbox path — the dashboard is read-only.
 ///
@@ -342,36 +350,11 @@ class DashboardRepository {
     String companyId,
     DashboardFilter filter, {
     List<DashboardCardConfig> cards = const [],
-  }) async {
-    final errors = <String, Object>{};
-    final semaphore = _Semaphore(_maxConcurrent);
-    final jobs = <Future<void>>[
-      _runUnder(
-        semaphore,
-        () => refreshTotals(companyId, filter),
-        onError: (e) => errors[DashboardKind.totalsCurrent] = e,
-      ),
-      _runUnder(
-        semaphore,
-        () => refreshChart(companyId, filter),
-        onError: (e) => errors[DashboardKind.chart] = e,
-      ),
-      for (final kind in DashboardKind.listKinds)
-        _runUnder(
-          semaphore,
-          () => _refreshByKind(companyId, kind),
-          onError: (e) => errors[kind] = e,
-        ),
-      for (final card in cards)
-        _runUnder(
-          semaphore,
-          () => refreshCalculatedField(companyId, filter, card),
-          onError: (e) => errors[DashboardKind.calc(card.key)] = e,
-        ),
-    ];
-    await Future.wait(jobs);
-    return errors;
-  }
+  }) => _runJobs([
+    ..._totalsAndChartJobs(companyId, filter),
+    ..._listCardJobs(companyId),
+    ..._calculatedFieldJobs(companyId, filter, cards),
+  ]);
 
   /// Filter-keyed-only refresh used when the filter changes (or a single
   /// card is added) — totals + chart + every configured card, capped by the
@@ -380,29 +363,87 @@ class DashboardRepository {
     String companyId,
     DashboardFilter filter, {
     List<DashboardCardConfig> cards = const [],
-  }) async {
+  }) => _runJobs([
+    ..._totalsAndChartJobs(companyId, filter),
+    ..._calculatedFieldJobs(companyId, filter, cards),
+  ]);
+
+  /// The complement of [refreshFilterKeyed]: every list card, and nothing
+  /// that depends on a [DashboardFilter].
+  ///
+  /// List cards aren't filter-keyed — they all live at
+  /// [kDashboardListFilterHash] — which is exactly what lets a caller with no
+  /// dashboard mounted run them, and that caller is the **Sync pass**
+  /// (`Services.syncNow`). That pass re-downloads the fourteen browsable
+  /// entity tables and never touched `dashboard_cache`, so the `/activity`
+  /// screen and the dashboard's Activity card — both watching the one
+  /// `(company, activities, '_')` row — kept painting pre-sync rows until the
+  /// user pressed a refresh button. Neither screen re-runs its constructor:
+  /// the shell is a `StatefulShellRoute.indexedStack`, so both stay mounted
+  /// for the whole session (invoiceninja/flutter#160). See `docs/sync.md`
+  /// § A Sync pass re-downloads the entity tables and nothing else.
+  ///
+  /// Deliberately NOT totals / chart / configured cards: those are keyed by a
+  /// [DashboardFilter] that is UI state owned by `DashboardViewModel` (range,
+  /// currency, include-drafts). A caller with no dashboard mounted would have
+  /// to invent one, and would write a cache row under a hash nothing watches.
+  ///
+  /// Returns kind → exception for the kinds that failed; never throws.
+  /// Iterates [DashboardKind.listKinds], so a kind added there without a
+  /// matching [_refreshByKind] case now fails on **every sync** rather than
+  /// only on a mounted dashboard — swallowed and logged, so invisible outside
+  /// the diagnostics log. `dashboard_repository_test` pins the set.
+  Future<Map<String, Object>> refreshListCards(String companyId) =>
+      _runJobs(_listCardJobs(companyId));
+
+  /// Run [jobs] in parallel under ONE [_Semaphore], folding each failure into
+  /// the returned map under its own kind. Never throws.
+  ///
+  /// The semaphore is built here and nowhere else, and that is the point:
+  /// [_maxConcurrent] caps a refresh *pass*, so two job lists composed into
+  /// one call must share one cap. Giving each half its own — the obvious way
+  /// to write [refreshAll] as "filter-keyed, then list cards" — silently runs
+  /// the dashboard at 2x the cap, which is invisible in review and shows up
+  /// only as a burst of parallel requests on a slow connection.
+  Future<Map<String, Object>> _runJobs(List<_RefreshJob> jobs) async {
     final errors = <String, Object>{};
     final semaphore = _Semaphore(_maxConcurrent);
     await Future.wait([
-      _runUnder(
-        semaphore,
-        () => refreshTotals(companyId, filter),
-        onError: (e) => errors[DashboardKind.totalsCurrent] = e,
-      ),
-      _runUnder(
-        semaphore,
-        () => refreshChart(companyId, filter),
-        onError: (e) => errors[DashboardKind.chart] = e,
-      ),
-      for (final card in cards)
-        _runUnder(
-          semaphore,
-          () => refreshCalculatedField(companyId, filter, card),
-          onError: (e) => errors[DashboardKind.calc(card.key)] = e,
-        ),
+      for (final (kind, task) in jobs)
+        _runUnder(semaphore, task, onError: (e) => errors[kind] = e),
     ]);
     return errors;
   }
+
+  /// Totals + chart: the two sections keyed by the [filter] itself.
+  List<_RefreshJob> _totalsAndChartJobs(
+    String companyId,
+    DashboardFilter filter,
+  ) => [
+    (DashboardKind.totalsCurrent, () => refreshTotals(companyId, filter)),
+    (DashboardKind.chart, () => refreshChart(companyId, filter)),
+  ];
+
+  /// Every list card. Not filter-keyed — see [refreshListCards].
+  List<_RefreshJob> _listCardJobs(String companyId) => [
+    for (final kind in DashboardKind.listKinds)
+      (kind, () => _refreshByKind(companyId, kind)),
+  ];
+
+  /// The user's configured calculated-field cards. Filter-keyed too — the
+  /// date range / currency / drafts flag live in the hash, `period` / `calc`
+  /// / `format` in the card key.
+  List<_RefreshJob> _calculatedFieldJobs(
+    String companyId,
+    DashboardFilter filter,
+    List<DashboardCardConfig> cards,
+  ) => [
+    for (final card in cards)
+      (
+        DashboardKind.calc(card.key),
+        () => refreshCalculatedField(companyId, filter, card),
+      ),
+  ];
 
   Future<void> _refreshByKind(String companyId, String kind) {
     switch (kind) {

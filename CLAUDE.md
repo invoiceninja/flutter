@@ -45,7 +45,7 @@ Plus two non-negotiables carried from admin-portal:
 | Adding a sign-out / session-ending surface | § Action confirmations · `docs/adding-an-entity.md` § Action confirmations — the sign-out case |
 | A shortcut that stops working until you click, a macOS beep, or a bare key served by the wrong screen | `docs/keyboard.md` § The whole keyboard layer hangs off one focus node · `test/lint/focus_owner_wiring_test.dart` |
 | Adding or changing a `G`-leader jump (`G` then a letter) | `docs/keyboard.md` § The `G`-leader table has one copy · `lib/domain/leader_shortcuts.dart` |
-| Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules (all 27 rules) · `docs/sync.md` (the evidence) |
+| Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules (all 28 rules) · `docs/sync.md` (the evidence) |
 | Bundled vs per-entity data loading | § Data loading — bundled vs per-entity |
 | Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
 | Changing the Drift schema (forward migration) | `docs/migrations.md` |
@@ -425,6 +425,7 @@ Every render surface must wire `guardedOnTap(context, item)` rather than `item.o
 - **A different identity on the same device wipes the local database, and only the login entry points check.** → `docs/sync.md` § A different identity on the same device wipes the local database
 - **The server's rounding scale is a two-level map, not one precision.** → `docs/sync.md` § The server's rounding scale is a two-level map, not one precision
 - **`markPaid`'s confirmation is a hook, deliberately NOT `confirm: true`.** It opens its own dialog, and § Action confirmations is explicit that a second prompt in front of one is worse than none.
+- **A Sync pass re-downloads the fourteen entity tables and nothing else — every cache that hangs off them is re-seeded by hand.** → `docs/sync.md` § A Sync pass re-downloads the entity tables and nothing else
 - The local `is_dirty` flag is **layered onto the domain model** in `<Repository>._fromRow` (e.g. `ClientRepository._fromRow`) — `<Entity>.fromApi` defaults it to `false`, the repo overlays the value from the Drift row. Without the overlay, an unsaved edit shows up as clean after app restart.
 
 ## Data loading — bundled vs per-entity

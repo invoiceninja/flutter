@@ -165,13 +165,31 @@ void main() {
       await tester.pump();
       expect(FocusManager.instance.primaryFocus, shell);
 
-      // The framework parks focus on the root scope itself here and will
-      // restore its `_suspendedNode` on resume. Reclaiming would make it
-      // discard that and blur whatever the user was typing in.
+      // On a desktop host the framework parks focus on the root scope itself
+      // here and restores its `_suspendedNode` on resume; reclaiming would make
+      // it discard that and blur whatever the user was typing in. The park is
+      // staged by hand because `FocusManager` registers its lifecycle listener
+      // everywhere *but* `android` and `iOS` (`_respondToLifecycleChange`,
+      // flutter#148475) while `flutter test` always reports `android`, so the
+      // lifecycle change alone moves no focus at all here — and
+      // `debugDefaultTargetPlatformOverride` cannot reach it either, since that
+      // decision is made in the constructor of a `FocusManager` the test
+      // binding builds during the *previous* test's `postTest`. What is under
+      // test is the keeper standing down, not the framework's own suspend.
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      FocusManager.instance.rootScope.requestScopeFocus();
       await settle(tester);
-      expect(FocusManager.instance.primaryFocus, isNot(shell));
+      expect(
+        FocusManager.instance.primaryFocus,
+        isNot(shell),
+        reason:
+            'the identical park is reclaimed within these two frames while '
+            'resumed — see `focus parked on the root scope is reclaimed`, '
+            'which is what makes this a real assertion',
+      );
 
+      // Coming back is the keeper's job here, not the framework's: the
+      // `_suspendedNode` restore it would normally ride on never happened.
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await settle(tester);
       expect(FocusManager.instance.primaryFocus, shell);

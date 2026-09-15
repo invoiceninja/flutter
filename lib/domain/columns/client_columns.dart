@@ -6,6 +6,7 @@ import 'package:admin/domain/columns/column_factories.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
+import 'package:admin/utils/notes_html.dart';
 
 // `kColumnFlexMinWidth` moved to `lib/ui/core/list/entity_list_constants.dart`
 // so every entity's list screen can use the same value.
@@ -208,15 +209,15 @@ final List<ClientColumn> kAllClientColumns = <ClientColumn>[
     id: ClientFieldIds.publicNotes,
     labelKey: 'public_notes',
     width: 200,
-    cellBuilder: (c, _) => cellText(c.publicNotes),
-    valueBuilder: (c) => cellNonZeroString(c.publicNotes),
+    cellBuilder: (c, _) => cellNotes(c.publicNotes),
+    valueBuilder: (c) => cellNonZeroString(plainTextFromHtml(c.publicNotes)),
   ),
   ClientColumn(
     id: ClientFieldIds.privateNotes,
     labelKey: 'private_notes',
     width: 200,
-    cellBuilder: (c, _) => cellText(c.privateNotes),
-    valueBuilder: (c) => cellNonZeroString(c.privateNotes),
+    cellBuilder: (c, _) => cellNotes(c.privateNotes),
+    valueBuilder: (c) => cellNonZeroString(plainTextFromHtml(c.privateNotes)),
   ),
   // The company's own labels ('Region'), type-aware values and the
   // hiding of unconfigured slots are applied by

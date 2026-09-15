@@ -146,11 +146,13 @@ final List<CreditColumn> kAllCreditColumns = <CreditColumn>[
     CreditFieldIds.publicNotes,
     (c) => c.publicNotes,
     labelKey: 'public_notes',
+    html: true,
   ),
   colNotes<Credit>(
     CreditFieldIds.privateNotes,
     (c) => c.privateNotes,
     labelKey: 'private_notes',
+    html: true,
   ),
   // Quotes, credits, purchase orders and recurring invoices all read the
   // company's `invoice1..4` slots — there are no per-type definitions.

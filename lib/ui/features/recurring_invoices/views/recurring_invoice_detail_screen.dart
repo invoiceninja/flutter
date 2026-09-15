@@ -39,6 +39,7 @@ import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoice_detail_view_model.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_actions.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_status_pill.dart';
+import 'package:admin/utils/notes_html.dart';
 
 class RecurringInvoiceDetailScreen extends StatefulWidget {
   const RecurringInvoiceDetailScreen({required this.id, super.key});
@@ -591,8 +592,11 @@ class _Overview extends StatelessWidget {
         recurringInvoice.customValue2.isNotEmpty ||
         recurringInvoice.customValue3.isNotEmpty ||
         recurringInvoice.customValue4.isNotEmpty;
-    final hasNotes = recurringInvoice.publicNotes.isNotEmpty;
-    final hasTerms = recurringInvoice.terms.isNotEmpty;
+    // Both fields are HTML on the wire; a read-only strip wants the words.
+    final publicNotes = plainTextFromHtml(recurringInvoice.publicNotes);
+    final terms = plainTextFromHtml(recurringInvoice.terms);
+    final hasNotes = publicNotes.isNotEmpty;
+    final hasTerms = terms.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -629,10 +633,7 @@ class _Overview extends StatelessWidget {
           // dates here previews what the next run will say
           // (invoiceninja/flutter#93).
           Text(
-            expandDatePlaceholders(
-              recurringInvoice.publicNotes,
-              formatter: formatter,
-            ),
+            expandDatePlaceholders(publicNotes, formatter: formatter),
             style: TextStyle(color: tokens.ink),
           ),
         ],
@@ -648,10 +649,7 @@ class _Overview extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            expandDatePlaceholders(
-              recurringInvoice.terms,
-              formatter: formatter,
-            ),
+            expandDatePlaceholders(terms, formatter: formatter),
             style: TextStyle(color: tokens.ink),
           ),
         ],

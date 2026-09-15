@@ -30,7 +30,9 @@ import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/preview_controller.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/widgets/template_preview_panel.dart';
+import 'package:admin/utils/editor_html.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/legacy_html_markdown.dart';
 
 /// Callback types so the screen stays entity-agnostic — the route screen
 /// binds these to the owning repo's `email` / `scheduleEmail` /
@@ -270,7 +272,9 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     _preview.schedule(
       template: _template,
       subject: _subject.text,
-      body: _body.text,
+      // The same shape the send will use, so the preview isn't a rehearsal of
+      // something else.
+      body: htmlFromEditableValue(_body.text),
       entity: binding.entity,
       entityId: binding.entityId,
       immediate: immediate,
@@ -289,7 +293,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     }
     if (_seedBodyArmed && _body.text.isEmpty) {
       _seedBodyArmed = false;
-      _body.text = value.preview.rawBody;
+      _body.text = _editableBody(value.preview.rawBody);
     }
     // Read by the "Preview:" line, whose builder listens to `_preview` after
     // this listener (registered first, in `initState`) has run.
@@ -342,7 +346,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     if (value is! TemplatePreviewLoaded) return;
     setState(() {
       _bodyCustomized = true;
-      _body.text = value.preview.rawBody;
+      _body.text = _editableBody(value.preview.rawBody);
     });
   }
 
@@ -447,6 +451,28 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     return t.isEmpty ? null : t;
   }
 
+  /// A stored template body, as text a plain field can show.
+  ///
+  /// Email bodies are HTML — React edits them with its rich editor, and this
+  /// app's Templates & Reminders screen writes HTML too — so "Customize" used
+  /// to drop raw `<p>` tags into this field.
+  String _editableBody(String stored) => markdownFromLegacyHtml(stored);
+
+  /// The body as it goes on the wire.
+  ///
+  /// The server runs CommonMark over a non-`custom` template body
+  /// (`EmailDefaults.php:247`) and injects a custom one raw, so a typed line
+  /// break survives neither. HTML renders the same either way.
+  ///
+  /// [htmlFromEditableValue] and not `htmlFromPlainText`: the field shows
+  /// [_editableBody]'s fold of a stored template, so the way back has to be the
+  /// fold's inverse. Escaping it as plain text sent `**Bob**` and a dead
+  /// `[label](url)` whenever a formatted template was customised and sent.
+  String? _bodyOrNull() {
+    final html = htmlFromEditableValue(_body.text);
+    return html.isEmpty ? null : html;
+  }
+
   Future<void> _send() async {
     if (_inFlight) return;
     setState(() => _inFlight = true);
@@ -455,7 +481,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
       await widget.onSend(
         template: _template,
         subject: _trimOrNull(_subject),
-        body: _trimOrNull(_body),
+        body: _bodyOrNull(),
         ccEmail: _trimOrNull(_cc),
       );
       if (!mounted) return;
@@ -507,7 +533,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
         template: _template,
         sendAt: sendAt,
         subject: _trimOrNull(_subject),
-        body: _trimOrNull(_body),
+        body: _bodyOrNull(),
         ccEmail: _trimOrNull(_cc),
       );
       if (!mounted) return;

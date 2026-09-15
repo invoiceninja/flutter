@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_status_pill.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
+import 'package:admin/utils/notes_html.dart';
 
 typedef InvoiceColumn = ColumnDefinition<Invoice>;
 
@@ -188,8 +189,8 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
     sortable: false,
     width: 240,
     cellBuilder: (i, _) =>
-        i.publicNotes.isEmpty ? cellEmpty() : cellText(i.publicNotes),
-    valueBuilder: (i) => cellNonZeroString(i.publicNotes),
+        i.publicNotes.isEmpty ? cellEmpty() : cellNotes(i.publicNotes),
+    valueBuilder: (i) => cellNonZeroString(plainTextFromHtml(i.publicNotes)),
   ),
   InvoiceColumn(
     id: InvoiceFieldIds.privateNotes,
@@ -197,8 +198,8 @@ final List<InvoiceColumn> kAllInvoiceColumns = <InvoiceColumn>[
     sortable: false,
     width: 240,
     cellBuilder: (i, _) =>
-        i.privateNotes.isEmpty ? cellEmpty() : cellText(i.privateNotes),
-    valueBuilder: (i) => cellNonZeroString(i.privateNotes),
+        i.privateNotes.isEmpty ? cellEmpty() : cellNotes(i.privateNotes),
+    valueBuilder: (i) => cellNonZeroString(plainTextFromHtml(i.privateNotes)),
   ),
   colUpdatedAt<Invoice>(InvoiceFieldIds.updatedAt, (i) => i.updatedAt),
   // Billing docs can carry a vendor as well as a client. The id, the Drift

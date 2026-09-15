@@ -40,6 +40,7 @@ import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_det
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions.dart';
 import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_status_pill.dart';
+import 'package:admin/utils/notes_html.dart';
 
 class PurchaseOrderDetailScreen extends StatefulWidget {
   const PurchaseOrderDetailScreen({required this.id, super.key});
@@ -544,8 +545,11 @@ class _Overview extends StatelessWidget {
         purchaseOrder.customValue2.isNotEmpty ||
         purchaseOrder.customValue3.isNotEmpty ||
         purchaseOrder.customValue4.isNotEmpty;
-    final hasNotes = purchaseOrder.publicNotes.isNotEmpty;
-    final hasTerms = purchaseOrder.terms.isNotEmpty;
+    // Both fields are HTML on the wire; a read-only strip wants the words.
+    final publicNotes = plainTextFromHtml(purchaseOrder.publicNotes);
+    final terms = plainTextFromHtml(purchaseOrder.terms);
+    final hasNotes = publicNotes.isNotEmpty;
+    final hasTerms = terms.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -577,10 +581,7 @@ class _Overview extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            expandDatePlaceholders(
-              purchaseOrder.publicNotes,
-              formatter: formatter,
-            ),
+            expandDatePlaceholders(publicNotes, formatter: formatter),
             style: TextStyle(color: tokens.ink),
           ),
         ],
@@ -596,7 +597,7 @@ class _Overview extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            expandDatePlaceholders(purchaseOrder.terms, formatter: formatter),
+            expandDatePlaceholders(terms, formatter: formatter),
             style: TextStyle(color: tokens.ink),
           ),
         ],

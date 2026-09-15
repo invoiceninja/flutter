@@ -7,6 +7,7 @@ import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/custom_field_columns.dart';
 import 'package:admin/domain/columns/ids/vendor_column_ids.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/utils/notes_html.dart';
 
 // Re-export the shared min width so vendor-screen code keeps the same
 // single source as clients/products.
@@ -184,15 +185,15 @@ final List<VendorColumn> kAllVendorColumns = <VendorColumn>[
     id: VendorFieldIds.publicNotes,
     labelKey: 'public_notes',
     width: 200,
-    cellBuilder: (v, _) => cellText(v.publicNotes),
-    valueBuilder: (v) => cellNonZeroString(v.publicNotes),
+    cellBuilder: (v, _) => cellNotes(v.publicNotes),
+    valueBuilder: (v) => cellNonZeroString(plainTextFromHtml(v.publicNotes)),
   ),
   VendorColumn(
     id: VendorFieldIds.privateNotes,
     labelKey: 'private_notes',
     width: 200,
-    cellBuilder: (v, _) => cellText(v.privateNotes),
-    valueBuilder: (v) => cellNonZeroString(v.privateNotes),
+    cellBuilder: (v, _) => cellNotes(v.privateNotes),
+    valueBuilder: (v) => cellNonZeroString(plainTextFromHtml(v.privateNotes)),
   ),
   // The company's own labels ('Region'), type-aware values and the
   // hiding of unconfigured slots are applied by

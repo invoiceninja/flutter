@@ -244,11 +244,10 @@ void main() {
     // `flush()` serializes the live document, so this reads what the editor
     // actually holds — and what a save would persist.
     // Assert the shape, not just the words: `contains('One')` would pass even
-    // if the list had collapsed into a single paragraph.
-    // super_editor's own serialization of an unordered list — indented `*`
-    // rather than the `-` we fed it, which is exactly why the assertion is on
-    // the round-tripped shape rather than the input.
-    expect(controller.flush(), 'Intro\n\n  * One\n  * Two');
+    // if the list had collapsed into a single paragraph. The value comes back
+    // byte-identical to the input, which is the round trip these fields need:
+    // HTML in, markdown inside the editor, HTML out.
+    expect(controller.flush(), '<p>Intro</p><ul><li>One</li><li>Two</li></ul>');
   });
 
   testWidgets('keeps an ordered list ordered through deserialization', (
@@ -273,10 +272,49 @@ void main() {
     );
     await tester.pump();
 
-    // The `1.` prefixes prove these are ordered `ListItemNode`s: two
-    // paragraphs of literal text would serialize with no marker at all.
-    // (super_editor emits `1.` per item rather than renumbering.)
-    expect(controller.flush(), '  1. One\n  1. Two');
+    // `<ol>` proves these are ordered `ListItemNode`s: two paragraphs of
+    // literal text would serialize as `<p>`s with no list around them.
+    expect(controller.flush(), '<ol><li>One</li><li>Two</li></ol>');
+  });
+
+  testWidgets('a pasted email keeps its line breaks, as HTML', (tester) async {
+    // invoiceninja/flutter#159: a note pasted from an email looked right here
+    // and ran together on the web, because these fields are HTML there and a
+    // bare `\n` — or a markdown hard break — is whitespace to an HTML
+    // renderer. What a save persists now says the breaks out loud.
+    final emissions = <String>[];
+    final controller = MarkdownFieldController();
+    await tester.pumpWidget(
+      wrap(
+        Center(
+          child: SizedBox(
+            width: 400,
+            child: MarkdownTextField(
+              label: 'Public notes',
+              showLabel: false,
+              controller: controller,
+              initialValue: 'Hi Bob\nThanks for the quote.\n\nRegards\nJim',
+              onChanged: emissions.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final saved = controller.flush();
+    expect(
+      saved,
+      '<p>Hi Bob<br>Thanks for the quote.</p><p>Regards<br>Jim</p>',
+    );
+    // A `\n` anywhere in the value would be turned into a stray `<br />` by
+    // the server's `nl2br()` on the PDF path.
+    expect(saved, isNot(contains('\n')));
+
+    // Opening a legacy value — or saving one untouched, which is what
+    // `flush()` is — must not rewrite the record. Only a real edit does.
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(emissions, isEmpty);
   });
 
   testWidgets('an empty value renders at height and emits nothing', (

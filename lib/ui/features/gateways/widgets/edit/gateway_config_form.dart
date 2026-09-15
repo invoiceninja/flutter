@@ -11,6 +11,8 @@ import 'package:admin/ui/features/gateways/view_models/company_gateway_edit_view
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/utils/url_safety.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
+import 'package:admin/utils/editor_html.dart';
+import 'package:admin/utils/legacy_html_markdown.dart';
 
 /// Dynamic credentials form. Reads the active provider's `parsedFields`
 /// JSON schema and routes each `(name, descriptor)` to a control:
@@ -194,6 +196,13 @@ class _GatewayConfigFormState extends State<GatewayConfigForm> {
         lower.contains('key') ||
         lower.contains('token');
     final isMultiline = name == 'text' || name == 'appleDomainVerification';
+    // A Custom gateway's `text` is the blurb shown on the portal's payment
+    // page, and it is HTML there — React edits it with its rich editor. So the
+    // stored value is shown as text and written back as HTML, or a typed line
+    // break would vanish (invoiceninja/flutter#159). Deliberately only `text`:
+    // `appleDomainVerification` shares this branch and is a verification token
+    // that must go on the wire byte for byte.
+    final isHtml = name == 'text';
     final reveal = _showSensitive[name] ?? false;
     // Keyboard is derived from the descriptor name, same as `isSensitive`
     // above — these fields are generated per gateway, so there is no call
@@ -215,7 +224,9 @@ class _GatewayConfigFormState extends State<GatewayConfigForm> {
       keyboardType = null;
     }
     return TextFormField(
-      initialValue: current?.toString() ?? '',
+      initialValue: isHtml
+          ? markdownFromLegacyHtml(current?.toString() ?? '')
+          : current?.toString() ?? '',
       maxLines: isMultiline ? 5 : 1,
       obscureText: isSensitive && !reveal,
       keyboardType: keyboardType,
@@ -236,7 +247,14 @@ class _GatewayConfigFormState extends State<GatewayConfigForm> {
               )
             : null,
       ),
-      onChanged: (v) => widget.vm.updateConfigField(name, v),
+      // `htmlFromEditableValue`, not the plain-text converter: the field shows
+      // the fold of the stored value, so the way back has to be the fold's
+      // inverse — otherwise a blurb carrying a link or bold degrades to literal
+      // markdown the moment the gateway is saved.
+      onChanged: (v) => widget.vm.updateConfigField(
+        name,
+        isHtml ? htmlFromEditableValue(v) : v,
+      ),
     );
   }
 

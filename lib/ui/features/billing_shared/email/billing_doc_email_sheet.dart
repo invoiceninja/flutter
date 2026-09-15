@@ -6,6 +6,7 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/email/labeled_field.dart';
 import 'package:admin/ui/features/billing_shared/email/schedule_email_picker.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// Server-side email template names. Match admin-portal's
 /// `kEmailTemplate*` constants + React's `EmailType` enum.
@@ -166,7 +167,12 @@ class _EmailSheetState extends State<_EmailSheet> {
     return BillingEmailResult(
       template: _template,
       subject: _subjectController.text.trim(),
-      body: _bodyController.text.trim(),
+      // HTML on the wire, like every other email body: the server renders a
+      // non-`custom` template body through CommonMark and injects a custom one
+      // raw, so a typed line break survives neither
+      // (invoiceninja/flutter#159). This sheet never seeds from a template, so
+      // there is nothing to fold on the way in.
+      body: htmlFromPlainText(_bodyController.text),
       ccEmail: _ccController.text.trim(),
       scheduledFor: scheduledFor,
     );

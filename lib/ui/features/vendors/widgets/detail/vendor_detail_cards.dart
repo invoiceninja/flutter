@@ -20,6 +20,7 @@ import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/utils/address_format.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/notes_html.dart';
 
 // ────────────────────────────────────────────────────────────────────
 // Vendor detail screen cards. One file because the cards are small and
@@ -66,8 +67,7 @@ class VendorDetailCardsGrid extends StatelessWidget {
 
   Widget _wide(BuildContext context) {
     final hasContacts = VendorDetailContactsCard.hasContent(vendor.contacts);
-    final hasNotes =
-        vendor.privateNotes.isNotEmpty || vendor.publicNotes.isNotEmpty;
+    final hasNotes = VendorDetailNotesCard.hasContent(vendor);
     final columns = <Widget>[
       Expanded(
         child: VendorDetailDetailsCard(vendor: vendor, formatter: formatter),
@@ -117,7 +117,7 @@ class VendorDetailCardsGrid extends StatelessWidget {
           contacts: vendor.contacts,
           vendorId: vendor.id,
         ),
-      if (vendor.privateNotes.isNotEmpty || vendor.publicNotes.isNotEmpty)
+      if (VendorDetailNotesCard.hasContent(vendor))
         VendorDetailNotesCard(vendor: vendor),
       if (vendor.tagIds.isNotEmpty) _TagsCard(vendor: vendor),
     ];
@@ -519,10 +519,21 @@ class VendorDetailNotesCard extends StatelessWidget {
 
   final Vendor vendor;
 
+  /// Whether this card would render anything.
+  ///
+  /// Both fields are HTML on the wire, so the question is whether they hold
+  /// any *words* — markup that renders as nothing (`<p></p>`) must not reserve
+  /// a card, and a card that hides itself still costs the caller a gap.
+  static bool hasContent(Vendor vendor) =>
+      plainTextFromHtml(vendor.privateNotes).isNotEmpty ||
+      plainTextFromHtml(vendor.publicNotes).isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
-    final hasPrivate = vendor.privateNotes.isNotEmpty;
-    final hasPublic = vendor.publicNotes.isNotEmpty;
+    final privateNotes = plainTextFromHtml(vendor.privateNotes);
+    final publicNotes = plainTextFromHtml(vendor.publicNotes);
+    final hasPrivate = privateNotes.isNotEmpty;
+    final hasPublic = publicNotes.isNotEmpty;
     if (!hasPrivate && !hasPublic) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final tokens = context.inTheme;
@@ -535,7 +546,7 @@ class VendorDetailNotesCard extends StatelessWidget {
           if (hasPrivate)
             _NotesBlock(
               label: context.tr('private_notes'),
-              body: vendor.privateNotes,
+              body: privateNotes,
               labelColor: tokens.ink3,
               bodyStyle: theme.textTheme.bodyMedium?.copyWith(
                 color: tokens.ink,
@@ -549,7 +560,7 @@ class VendorDetailNotesCard extends StatelessWidget {
           if (hasPublic)
             _NotesBlock(
               label: context.tr('public_notes'),
-              body: vendor.publicNotes,
+              body: publicNotes,
               labelColor: tokens.ink3,
               bodyStyle: theme.textTheme.bodyMedium?.copyWith(
                 color: tokens.ink,

@@ -18,6 +18,7 @@ import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_screen.dart';
 import 'package:admin/ui/features/clients/view_models/client_edit_view_model.dart'
     show emptyClient;
+import 'package:admin/utils/legacy_html_markdown.dart';
 
 import '../../../../_localization_helper.dart';
 
@@ -57,6 +58,11 @@ String _strtr(String s) {
 /// Renders like `TemplateEngine`: an empty subject/body falls back to the
 /// template's own, and the subject is substituted with plain `strtr`.
 class _FakeTemplatesApi implements TemplatesApi {
+  _FakeTemplatesApi({this.templateBody = _templateBody});
+
+  /// The stored template body. HTML, as every Invoice Ninja client writes it.
+  final String templateBody;
+
   final subjects = <String>[];
 
   bool get probed => subjects.any((s) => s.contains('[[in'));
@@ -71,7 +77,7 @@ class _FakeTemplatesApi implements TemplatesApi {
   }) async {
     subjects.add(subject);
     final rawSubject = subject.isEmpty ? _templateSubject : subject;
-    final rawBody = body.isEmpty ? _templateBody : body;
+    final rawBody = body.isEmpty ? templateBody : body;
     return TemplatePreview(
       subject: _strtr(rawSubject),
       body: _strtr(rawBody),
@@ -122,6 +128,8 @@ class _FakeServices implements Services {
 Future<_FakeTemplatesApi> _pump(
   WidgetTester tester, {
   bool withInvitation = true,
+  String templateBody = _templateBody,
+  List<String?>? sentBodies,
 }) async {
   // A phone: the narrow layout, where the preview is a tab away.
   tester.view.physicalSize = const Size(400, 900);
@@ -129,7 +137,7 @@ Future<_FakeTemplatesApi> _pump(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
-  final api = _FakeTemplatesApi();
+  final api = _FakeTemplatesApi(templateBody: templateBody);
   final client = emptyClient().copyWith(
     id: 'cl1',
     contacts: [
@@ -170,7 +178,9 @@ Future<_FakeTemplatesApi> _pump(
           vendorId: '',
           isHosted: false,
           formatter: null,
-          onSend: ({required template, subject, body, ccEmail}) async {},
+          onSend: ({required template, subject, body, ccEmail}) async {
+            sentBodies?.add(body);
+          },
           onSchedule:
               ({
                 required template,
@@ -238,9 +248,12 @@ void main() {
 
     await tester.tap(find.text('Customize'));
     await tester.pumpAndSettle();
+    // The stored template is HTML — React's editor writes it, and so does this
+    // app's Templates & Reminders screen — so a plain field has to be handed
+    // the words, not the tags. It goes back out as HTML on send.
     expect(
       tester.widget<TextField>(_bodyField).controller!.text,
-      _templateBody,
+      markdownFromLegacyHtml(_templateBody),
     );
     expect(_canPop(tester), isTrue);
 
@@ -248,6 +261,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(_bodyField).controller!.text, isEmpty);
     expect(find.text('Customize'), findsOneWidget);
+  });
+
+  testWidgets('Customize then send hands the template back unchanged', (
+    tester,
+  ) async {
+    // The body is a plain field over an HTML value, so the fold that makes it
+    // readable and the converter that writes it back have to be inverses. They
+    // weren't: bold came back as `**Bob**`, the list as `- One<br>- Two`, and
+    // the link as literal `[this](url)` — a template degraded just by being
+    // customised and sent.
+    const rich =
+        '<p>Hi <strong>Bob</strong></p>'
+        '<ul><li>One</li><li>Two</li></ul>'
+        '<p>See <a href="https://x.test">this</a></p>';
+    final sent = <String?>[];
+    await _pump(tester, templateBody: rich, sentBodies: sent);
+
+    await tester.tap(find.text('Customize'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send'));
+    await tester.pumpAndSettle();
+    // Let the "queued" toast's own timers run out; the controller outlives the
+    // screen, which pops itself on send.
+    await tester.pump(const Duration(seconds: 7));
+
+    expect(sent.single, rich);
+  });
+
+  testWidgets('a body typed from scratch keeps its line breaks', (
+    tester,
+  ) async {
+    // The other half of invoiceninja/flutter#159: the server renders a
+    // non-`custom` template body through CommonMark and injects a custom one
+    // raw, so a bare newline survives neither.
+    final sent = <String?>[];
+    await _pump(tester, sentBodies: sent);
+
+    await tester.enterText(_bodyField, 'Hi Bob\nThanks.\n\nRegards');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 7));
+
+    expect(sent.single, '<p>Hi Bob<br>Thanks.</p><p>Regards</p>');
+    expect(sent.single, isNot(contains('\n')));
   });
 
   testWidgets('changing a chip is an edit', (tester) async {

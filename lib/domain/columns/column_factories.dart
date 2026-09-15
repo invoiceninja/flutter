@@ -4,6 +4,7 @@ import 'package:admin/domain/entity_state.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/core/widgets/user_name_label.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// Factories for the columns every entity list shares.
 ///
@@ -30,19 +31,27 @@ import 'package:admin/ui/core/widgets/user_name_label.dart';
 /// Display-only by default: on most tables the notes live in the `payload` JSON
 /// blob with no column to order by. Clients and Vendors denormalize them and
 /// pass `sortable: true`.
+///
+/// Set [html] on the fields that carry markup — the notes / terms / footer of a
+/// client, vendor or billing document. Expense, project and payment notes are
+/// plain text everywhere in the ecosystem (React edits them in a `<textarea>`),
+/// so they are left alone.
 ColumnDefinition<T> colNotes<T>(
   String id,
   String Function(T entity) get, {
   required String labelKey,
   double width = 240,
   bool sortable = false,
+  bool html = false,
 }) => ColumnDefinition<T>(
   id: id,
   labelKey: labelKey,
   width: width,
   sortable: sortable,
-  cellBuilder: (e, _) => cellText(get(e)),
-  valueBuilder: (e) => cellNonZeroString(get(e)),
+  cellBuilder: (e, _) => html ? cellNotes(get(e)) : cellText(get(e)),
+  // The copy value, so it keeps the paragraphs a one-line cell can't show.
+  valueBuilder: (e) =>
+      cellNonZeroString(html ? plainTextFromHtml(get(e)) : get(e)),
 );
 
 /// Record creation timestamp. `created_at` is a real column on every entity

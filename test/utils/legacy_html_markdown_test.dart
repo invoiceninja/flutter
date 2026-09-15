@@ -148,10 +148,54 @@ void main() {
         markdownFromLegacyHtml('<table><tr><td>a</td><td>b</td></tr></table>'),
         'a\n\nb',
       );
+    });
+
+    test('keeps a blockquote a blockquote', () {
+      // The marker used to be dropped, so a quote degraded to a plain
+      // paragraph the next time the record was saved from this app.
       expect(
         markdownFromLegacyHtml('<blockquote>quoted</blockquote>'),
-        'quoted',
+        '> quoted',
       );
+      // TinyMCE nests a `<p>` inside; the marker must not be stranded on a
+      // line of its own, which CommonMark reads as an empty quote.
+      expect(
+        markdownFromLegacyHtml('<blockquote><p>quoted</p></blockquote>'),
+        '> quoted',
+      );
+      expect(
+        markdownFromLegacyHtml('<p>before</p><blockquote>q</blockquote>'),
+        'before\n\n> q',
+      );
+    });
+
+    test('drops an inline tag it has no mapping for, keeping the text', () {
+      // These used to be left in place as literal text: the user saw raw
+      // markup in the editor, and now that this app writes HTML the writer
+      // would escape it into a visible `&lt;span …&gt;` on the web.
+      expect(
+        markdownFromLegacyHtml(
+          '<p>a <span style="color:red">red</span> word</p>',
+        ),
+        'a red word',
+      );
+      expect(markdownFromLegacyHtml('<font size="3">big</font>'), 'big');
+      expect(markdownFromLegacyHtml('<p><mark>hi</mark></p>'), 'hi');
+    });
+
+    test('converts an image to a markdown image', () {
+      // Without a rule it fell through as an unmapped inline tag and was
+      // painted to the user as raw markup.
+      expect(
+        markdownFromLegacyHtml('<img src="https://x.test/a.png" alt="a">'),
+        '![a](https://x.test/a.png)',
+      );
+      expect(
+        markdownFromLegacyHtml('<p><img src="https://x.test/b.png" /></p>'),
+        '![](https://x.test/b.png)',
+      );
+      // No `src` is nothing to render.
+      expect(markdownFromLegacyHtml('<p>x<img alt="a"></p>'), 'x');
     });
 
     test('converts inline formatting to markdown', () {
@@ -187,6 +231,16 @@ void main() {
       expect(markdownFromLegacyHtml('<address>here</address>'), 'here');
     });
 
+    test('resolves entities inside a link destination', () {
+      // Everywhere else entities are left to `markdown`'s DecodeHtmlSyntax,
+      // but nothing downstream decodes inside a link destination — so an
+      // `&amp;` in a query string would survive every round trip.
+      expect(
+        markdownFromLegacyHtml('<a href="https://x.test/?a=1&amp;b=2">l</a>'),
+        '[l](https://x.test/?a=1&b=2)',
+      );
+    });
+
     test('leaves HTML entities for the markdown parser to decode', () {
       // `markdown`'s DecodeHtmlSyntax resolves these downstream against the
       // full WHATWG table; decoding here as well would only double up.
@@ -204,7 +258,15 @@ void main() {
         markdownFromLegacyHtml('<div><p>one</p></div><div><p>two</p></div>'),
         'one\n\ntwo',
       );
+      // Leading blanks emit nothing — the writer never flushes a break
+      // before any text has been written.
       expect(markdownFromLegacyHtml('<p></p><p></p><p>only</p>'), 'only');
+      // An *interior* one is a blank line the user typed, and four newlines
+      // is exactly one empty paragraph node once super_editor parses this.
+      expect(
+        markdownFromLegacyHtml('<p>one</p><p></p><p>two</p>'),
+        'one\n\n\n\ntwo',
+      );
       expect(markdownFromLegacyHtml('one\n\n\n\ntwo'), 'one\n\n\n\ntwo');
       expect(
         markdownFromLegacyHtml('one < 5\n\n\n\ntwo'),

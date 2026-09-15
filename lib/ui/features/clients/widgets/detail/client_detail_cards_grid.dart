@@ -63,7 +63,7 @@ class ClientDetailCardsGrid extends StatelessWidget {
 
   Widget _wide(BuildContext context, Client c) {
     final hasContacts = ClientDetailContactsCard.hasContent(c.contacts);
-    final hasNotes = c.privateNotes.isNotEmpty || c.publicNotes.isNotEmpty;
+    final hasNotes = ClientDetailNotesCard.hasContent(c);
     // The middle column stacks two cards, so it pays the same per-entry gap the
     // stacked layout does: a client with a shipping address but no billing one
     // left the Address card collapsed and its gap behind, pushing Shipping
@@ -139,8 +139,7 @@ class ClientDetailCardsGrid extends StatelessWidget {
         ),
       if (ClientDetailPaymentMethodsCard.hasContent(c))
         ClientDetailPaymentMethodsCard(client: c),
-      if (c.privateNotes.isNotEmpty || c.publicNotes.isNotEmpty)
-        ClientDetailNotesCard(client: c),
+      if (ClientDetailNotesCard.hasContent(c)) ClientDetailNotesCard(client: c),
       if (c.tagIds.isNotEmpty) _TagsCard(client: c),
     ];
     return Column(

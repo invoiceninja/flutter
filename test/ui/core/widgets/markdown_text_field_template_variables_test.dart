@@ -110,7 +110,9 @@ void main() {
 
     await tester.tap(find.text('Balance'));
     await tester.pumpAndSettle();
-    expect(h.emitted, [r'Pay $balance now']);
+    // The emitted value is HTML (these fields are HTML on the wire); what
+    // matters here is that the `$token` crossed the serializer untouched.
+    expect(h.emitted, [r'<p>Pay $balance now</p>']);
     expect(find.text('Balance'), findsOneWidget);
     expect(find.byType(SuperEditor), findsNothing, reason: 'still at rest');
     expect(h.toasts.toasts.last.message, 'Updated');
@@ -118,7 +120,7 @@ void main() {
     h.toasts.toasts.last.action!.onPressed();
     // Undo is an edit like any other, so it rides the debounce.
     await tester.pump(const Duration(milliseconds: 400));
-    expect(h.emitted.last, r'Pay $amount now');
+    expect(h.emitted.last, r'<p>Pay $amount now</p>');
     expect(find.text('Amount'), findsOneWidget);
     // Let the toast's auto-dismiss timer run out.
     await tester.pump(const Duration(seconds: 30));
@@ -129,7 +131,7 @@ void main() {
     await _tapChip(tester, 'Amount');
     await tester.tap(find.text('Remove'));
     await tester.pumpAndSettle();
-    expect(h.emitted, ['Pay  now']);
+    expect(h.emitted, ['<p>Pay  now</p>']);
     expect(find.byType(TemplateVariableChip), findsNothing);
     expect(h.toasts.toasts.last.message, 'Removed');
     await tester.pump(const Duration(seconds: 30));
@@ -144,7 +146,7 @@ void main() {
     await tester.tap(find.text('Balance'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(h.emitted.last, r'Pay now $balance');
+    expect(h.emitted.last, r'<p>Pay now $balance</p>');
     expect(find.byType(TemplateVariableChip), findsOneWidget);
     expect(find.byType(SuperEditor), findsNothing);
   });
@@ -164,7 +166,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500)); // the picker closes
     await tester.pump(); // `_enterEditing`'s post-frame callback
     await tester.pump(const Duration(milliseconds: 400)); // the debounce
-    expect(h.emitted.last, r'Pay $balance now');
+    expect(h.emitted.last, r'<p>Pay $balance now</p>');
     expect(find.byType(SuperEditor), findsOneWidget);
     await tester.pump(const Duration(seconds: 30));
   });
@@ -189,7 +191,7 @@ void main() {
       await _tapChip(tester, 'Amount');
       await tester.tap(find.text('Balance'));
       await tester.pumpAndSettle();
-      expect(h.emitted, [r'Pay $balance now']);
+      expect(h.emitted, [r'<p>Pay $balance now</p>']);
       expect(find.text('Default'), findsNothing);
       expect(find.text(_caption), findsNothing);
       await tester.pump(const Duration(seconds: 30));
@@ -238,7 +240,7 @@ void main() {
 
       h.toasts.toasts.last.action!.onPressed();
       await tester.pump();
-      expect(h.emitted, ['', r'$amount']);
+      expect(h.emitted, ['', r'<p>$amount</p>']);
       expect(find.text('Default'), findsNothing);
       expect(find.text('Amount'), findsOneWidget);
       await tester.pump(const Duration(seconds: 30));

@@ -16,6 +16,7 @@ import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// Result of the client bulk-update dialog: one server `column` and the
 /// `new_value` to set on every selected client.
@@ -96,9 +97,18 @@ class _ClientBulkUpdateDialogState extends State<_ClientBulkUpdateDialog> {
 
   void _submit() {
     if (!_canSubmit) return;
+    // `public_notes` is HTML on the wire — React edits it with a rich editor
+    // and every consumer renders the stored string as markup, so a typed line
+    // break would vanish (invoiceninja/flutter#159). The field itself stays
+    // plain text: a WYSIWYG editor inside a dialog buys nothing here, and the
+    // value is short. Markdown is deliberately *not* interpreted, so a note
+    // reading `5 * 3 * 2` writes exactly that.
+    final newValue = _column == 'public_notes'
+        ? htmlFromPlainText(_value)
+        : _value;
     Navigator.of(
       context,
-    ).pop(ClientBulkUpdate(column: _column!, newValue: _value));
+    ).pop(ClientBulkUpdate(column: _column!, newValue: newValue));
   }
 
   @override

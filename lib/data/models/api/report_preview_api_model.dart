@@ -4,6 +4,7 @@ import 'package:admin/data/models/domain/report_preview.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/value/money.dart';
 import 'package:admin/domain/reports/report_column_types.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// Decodes the report-preview JSON envelope returned by
 /// `POST /api/v1/reports/preview/<hash>` into a typed [ReportPreview].
@@ -195,14 +196,28 @@ ReportCell _parseTyped({
         displayValue: displayValue,
       );
     case ReportColumnType.string:
+      // A string column can be a notes / terms / footer one — every entity but
+      // client and invoice hands those back with their markup intact, because
+      // only `InvoiceDecorator` and `ClientDecorator` bother to `strip_tags`
+      // (`app/Export/Decorators/`). Flattening here rather than at the widget
+      // covers all five surfaces at once: the table cell, the narrow card
+      // list, the column filter's `filterText`, the `sortKey`, and the group
+      // key that feeds the group rows, the drill-down crumb and the chart's
+      // axis labels. Free for an ordinary cell — `plainTextFromHtml` returns
+      // early when there is no `<`, and leaves prose like `width < 5` alone.
       return ReportStringCell(
-        value: value?.toString(),
+        value: _flatten(value?.toString()),
         entityWire: entityWire,
         entityId: entityId,
-        displayValue: displayValue,
+        displayValue: _flatten(displayValue),
       );
   }
 }
+
+/// One line of readable text for a report cell that may carry markup. A report
+/// row has one line to spend, so the paragraphs collapse.
+String? _flatten(String? value) =>
+    value == null ? null : plainTextFromHtml(value, singleLine: true);
 
 /// Decode the per-currency exchange rates the server bundles into the static
 /// data response. We hold this on the engine so the converted-totals math

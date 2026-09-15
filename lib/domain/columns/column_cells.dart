@@ -9,6 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// Shared rendering helpers for `ColumnDefinition<T>.cellBuilder`.
 ///
@@ -45,6 +46,16 @@ Widget cellText(String value, {bool bold = false}) {
   if (value.isEmpty) return cellEmpty();
   return CellText(value: value, bold: bold);
 }
+
+/// Notes cell for one of the HTML-bearing fields (`public_notes`,
+/// `private_notes`, `terms`, `footer`).
+///
+/// Those carry markup — written here, by the React client, or by the pre-v5
+/// apps — and a table cell has one line to spend, so the markup is flattened
+/// to its words. Without this the cell printed `<p>` tags at the user, which
+/// it already did for anything authored on the web.
+Widget cellNotes(String value) =>
+    cellText(plainTextFromHtml(value, singleLine: true));
 
 /// Currency cell — resolves [currencyId] to its ISO code (e.g. "USD") from the
 /// static catalog; falls back to the raw id when the catalog lacks it (or hasn't

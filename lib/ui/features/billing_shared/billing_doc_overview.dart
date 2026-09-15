@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/entity_tags_view.dart';
 import 'package:admin/ui/features/billing_shared/line_items_readonly_table.dart';
 import 'package:admin/ui/features/billing_shared/totals_widget.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/utils/notes_html.dart';
 
 /// Shared read-only Overview body for billing-doc detail screens (Invoice /
 /// Quote / Credit): the line-items table, a totals breakdown card, and the
@@ -132,8 +133,10 @@ class _BillingDocOverviewState extends State<BillingDocOverview> {
     final trailing = widget.trailing;
     final entityType = widget.entityType;
     final tagIds = widget.tagIds;
-    final publicNotes = widget.publicNotes;
-    final terms = widget.terms;
+    // Both fields are HTML on the wire — written here, by the React client, or
+    // by the pre-v5 apps — so a read-only strip wants the words, not the tags.
+    final publicNotes = plainTextFromHtml(widget.publicNotes);
+    final terms = plainTextFromHtml(widget.terms);
     final totals = computeTotals(totalsInput, precision);
     final gap = InSpacing.lg(context);
     return Column(

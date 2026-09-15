@@ -41,6 +41,8 @@
 /// what the next edit persists.
 library;
 
+import 'package:admin/l10n/transifex_php_parser.dart' show decodeHtmlEntities;
+
 /// The attribute list of an HTML tag — `\s+name="value"`, repeated.
 ///
 /// Requiring `=` **and** a value is what keeps this from matching prose.
@@ -49,28 +51,28 @@ library;
 /// lose everything between the brackets, silently and permanently. Valueless
 /// attributes (`<td nowrap>`) are legal but neither TinyMCE nor Quill emits
 /// them, so the trade is worth it. Quoted values may contain `<` and `>`.
-const _kAttrs = r'''(?:\s+[^\s>/=<]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s><]+))*''';
+const kHtmlAttrs = r'''(?:\s+[^\s>/=<]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s><]+))*''';
 
 /// One HTML tag: `<p>`, `</p>`, `<p/>`, `<br />`, `<li dir="ltr">`, …
 ///
 /// Note there is no `\s*` after `<` — no HTML producer emits `< p>`, and
 /// requiring the name to abut the bracket is half of what makes prose safe.
-final _kHtmlTagPattern = RegExp(
-  '<(/?)([a-zA-Z][a-zA-Z0-9]*)$_kAttrs'
+final kHtmlTagPattern = RegExp(
+  '<(/?)([a-zA-Z][a-zA-Z0-9]*)$kHtmlAttrs'
   r'\s*/?>',
 );
 
 /// `<a href="…">text</a>`, non-greedy (anchors can't nest) and `dotAll` so a
 /// link label may wrap across lines.
 final _kAnchorPattern = RegExp(
-  '<a\\b($_kAttrs)\\s*>(.*?)</a\\s*>',
+  '<a\\b($kHtmlAttrs)\\s*>(.*?)</a\\s*>',
   caseSensitive: false,
   dotAll: true,
 );
 
-/// The `href` of an anchor's attribute list, quoted or bare.
-final _kHrefPattern = RegExp(
-  '''\\bhref\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s><]+))''',
+/// `<img src="…" alt="…">`. Self-closed or not, like every other void tag.
+final _kImagePattern = RegExp(
+  '<img\\b($kHtmlAttrs)\\s*/?>',
   caseSensitive: false,
 );
 
@@ -89,7 +91,7 @@ const _kInlineFences = <String, String>{
 };
 
 final _kInlineFencePattern = RegExp(
-  '</?(${_kInlineFences.keys.join('|')})$_kAttrs'
+  '</?(${_kInlineFences.keys.join('|')})$kHtmlAttrs'
   r'\s*/?>',
   caseSensitive: false,
 );
@@ -187,6 +189,17 @@ String markdownFromLegacyHtml(String input) {
     final label = match.group(2) ?? '';
     return href.isEmpty ? label : '[$label]($href)';
   });
+  // `<img>` has a markdown equivalent, and without this rule it would fall
+  // through the tag loop as an unmapped inline tag and be painted to the user
+  // as raw markup. Reachable both ways: the editor's own
+  // `ImageUrlConversionReaction` creates images, and the other clients store
+  // them.
+  text = text.replaceAllMapped(_kImagePattern, (match) {
+    final attrs = match.group(1) ?? '';
+    final src = _attributeOf(attrs, 'src');
+    if (src.isEmpty) return '';
+    return '![${_attributeOf(attrs, 'alt')}]($src)';
+  });
   text = text.replaceAllMapped(
     _kInlineFencePattern,
     (match) => _kInlineFences[match.group(1)!.toLowerCase()]!,
@@ -197,24 +210,37 @@ String markdownFromLegacyHtml(String input) {
   // emits and how far it is indented.
   final listStack = <bool>[];
   var cursor = 0;
+  // True between a `<p>` and its `</p>` while no text has been written — the
+  // shape a deliberately blank line takes in every HTML editor.
+  var openParagraphIsEmpty = false;
 
-  for (final match in _kHtmlTagPattern.allMatches(text)) {
+  for (final match in kHtmlTagPattern.allMatches(text)) {
     final tag = match.group(2)!.toLowerCase();
     final isList = tag == 'ul' || tag == 'ol';
-    if (!isList && tag != 'li' && !_kBlockTags.contains(tag)) {
-      // An inline tag with no mapping (`<span>`, `<font>`, …). Leaving it is
-      // imperfect — it renders literally — but deleting it could take
-      // meaningful text with it, and it can't swallow a block.
-      continue;
-    }
+    final isUnmappedInline =
+        !isList && tag != 'li' && !_kBlockTags.contains(tag);
 
     // Whitespace between two block tags is HTML source formatting, not
     // content: TinyMCE pretty-prints `</p>\n<p>`, and copying that newline
     // through would add an empty paragraph on top of the break below.
     final between = text.substring(cursor, match.start);
-    if (between.trim().isNotEmpty) out.writeText(between);
+    if (between.trim().isNotEmpty) {
+      out.writeText(between);
+      openParagraphIsEmpty = false;
+    }
     cursor = match.end;
     final isClosing = match.group(1) == '/';
+
+    // An inline tag with no markdown equivalent (`<span style=…>`, `<font>`,
+    // `<mark>`): drop the tag, keep the text between its ends. It used to be
+    // left in place, which round-tripped only by accident — the literal tag
+    // went back to the server and the browser re-parsed it — while the user
+    // saw raw markup in the editor the whole time. Now that this app writes
+    // HTML, leaving it would be worse still: the writer escapes text, so the
+    // tag would reach the web app as a visible `&lt;span …&gt;`. The span's
+    // own colour or size is the price; the words are what matter, and the
+    // pattern above is conservative enough that only a real tag is dropped.
+    if (isUnmappedInline) continue;
 
     if (isList) {
       final bool topLevel;
@@ -252,6 +278,38 @@ String markdownFromLegacyHtml(String input) {
         out
           ..writeText('${'#' * int.parse(heading.group(1)!)} ')
           ..holdBreaks();
+      }
+      continue;
+    }
+
+    if (tag == 'blockquote') {
+      // Markdown's `>` marker, laid out exactly like a heading's `#`: request
+      // the paragraph break first, then hold breaks so the `<p>` TinyMCE nests
+      // inside can't strand the marker on a line of its own. Without this the
+      // quote silently degraded to a plain paragraph on the next edit.
+      out.requestBreak(2);
+      if (!isClosing) {
+        out
+          ..writeText('> ')
+          ..holdBreaks();
+      }
+      continue;
+    }
+
+    if (tag == 'p' && listStack.isEmpty) {
+      if (isClosing) {
+        // A `<p></p>` holding nothing is how an HTML editor stores a
+        // deliberately blank line, and dropping it would quietly close up a
+        // gap the user typed. Four newlines is exactly one empty
+        // `ParagraphNode` to super_editor's `_EmptyLinePreservingParagraphSyntax`
+        // — two blank lines, not one. A leading or trailing run still emits
+        // nothing: the writer suppresses a break before any text, and a
+        // pending break with no text after it is never flushed.
+        out.requestBreak(openParagraphIsEmpty ? 4 : 2);
+        openParagraphIsEmpty = false;
+      } else {
+        openParagraphIsEmpty = true;
+        out.requestBreak(2);
       }
       continue;
     }
@@ -345,8 +403,28 @@ int _ancestorIndent(List<bool> listStack) {
   return indent;
 }
 
-String _hrefOf(String attributes) {
-  final match = _kHrefPattern.firstMatch(attributes);
+final _kAttributePatterns = <String, RegExp>{};
+
+String _hrefOf(String attributes) => _attributeOf(attributes, 'href');
+
+/// The value of [name] in an HTML attribute list, quoted or bare; `''` when
+/// absent.
+///
+/// Entities are resolved here even though the rest of this file deliberately
+/// leaves them to `markdown`'s `DecodeHtmlSyntax` downstream: a URL is data,
+/// not markup, and nothing downstream decodes inside a markdown link
+/// destination — so `?a=1&amp;b=2` would otherwise come back with the `&amp;`
+/// still in it, one more entity on every round trip.
+String _attributeOf(String attributes, String name) {
+  final pattern = _kAttributePatterns.putIfAbsent(
+    name,
+    () => RegExp(
+      '''\\b$name\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s><]+))''',
+      caseSensitive: false,
+    ),
+  );
+  final match = pattern.firstMatch(attributes);
   if (match == null) return '';
-  return match.group(1) ?? match.group(2) ?? match.group(3) ?? '';
+  final raw = match.group(1) ?? match.group(2) ?? match.group(3) ?? '';
+  return decodeHtmlEntities(raw);
 }

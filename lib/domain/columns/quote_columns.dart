@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/party_money_cell.dart';
 import 'package:admin/ui/features/projects/widgets/project_name_label.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_status_pill.dart';
+import 'package:admin/utils/notes_html.dart';
 
 typedef QuoteColumn = ColumnDefinition<Quote>;
 
@@ -133,8 +134,8 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
     sortable: false,
     width: 240,
     cellBuilder: (q, _) =>
-        q.publicNotes.isEmpty ? cellEmpty() : cellText(q.publicNotes),
-    valueBuilder: (q) => cellNonZeroString(q.publicNotes),
+        q.publicNotes.isEmpty ? cellEmpty() : cellNotes(q.publicNotes),
+    valueBuilder: (q) => cellNonZeroString(plainTextFromHtml(q.publicNotes)),
   ),
   colUpdatedAt<Quote>(QuoteFieldIds.updatedAt, (q) => q.updatedAt),
   // Billing docs can carry a vendor as well as a client. The id, the Drift
@@ -155,6 +156,7 @@ final List<QuoteColumn> kAllQuoteColumns = <QuoteColumn>[
     QuoteFieldIds.privateNotes,
     (q) => q.privateNotes,
     labelKey: 'private_notes',
+    html: true,
   ),
   // Quotes, credits, purchase orders and recurring invoices all read the
   // company's `invoice1..4` slots — there are no per-type definitions.

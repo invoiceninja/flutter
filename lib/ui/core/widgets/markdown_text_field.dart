@@ -13,6 +13,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/template_variables/markdown_template_variables.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_chip.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_picker.dart';
+import 'package:admin/utils/editor_html.dart';
 import 'package:admin/utils/legacy_html_markdown.dart';
 
 /// Handle the host can pass into [MarkdownTextField] to force the
@@ -35,15 +36,25 @@ class MarkdownFieldController {
   }
 
   /// Cancel any pending debounce, serialize the document now, emit it
-  /// through the field's `onChanged`, and return the serialized
-  /// markdown. Returns null when the field isn't mounted or there's
-  /// nothing to flush (the caller should fall back to its known value).
+  /// through the field's `onChanged`, and return the value the parent now
+  /// holds (HTML — see [MarkdownTextField]). Returns null when the field isn't
+  /// mounted or there's nothing to flush (the caller should fall back to its
+  /// known value).
   String? flush() => _flushHandler?.call();
 }
 
-/// A reusable WYSIWYG markdown editor. Loads from a raw markdown string,
-/// edits via [SuperEditor], serializes back to markdown on changes (debounced),
-/// and emits the new markdown through [onChanged].
+/// A reusable WYSIWYG editor for the note-shaped fields. Loads a stored value,
+/// edits via [SuperEditor], and emits the new value through [onChanged]
+/// (debounced).
+///
+/// **The value is HTML in and HTML out; markdown is only how this widget
+/// thinks.** `public_notes` / `private_notes` / `terms` / `footer` and the
+/// settings templates are HTML to every other Invoice Ninja client, so the
+/// stored string is folded to markdown on the way in by `markdownFromLegacyHtml`
+/// and written back out by `htmlFromEditorDocument` — each of which carries the
+/// evidence for that in its own library comment (invoiceninja/flutter#159).
+/// Plain text and legacy markdown still load correctly; they are rewritten to
+/// HTML on the user's first real edit, never merely by being opened.
 ///
 /// Bound to a one-way data flow: parent owns the truth and feeds [initialValue]
 /// + [externalValueKey]; when the key changes and the new value differs from
@@ -76,10 +87,11 @@ class MarkdownTextField extends StatefulWidget {
          'favour of the floor, silently discarding the ceiling.',
        );
 
-  /// Starting markdown content. Null and empty are equivalent.
+  /// Starting content, as stored: HTML, or legacy markdown / plain text. Null
+  /// and empty are equivalent.
   final String? initialValue;
 
-  /// Fired with the serialized markdown after [debounce] of no further edits.
+  /// Fired with the serialized HTML after [debounce] of no further edits.
   /// Also flushed synchronously when focus leaves the editor.
   final ValueChanged<String> onChanged;
 
@@ -243,8 +255,8 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     widget.controller?._attach(_flushNow);
   }
 
-  /// Cancel the debounce, serialize now, emit if changed, return the
-  /// markdown. Wired to [MarkdownFieldController.flush].
+  /// Cancel the debounce, serialize now, emit if changed, return the value the
+  /// parent now holds. Wired to [MarkdownFieldController.flush].
   String _flushNow() {
     _debounce?.cancel();
     _debounce = null;
@@ -256,9 +268,18 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   String _serialize() =>
       serializeDocumentToMarkdown(detokenizeTemplateVariables(_document));
 
-  /// The value the parent should hold for markdown [md]: `''` when it is the
-  /// default template, so editing back to the default restores it.
-  String _valueFor(String md) => md == _defaultSerialized ? '' : md;
+  /// The value the parent should hold, given the markdown [md] this document
+  /// currently serializes to: `''` when that is the default template (so
+  /// editing back to the default restores it), and otherwise **HTML**.
+  ///
+  /// Markdown is this editor's private representation; these fields are HTML
+  /// on the wire, which is the whole of invoiceninja/flutter#159 — see
+  /// `htmlFromEditorDocument`. The markdown still drives every *internal*
+  /// comparison ([_lastSerialized], [_defaultSerialized], the chip-undo
+  /// staleness guard), so only the value handed to the parent changes.
+  String _valueFor(String md) => md == _defaultSerialized
+      ? ''
+      : htmlFromEditorDocument(detokenizeTemplateVariables(_document));
 
   /// Serialize, and emit when the value changed. Returns the value the parent
   /// now holds.
@@ -389,9 +410,14 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     // string would flag the first keystroke as "different" against a stale
     // baseline. The parent of a field showing its default holds `''`.
     _lastSerialized = _serialize();
+    // `_lastEmitted` is what the parent holds, so it baselines in the value's
+    // own space (HTML), not the editor's. Nothing is emitted here: a record
+    // stored as legacy plain text or markdown is rewritten on the user's first
+    // real edit, never merely by being opened or saved untouched — the
+    // `md == _lastSerialized` guard in `_emitCurrent` is what makes that true.
     _lastEmitted = sanitized.isEmpty && _defaultSerialized != null
         ? ''
-        : _lastSerialized;
+        : _valueFor(_lastSerialized);
     _initialized = true;
     _isApplyingExternal = false;
   }

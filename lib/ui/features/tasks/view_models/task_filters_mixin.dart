@@ -78,7 +78,9 @@ mixin TaskFiltersMixin on ChangeNotifier {
   /// the shell **branch** navigator and its dialog on the **root** one (the two
   /// `show*` defaults differ), so either can outlive the screen underneath it —
   /// and `RunningTimerPill` paints *above* the navigation shell (see
-  /// `scaffold_with_nav.dart`, pinned 112 px up), over that surface, with a tap
+  /// `scaffold_with_nav.dart`, which pins it clear of the FAB corner — at
+  /// `runningTimerPillBottom`, 112 px up in every case that can reach this
+  /// one), over that surface, with a tap
   /// that navigates to a task's edit route. That sets `hasPane`, which locks
   /// `TaskListScreen` to the plain list, which unmounts the four custom views
   /// and disposes their view models — leaving an open filter surface bound to

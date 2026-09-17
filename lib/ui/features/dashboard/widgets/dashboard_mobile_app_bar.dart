@@ -27,6 +27,11 @@ import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 /// row for the space (issue #104) and shows the name in the picker sheet it
 /// opens rather than in the drawer itself.
 ///
+/// **There is no create action here** (invoiceninja/flutter#164). The bar
+/// used to end in a `+` that went straight to New Invoice. It is now the
+/// screen's bottom-right `DashboardCreateFab`, which opens a choice of
+/// everything the user may create and sits where a thumb can reach it.
+///
 /// Split out of `DashboardScreen` so it can be pumped without a
 /// `Provider<Services>` harness, exactly like its wide sibling — the screen
 /// itself is untestable in a widget test (its VM constructor runs
@@ -37,7 +42,6 @@ class DashboardMobileAppBar extends StatelessWidget
     super.key,
     required this.vm,
     required this.showHamburger,
-    this.onNewInvoice,
     this.formatter,
   });
 
@@ -51,18 +55,6 @@ class DashboardMobileAppBar extends StatelessWidget
   /// between 600 and ~832 px renders both the rail and this bar. See
   /// `Breakpoints.isGlobalNavVisible`.
   final bool showHamburger;
-
-  /// Null when the invoices module is disabled — the "+" action is then
-  /// omitted entirely. Mirrors `DashboardTopBar.onNewInvoice`.
-  ///
-  /// Since flutter#52 this is a phone's **only** New Invoice affordance. The
-  /// mobile body's quick-action row used to carry a labelled tile to the same
-  /// route, gated on the same module flag, and that duplicate was the one
-  /// removed — an `AppBar` action stays reachable at any scroll position,
-  /// whereas the row scrolls away with the page. So don't drop this action to
-  /// buy back bar width (the title arithmetic above is a standing motive to
-  /// try) without restoring that tile first.
-  final VoidCallback? onNewInvoice;
 
   final Formatter? formatter;
 
@@ -88,11 +80,14 @@ class DashboardMobileAppBar extends StatelessWidget
       // condition (so `hasDrawer` is false) and a shell-branch root has nothing
       // to pop. Kept as a statement of intent, not a working guard.
       automaticallyImplyLeading: showHamburger,
-      // Material's default 16 dp gap either side of the title is 24 dp this bar
-      // can't spare *on a phone*: a hamburger plus four actions leaves the
-      // title 80 dp on a 360 dp phone (the most common Android width) and
+      // Material's default 16 dp gap either side of the title costs more width
+      // than this bar has on the narrowest phones. With a hamburger and three
+      // actions, the default leaves the title 88 dp on a 320 dp handset.
       // "Dashboard" measures 104 dp in Inter Tight, so the default truncates it
-      // to "Dashboa…" — the exact ellipsis flutter#50 was filed about.
+      // to "Dashboa…", the exact ellipsis flutter#50 was filed about. When
+      // flutter#50 was filed it took a 360 dp phone to do this, because the
+      // bar had a fourth action (New Invoice). That action became the
+      // screen's FAB in flutter#164.
       //
       // Conditional, because `NavigationToolbar` starts the title at
       // `leadingWidth + middleSpacing`: with no hamburger that is 0 + 0, and
@@ -140,12 +135,6 @@ class DashboardMobileAppBar extends StatelessWidget
           onPressed: () =>
               openManageDashboardCards(context, vm: vm, mobileLayout: true),
         ),
-        if (onNewInvoice != null)
-          IconButton(
-            tooltip: context.tr('new_invoice'),
-            icon: const Icon(Icons.add),
-            onPressed: onNewInvoice,
-          ),
       ],
     );
   }

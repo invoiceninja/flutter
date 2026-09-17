@@ -9,7 +9,6 @@ import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
-import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/ui/features/dashboard/helpers/converted_hint.dart';
@@ -33,24 +32,29 @@ import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
 
 /// Mobile (<600 px) dashboard body. The header follows `patterns.jsx:375-441`
-/// — eyebrow → dark hero KPI → quick-action tiles → compact past-due table
-/// — and is then followed by the same sections desktop renders (revenue
-/// chart, activity feed, upcoming invoices, recent payments, upcoming /
-/// expired quotes, upcoming recurring invoices), each laid out as a single-
-/// column stack of mobile-friendly rows rather than the desktop multi-column
-/// tables which overflow on phone widths.
+/// — eyebrow → dark hero KPI → compact past-due table — and is then followed
+/// by the same sections desktop renders (revenue chart, activity feed,
+/// upcoming invoices, recent payments, upcoming / expired quotes, upcoming
+/// recurring invoices), each laid out as a single-column stack of
+/// mobile-friendly rows rather than the desktop multi-column tables which
+/// overflow on phone widths.
+///
+/// **There are no quick-action tiles any more** (invoiceninja/flutter#164).
+/// The row under the hero held New Client, Enter Expense and Reports. The two
+/// creates moved into the screen's `+` sheet (`DashboardCreateFab`), which
+/// offers every entity the user may create and stays on screen while the page
+/// scrolls. Reports is in the main menu, where it is gated on `view_reports`
+/// and shows the plan lock; the tile checked neither.
 class MobileDashboardBody extends StatelessWidget {
   const MobileDashboardBody({
     super.key,
     required this.vm,
     required this.formatter,
+    this.fabClearance = 0,
     required this.onOpenCard,
     required this.onPastDueInvoiceTap,
     required this.onAllInvoices,
     required this.onAllUpcomingInvoices,
-    required this.onAddClient,
-    required this.onLogExpense,
-    required this.onReports,
     required this.onOutstandingTap,
     required this.onPaidTap,
     required this.onActivityTap,
@@ -68,6 +72,11 @@ class MobileDashboardBody extends StatelessWidget {
   final DashboardViewModel vm;
   final Formatter formatter;
 
+  /// Extra bottom padding, so the last panel can scroll clear of the screen's
+  /// `+` button. The screen passes `kDashboardFabClearance` when it shows the
+  /// button and 0 when it doesn't.
+  final double fabClearance;
+
   /// Open the entity list relevant to a tapped configured card.
   final void Function(DashboardCardConfig) onOpenCard;
   final void Function(DashboardInvoiceRow) onPastDueInvoiceTap;
@@ -78,9 +87,6 @@ class MobileDashboardBody extends StatelessWidget {
   /// "View all" on the Upcoming Invoices card — distinct from
   /// [onAllInvoices] so each lands on its own filtered list.
   final VoidCallback onAllUpcomingInvoices;
-  final VoidCallback onAddClient;
-  final VoidCallback onLogExpense;
-  final VoidCallback onReports;
   final VoidCallback onOutstandingTap;
   final VoidCallback onPaidTap;
   final void Function(DashboardActivity) onActivityTap;
@@ -141,8 +147,14 @@ class MobileDashboardBody extends StatelessWidget {
     required bool pastDueEnabled,
     required Set<String> hidden,
   }) {
+    final gutter = InSpacing.lg(context);
     return ListView(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
+      padding: EdgeInsets.fromLTRB(
+        gutter,
+        gutter,
+        gutter,
+        gutter + fabClearance,
+      ),
       children: [
         _eyebrow(context, tokens),
         // The empty-state "add cards" link is dropped on mobile — the app bar
@@ -171,8 +183,6 @@ class MobileDashboardBody extends StatelessWidget {
         ),
         SizedBox(height: InSpacing.lg(context)),
         sectionListenable(vm.kpiListenable, () => _heroKpi(context, tokens)),
-        SizedBox(height: InSpacing.lg(context)),
-        _quickActions(context, tokens),
         SizedBox(height: InSpacing.lg(context)),
         // Past-due is pinned to the hero zone on mobile (its order slot is
         // ignored); shown only when visible + invoices enabled, and not while
@@ -355,9 +365,10 @@ class MobileDashboardBody extends StatelessWidget {
   /// line is ~336 px and a full range (~186 px) plus the freshness stamp
   /// (~158 px) overruns it, so side-by-side would truncate the window on every
   /// handset at or below 375 dp. As a single string the ellipsis eats the
-  /// freshness first, which is the right priority. No tappable Refresh here —
-  /// `RefreshIndicator` already wraps the body and the AppBar has no room for a
-  /// fifth action.
+  /// freshness first, which is the right priority. There is no tappable
+  /// Refresh here. `RefreshIndicator` already wraps the body, and the AppBar
+  /// has no room for a fourth action: on a 320 dp handset it would truncate
+  /// the title again.
   Widget _eyebrow(BuildContext context, InTheme tokens) {
     return FreshnessTicker(
       builder: (context) => Text(
@@ -570,97 +581,6 @@ class MobileDashboardBody extends StatelessWidget {
       child: onTap == null
           ? inner
           : InkWell(onTap: onTap, borderRadius: radius, child: inner),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Quick-actions grid — 2-3 tiles in a row.
-
-  /// **There is deliberately no New Invoice tile** (flutter#52).
-  /// `DashboardMobileAppBar` carries a pinned `+` to the same `/invoices/new`,
-  /// gated on the same `moduleEnabled(EntityType.invoice)` flag — so the two
-  /// always appeared and vanished together, and the bar's copy is the better
-  /// one: an `AppBar` action stays reachable at any scroll position, while this
-  /// row scrolls away with the page. Don't restore it without removing that
-  /// action first.
-  ///
-  /// The row is variable-length by design — New Client and Reports are always
-  /// on, expense is module-gated, so it renders 2 or 3 tiles and the
-  /// `Expanded`s rebalance whatever is left.
-  Widget _quickActions(BuildContext context, InTheme tokens) {
-    final me = context.read<Services>().auth.session.value?.currentCompany;
-    final actions = [
-      _QuickAction(
-        label: context.tr('new_client'),
-        icon: Icons.person_add_alt_outlined,
-        iconColor: tokens.ink2,
-        onTap: onAddClient,
-      ),
-      if (me?.moduleEnabled(EntityType.expense) ?? false)
-        _QuickAction(
-          label: context.tr('new_expense'),
-          icon: Icons.receipt_long_outlined,
-          iconColor: tokens.ink2,
-          onTap: onLogExpense,
-        ),
-      _QuickAction(
-        label: context.tr('reports'),
-        icon: Icons.insert_chart_outlined,
-        iconColor: tokens.ink2,
-        onTap: onReports,
-      ),
-    ];
-
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < actions.length; i++) ...[
-            if (i > 0) SizedBox(width: InSpacing.sm),
-            Expanded(child: _quickActionTile(tokens, actions[i])),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _quickActionTile(InTheme tokens, _QuickAction action) {
-    return Tooltip(
-      message: action.label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(InRadii.r2),
-        onTap: action.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: tokens.surface,
-            border: Border.all(color: tokens.border),
-            borderRadius: BorderRadius.circular(InRadii.r2),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: InSpacing.xs,
-            vertical: InSpacing.sm,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(action.icon, size: 15, color: action.iconColor),
-              const SizedBox(height: 6),
-              Text(
-                action.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w500,
-                  height: 1.2,
-                  color: tokens.ink,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -921,18 +841,4 @@ class MobileDashboardBody extends StatelessWidget {
       ),
     );
   }
-}
-
-class _QuickAction {
-  const _QuickAction({
-    required this.label,
-    required this.icon,
-    required this.iconColor,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color iconColor;
-  final VoidCallback onTap;
 }

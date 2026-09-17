@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/tasks/widgets/task_actions.dart';
 import 'package:admin/domain/tasks/task_day.dart';
 import 'package:admin/app/services.dart';
@@ -28,12 +29,31 @@ import 'package:admin/ui/features/tasks/widgets/running_duration_label.dart';
 /// Tapping the pill body → opens the task's edit screen.
 /// Tapping the stop icon → enqueues a save with `stop = now` on the
 /// running entry; no edit-screen detour required.
+///
+/// The shell pins it at [runningTimerPillBottom].
 class RunningTimerPill extends StatefulWidget {
   const RunningTimerPill({super.key});
 
   @override
   State<RunningTimerPill> createState() => _RunningTimerPillState();
 }
+
+/// How far above the bottom of the content pane the shell pins the pill.
+///
+/// The shell paints the pill above every screen. So it has to stay out of the
+/// bottom-right corner whenever the screen underneath may have a create FAB
+/// there. It then sits at 112: the button's 16 px margin, its 56 px height,
+/// and a 40 px gap.
+///
+/// A screen shows that FAB when its own pane is narrower than
+/// [Breakpoints.wide]. The dashboard also shows one on any phone, including in
+/// landscape, where the window is wide enough for the shell's railed layout
+/// (invoiceninja/flutter#164). Anywhere else the corner is free, and the pill
+/// sits 16 from the bottom.
+double runningTimerPillBottom({
+  required double paneWidth,
+  required bool isPhone,
+}) => isPhone || paneWidth < Breakpoints.wide ? 112 : 16;
 
 class _RunningTimerPillState extends State<RunningTimerPill>
     with WidgetsBindingObserver {

@@ -598,11 +598,28 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                                   widget.navigationShell,
                                   // Pinned bottom-right above the active route's
                                   // body. Hidden when no task is running — see
-                                  // `RunningTimerPill`.
-                                  const Positioned(
-                                    right: 16,
-                                    bottom: 16,
-                                    child: RunningTimerPill(),
+                                  // `RunningTimerPill`. Lifted clear of a FAB
+                                  // whenever the pane may show one, which
+                                  // depends on the rail's width, so the offset
+                                  // follows the collapse toggle.
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable: services.sidebar,
+                                    child: const RunningTimerPill(),
+                                    builder: (context, collapsed, pill) =>
+                                        Positioned(
+                                          right: 16,
+                                          bottom: runningTimerPillBottom(
+                                            paneWidth:
+                                                constraints.maxWidth -
+                                                (collapsed
+                                                    ? kInSidebarCollapsedWidth
+                                                    : kInSidebarWidth),
+                                            isPhone: Breakpoints.isPhone(
+                                              context,
+                                            ),
+                                          ),
+                                          child: pill!,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -690,17 +707,17 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                           child: Stack(
                             children: [
                               widget.navigationShell,
-                              // Narrow: pin above the bottom NavigationBar each
-                              // screen owns + clear of the per-screen FAB
-                              // (Material default bottom 16, FAB extends to ~72;
-                              // bottom: 112 guarantees a 40px gap on shorter
-                              // phones where the nav bar pushes the FAB up).
-                              // The pill hides itself when no task is running,
-                              // so it never obstructs empty space.
-                              const Positioned(
+                              // Narrow: always clear of the per-screen FAB (see
+                              // `runningTimerPillBottom`). The pill hides itself
+                              // when no task is running, so it never obstructs
+                              // empty space.
+                              Positioned(
                                 right: 12,
-                                bottom: 112,
-                                child: RunningTimerPill(),
+                                bottom: runningTimerPillBottom(
+                                  paneWidth: constraints.maxWidth,
+                                  isPhone: Breakpoints.isPhone(context),
+                                ),
+                                child: const RunningTimerPill(),
                               ),
                             ],
                           ),

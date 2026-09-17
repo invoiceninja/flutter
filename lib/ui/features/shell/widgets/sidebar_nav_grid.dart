@@ -61,7 +61,7 @@ int sidebarMenuColumns({required double width, required double textScale}) {
 /// Deliberately **not** a `Wrap`: `Wrap` gives a run the height of its tallest
 /// child but does not stretch the others, so a one-line tile beside a two-line
 /// one leaves a ragged bottom edge. `IntrinsicHeight` + a stretched `Row` is
-/// what the dashboard's own quick-action row already uses.
+/// what the dashboard's create sheet (`QuickCreateGrid`) uses too.
 ///
 /// Every tile handed in must render something. That is a real constraint, not a
 /// nicety: a cell that collapsed to nothing would leave its column empty while

@@ -24,10 +24,16 @@ import '../_fake_dashboard_repo.dart';
 /// the app whose bar isn't its own page name. It now reads "Dashboard" — the
 /// same `'dashboard'` key the sidebar nav row uses.
 ///
-/// Swapping the string was not enough on its own: with four actions the title
-/// slot is 80 dp on a 360 dp phone and "Dashboard" measures 104, so the word
-/// truncated anyway. `titleSpacing: 0` is what buys the difference, and
-/// 'the title is not truncated on a 360 dp phone' below is what pins it.
+/// Swapping the string was not enough on its own. Material's default title
+/// spacing leaves a slot narrower than "Dashboard" (104 dp): 80 dp on a 360 dp
+/// phone when the bar had four actions, and 88 dp on a 320 dp handset now that
+/// it has three. So the word truncated anyway. `titleSpacing: 0` is what buys
+/// the difference, and 'the title is not truncated on a 320 dp handset' below
+/// is what pins it.
+///
+/// The fourth action was a `+` to New Invoice. flutter#164 moved it to the
+/// screen's bottom-right `DashboardCreateFab`, and 'carries no create action'
+/// pins that it did not come back.
 ///
 /// The hamburger assertions guard a second thing found while making that
 /// change: the leading slot used to be an unconditional `DrawerHamburger`,
@@ -83,7 +89,6 @@ void main() {
   Future<void> pumpBar(
     WidgetTester tester, {
     bool showHamburger = true,
-    VoidCallback? onNewInvoice,
     double? width,
     String? title,
   }) async {
@@ -99,11 +104,7 @@ void main() {
         supportedLocales: kTestSupportedLocales,
         theme: buildInTheme(InTheme.light),
         home: Scaffold(
-          appBar: DashboardMobileAppBar(
-            vm: vm,
-            showHamburger: showHamburger,
-            onNewInvoice: onNewInvoice,
-          ),
+          appBar: DashboardMobileAppBar(vm: vm, showHamburger: showHamburger),
           drawer: showHamburger ? const Drawer() : null,
           body: const SizedBox.shrink(),
         ),
@@ -132,7 +133,7 @@ void main() {
   });
 
   testWidgets('the title ellipsises rather than overflowing', (tester) async {
-    await pumpBar(tester, onNewInvoice: () {});
+    await pumpBar(tester);
 
     final title = tester.widget<Text>(find.text('Dashboard'));
     expect(
@@ -178,12 +179,7 @@ void main() {
   testWidgets('the title keeps its inset when the hamburger is gone', (
     tester,
   ) async {
-    await pumpBar(
-      tester,
-      width: 468,
-      showHamburger: false,
-      onNewInvoice: () {},
-    );
+    await pumpBar(tester, width: 468, showHamburger: false);
 
     expect(
       tester.getTopLeft(find.text('Dashboard')).dx,
@@ -202,28 +198,33 @@ void main() {
     expect(find.byIcon(Icons.dashboard_customize_outlined), findsOneWidget);
   });
 
-  testWidgets('the new-invoice action follows the module gate', (tester) async {
-    await pumpBar(tester, onNewInvoice: () {});
-    expect(find.byIcon(Icons.add), findsOneWidget);
+  // flutter#164: the `+` that ended this bar went straight to New Invoice. It
+  // is now the screen's FAB, which offers everything the user may create. A
+  // second copy up here would bring back the reach-across-the-screen target
+  // that the issue was filed about.
+  testWidgets('carries no create action', (tester) async {
+    // No hamburger, so every IconButton left is an action.
+    await pumpBar(tester, showHamburger: false);
 
-    await pumpBar(tester);
+    expect(find.byIcon(Icons.add), findsNothing);
     expect(
-      find.byIcon(Icons.add),
-      findsNothing,
-      reason: 'null onNewInvoice means the invoices module is disabled',
+      find.byType(IconButton),
+      findsNWidgets(3),
+      reason: 'filter, settings and customize, and nothing else',
     );
   });
 
   // The measurement that reflects what a user actually sees.
   //
-  // 360 dp with every action is the tight case — the most common Android width,
-  // and what flutter#50 was reported against. It is why the bar carries
-  // `titleSpacing: 0`; with Material's default 16 the slot is 80 dp and the
-  // title renders "Dashboa…". Sensitive to Inter Tight's metrics by design: if
-  // a font bump pushes the word past the slot, the title starts truncating
-  // again and this should fail.
-  testWidgets('the title is not truncated on a 360 dp phone', (tester) async {
-    await pumpBar(tester, width: 360, onNewInvoice: () {});
+  // 320 dp is the tight case now that the bar has three actions. That is why
+  // the bar carries `titleSpacing: 0`: with Material's default 16 the slot is
+  // 88 dp and the title renders "Dashboa…". (It was 360 dp while New Invoice
+  // was a fourth action, which is where flutter#50 was reported.) The test is
+  // sensitive to Inter Tight's metrics by design. If a font bump pushes the
+  // word past the slot, the title starts truncating again and this test should
+  // fail.
+  testWidgets('the title is not truncated on a 320 dp handset', (tester) async {
+    await pumpBar(tester, width: 320);
 
     final box = tester.renderObject<RenderBox>(find.text('Dashboard'));
     expect(
@@ -244,11 +245,11 @@ void main() {
   // states): an ellipsised or clipped `Text` throws nothing, so dropping the
   // title's `overflow` keeps this group green — that is pinned directly by
   // 'the title ellipsises rather than overflowing' above. What these guard is
-  // the *action row*: a hamburger plus four 48 dp icons against a 320 dp bar.
+  // the *action row*: a hamburger plus three 48 dp icons against a 320 dp bar.
   group('across handset widths', () {
     for (final width in const <double>[320, 360, 414]) {
       testWidgets('@ ${width.toInt()}px with every action', (tester) async {
-        await pumpBar(tester, width: width, onNewInvoice: () {});
+        await pumpBar(tester, width: width);
 
         expect(
           tester.takeException(),
@@ -260,19 +261,18 @@ void main() {
       testWidgets('@ ${width.toInt()}px with the longest locale', (
         tester,
       ) async {
-        await pumpBar(
-          tester,
-          width: width,
-          onNewInvoice: () {},
-          title: 'Pannello di Controllo',
-        );
+        await pumpBar(tester, width: width, title: 'Pannello di Controllo');
 
         expect(
           tester.takeException(),
           isNull,
           reason: 'the actions must survive a title that eats the slack',
         );
-        expect(find.byIcon(Icons.add), findsOneWidget);
+        expect(
+          find.byIcon(Icons.dashboard_customize_outlined),
+          findsOneWidget,
+          reason: 'the last action is the first a long title would push out',
+        );
       });
     }
   });

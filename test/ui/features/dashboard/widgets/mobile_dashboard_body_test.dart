@@ -69,8 +69,8 @@ class _FakeAuth implements AuthRepository {
 
 /// `auth.session`, `tasks` and `hideEmptyPanels` are what
 /// `MobileDashboardBody` reaches for. Its `enabledModules` mask gates the
-/// quick-action tiles and the trailing panels; everything else falls through to
-/// [noSuchMethod].
+/// pinned past-due card and the trailing panels; everything else falls through
+/// to [noSuchMethod].
 ///
 /// The task repository is stubbed even though most cases here run at `mask = 0`
 /// and never build the task-calendar panel: the moment a test enables the tasks
@@ -194,7 +194,7 @@ class _FakeTaskRepo implements TaskRepository {
 }
 
 /// [enabledModules] defaults to the `AuthCompany` default of 0 — every
-/// module-gated tile and list card off — which is what most tests here want.
+/// module-gated list card off — which is what most tests here want.
 /// Pass a real mask only where the assertion depends on a gated widget
 /// actually rendering, or a `findsNothing` proves nothing.
 /// [permissions] / [isAdmin] matter only for the task-calendar panel, the one
@@ -281,6 +281,7 @@ void main() {
     int enabledModules = 0,
     String permissions = '',
     bool isAdmin = true,
+    double fabClearance = 0,
     VoidCallback? onShowPanels,
   }) async {
     if (range != null) await vm.setDateRange(range);
@@ -320,13 +321,11 @@ void main() {
               child: MobileDashboardBody(
                 vm: vm,
                 formatter: formatter,
+                fabClearance: fabClearance,
                 onOpenCard: (_) {},
                 onPastDueInvoiceTap: (_) {},
                 onAllInvoices: () {},
                 onAllUpcomingInvoices: () {},
-                onAddClient: () {},
-                onLogExpense: () {},
-                onReports: () {},
                 onOutstandingTap: () {},
                 onPaidTap: () {},
                 onActivityTap: (_) {},
@@ -459,24 +458,51 @@ void main() {
     }
   });
 
-  // flutter#52: the quick-action row's first tile and `DashboardMobileAppBar`'s
-  // pinned `+` both navigated to `/invoices/new` off the same module flag. The
-  // tile is gone; the bar keeps the `+` (it survives scrolling, the row does
-  // not).
+  // flutter#164: the row under the hero carried New Client, Enter Expense and
+  // Reports. The two creates are entries in the screen's `+` sheet now, and
+  // Reports is in the main menu. flutter#52 had already dropped a New Invoice
+  // tile from the same row.
   //
-  // The mask is load-bearing. Every other test here runs at the `= 0` default,
-  // where no module-gated tile renders at all — a bare `findsNothing` would
-  // pass against the pre-fix code too and prove nothing.
-  testWidgets('the quick-action row carries no New Invoice tile', (
-    tester,
-  ) async {
-    await pumpBody(tester, enabledModules: EnabledModule.invoices.bitmask);
+  // The mask is load-bearing. Before this change, Enter Expense rendered only
+  // with the expenses module on, and the old New Invoice tile only with
+  // invoices on. At the harness's `= 0` default a `findsNothing` on either
+  // would prove nothing.
+  testWidgets('the body carries no create or Reports tiles', (tester) async {
+    await pumpBody(
+      tester,
+      enabledModules:
+          EnabledModule.invoices.bitmask | EnabledModule.expenses.bitmask,
+    );
 
-    expect(find.text('New Invoice'), findsNothing);
-    // Positive control: `client` is always-on (`moduleForEntityType` returns
-    // null for it), so this holds at any mask and proves the row itself
-    // rendered rather than the whole body coming up empty.
-    expect(find.text('New Client'), findsOneWidget);
+    for (final label in const [
+      'New Client',
+      'Enter Expense',
+      'New Invoice',
+      'Reports',
+    ]) {
+      expect(find.text(label), findsNothing, reason: label);
+    }
+    // Positive control: the hero sat directly above the row, so the body has
+    // rendered past the point where the tiles used to be.
+    expect(find.text('Outstanding'), findsWidgets);
+  });
+
+  // The FAB covers the bottom 72 px of the body. Without the padding, the
+  // last panel could never scroll out from under it.
+  testWidgets('fabClearance extends only the bottom padding', (tester) async {
+    await pumpBody(tester, fabClearance: 72);
+
+    final list = tester.widget<ListView>(
+      find
+          .descendant(
+            of: find.byType(MobileDashboardBody),
+            matching: find.byType(ListView),
+          )
+          .first,
+    );
+    final padding = list.padding! as EdgeInsets;
+    expect(padding.bottom - padding.top, 72);
+    expect(padding.left, padding.top, reason: 'the gutters are unchanged');
   });
 
   // Everything above runs at `mask = 0`, so until this case the trailing-panel
@@ -486,8 +512,8 @@ void main() {
   // all in `sectionListenable`).
   testWidgets('an enabled module renders its trailing panel', (tester) async {
     // A tall surface rather than a scroll: the trailing panels sit below the
-    // hero, the quick actions, the chart and the activity feed, and a lazy
-    // `ListView` simply never builds them at the harness's default 600 px.
+    // hero, the chart and the activity feed, and a lazy `ListView` simply
+    // never builds them at the harness's default 600 px.
     await pumpBody(
       tester,
       enabledModules: EnabledModule.quotes.bitmask,

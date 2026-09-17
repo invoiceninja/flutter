@@ -4,18 +4,25 @@ import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/entity_modules.dart' show DisabledEntityDispatcher;
 import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
+import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_mobile_app_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
@@ -99,23 +106,58 @@ class _FakeServices implements Services {
   @override
   Formatter? formatterIfReady(String companyId) => null;
 
+  /// Invoices and clients only: the dashboard offers to create what the
+  /// registry can route to, so these two are all it ever offers here.
+  @override
+  final EntityRegistry entityRegistry = EntityRegistry({
+    for (final (type, path) in const [
+      (EntityType.client, '/clients'),
+      (EntityType.invoice, '/invoices'),
+    ])
+      type: EntityHandlers(
+        type: type,
+        wireName: type.name,
+        apiPath: '/api/v1$path',
+        routePath: path,
+        icon: Icons.circle,
+        dispatcher: DisabledEntityDispatcher(type),
+      ),
+  });
+
+  @override
+  final UnsavedChangesGuard unsavedChangesGuard = UnsavedChangesGuard();
+
+  /// Every `stageCreateDraft` call, as `(basePath, draft)`.
+  final staged = <(String, Object?)>[];
+
+  @override
+  void stageCreateDraft(String basePath, Object? draft) =>
+      staged.add((basePath, draft));
+
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());
 }
 
-AuthSession _session() => AuthSession(
+/// An admin with no modules on unless told otherwise. Clients are always on,
+/// so that admin may still create a client.
+AuthSession _session({
+  int enabledModules = 0,
+  bool isAdmin = true,
+  String permissions = '',
+}) => AuthSession(
   baseUrl: 'https://example.test',
   isHosted: false,
   accountId: 'acct',
   companies: [
-    const AuthCompany(
+    AuthCompany(
       id: 'co',
       name: 'Acme Corporation',
       displayName: 'Acme Corporation',
-      permissions: '',
-      isAdmin: true,
-      isOwner: true,
+      permissions: permissions,
+      isAdmin: isAdmin,
+      isOwner: isAdmin,
+      enabledModules: enabledModules,
     ),
   ],
   currentCompanyId: 'co',
@@ -124,11 +166,13 @@ AuthSession _session() => AuthSession(
 void main() {
   late AppDatabase db;
   late _FakeServices services;
+  late ValueNotifier<AuthSession?> session;
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
+    session = ValueNotifier<AuthSession?>(_session());
     services = _FakeServices(
-      auth: _FakeAuth(ValueNotifier<AuthSession?>(_session())),
+      auth: _FakeAuth(session),
       dashboard: FakeDashboardRepo(db),
       db: db,
       statics: StaticsRepository(
@@ -302,5 +346,229 @@ void main() {
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // flutter#164 — the narrow dashboard's `+` is a bottom-right FAB that opens a
+  // choice of what to create. It replaced an app-bar icon that went straight
+  // to New Invoice. The button and its sheet are covered by
+  // `dashboard_create_fab_test.dart`. These tests cover what only the screen
+  // decides: which layouts get the button, what it offers, and where a pick
+  // goes.
+
+  group('the create menu', () {
+    Finder barPlus() => find.descendant(
+      of: find.byType(DashboardMobileAppBar),
+      matching: find.byIcon(Icons.add),
+    );
+
+    testWidgets('phone: a FAB, and no + in the bar', (tester) async {
+      await pumpScreen(tester, window: 400);
+
+      expect(find.byType(DashboardCreateFab), findsOneWidget);
+      expect(barPlus(), findsNothing);
+    });
+
+    testWidgets('landscape phone: the FAB comes with the narrow chrome', (
+      tester,
+    ) async {
+      await pumpScreen(tester, window: 890, height: 412, pane: 658);
+
+      expect(find.byType(DashboardCreateFab), findsOneWidget);
+    });
+
+    testWidgets('rail band: the narrow pane gets it too', (tester) async {
+      await pumpScreen(tester, window: 700, pane: 468);
+
+      expect(find.byType(DashboardCreateFab), findsOneWidget);
+    });
+
+    testWidgets('wide: no FAB, the top bar keeps New Invoice', (tester) async {
+      session.value = _session(enabledModules: EnabledModule.invoices.bitmask);
+      await pumpScreen(tester, window: 1200);
+
+      expect(find.byType(DashboardCreateFab), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(DashboardTopBar),
+          matching: find.text('New Invoice'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('it offers what the user may create, in menu order', (
+      tester,
+    ) async {
+      session.value = _session(enabledModules: EnabledModule.invoices.bitmask);
+      await pumpScreen(tester, window: 400);
+
+      final fab = tester.widget<DashboardCreateFab>(
+        find.byType(DashboardCreateFab),
+      );
+      expect(fab.options.map((o) => o.type), const [
+        EntityType.invoice,
+        EntityType.client,
+      ]);
+    });
+
+    testWidgets('a user who may create nothing gets no FAB', (tester) async {
+      session.value = _session(isAdmin: false, permissions: 'view_all');
+      await pumpScreen(tester, window: 400);
+
+      expect(find.byType(DashboardCreateFab), findsNothing);
+    });
+
+    // The session is rebuilt, company unchanged, when an admin grants a
+    // permission or switches a module on. The screen used to rebuild only on a
+    // company switch, which left the `+` as it was.
+    testWidgets('a permission granted mid-session reaches the FAB', (
+      tester,
+    ) async {
+      session.value = _session(isAdmin: false, permissions: 'view_all');
+      await pumpScreen(tester, window: 400);
+      expect(find.byType(DashboardCreateFab), findsNothing);
+
+      session.value = _session(isAdmin: false, permissions: 'create_client');
+      await tester.pump();
+
+      expect(find.byType(DashboardCreateFab), findsOneWidget);
+    });
+
+    // The wide button used to check only the invoices module. So a user
+    // without `create_invoice` was offered New Invoice and then refused when
+    // saving. Both layouts now ask `_creatableEntities`.
+    testWidgets('wide New Invoice needs create_invoice, not just the module', (
+      tester,
+    ) async {
+      session.value = _session(
+        enabledModules: EnabledModule.invoices.bitmask,
+        isAdmin: false,
+        permissions: 'view_all,edit_all',
+      );
+      await pumpScreen(tester, window: 1200);
+
+      expect(find.byType(DashboardTopBar), findsOneWidget);
+      expect(find.text('New Invoice'), findsNothing);
+    });
+
+    testWidgets('wide New Invoice shows for create_invoice', (tester) async {
+      session.value = _session(
+        enabledModules: EnabledModule.invoices.bitmask,
+        isAdmin: false,
+        permissions: 'create_invoice',
+      );
+      await pumpScreen(tester, window: 1200);
+
+      expect(find.text('New Invoice'), findsOneWidget);
+    });
+
+    group('navigation', () {
+      /// The screen under a real `GoRouter`, which `goToCreateRoute` needs.
+      /// Each create route renders its own path, so a test can read where it
+      /// landed.
+      Future<void> pumpRouted(
+        WidgetTester tester, {
+        required double window,
+      }) async {
+        const height = 900.0;
+        await tester.binding.setSurfaceSize(const Size(1600, height));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final router = GoRouter(
+          initialLocation: '/dashboard',
+          routes: [
+            GoRoute(
+              path: '/dashboard',
+              builder: (_, _) => const DashboardScreen(),
+            ),
+            for (final path in const ['/clients/new', '/invoices/new'])
+              GoRoute(path: path, builder: (_, _) => Text('route: $path')),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          Provider<Services>.value(
+            value: services,
+            child: MaterialApp.router(
+              routerConfig: router,
+              localizationsDelegates: kTestLocalizationsDelegates,
+              supportedLocales: kTestSupportedLocales,
+              theme: buildInTheme(InTheme.light),
+              builder: (context, inner) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(size: Size(window, height)),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(width: window, height: height, child: inner),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+
+      /// Explicit pumps: the body's spinner never settles.
+      Future<void> tapAndWait(WidgetTester tester, Finder target) async {
+        await tester.tap(target);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+      }
+
+      testWidgets('a pick opens that entity\'s blank create screen', (
+        tester,
+      ) async {
+        await pumpRouted(tester, window: 400);
+
+        await tapAndWait(tester, find.byType(FloatingActionButton));
+        await tapAndWait(tester, find.text('New Client'));
+
+        expect(find.text('route: /clients/new'), findsOneWidget);
+        expect(
+          services.staged,
+          const [('/clients', null)],
+          reason:
+              'goToCreateRoute stages a blank draft, which re-keys a create '
+              'screen the branch left mounted; a bare go() reuses it',
+        );
+      });
+
+      testWidgets('a dirty editor elsewhere is asked about first', (
+        tester,
+      ) async {
+        final source = ValueNotifier(0);
+        addTearDown(source.dispose);
+        addTearDown(
+          services.unsavedChangesGuard.register(
+            isDirty: () => true,
+            source: source,
+          ),
+        );
+        await pumpRouted(tester, window: 400);
+
+        await tapAndWait(tester, find.byType(FloatingActionButton));
+        await tapAndWait(tester, find.text('New Client'));
+
+        expect(find.text('Discard changes?'), findsOneWidget);
+        await tapAndWait(tester, find.text('Keep editing'));
+
+        expect(find.text('route: /clients/new'), findsNothing);
+        expect(find.byType(DashboardScreen), findsOneWidget);
+        expect(services.staged, isEmpty);
+      });
+
+      testWidgets('wide New Invoice goes the same way', (tester) async {
+        session.value = _session(
+          enabledModules: EnabledModule.invoices.bitmask,
+        );
+        await pumpRouted(tester, window: 1200);
+
+        await tapAndWait(tester, find.text('New Invoice'));
+
+        expect(find.text('route: /invoices/new'), findsOneWidget);
+        expect(services.staged, const [('/invoices', null)]);
+      });
+    });
   });
 }

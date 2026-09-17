@@ -91,8 +91,9 @@ class SidebarNavItem extends StatefulWidget {
   final bool compact;
 
   /// Grid variant for the "pills" menu layout (invoiceninja/flutter#125): a
-  /// bordered card with the icon above a centred two-line label, matching the
-  /// dashboard's quick-action tiles so the two read as one system.
+  /// bordered card with the icon above a centred two-line label. It was
+  /// modelled on the dashboard's quick-action tiles. Those are now the tiles in
+  /// the dashboard's `+` sheet (flutter#164), and the two read as one system.
   ///
   /// Ignored when [compact] — the 64-px rail is already denser than any grid.
   /// A tile has no room for a hover slot, so [trailingHover] is dropped; the

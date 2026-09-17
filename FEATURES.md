@@ -117,6 +117,7 @@ the honest default.
 | Task calendar panel — month grid, days colour-coded by hours booked | — | — | ✅ | | |
 | Invoices & Quotes panel — one card, status tabs with live counts, most recent first | ❌ | ❌ | ✅ | | flutter#155 |
 | Dashboard panel order — a new panel lands at its declared slot, not last | — | — | ✅ | | |
+| Quick-create `+` — a floating button (phone layout) opens a sheet of everything the user may create, gated by module and `create_*` permission; replaces the app-bar New Invoice icon and the New Client / Enter Expense tiles (flutter#164) | ✅ | ❌ | ✅ | | |
 | Panel → filtered list deep-links (View All / KPI cards carry matching filters) | — | — | ✅ | ✅ | |
 | Freshness label (last data update) | ❌ | ✅ | ✅ | ✅ | |
 | Responsive single-column mobile layout | — | ✅ | ✅ | ✅ | |

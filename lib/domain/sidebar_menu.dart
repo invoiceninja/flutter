@@ -15,9 +15,10 @@ library;
 /// How the nav block renders.
 ///
 /// [list] is the full-width row per destination the app has always shown.
-/// [grid] is the denser icon-above-label tile grid asked for in #125, matching
-/// the dashboard's quick-action pills. The collapsed 64-px rail ignores this
-/// entirely — it is already denser than any grid.
+/// [grid] is the denser icon-above-label tile grid asked for in #125, modelled
+/// on the dashboard's quick-action pills (since #164, the tiles in its `+`
+/// sheet). The collapsed 64-px rail ignores this entirely — it is already
+/// denser than any grid.
 enum SidebarMenuLayout { list, grid }
 
 /// Parse a stored [SidebarMenuLayout] name. Anything unrecognized — a value

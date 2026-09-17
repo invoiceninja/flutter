@@ -14,9 +14,11 @@ import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/domain/quick_create.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
+import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
@@ -26,6 +28,7 @@ import 'package:admin/ui/features/dashboard/widgets/billing_pipeline_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_create_fab.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_mobile_app_bar.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_panel_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
@@ -112,7 +115,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onSessionChanged() {
     final s = _services.auth.session.value;
-    if (s == null || s.currentCompanyId == _companyId) return;
+    if (s == null) return;
+    if (s.currentCompanyId == _companyId) {
+      // Same company, but the session is rebuilt when its modules,
+      // permissions or name change. The create affordances and the panel
+      // gates read those at build time, and nothing else rebuilds this
+      // chrome, so a permission granted mid-session would otherwise leave
+      // the `+` stale until the next company switch.
+      setState(() => _rawCompanyName = _rawNameFor(s.currentCompany));
+      return;
+    }
     final oldVm = _vm;
     setState(() {
       _companyId = s.currentCompanyId;
@@ -148,8 +160,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     '/activity',
   };
 
-  /// True when [type]'s module is enabled for the active company. Gates the
-  /// dashboard's quick-create affordances (new invoice / log expense).
+  /// True when [type]'s module is enabled for the active company. Gates a
+  /// configured card's tap-through. The create affordances ask
+  /// [_creatableEntities] instead, which also checks the create permission.
   bool _moduleOn(EntityType type) =>
       context
           .read<Services>()
@@ -159,6 +172,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ?.currentCompany
           ?.moduleEnabled(type) ??
       false;
+
+  /// What the active user may create from the dashboard, in menu order
+  /// (invoiceninja/flutter#164). Both layouts read this one gate. The narrow
+  /// `+` sheet lists every entry, and the wide bar shows New Invoice only when
+  /// invoices are on the list. So the two cannot disagree about who may start
+  /// an invoice.
+  List<EntityType> _creatableEntities() {
+    final me = _services.auth.session.value?.currentCompany;
+    final registry = _services.entityRegistry;
+    return quickCreateEntities(
+      hasCreateRoute: (t) => registry[t]?.newRoute != null,
+      moduleOn: (t) => me?.moduleEnabled(t) ?? false,
+      can: (p) => me?.can(p) ?? false,
+    );
+  }
+
+  /// [creatable] as sheet entries, each with the icon its sidebar row wears.
+  List<QuickCreateOption> _createOptions(List<EntityType> creatable) => [
+    for (final type in creatable)
+      QuickCreateOption(
+        type: type,
+        // Non-null: `_creatableEntities` only returns types that have a
+        // registry entry with a create route.
+        icon: _services.entityRegistry[type]!.effectiveOutlinedIcon,
+      ),
+  ];
+
+  /// Opens a blank create screen for [type]. Both the `+` sheet and the wide
+  /// bar's New Invoice button end up here.
+  ///
+  /// Every destination is in another shell branch. So this first runs the
+  /// global dirty-form guard, as the sidebar's `+` and the create shortcuts
+  /// do. Then it navigates with `goToCreateRoute` rather than a bare `go`. A
+  /// bare `go` would reuse a create screen the branch still has mounted, which
+  /// could still be seeded with, say, the client that an earlier New Invoice
+  /// started from.
+  Future<void> _create(EntityType type) async {
+    final route = _services.entityRegistry[type]?.newRoute;
+    if (route == null) return;
+    if (!await _services.unsavedChangesGuard.confirmIfDirty(context)) return;
+    if (!mounted) return;
+    goToCreateRoute(context, route);
+  }
 
   Future<void> _safeNavigate(String route) async {
     final isKnown = _knownRoutePrefixes.any(
@@ -336,6 +392,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final wide =
             Breakpoints.isWide(constraints) && !Breakpoints.isPhone(context);
         final globalNav = Breakpoints.isGlobalNavVisible(context);
+        final creatable = _creatableEntities();
+        // The `+` is narrow-only, like every list screen's. The wide top bar
+        // keeps its labelled New Invoice button instead.
+        final createOptions = wide
+            ? const <QuickCreateOption>[]
+            : _createOptions(creatable);
         final scaffold = Builder(
           builder: (context) {
             final tokens = context.inTheme;
@@ -350,6 +412,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // inside the body so the company name + subtitle + full-label
               // buttons render the way `screens.jsx:196-201` calls for.
               appBar: wide ? null : _buildMobileAppBar(globalNav: globalNav),
+              // invoiceninja/flutter#164. This is the narrow dashboard's only
+              // create affordance. It is left off when the user may create
+              // nothing, rather than opening an empty sheet.
+              floatingActionButton: createOptions.isEmpty
+                  ? null
+                  : DashboardCreateFab(
+                      options: createOptions,
+                      onCreate: (type) => unawaited(_create(type)),
+                    ),
               body: SafeArea(
                 child: Column(
                   children: [
@@ -362,8 +433,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           vm: _vm,
                           companyName: _resolveCompanyName(context),
                           onRefresh: () => unawaited(_refreshWithFeedback()),
-                          onNewInvoice: _moduleOn(EntityType.invoice)
-                              ? () => _safeNavigate('/invoices/new')
+                          onNewInvoice: creatable.contains(EntityType.invoice)
+                              ? () => unawaited(_create(EntityType.invoice))
                               : null,
                           formatter: _formatter,
                         ),
@@ -385,7 +456,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   )
                                 : (wide
                                       ? _buildScroll(context, constraints)
-                                      : _buildMobile(context)),
+                                      : _buildMobile(
+                                          context,
+                                          fabClearance: createOptions.isEmpty
+                                              ? 0
+                                              : kDashboardFabClearance,
+                                        )),
                           ),
                         ),
                       ),
@@ -410,25 +486,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // while the drawer follows *window* width, so the two disagree for a
       // window between 600 and ~832 px.
       showHamburger: !globalNav,
-      onNewInvoice: _moduleOn(EntityType.invoice)
-          ? () => _safeNavigate('/invoices/new')
-          : null,
       formatter: _formatter,
     );
   }
 
-  Widget _buildMobile(BuildContext context) {
+  Widget _buildMobile(BuildContext context, {required double fabClearance}) {
     return MobileDashboardBody(
       vm: _vm,
       formatter: _formatter!,
+      fabClearance: fabClearance,
       onOpenCard: _openConfiguredCard,
       onPastDueInvoiceTap: _navInvoice,
       onAllInvoices: () => _goWithIntent('/invoices', _pastDueInvoicesIntent),
       onAllUpcomingInvoices: () =>
           _goWithIntent('/invoices', _upcomingInvoicesIntent),
-      onAddClient: () => _safeNavigate('/clients/new'),
-      onLogExpense: () => _safeNavigate('/expenses/new'),
-      onReports: () => _safeNavigate('/reports'),
       onOutstandingTap: () => _goWithIntent('/invoices', _invoiceKpiIntent()),
       onPaidTap: () => _goWithIntent('/payments', _paidPaymentsIntent),
       onActivityTap: _navActivity,

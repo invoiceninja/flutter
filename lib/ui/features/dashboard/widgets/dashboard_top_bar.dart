@@ -43,8 +43,11 @@ class DashboardTopBar extends StatelessWidget {
   /// than straight to `vm.refresh` so a failed pass can surface a toast.
   final VoidCallback onRefresh;
 
-  /// Null when the invoices module is disabled — the primary "New invoice"
-  /// button is then omitted entirely.
+  /// Null when the user may not create an invoice, in which case the primary
+  /// "New invoice" button is omitted entirely. That covers the invoices module
+  /// being off as well as a missing `create_invoice` permission. The screen
+  /// asks the same `quickCreateEntities` gate that fills the narrow layout's
+  /// `+` sheet.
   final VoidCallback? onNewInvoice;
 
   final Formatter? formatter;

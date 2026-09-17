@@ -57,6 +57,7 @@ Plus two non-negotiables carried from admin-portal:
 | Adding a column to an entity list (or a custom-field column) | § List columns · `docs/entity-lists.md` · `lib/domain/columns/` |
 | Adding a report, its date field, grouping granularity, or the report chart | § Reports · `docs/reports.md` · `lib/domain/reports/report_registry.dart` |
 | Adding a dashboard panel, hiding empty ones, or the task-calendar panel's colours / month fetch | § Dashboard panels · `docs/dashboard-panels.md` · `lib/ui/features/dashboard/helpers/enabled_panel_kinds.dart` · `lib/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart` |
+| An entry in the dashboard's `+` create sheet, who is offered it, or the running-timer pill sitting on a FAB | `docs/dashboard-panels.md` § The `+` is a FAB that opens a create sheet · `lib/domain/quick_create.dart` · `runningTimerPillBottom` |
 | A task that is booked but not started, the Start/Resume label, or billing booked time | `docs/task-scheduling.md` · `lib/domain/tasks/task_schedule.dart` · `test/lint/task_start_rules_test.dart` |
 | Changing the Tasks layout view (list / daily / weekly / calendar / kanban) or how it sticks | § Tasks layout view · `docs/tasks-views.md` · `lib/domain/tasks/tasks_view_mode.dart` |
 | Adding a create affordance to the kanban board (its `+ New Task` footer, or a FAB) | `docs/tasks-views.md` § The kanban board is the one Tasks view with no create FAB · `test/lint/tasks_view_wiring_test.dart` |
@@ -536,6 +537,7 @@ The bottom grid's panels are ordered and hidden per device — `DashboardKind.pa
 - **"Most recent" needs a tie-break, and `created_at == 0` means *newest*, not oldest.** → `docs/dashboard-panels.md` § Most recent needs a tie-break, and epoch 0 leads
 - **A tabbed card is the one dashboard panel whose empty state may be the generic string.** → `docs/dashboard-panels.md` § A tabbed card is the one place the generic empty string is right
 - **"Hide empty panels" is a device preference (null = automatic = on for a phone), a panel is empty only once its section loaded with no rows, the two Drift-backed panels never qualify, and the list drops the panel through `HiddenEmptyPanelsBuilder` — the card never hides itself.** → `docs/dashboard-panels.md` § An empty panel is dropped from the list, not hidden by the card
+- **The narrow dashboard's `+` is a FAB opening a create sheet on the root navigator, and `quickCreateEntities` is the one gate for it and the wide New Invoice button — create route, module (payments ride the invoices bit), and `create_<entity>` (transactions are `bank_transaction`).** → `docs/dashboard-panels.md` § The `+` is a FAB that opens a create sheet
 
 ## Tap to call
 

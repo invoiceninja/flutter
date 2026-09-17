@@ -53,9 +53,10 @@ Future<void> pumpAt(
       theme: buildInTheme(InTheme.light),
       localizationsDelegates: kTestLocalizationsDelegates,
       supportedLocales: kTestSupportedLocales,
-      // Applied via `builder` rather than wrapping `home`: `WidgetsApp`
-      // inserts its own `MediaQuery.fromView` *inside* MaterialApp, so an
-      // outer MediaQuery would be discarded before it reached the child.
+      // Applied via `builder`, which sits above the app's Navigator, so the
+      // override reaches every route — dialogs and sheets included — rather
+      // than `home` alone. (`WidgetsApp` adds no `MediaQuery` of its own; the
+      // root `View` provides the one this copies.)
       builder: (context, inner) => MediaQuery(
         data: MediaQuery.of(
           context,

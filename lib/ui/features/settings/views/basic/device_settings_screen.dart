@@ -15,6 +15,7 @@ import 'package:admin/ui/features/settings/widgets/confirm_actions_tile.dart';
 import 'package:admin/ui/features/settings/widgets/assigned_users_section.dart';
 import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
+import 'package:admin/ui/features/settings/widgets/dashboard_panels_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -44,6 +45,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kPhoneActionsSearchKeys,
   ...kContactsSyncSearchKeys,
   ...kAssignedUsersSearchKeys,
+  ...kDashboardPanelsSearchKeys,
   ...kListStatusTabsSearchKeys,
   ...kSidebarMenuSearchKeys,
   ...kSidebarCountersSearchKeys,
@@ -111,13 +113,18 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               // Native mobile only — hides itself where the app can't write
               // the address book (desktop, web).
               const ContactsSyncSection(),
-              // Between the phone/contacts pair and the list/rail block on
-              // purpose: the three cards below change chrome, this one changes
-              // what a *form* offers. The load-bearing reason to keep it here
-              // rather than lower is scroll reach — Sidebar counters alone can
-              // render 14 rows, and a settings-search hit lands at the top of
-              // the screen with no per-field anchor.
+              // Between the phone/contacts pair and the chrome block on
+              // purpose: the cards below change chrome, this one changes what a
+              // *form* offers. The load-bearing reason to keep it here rather
+              // than lower is scroll reach — Sidebar counters alone can render
+              // 14 rows, and a settings-search hit lands at the top of the
+              // screen with no per-field anchor.
               const AssignedUsersSection(),
+              // Dashboard chrome, ahead of the list / rail trio so it doesn't
+              // split them — and, like the card above, well clear of Sidebar
+              // counters: its default is for phones, where that is a long way
+              // down.
+              const DashboardPanelsSection(),
               const ListStatusTabsSection(),
               // Both are about the rail, but one is what the rows *are* and the
               // other is what their numbers count — see ListStatusTabsSection.

@@ -110,17 +110,23 @@ class AuthRepository {
   /// swallowed; logout must complete regardless.
   void Function()? onSessionReset;
 
-  /// Wired by DI to `ContactsSyncController.removeAllCompanies`. Invoked
-  /// immediately before [logout] wipes the database, and **only on the
-  /// destructive path** — deliberately not on the `preserveLocalData`
-  /// idle-timeout re-lock, where the session is coming back.
+  /// Wired by DI to `ContactsSyncController.removeAllCompanies` and to the
+  /// `resetInMemory()` of every controller that mirrors a `nav_state` value it
+  /// can't re-read (the main menu, the Tasks layout, "Hide empty panels").
+  /// Invoked immediately before
+  /// the database is wiped — by [logout], and by the different-identity wipe
+  /// at sign-in — and **only on those destructive paths**: deliberately not
+  /// on the `preserveLocalData` idle-timeout re-lock, where the session is
+  /// coming back.
   ///
   /// Distinct from [onBeforeLogout], which fires for both paths and so can't
   /// express "we are about to destroy local state". The contacts sync needs
   /// exactly that: its link table lives in the database, so anything not
   /// cleaned up here is stranded on the device forever — a signed-out user's
-  /// whole client list left sitting in the address book. Failures are logged
-  /// and swallowed; logout must complete regardless.
+  /// whole client list left sitting in the address book. So does an in-memory
+  /// mirror of a `nav_state` column, which must forget its value when (and
+  /// only when) the row it mirrors is destroyed. Failures are logged and
+  /// swallowed; logout must complete regardless.
   Future<void> Function()? onBeforeDataWipe;
 
   /// Wired by DI to `SyncRepository.drainOnce`. Fires whenever the active

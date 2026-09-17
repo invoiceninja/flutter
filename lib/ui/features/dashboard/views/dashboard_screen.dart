@@ -17,7 +17,6 @@ import 'package:admin/domain/entity_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
-import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
@@ -28,7 +27,9 @@ import 'package:admin/ui/features/dashboard/widgets/activity_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_mobile_app_bar.dart';
+import 'package:admin/ui/features/dashboard/widgets/dashboard_panel_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/dashboard_top_bar.dart';
+import 'package:admin/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_row.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile_dashboard_body.dart';
@@ -435,6 +436,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onAllQuotes: () => _safeNavigate('/quotes'),
       onRecurringTap: _navRecurring,
       onAllRecurring: () => _safeNavigate('/recurring_invoices'),
+      onShowPanels: () => openManageDashboardCards(
+        context,
+        vm: _vm,
+        mobileLayout: true,
+        initialTab: ManagePane.panels,
+      ),
     );
   }
 
@@ -555,10 +562,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     bool on(String kind) => enabled.contains(kind);
 
-    // One builder per panel whose module is enabled; rendered in the user's
-    // saved order (`_vm.panelPrefs`), skipping hidden panels. Each card is
-    // `KeyedSubtree`-keyed by kind so reorder/hide moves the element (and its
-    // section subscription) as a unit instead of re-pointing it by position.
+    // One builder per panel whose module is enabled; `DashboardPanelGrid`
+    // renders them in the user's saved order (`_vm.panelPrefs`), skipping the
+    // ones the user hid and the ones with nothing to show, and keys each with
+    // a `GlobalKey` so a panel that changes row keeps its element — see that
+    // widget for why the old per-card `ValueKey` never did.
     final builders = <String, Widget Function()>{
       if (on(DashboardKind.pastDue))
         DashboardKind.pastDue: () => sectionListenable(
@@ -662,86 +670,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
     };
 
-    final cards = <Widget>[
-      for (final p in _vm.panelPrefs)
-        if (p.visible && builders.containsKey(p.kind))
-          KeyedSubtree(key: ValueKey(p.kind), child: builders[p.kind]!()),
-    ];
-
-    if (cards.isEmpty) {
-      // No backing module enabled → nothing to surface; collapse silently (the
-      // chart / activity / KPI rows above still anchor the screen).
-      if (builders.isEmpty) return const SizedBox.shrink();
-      // Module-enabled panels exist but the user hid them all → offer an inline
-      // way back rather than a blank void (mirrors the cards' empty-state link).
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: LinkText(
-          label: context.tr('show_panels'),
-          onTap: () => openManageDashboardCards(
-            context,
-            vm: _vm,
-            mobileLayout: false,
-            initialTab: ManagePane.panels,
-          ),
-          style: const TextStyle(fontSize: 12.5),
+    // The builder is what rebuilds this grid when a panel empties or fills
+    // (invoiceninja/flutter#161): a section emission only reaches its own
+    // card, never the view model this method runs under. Wrapped always — even
+    // with the preference off — so the grid's element, and the `GlobalKey`s it
+    // owns, never change identity with the setting.
+    return HiddenEmptyPanelsBuilder(
+      vm: _vm,
+      pref: _services.hideEmptyPanels,
+      builder: (context, hidden) => DashboardPanelGrid(
+        panelPrefs: _vm.panelPrefs,
+        builders: builders,
+        hidden: hidden,
+        columns: width >= 1200 ? 2 : 1,
+        gap: InSpacing.lg(context),
+        onShowPanels: () => openManageDashboardCards(
+          context,
+          vm: _vm,
+          mobileLayout: false,
+          initialTab: ManagePane.panels,
         ),
-      );
-    }
-
-    final columns = width >= 1200 ? 2 : 1;
-    return _MultiColumnGrid(
-      columns: columns,
-      gap: InSpacing.lg(context),
-      children: cards,
-    );
-  }
-}
-
-/// Simple column-balanced grid that places `children` left-to-right, top-to-
-/// bottom into [columns] columns with `gap` between cells and rows. We use
-/// this instead of `GridView` so each row can size itself to its tallest
-/// card (cards have variable internal height).
-class _MultiColumnGrid extends StatelessWidget {
-  const _MultiColumnGrid({
-    required this.columns,
-    required this.gap,
-    required this.children,
-  });
-
-  final int columns;
-  final double gap;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i += columns) {
-      final rowChildren = <Widget>[];
-      for (var j = 0; j < columns; j++) {
-        final idx = i + j;
-        if (j > 0) rowChildren.add(SizedBox(width: gap));
-        rowChildren.add(
-          Expanded(
-            child: idx < children.length
-                ? children[idx]
-                : const SizedBox.shrink(),
-          ),
-        );
-      }
-      if (rows.isNotEmpty) rows.add(SizedBox(height: gap));
-      rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: rowChildren,
-          ),
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: rows,
+      ),
     );
   }
 }

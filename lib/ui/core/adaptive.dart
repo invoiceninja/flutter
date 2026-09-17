@@ -64,11 +64,21 @@ class Breakpoints {
   /// (890x412) would match on `shortestSide` alone.
   ///
   /// Wire this in **per screen, deliberately**. It is not applied app-wide;
-  /// [isWide] stays the default gate and the callers are a small, deliberate
-  /// set — `DashboardScreen` and `showCommandPalette`, which uses it to pick
-  /// its whole presentation (a full-screen page on a phone, the floating
-  /// Spotlight card everywhere else) along with its keyboard-only hints: both
-  /// are questions about the device, not the window.
+  /// [isWide] stays the default gate, and the callers are a small, deliberate
+  /// set, each asking a question about the device rather than the window:
+  ///
+  /// * `DashboardScreen`, which gives a phone the single-column body in either
+  ///   orientation;
+  /// * `showCommandPalette`, which picks its whole presentation (a full-screen
+  ///   page on a phone, the floating Spotlight card everywhere else) along
+  ///   with its keyboard-only hints;
+  /// * the four custom Tasks views (daily, weekly, calendar, kanban), through
+  ///   `taskFiltersInline`, which collapses a phone's filter row in either
+  ///   orientation instead of laying it out inline;
+  /// * `hidesEmptyPanelsByDefault`, the "Hide empty panels" default
+  ///   (invoiceninja/flutter#161) — on for phones only, which
+  ///   `Env.isTouchPrimary` alone can't express, since a tablet is
+  ///   touch-primary too.
   static bool isPhone(BuildContext context) =>
       Env.isTouchPrimary && MediaQuery.sizeOf(context).shortestSide < wide;
 

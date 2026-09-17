@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
+import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
@@ -692,6 +693,149 @@ void main() {
       expect(reader.panelPrefs.map((p) => p.kind), DashboardKind.panelKinds);
       expect(reader.panelsAreDefault, isTrue);
       reader.dispose();
+    });
+  });
+
+  // invoiceninja/flutter#161. The panel lists are built under the global
+  // notify, which a section emission never fires (first test in this file) —
+  // so "this panel has nothing to show" travels on a notifier of its own, and
+  // only the six cache-backed panels can ever be on it.
+  group('emptyPanels', () {
+    const cached = {
+      DashboardKind.pastDue,
+      DashboardKind.upcomingInvoices,
+      DashboardKind.recentPayments,
+      DashboardKind.upcomingQuotes,
+      DashboardKind.expiredQuotes,
+      DashboardKind.upcomingRecurring,
+    };
+
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 10));
+
+    DashboardQuoteRow quote() => DashboardQuoteRow.fromJson({
+      'id': 'q1',
+      'client': {'id': 'c1', 'name': 'Acme'},
+    });
+
+    test('starts empty — nothing has loaded, so nothing is known empty', () {
+      expect(vm.emptyPanels.value, isEmpty);
+    });
+
+    test(
+      'a loaded-empty section joins the set without a global notify',
+      () async {
+        var setHits = 0;
+        var sectionHits = 0;
+        var globalHits = 0;
+        vm.emptyPanels.addListener(() => setHits++);
+        vm
+            .listenableFor(DashboardKind.upcomingQuotes)
+            .addListener(() => sectionHits++);
+        vm.addListener(() => globalHits++);
+
+        repo.upcomingQuotes.add(const []);
+        await settle();
+
+        expect(vm.emptyPanels.value, {DashboardKind.upcomingQuotes});
+        expect(setHits, 1);
+        expect(sectionHits, 1, reason: 'the card itself still rebuilds');
+        expect(
+          globalHits,
+          0,
+          reason: 'a data emission must not rebuild the whole dashboard',
+        );
+      },
+    );
+
+    test('a repeated empty emission does not notify again', () async {
+      var setHits = 0;
+      vm.emptyPanels.addListener(() => setHits++);
+
+      repo.upcomingQuotes.add(const []);
+      await settle();
+      repo.upcomingQuotes.add(const []);
+      // An unrelated section changing is not a membership change either.
+      repo.chart.add(null);
+      await settle();
+
+      expect(setHits, 1);
+    });
+
+    // The eligible set is derived (`panelKinds ∩ listKinds`), so this is the
+    // test that notices a cache-backed panel that can't hide — or a
+    // Drift-backed one that suddenly can.
+    test('every cache-backed panel can be empty, and nothing else', () async {
+      repo.pastDue.add(const []);
+      repo.upcomingInvoices.add(const []);
+      repo.recentPayments.add(const []);
+      repo.upcomingQuotes.add(const []);
+      repo.expiredQuotes.add(const []);
+      repo.upcomingRecurring.add(const []);
+      // `activities` is a list section but not a panel — it can't be hidden.
+      repo.activities.add(const []);
+      await settle();
+
+      expect(vm.emptyPanels.value, cached);
+      expect(cached, {
+        for (final k in DashboardKind.panelKinds)
+          if (DashboardKind.listKinds.contains(k)) k,
+      });
+    });
+
+    test('rows, or a dropped cache row, take a panel back out', () async {
+      repo.upcomingQuotes.add(const []);
+      repo.expiredQuotes.add(const []);
+      await settle();
+      expect(vm.emptyPanels.value, {
+        DashboardKind.upcomingQuotes,
+        DashboardKind.expiredQuotes,
+      });
+
+      repo.upcomingQuotes.add([quote()]);
+      repo.expiredQuotes.add(null);
+      await settle();
+
+      expect(vm.emptyPanels.value, isEmpty);
+    });
+
+    test(
+      'a failed first fetch is not empty — its card shows the error',
+      () async {
+        repo.refreshAllErrors = {
+          DashboardKind.upcomingQuotes: Exception('offline'),
+        };
+        await vm.refresh();
+        await settle();
+
+        expect(vm.upcomingQuotes.hasError, isTrue);
+        expect(vm.upcomingQuotes.hasData, isFalse);
+        expect(vm.emptyPanels.value, isEmpty);
+      },
+    );
+
+    test('a failed refresh keeps a panel the cache knows is empty', () async {
+      repo.upcomingQuotes.add(const []);
+      await settle();
+      repo.refreshAllErrors = {
+        DashboardKind.upcomingQuotes: Exception('offline'),
+      };
+      await vm.refresh();
+      await settle();
+
+      // The wide card renders its empty state here too (`hasData` wins over
+      // the error), so the panel is still one with nothing to show.
+      expect(vm.upcomingQuotes.hasError, isTrue);
+      expect(vm.emptyPanels.value, {DashboardKind.upcomingQuotes});
+    });
+
+    test('the published set cannot be mutated by a reader', () async {
+      repo.upcomingQuotes.add(const []);
+      await settle();
+      expect(
+        () => vm.emptyPanels.value.add(DashboardKind.pastDue),
+        throwsUnsupportedError,
+      );
     });
   });
 }

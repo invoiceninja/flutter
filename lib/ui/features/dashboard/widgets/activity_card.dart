@@ -52,31 +52,31 @@ class ActivityCard extends StatelessWidget {
   }
 
   Widget _body(BuildContext context) {
-    if (section.hasError && !section.hasData) {
-      return _Constrained(
-        child: ErrorView(
-          message: context.tr('couldnt_load_tap_to_retry', {
-            'section': context.tr('activity').toLowerCase(),
-          }),
-          onRetry: onRetry,
-        ),
-      );
-    }
-    final items = section.data;
-    if (items == null) {
-      return const ActivityFeedSkeleton();
-    }
-    if (items.isEmpty) {
-      return _Constrained(
-        child: EmptyState(
-          icon: Icons.notifications_none_outlined,
-          title: context.tr('no_activity_yet'),
-        ),
-      );
+    switch (section.listState) {
+      case ListSectionState.failed:
+        return _Constrained(
+          child: ErrorView(
+            message: context.tr('couldnt_load_tap_to_retry', {
+              'section': context.tr('activity').toLowerCase(),
+            }),
+            onRetry: onRetry,
+          ),
+        );
+      case ListSectionState.loading:
+        return const ActivityFeedSkeleton();
+      case ListSectionState.empty:
+        return _Constrained(
+          child: EmptyState(
+            icon: Icons.notifications_none_outlined,
+            title: context.tr('no_activity_yet'),
+          ),
+        );
+      case ListSectionState.rows:
+        break;
     }
     final formatter = ActivityFormatter(context);
     final tokens = context.inTheme;
-    final visible = items.take(5).toList();
+    final visible = section.data!.take(5).toList();
     return Column(
       children: [
         for (var i = 0; i < visible.length; i++) ...[

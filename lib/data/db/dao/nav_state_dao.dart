@@ -181,6 +181,25 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Hide-empty-panels-only update — [HideEmptyPanelsController] calls this
+  /// when the user flips the switch in Device Settings or the dashboard's
+  /// Customize sheet. Same partial-write pattern as [saveHideUnverifiedUsers].
+  /// [enabled] is nullable because null is a real value here — "automatic",
+  /// resolved per device — and the controller writes it whenever the user picks
+  /// what the device would have picked anyway.
+  Future<void> saveHideEmptyPanels({
+    required bool? enabled,
+    required int now,
+  }) async {
+    await into(navState).insertOnConflictUpdate(
+      NavStateCompanion.insert(
+        id: const Value(0),
+        hideEmptyPanels: Value(enabled),
+        updatedAt: now,
+      ),
+    );
+  }
+
   /// Phone-actions-only update — [PhoneActionsController] calls this when the
   /// user changes anything on the "Phone numbers" card. Same partial-write
   /// pattern as [saveContactsSync]; the whole preference is one blob, so there

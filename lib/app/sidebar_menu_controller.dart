@@ -16,12 +16,15 @@ final _log = Logger('SidebarMenuController');
 /// Device-local persistence to `nav_state.sidebar_menu_json`, same pattern as
 /// [SidebarBadgeModeController]. **Not preserved across a deliberate logout**:
 /// `logout()` wipes every Drift table, `nav_state` included, and nothing
-/// re-seeds the row — and [resetInMemory] joins the `onBeforeLogout` fan-out so
-/// that is true *immediately*, not merely after the next app launch. Without
-/// it a second user signing in on the same install inherits the first one's
-/// order and hidden rows, and the first control they touch persists that array
-/// into their own fresh row. An involuntary 401 preserves local data, so it
-/// keeps the menu.
+/// re-seeds the row — and [resetInMemory] runs from
+/// `AuthRepository.onBeforeDataWipe` so that is true *immediately*, not merely
+/// after the next app launch. Without it a second user signing in on the same
+/// install inherits the first one's order and hidden rows, and the first
+/// control they touch persists that array into their own fresh row. An
+/// involuntary 401 or an idle re-lock preserves local data, and — because the
+/// wipe hook doesn't fire there — the in-memory menu too; resetting on those
+/// paths (it once sat in `onBeforeLogout`) showed the same user the default
+/// menu and let their next edit save it over their real order.
 ///
 /// Nothing is stored until the user changes something, so a destination added
 /// in a later release needs no backfill — [resolveMenuEntries] splices it in at
@@ -90,9 +93,10 @@ class SidebarMenuController extends ChangeNotifier {
 
   /// Drop the in-memory preference without writing anything.
   ///
-  /// For the logout fan-out only, which runs *before* the Drift wipe — so
-  /// persisting here would write a row that is about to be deleted. Notifies,
-  /// because the sidebar is still mounted behind the sign-out.
+  /// For `AuthRepository.onBeforeDataWipe` only, which runs *before* the
+  /// Drift wipe — so persisting here would write a row that is about to be
+  /// deleted. Notifies, because the sidebar is still mounted behind the
+  /// sign-out.
   void resetInMemory() {
     if (_layout == SidebarMenuLayout.list && _entries.isEmpty) return;
     _layout = SidebarMenuLayout.list;

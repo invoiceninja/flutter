@@ -157,11 +157,10 @@ void main() {
           // `setSurfaceSize` gives the render surface its extent but does NOT
           // change what `MediaQuery.fromView` reports, so `globalNav` would
           // read the default 800 px at every width — and the rail-band test
-          // would pass for the wrong reason. Override it here rather than
-          // around `home`: `WidgetsApp` inserts its own `MediaQuery.fromView`
-          // *inside* `MaterialApp`, so an outer one never reaches the child.
-          // Same reason `_responsive_helper.dart` uses `builder:` for text
-          // scale.
+          // would pass for the wrong reason. Overridden in `builder`, above the
+          // Navigator, so it reaches every route rather than `home` alone —
+          // the placement `_responsive_helper.dart` uses for text scale.
+          // (`tester.view.physicalSize` is the other way to move it.)
           builder: (context, inner) => MediaQuery(
             data: MediaQuery.of(context).copyWith(size: Size(window, height)),
             child: inner!,

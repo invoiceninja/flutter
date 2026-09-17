@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/hide_empty_panels_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
@@ -45,29 +47,35 @@ class _FakeAuth implements AuthRepository {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
-/// Only `auth.session` is reachable from the panels pane (it flags
-/// module-disabled rows); everything else falls through to [noSuchMethod].
+/// Only `auth.session` (it flags module-disabled rows) and `hideEmptyPanels`
+/// (the footer switch and the "Hidden while empty" caption) are reachable from
+/// the Panels tab; everything else falls through to [noSuchMethod].
 class _FakeServices implements Services {
-  _FakeServices(this.auth);
+  _FakeServices(this.auth, this.hideEmptyPanels);
   @override
   final AuthRepository auth;
+  @override
+  final HideEmptyPanelsController hideEmptyPanels;
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());
 }
 
-AuthSession _session() => AuthSession(
+/// [enabledModules] defaults to 0, where every row is module-disabled — so a
+/// test about an available row's caption must pass a real mask.
+AuthSession _session({int enabledModules = 0}) => AuthSession(
   baseUrl: 'https://example.test',
   isHosted: false,
   accountId: 'acct',
   companies: [
-    const AuthCompany(
+    AuthCompany(
       id: 'co',
       name: 'Acme Corporation',
       displayName: 'Acme Corporation',
       permissions: '',
       isAdmin: true,
       isOwner: true,
+      enabledModules: enabledModules,
     ),
   ],
   currentCompanyId: 'co',
@@ -75,12 +83,18 @@ AuthSession _session() => AuthSession(
 
 void main() {
   late AppDatabase db;
+  late FakeDashboardRepo repo;
   late DashboardViewModel vm;
+  late HideEmptyPanelsController pref;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
+    repo = FakeDashboardRepo(db);
+    // Automatic. This harness's window is not a phone (see `openPanels`), so
+    // automatic resolves to off here.
+    pref = HideEmptyPanelsController(db: db);
     vm = DashboardViewModel(
-      repo: FakeDashboardRepo(db),
+      repo: repo,
       companyId: 'co',
       navStateDao: db.navStateDao,
       statics: StaticsRepository(
@@ -96,6 +110,7 @@ void main() {
 
   tearDown(() async {
     vm.dispose();
+    pref.dispose();
     await db.close();
   });
 
@@ -107,20 +122,42 @@ void main() {
   ///
   /// The window is deliberately wide in every case: the claim under test is
   /// that [mobileLayout] decides, not the viewport.
+  ///
+  /// `setSurfaceSize` leaves `MediaQuery` at the test view's 800x600, so
+  /// `Breakpoints.isPhone` is false and "Hide empty panels" starts off unless
+  /// a test sets `pref.value` — or passes [phone], which sizes both the
+  /// surface and `MediaQuery` to it (so the sheet opens as a bottom sheet) and
+  /// applies [textScale].
   Future<void> openPanels(
     WidgetTester tester, {
     required bool mobileLayout,
+    int enabledModules = 0,
+    Size? phone,
+    double textScale = 1.0,
   }) async {
-    await tester.binding.setSurfaceSize(const Size(890, 900));
+    await tester.binding.setSurfaceSize(phone ?? const Size(890, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
       Provider<Services>.value(
-        value: _FakeServices(_FakeAuth(ValueNotifier(_session()))),
+        value: _FakeServices(
+          _FakeAuth(ValueNotifier(_session(enabledModules: enabledModules))),
+          pref,
+        ),
         child: MaterialApp(
           localizationsDelegates: kTestLocalizationsDelegates,
           supportedLocales: kTestSupportedLocales,
           theme: buildInTheme(InTheme.light),
+          // Above the Navigator, so the sheet on the root navigator sees it.
+          builder: phone == null
+              ? null
+              : (context, inner) => MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    size: phone,
+                    textScaler: TextScaler.linear(textScale),
+                  ),
+                  child: inner!,
+                ),
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(
@@ -171,5 +208,125 @@ void main() {
       find.byIcon(Icons.drag_indicator),
       findsNWidgets(DashboardKind.panelKinds.length),
     );
+  });
+
+  // invoiceninja/flutter#161. The switch shares the footer's single run with
+  // Reset — a second row would push the last panel row off screen, which the
+  // two handle counts above would catch.
+  group('hide empty panels', () {
+    // The nearest `Row` around the label is the switch's own — every panel
+    // row carries a `Switch` too.
+    Finder footerSwitch() => find.descendant(
+      of: find
+          .ancestor(
+            of: find.text('Hide empty panels'),
+            matching: find.byType(Row),
+          )
+          .first,
+      matching: find.byType(Switch),
+    );
+
+    testWidgets('the footer switch shows and sets the device preference', (
+      tester,
+    ) async {
+      await openPanels(tester, mobileLayout: false);
+
+      expect(find.text('Hide empty panels'), findsOneWidget);
+      expect(
+        tester.widget<Switch>(footerSwitch()).value,
+        isFalse,
+        reason: 'automatic is off away from a phone',
+      );
+
+      await tester.tap(footerSwitch());
+      await tester.pump();
+      expect(pref.value, isTrue);
+      expect(tester.widget<Switch>(footerSwitch()).value, isTrue);
+
+      // The label is part of the control, not just a caption beside it —
+      // and switching back to what this device would pick anyway (off, away
+      // from a phone) returns to automatic rather than storing an override.
+      await tester.tap(find.text('Hide empty panels'));
+      await tester.pump();
+      expect(pref.value, isNull);
+      expect(tester.widget<Switch>(footerSwitch()).value, isFalse);
+    });
+
+    testWidgets('the footer wraps its label on a small phone at large text', (
+      tester,
+    ) async {
+      // A plain `Text` in the switch's `Row` ignored the `Wrap`'s width bound
+      // and overflowed, pushing the switch past the sheet's edge.
+      await openPanels(
+        tester,
+        mobileLayout: true,
+        phone: const Size(320, 640),
+        textScale: 2.0,
+      );
+
+      expect(find.text('Hide empty panels'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      final sheet = tester.getRect(find.byType(BottomSheet));
+      final toggle = tester.getRect(footerSwitch());
+      expect(toggle.right, lessThanOrEqualTo(sheet.right));
+      expect(toggle.left, greaterThanOrEqualTo(sheet.left));
+    });
+
+    testWidgets('a screen reader hears the label on the switch itself', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await openPanels(tester, mobileLayout: false);
+
+      expect(
+        tester.getSemantics(find.text('Hide empty panels')),
+        isSemantics(
+          label: 'Hide empty panels',
+          hasToggledState: true,
+          isToggled: false,
+          hasTapAction: true,
+        ),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('a switched-on panel that is empty says why it is missing', (
+      tester,
+    ) async {
+      pref.value = true;
+      await openPanels(
+        tester,
+        mobileLayout: false,
+        enabledModules: EnabledModule.recurringInvoices.bitmask,
+      );
+      expect(find.text('Hidden while empty'), findsNothing);
+
+      repo.upcomingRecurring.add(const []);
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(find.text('Hidden while empty'), findsOneWidget);
+
+      // Not while the device shows empty panels — then it isn't hidden.
+      pref.value = false;
+      await tester.pump();
+      expect(find.text('Hidden while empty'), findsNothing);
+    });
+
+    testWidgets('a user-hidden empty panel keeps its own reason', (
+      tester,
+    ) async {
+      pref.value = true;
+      vm.togglePanelVisibility(DashboardKind.upcomingRecurring);
+      await openPanels(
+        tester,
+        mobileLayout: true,
+        enabledModules: EnabledModule.recurringInvoices.bitmask,
+      );
+      repo.upcomingRecurring.add(const []);
+      await tester.pump(const Duration(milliseconds: 10));
+
+      // Its switch already says "off"; "hidden while empty" would be a
+      // second, wrong explanation.
+      expect(find.text('Hidden while empty'), findsNothing);
+    });
   });
 }

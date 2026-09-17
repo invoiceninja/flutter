@@ -157,6 +157,50 @@ class DashboardViewModel extends ChangeNotifier {
     _sectionNotifiers[kind]?.bump();
   }
 
+  /// The panel kinds whose section has **loaded and holds no rows** — exactly
+  /// the panels whose card would render its "No …" state
+  /// (`ListSectionState.empty`, invoiceninja/flutter#161). Both dashboard
+  /// bodies and the Customize sheet read it through `HiddenEmptyPanelsBuilder`
+  /// to leave those panels out when the device hides empty panels.
+  ///
+  /// A separate notifier, not the global [notifyListeners]: a section emission
+  /// deliberately bumps only its own card (see [listenableFor]), so the panel
+  /// *lists* — built under the global notify — would never learn that a panel
+  /// emptied. It publishes only when membership changes.
+  ///
+  /// Never contains a panel whose section is still `null` (loading, or a
+  /// failed first fetch — the card shows a skeleton or an error, which is not
+  /// "nothing to show"), nor a Drift-backed panel: only [_emptiableKinds]
+  /// qualify.
+  ValueListenable<Set<String>> get emptyPanels => _emptyPanels;
+  final ValueNotifier<Set<String>> _emptyPanels = ValueNotifier(
+    const <String>{},
+  );
+
+  /// The panels backed by a `dashboard_cache` section — derived from the
+  /// registry, so a cache-backed panel added later qualifies without a second
+  /// list to keep in step. The two Drift-backed panels (the task calendar and
+  /// Invoices & Quotes) are never in [DashboardKind.listKinds]: they own their
+  /// state and the fetch that fills it, and hiding one while the local cache
+  /// reads empty would stop the only request that could prove otherwise.
+  static final Set<String> _emptiableKinds = {
+    for (final kind in DashboardKind.panelKinds)
+      if (DashboardKind.listKinds.contains(kind)) kind,
+  };
+
+  /// Called with each emission of a section stream. Emptiness changes only
+  /// here: `_setSectionError` keeps the section's data, so a failed refresh
+  /// can neither hide a panel nor reveal one.
+  void _syncPanelEmpty(String kind, Object? data) {
+    if (_disposed || !_emptiableKinds.contains(kind)) return;
+    final empty = data is List<Object?> && isLoadedEmpty(data);
+    final current = _emptyPanels.value;
+    if (current.contains(kind) == empty) return;
+    _emptyPanels.value = Set.unmodifiable(
+      empty ? {...current, kind} : ({...current}..remove(kind)),
+    );
+  }
+
   /// Currencies offered by the dropdown. Reads from `totals.byCurrency` when
   /// available; falls back to the full statics list during cold-start so the
   /// dropdown is never empty.
@@ -553,6 +597,7 @@ class DashboardViewModel extends ChangeNotifier {
     _subs[key] = stream.listen(
       (value) {
         onData(value);
+        _syncPanelEmpty(key, value);
         // Route to the section's listenable only — a data emission must
         // not rebuild the whole dashboard. `key` is the DashboardKind.
         _bumpSection(key);
@@ -841,6 +886,7 @@ class DashboardViewModel extends ChangeNotifier {
     for (final n in _sectionNotifiers.values) {
       n.dispose();
     }
+    _emptyPanels.dispose();
     super.dispose();
   }
 }

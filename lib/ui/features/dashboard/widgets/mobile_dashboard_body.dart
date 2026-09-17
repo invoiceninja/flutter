@@ -25,6 +25,8 @@ import 'package:admin/ui/features/dashboard/widgets/chart_card.dart';
 import 'package:admin/ui/features/dashboard/widgets/configured_cards_grid.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
 import 'package:admin/ui/features/dashboard/widgets/freshness.dart';
+import 'package:admin/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart';
+import 'package:admin/ui/features/dashboard/widgets/list_card_skeleton.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile/dashboard_mobile_rows.dart';
 import 'package:admin/ui/features/dashboard/widgets/section_listenable.dart';
@@ -60,6 +62,7 @@ class MobileDashboardBody extends StatelessWidget {
     required this.onAllQuotes,
     required this.onRecurringTap,
     required this.onAllRecurring,
+    required this.onShowPanels,
   });
 
   final DashboardViewModel vm;
@@ -94,6 +97,10 @@ class MobileDashboardBody extends StatelessWidget {
   final void Function(DashboardRecurringInvoiceRow) onRecurringTap;
   final VoidCallback onAllRecurring;
 
+  /// Opens Customize on its Panels tab — from the "N empty panels hidden"
+  /// line, the one place a phone says that panels are being left out.
+  final VoidCallback onShowPanels;
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.inTheme;
@@ -110,6 +117,30 @@ class MobileDashboardBody extends StatelessWidget {
     // precise question the pinned card needs, and stays correct if past-due
     // ever gains a permission gate of its own.
     final pastDueEnabled = enabled.contains(DashboardKind.pastDue);
+    // `hidden` is the set of panels this device is leaving out because they
+    // have nothing to show (invoiceninja/flutter#161) — on by default on a
+    // phone. The builder is what rebuilds this list when a panel empties: a
+    // section emission only reaches its own card.
+    return HiddenEmptyPanelsBuilder(
+      vm: vm,
+      pref: context.read<Services>().hideEmptyPanels,
+      builder: (context, hidden) => _list(
+        context,
+        tokens,
+        enabled: enabled,
+        pastDueEnabled: pastDueEnabled,
+        hidden: hidden,
+      ),
+    );
+  }
+
+  Widget _list(
+    BuildContext context,
+    InTheme tokens, {
+    required Set<String> enabled,
+    required bool pastDueEnabled,
+    required Set<String> hidden,
+  }) {
     return ListView(
       padding: EdgeInsets.all(InSpacing.lg(context)),
       children: [
@@ -144,15 +175,26 @@ class MobileDashboardBody extends StatelessWidget {
         _quickActions(context, tokens),
         SizedBox(height: InSpacing.lg(context)),
         // Past-due is pinned to the hero zone on mobile (its order slot is
-        // ignored); shown only when visible + invoices enabled. Card + spacer
-        // gate together so hiding it leaves no orphan gap before the chart.
-        if (pastDueEnabled && _panelVisible(DashboardKind.pastDue)) ...[
-          sectionListenable(
-            vm.listenableFor(DashboardKind.pastDue),
-            () => _needsAttentionCard(context, tokens),
-          ),
-          SizedBox(height: InSpacing.lg(context)),
-        ],
+        // ignored); shown only when visible + invoices enabled, and not while
+        // it is hidden for having nothing to show. ONE child either way — card
+        // and spacer together, or nothing: the list matches unkeyed children
+        // by index, so a slot that came and went would shift the chart and the
+        // activity card below it, and each shift rebuilds them from scratch.
+        (pastDueEnabled &&
+                _panelVisible(DashboardKind.pastDue) &&
+                !hidden.contains(DashboardKind.pastDue))
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  sectionListenable(
+                    vm.listenableFor(DashboardKind.pastDue),
+                    () => _needsAttentionCard(context, tokens),
+                  ),
+                  SizedBox(height: InSpacing.lg(context)),
+                ],
+              )
+            : const SizedBox.shrink(),
         sectionListenable(
           vm.chartCardListenable,
           () => ChartCard(vm: vm, formatter: formatter),
@@ -174,20 +216,59 @@ class MobileDashboardBody extends StatelessWidget {
         // also why nothing replaces the freshness stamp that used to close the
         // page here; it rides the eyebrow at the top now (issue #26), and the
         // ListView's own padding closes the bottom when every panel is hidden.
-        ..._trailingPanels(context, tokens, enabled),
+        ..._trailingPanels(context, tokens, enabled: enabled, hidden: hidden),
+        _hiddenPanelsLink(context, enabled: enabled, hidden: hidden),
       ],
     );
   }
 
+  /// "2 empty panels hidden", closing the page — the one hint a phone gives
+  /// that "Hide empty panels" is leaving something out (invoiceninja/flutter#161).
+  /// The preference is on by default here, so an upgraded user's empty panels
+  /// simply vanish; this line is how they find out why, and it opens Customize
+  /// on the Panels tab, where each hidden row says so and the switch lives.
+  ///
+  /// Counts only panels the user has switched on and that this company can
+  /// show — a panel they switched off is absent for its own reason. Renders
+  /// nothing when nothing is hidden, so it costs no space otherwise.
+  Widget _hiddenPanelsLink(
+    BuildContext context, {
+    required Set<String> enabled,
+    required Set<String> hidden,
+  }) {
+    final count = vm.panelPrefs
+        .where(
+          (p) =>
+              p.visible && enabled.contains(p.kind) && hidden.contains(p.kind),
+        )
+        .length;
+    if (count == 0) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DashboardCardFooterLink(
+        label: context.tr(
+          count == 1
+              ? 'empty_panels_hidden_count_singular'
+              : 'empty_panels_hidden_count_plural',
+          {'count': '$count'},
+        ),
+        onTap: onShowPanels,
+        touchFloor: true,
+      ),
+    );
+  }
+
   /// The trailing list panels (everything except the pinned past-due card) in
-  /// the user's saved order. Each visible, module-enabled panel emits its card
-  /// (keyed by kind for stable element identity across reorders) followed by a
-  /// spacer, so hiding one never leaves a doubled gap.
+  /// the user's saved order. Each visible, module-enabled panel that is not
+  /// [hidden] for having nothing to show emits its card (keyed by kind, which
+  /// the `ListView` matches across reorders and hides) followed by a spacer,
+  /// so hiding one never leaves a doubled gap.
   List<Widget> _trailingPanels(
     BuildContext context,
-    InTheme tokens,
-    Set<String> enabled,
-  ) {
+    InTheme tokens, {
+    required Set<String> enabled,
+    required Set<String> hidden,
+  }) {
     // Each closure returns its widget ALREADY wrapped — the shape `_bottomGrid`
     // uses. Wrapping every panel in `sectionListenable` from the loop instead
     // only works while every panel is cache-backed: `listenableFor` happily
@@ -243,6 +324,7 @@ class MobileDashboardBody extends StatelessWidget {
       final build = builders[p.kind];
       if (build == null) continue; // past-due / unknown → not a trailing panel
       if (!p.visible || !enabled.contains(p.kind)) continue;
+      if (hidden.contains(p.kind)) continue;
       out.add(KeyedSubtree(key: ValueKey(p.kind), child: build()));
       out.add(SizedBox(height: InSpacing.lg(context)));
     }
@@ -586,72 +668,23 @@ class MobileDashboardBody extends StatelessWidget {
   // Needs-attention card — 3 rows max on mobile.
 
   Widget _needsAttentionCard(BuildContext context, InTheme tokens) {
-    final section = vm.pastDue;
-    final hasRows = section.hasData && (section.data?.isNotEmpty ?? false);
-    final rows = hasRows
-        ? section.data!.take(3).toList(growable: false)
-        : const <DashboardInvoiceRow>[];
     final today = Date.today();
-    return DashboardCardShell(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: InSpacing.lg(context),
-              vertical: InSpacing.md(context),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.tr('needs_your_attention'),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: tokens.ink,
-                    ),
-                  ),
-                ),
-                if (hasRows)
-                  GestureDetector(
-                    onTap: onAllInvoices,
-                    child: Text(
-                      context.tr('all_invoices'),
-                      style: TextStyle(fontSize: 11.5, color: tokens.ink3),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Divider(height: 1, thickness: 1, color: tokens.border),
-          if (hasRows)
-            for (var i = 0; i < rows.length; i++) ...[
-              MobileInvoiceRow(
-                row: rows[i],
-                formatter: formatter,
-                today: today,
-                onTap: () => onPastDueInvoiceTap(rows[i]),
-                alwaysOverdue: true,
-              ),
-              if (i < rows.length - 1)
-                Divider(height: 1, thickness: 1, color: tokens.border),
-            ]
-          else
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: InSpacing.lg(context),
-                vertical: InSpacing.xl,
-              ),
-              child: Text(
-                context.tr('all_caught_up'),
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12.5, color: tokens.ink3),
-              ),
-            ),
-        ],
+    return _mobileListCard<DashboardInvoiceRow>(
+      context: context,
+      tokens: tokens,
+      title: context.tr('needs_your_attention'),
+      allLabel: context.tr('all_invoices'),
+      onAllTap: onAllInvoices,
+      section: vm.pastDue,
+      emptyMessage: context.tr('all_caught_up'),
+      onRetry: () => vm.retry(DashboardKind.pastDue),
+      max: 3,
+      rowBuilder: (row) => MobileInvoiceRow(
+        row: row,
+        formatter: formatter,
+        today: today,
+        onTap: () => onPastDueInvoiceTap(row),
+        alwaysOverdue: true,
       ),
     );
   }
@@ -669,6 +702,7 @@ class MobileDashboardBody extends StatelessWidget {
       allLabel: context.tr('all_invoices'),
       onAllTap: onAllUpcomingInvoices,
       section: vm.upcomingInvoices,
+      onRetry: () => vm.retry(DashboardKind.upcomingInvoices),
       emptyMessage: context.tr('no_invoices_due_soon'),
       rowBuilder: (row) => MobileInvoiceRow(
         row: row,
@@ -687,6 +721,7 @@ class MobileDashboardBody extends StatelessWidget {
       allLabel: context.tr('all_payments'),
       onAllTap: onAllPayments,
       section: vm.recentPayments,
+      onRetry: () => vm.retry(DashboardKind.recentPayments),
       emptyMessage: context.tr('no_payments_yet'),
       rowBuilder: (row) => MobilePaymentRow(
         row: row,
@@ -704,6 +739,7 @@ class MobileDashboardBody extends StatelessWidget {
       allLabel: context.tr('all_quotes'),
       onAllTap: onAllQuotes,
       section: vm.upcomingQuotes,
+      onRetry: () => vm.retry(DashboardKind.upcomingQuotes),
       emptyMessage: context.tr('no_upcoming_quotes'),
       rowBuilder: (row) => MobileQuoteRow(
         row: row,
@@ -722,6 +758,7 @@ class MobileDashboardBody extends StatelessWidget {
       allLabel: context.tr('all_quotes'),
       onAllTap: onAllQuotes,
       section: vm.expiredQuotes,
+      onRetry: () => vm.retry(DashboardKind.expiredQuotes),
       emptyMessage: context.tr('no_expired_quotes'),
       rowBuilder: (row) => MobileQuoteRow(
         row: row,
@@ -740,6 +777,7 @@ class MobileDashboardBody extends StatelessWidget {
       allLabel: context.tr('all_recurring_invoices'),
       onAllTap: onAllRecurring,
       section: vm.upcomingRecurring,
+      onRetry: () => vm.retry(DashboardKind.upcomingRecurring),
       emptyMessage: context.tr('no_upcoming_recurring_invoices'),
       rowBuilder: (row) => MobileRecurringInvoiceRow(
         row: row,
@@ -749,9 +787,17 @@ class MobileDashboardBody extends StatelessWidget {
     );
   }
 
-  // Shared shell for the stacked list cards: header (title + optional "view
-  // all" link) → divider → up to [max] rows separated by dividers, or a
-  // centered empty message. Matches the pattern of `_needsAttentionCard`.
+  // Shared shell for the stacked list cards (past-due included): header
+  // (title + optional "view all" link) → divider → a body chosen by
+  // `ListSectionState`, the order the wide `DashboardListCard` and the view
+  // model's `emptyPanels` share. The empty message renders only once the
+  // section has loaded with no rows — it used to render for all three non-row
+  // states, so a phone would flash "No upcoming quotes" before hiding the
+  // panel, and a failed fetch read as "there are none" (flutter#161).
+  //
+  // Both non-row placeholders are compact, and deliberately so: this card
+  // sits in a phone's single column, where a tall placeholder that collapses
+  // on load moves everything below it.
   Widget _mobileListCard<T>({
     required BuildContext context,
     required InTheme tokens,
@@ -760,13 +806,20 @@ class MobileDashboardBody extends StatelessWidget {
     required VoidCallback onAllTap,
     required AsyncSection<List<T>> section,
     required String emptyMessage,
+    required VoidCallback onRetry,
     required Widget Function(T) rowBuilder,
     int max = 5,
   }) {
-    final hasRows = section.hasData && (section.data?.isNotEmpty ?? false);
+    final state = section.listState;
+    final hasRows = state == ListSectionState.rows;
     final List<T> rows = hasRows
         ? section.data!.take(max).toList(growable: false)
         : <T>[];
+    final messagePadding = EdgeInsets.symmetric(
+      horizontal: InSpacing.lg(context),
+      vertical: InSpacing.xl,
+    );
+    final messageStyle = TextStyle(fontSize: 12.5, color: tokens.ink3);
     return DashboardCardShell(
       padding: EdgeInsets.zero,
       child: Column(
@@ -802,24 +855,68 @@ class MobileDashboardBody extends StatelessWidget {
             ),
           ),
           Divider(height: 1, thickness: 1, color: tokens.border),
-          if (hasRows)
-            for (var i = 0; i < rows.length; i++) ...[
-              rowBuilder(rows[i]),
-              if (i < rows.length - 1)
-                Divider(height: 1, thickness: 1, color: tokens.border),
-            ]
-          else
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: InSpacing.lg(context),
-                vertical: InSpacing.xl,
+          ...switch (state) {
+            ListSectionState.rows => [
+              for (var i = 0; i < rows.length; i++) ...[
+                rowBuilder(rows[i]),
+                if (i < rows.length - 1)
+                  Divider(height: 1, thickness: 1, color: tokens.border),
+              ],
+            ],
+            // Inline rather than `ErrorView`: that centres a 56 px icon and a
+            // padded button in a scroll view, which needs ~240 px — in a fixed
+            // box it clipped Retry out of sight and swallowed pull-to-refresh.
+            ListSectionState.failed => [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  InSpacing.lg(context),
+                  InSpacing.lg(context),
+                  InSpacing.lg(context),
+                  InSpacing.sm,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      context.tr('couldnt_load_tap_to_retry', {
+                        'section': title.toLowerCase(),
+                      }),
+                      textAlign: TextAlign.center,
+                      style: messageStyle,
+                    ),
+                    TextButton(
+                      onPressed: onRetry,
+                      child: Text(context.tr('retry')),
+                    ),
+                  ],
+                ),
               ),
-              child: Text(
-                emptyMessage,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12.5, color: tokens.ink3),
+            ],
+            // One row, padded to the empty message's height — the skeleton
+            // row is 46 px, and 46 + 2×10 matches `messagePadding`'s 48 plus
+            // one 12.5 px line — so a card that loads empty keeps its height,
+            // and one hidden for being empty takes a card's worth of space
+            // with it rather than a three-row skeleton's.
+            ListSectionState.loading => [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: InSpacing.lg(context),
+                  vertical: 10,
+                ),
+                child: const ListCardSkeleton(rowCount: 1),
               ),
-            ),
+            ],
+            ListSectionState.empty => [
+              Padding(
+                padding: messagePadding,
+                child: Text(
+                  emptyMessage,
+                  textAlign: TextAlign.center,
+                  style: messageStyle,
+                ),
+              ),
+            ],
+          },
         ],
       ),
     );

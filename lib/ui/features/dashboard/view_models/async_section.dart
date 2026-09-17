@@ -33,3 +33,40 @@ class AsyncSection<T> {
 }
 
 enum AsyncStatus { idle, loading, ready, error }
+
+/// What a list card should render for its section — the one ordering every
+/// dashboard list surface follows, so "this panel has nothing to show" means
+/// the same thing to the card that renders it and to the view model that
+/// hides it (invoiceninja/flutter#161). Three hand-written copies of this
+/// order had already drifted once: the mobile cards printed "No …" while
+/// still loading and after a failed fetch.
+enum ListSectionState {
+  /// The fetch failed and nothing is cached — show the error and a retry.
+  failed,
+
+  /// Nothing has loaded yet — show a skeleton, never "No …".
+  loading,
+
+  /// Loaded, and there are no rows — the "No …" state, and the only one
+  /// "Hide empty panels" leaves out. An error over a cached `[]` is still
+  /// this: the cache already answered.
+  empty,
+
+  /// Loaded with rows (possibly stale under an error).
+  rows,
+}
+
+/// Whether a section's [data] is a loaded, empty list. The single definition
+/// both [ListSectionStateOf.listState] and `DashboardViewModel.emptyPanels`
+/// use.
+bool isLoadedEmpty(List<Object?>? data) => data != null && data.isEmpty;
+
+extension ListSectionStateOf on AsyncSection<List<Object?>> {
+  ListSectionState get listState {
+    final rows = data;
+    if (rows == null) {
+      return hasError ? ListSectionState.failed : ListSectionState.loading;
+    }
+    return isLoadedEmpty(rows) ? ListSectionState.empty : ListSectionState.rows;
+  }
+}

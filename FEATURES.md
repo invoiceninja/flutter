@@ -112,6 +112,7 @@ the honest default.
 | Configurable dashboard cards (Dashboard Fields) | ✅ | ✅ | ✅ | ✅ | |
 | Dashboard cards — task estimate / due / overdue metrics (6 server fields added 2026-08-31) | — | — | ✅ | | |
 | Reorder + show/hide dashboard panels (device-local) | — | — | ✅ | ✅ | |
+| Hide empty dashboard panels — list panels with nothing to show are left off, with an "N empty panels hidden" link on phones (device-local; on by default on phones, off on tablets / desktop) | — | — | ✅ | | |
 | Dashboard prefs synced server-side (cross-device) | ✅ | ✅ | ❌ | ✅ | — |
 | Task calendar panel — month grid, days colour-coded by hours booked | — | — | ✅ | | |
 | Invoices & Quotes panel — one card, status tabs with live counts, most recent first | ❌ | ❌ | ✅ | | flutter#155 |
@@ -1108,6 +1109,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Contacts sync — push client contacts to the device address book, under a label, with an All / Assigned-to-me scope (mobile only, local, off by default) | — | — | ✅ | | |
 | Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop). Also gates the billing-doc header and list-row call buttons | — | — | ✅ | | |
 | Hide unverified users — keep people with no sign-in evidence out of Assigned User fields, with a live count of who is affected (local, off by default) | — | — | ✅ | | |
+| Dashboard — hide empty panels (local; on by default on phones, off on tablets / desktop; also in the dashboard's Customize → Panels) | — | — | ✅ | | |
 
 ---
 

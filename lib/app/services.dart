@@ -28,6 +28,7 @@ import 'package:admin/app/shell_mounted_notifier.dart';
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/app/sidebar_controller.dart';
 import 'package:admin/app/sidebar_menu_controller.dart';
+import 'package:admin/app/hide_empty_panels_controller.dart';
 import 'package:admin/app/hide_unverified_users_controller.dart';
 import 'package:admin/app/status_tabs_controller.dart';
 import 'package:admin/app/tasks_view_controller.dart';
@@ -304,6 +305,7 @@ class Services implements SidebarBadgeContext {
     required this.statusTabs,
     required this.hideUnverifiedUsers,
     required this.tasksView,
+    required this.hideEmptyPanels,
     required this.phoneActions,
     required this.pendingCall,
     required this.contactsSync,
@@ -638,6 +640,18 @@ class Services implements SidebarBadgeContext {
   /// `GoRouterDelegate.setNewRoutePath` short-circuits, so the repaint cannot
   /// depend on the router noticing. See invoiceninja/flutter#133.
   final TasksViewController tasksView;
+
+  /// Device-local "leave dashboard panels with nothing to show off the
+  /// dashboard" preference (Settings → Device Settings → Dashboard, and the
+  /// dashboard's Customize → Panels tab, invoiceninja/flutter#161). Null means
+  /// automatic — on for a phone, off elsewhere — so read it through
+  /// `effectiveFor(isPhone: Breakpoints.isPhone(context))`, never `value`.
+  ///
+  /// Read live: the dashboard's `HiddenEmptyPanelsBuilder` listens to it,
+  /// because the dashboard stays mounted behind `/settings/**` while the
+  /// switch is flipped and its view model never notifies for a device
+  /// preference.
+  final HideEmptyPanelsController hideEmptyPanels;
 
   /// Device-local "Phone numbers" preferences — tap-to-call, the optional
   /// in-app confirm, and the outside-business-hours warning window
@@ -1244,9 +1258,11 @@ class Services implements SidebarBadgeContext {
       // `onSessionReset` and `onBeforeLogout` (which carries the
       // `clearPeekCache` / `invalidateAllFormatters` fan-out below) both run
       // on the preserve path too. Only `onBeforeDataWipe` is
-      // destructive-path-only, and that is contacts sync, which should
-      // survive a re-lock. `logout()` still writes the re-lock gate, so
-      // re-entry requires re-auth.
+      // destructive-path-only — contacts sync, which should survive a
+      // re-lock, and the in-memory `nav_state` preferences (menu, Tasks
+      // layout, hide-empty-panels), which the preserved row still holds.
+      // `logout()` still writes the re-lock gate, so re-entry requires
+      // re-auth.
       onUnauthorized: () async => auth.logout(preserveLocalData: true),
       // Consulted first: a 401 under a company token the user *just* switched
       // into fails the switch (roll back + heal) instead of the session.
@@ -1521,6 +1537,7 @@ class Services implements SidebarBadgeContext {
     final statusTabs = StatusTabsController(db: db);
     final hideUnverifiedUsers = HideUnverifiedUsersController(db: db);
     final tasksView = TasksViewController(db: db);
+    final hideEmptyPanels = HideEmptyPanelsController(db: db);
     final phoneActions = PhoneActionsController(db: db);
     final pendingCall = PendingCallController();
     // One instance, shared by the picker (`services.deviceContacts`) and the
@@ -1639,16 +1656,10 @@ class Services implements SidebarBadgeContext {
       // outgoing user's company, and offering to log it after a different user
       // signs in would file a note against ids they never saw.
       services.pendingCall.clear();
-      // The menu order and hidden rows are about to be wiped from `nav_state`,
-      // but the controller holds them in memory and outlives the logout — so a
-      // second user signing in without restarting the app would inherit the
-      // first one's menu, and their first touch of any menu control would
-      // persist that array into their own fresh row.
-      services.sidebarMenu.resetInMemory();
-      // Same argument for the Tasks layout: `nav_state` is about to be wiped,
-      // but the controller outlives the logout, so a second user signing in
-      // without relaunching would open Tasks on the first one's board.
-      services.tasksView.resetInMemory();
+      // The in-memory mirrors of `nav_state` preferences (the main menu, the
+      // Tasks layout, "Hide empty panels") are NOT reset here: this hook also
+      // runs on the idle re-lock / 401 path, which keeps `nav_state`. They
+      // reset in `onBeforeDataWipe` below, when the row really goes.
       // Drop every repo's first-frame seed cache. Those hold display names —
       // user data — and a second user signing in on the same install must not
       // inherit the previous one's. Also `invalidateAllFormatters`, whose doc
@@ -1667,7 +1678,24 @@ class Services implements SidebarBadgeContext {
     // Only on the destructive logout path — an idle-timeout re-lock keeps the
     // database (and therefore the link table), so the user's synced cards
     // should survive it rather than being deleted and rebuilt on re-entry.
-    auth.onBeforeDataWipe = contactsSync.removeAllCompanies;
+    auth.onBeforeDataWipe = () async {
+      // `nav_state` is about to go, but these controllers hold its values in
+      // memory and outlive the wipe — so a second user signing in without
+      // relaunching would open Tasks on the first one's board, see their menu
+      // (and persist that array into their own fresh row on the first menu
+      // tap), and inherit their "Hide empty panels" choice.
+      //
+      // Here, not in `onBeforeLogout`: that also runs on the idle re-lock / 401
+      // path, which KEEPS `nav_state`. Resetting there showed the same user the
+      // default menu after a re-lock, and their next menu edit then saved that
+      // default over their real order.
+      //
+      // First, and synchronous, so a failing contacts pass can't skip them.
+      sidebarMenu.resetInMemory();
+      tasksView.resetInMemory();
+      hideEmptyPanels.resetInMemory();
+      await contactsSync.removeAllCompanies();
+    };
     final priorOnActiveCompanyChanged = auth.onActiveCompanyChanged;
     auth.onActiveCompanyChanged = (companyId) {
       settingsLevel.reset();
@@ -1803,6 +1831,7 @@ class Services implements SidebarBadgeContext {
       statusTabs: statusTabs,
       hideUnverifiedUsers: hideUnverifiedUsers,
       tasksView: tasksView,
+      hideEmptyPanels: hideEmptyPanels,
       phoneActions: phoneActions,
       pendingCall: pendingCall,
       contactsSync: contactsSync,

@@ -143,6 +143,19 @@ class NavState extends Table {
       .named('hide_unverified_users')
       .withDefault(const Constant(false))();
 
+  /// Device-local "leave dashboard panels with nothing to show off the
+  /// dashboard" preference (Settings → Device Settings → Dashboard, and the
+  /// dashboard's Customize → Panels tab), invoiceninja/flutter#161.
+  ///
+  /// Null column = **automatic**, which resolves to on for a phone and off
+  /// everywhere else (`HideEmptyPanelsController.effectiveFor`, fed by
+  /// `Breakpoints.isPhone`). Nullable for the reason [phoneActionsJson] is: a
+  /// SQL `withDefault` would have to pick one answer for a phone and a desktop
+  /// alike. Not a blob, because this is one scalar with a single writer — the
+  /// [tasksView] shape. Added in schema v11.
+  BoolColumn get hideEmptyPanels =>
+      boolean().named('hide_empty_panels').nullable()();
+
   /// JSON array of the most-recently-viewed entity records for the active
   /// company (newest first, capped). Surfaced as the command palette's
   /// "Recent" group. Company-scoped: cleared on company switch / logout,

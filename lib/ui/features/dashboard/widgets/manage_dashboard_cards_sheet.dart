@@ -9,12 +9,14 @@ import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_panel_pref.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/ui/features/dashboard/helpers/enabled_panel_kinds.dart';
+import 'package:admin/ui/features/dashboard/helpers/hide_empty_panels.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/delta_chip.dart';
+import 'package:admin/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/kpi_card.dart';
 
 /// Which tab the manage-dashboard surface opens on.
@@ -286,7 +288,13 @@ class _ManageBodyState extends State<_ManageBody> {
 
   // ── Panels tab (reorder + show/hide the fixed dashboard panels) ───────
   // One bounded-height pane (Expanded works under the bounded Dialog/sheet in
-  // both layouts) + a reset-to-defaults footer.
+  // both layouts) + a footer holding Reset and the device's "Hide empty
+  // panels" switch.
+  //
+  // The footer is ONE `Wrap` run, not a second row: the 640 px dialog leaves
+  // the panel list only ~30 px below the top of its last row, so a fixed extra
+  // row would push that row off screen. On a narrow sheet (which has the
+  // height) the switch simply wraps under Reset.
   List<Widget> _panelsBody(BuildContext context) => [
     Expanded(
       child: _PanelsPane(vm: vm, mobileLayout: widget.mobileLayout),
@@ -294,13 +302,21 @@ class _ManageBodyState extends State<_ManageBody> {
     SizedBox(height: InSpacing.sm),
     ListenableBuilder(
       listenable: vm,
-      builder: (context, _) => Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: vm.panelsAreDefault ? null : vm.resetPanels,
-          icon: const Icon(Icons.restart_alt, size: 16),
-          label: Text(context.tr('reset_to_defaults')),
-        ),
+      builder: (context, _) => Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: InSpacing.md(context),
+        children: [
+          // Reset covers this company's order and visibility only — the
+          // switch beside it is a device preference, and has no default to
+          // go back to other than the device's own.
+          TextButton.icon(
+            onPressed: vm.panelsAreDefault ? null : vm.resetPanels,
+            icon: const Icon(Icons.restart_alt, size: 16),
+            label: Text(context.tr('reset_to_defaults')),
+          ),
+          const _HideEmptyPanelsSwitch(),
+        ],
       ),
     ),
   ];
@@ -790,93 +806,155 @@ class _PanelsPaneState extends State<_PanelsPane> {
     return _PaneCard(
       title: context.tr('panels'),
       fill: true,
-      child: ListenableBuilder(
-        listenable: vm,
-        builder: (context, _) {
-          final prefs = vm.panelPrefs;
+      // `hidden` — the panels this device is leaving off the dashboard for
+      // having nothing to show — so a row that is switched on here but absent
+      // there can say why.
+      child: HiddenEmptyPanelsBuilder(
+        vm: vm,
+        pref: context.read<Services>().hideEmptyPanels,
+        builder: (context, hidden) => ListenableBuilder(
+          listenable: vm,
+          builder: (context, _) => _panels(
+            context,
+            hidden: hidden,
+            enabledKinds: enabledKinds,
+            moduleOnFor: moduleOnFor,
+          ),
+        ),
+      ),
+    );
+  }
 
-          _PanelRow rowFor(
-            DashboardPanelPref p,
-            int index, {
-            required bool pinned,
-          }) => _PanelRow(
-            key: ValueKey(p.kind),
-            index: index,
-            title: context.tr(panelTitleKey(p.kind)),
-            visible: p.visible,
-            moduleEnabled: enabledKinds.contains(p.kind),
-            // Why it is unavailable, not just that it is. The gate is a
-            // conjunction for the task calendar (module AND `view_task`), so a
-            // flat "Module disabled" would tell a permission-blocked user
-            // something false about a module that is switched on — and send
-            // whoever they ask looking for a toggle already in the right place.
-            disabledReasonKey: moduleOnFor(p.kind)
-                ? 'restricted'
-                : 'module_disabled',
-            pinned: pinned,
-            onToggle: () => vm.togglePanelVisibility(p.kind),
-          );
+  Widget _panels(
+    BuildContext context, {
+    required Set<String> hidden,
+    required Set<String> enabledKinds,
+    required bool Function(String kind) moduleOnFor,
+  }) {
+    final prefs = vm.panelPrefs;
 
-          final listPadding = EdgeInsets.symmetric(
-            horizontal: InSpacing.lg(context),
-            vertical: InSpacing.md(context),
-          );
+    _PanelRow rowFor(DashboardPanelPref p, int index, {required bool pinned}) =>
+        _PanelRow(
+          key: ValueKey(p.kind),
+          index: index,
+          title: context.tr(panelTitleKey(p.kind)),
+          visible: p.visible,
+          moduleEnabled: enabledKinds.contains(p.kind),
+          // Why it is unavailable, not just that it is. The gate is a
+          // conjunction for the task calendar (module AND `view_task`), so a
+          // flat "Module disabled" would tell a permission-blocked user
+          // something false about a module that is switched on — and send
+          // whoever they ask looking for a toggle already in the right place.
+          disabledReasonKey: moduleOnFor(p.kind)
+              ? 'restricted'
+              : 'module_disabled',
+          hiddenWhileEmpty: hidden.contains(p.kind),
+          pinned: pinned,
+          onToggle: () => vm.togglePanelVisibility(p.kind),
+        );
 
-          // Wide: a single list, 1:1 with panelPrefs.
-          //
-          // Which arm this takes is passed in, never measured here. The mobile
-          // body pins past-due to the hero zone and ignores its order slot, and
-          // this surface floats on the root navigator where the only thing it
-          // can measure is the *window* — which reads "wide" both for a
-          // 600–832 px desktop window and for every phone in landscape, in each
-          // of which the dashboard is rendering the mobile body. Measuring it
-          // here made the past-due drag handle a dead control there.
-          if (!widget.mobileLayout) {
-            return ReorderableListView.builder(
-              scrollController: _scroll,
-              padding: listPadding,
-              buildDefaultDragHandles: false,
-              itemCount: prefs.length,
-              onReorderItem: vm.reorderPanels,
-              itemBuilder: (context, i) => rowFor(prefs[i], i, pinned: false),
-            );
-          }
+    final listPadding = EdgeInsets.symmetric(
+      horizontal: InSpacing.lg(context),
+      vertical: InSpacing.md(context),
+    );
 
-          // Narrow: past-due is pinned at the top (it always renders in the
-          // mobile hero zone; its order slot is ignored), and the remaining
-          // five reorder beneath it — mirroring the mobile dashboard exactly.
-          final pastDue = prefs.firstWhere(
-            (p) => p.kind == DashboardKind.pastDue,
-          );
-          final rest = prefs
-              .where((p) => p.kind != DashboardKind.pastDue)
-              .toList();
-          return Column(
+    // Wide: a single list, 1:1 with panelPrefs.
+    //
+    // Which arm this takes is passed in, never measured here. The mobile
+    // body pins past-due to the hero zone and ignores its order slot, and
+    // this surface floats on the root navigator where the only thing it
+    // can measure is the *window* — which reads "wide" both for a
+    // 600–832 px desktop window and for every phone in landscape, in each
+    // of which the dashboard is rendering the mobile body. Measuring it
+    // here made the past-due drag handle a dead control there.
+    if (!widget.mobileLayout) {
+      return ReorderableListView.builder(
+        scrollController: _scroll,
+        padding: listPadding,
+        buildDefaultDragHandles: false,
+        itemCount: prefs.length,
+        onReorderItem: vm.reorderPanels,
+        itemBuilder: (context, i) => rowFor(prefs[i], i, pinned: false),
+      );
+    }
+
+    // Narrow: past-due is pinned at the top (it always renders in the
+    // mobile hero zone; its order slot is ignored), and the remaining
+    // panels reorder beneath it — mirroring the mobile dashboard exactly.
+    //
+    // The pinned row is the list's `header`, not a fixed row above it: a
+    // fixed row can't shrink, so on a small phone at a large text size —
+    // where the footer below wraps onto several lines — it overflowed the
+    // pane. As the header it scrolls with the list and is never reorderable.
+    final pastDue = prefs.firstWhere((p) => p.kind == DashboardKind.pastDue);
+    final rest = prefs.where((p) => p.kind != DashboardKind.pastDue).toList();
+    return ReorderableListView.builder(
+      scrollController: _scroll,
+      padding: listPadding,
+      buildDefaultDragHandles: false,
+      header: Padding(
+        padding: EdgeInsets.only(bottom: InSpacing.md(context)),
+        child: rowFor(pastDue, 0, pinned: true),
+      ),
+      itemCount: rest.length,
+      onReorderItem: vm.reorderTrailingPanels,
+      itemBuilder: (context, i) => rowFor(rest[i], i, pinned: false),
+    );
+  }
+}
+
+/// The device's "Hide empty panels" preference (invoiceninja/flutter#161),
+/// beside Reset in the Panels footer — the same controller Device Settings →
+/// Dashboard writes, surfaced where people decide what the dashboard shows.
+///
+/// A compact label + switch rather than a `SwitchListTile` or
+/// `LabeledSwitchGroup`: both take the whole `Wrap` run (a list tile by
+/// design, the group through its `Align` and `Expanded`), which would push the
+/// footer onto a second row the dialog has no height for. The label is
+/// `Flexible` so it wraps instead of overflowing at large text sizes — `Wrap`
+/// bounds the row's width, but a plain `Text` in a `Row` ignores that bound.
+/// `MergeSemantics` makes the label the switch's own, and the label toggles
+/// too, so the target is more than the switch's thumb.
+class _HideEmptyPanelsSwitch extends StatelessWidget {
+  const _HideEmptyPanelsSwitch();
+
+  @override
+  Widget build(BuildContext context) {
+    final pref = context.read<Services>().hideEmptyPanels;
+    return ValueListenableBuilder<bool?>(
+      valueListenable: pref,
+      builder: (context, _, _) {
+        // Automatic resolves per device through the same helper the
+        // dashboard uses, so the switch never disagrees with the dashboard
+        // behind it.
+        final on = pref.effectiveIn(context);
+        return MergeSemantics(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: EdgeInsets.only(
-                  left: InSpacing.lg(context),
-                  right: InSpacing.lg(context),
-                  top: InSpacing.md(context),
+              Flexible(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  // The label is a larger target for fingers only; a screen
+                  // reader already gets the switch's own toggle on the merged
+                  // node, and a second tap action there would be a duplicate.
+                  excludeFromSemantics: true,
+                  onTap: () => pref.setIn(context, !on),
+                  child: Text(
+                    context.tr('hide_empty_panels'),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
-                child: rowFor(pastDue, 0, pinned: true),
               ),
-              Expanded(
-                child: ReorderableListView.builder(
-                  scrollController: _scroll,
-                  padding: listPadding,
-                  buildDefaultDragHandles: false,
-                  itemCount: rest.length,
-                  onReorderItem: vm.reorderTrailingPanels,
-                  itemBuilder: (context, i) =>
-                      rowFor(rest[i], i, pinned: false),
-                ),
+              SizedBox(width: InSpacing.sm),
+              Switch.adaptive(
+                value: on,
+                onChanged: (value) => pref.setIn(context, value),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -889,6 +967,7 @@ class _PanelRow extends StatelessWidget {
     required this.visible,
     required this.moduleEnabled,
     required this.disabledReasonKey,
+    required this.hiddenWhileEmpty,
     required this.pinned,
     required this.onToggle,
   });
@@ -900,6 +979,11 @@ class _PanelRow extends StatelessWidget {
 
   /// Localization key explaining why [moduleEnabled] is false.
   final String disabledReasonKey;
+
+  /// Left off the dashboard right now because it has nothing to show, while
+  /// this device hides empty panels. Only captioned when the row is otherwise
+  /// on — a switched-off or unavailable panel is absent for its own reason.
+  final bool hiddenWhileEmpty;
   final bool pinned;
   final VoidCallback onToggle;
 
@@ -950,6 +1034,14 @@ class _PanelRow extends StatelessWidget {
                 if (!moduleEnabled)
                   Text(
                     context.tr(disabledReasonKey),
+                    style: TextStyle(fontSize: 11, color: tokens.ink3),
+                  )
+                // Answers "it's switched on here — why isn't it on my
+                // dashboard?" without muting the title, which would read as
+                // the user having hidden it.
+                else if (visible && hiddenWhileEmpty)
+                  Text(
+                    context.tr('hidden_while_empty'),
                     style: TextStyle(fontSize: 11, color: tokens.ink3),
                   ),
               ],

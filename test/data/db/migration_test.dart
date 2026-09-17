@@ -45,6 +45,7 @@ void main() {
     8: 'c1269adc91f8f62e33e1fe3fdf02c24509a69e96aa50613438d71e4319c3f7c8',
     9: 'ad33ee319136e8eca6f5cf450f4d9031c304a02e711a75565c5221deac952d83',
     10: '603ef90e495e502e8526107a50d57baf58286e2e05b1ff9e026bb05b2b3cdf4f',
+    11: '40ff0b42ef0fdd14988a566af67df71c5e14d0b109184e3c1227489fb82ea573',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -185,6 +186,10 @@ void main() {
       // install to off — the same state a fresh one gets, so the feature never
       // switches itself on under an existing user (invoiceninja/flutter#150).
       expect(row?.hideUnverifiedUsers, isFalse);
+      // The v11 column has no backfill either: null is "automatic" (on for a
+      // phone, off elsewhere), so an upgraded install resolves exactly as a
+      // fresh one on the same device (invoiceninja/flutter#161).
+      expect(row?.hideEmptyPanels, isNull);
       await db.close();
     });
   });
@@ -222,6 +227,7 @@ void main() {
             'contacts_sync_json',
             'status_tabs',
             'hide_unverified_users',
+            'hide_empty_panels',
             'sidebar_menu_json',
           }),
         );

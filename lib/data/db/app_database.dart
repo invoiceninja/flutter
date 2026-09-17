@@ -186,7 +186,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -265,6 +265,13 @@ class AppDatabase extends _$AppDatabase {
     // is what a fresh install gets too, so an upgraded app behaves exactly as
     // it did before. Defaulting it on would silently drop colleagues out of
     // everyone's pickers — see the column's own doc.
+    //
+    // v10 → v11: add `nav_state.hide_empty_panels` (device-local "leave
+    // dashboard panels with nothing to show off the dashboard",
+    // invoiceninja/flutter#161). Nullable with no backfill: null means
+    // "automatic" — on for a phone, off everywhere else — which a SQL default
+    // could not express (the `phone_actions_json` reasoning), so an upgraded
+    // install lands on exactly the answer a fresh one gets on the same device.
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(navState, navState.keyboardShortcutsJson);
@@ -293,6 +300,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 10) {
         await m.addColumn(navState, navState.hideUnverifiedUsers);
+      }
+      if (from < 11) {
+        await m.addColumn(navState, navState.hideEmptyPanels);
       }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.

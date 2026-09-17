@@ -83,6 +83,10 @@ class DashboardKind {
   /// once, which made a declared slot unreachable for anyone who had ever
   /// changed the date range — the panel then landed last on every existing
   /// install and first on a fresh one.)
+  ///
+  /// Only the kinds also in [listKinds] can be left off the dashboard for
+  /// having nothing to show ("Hide empty panels", invoiceninja/flutter#161);
+  /// `DashboardViewModel` derives that set from these two lists.
   static const List<String> panelKinds = [
     pastDue,
     // Second, immediately below "Needs your attention": it is a superset of

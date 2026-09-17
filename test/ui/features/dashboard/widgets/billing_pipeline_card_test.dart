@@ -689,6 +689,39 @@ void main() {
     );
   });
 
+  testWidgets('a company switch forgets the previous company\'s tap', (
+    tester,
+  ) async {
+    // The tap latch belongs to the company it was made in. This State can
+    // outlive a company switch — the dashboard skips its spinner frame when the
+    // new company's formatter is cached, and the wide grid's `GlobalKey`s carry
+    // it between cells — so a latch left set would skip the new company's
+    // late-restored tab and leave it on All.
+    final props = ValueNotifier(const _Props());
+    addTearDown(props.dispose);
+    await _pump(
+      tester,
+      services: _services(),
+      nav: _Nav(),
+      props: props,
+      initialTabId: null,
+    );
+    await tester.tap(find.text('Draft'));
+    await tester.pumpAndSettle();
+    expect(_selectedIndex(tester), 1);
+
+    props.value = const _Props(companyId: 'other');
+    await tester.pumpAndSettle();
+    props.value = const _Props(companyId: 'other', initialTabId: 'expired');
+    await tester.pumpAndSettle();
+
+    expect(
+      _selectedIndex(tester),
+      6,
+      reason: "the new company's restored tab must apply",
+    );
+  });
+
   testWidgets('it survives being scrolled out of the dashboard list', (
     tester,
   ) async {

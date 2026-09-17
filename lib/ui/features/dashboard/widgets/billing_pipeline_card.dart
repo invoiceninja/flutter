@@ -159,7 +159,11 @@ class _DashboardBillingPipelineCardState
         oldWidget.includeQuotes != widget.includeQuotes ||
         oldWidget.narrow != widget.narrow) {
       // A company switch usually tears this subtree down, but not when the new
-      // company's formatter is already cached — then only this runs.
+      // company's formatter is already cached — then only this runs. (The wide
+      // grid's `GlobalKey`s also carry this State between cells.) The tap
+      // latch belongs to the company it was made in: left set, it would skip
+      // the new company's late-restored tab below.
+      if (oldWidget.companyId != widget.companyId) _userPicked = false;
       _vm.dispose();
       _vm = _buildVm();
     } else if (oldWidget.initialTabId == null &&

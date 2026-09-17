@@ -61,7 +61,7 @@ class DashboardListCard<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return DashboardCardShell(
       title: title,
-      trailing: section.hasData && (section.data?.isNotEmpty ?? false)
+      trailing: section.listState == ListSectionState.rows
           ? DashboardCardFooterLink(label: footerLabel, onTap: onViewAll)
           : null,
       padding: EdgeInsets.zero,
@@ -69,43 +69,44 @@ class DashboardListCard<T> extends StatelessWidget {
     );
   }
 
+  // The state order is `ListSectionState`'s, shared with the mobile cards and
+  // with the view model that hides a panel exactly when this would render its
+  // empty state (invoiceninja/flutter#161).
   Widget _body(BuildContext context) {
-    if (section.hasError && !section.hasData) {
-      return Padding(
-        padding: _statePadding(context),
-        child: SizedBox(
-          height: 200,
-          child: ErrorView(
-            message: context.tr('couldnt_load_tap_to_retry', {
-              'section': title.toLowerCase(),
-            }),
-            onRetry: onRetry,
+    switch (section.listState) {
+      case ListSectionState.failed:
+        return Padding(
+          padding: _statePadding(context),
+          child: SizedBox(
+            height: 200,
+            child: ErrorView(
+              message: context.tr('couldnt_load_tap_to_retry', {
+                'section': title.toLowerCase(),
+              }),
+              onRetry: onRetry,
+            ),
           ),
-        ),
-      );
-    }
-    final items = section.data;
-    if (items == null) {
-      return Padding(
-        padding: _statePadding(context),
-        child: const ListCardSkeleton(),
-      );
-    }
-    if (items.isEmpty) {
-      return Padding(
-        padding: _statePadding(context),
-        child: SizedBox(
-          height: 200,
-          child: EmptyState(
-            icon: emptyIcon,
-            title: emptyTitle,
-            subtitle: emptySubtitle,
-            action: emptyAction,
+        );
+      case ListSectionState.loading:
+        return Padding(
+          padding: _statePadding(context),
+          child: const ListCardSkeleton(),
+        );
+      case ListSectionState.empty:
+        return Padding(
+          padding: _statePadding(context),
+          child: SizedBox(
+            height: 200,
+            child: EmptyState(
+              icon: emptyIcon,
+              title: emptyTitle,
+              subtitle: emptySubtitle,
+              action: emptyAction,
+            ),
           ),
-        ),
-      );
+        );
+      case ListSectionState.rows:
+        return bodyBuilder(context, section.data!.take(preview).toList());
     }
-    final visible = items.take(preview).toList();
-    return bodyBuilder(context, visible);
   }
 }

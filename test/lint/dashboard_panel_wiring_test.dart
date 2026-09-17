@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Every orderable dashboard panel must be registered in **both** bodies and
-/// gated in **one** place.
+/// gated in **one** place — and hidden-when-empty through one place too.
 ///
 /// The two `builders` maps — `_bottomGrid` in `dashboard_screen.dart` and
 /// `_trailingPanels` in `mobile_dashboard_body.dart` — are the lines that put a
@@ -12,7 +12,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// The mobile half is covered by a widget test; the wide body is not pumpable
 /// (its screen test never builds the body — `formatterFor` never completes), so
 /// this is a source scan, the same shape `status_tab_wiring_test.dart` uses for
-/// a wiring fact no widget test can reach.
+/// a wiring fact no widget test can reach. (The grid it hands the builders to,
+/// `DashboardPanelGrid`, *is* pumpable — `dashboard_panel_grid_test.dart` pins
+/// its rules; this only pins that the screen uses it.)
 void main() {
   String read(String path) {
     final f = File(path);
@@ -72,6 +74,58 @@ void main() {
               '(${entry.value}) — it would render on the other body only',
         );
       }
+    }
+  });
+
+  test('empty panels are hidden through the shared builder everywhere', () {
+    // invoiceninja/flutter#161. A section emission only notifies its own card,
+    // so a surface that filtered on `emptyPanels` without
+    // `HiddenEmptyPanelsBuilder` would never update — and one that skipped it
+    // entirely would show a panel on one body that the other hides, or a
+    // Customize row with no word on why its panel is missing.
+    for (final path in [
+      ...registrars.values,
+      'lib/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart',
+    ]) {
+      expect(
+        read(path).contains('HiddenEmptyPanelsBuilder('),
+        isTrue,
+        reason: '$path must learn which panels are empty from the builder',
+      );
+    }
+    // The wide body hands its builders to the grid that keys them with
+    // `GlobalKey`s; a hand-rolled grid would bring back the `ValueKey` that
+    // never matched, and with it a refetch every time a neighbour empties.
+    expect(
+      read(registrars['wide body']!).contains('DashboardPanelGrid('),
+      isTrue,
+      reason: 'the wide body must lay panels out through DashboardPanelGrid',
+    );
+  });
+
+  test('both switches resolve "automatic" through the shared helper', () {
+    // `effectiveIn` / `setIn` ask `hidesEmptyPanelsByDefault` — the same
+    // question the dashboard asks. A switch that passed its own notion of
+    // "phone" (the Customize sheet's `mobileLayout`, say) would read ON in a
+    // 600–832 px desktop window while the dashboard still showed empty panels,
+    // and every widget test would still pass.
+    for (final path in const [
+      'lib/ui/features/settings/widgets/dashboard_panels_section.dart',
+      'lib/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart',
+    ]) {
+      final src = read(path);
+      expect(src, contains('.effectiveIn('), reason: '$path must read it');
+      expect(src, contains('.setIn('), reason: '$path must write it');
+      expect(
+        src,
+        isNot(contains('effectiveFor(')),
+        reason: '$path must not resolve automatic by hand',
+      );
+      expect(
+        RegExp(r'\b(pref|controller|hideEmptyPanels)\.set\(').hasMatch(src),
+        isFalse,
+        reason: '$path must not write the preference by hand',
+      );
     }
   });
 

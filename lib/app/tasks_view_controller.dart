@@ -44,15 +44,16 @@ class TasksViewController extends ValueNotifier<TasksViewMode?> {
     value = stored;
   }
 
-  /// Drop the choice without touching the database — joins the
-  /// `onBeforeLogout` fan-out beside [SidebarMenuController.resetInMemory], for
-  /// the same reason. A deliberate sign-out wipes `nav_state`, but this
-  /// controller is built once in `Services.build` and outlives the logout, and
-  /// [restore] early-returns on a null stored value so it can never clear
-  /// itself — so a second user signing in without relaunching would open Tasks
-  /// on the first user's board, and the state would differ depending on whether
-  /// the app had been restarted. An involuntary 401 preserves local data, so it
-  /// keeps the preference.
+  /// Drop the choice without touching the database — runs from
+  /// `AuthRepository.onBeforeDataWipe` beside
+  /// [SidebarMenuController.resetInMemory], for the same reason. A deliberate
+  /// sign-out wipes `nav_state`, but this controller is built once in
+  /// `Services.build` and outlives the logout, and [restore] early-returns on a
+  /// null stored value so it can never clear itself — so a second user signing
+  /// in without relaunching would open Tasks on the first user's board, and the
+  /// state would differ depending on whether the app had been restarted. An
+  /// involuntary 401 or an idle re-lock preserves local data and doesn't fire
+  /// the wipe hook, so the same user keeps their board in memory too.
   void resetInMemory() {
     if (value == null) return;
     value = null;

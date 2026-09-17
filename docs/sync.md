@@ -1,6 +1,6 @@
 # Sync — the non-obvious rules, with evidence
 
-Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states all 28 rules, one line each — it is the most-cited anchor in the repo. This doc carries the evidence behind the eighteen that needed more than a line: the status-code map, the cursor and paging gates, the company-token guard, and the offline-retry policy.
+Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states all 29 rules, one line each — it is the most-cited anchor in the repo. This doc carries the evidence behind the nineteen that needed more than a line: the status-code map, the cursor and paging gates, the company-token guard, and the offline-retry policy.
 
 ## A discard abandons the row, not the entity
 
@@ -44,7 +44,7 @@ Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states
 
 ## A bulk re-download re-arms mounted lists
 
-**A bulk re-download re-arms mounted lists.** `refreshAll` and the Sync pass write only to Drift; nothing else told a list VM its paging state was stale. `GenericListViewModel.bindResync` (wired by `EntityListScreenScaffold` in `initState` *and* `_onSessionChanged`) re-arms on the pass's falling edge for its own company, and `refresh()` does the same after pull-to-refresh. Re-arm only — never `_resetAndReload`, which would snap a deep-scrolled user back to page 1. Corollary invariant: **never call `resync.run()` from a `build`**, since every bound list VM notifies on that edge.
+**A bulk re-download re-arms mounted lists.** `refreshAll` and the Sync pass write only to Drift; nothing else told a list VM its paging state was stale. `GenericListViewModel.bindResync` (wired by `EntityListScreenScaffold` in `initState` *and* `_onSessionChanged`) re-arms on the pass's falling edge for its own company, and `refresh()` does the same after pull-to-refresh. Re-arm only — never `_resetAndReload`, which would snap a deep-scrolled user back to page 1. Corollary invariant: **never call `resync.run()` from a `build`**, since every bound list VM notifies on that edge. The edge also fires for a *cancelled* pass, so anything written to *fetch* once a pass is over listens to `lastCompletion` instead — see § A screen that refetches after a Sync pass listens to `lastCompletion`. The re-arm is local with one known exception: its `_resubscribe` can drive the post-LIMIT auto-chain (`_maybeAutoChain` → `loadMore`) on a `tag:` / `stock:` list, which pages — after a cancelled logout pass too, and the entity repos' `companyStillActive` treats signed-out as a no-op. Moving the list VMs onto `lastCompletion` is the follow-up.
 
 ## Lists sort newest-first where the sort key is monotonic
 
@@ -85,7 +85,9 @@ constructor, and the shell is a `StatefulShellRoute.indexedStack` (`router.dart`
 `/activity` has been visited the screen stays mounted for the whole session and that constructor
 never runs again. Navigating away and back does not re-fetch. The dashboard's Activity card reads
 the *same* `dashboard_cache` row (kind `activities`, filter hash `kDashboardListFilterHash`), so
-both surfaces were stale together, and both are fixed by one write.
+both surfaces were stale together, and both are fixed by one write. (Their "Updated N ago" labels
+were not — each was a stamp only its own screen's refresh set. See § A screen that refetches after
+a Sync pass listens to `lastCompletion`.)
 
 **The three caches, and why each needed its own line.**
 
@@ -96,12 +98,15 @@ both surfaces were stale together, and both are fixed by one write.
    The filter-keyed half (totals, chart, configured cards) is deliberately excluded — it is keyed
    by a `DashboardFilter` that is UI state owned by `DashboardViewModel`, and a caller with no
    dashboard mounted would have to invent one and would write a row under a hash nothing watches.
-   Those keep the dashboard's own Refresh button.
+   A *mounted* dashboard refetches them itself once the pass completes
+   ([invoiceninja/flutter#162](https://github.com/invoiceninja/flutter/issues/162)) — see § A screen
+   that refetches after a Sync pass listens to `lastCompletion`.
 2. **`ActivitiesApi._feedCache`** — the in-memory per-record feed behind the Activity / Comments
    tabs, dropped with `clearCache()`. This fixes the *next* record opened; a tab already on screen
    is not repainted, because `EntityActivityViewModel` has no Drift subscription for synced rows
-   (it re-kicks only on an outbox tick for its own record). Doing that properly needs a broadcast
-   sync-generation notifier, which is not built.
+   (it re-kicks only on an outbox tick for its own record). The broadcast signal that would fix it
+   now exists — `ResyncController.lastCompletion`, built for #162 — but `EntityActivityViewModel`
+   does not listen to it yet (it is constructed on eleven detail screens).
 3. **The memoized `Formatter` and the resolved-settings cascade** — `invalidateFormatter` /
    `settings.clearResolvedCache`. `invalidateFormatter`'s own contract is "call after writing the
    company's settings **or after a statics refresh**", and the pass does both:
@@ -133,15 +138,13 @@ plan and is what the failed-entity list is counted against; a phantom step would
 spinner is indeterminate on purpose even once `total` is known. This is already the status quo:
 `contactsSync.run` has run past 100% since it shipped.
 
-**The residual company-switch window.** The list-card fetches are issued in parallel, so there is
-no boundary to poll `isCancelled` at once they are on the wire; a switch landing mid-flight files
-the new company's rows under the old id. `resync.cancel()` on a company switch plus the tail's
-pre-flight poll leave roughly a 1–2 s window, and `dashboard_cache` is a single overwritable
-snapshot per `(company, kind, hash)` rather than an accumulating table, so the next refresh
-repairs it — worst observable symptom is one frame of the wrong company's rows.
-`company_scoped_write_guard_test` does not catch this: it fires only on repos calling
-`upsertAllPreservingDirty`, and `DashboardRepository` writes via `_dao.upsert`. Closing it properly
-means giving that repo the `activeCompanyId` / `companyStillActive` hook every entity repo has.
+**The company-switch window, now closed at the write.** The list-card fetches are issued in
+parallel, so there is no boundary to poll `isCancelled` at once they are on the wire; a switch
+landing mid-flight used to file the new company's rows under the old id.
+`company_scoped_write_guard_test` does not catch that — it fires only on repos calling
+`upsertAllPreservingDirty`, and `DashboardRepository` writes via `_dao.upsert` — so #162 gave
+the repo its own `activeCompanyId` hook and `_ensureStillActive`, checked before every fetch and
+every write. See § A screen that refetches after a Sync pass listens to `lastCompletion`.
 
 **One concurrency trap the fix had to design around.** `refreshAll` and `refreshFilterKeyed` each
 used to construct their own `_Semaphore(_maxConcurrent)`, so writing `refreshAll` as "filter-keyed,
@@ -157,3 +160,131 @@ above the job-level cap.
 `/api/v1/activities` and the six sibling card paths (`/api/v1/invoices`, `/api/v1/payments`,
 `/api/v1/quotes`, `/api/v1/recurring_invoices`), so a strict `MockClient` that 404s unknown paths
 will see them where it previously did not.
+
+## A screen that refetches after a Sync pass listens to `lastCompletion`
+
+[invoiceninja/flutter#162](https://github.com/invoiceninja/flutter/issues/162), the follow-on to
+#160: after **Sync now** the dashboard still read *"… · UPDATED 2H AGO"*, and its KPIs, chart and
+configured cards were pre-sync. The #160 tail had refreshed the seven list cards and deliberately
+left the filter-keyed half to the dashboard's Refresh button — and that stamp,
+`DashboardViewModel.lastRefreshed`, lives in memory and is written only by the view model's own
+clean `refresh()`. The branch stays mounted all session (`StatefulShellRoute.indexedStack`), so
+its constructor and its boot refresh never run again, and nothing told it a pass had finished.
+
+**The signal.** `ResyncController.lastCompletion` is a `ValueListenable<ResyncCompletion?>`,
+published once per pass, after `value` returns to idle and before `run()` resolves — and only
+for a pass that ran to its end. `announce` is decided at the top of `run()`'s `.then`, before
+`_cancelled` is reset, on two terms, each covering what the other can't:
+
+- **Not cancelled.** Logout or a company switch asked the pass to stop. The flag subsumes the
+  disposition — `_run` reports `cancelled` off this same flag, and nothing clears it before
+  `.then` — and it also catches a runner that *threw* after the cancel, which `_run`'s catch
+  reports as `completed`. That is the usual shape of a 401: its logout cancels the pass and pulls
+  the token from under it.
+- **No error.** A prologue that failed with nobody cancelling — offline, a 5xx, a bad envelope —
+  downloaded nothing and never reached the tail, so there is nothing to follow up.
+
+Joined and busy calls start no pass, so they never get here. `ResyncCompletion`'s equality is its
+`serial` alone, so two back-to-back passes for one company both notify. `ValueNotifier` drops an
+equal value silently — the same trap `ResyncProgress`'s `==` is written around.
+
+**Why not the falling edge.** `GenericListViewModel.bindResync` uses `isRunningFor` going false,
+and that edge fires identically for a cancelled pass. For a fetch that is wrong: on logout,
+`_onSessionChanged` returns early on a null session, so the old view model stays alive until the
+router swaps the shell, and its requests would race the Drift wipe. (The list re-arm has its own
+exception — § A bulk re-download re-arms mounted lists.)
+
+**A company switch is not cancellation's job.** `_activateCompany` sets the session — which
+synchronously disposes the old dashboard view model and builds one for B — then sets the
+credentials, awaits secure storage, and only then fires the hook that calls `resync.cancel()`. So
+a pass for A can finish *uncancelled* after the switch began, and be published. What keeps it
+out is the `companyId` check in `DashboardViewModel._onResyncCompleted`: a view model for company
+X exists only while the session is X.
+
+**Who listens, and how.** `DashboardScreen._buildVm` passes `resync.lastCompletion` into the
+view model. It is the single construction site, so the company-switch rebuild keeps the wiring,
+and `dashboard_panel_wiring_test` scans for it (comments stripped). The view model ignores a
+completion that is for another company, that carries an error (the controller already withholds
+those; this check is what keeps a request off a logout if that rule ever loosens), or that reaches
+it after dispose. A pass with failed *entity* downloads still refetches: its tail ran, and none of
+the dashboard's own endpoints read the entity tables.
+
+**A completion during the boot refresh is deferred, not dropped.** `ValueNotifier` never replays
+one, and the boot refresh can have read the server *before* the pass pushed its edits — one slow
+request holds it open for up to a minute. Running the refetch alongside it instead would drop the
+shared `isAnyRefreshing` early and flash "Not yet loaded", which `_init` goes out of its way to
+avoid. So `_onResyncCompleted` sets `_refetchAfterBoot`, and `_init` runs one refetch when the boot
+refresh returns — one, however many passes landed meanwhile.
+
+**Why a full refetch, list cards included.** It re-sends the seven list-card GETs the tail
+finished a moment earlier — about seven repeat requests per Sync while the dashboard is mounted,
+the 250-row activity feed among them. What that buys is one code path, the Refresh button's, and a
+`lastRefreshed` whose "every section landed" promise holds without carrying the tail's per-card
+failures across the pass boundary. The alternative — the filter-keyed half plus only the list
+kinds the tail failed on — needs the pass result to carry those kinds. (Re-reading the feed "later"
+buys nothing: with contacts sync off, the default, nothing runs between the tail and the
+completion.)
+
+**Why `globalError` is left alone.** `_runRefresh(reportGlobalError: false)` never touches it.
+`globalError` is the toast detail that `_refreshWithFeedback` reads straight after its *own*
+`refresh()`, so an overlapping after-sync run that cleared or overwrote it would hand that toast
+another run's error. The after-sync run shows no toast (the Sync toast already reported the pass);
+its failure shows as `lastRefreshed` staying put, plus the error state of the sections that render
+one — configured cards, and list cards with nothing cached. The KPI row and the chart render none.
+
+**The Drift-backed panels re-arm off their own nonce.** The Invoices & Quotes and task-calendar
+panels refetch their own server window when their `refreshNonce` changes from one non-null value to
+another; a first stamp is their initial load. That nonce used to be `lastRefreshed`, so every clean
+Sync cleared their loaded flags, re-downloaded pages the pass had just fetched in full, and blinked
+the calendar's "nothing booked" caption. It is now `DashboardViewModel.panelRefreshNonce`: it moves
+with `lastRefreshed` on the boot refresh and on the Refresh button, and after a pass only when the
+pass failed an `invoice`, `quote` or `task` download. `dashboard_panel_wiring_test` pins both bodies
+to it.
+
+**A dashboard fetch is bound to the live company.** Every `DashboardRepository` refresh writes
+under the `companyId` it was called with while `ApiClient` sends whatever token is live, and the
+after-sync refetch is outside the pass `resync.cancel()` stops. "Sync now, then Sign out" is a
+natural flow: a response landing after `logout()` had cleared the credentials, wiped the database
+and forgotten the identity survived — and the next sign-in's identity check could no longer see
+it, so another user of that company would be shown the feed. `Services.build` now binds the repo's
+`activeCompanyId` like every entity repo's, and `_ensureStillActive` runs before each fetch and
+each write, throwing `CompanySwitchedException` (logged at `fine`, folded into the error map). One
+difference from `companyStillActive`: a bound hook answering null means signed out and blocks too —
+nothing on the dashboard fetches before a session exists.
+
+**A dashboard left open past midnight re-subscribes first.** A preset resolves against today, so
+its `filterHash` moves at midnight — and again at a month or year boundary — while the filter-keyed
+watches keep the hash they were opened with. The refetch a Sync starts on exactly such a
+long-mounted dashboard used to write under the new hash and leave every section on the old rows
+beneath a fresh "Updated just now"; the Refresh button and a retry did the same.
+`_resubscribeIfRolledOver` reopens the watches at the top of every refetch and retry (the
+view model takes a `today` clock for the test).
+
+**The decoded watches skip unchanged rows.** Drift re-runs every watch on any `dashboard_cache`
+write, and a Sync now issues two rounds of them, so each write re-decoded every section — the
+250-row feed in both of its view models included. `_watchDecoded`, `_watchList` and
+`watchCalculatedField` apply `distinct` to the *row* before decoding; the generated row `==`
+compares payload and `fetched_at`, so a real rewrite still comes through. As a side effect an
+unrelated write no longer re-emits a section, which used to clear its error state.
+
+**`/activity` follows the row instead.** That screen reads exactly one `dashboard_cache` row, so
+its label is the row's `fetched_at` (`DashboardRepository.watchActivitiesFetchedAt`, also
+`distinct`). It moves for every writer of that row with no signal wiring: the screen's own
+refresh, the #160 tail, and every dashboard load of the feed — boot and company switch, the
+Refresh button, a card retry, and the after-sync refetch. The stamp it replaced was set only by
+the screen's own refresh. One provisional stamp remains: `refresh()` sets `_lastRefreshed ??= now`
+on success, because Drift delivers the new row's time asynchronously and the `finally` would
+otherwise paint "Not yet loaded" over a fetch that had just succeeded; the row's time replaces it.
+Accepted trade-off: on a cold start with a cached row, the label shows that row's age while the
+first refresh runs, rather than "Loading…".
+
+**Residuals, known.**
+
+- **`isAnyRefreshing` is one shared bool.** An after-sync run overlapping a user refresh or a card
+  retry can clear it early. This predates #162. Don't "fix" it by skipping the after-sync run while
+  the flag is set: a single-card retry would then suppress the stamp, and the bug would be back.
+- **The screen's own `_formatter` isn't reloaded.** The tail invalidates the memoized `Formatter`,
+  but `DashboardScreen` keeps the instance it already holds, and doesn't re-run
+  `setFiscalYearStart`, until a company switch. The list screens' `loadFormatter` has the same gap,
+  so a date format or fiscal-year change made on another device reaches neither until then.
+- **The list re-arm can page after a cancelled pass** — § A bulk re-download re-arms mounted lists.

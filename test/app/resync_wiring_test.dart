@@ -7,12 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/dashboard_cache_dao.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/token_storage.dart';
+import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 
 import '../ui/features/shell/_shell_test_helpers.dart';
 
@@ -212,6 +214,7 @@ void main() {
   });
 
   _syncTailTests();
+  _syncCompletionTests();
 }
 
 /// Minimal `/api/v1/refresh` body for company `c1`. Without a valid envelope
@@ -391,6 +394,173 @@ void _syncTailTests() {
         reason:
             'the pass rewrites the companies row the Formatter is derived '
             'from, and nothing else invalidates it (#160)',
+      );
+    });
+  });
+}
+
+/// invoiceninja/flutter#162 — a pass re-downloads the entity tables and, through
+/// its #160 tail, the list cards; the dashboard's totals, chart and configured
+/// cards are keyed by a filter only its view model holds, and so is the
+/// "Updated N ago" stamp. The dashboard branch stays mounted all session, so
+/// `ResyncController.lastCompletion` is the only thing that tells it a pass is
+/// over. End to end: the real controller, the real `syncNow`, and a real
+/// `DashboardViewModel` over the real repository.
+///
+/// Only `/api/v1/activities` and `/api/v1/charts/*` are countable here: the
+/// entity downloads and `restore()`'s sidebar prefetch also hit `/invoices`,
+/// `/quotes`, `/payments` and `/recurring_invoices`.
+void _syncCompletionTests() {
+  group('a completed Sync pass refreshes a mounted dashboard', () {
+    const activities = '/api/v1/activities';
+    const totals = '/api/v1/charts/totals_v2';
+    const chart = '/api/v1/charts/chart_summary_v2';
+
+    late ShellFixture fixture;
+    late List<String> paths;
+    late Set<String> failing;
+    late DashboardViewModel vm;
+
+    Future<void> until(bool Function() done) async {
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (!done()) {
+        if (DateTime.now().isAfter(deadline)) {
+          fail('timed out waiting for the dashboard to settle');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    setUp(() async {
+      paths = <String>[];
+      failing = <String>{};
+      fixture = await buildFixture(
+        companies: const [FakeCompany(id: 'c1', name: 'Acme Co')],
+        currentCompanyId: 'c1',
+        httpClient: MockClient((req) async {
+          paths.add(req.url.path);
+          if (failing.contains(req.url.path)) {
+            return http.Response('{"message":"boom"}', 500);
+          }
+          if (req.url.path.contains('/api/v1/refresh')) {
+            return http.Response(_refreshEnvelope(), 200);
+          }
+          return http.Response('{"data":[]}', 200);
+        }),
+      );
+      var clock = 0;
+      vm = DashboardViewModel(
+        repo: fixture.services.dashboard,
+        companyId: 'c1',
+        navStateDao: fixture.db.navStateDao,
+        statics: fixture.services.statics,
+        resyncCompletions: fixture.services.resync.lastCompletion,
+        // Strictly increasing, so "the stamp moved" can't pass by chance.
+        now: () => DateTime.fromMillisecondsSinceEpoch(++clock * 1000),
+      );
+      // The boot refresh issues every path counted below; let it land first.
+      await until(() => vm.lastRefreshed != null && !vm.isAnyRefreshing);
+      paths.clear();
+    });
+
+    tearDown(() async {
+      // Before the fixture closes the database its Drift watches read.
+      vm.dispose();
+      await fixture.dispose();
+    });
+
+    test('refetches after the tail and moves the stamp', () async {
+      final booted = vm.lastRefreshed!;
+
+      final result = await fixture.services.resync.run('c1');
+      // The refetch starts inside the completion listener, which runs before
+      // `run()` resolves — so this waits for it rather than skipping past.
+      await until(() => !vm.isAnyRefreshing);
+
+      expect(result.isClean, isTrue);
+      expect(
+        paths.where((p) => p == totals),
+        hasLength(2),
+        reason:
+            'current and previous period — keyed by a filter only the view '
+            'model knows, so nothing in the pass can ask for them',
+      );
+      expect(paths.where((p) => p == chart), hasLength(1));
+      expect(
+        paths.where((p) => p == activities),
+        hasLength(2),
+        reason: "the #160 tail, then the dashboard's own full refetch",
+      );
+      expect(
+        paths.indexOf(totals),
+        greaterThan(paths.indexOf(activities)),
+        reason: 'the refetch follows the whole pass, tail included',
+      );
+      expect(
+        vm.lastRefreshed!.isAfter(booted),
+        isTrue,
+        reason: 'the reporter synced and was still told the data was 2h old',
+      );
+    });
+
+    test(
+      'a refetch that fails keeps the stamp and leaves the pass clean',
+      () async {
+        final booted = vm.lastRefreshed;
+        failing.add(chart);
+
+        final result = await fixture.services.resync.run('c1');
+        await until(() => !vm.isAnyRefreshing);
+
+        expect(
+          paths,
+          contains(chart),
+          reason: 'the refetch ran — without it the rest proves nothing',
+        );
+        expect(
+          vm.lastRefreshed,
+          booted,
+          reason: 'the stamp claims every section landed',
+        );
+        expect(vm.chart.hasError, isTrue);
+        expect(
+          vm.globalError,
+          isNull,
+          reason: "globalError is the Refresh button's toast detail",
+        );
+        expect(
+          result.isClean,
+          isTrue,
+          reason:
+              'the dashboard refetches after the pass, so its failure is not '
+              'a Sync failure',
+        );
+      },
+    );
+
+    test('the repository is bound to the live company', () {
+      // `DashboardRepository._ensureStillActive` does nothing unbound, and
+      // nothing else stops a refetch still on the wire from writing after a
+      // sign-out or a company switch.
+      expect(fixture.services.dashboard.activeCompanyId, isNotNull);
+      expect(fixture.services.dashboard.activeCompanyId!(), 'c1');
+    });
+
+    test('a cancelled pass refetches nothing', () async {
+      final pass = fixture.services.resync.run('c1');
+      fixture.services.resync.cancel();
+
+      expect((await pass).disposition, ResyncDisposition.cancelled);
+      // Room for a wrongly-started refetch to put its requests on the wire.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(vm.isAnyRefreshing, isFalse);
+      expect(
+        paths.where((p) => p.startsWith('/api/v1/charts/')),
+        isEmpty,
+        reason:
+            'a cancelled pass is a logout, with the Drift wipe under way, or a '
+            'company switch, where the next request carries the other token',
       );
     });
   });

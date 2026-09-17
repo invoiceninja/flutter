@@ -305,7 +305,7 @@ class MobileDashboardBody extends StatelessWidget {
         return DashboardBillingPipelineCard(
           companyId: vm.companyId,
           formatter: formatter,
-          refreshNonce: vm.lastRefreshed,
+          refreshNonce: vm.panelRefreshNonce,
           narrow: true,
           includeInvoices: halves.invoices,
           includeQuotes: halves.quotes,
@@ -316,7 +316,7 @@ class MobileDashboardBody extends StatelessWidget {
       DashboardKind.taskCalendar: () => DashboardTaskCalendarCard(
         companyId: vm.companyId,
         formatter: formatter,
-        refreshNonce: vm.lastRefreshed,
+        refreshNonce: vm.panelRefreshNonce,
       ),
     };
     final out = <Widget>[];

@@ -146,7 +146,8 @@ class ActivityFeedItem extends ActivityFeedEntry {
 ///
 /// Reads the **same** Drift cache row as the dashboard's Activity card
 /// (`dashboard_cache`, kind `activities`), so the screen paints instantly from
-/// cache and a refresh on either surface updates both.
+/// cache and a refresh on either surface updates both — the freshness label
+/// included (see [lastRefreshed]).
 class ActivityViewModel extends ChangeNotifier {
   ActivityViewModel({
     required this.repo,
@@ -166,6 +167,9 @@ class ActivityViewModel extends ChangeNotifier {
       // VM-level, never re-opened per build: every emission re-runs
       // `jsonDecode` + `listFromJson` over the whole window.
       _sub = repo.watchActivities(companyId).listen(_onRows, onError: _onError);
+      _fetchedAtSub = repo
+          .watchActivitiesFetchedAt(companyId)
+          .listen(_onFetchedAt, onError: _onFetchedAtError);
       unawaited(refresh());
     }
   }
@@ -184,6 +188,7 @@ class ActivityViewModel extends ChangeNotifier {
   static const String _persistKey = 'activity';
 
   StreamSubscription<List<DashboardActivity>?>? _sub;
+  StreamSubscription<DateTime?>? _fetchedAtSub;
   Timer? _persistTimer;
   bool _hydrated = false;
   bool _userTouched = false;
@@ -204,6 +209,16 @@ class ActivityViewModel extends ChangeNotifier {
   bool _isRefreshing = false;
   bool get isRefreshing => _isRefreshing;
 
+  /// When the rows on screen were fetched — the cache row's `fetched_at`, not a
+  /// stamp this view model keeps (bar [refresh]'s provisional one, for the
+  /// moment before a first row's time arrives).
+  ///
+  /// It used to be one, set only by [refresh], so the label went on reading
+  /// "Updated 2h ago" over rows the Sync pass had just rewritten
+  /// (invoiceninja/flutter#162); every dashboard load of the same feed left it
+  /// alone too. Following the row moves it for every writer. The price is on a
+  /// cold start with a cached row: the label shows that row's age while the
+  /// first refresh runs, rather than "Loading…".
   DateTime? _lastRefreshed;
   DateTime? get lastRefreshed => _lastRefreshed;
 
@@ -277,13 +292,30 @@ class ActivityViewModel extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  void _onFetchedAt(DateTime? fetchedAt) {
+    if (_disposed || fetchedAt == _lastRefreshed) return;
+    _lastRefreshed = fetchedAt;
+    notifyListeners();
+  }
+
+  // Logged only: the label keeps its last value, and the rows' own watch is
+  // what surfaces a broken cache.
+  void _onFetchedAtError(Object error, StackTrace st) {
+    _log.warning('Activity freshness watch failed', error, st);
+  }
+
   Future<void> refresh() async {
     if (companyId.isEmpty || _disposed) return;
     _isRefreshing = true;
     notifyListeners();
     try {
       await repo.refreshActivities(companyId);
-      _lastRefreshed = _now();
+      // Provisional, and only while no row time is known: the write this made
+      // reaches [lastRefreshed] through Drift, which re-queries asynchronously,
+      // so without it the `finally` below would paint `lastRefreshed == null &&
+      // !isRefreshing` — "Not yet loaded" — over a fetch that just succeeded.
+      // The row's own time replaces it when it lands.
+      _lastRefreshed ??= _now();
       if (_section.hasError) {
         _section = _section.withData(_section.data);
       }
@@ -466,6 +498,7 @@ class ActivityViewModel extends ChangeNotifier {
     // captured `companyId`, so it can't cross-write another company.
     if (hadPending) unawaited(_persist());
     unawaited(_sub?.cancel());
+    unawaited(_fetchedAtSub?.cancel());
     super.dispose();
   }
 }

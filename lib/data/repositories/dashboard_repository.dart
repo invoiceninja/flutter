@@ -12,6 +12,8 @@ import 'package:admin/data/models/domain/dashboard/dashboard_chart_series.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/data/repositories/base_entity_repository.dart'
+    show CompanySwitchedException;
 import 'package:admin/data/services/dashboard_api.dart';
 
 final _log = Logger('DashboardRepository');
@@ -137,6 +139,38 @@ class DashboardRepository {
   final int Function() _now;
   final int _maxConcurrent;
 
+  /// The company whose token requests are going out under —
+  /// `auth.credentials.value?.companyId`, bound by `Services.build` exactly as
+  /// every entity repo's is. Tests leave it null, which disables the check.
+  String? Function()? activeCompanyId;
+
+  /// Throws unless a fetch for [companyId] may still go out, or its response
+  /// still be written.
+  ///
+  /// Every refresh here writes under the `companyId` it was *called* with,
+  /// while `ApiClient` sends whatever token is live — and nothing cancels a
+  /// dashboard fetch: the refetch a completed Sync starts
+  /// (invoiceninja/flutter#162) is outside the pass `resync.cancel()` stops.
+  /// So a company switch filed B's figures under A, and a sign-out let a late
+  /// response land after `logout()` had wiped the database and forgotten the
+  /// identity, where the next sign-in's identity check can no longer see it.
+  ///
+  /// Stricter than `BaseEntityRepository.companyStillActive` in one respect: a
+  /// bound hook answering null means signed out, and blocks as well. Nothing
+  /// on the dashboard fetches before a session exists, so null never means
+  /// "not yet".
+  void _ensureStillActive(String companyId, String kind) {
+    final live = activeCompanyId;
+    if (live == null) return;
+    final active = live();
+    if (active == companyId) return;
+    throw CompanySwitchedException(
+      expected: companyId,
+      active: active,
+      entityType: 'dashboard $kind',
+    );
+  }
+
   DashboardCacheDao get _dao => db.dashboardCacheDao;
 
   // ─── Watches ─────────────────────────────────────────────────────────
@@ -170,6 +204,31 @@ class DashboardRepository {
         kind: DashboardKind.activities,
         decode: DashboardActivity.listFromJson,
       );
+
+  /// When the [watchActivities] row was last written — by *any* writer — or
+  /// null while there is none.
+  ///
+  /// The `/activity` screen's "Updated N ago" reads this rather than a stamp of
+  /// its own. That row is written by the screen's own refresh, by the Sync
+  /// pass's tail, and by every dashboard load of the feed — its boot and
+  /// company-switch load, its Refresh button, a card retry, and its refetch
+  /// when a pass completes. A stamp only the screen set stayed on "Updated 2h
+  /// ago" over rows a Sync had just replaced (invoiceninja/flutter#162).
+  ///
+  /// `distinct` because Drift re-runs this query on every `dashboard_cache`
+  /// write, and a totals or chart refresh must not repaint the label.
+  Stream<DateTime?> watchActivitiesFetchedAt(String companyId) => _dao
+      .watch(
+        companyId: companyId,
+        kind: DashboardKind.activities,
+        filterHash: kDashboardListFilterHash,
+      )
+      .map(
+        (row) => row == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(row.fetchedAt),
+      )
+      .distinct();
 
   Stream<List<DashboardInvoiceRow>?> watchPastDue(String companyId) =>
       _watchList<DashboardInvoiceRow>(
@@ -228,6 +287,8 @@ class DashboardRepository {
           kind: DashboardKind.calc(config.key),
           filterHash: filter.filterHash(),
         )
+        // See [_watchDecoded].
+        .distinct()
         .map((row) {
           if (row == null) return null;
           try {
@@ -265,6 +326,7 @@ class DashboardRepository {
   /// shift). Two API calls in parallel; both must complete before the future
   /// resolves — a partial failure surfaces as a single rethrown exception.
   Future<void> refreshTotals(String companyId, DashboardFilter filter) async {
+    _ensureStillActive(companyId, DashboardKind.totalsCurrent);
     final hash = filter.filterHash();
     final fetchedAt = _now();
     final results = await Future.wait([
@@ -277,6 +339,8 @@ class DashboardRepository {
     ]);
     for (final entry in results) {
       if (entry.value == null) continue;
+      // Per write: the session can move on between the two.
+      _ensureStillActive(companyId, entry.key);
       await _dao.upsert(
         companyId: companyId,
         kind: entry.key,
@@ -475,8 +539,12 @@ class DashboardRepository {
     required String filterHash,
     required Future<Object?> Function() fetch,
   }) async {
+    // Before the request too: a job still queued behind the concurrency cap
+    // would otherwise go out under the next session's token.
+    _ensureStillActive(companyId, kind);
     final raw = await fetch();
     if (raw == null) return;
+    _ensureStillActive(companyId, kind);
     await _dao.upsert(
       companyId: companyId,
       kind: kind,
@@ -494,6 +562,12 @@ class DashboardRepository {
     await sem.acquire();
     try {
       await task();
+    } on CompanySwitchedException catch (e) {
+      // Benign — the session moved on under the fetch; see
+      // [_ensureStillActive]. Still reported, so no caller stamps a refresh
+      // whose rows were never written.
+      _log.fine('Dashboard refresh task dropped: $e');
+      onError(e);
     } catch (e, st) {
       _log.warning('Dashboard refresh task failed', e, st);
       onError(e);
@@ -503,6 +577,15 @@ class DashboardRepository {
   }
 
   /// Watch a single map-shaped payload (`totals`, `chart`).
+  ///
+  /// `distinct` on the *row*, before decoding: Drift re-runs every watch on
+  /// any `dashboard_cache` write, so each refresh job re-decoded — and
+  /// re-emitted — every section, including the 250-row activity feed in both
+  /// of its view models, and a Sync now issues two rounds of those writes
+  /// (invoiceninja/flutter#162). The generated row `==` compares the payload
+  /// *and* `fetched_at`, so a real rewrite still comes through. It also stops
+  /// an unrelated write from quietly clearing a section's error state, since a
+  /// data emission is what resets it.
   Stream<T?> _watchDecoded<T>({
     required String companyId,
     required String kind,
@@ -511,6 +594,7 @@ class DashboardRepository {
   }) {
     return _dao
         .watch(companyId: companyId, kind: kind, filterHash: filterHash)
+        .distinct()
         .map((row) {
           if (row == null) return null;
           try {
@@ -527,7 +611,8 @@ class DashboardRepository {
   }
 
   /// Watch a list-shaped payload (`activities`, list cards). Decodes to
-  /// `List<T>`. Uses [kDashboardListFilterHash] for the filter slot.
+  /// `List<T>`. Uses [kDashboardListFilterHash] for the filter slot. Row-level
+  /// `distinct` for the reason on [_watchDecoded].
   Stream<List<T>?> _watchList<T>({
     required String companyId,
     required String kind,
@@ -539,6 +624,7 @@ class DashboardRepository {
           kind: kind,
           filterHash: kDashboardListFilterHash,
         )
+        .distinct()
         .map((row) {
           if (row == null) return null;
           try {

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
@@ -80,6 +81,14 @@ class _FakeServices implements Services {
   final AppDatabase db;
   @override
   final StaticsRepository statics;
+
+  /// `_buildVm` hands the view model its completion signal. Never run: no test
+  /// here is about Sync, and the inert runner keeps it that way.
+  @override
+  final ResyncController resync = ResyncController(
+    runner: ({required companyId, onProgress, isCancelled}) async =>
+        const <String>[],
+  );
 
   /// Never completes, so `_formatter` stays null and the data body — the only
   /// part that touches Drift watch streams — is never built.

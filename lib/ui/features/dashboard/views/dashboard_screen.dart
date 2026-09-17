@@ -90,6 +90,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     companyId: _companyId,
     navStateDao: _services.db.navStateDao,
     statics: _services.statics,
+    // A completed Sync pass refetches the sections only this view model can
+    // key (invoiceninja/flutter#162). Passed here, the single construction
+    // site, so the company-switch rebuild in `_onSessionChanged` keeps it.
+    resyncCompletions: _services.resync.lastCompletion,
     // Sync best-effort: if the formatter is already cached (e.g. navigating
     // back to the dashboard) we get the real fiscal year immediately;
     // otherwise _loadFormatter pushes it in once it resolves.
@@ -654,7 +658,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return DashboardBillingPipelineCard(
             companyId: _companyId,
             formatter: formatter,
-            refreshNonce: _vm.lastRefreshed,
+            refreshNonce: _vm.panelRefreshNonce,
             narrow: false,
             includeInvoices: halves.invoices,
             includeQuotes: halves.quotes,
@@ -666,7 +670,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         DashboardKind.taskCalendar: () => DashboardTaskCalendarCard(
           companyId: _companyId,
           formatter: formatter,
-          refreshNonce: _vm.lastRefreshed,
+          refreshNonce: _vm.panelRefreshNonce,
         ),
     };
 

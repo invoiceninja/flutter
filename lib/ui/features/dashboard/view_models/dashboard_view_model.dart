@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/db/dao/nav_state_dao.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_activity.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_calculated_field.dart';
@@ -13,8 +14,10 @@ import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_panel_pref.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_totals.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 
 final _log = Logger('DashboardViewModel');
@@ -25,7 +28,8 @@ final _log = Logger('DashboardViewModel');
 ///     activities, and each list card.
 ///   * Subscriptions to Drift watch streams; resubscribes filter-keyed ones
 ///     (totals + chart) when the filter changes.
-///   * Refresh kickoff on construction / explicit `refresh()`.
+///   * Refresh kickoff on construction / explicit `refresh()` / a completed
+///     Sync pass for this company.
 ///   * Persistence of filter + legend toggles into `nav_state` using the
 ///     project's `{companyId: {<feature>: {...}}}` envelope.
 class DashboardViewModel extends ChangeNotifier {
@@ -34,15 +38,24 @@ class DashboardViewModel extends ChangeNotifier {
     required this.companyId,
     required this.navStateDao,
     required this.statics,
+    ValueListenable<ResyncCompletion?>? resyncCompletions,
     int firstMonthOfYear = 1,
     Duration persistDebounce = const Duration(milliseconds: 500),
     DateTime Function()? now,
-  }) : _fiscalYearStart = firstMonthOfYear,
+    Date Function()? today,
+  }) : _resyncCompletions = resyncCompletions,
+       _fiscalYearStart = firstMonthOfYear,
        _persistDebounce = persistDebounce,
-       _now = now ?? DateTime.now {
+       _now = now ?? DateTime.now,
+       _today = today ?? Date.today {
     _filter = _filter.copyWith(firstMonthOfYear: _fiscalYearStart);
+    resyncCompletions?.addListener(_onResyncCompleted);
     unawaited(_init());
   }
+
+  /// `Services.resync.lastCompletion` — see [_onResyncCompleted]. Optional so a
+  /// test that isn't about Sync can leave it out.
+  final ValueListenable<ResyncCompletion?>? _resyncCompletions;
 
   /// Company `first_month_of_year`, stamped onto every [DashboardFilter] so the
   /// `thisYear` / `lastYear` presets resolve onto the fiscal year. Not known
@@ -56,6 +69,10 @@ class DashboardViewModel extends ChangeNotifier {
   final StaticsRepository statics;
   final Duration _persistDebounce;
   final DateTime Function() _now;
+
+  /// The calendar day [filter]'s presets resolve against — see
+  /// [_resubscribeIfRolledOver]. Injected so a test can cross midnight.
+  final Date Function() _today;
 
   DashboardFilter _filter = DashboardFilter.defaults();
   DashboardFilter get filter => _filter;
@@ -116,6 +133,18 @@ class DashboardViewModel extends ChangeNotifier {
   /// Wall-clock of the most recent successful refresh — drives the
   /// "Updated N ago" freshness label.
   DateTime? lastRefreshed;
+
+  /// The `refreshNonce` of the two Drift-backed panels (the task calendar and
+  /// Invoices & Quotes): a change from one non-null value to another makes
+  /// them refetch their own server window. A first stamp is their initial
+  /// load, never a re-arm.
+  ///
+  /// It moves with [lastRefreshed] on the boot refresh and on a refresh the
+  /// user asked for. After a Sync pass it moves only when the pass failed to
+  /// download what those panels read — otherwise the pass has just
+  /// re-downloaded all of it, and re-arming would fetch those pages again, and
+  /// blink the calendar's "nothing booked" caption, on every Sync.
+  DateTime? panelRefreshNonce;
   bool isAnyRefreshing = false;
   Object? globalError;
 
@@ -390,6 +419,7 @@ class DashboardViewModel extends ChangeNotifier {
   Future<void> retryCard(String key) async {
     final idx = dashboardCards.indexWhere((c) => c.key == key);
     if (idx < 0) return;
+    _resubscribeIfRolledOver();
     await _refreshCard(dashboardCards[idx]);
   }
 
@@ -434,9 +464,86 @@ class DashboardViewModel extends ChangeNotifier {
   /// otherwise indistinguishable from success except that [lastRefreshed] goes
   /// unstamped — which reads as "the Refresh button did nothing". Callers that
   /// represent a *user-initiated* refresh use the result to surface a toast.
-  Future<bool> refresh() async {
+  Future<bool> refresh() =>
+      _runRefresh(reportGlobalError: true, rearmPanels: true);
+
+  /// A Sync pass for this company ran to its end: refetch everything, exactly
+  /// as the Refresh button does (invoiceninja/flutter#162).
+  ///
+  /// The pass re-downloads the entity tables and — through its #160 tail — the
+  /// list cards, but the totals, chart and configured cards are keyed by
+  /// [filter], which only this view model knows. And the dashboard branch stays
+  /// mounted for the whole session, so neither those sections nor the
+  /// "Updated N ago" stamp moved: the reporter synced and was still told the
+  /// data was two hours old. See `docs/sync.md` § A screen that refetches after
+  /// a Sync pass listens to `lastCompletion`.
+  ///
+  /// A *full* refetch, list cards included, although the tail fetched those a
+  /// moment ago — about seven repeat requests per Sync. What that buys is one
+  /// code path, the Refresh button's, and a [lastRefreshed] whose "every
+  /// section landed" promise holds without carrying the tail's per-card
+  /// failures across the pass boundary.
+  void _onResyncCompleted() {
+    final done = _resyncCompletions?.value;
+    if (_disposed || done == null) return;
+    // A company switch rebuilds this view model before its hook cancels the
+    // pass, so a pass for the company just left can still complete — and the
+    // id check, not the cancellation, is what keeps it out.
+    if (done.companyId != companyId) return;
+    // Never true today (the controller withholds a failed prologue), but it
+    // is the check that keeps a request off a logout if that rule loosens.
+    if (done.result.error != null) return;
+    final rearmPanels = done.result.failedEntities.any(_panelEntities.contains);
+    if (!_bootRefreshDone) {
+      // Deferred, not dropped — the notifier never replays it. The boot
+      // refresh can have read the server before the pass pushed its edits (one
+      // slow request holds it open for up to a minute), and running a second
+      // refresh alongside it would drop the shared `isAnyRefreshing` early and
+      // flash "Not yet loaded", which `_init` goes out of its way to avoid.
+      _refetchAfterBoot = true;
+      _refetchAfterBootRearms |= rearmPanels;
+      return;
+    }
+    unawaited(_runRefresh(reportGlobalError: false, rearmPanels: rearmPanels));
+  }
+
+  /// The downloads the two Drift-backed panels read. A pass that failed one of
+  /// them re-arms the panels — see [panelRefreshNonce].
+  static final Set<String> _panelEntities = {
+    EntityType.invoice.name,
+    EntityType.quote.name,
+    EntityType.task.name,
+  };
+
+  /// Set once the boot refresh in [_init] has returned — see
+  /// [_onResyncCompleted].
+  bool _bootRefreshDone = false;
+
+  /// A completion arrived before [_bootRefreshDone]: [_init] refetches once
+  /// more when the boot refresh returns, re-arming the panels if any of the
+  /// deferred passes asked to.
+  bool _refetchAfterBoot = false;
+  bool _refetchAfterBootRearms = false;
+
+  /// The body of every full refetch.
+  ///
+  /// [reportGlobalError] is false for the Sync-triggered one: [globalError]
+  /// exists for `_refreshWithFeedback`'s toast, which reads it straight after
+  /// its own [refresh] — an overlapping run that cleared or overwrote it would
+  /// hand that toast another run's error. The after-sync run shows no toast;
+  /// its failure shows as [lastRefreshed] staying put, plus the error state of
+  /// the sections that render one (configured cards, and list cards with
+  /// nothing cached — the KPI row and the chart render none).
+  ///
+  /// [rearmPanels] decides whether a clean run also moves
+  /// [panelRefreshNonce].
+  Future<bool> _runRefresh({
+    required bool reportGlobalError,
+    required bool rearmPanels,
+  }) async {
+    _resubscribeIfRolledOver();
     isAnyRefreshing = true;
-    globalError = null;
+    if (reportGlobalError) globalError = null;
     notifyListeners();
     var clean = false;
     try {
@@ -452,14 +559,15 @@ class DashboardViewModel extends ChangeNotifier {
         // This — not the catch below — is the path a failed pass actually
         // takes. Leaving globalError null here made it look like a safety net
         // while being permanently unset.
-        globalError = errors.values.first;
+        if (reportGlobalError) globalError = errors.values.first;
       } else {
         lastRefreshed = _now();
+        if (rearmPanels) panelRefreshNonce = lastRefreshed;
         clean = true;
       }
     } catch (e, st) {
       _log.warning('Dashboard refresh failed', e, st);
-      globalError = e;
+      if (reportGlobalError) globalError = e;
     } finally {
       isAnyRefreshing = false;
       notifyListeners();
@@ -483,6 +591,7 @@ class DashboardViewModel extends ChangeNotifier {
         kind != DashboardKind.chart) {
       return;
     }
+    _resubscribeIfRolledOver();
     isAnyRefreshing = true;
     notifyListeners();
     try {
@@ -528,6 +637,13 @@ class DashboardViewModel extends ChangeNotifier {
     await _hydrate();
     _subscribeAll();
     await refresh();
+    _bootRefreshDone = true;
+    if (_refetchAfterBoot && !_disposed) {
+      final rearmPanels = _refetchAfterBootRearms;
+      _refetchAfterBoot = false;
+      _refetchAfterBootRearms = false;
+      await _runRefresh(reportGlobalError: false, rearmPanels: rearmPanels);
+    }
   }
 
   void _subscribeAll() {
@@ -569,7 +685,27 @@ class DashboardViewModel extends ChangeNotifier {
     );
   }
 
+  /// The [filter] hash the filter-keyed watches were opened with — see
+  /// [_resubscribeIfRolledOver].
+  String? _watchedFilterHash;
+
+  /// Reopen the filter-keyed watches if [filter] no longer hashes the way it
+  /// did when they were opened.
+  ///
+  /// A preset (this month, last 30 days, …) resolves against today, so its
+  /// hash moves at midnight — and again at a month or year boundary — while
+  /// nothing else re-subscribes. A dashboard left open overnight, which is the
+  /// one a Sync has to refresh, wrote every refetch under the new hash and went
+  /// on showing the old rows beneath a fresh "Updated just now".
+  void _resubscribeIfRolledOver() {
+    // Not yet subscribed: `_init` opens the watches after hydrating.
+    if (_disposed || _watchedFilterHash == null) return;
+    if (_filter.filterHash(today: _today()) == _watchedFilterHash) return;
+    _resubscribeFilterKeyed();
+  }
+
   void _resubscribeFilterKeyed() {
+    _watchedFilterHash = _filter.filterHash(today: _today());
     _subscribe(
       DashboardKind.totalsCurrent,
       repo.watchTotals(companyId, _filter),
@@ -878,6 +1014,9 @@ class DashboardViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    // First: `Services.resync` outlives every view model, and a company switch
+    // disposes this one while the pass for its company may still be running.
+    _resyncCompletions?.removeListener(_onResyncCompleted);
     _disposed = true;
     _persistTimer?.cancel();
     for (final sub in _subs.values) {

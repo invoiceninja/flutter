@@ -277,6 +277,101 @@ void main() {
     });
   });
 
+  /// invoiceninja/flutter#162 — the label follows the cache row, so every writer
+  /// of that row moves it: the Sync pass's tail and the dashboard's refreshes
+  /// as well as this screen's own. It used to be a stamp only [refresh] set, and
+  /// read "Updated 2h ago" over rows a Sync had just rewritten.
+  group('freshness label', () {
+    Future<void> writtenAt(int ms) async {
+      repo.activitiesFetchedAt.add(DateTime.fromMillisecondsSinceEpoch(ms));
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    test('follows the row, whoever wrote it', () async {
+      await writtenAt(1000);
+      expect(vm.lastRefreshed, DateTime.fromMillisecondsSinceEpoch(1000));
+
+      // Another writer — the Sync tail, the dashboard — rewrote the row, and
+      // this screen's own refresh had nothing to do with it.
+      var notifications = 0;
+      vm.addListener(() => notifications++);
+      await writtenAt(2000);
+
+      expect(vm.lastRefreshed, DateTime.fromMillisecondsSinceEpoch(2000));
+      expect(notifications, 1);
+      expect(repo.refreshActivitiesCalls, 1, reason: 'only the boot refresh');
+    });
+
+    test(
+      'with no row yet, a refresh stamps provisionally until the row lands',
+      () async {
+        // Drift re-queries after the write asynchronously, so the refresh's
+        // `finally` can notify first. Without a provisional stamp that frame
+        // reads `lastRefreshed == null && !isRefreshing`: "Not yet loaded",
+        // over a fetch that just succeeded.
+        final at = DateTime.fromMillisecondsSinceEpoch(5000);
+        final subject = ActivityViewModel(
+          repo: repo,
+          companyId: 'co1',
+          now: () => at,
+        )..setTitleResolver(title);
+        addTearDown(subject.dispose);
+
+        await subject.refresh();
+        expect(subject.isRefreshing, isFalse);
+        expect(subject.lastRefreshed, at);
+
+        await writtenAt(4990);
+        expect(
+          subject.lastRefreshed,
+          DateTime.fromMillisecondsSinceEpoch(4990),
+          reason: "the row's own time takes over",
+        );
+      },
+    );
+
+    test('with a row known, a refresh leaves the stamp to the row', () async {
+      await writtenAt(1000);
+
+      // The fake's refresh succeeds without writing — as the real one does
+      // when the server hands back no body.
+      await vm.refresh();
+
+      expect(vm.lastRefreshed, DateTime.fromMillisecondsSinceEpoch(1000));
+    });
+
+    test('an unchanged write time does not notify', () async {
+      await writtenAt(1000);
+      var notifications = 0;
+      vm.addListener(() => notifications++);
+
+      await writtenAt(1000);
+
+      expect(notifications, 0);
+    });
+
+    test('dispose stops following the row', () async {
+      // Dispose cancels the subscription, so the write below never reaches
+      // this view model at all; the `_disposed` guard in `_onFetchedAt` backs
+      // that up for a stream that delivers after a cancel. Either way, nothing
+      // may stamp or notify — a post-dispose notify asserts in debug.
+      final subject = ActivityViewModel(
+        repo: repo,
+        companyId: 'co1',
+        // The boot refresh is still in flight at dispose; keep its
+        // provisional stamp out of the picture.
+        now: () => DateTime.fromMillisecondsSinceEpoch(1),
+      )..setTitleResolver(title);
+      subject.dispose();
+
+      await writtenAt(1000);
+      expect(
+        subject.lastRefreshed,
+        isNot(DateTime.fromMillisecondsSinceEpoch(1000)),
+      );
+    });
+  });
+
   group('async state', () {
     test('a null emission leaves no entries (skeleton, not empty)', () {
       expect(vm.section.data, isNull);

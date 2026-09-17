@@ -226,4 +226,146 @@ void main() {
     expect(controller.value.isRunningFor('c1'), isFalse);
     expect(controller.value.isRunningFor(''), isFalse);
   });
+
+  /// invoiceninja/flutter#162 — the signal a screen refetches on. Unlike the
+  /// idle falling edge, it must stay silent for every pass that did not run to
+  /// its end: those mean logout (the Drift wipe is under way) or a company
+  /// switch (the next request carries the other company's token).
+  group('lastCompletion (issue #162)', () {
+    late List<ResyncCompletion?> published;
+
+    setUp(() {
+      published = <ResyncCompletion?>[];
+      controller.lastCompletion.addListener(
+        () => published.add(controller.lastCompletion.value),
+      );
+    });
+
+    test('starts null', () {
+      expect(controller.lastCompletion.value, isNull);
+    });
+
+    test(
+      'a clean pass is published once — after idle, before run() resolves',
+      () async {
+        var resolved = false;
+        ResyncPhase? phaseWhenPublished;
+        bool? resolvedWhenPublished;
+        controller.lastCompletion.addListener(() {
+          phaseWhenPublished = controller.value.phase;
+          resolvedWhenPublished = resolved;
+        });
+
+        final future = controller.run('c1').then((r) {
+          resolved = true;
+          return r;
+        });
+        runner.completer.complete(const <String>[]);
+        final result = await future;
+
+        expect(published, hasLength(1));
+        expect(published.single!.companyId, 'c1');
+        expect(published.single!.result, same(result));
+        expect(
+          phaseWhenPublished,
+          ResyncPhase.idle,
+          reason: 'published once the pass is over, spinner down',
+        );
+        expect(
+          resolvedWhenPublished,
+          isFalse,
+          reason:
+              'listeners run before run() resolves, so a caller awaiting the '
+              'pass can rely on a listener\'s refetch having already started',
+        );
+      },
+    );
+
+    test('a pass with failed entities is still published', () async {
+      // The pass reached its tail, so a listener's refetch is still wanted —
+      // the dashboard's endpoints don't depend on the entity downloads.
+      final future = controller.run('c1');
+      runner.completer.complete(const ['invoice']);
+      await future;
+
+      expect(published, hasLength(1));
+      expect(published.single!.result.failedEntities, ['invoice']);
+    });
+
+    test('a cancelled pass is not published', () async {
+      final future = controller.run('c1');
+      controller.cancel();
+      runner.completer.complete(const <String>[]);
+
+      expect((await future).disposition, ResyncDisposition.cancelled);
+      expect(published, isEmpty);
+      expect(controller.lastCompletion.value, isNull);
+    });
+
+    test('a pass cancelled and then failing is not published', () async {
+      // A 401's usual order: its logout cancels the pass and pulls the token,
+      // so the runner then throws — and `_run`'s catch reports that as
+      // `completed`, never looking at the flag. The flag keeps it quiet.
+      final future = controller.run('c1');
+      controller.cancel();
+      runner.completer.completeError(StateError('Not authenticated'));
+      await future;
+
+      expect(published, isEmpty);
+    });
+
+    test('a pass whose runner throws is not published', () async {
+      // Nobody cancelled: a prologue that failed on its own (offline, a 5xx, a
+      // bad envelope) downloaded nothing and never reached the tail. The error
+      // alone has to keep it quiet.
+      final future = controller.run('c1');
+      runner.completer.completeError(StateError('boom'));
+
+      expect((await future).error, isNotNull);
+      expect(published, isEmpty);
+    });
+
+    test(
+      'a joined call adds no second publish; a busy one publishes nothing',
+      () async {
+        final first = controller.run('c1');
+        final joined = controller.run('c1');
+        expect(
+          (await controller.run('c2')).disposition,
+          ResyncDisposition.busy,
+        );
+
+        runner.completer.complete(const <String>[]);
+        await Future.wait([first, joined]);
+
+        expect(published, hasLength(1));
+        expect(published.single!.companyId, 'c1');
+      },
+    );
+
+    test('back-to-back passes for one company each notify', () async {
+      final quick = ResyncController(
+        runner: ({required companyId, onProgress, isCancelled}) async =>
+            const <String>[],
+      );
+      addTearDown(quick.dispose);
+      final seen = <ResyncCompletion?>[];
+      quick.lastCompletion.addListener(
+        () => seen.add(quick.lastCompletion.value),
+      );
+
+      await quick.run('c1');
+      await quick.run('c1');
+
+      expect(
+        seen,
+        hasLength(2),
+        reason:
+            'ValueNotifier drops a value equal to the current one — the '
+            'serial is what keeps the second pass from vanishing',
+      );
+      expect(seen[1]!.serial, greaterThan(seen[0]!.serial));
+      expect(seen[1], isNot(seen[0]));
+    });
+  });
 }

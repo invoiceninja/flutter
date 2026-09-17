@@ -143,4 +143,34 @@ void main() {
       );
     }
   });
+
+  test('the dashboard view model hears a completed Sync pass', () {
+    // invoiceninja/flutter#162. The parameter is optional, so dropping it still
+    // compiles and every other test still passes — while a mounted dashboard
+    // never learns a pass finished and keeps its pre-sync totals, chart and
+    // "Updated N ago". The wide body's screen is the one construction site.
+    expect(
+      read(
+        registrars['wide body']!,
+      ).contains('resyncCompletions: _services.resync.lastCompletion'),
+      isTrue,
+      reason: '_buildVm must pass the completion signal',
+    );
+  });
+
+  test('the Drift-backed panels re-arm off panelRefreshNonce', () {
+    // Not `lastRefreshed`: a Sync-triggered refetch moves that on every pass,
+    // and the panels would re-download what the pass just downloaded — and
+    // blink the calendar's caption — each time (#162).
+    for (final entry in registrars.entries) {
+      final nonces = RegExp(
+        r'refreshNonce:\s*[\w.]*?\.(\w+)\s*,',
+      ).allMatches(read(entry.value)).map((m) => m.group(1)).toList();
+      expect(
+        nonces,
+        ['panelRefreshNonce', 'panelRefreshNonce'],
+        reason: '${entry.key}: the Invoices & Quotes and task calendar panels',
+      );
+    }
+  });
 }

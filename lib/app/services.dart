@@ -694,6 +694,10 @@ class Services implements SidebarBadgeContext {
   ///
   /// Not to be confused with [sync], the outbox drain — this one *downloads*
   /// (and pushes first, via [syncNow]).
+  ///
+  /// A screen that has to refetch once a pass is over listens to
+  /// [ResyncController.lastCompletion], not to this notifier going idle — idle
+  /// also follows a cancelled pass (invoiceninja/flutter#162).
   final ResyncController resync;
 
   /// Recently-viewed entities backing the command palette's "Recent" group.
@@ -1392,6 +1396,9 @@ class Services implements SidebarBadgeContext {
     // Built standalone, so they miss the `entities.repos` loop above.
     userRepo.activeCompanyId = liveCompanyId;
     companyRepo.activeCompanyId = liveCompanyId;
+    // Stricter there: a null answer (signed out) blocks the write too — see
+    // `DashboardRepository._ensureStillActive`.
+    dashboardRepo.activeCompanyId = liveCompanyId;
     final savedViewsRepo = SavedViewsRepository(
       db: db,
       userSettings: userSettingsRepo,

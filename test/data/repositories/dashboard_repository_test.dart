@@ -2,6 +2,8 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/dashboard_cache_dao.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/value/dashboard_filter.dart';
+import 'package:admin/data/repositories/base_entity_repository.dart'
+    show CompanySwitchedException;
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
@@ -59,7 +61,12 @@ class _FakeDashboardApi extends DashboardApi {
   int inFlight = 0;
   int peakInFlight = 0;
 
+  /// Runs as a fetch goes out — lets a test move the session on while the
+  /// request is on the wire.
+  void Function()? onFetch;
+
   Future<Object?> _maybe(String key, Object? value) async {
+    onFetch?.call();
     inFlight++;
     if (inFlight > peakInFlight) peakInFlight = inFlight;
     // Yield so peers can enter before this one leaves. Without it every fetch
@@ -253,6 +260,192 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  /// A dashboard fetch writes under the company it was called with, and nothing
+  /// cancels one — so the refetch a completed Sync starts (#162) could land
+  /// after a sign-out wiped the database, or file one company's figures under
+  /// another after a switch.
+  group('the live-company guard (issue #162)', () {
+    Future<dynamic> readActivities() => db.dashboardCacheDao.read(
+      companyId: 'co_a',
+      kind: DashboardKind.activities,
+      filterHash: kDashboardListFilterHash,
+    );
+
+    setUp(() => api.activities = <dynamic>[]);
+
+    test('an unbound hook checks nothing', () async {
+      await repo.refreshActivities('co_a');
+      expect(await readActivities(), isNotNull);
+    });
+
+    test('the live company writes', () async {
+      repo.activeCompanyId = () => 'co_a';
+      await repo.refreshActivities('co_a');
+      expect(await readActivities(), isNotNull);
+    });
+
+    test('another company throws and writes nothing', () async {
+      repo.activeCompanyId = () => 'co_b';
+      await expectLater(
+        repo.refreshActivities('co_a'),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+      expect(await readActivities(), isNull);
+    });
+
+    test('signed out — a bound hook answering null — writes nothing', () async {
+      // Stricter than the entity repos, where null means "not yet": nothing on
+      // the dashboard fetches before a session exists.
+      repo.activeCompanyId = () => null;
+      await expectLater(
+        repo.refreshActivities('co_a'),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+      expect(await readActivities(), isNull);
+    });
+
+    test(
+      'a sign-out landing while the request is out writes nothing',
+      () async {
+        String? live = 'co_a';
+        repo.activeCompanyId = () => live;
+        api.onFetch = () => live = null;
+
+        await expectLater(
+          repo.refreshActivities('co_a'),
+          throwsA(isA<CompanySwitchedException>()),
+        );
+        expect(await readActivities(), isNull);
+      },
+    );
+
+    test('totals check before each write', () async {
+      final filter = DashboardFilter.defaults();
+      api._totalsCurrent[filter.filterHash()] = {
+        'currencies': <String, dynamic>{},
+      };
+      api._totalsPrevious[filter.filterHash()] = {
+        'currencies': <String, dynamic>{},
+      };
+      String? live = 'co_a';
+      repo.activeCompanyId = () => live;
+      api.onFetch = () => live = 'co_b';
+
+      await expectLater(
+        repo.refreshTotals('co_a', filter),
+        throwsA(isA<CompanySwitchedException>()),
+      );
+      for (final kind in [
+        DashboardKind.totalsCurrent,
+        DashboardKind.totalsPrevious,
+      ]) {
+        expect(
+          await db.dashboardCacheDao.read(
+            companyId: 'co_a',
+            kind: kind,
+            filterHash: filter.filterHash(),
+          ),
+          isNull,
+          reason: kind,
+        );
+      }
+    });
+
+    test('a batch reports the drop per kind rather than throwing', () async {
+      repo.activeCompanyId = () => null;
+      api.pastDue = <dynamic>[];
+
+      final errors = await repo.refreshListCards('co_a');
+
+      expect(errors, isNotEmpty);
+      expect(errors.values, everyElement(isA<CompanySwitchedException>()));
+    });
+  });
+
+  /// Drift re-runs every watch on any `dashboard_cache` write; the decoded
+  /// streams must not re-emit a row that didn't change (#162 doubled the writes
+  /// per Sync).
+  group('decoded watches skip unchanged rows (issue #162)', () {
+    test('a write to another kind does not re-emit; a rewrite does', () async {
+      var clock = 1000;
+      final ticking = DashboardRepository(db: db, api: api, now: () => clock);
+      api.activities = <dynamic>[];
+      api.pastDue = <dynamic>[];
+      Future<void> settle() =>
+          Future<void>.delayed(const Duration(milliseconds: 20));
+
+      var emissions = 0;
+      final sub = ticking.watchActivities('co_a').listen((_) => emissions++);
+      addTearDown(sub.cancel);
+      await settle();
+      await ticking.refreshActivities('co_a');
+      await settle();
+      final afterWrite = emissions;
+
+      await ticking.refreshPastDue('co_a');
+      await settle();
+      expect(emissions, afterWrite, reason: 'an unrelated row was written');
+
+      clock = 2000;
+      await ticking.refreshActivities('co_a');
+      await settle();
+      expect(
+        emissions,
+        afterWrite + 1,
+        reason: 'a new fetched_at is a real rewrite, payload or not',
+      );
+    });
+  });
+
+  /// The `/activity` screen's "Updated N ago" follows this, so every writer of
+  /// the row moves it (invoiceninja/flutter#162).
+  group('watchActivitiesFetchedAt (issue #162)', () {
+    test('emits null, then each write time of the activities row — and nothing '
+        'for a write to another kind', () async {
+      var clock = 1000;
+      final ticking = DashboardRepository(db: db, api: api, now: () => clock);
+      api.activities = <dynamic>[];
+      api.pastDue = <dynamic>[];
+      Future<void> settle() =>
+          Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final seen = <DateTime?>[];
+      final sub = ticking.watchActivitiesFetchedAt('co_a').listen(seen.add);
+      addTearDown(sub.cancel);
+      await settle();
+      expect(seen, [null], reason: 'no row yet');
+
+      await ticking.refreshActivities('co_a');
+      await settle();
+      expect(seen, [null, DateTime.fromMillisecondsSinceEpoch(1000)]);
+
+      // Drift re-runs the query on any `dashboard_cache` write — a totals or
+      // list-card refresh must not repaint the label.
+      clock = 2000;
+      await ticking.refreshPastDue('co_a');
+      await settle();
+      expect(seen, hasLength(2));
+
+      // A second writer of the same row: the Sync tail, the dashboard.
+      await ticking.refreshActivities('co_a');
+      await settle();
+      expect(seen.last, DateTime.fromMillisecondsSinceEpoch(2000));
+      expect(seen, hasLength(3));
+    });
+
+    test('is scoped to its company', () async {
+      api.activities = <dynamic>[];
+      final seen = <DateTime?>[];
+      final sub = repo.watchActivitiesFetchedAt('co_b').listen(seen.add);
+      addTearDown(sub.cancel);
+
+      await repo.refreshActivities('co_a');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(seen, [null]);
     });
   });
 

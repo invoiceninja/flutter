@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/app/resync_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_card_config.dart';
 import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
@@ -838,4 +841,308 @@ void main() {
       );
     });
   });
+
+  /// invoiceninja/flutter#162 — the dashboard branch stays mounted for the
+  /// whole session, so a completed Sync pass is the only thing that reaches the
+  /// totals, the chart, the configured cards and the "Updated N ago" stamp.
+  /// Driven here by a plain notifier; `resync_wiring_test` runs the real
+  /// controller and `syncNow` end to end.
+  group('a completed Sync pass (issue #162)', () {
+    var clock = 0;
+    var serial = 0;
+    late ValueNotifier<ResyncCompletion?> completions;
+    late DashboardViewModel synced;
+
+    DashboardViewModel newVm(
+      ValueListenable<ResyncCompletion?> source, {
+      Date Function()? today,
+    }) => DashboardViewModel(
+      repo: repo,
+      companyId: 'co',
+      navStateDao: db.navStateDao,
+      statics: StaticsRepository(
+        db: db,
+        service: StaticsService(dummyDashboardClient),
+      ),
+      resyncCompletions: source,
+      // Strictly increasing, so "the stamp moved" can't pass by chance.
+      now: () => DateTime.fromMillisecondsSinceEpoch(++clock * 1000),
+      today: today,
+    );
+
+    ResyncCompletion pass({
+      String companyId = 'co',
+      List<String> failedEntities = const [],
+      Object? error,
+    }) => ResyncCompletion(
+      serial: ++serial,
+      companyId: companyId,
+      result: ResyncResult(
+        ResyncDisposition.completed,
+        failedEntities: failedEntities,
+        error: error,
+      ),
+    );
+
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 20));
+
+    setUp(() async {
+      completions = ValueNotifier<ResyncCompletion?>(null);
+      synced = newVm(completions);
+      await settle();
+      expect(synced.lastRefreshed, isNotNull, reason: 'the boot refresh ran');
+      // The outer `vm` booted too; count from here.
+      repo.refreshAllCalls = 0;
+    });
+
+    tearDown(() {
+      synced.dispose();
+      completions.dispose();
+    });
+
+    test('refetches everything and moves the stamp', () async {
+      final before = synced.lastRefreshed!;
+
+      completions.value = pass();
+      await settle();
+
+      expect(repo.refreshAllCalls, 1);
+      expect(
+        synced.lastRefreshed!.isAfter(before),
+        isTrue,
+        reason: 'the label the reporter saw stuck at "Updated 2h ago"',
+      );
+      expect(synced.isAnyRefreshing, isFalse);
+    });
+
+    test('a clean pass leaves the Drift-backed panels alone', () async {
+      final nonce = synced.panelRefreshNonce;
+      expect(nonce, isNotNull, reason: 'the boot refresh stamped it');
+
+      completions.value = pass();
+      await settle();
+
+      expect(
+        synced.panelRefreshNonce,
+        nonce,
+        reason:
+            'the pass just re-downloaded every invoice, quote and task; '
+            're-arming would fetch those pages again on every Sync',
+      );
+    });
+
+    test(
+      'a pass that failed a panel download still refetches, and re-arms them',
+      () async {
+        // Its tail ran, and none of the dashboard's own endpoints read the
+        // entity tables — but the task calendar does.
+        completions.value = pass(failedEntities: const ['task']);
+        await settle();
+
+        expect(repo.refreshAllCalls, 1);
+        expect(synced.panelRefreshNonce, synced.lastRefreshed);
+      },
+    );
+
+    test(
+      'a failed download the panels do not read leaves them alone',
+      () async {
+        final nonce = synced.panelRefreshNonce;
+
+        completions.value = pass(failedEntities: const ['client']);
+        await settle();
+
+        expect(repo.refreshAllCalls, 1);
+        expect(synced.panelRefreshNonce, nonce);
+      },
+    );
+
+    test('the Refresh button still re-arms the panels', () async {
+      final nonce = synced.panelRefreshNonce!;
+
+      await synced.refresh();
+
+      expect(synced.panelRefreshNonce!.isAfter(nonce), isTrue);
+      expect(synced.panelRefreshNonce, synced.lastRefreshed);
+    });
+
+    test(
+      'a failed refetch keeps the stamp and reports per section, not globally',
+      () async {
+        final before = synced.lastRefreshed;
+        repo.refreshAllErrors = {DashboardKind.chart: Exception('offline')};
+
+        completions.value = pass();
+        await settle();
+
+        expect(repo.refreshAllCalls, 1);
+        expect(
+          synced.lastRefreshed,
+          before,
+          reason: 'the stamp claims every section landed',
+        );
+        expect(synced.chart.hasError, isTrue);
+        expect(
+          synced.globalError,
+          isNull,
+          reason:
+              "globalError is the Refresh button's toast detail, read right "
+              'after its own refresh — an overlapping after-sync run must not '
+              "hand it another run's error",
+        );
+      },
+    );
+
+    test('a pass for another company is ignored', () async {
+      completions.value = pass(companyId: 'other');
+      await settle();
+
+      expect(
+        repo.refreshAllCalls,
+        0,
+        reason:
+            'a company switch rebuilds the view model before its hook cancels '
+            'the pass, so the one it left can still complete',
+      );
+    });
+
+    test('a completion carrying an error is ignored', () async {
+      completions.value = pass(error: StateError('Not authenticated'));
+      await settle();
+
+      expect(repo.refreshAllCalls, 0);
+    });
+
+    test(
+      'a completion during the boot refresh is deferred until it returns',
+      () async {
+        final own = ValueNotifier<ResyncCompletion?>(null);
+        addTearDown(own.dispose);
+        final gate = Completer<void>();
+        repo.refreshAllGate = gate;
+        final booting = newVm(own);
+        addTearDown(booting.dispose);
+        final stamps = <DateTime>{};
+        booting.addListener(() {
+          final at = booting.lastRefreshed;
+          if (at != null) stamps.add(at);
+        });
+        await settle();
+        expect(repo.refreshAllCalls, 1, reason: 'the boot refresh, held open');
+
+        own.value = pass();
+        own.value = pass(failedEntities: const ['invoice']);
+        await settle();
+        expect(
+          repo.refreshAllCalls,
+          1,
+          reason:
+              'a second run alongside the boot refresh would drop the shared '
+              'isAnyRefreshing early',
+        );
+
+        repo.refreshAllGate = null;
+        gate.complete();
+        await settle();
+
+        expect(
+          repo.refreshAllCalls,
+          2,
+          reason:
+              'dropped, the pass would be lost — the boot refresh may have '
+              'read the server before it pushed — and two deferred passes '
+              'still refetch once',
+        );
+        expect(
+          stamps,
+          hasLength(2),
+          reason: 'the boot stamp, then the refetch',
+        );
+        expect(
+          booting.panelRefreshNonce,
+          booting.lastRefreshed,
+          reason: 'one of the deferred passes failed a panel download',
+        );
+      },
+    );
+
+    test('a refetch after midnight reopens the filter-keyed watches', () async {
+      var day = Date(2026, 8, 31);
+      final own = ValueNotifier<ResyncCompletion?>(null);
+      addTearDown(own.dispose);
+      final overnight = newVm(own, today: () => day);
+      addTearDown(overnight.dispose);
+      await settle();
+      final opened = repo.watchTotalsCalls;
+
+      own.value = pass();
+      await settle();
+      expect(
+        repo.watchTotalsCalls,
+        opened,
+        reason: 'the same day: the watches still match',
+      );
+
+      // "This month" now resolves to September, and `refreshAll` writes under
+      // that hash — the watches were still on August's.
+      day = Date(2026, 9, 1);
+      own.value = pass();
+      await settle();
+      expect(repo.watchTotalsCalls, greaterThan(opened));
+      final reopened = repo.watchTotalsCalls;
+
+      await overnight.retry(DashboardKind.chart);
+      expect(
+        repo.watchTotalsCalls,
+        reopened,
+        reason: 'already on the new hash',
+      );
+    });
+
+    test('a retry after midnight reopens them too', () async {
+      var day = Date(2026, 8, 31);
+      final own = ValueNotifier<ResyncCompletion?>(null);
+      addTearDown(own.dispose);
+      final overnight = newVm(own, today: () => day);
+      addTearDown(overnight.dispose);
+      await settle();
+      final opened = repo.watchTotalsCalls;
+
+      day = Date(2026, 9, 1);
+      await overnight.retry(DashboardKind.chart);
+
+      expect(repo.watchTotalsCalls, greaterThan(opened));
+    });
+
+    test('dispose detaches the listener', () async {
+      final own = _ListenedCompletions();
+      addTearDown(own.dispose);
+      final gone = newVm(own);
+      await settle();
+      expect(own.attached, isTrue);
+      repo.refreshAllCalls = 0;
+
+      gone.dispose();
+      expect(
+        own.attached,
+        isFalse,
+        reason: 'Services.resync outlives every dashboard view model',
+      );
+
+      own.value = pass();
+      await settle();
+      expect(repo.refreshAllCalls, 0);
+    });
+  });
+}
+
+/// Reads the real listener list, so a test can prove a view model let go of
+/// the app-lifetime notifier rather than merely ignoring it. (A counter bumped
+/// in `removeListener` would also count a call that removed nothing — a
+/// closure registered in place of the tear-off, say.)
+class _ListenedCompletions extends ValueNotifier<ResyncCompletion?> {
+  _ListenedCompletions() : super(null);
+
+  bool get attached => hasListeners;
 }

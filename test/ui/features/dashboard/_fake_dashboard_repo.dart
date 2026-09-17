@@ -49,9 +49,17 @@ class FakeDashboardRepo extends DashboardRepository {
   final totalsPrev = StreamController<DashboardTotals?>.broadcast();
   final chart = StreamController<DashboardChartSeries?>.broadcast();
 
+  /// The `activities` row's write time — what the `/activity` screen's
+  /// freshness label follows. Test-driven like the rest, so no widget test sits
+  /// on a real Drift watch.
+  final activitiesFetchedAt = StreamController<DateTime?>.broadcast();
+
   @override
   Stream<List<DashboardActivity>?> watchActivities(String c) =>
       activities.stream;
+  @override
+  Stream<DateTime?> watchActivitiesFetchedAt(String c) =>
+      activitiesFetchedAt.stream;
   @override
   Stream<List<DashboardInvoiceRow>?> watchPastDue(String c) => pastDue.stream;
   @override
@@ -70,12 +78,21 @@ class FakeDashboardRepo extends DashboardRepository {
   Stream<List<DashboardRecurringInvoiceRow>?> watchUpcomingRecurring(
     String c,
   ) => upcomingRecurring.stream;
+
+  /// How many times the VM (re)opened its totals watches — two per
+  /// subscription, current and previous period.
+  int watchTotalsCalls = 0;
+
   @override
   Stream<DashboardTotals?> watchTotals(
     String c,
     DashboardFilter f, {
     bool previousPeriod = false,
-  }) => previousPeriod ? totalsPrev.stream : totals.stream;
+  }) {
+    watchTotalsCalls++;
+    return previousPeriod ? totalsPrev.stream : totals.stream;
+  }
+
   @override
   Stream<DashboardChartSeries?> watchChart(String c, DashboardFilter f) =>
       chart.stream;
@@ -105,12 +122,16 @@ class FakeDashboardRepo extends DashboardRepository {
   /// partial-failure path (no `lastRefreshed` stamp).
   Map<String, Object> refreshAllErrors = const {};
 
+  /// Every `refreshAll` call, the VM's boot refresh included.
+  int refreshAllCalls = 0;
+
   @override
   Future<Map<String, Object>> refreshAll(
     String c,
     DashboardFilter f, {
     List<DashboardCardConfig> cards = const [],
   }) async {
+    refreshAllCalls++;
     refreshedCardKeys
       ..clear()
       ..addAll(cards.map((e) => e.key));

@@ -262,8 +262,8 @@ void main() {
   testWidgets("the dashboard's FIRST refresh stamp does not refetch", (
     tester,
   ) async {
-    // `lastRefreshed` starts null and is stamped when the dashboard's own load
-    // lands — which carries no task data, since `refreshAll` walks the
+    // `panelRefreshNonce` starts null and is stamped when the dashboard's own
+    // load lands — which carries no task data, since `refreshAll` walks the
     // cache-backed kinds only. Re-arming on that edge made every cold start
     // fetch the window twice, the second walk racing the constructor's.
     final repo = _FakeTaskRepo();

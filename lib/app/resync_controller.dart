@@ -132,6 +132,43 @@ class ResyncResult {
   bool get isClean => error == null && failedEntities.isEmpty;
 }
 
+/// One Sync pass that ran to its end, as published on
+/// [ResyncController.lastCompletion].
+@immutable
+class ResyncCompletion {
+  const ResyncCompletion({
+    required this.serial,
+    required this.companyId,
+    required this.result,
+  });
+
+  /// Strictly increasing per controller. Equality is over this alone, so two
+  /// back-to-back passes for the same company compare unequal and both notify —
+  /// `ValueNotifier` drops an equal value without a word, which is the same
+  /// trap [ResyncProgress]'s `==` is written around.
+  final int serial;
+
+  /// The company the pass downloaded. A listener compares it against its own:
+  /// a company switch swaps the session (and so every per-company view model)
+  /// *before* its hook cancels the pass, so a pass for the company just left
+  /// can still finish uncancelled and be published.
+  final String companyId;
+
+  /// Never carries an [ResyncResult.error] — see [ResyncController.lastCompletion].
+  final ResyncResult result;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ResyncCompletion && other.serial == serial;
+
+  @override
+  int get hashCode => serial.hashCode;
+
+  @override
+  String toString() => 'ResyncCompletion(#$serial, company: $companyId)';
+}
+
 /// The work a [ResyncController] drives. Injected as a callback rather than a
 /// `Services` reference so the controller unit-tests with zero DI.
 typedef ResyncRunner =
@@ -160,6 +197,24 @@ class ResyncController extends ValueNotifier<ResyncProgress> {
 
   bool get isRunning => value.isRunning;
 
+  /// The most recent pass that ran to its end — the signal for anything that
+  /// has to *fetch* off the back of one (invoiceninja/flutter#162: the mounted
+  /// dashboard refetches the filter-keyed sections the pass can't know about).
+  /// Null until a pass has completed.
+  ///
+  /// Published once per pass, after [value] returns to idle and before
+  /// [run]'s future resolves — and **only** for a pass that was neither
+  /// cancelled nor failed in its prologue. That is the whole difference from
+  /// the idle falling edge, which fires for every ending alike and so must not
+  /// be what a fetch hangs off. A cancelled pass means logout — whose screens
+  /// stay mounted until the router swaps them, so a fetch there races the
+  /// Drift wipe — or a company switch, where the next request goes out under
+  /// the other company's token. See `docs/sync.md` § A screen that refetches
+  /// after a Sync pass listens to `lastCompletion`.
+  ValueListenable<ResyncCompletion?> get lastCompletion => _lastCompletion;
+  final ValueNotifier<ResyncCompletion?> _lastCompletion = ValueNotifier(null);
+  int _completions = 0;
+
   /// Start a pass for [companyId] — or attach to the one already running.
   ///
   /// Never throws: a failing prologue comes back as [ResyncResult.error], so
@@ -185,6 +240,18 @@ class ResyncController extends ValueNotifier<ResyncProgress> {
     value = ResyncProgress.preparing(companyId);
     unawaited(
       _run(companyId).then((result) {
+        // Decided before `_cancelled` is reset below. Two terms, each covering
+        // what the other can't:
+        //  * the flag — logout or a company switch asked the pass to stop. It
+        //    subsumes the disposition (`_run` reports `cancelled` off this same
+        //    flag, and nothing clears it before here), and it also catches a
+        //    runner that *threw* after the cancel, which `_run`'s catch reports
+        //    as `completed` — the usual shape of a 401, whose logout pulls the
+        //    token out from under the pass;
+        //  * the error — a prologue that failed with nobody cancelling (offline,
+        //    a 5xx, a bad envelope): nothing downloaded and the tail never ran,
+        //    so there is nothing for a listener to follow up.
+        final announce = !_cancelled && result.error == null;
         // try/finally, because `value =` notifies listeners: if one ever threw
         // past Flutter's own guard, the completer would never complete and
         // every caller would hang forever with nothing surfaced (`unawaited`
@@ -193,6 +260,13 @@ class ResyncController extends ValueNotifier<ResyncProgress> {
           _inFlight = null;
           _cancelled = false;
           value = const ResyncProgress.idle();
+          if (announce) {
+            _lastCompletion.value = ResyncCompletion(
+              serial: ++_completions,
+              companyId: companyId,
+              result: result,
+            );
+          }
         } finally {
           completer.complete(result);
         }
@@ -242,6 +316,12 @@ class ResyncController extends ValueNotifier<ResyncProgress> {
       _log.warning('Sync pass failed for company $companyId', e, st);
       return ResyncResult(ResyncDisposition.completed, error: e);
     }
+  }
+
+  @override
+  void dispose() {
+    _lastCompletion.dispose();
+    super.dispose();
   }
 
   static ResyncResult _asJoined(ResyncResult r) =>

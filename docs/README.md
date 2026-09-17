@@ -25,6 +25,7 @@ read-it-first orientation for a new developer.
 - [`pickers.md`](pickers.md) — **Searchable pickers.** The main file carries which widget to reach for and one line per rule; this doc carries the evidence.
 - [`popup-dismissal.md`](popup-dismissal.md) — **Overflow menus and popups.** Which glyph an overflow menu wears, and how a surface that is not a route gets closed.
 - [`probing-the-demo-api.md`](probing-the-demo-api.md) — **Probing the demo API.** The main file lists the legacy code pointers; this doc carries the live-server probe workflow.
+- [`pull-to-refresh.md`](pull-to-refresh.md) — **Pull-to-refresh.** Why a `RefreshIndicator` can sit on a list and still never start, and what keeps every refreshable list in the app pullable at any length.
 - [`reports.md`](reports.md) — **Reports.** The main file carries the server-backed shape and the rule for each behaviour; this doc carries the evidence — the server-side `$date_key` map, the optional-date-column mechanism, and the chart's bucketing and labelling rules.
 - [`rich-text-editing.md`](rich-text-editing.md) — **Rich text editing.** `MarkdownTextField` is the shared WYSIWYG editor for the note-shaped fields, which are HTML on the wire: what converts in each direction, and how a read-only surface renders one.
 - [`row-actions-and-values.md`](row-actions-and-values.md) — **What a row shows, and what its actions do.** A narrow list row carries no labels, which changes what a tap means and what an empty value should render as.

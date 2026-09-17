@@ -1517,7 +1517,16 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
       // scrollbar, React-like). Standalone: own scrollable + pull-to-
       // refresh.
       shrinkWrap: widget.embedded,
-      physics: widget.embedded ? const NeverScrollableScrollPhysics() : null,
+      // Standalone has to ask for "always": handing `ScrollView` a controller
+      // switches off the AlwaysScrollableScrollPhysics a controller-less
+      // vertical list defaults to, and the platform physics it falls back to
+      // refuse a drag on rows that fit the viewport — so a short list could
+      // never be pulled to refresh (invoiceninja/flutter#163). Bare, so
+      // `Scrollable` layers it over the platform's own clamping / bouncing.
+      // See `docs/pull-to-refresh.md`.
+      physics: widget.embedded
+          ? const NeverScrollableScrollPhysics()
+          : const AlwaysScrollableScrollPhysics(),
       controller: widget.embedded ? null : _vScroll,
       itemCount: _vm.items.length + 1, // +1 for the footer slot
       itemBuilder: (context, index) {

@@ -67,6 +67,7 @@ Plus two non-negotiables carried from admin-portal:
 | Making a name in a list row or table cell tappable (or a link visible on touch) | `docs/row-actions-and-values.md` § A narrow list row has exactly one destination · `test/lint/no_list_tile_name_link_test.dart` |
 | Adding an action that only navigates (View client / View vendor) | `docs/row-actions-and-values.md` § A pure navigation action must never reach an edit screen · `test/lint/view_party_action_coverage_test.dart` |
 | Building a list tile cell, empty state, search field, or detail KPI cell | `lib/ui/core/list/cell_slot.dart` · `entity_list_empty_state.dart` · `search/entity_token_search_field.dart` · `lib/ui/core/detail/kpi_cell.dart` · `test/lint/shared_list_widgets_test.dart` |
+| A pull-to-refresh that won't start on a short list, or giving a refreshable list a `ScrollController` | `docs/pull-to-refresh.md` · `test/lint/refresh_indicator_physics_test.dart` · `test/ui/core/list/entity_list_pull_to_refresh_test.dart` |
 | Deciding whether a zero renders, dashes, or disappears | `docs/row-actions-and-values.md` §§ An empty value… · A zero in a detail KPI cell… |
 | An "Email History" tab listing contacts nothing was sent to, an invisible spam complaint, or either email tab's empty copy | `docs/contacts-and-invitations.md` § An invitation is created when the document is saved · `lib/data/models/domain/billing/invitation.dart` |
 | Localization / Transifex import | § Localization |
@@ -187,6 +188,7 @@ When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.o
 
 
 - **On a narrow viewport nothing above a screen owns a `Scaffold`, so every full-page host must bring its own — and a missing one costs keyboard avoidance, silently.** → `docs/sidebar-and-shell.md` § On a narrow viewport every full-page host must bring its own `Scaffold`
+- **A scroll view under a `RefreshIndicator` that is handed a `controller:` must ask for `physics: const AlwaysScrollableScrollPhysics()` — the controller switches that default off, and a list shorter than its viewport can then never be pulled (`test/lint/refresh_indicator_physics_test.dart`).** → `docs/pull-to-refresh.md` § A controlled scroll view under a `RefreshIndicator` must ask for `AlwaysScrollableScrollPhysics`
 
 **Pair related action buttons side-by-side**, not stacked — a `Row` with `SizedBox(width: InSpacing.md(context))` between them. Cancel sits next to the primary action, never above it.
 

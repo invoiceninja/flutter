@@ -319,13 +319,24 @@ void main() {
         ActivityTone.sent: {'sent', 'email', 'remind'},
       };
       const exact = <ActivityTone, Set<String>>{
-        ActivityTone.paid: {'create_payment', 'approve_quote', 'paid_invoice'},
+        ActivityTone.paid: {
+          'create_payment',
+          'approve_quote',
+          'paid_invoice',
+          'accept_purchase_order',
+        },
         ActivityTone.draft: {
           'create_invoice',
           'update_invoice',
           'update_payment',
+          'create_credit',
+          'update_credit',
           'create_quote',
           'update_quote',
+          'create_recurring_invoice',
+          'update_recurring_invoice',
+          'create_purchase_order',
+          'update_purchase_order',
         },
         ActivityTone.expense: {'create_expense', 'update_expense'},
       };

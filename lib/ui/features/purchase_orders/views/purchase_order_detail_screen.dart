@@ -35,7 +35,9 @@ import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_m
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
-import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
+import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
+import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_detail_view_model.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions.dart';
 import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
@@ -64,6 +66,11 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
   /// (invoiceninja/flutter#154).
   final ActivityRevealController _revealActivity = ActivityRevealController();
 
+  /// Which saved version the wide layout's PDF pane is showing; null is the
+  /// live document. Owned by the screen so the History tab and the pane stay
+  /// in step — the narrow layout has no pane and routes instead.
+  final ValueNotifier<String?> _selectedVersion = ValueNotifier<String?>(null);
+
   @override
   void initState() {
     super.initState();
@@ -90,6 +97,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
     _activityVm.dispose();
     _selectTab.dispose();
     _revealActivity.dispose();
+    _selectedVersion.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -138,6 +146,7 @@ class _PurchaseOrderDetailScreenState extends State<PurchaseOrderDetailScreen>
         activityVm: _activityVm,
         selectTab: _selectTab,
         revealActivity: _revealActivity,
+        selectedVersion: _selectedVersion,
       ),
     );
   }
@@ -152,10 +161,12 @@ class _Body extends StatelessWidget {
     required this.activityVm,
     required this.selectTab,
     required this.revealActivity,
+    required this.selectedVersion,
   });
 
   final PurchaseOrder purchaseOrder;
   final Services services;
+  final ValueNotifier<String?> selectedVersion;
   final String companyId;
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
@@ -264,6 +275,33 @@ class _Body extends StatelessWidget {
                       ),
                     ),
                   ),
+                  buildDocumentHistoryTab(
+                    context: context,
+                    services: services,
+                    companyId: companyId,
+                    basePath: services.purchaseOrders.api.basePath,
+                    entityId: purchaseOrder.id,
+                    currentAmount: purchaseOrder.amount,
+                    currentUpdatedAt: purchaseOrder.updatedAt,
+                    formatter: formatter,
+                    vendorId: purchaseOrder.vendorId,
+                    selection: selectedVersion,
+                    // Only wide drives the pane; narrow navigates, so
+                    // nothing there is ever "selected".
+                    showSelection: wide,
+                    onOpenVersion: (String? activityId) {
+                      // Wide keeps the record on screen and swaps the
+                      // pane; narrow has no pane, so it routes.
+                      if (wide) {
+                        selectedVersion.value = activityId;
+                      } else if (requireSynced(context, purchaseOrder.id)) {
+                        context.go(
+                          '/purchase_orders/${purchaseOrder.id}/pdf'
+                          '${activityId == null ? '' : '?activity_id=$activityId'}',
+                        );
+                      }
+                    },
+                  ),
                   EntityDetailTab(
                     label: purchaseOrder.documents.isEmpty
                         ? context.tr('documents')
@@ -331,7 +369,14 @@ class _Body extends StatelessWidget {
           children: [
             Expanded(flex: 5, child: main),
             VerticalDivider(width: 1, color: context.inTheme.border),
-            Expanded(flex: 6, child: _PdfPane(purchaseOrder: purchaseOrder)),
+            Expanded(
+              flex: 6,
+              child: _PdfPane(
+                purchaseOrder: purchaseOrder,
+                selectedVersion: selectedVersion,
+                formatter: formatter,
+              ),
+            ),
           ],
         );
       },
@@ -623,16 +668,29 @@ class _Overview extends StatelessWidget {
 }
 
 class _PdfPane extends StatelessWidget {
-  const _PdfPane({required this.purchaseOrder});
+  const _PdfPane({
+    required this.purchaseOrder,
+    required this.selectedVersion,
+    this.formatter,
+  });
   final PurchaseOrder purchaseOrder;
+  final ValueNotifier<String?> selectedVersion;
+
+  /// Threaded by hand: this screen mounts no `FormatterScope`.
+  final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return BillingDocPdfView(
+    return VersionedPdfPane(
       entity: BillingDocType.purchaseOrder,
       entityNumber: purchaseOrder.number,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
+      selection: selectedVersion,
+      api: services.documentVersions,
+      basePath: services.purchaseOrders.api.basePath,
+      entityId: purchaseOrder.id,
+      formatter: formatter,
+      liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.purchaseOrders.api.downloadPdf(
             entityJson: purchaseOrder.toApiJson(),
             designId:

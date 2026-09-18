@@ -30,6 +30,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**O**, § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148)).
 - App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**R**, PR written in the fork, unmerged; § App Links).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
+- Entity **revisions** — `Backup` stores a rendered HTML document, never an entity snapshot, and only for the five billing docs, so no client can offer client revisions or field-level diffs (**O**, § Entity revisions — [flutter#168](https://github.com/invoiceninja/flutter/issues/168)); the version list is also capped at 50 activities with no pagination, and free/trialing hosted accounts get no backups at all with no wire signal.
 
 **Shipped since this file was written** (kept for the record, no action left):
 - **§§ A–E, E2, E3** — the list filter/sort PR, merged upstream 2026-05-17 (`db4aed2c5c`) + `tag_ids` 2026-06-01.
@@ -2491,3 +2492,72 @@ shims, the share sheet). Until this deploys, a shared link is tappable but 404s 
 a browser, and only the hosted host can open the app at all. The manual console
 steps — the Apple capability and the Play fingerprints `assetlinks.json` needs —
 are in `APP_LINKS.md`.
+
+
+## Entity revisions — backups are rendered HTML, not data, and cover five entity types — **O (client ships PDF-only history)**
+
+[flutter#168](https://github.com/invoiceninja/flutter/issues/168) asks for WordPress-style revisions
+on `invoice`, `quote` **and `client`**: keep the old values when a record is edited badly, and show
+what changed, "comparable to how Git commits or WordPress revisions document modifications".
+
+The Flutter client now ships the half that is possible — a History tab on the five billing documents
+listing each saved version, opening it via
+`GET /api/v1/activities/download_entity/{activity_id}`. The other half is blocked here, in three
+separate ways.
+
+### 1. There is no data snapshot to diff or restore
+
+`ActivityRepository::createBackup()` renders the document to HTML via `PdfService` and stores the
+**file**; `Backup::storeRemotely()` keeps only `filename` + `disk`. The two columns that sound like
+data are both dead:
+
+- `json_backup` (mediumText) is assigned `''` at creation and hardcoded to `''` again in
+  `InvoiceHistoryTransformer`.
+- `html_backup` was dropped from the table by
+  `2022_11_06_215526_drop_html_backups_column_from_backups_table.php`, and the transformer still
+  emits the key, marked `//deprecated`.
+
+So a client can show a user *what the document looked like*, and nothing else. Field-level "what
+changed" needs the server to persist the entity JSON it already has in hand at backup time.
+
+**Ask:** populate `json_backup` with the transformed entity at `createBackup()` time (the model is
+already `fresh()` there), and expose it on `InvoiceHistoryTransformer` behind an opt-in include so
+existing payloads don't grow. A client can diff two snapshots itself; it cannot invent them.
+- Accept: `GET /invoices/{id}?include=activities.history` returns a non-empty `json_backup` for a
+  backup created after the change, and two consecutive versions differ only in the fields that were
+  edited.
+
+### 2. Only five entity types get a backup at all
+
+`createBackup()` branches on `Invoice` / `Quote` / `Credit` / `RecurringInvoice` (stored against the
+client) and `PurchaseOrder` (against the vendor). Everything else returns without writing a row —
+**including `Client`**, which has no `history()` relation either. Verified live: a client activity's
+`download_entity` returns 404 `{"message":"No backup exists for this activity"}`.
+
+Note a probe trap: `GET /clients/{id}?include=activities.history` *does* return populated history
+objects, because a client's activity feed contains its **invoices'** activities. That is not client
+revision history and reads as a false positive.
+
+**Ask:** the issue's client case needs a backup (or a snapshot table) for at least `Client`, and
+ideally any entity with an edit screen. Without §1 this is not worth doing on its own — an HTML
+render of a client record is not a useful artifact.
+
+### 3. Two silent limits the client can only paper over
+
+**The version list is capped at 50, with no pagination.** `Invoice::activities()` and its four
+siblings are `->orderBy('id','DESC')->take(50)`, and no request parameter widens it. A long-lived
+document silently loses its oldest versions. The client now prints a footer saying the list is
+capped, which is honesty, not a fix.
+- **Ask:** accept `rows` (or standard pagination) on the nested `activities` include, as
+  `POST /activities/entity` already accepts `rows`.
+
+**Free and trialing hosted accounts get no backups, and nothing on the wire says so.**
+`createBackup()` returns early on `$account->isFreeHostedClient()` — `plan` free/null/empty **or**
+`plan_expires` more than 12 hours past. For those accounts the tab can never fill, and no field in
+any payload distinguishes "never edited" from "backups are switched off for you". The client infers
+it from the plan slug, which duplicates a server rule it cannot see and will drift if the server's
+predicate changes.
+- **Ask:** expose the effective flag (e.g. `account.stores_backups`, or a `meta` entry on the
+  history include) so a client can explain an empty list without re-deriving the plan logic.
+  Note the client-side predicate must be slug-only: `isFreeHostedClient()` has **no trial branch**,
+  so a trial-aware check reports access for exactly the user whose list is empty.

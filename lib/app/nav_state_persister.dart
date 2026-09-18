@@ -28,6 +28,11 @@ import 'package:admin/data/db/app_database.dart';
 ///   sidebar preview. Stripping it covers routes `companySafeLocation`
 ///   passes through verbatim (arbitrary settings sub-routes — note it does
 ///   strip `/foo/new` back to `/foo`, query string and all).
+/// - `company`: a record link opened in the web build arrives as
+///   `/#/clients/<id>?company=<id>` and is consumed once, at boot, by
+///   `DeepLinkRouter.openWebInitialLocation`. Persisting it would replay a
+///   workspace switch on every cold start, against a company the user may
+///   since have left.
 ///
 /// NOTE: only `view=full` is transient. The Tasks screen reuses the same
 /// `view=` key for its LAYOUT mode (`calendar`/`daily`/`weekly`/`kanban`), so a
@@ -43,12 +48,16 @@ import 'package:admin/data/db/app_database.dart';
 String stripTransientQuery(String uri) {
   final hasModuleOff = uri.contains('module_off');
   final hasFullView = uri.contains('view=full');
-  if (!hasModuleOff && !hasFullView) return uri;
+  // Substring, so `/settings/company_details` takes the slow path and exits
+  // unchanged — the removal below is what actually decides.
+  final hasCompany = uri.contains('company');
+  if (!hasModuleOff && !hasFullView && !hasCompany) return uri;
   final parsed = Uri.tryParse(uri);
   if (parsed == null) return uri;
   final q = Map<String, String>.from(parsed.queryParameters);
   var changed = false;
   if (q.remove('module_off') != null) changed = true;
+  if (q.remove('company') != null) changed = true;
   if (q['view'] == 'full') {
     q.remove('view'); // only the pane flag, never a task layout mode
     changed = true;

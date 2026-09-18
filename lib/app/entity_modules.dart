@@ -543,6 +543,7 @@ final kWiredEntityModules = <EntityModuleSpec>[
           id: state.pathParameters['id']!,
           initialDeliveryNote:
               state.uri.queryParameters['delivery_note'] == 'true',
+          activityId: state.uri.queryParameters['activity_id'],
         ),
       ),
       GoRoute(
@@ -593,8 +594,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',
-        builder: (context, state) =>
-            QuotePdfRouteScreen(id: state.pathParameters['id']!),
+        builder: (context, state) => QuotePdfRouteScreen(
+          id: state.pathParameters['id']!,
+          activityId: state.uri.queryParameters['activity_id'],
+        ),
       ),
       GoRoute(
         path: 'email',
@@ -643,8 +646,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',
-        builder: (context, state) =>
-            CreditPdfRouteScreen(id: state.pathParameters['id']!),
+        builder: (context, state) => CreditPdfRouteScreen(
+          id: state.pathParameters['id']!,
+          activityId: state.uri.queryParameters['activity_id'],
+        ),
       ),
       GoRoute(
         path: 'email',
@@ -693,8 +698,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',
-        builder: (context, state) =>
-            PurchaseOrderPdfRouteScreen(id: state.pathParameters['id']!),
+        builder: (context, state) => PurchaseOrderPdfRouteScreen(
+          id: state.pathParameters['id']!,
+          activityId: state.uri.queryParameters['activity_id'],
+        ),
       ),
       GoRoute(
         path: 'email',
@@ -746,8 +753,10 @@ final kWiredEntityModules = <EntityModuleSpec>[
     extraChildRoutes: [
       GoRoute(
         path: 'pdf',
-        builder: (context, state) =>
-            RecurringInvoicePdfRouteScreen(id: state.pathParameters['id']!),
+        builder: (context, state) => RecurringInvoicePdfRouteScreen(
+          id: state.pathParameters['id']!,
+          activityId: state.uri.queryParameters['activity_id'],
+        ),
       ),
       GoRoute(
         path: 'email',

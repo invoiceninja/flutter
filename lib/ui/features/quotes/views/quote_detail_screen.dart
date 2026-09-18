@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -29,7 +30,9 @@ import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_m
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
-import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
+import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
+import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
 import 'package:admin/ui/features/quotes/view_models/quote_detail_view_model.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_actions.dart';
 import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
@@ -63,6 +66,11 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
   /// (invoiceninja/flutter#154).
   final ActivityRevealController _revealActivity = ActivityRevealController();
 
+  /// Which saved version the wide layout's PDF pane is showing; null is the
+  /// live document. Owned by the screen so the History tab and the pane stay
+  /// in step — the narrow layout has no pane and routes instead.
+  final ValueNotifier<String?> _selectedVersion = ValueNotifier<String?>(null);
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +97,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
     _activityVm.dispose();
     _selectTab.dispose();
     _revealActivity.dispose();
+    _selectedVersion.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -119,6 +128,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen>
           activityVm: _activityVm,
           selectTab: _selectTab,
           revealActivity: _revealActivity,
+          selectedVersion: _selectedVersion,
         );
         // Always mounted, even while `formatter` is still null: branching
         // here would change the tree shape and remount the whole body when
@@ -137,10 +147,12 @@ class _Body extends StatelessWidget {
     required this.activityVm,
     required this.selectTab,
     required this.revealActivity,
+    required this.selectedVersion,
   });
 
   final Quote quote;
   final Services services;
+  final ValueNotifier<String?> selectedVersion;
   final String companyId;
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
@@ -237,6 +249,33 @@ class _Body extends StatelessWidget {
                       child: _Overview(quote: quote),
                     ),
                   ),
+                  buildDocumentHistoryTab(
+                    context: context,
+                    services: services,
+                    companyId: companyId,
+                    basePath: services.quotes.api.basePath,
+                    entityId: quote.id,
+                    currentAmount: quote.amount,
+                    currentUpdatedAt: quote.updatedAt,
+                    formatter: FormatterScope.maybeOf(context),
+                    clientId: quote.clientId,
+                    selection: selectedVersion,
+                    // Only wide drives the pane; narrow navigates, so
+                    // nothing there is ever "selected".
+                    showSelection: wide,
+                    onOpenVersion: (String? activityId) {
+                      // Wide keeps the record on screen and swaps the
+                      // pane; narrow has no pane, so it routes.
+                      if (wide) {
+                        selectedVersion.value = activityId;
+                      } else if (requireSynced(context, quote.id)) {
+                        context.go(
+                          '/quotes/${quote.id}/pdf'
+                          '${activityId == null ? '' : '?activity_id=$activityId'}',
+                        );
+                      }
+                    },
+                  ),
                   EntityDetailTab(
                     label: quote.documents.isEmpty
                         ? context.tr('documents')
@@ -304,7 +343,10 @@ class _Body extends StatelessWidget {
           children: [
             Expanded(flex: 5, child: main),
             VerticalDivider(width: 1, color: context.inTheme.border),
-            Expanded(flex: 6, child: _PdfPane(quote: quote)),
+            Expanded(
+              flex: 6,
+              child: _PdfPane(quote: quote, selectedVersion: selectedVersion),
+            ),
           ],
         );
       },
@@ -548,16 +590,22 @@ BillingTotalsInput _quoteTotalsInput(Quote d) => BillingTotalsInput(
 );
 
 class _PdfPane extends StatelessWidget {
-  const _PdfPane({required this.quote});
+  const _PdfPane({required this.quote, required this.selectedVersion});
   final Quote quote;
+  final ValueNotifier<String?> selectedVersion;
 
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return BillingDocPdfView(
+    return VersionedPdfPane(
       entity: BillingDocType.quote,
       entityNumber: quote.number,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
+      selection: selectedVersion,
+      api: services.documentVersions,
+      basePath: services.quotes.api.basePath,
+      entityId: quote.id,
+      formatter: FormatterScope.maybeOf(context),
+      liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.quotes.api.downloadPdf(
             entityJson: quote.toApiJson(),
             designId:

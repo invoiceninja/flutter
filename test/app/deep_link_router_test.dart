@@ -384,4 +384,83 @@ void main() {
       expect(h.navigations, ['/clients/abc']);
     },
   );
+
+  group('the web build, where the link IS the page URL', () {
+    test(
+      'the company in the fragment is honoured, and the record opens',
+      () async {
+        final h = _Harness()..attach();
+        addTearDown(h.dispose);
+        await h.router.openWebInitialLocation(
+          Uri.parse('https://example.test/#/clients/abc?company=co1'),
+        );
+        // Navigated WITHOUT the query: `go()` takes the parsed path, so nothing
+        // is left for `nav_state` to persist and replay.
+        expect(h.navigations, ['/clients/abc']);
+      },
+    );
+
+    test('a `company` written ahead of the `#` works too — go_router cannot '
+        'see it there either', () async {
+      final h = _Harness()..attach();
+      addTearDown(h.dispose);
+      await h.router.openWebInitialLocation(
+        Uri.parse('https://example.test/?company=co1#/invoices/xyz'),
+      );
+      expect(h.navigations, ['/invoices/xyz']);
+    });
+
+    test('an ordinary page load is left entirely alone', () async {
+      final h = _Harness()..attach();
+      addTearDown(h.dispose);
+      // No fragment at all, and a record route with no company: go_router is
+      // already routing these, and a second navigation would be a duplicate.
+      await h.router.openWebInitialLocation(Uri.parse('https://example.test/'));
+      await h.router.openWebInitialLocation(
+        Uri.parse('https://example.test/#/clients/abc'),
+      );
+      expect(h.navigations, isEmpty);
+    });
+
+    testWidgets('a company on a route that is not a record is ignored in '
+        'silence — nobody typed this URL', (tester) async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.mountContext(tester);
+      h.attach();
+      await h.router.openWebInitialLocation(
+        Uri.parse('https://example.test/#/dashboard?company=co1'),
+      );
+      expect(h.navigations, isEmpty);
+      expect(h.toasts.toasts, isEmpty);
+    });
+
+    test('a page URL loaded while signed out is held, not dropped', () async {
+      final h = _Harness(authenticated: false)..attach();
+      addTearDown(h.dispose);
+      await h.router.openWebInitialLocation(
+        Uri.parse('https://example.test/#/clients/abc?company=co1'),
+      );
+      expect(h.navigations, isEmpty);
+
+      h.signIn();
+      await pumpEventQueue();
+      expect(h.navigations, ['/clients/abc']);
+    });
+
+    test('the page host is not treated as an instance claim — the web build '
+        'is not always served from the instance it talks to', () async {
+      final h = _Harness()..attach();
+      addTearDown(h.dispose);
+      // Session is https://example.test; the page is somewhere else entirely
+      // (the demo build). A pasted *link* from another install is still
+      // refused — that check is on `open`, and this is not one.
+      await h.router.openWebInitialLocation(
+        Uri.parse(
+          'https://hillelcoren.github.io/admin/#/clients/abc?company=co1',
+        ),
+      );
+      expect(h.navigations, ['/clients/abc']);
+    });
+  });
 }

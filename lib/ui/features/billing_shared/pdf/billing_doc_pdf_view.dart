@@ -131,6 +131,17 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
       if (!mounted || myGen != _generation) return;
       setState(() {
         _error = e;
+        // Drop the last-good bytes. The "keep the previous page visible"
+        // behaviour above is for the *loading* window only — holding them
+        // through an error renders a stale document under whatever the
+        // caller's chrome now claims is on screen, with no error shown at
+        // all (the error branch in `build` is gated on `_bytes == null`).
+        // Version history makes that a designed-for condition rather than a
+        // corner: a `Backup` row with no stored file 404s with "No backup
+        // exists for this activity" yet still appears in the version picker,
+        // so picking it would otherwise leave the *live* document on screen
+        // under that version's title.
+        _bytes = null;
         _loading = false;
       });
     }

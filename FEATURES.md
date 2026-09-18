@@ -206,6 +206,7 @@ the honest default.
 | Invoice — change template / design | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — auto-bill with gateway | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — view / download PDF | ✅ | ✅ | ✅ | ✅ | |
+| Invoice — PDF version history (older versions) | ✅ | ✅ | ✅ | | |
 | Invoice — print | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — audit trail / history | ✅ | ✅ | ✅ | ✅ | |
 | Invoice — email history | ✅ | ✅ | ✅ | | |
@@ -242,6 +243,7 @@ the honest default.
 | Quote — schedule email | ✅ | ❌ | ✅ | ✅ | |
 | Quote — change template / design | ✅ | ✅ | ✅ | ✅ | |
 | Quote — view / download PDF | ✅ | ✅ | ✅ | ✅ | |
+| Quote — PDF version history (older versions) | ✅ | ✅ | ✅ | | |
 | Quote — activities | ✅ | ✅ | ✅ | ✅ | |
 | Quote — email history | ✅ | ✅ | ✅ | | |
 | Quote — email bounce indicator + reactivate | ✅ | ✅ | ✅ | | |
@@ -276,6 +278,7 @@ the honest default.
 | Credit — list bounce status badge | 🟡 | ✅ | ✅ | | |
 | Credit — change template / design | ✅ | ✅ | ✅ | ✅ | |
 | Credit — view / download PDF | ✅ | ✅ | ✅ | ✅ | |
+| Credit — PDF version history (older versions) | ✅ | ✅ | ✅ | | |
 | Credit — activities | ✅ | ✅ | ✅ | ✅ | |
 | Credit — e-invoice / Peppol | ✅ | ❌ | ✅ | ✅ | |
 | Credit — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
@@ -304,6 +307,7 @@ the honest default.
 | Recurring invoice — change template / design | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — view next-occurrence schedule | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — view / download PDF | ✅ | ✅ | ✅ | ✅ | |
+| Recurring invoice — PDF version history (older versions) | ✅ | ❌ | ✅ | | |
 | Recurring invoice — activities | ✅ | ✅ | ✅ | ✅ | |
 | Recurring invoice — email history | ✅ | ✅ | ✅ | | |
 | Recurring invoice — email bounce indicator + reactivate | ✅ | ✅ | ✅ | | |
@@ -473,6 +477,7 @@ the honest default.
 | Purchase order — download e-purchase-order (e-invoice) | ✅ | ❌ | ✅ | | |
 | Purchase order — change template / design | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — view / download PDF | ✅ | ✅ | ✅ | ✅ | |
+| Purchase order — PDF version history (older versions) | ✅ | ✅ | ✅ | | |
 | Purchase order — activities | ✅ | ✅ | ✅ | ✅ | |
 | Purchase order — email history | ✅ | ✅ | ✅ | | |
 | Purchase order — email bounce indicator + reactivate | ✅ | ✅ | ✅ | | |

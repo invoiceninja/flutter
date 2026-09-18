@@ -247,16 +247,25 @@ test from Messages or Notes.
   host as a build-time literal in the app; a per-instance one cannot be. Those
   links go through the bridge page instead, which is **automatic on Android** —
   it hands Chrome an `intent://` URL that resolves to the app when installed and
-  to the web client when not — and **one tap everywhere else**, where firing a
-  custom scheme without a tap risks an error page instead of a fallback.
+  to the web client when not — and **one tap on iOS**, where firing a custom
+  scheme without a tap risks an error page instead of a fallback. A desktop
+  browser never sees the page: it is sent straight to the web client, so a
+  self-hosted macOS or Windows user with the app installed is the one case that
+  loses the offer (a hosted link is claimed by macOS before the browser is
+  involved, and Windows has no verified-link mechanism either way).
 - **`staging.invoicing.co` and `demo.invoiceninja.com` are not claimed**, so
   links copied from a staging or demo session take the bridge path. Worth
   knowing before testing there.
-- **Notification emails still open the browser.** They link to the web client's
-  own host, which this claim does not cover.
+- **Notification emails are app links now.** The server emits
+  `https://<instance>/app/<route>?company=<id>` wherever it used to hand out a
+  React URL or a bare app root, so they open the app when it is installed and
+  fall through the bridge when it is not.
 - **Windows, Linux and web have no verified-link mechanism.** The links are
-  ordinary URLs there: the browser opens, and the bridge page offers the app
-  (Windows MSIX installs still register the custom scheme).
+  ordinary URLs there: the browser opens, and the bridge hands them to the web
+  client (Windows MSIX installs still register the custom scheme, so a pasted
+  `invoiceninja://` link still resolves). The **web build** does follow one it is
+  loaded with, including its `?company=` — see `docs/deep-links.md` § On web the
+  link is the page URL.
 
 ## Where the pieces live
 
@@ -269,4 +278,7 @@ test from Messages or Notes.
 | Wiring guard | this | `test/lint/universal_links_test.dart` |
 | `.well-known` documents + bridge page | backend | `app/Http/Controllers/AppLinksController.php` |
 | App route → web route translation | backend | `app/Utils/AppLinkPath.php` |
+| Which web client the bridge falls back to | backend | `AppLink::flutterWebClient()` (`accounts.set_react_as_default_ap`) |
+| Server-generated record links | backend | `app/Utils/AppLink.php` |
 | `?company=` workspace selection | React client | `src/common/helpers/company-index.ts` |
+| `?company=` on the web build | this | `DeepLinkRouter.openWebInitialLocation` |

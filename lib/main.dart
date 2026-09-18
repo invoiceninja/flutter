@@ -517,8 +517,9 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     session: widget.services.auth.session,
   );
 
-  // Bridges native OS deep links (shared record links + the calendar-OAuth
-  // return) into `services.deepLinks` (no-op on web).
+  // Bridges deep links (shared record links + the calendar-OAuth return) into
+  // `services.deepLinks`: from the OS natively, and on web from the URL the
+  // page was loaded with — there nothing delivers a link, it *is* the address.
   late final AppDeepLinks _appDeepLinks = AppDeepLinks(
     widget.services.deepLinks,
   );

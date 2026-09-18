@@ -22,12 +22,20 @@ import 'package:admin/app/deep_link_router.dart';
 /// though on iOS the cold-start half depends on `SceneDelegate.swift` handing
 /// the launch URL over by hand; see docs/upstream-workarounds.md.
 ///
-/// No-op on web, where there is no native hop to intercept: an OAuth return is
-/// an ordinary route load, and a record link arrives by paste instead (the
+/// Web has no native hop to intercept, but it does have a link: there the URL
+/// the page was loaded from *is* the delivery, so the initial location is read
+/// once at boot and handed to [DeepLinkRouter.openWebInitialLocation]. An OAuth
+/// return is an ordinary route load, and a link can also arrive by paste (the
 /// command palette accepts one).
 class AppDeepLinks {
   AppDeepLinks(this._deepLinks) {
-    if (kIsWeb) return;
+    if (kIsWeb) {
+      // `Uri.base` is the page here (and a file path under `flutter test`,
+      // which never reaches this branch). Everything it decides lives in
+      // `openWebInitialLocation`, where it is testable on the VM.
+      unawaited(_deepLinks.openWebInitialLocation(Uri.base));
+      return;
+    }
     try {
       final links = AppLinks();
       _sub = links.uriLinkStream.listen(_handle, onError: (_) {});

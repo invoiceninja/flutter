@@ -190,6 +190,45 @@ void main() {
     );
   });
 
+  test('never persists ?company= — a record link opened in the web build is '
+      'consumed once at boot, and replaying the workspace switch on every cold '
+      'start would land in a company the user may since have left', () async {
+    final router = _FakeRouter();
+    final persister = NavStatePersister(
+      changes: router,
+      currentPath: () => router.path,
+      db: db,
+      debounce: const Duration(milliseconds: 10),
+    );
+    addTearDown(persister.dispose);
+
+    router.go('/clients/abc?company=co1');
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+    expect((await db.navStateDao.current())?.currentRoute, '/clients/abc');
+  });
+
+  test(
+    'a path that merely contains the word company is untouched — the removal, '
+    'not the substring check, is what decides',
+    () async {
+      final router = _FakeRouter();
+      final persister = NavStatePersister(
+        changes: router,
+        currentPath: () => router.path,
+        db: db,
+        debounce: const Duration(milliseconds: 10),
+      );
+      addTearDown(persister.dispose);
+
+      router.go('/settings/company_details?tab=address');
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      expect(
+        (await db.navStateDao.current())?.currentRoute,
+        '/settings/company_details?tab=address',
+      );
+    },
+  );
+
   test('repeated navigation to the same route writes only once', () async {
     final router = _FakeRouter();
     final persister = NavStatePersister(

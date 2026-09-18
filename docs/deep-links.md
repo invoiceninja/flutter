@@ -21,9 +21,13 @@ otherwise, which is also what every link already in the wild looks like.
 what keeps that claim narrow.** Android's `<intent-filter>` and Apple's
 `applinks:` entitlement both need a build-time literal, so a self-hosted origin
 cannot be verified no matter what either side ships — those links open the
-browser, land on that instance's own `/app/` bridge page, and it offers the
-`invoiceninja://` launch before continuing to the web client. Since the prefix is
-a real path (unlike the hash-routed web client, where every URL's path is `/`),
+browser and land on that instance's own `/app/` bridge page, which offers the
+`invoiceninja://` launch to Android and iOS before continuing to the web client.
+A desktop browser is sent straight on instead, from a script in the page's
+`<head>`: the server emits `/app/` links in its own notification emails now, and
+the offer would otherwise be an interstitial in front of every one of them.
+Since the prefix is a real path (unlike the hash-routed web client, where every
+URL's path is `/`),
 the claim covers shared links and not the client portal or payment pages that
 share the host. The manual console steps behind all of this — the Apple
 capability, the Play fingerprints, the deploy order — are in `APP_LINKS.md`.
@@ -92,10 +96,12 @@ Four pieces, deliberately split:
   + an `isAuthenticated` predicate) so it is testable with plain fakes, and
   `attach(go:, contextOf:)` wires navigation once `MaterialApp.router` exists.
 - `lib/app/app_deep_links.dart` — the platform bridge (`app_links`), which only
-  transports URIs into `deepLinks.open`. The **command palette is the second
+  transports URIs into `deepLinks.open`, plus the web branch that reads the page
+  URL (§ On web the link is the page URL). The **command palette is the second
   source**: paste a link into ⌘K and it routes through the same `open`. That is
-  the only way to follow a link on web and Linux (neither ever receives one from
-  the OS) and the fallback wherever a messenger renders the scheme as inert text.
+  the only way to follow one on Linux, the only way to follow a *pasted* one on
+  web (neither receives a link from the OS), and the fallback wherever a
+  messenger renders the scheme as inert text.
 - `lib/ui/features/shell/widgets/switch_company_guarded.dart` — the company
   switch, shared with `CompanyPicker` so a link can't fork it (trap 4).
 
@@ -155,6 +161,44 @@ Five things fail silently if you change this:
    Link hands out a URL the app itself refuses. Note the test fixture is what
    let this ship: it built its registry from the module specs alone, so the
    two registry-only entries were invisible to it.
+
+## On web the link is the page URL
+
+**On web nothing delivers the link — it *is* the page URL, so `?company=` is
+honoured once at boot and stripped before it can persist.** The `app_links`
+plugin has nothing to intercept there and is skipped outright, so `AppDeepLinks`
+reads `Uri.base` once instead: the browser simply loads the URL. Only the **fragment** of it
+reaches the app — with the hash strategy the engine builds `defaultRouteName`
+from `window.location.hash` alone (`url_strategy.dart`'s `getPath`), so the real
+path and `?search` are invisible, and go_router's `_effectiveInitialLocation`
+lets that platform value beat the restored `nav_state` route. So a record link
+arrives as `…/#/clients/<id>?company=<id>` and go_router routes it *without* the
+company: nothing on the route side reads one, and the record would open against
+whatever workspace happened to be active — "not found" whenever it belongs to
+another. Worse, the stray param survived into `nav_state.current_route`
+(`stripTransientQuery` knew only `module_off` and `view=full`) and replayed a
+workspace switch on every cold start.
+
+`DeepLinkRouter.openWebInitialLocation` is the fix, and it is deliberately thin:
+it reads the company out of the fragment (or from ahead of the `#`, which is a
+legal way to write the same link and equally invisible to go_router),
+synthesises a link and hands it to the same `open()` as every other source. That
+buys the signed-out/locked hold, the `_pending`/`_inFlight` de-dup, the guarded
+switch and its toast — and the closing `go(target.path)` is what drops the query
+from the live location. Two guards matter: a `company` on a route that isn't a
+record (`/#/dashboard?company=…`) is ignored **in silence**, because `open`
+would otherwise toast `invalid_url` at boot for a URL nobody typed; and a
+fragment with no `company` is left entirely alone, since go_router is already
+routing it and a second `go()` would be a duplicate.
+
+The synthesised link uses the **custom-scheme** form, which carries no instance
+claim, so the cross-instance check (§ A link naming another instance is refused)
+is skipped rather than failed. That is the honest reading — this is the address
+of the app the user is already in, not a link someone sent them — and it is also
+required: the web build is not always served from the instance it talks to (the
+GitHub Pages demo is not), so comparing the page host against the session host
+would refuse every link there. A forged company id stays bounded, because
+`_open` only switches to a company the session actually lists.
 
 ## Landing on a record the recipient never opened
 

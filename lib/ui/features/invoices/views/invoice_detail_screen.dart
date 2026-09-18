@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -38,7 +39,9 @@ import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_m
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
-import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
+import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
+import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_detail_view_model.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_lock_banner.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/invoice_reminders_summary.dart';
@@ -82,6 +85,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
   /// (invoiceninja/flutter#154).
   final ActivityRevealController _revealActivity = ActivityRevealController();
 
+  /// Which saved version the wide layout's PDF pane is showing; null is the
+  /// live document. Owned by the screen so the History tab and the pane stay
+  /// in step — the narrow layout has no pane and routes instead.
+  final ValueNotifier<String?> _selectedVersion = ValueNotifier<String?>(null);
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +116,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
     _activityVm.dispose();
     _selectTab.dispose();
     _revealActivity.dispose();
+    _selectedVersion.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -135,6 +144,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen>
           activityVm: _activityVm,
           selectTab: _selectTab,
           revealActivity: _revealActivity,
+          selectedVersion: _selectedVersion,
         );
         // Always mounted, even while `formatter` is still null: branching
         // here would change the tree shape and remount the whole body when
@@ -285,6 +295,7 @@ class _Body extends StatelessWidget {
     required this.activityVm,
     required this.selectTab,
     required this.revealActivity,
+    required this.selectedVersion,
   });
 
   final Invoice invoice;
@@ -293,6 +304,7 @@ class _Body extends StatelessWidget {
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
   final ActivityRevealController revealActivity;
+  final ValueNotifier<String?> selectedVersion;
 
   @override
   Widget build(BuildContext context) {
@@ -395,6 +407,33 @@ class _Body extends StatelessWidget {
                       child: _Overview(invoice: invoice),
                     ),
                   ),
+                  buildDocumentHistoryTab(
+                    context: context,
+                    services: services,
+                    companyId: companyId,
+                    basePath: services.invoices.api.basePath,
+                    entityId: invoice.id,
+                    currentAmount: invoice.amount,
+                    currentUpdatedAt: invoice.updatedAt,
+                    formatter: FormatterScope.maybeOf(context),
+                    clientId: invoice.clientId,
+                    selection: selectedVersion,
+                    // Only wide drives the pane; narrow navigates, so
+                    // nothing there is ever "selected".
+                    showSelection: wide,
+                    onOpenVersion: (String? activityId) {
+                      // Wide keeps the record on screen and swaps the pane;
+                      // narrow has no pane, so it routes.
+                      if (wide) {
+                        selectedVersion.value = activityId;
+                      } else if (requireSynced(context, invoice.id)) {
+                        context.go(
+                          '/invoices/${invoice.id}/pdf'
+                          '${activityId == null ? '' : '?activity_id=$activityId'}',
+                        );
+                      }
+                    },
+                  ),
                   buildStandardDocumentsTab(
                     context: context,
                     companyId: companyId,
@@ -460,7 +499,13 @@ class _Body extends StatelessWidget {
           children: [
             Expanded(flex: 5, child: main),
             VerticalDivider(width: 1, color: context.inTheme.border),
-            Expanded(flex: 6, child: _PdfPane(invoice: invoice)),
+            Expanded(
+              flex: 6,
+              child: _PdfPane(
+                invoice: invoice,
+                selectedVersion: selectedVersion,
+              ),
+            ),
           ],
         );
       },
@@ -735,16 +780,22 @@ BillingTotalsInput _invoiceTotalsInput(Invoice d) => BillingTotalsInput(
 );
 
 class _PdfPane extends StatelessWidget {
-  const _PdfPane({required this.invoice});
+  const _PdfPane({required this.invoice, required this.selectedVersion});
   final Invoice invoice;
+  final ValueNotifier<String?> selectedVersion;
 
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return BillingDocPdfView(
+    return VersionedPdfPane(
       entity: BillingDocType.invoice,
       entityNumber: invoice.number,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
+      selection: selectedVersion,
+      api: services.documentVersions,
+      basePath: services.invoices.api.basePath,
+      entityId: invoice.id,
+      formatter: FormatterScope.maybeOf(context),
+      liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.invoices.api.downloadPdf(
             entityJson: invoice.toApiJson(),
             designId:

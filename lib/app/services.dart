@@ -93,6 +93,7 @@ import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/data/services/dashboard_api.dart';
 import 'package:admin/data/services/device_contacts_service.dart';
 import 'package:admin/data/services/device_contacts_service_factory.dart';
+import 'package:admin/data/services/document_versions_api.dart';
 import 'package:admin/data/services/documents_api.dart';
 import 'package:admin/data/services/emails_api.dart';
 import 'package:admin/data/services/password_cache.dart';
@@ -284,6 +285,7 @@ class Services implements SidebarBadgeContext {
     required this.smtp,
     required this.templates,
     required this.activities,
+    required this.documentVersions,
     required this.emails,
     required this.search,
     required this.documents,
@@ -526,6 +528,11 @@ class Services implements SidebarBadgeContext {
   final SettingsRepository settings;
   final UserSettingsRepository userSettings;
   final ActivitiesApi activities;
+
+  /// Billing-document version history (the server's `Backup` rows) plus the
+  /// per-version PDF fetch. Network-only and cached in memory, like
+  /// [activities] — see `docs/document-version-history.md`.
+  final DocumentVersionsApi documentVersions;
 
   /// Read-only client email-history feed + the bounce-reactivation write.
   /// No Drift / outbox-backed entity — the ViewModel fetches live.
@@ -1031,6 +1038,10 @@ class Services implements SidebarBadgeContext {
     // first-frame seed, so a stale hit paints old rows for the moment before
     // the fetch lands — and its TTL is 2 minutes, shorter than a large pass.
     activities.clearCache();
+    // Same staleness argument: a version list is a snapshot of the server's
+    // activity rows, and a pass that re-downloads every entity table can
+    // leave the next History tab seeding from a peek taken before it.
+    documentVersions.clearCache();
     // [invalidateFormatter]'s own contract is "call after writing the company's
     // settings or after a statics refresh". This pass does both: the forced
     // `auth.refresh` sends `include_static=true` and rewrites the companies
@@ -1314,6 +1325,7 @@ class Services implements SidebarBadgeContext {
     final dispatchers = <EntityType, SyncDispatcher>{};
 
     final activitiesApi = ActivitiesApi(apiClient);
+    final documentVersionsApi = DocumentVersionsApi(apiClient);
     final emailsApi = EmailsApi(apiClient);
     final searchApi = SearchApi(apiClient);
     final documentsApi = DocumentsApi(apiClient);
@@ -1705,6 +1717,9 @@ class Services implements SidebarBadgeContext {
       // inherit them. `clearCache` also bumps a generation, so a request still
       // on the wire can't write the outgoing user's rows back afterwards.
       activitiesApi.clearCache();
+      // Same cross-user argument: these rows carry document totals and the
+      // ids of whoever made each change.
+      documentVersionsApi.clearCache();
       // Same argument for a call parked mid-dial: it names a record in the
       // outgoing user's company, and offering to log it after a different user
       // signs in would file a note against ids they never saw.
@@ -1861,6 +1876,7 @@ class Services implements SidebarBadgeContext {
       smtp: smtpApi,
       templates: templatesApi,
       activities: activitiesApi,
+      documentVersions: documentVersionsApi,
       emails: emailsApi,
       search: searchApi,
       documents: documentsApi,

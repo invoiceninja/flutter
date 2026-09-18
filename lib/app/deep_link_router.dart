@@ -114,6 +114,51 @@ class DeepLinkRouter {
     }
   }
 
+  /// The web build's equivalent of a cold-start link: on web the OS never hands
+  /// the app a URL, so the link **is** the page it was loaded from.
+  ///
+  /// Only the fragment is visible — under the hash URL strategy the engine
+  /// builds `defaultRouteName` from `window.location.hash` alone — so a record
+  /// link reaches the web client as `…/#/clients/<id>?company=<id>`, and
+  /// go_router routes that on its own. What it does *not* do is honour the
+  /// `company`: nothing on the route side reads one, so the record would open
+  /// against whatever workspace happened to be active and render as not-found,
+  /// while the stray query rode into `nav_state` and replayed on every cold
+  /// start. Handing it to [open] instead buys the whole choreography — the
+  /// signed-out and locked hold, the guarded switch — and its closing `go()`
+  /// drops the query.
+  ///
+  /// Synthesised as the **custom-scheme** form deliberately, which carries no
+  /// instance claim: this is the address of the app the user is already in, not
+  /// a link someone sent them, and the web build is not always served from the
+  /// instance it talks to (the demo build is not). A forged company id stays
+  /// bounded — [_open] only switches to a company the session lists.
+  Future<void> openWebInitialLocation(Uri pageUrl) {
+    final route = Uri.tryParse(pageUrl.fragment);
+    if (route == null || route.path.isEmpty) return Future<void>.value();
+    // The fragment first, since that is where the server's bridge page puts it;
+    // ahead of the `#` is a legal way to write the same link by hand, and is
+    // invisible to go_router either way.
+    final company =
+        (route.queryParameters['company'] ??
+                pageUrl.queryParameters['company'] ??
+                '')
+            .trim();
+    if (company.isEmpty) return Future<void>.value();
+
+    final link = Uri(
+      scheme: kAppLinkScheme,
+      host: kAppLinkHost,
+      path: route.path,
+      queryParameters: {'company': company},
+    );
+    // Ignored rather than reported: [open] would toast `invalid_url`, and
+    // nobody typed this URL — it is just the page that was opened. A `company`
+    // on a route that isn't a record (`/#/dashboard?company=…`) is ordinary.
+    if (parseAppDeepLink(link, _registry) == null) return Future<void>.value();
+    return open(link);
+  }
+
   /// Handle one incoming link. Never throws — a malformed or unroutable link
   /// is reported to the user, not to the caller.
   Future<void> open(Uri uri) {

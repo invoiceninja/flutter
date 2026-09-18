@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -35,7 +36,9 @@ import 'package:admin/ui/features/billing_shared/activity/entity_activity_view_m
 import 'package:admin/ui/features/billing_shared/activity/entity_comments_card.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
-import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
+import 'package:admin/ui/core/sync/require_synced.dart';
+import 'package:admin/ui/features/billing_shared/history/build_document_history_tab.dart';
+import 'package:admin/ui/features/billing_shared/history/versioned_pdf_pane.dart';
 import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoice_detail_view_model.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_actions.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/recurring_invoice_status_pill.dart';
@@ -58,6 +61,11 @@ class _RecurringInvoiceDetailScreenState
   late final String _companyId;
   late final EntityActivityViewModel _activityVm;
   final TabSelectionController _selectTab = TabSelectionController();
+
+  /// Which saved version the wide layout's PDF pane is showing; null is the
+  /// live document. Owned by the screen so the History tab and the pane stay
+  /// in step — the narrow layout has no pane and routes instead.
+  final ValueNotifier<String?> _selectedVersion = ValueNotifier<String?>(null);
 
   @override
   void initState() {
@@ -84,6 +92,7 @@ class _RecurringInvoiceDetailScreenState
   void dispose() {
     _activityVm.dispose();
     _selectTab.dispose();
+    _selectedVersion.dispose();
     _vm.dispose();
     super.dispose();
   }
@@ -121,6 +130,7 @@ class _RecurringInvoiceDetailScreenState
         formatter: formatter,
         activityVm: _activityVm,
         selectTab: _selectTab,
+        selectedVersion: _selectedVersion,
       ),
     );
   }
@@ -134,10 +144,12 @@ class _Body extends StatelessWidget {
     required this.formatter,
     required this.activityVm,
     required this.selectTab,
+    required this.selectedVersion,
   });
 
   final RecurringInvoice recurringInvoice;
   final Services services;
+  final ValueNotifier<String?> selectedVersion;
   final String companyId;
   final EntityActivityViewModel activityVm;
   final TabSelectionController selectTab;
@@ -249,6 +261,33 @@ class _Body extends StatelessWidget {
                       formatter: formatter,
                     ),
                   ),
+                  buildDocumentHistoryTab(
+                    context: context,
+                    services: services,
+                    companyId: companyId,
+                    basePath: services.recurringInvoices.api.basePath,
+                    entityId: recurringInvoice.id,
+                    currentAmount: recurringInvoice.amount,
+                    currentUpdatedAt: recurringInvoice.updatedAt,
+                    formatter: formatter,
+                    clientId: recurringInvoice.clientId,
+                    selection: selectedVersion,
+                    // Only wide drives the pane; narrow navigates, so
+                    // nothing there is ever "selected".
+                    showSelection: wide,
+                    onOpenVersion: (String? activityId) {
+                      // Wide keeps the record on screen and swaps the
+                      // pane; narrow has no pane, so it routes.
+                      if (wide) {
+                        selectedVersion.value = activityId;
+                      } else if (requireSynced(context, recurringInvoice.id)) {
+                        context.go(
+                          '/recurring_invoices/${recurringInvoice.id}/pdf'
+                          '${activityId == null ? '' : '?activity_id=$activityId'}',
+                        );
+                      }
+                    },
+                  ),
                   EntityDetailTab(
                     label: recurringInvoice.documents.isEmpty
                         ? context.tr('documents')
@@ -318,7 +357,11 @@ class _Body extends StatelessWidget {
             VerticalDivider(width: 1, color: context.inTheme.border),
             Expanded(
               flex: 6,
-              child: _PdfPane(recurringInvoice: recurringInvoice),
+              child: _PdfPane(
+                recurringInvoice: recurringInvoice,
+                selectedVersion: selectedVersion,
+                formatter: formatter,
+              ),
             ),
           ],
         );
@@ -675,16 +718,29 @@ class _Overview extends StatelessWidget {
 }
 
 class _PdfPane extends StatelessWidget {
-  const _PdfPane({required this.recurringInvoice});
+  const _PdfPane({
+    required this.recurringInvoice,
+    required this.selectedVersion,
+    this.formatter,
+  });
   final RecurringInvoice recurringInvoice;
+  final ValueNotifier<String?> selectedVersion;
+
+  /// Threaded by hand: this screen mounts no `FormatterScope`.
+  final Formatter? formatter;
 
   @override
   Widget build(BuildContext context) {
     final services = context.read<Services>();
-    return BillingDocPdfView(
+    return VersionedPdfPane(
       entity: BillingDocType.recurringInvoice,
       entityNumber: recurringInvoice.number,
-      fetcher: ({String? designId, required bool deliveryNote}) =>
+      selection: selectedVersion,
+      api: services.documentVersions,
+      basePath: services.recurringInvoices.api.basePath,
+      entityId: recurringInvoice.id,
+      formatter: formatter,
+      liveFetcher: ({String? designId, required bool deliveryNote}) =>
           services.recurringInvoices.api.downloadPdf(
             entityJson: recurringInvoice.toApiJson(),
             designId:

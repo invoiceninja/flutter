@@ -178,12 +178,19 @@ const Map<int, ActivityTone> kActivityTones = {
   10: ActivityTone.paid, // CREATE_PAYMENT
   29: ActivityTone.paid, // APPROVE_QUOTE
   54: ActivityTone.paid, // PAID_INVOICE
+  137: ActivityTone.paid, // ACCEPT_PURCHASE_ORDER — the vendor side of 29
   // A record was created or edited.
   4: ActivityTone.draft, // CREATE_INVOICE
   5: ActivityTone.draft, // UPDATE_INVOICE
   11: ActivityTone.draft, // UPDATE_PAYMENT — an edit, not a receipt
+  14: ActivityTone.draft, // CREATE_CREDIT
+  15: ActivityTone.draft, // UPDATE_CREDIT
   18: ActivityTone.draft, // CREATE_QUOTE
   19: ActivityTone.draft, // UPDATE_QUOTE
+  100: ActivityTone.draft, // CREATE_RECURRING_INVOICE
+  101: ActivityTone.draft, // UPDATE_RECURRING_INVOICE
+  130: ActivityTone.draft, // CREATE_PURCHASE_ORDER
+  131: ActivityTone.draft, // UPDATE_PURCHASE_ORDER
 
   34: ActivityTone.expense, // CREATE_EXPENSE
   47: ActivityTone.expense, // UPDATE_EXPENSE

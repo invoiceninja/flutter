@@ -63,6 +63,7 @@ Plus two non-negotiables carried from admin-portal:
 | Adding a create affordance to the kanban board (its `+ New Task` footer, or a FAB) | `docs/tasks-views.md` § The kanban board is the one Tasks view with no create FAB · `test/lint/tasks_view_wiring_test.dart` |
 | Collapsing a filter bar to an icon, or the removable-chip strip that replaces it | `docs/pane-width-and-overflow.md` § A filter surface too tall for its pane becomes an icon · `lib/ui/core/widgets/filter_icon_button.dart` |
 | Changing a Tasks view header (day / week / month nav), or its narrow branch | `docs/pane-width-and-overflow.md` § The three time-oriented Tasks headers · `lib/ui/features/tasks/widgets/calendar/task_calendar_header.dart` |
+| Viewing an older version of an invoice / quote / credit / PO / recurring invoice, or its History tab | § Document version history · `docs/document-version-history.md` · `lib/data/services/document_versions_api.dart` |
 | Adding a tab to a billing-doc edit screen, the PDF preview button, or a scrollable strip that runs off the edge | `docs/pane-width-and-overflow.md` § A tab strip is a width budget · `lib/ui/core/widgets/scroll_edge_fades.dart` |
 | Changing the Items tab's add affordances or empty state on a billing-doc edit screen, or a FAB there | `docs/pane-width-and-overflow.md` § A `Stack` mounted for a FAB · `test/lint/billing_items_affordance_test.dart` |
 | A create `+` covering the last row of a list, or adding a FAB over any scrollable | `docs/pane-width-and-overflow.md` § A floating button is a bottom inset · `lib/ui/core/utils/fab_clearance.dart` · `test/lint/fab_clearance_wiring_test.dart` |
@@ -435,6 +436,19 @@ Every render surface must wire `guardedOnTap(context, item)` rather than `item.o
 - **Anything that must fetch once a Sync pass is over listens to `ResyncController.lastCompletion` — the idle falling edge also fires for a cancelled pass.** → `docs/sync.md` § A screen that refetches after a Sync pass listens to `lastCompletion`
 - The local `is_dirty` flag is **layered onto the domain model** in `<Repository>._fromRow` (e.g. `ClientRepository._fromRow`) — `<Entity>.fromApi` defaults it to `false`, the repo overlays the value from the Drift row. Without the overlay, an unsaved edit shows up as clean after app restart.
 
+## Document version history
+
+The five billing documents list their saved versions on a **History** tab, each opening that
+version's PDF (invoiceninja/flutter#168). Every rule below is invisible at the call site.
+
+- **A backup exists only for invoice / quote / credit / recurring invoice / purchase order, and it is a rendered HTML document — not a data snapshot, so nothing can diff or restore it.** → `docs/document-version-history.md`
+- **`?include=activities.history` is the only include that works; `?include=history` is dropped and `POST /activities/entity` calls `->without('backup')`.** → `docs/document-version-history.md` § `activities.history` is the only include that works
+- **The `history` object is serialized even when there is no backup, so `history.id` non-empty is the gate — never `history != null`.** → `docs/document-version-history.md` § The `history` object is present even when there is no backup
+- **The list is capped at 50 activities with no pagination, free/trialing hosted accounts get no backups at all, and the UI says so rather than implying an empty or complete list.** → `docs/document-version-history.md` § Three server limits the UI has to admit
+- **`download_entity` is the one call on this API where a 404 is a real data condition, not a bad URL.** → `docs/document-version-history.md` § A 404 here is a real data condition
+- **Wide swaps the detail screen's existing PDF pane; only narrow routes to `/:id/pdf?activity_id=` — and that screen must never be re-keyed on the selection.** → `docs/document-version-history.md` § Wide swaps the pane; narrow routes
+- **`no_history` is unusable (Greek in `fr.json`), and no bundle has a plural `versions` key — so the tab is `tr('history')` with `Icons.layers_outlined`, never the Activity tab's clock.** → `docs/document-version-history.md` § Two strings that look available and are not
+
 ## Data loading — bundled vs per-entity
 
 Before adding a new module, decide how its data is fetched. Two buckets:
@@ -644,6 +658,7 @@ invoiceninja://app/clients/Wpmbk5ezJn?company=Xrtq1oa8Aq     <- fallback, still 
 - **Five things fail silently if you change this: double cold-start delivery, the dropped query string, the auth + biometric gate, the guarded company switch, and validating a path before `go()`.** → `docs/deep-links.md` § Five things that fail silently
 - **Every detail screen passes `hydrate:` to `EntityDetailScaffold`, and `emptyAction:` gives a genuinely missing record a way onward — landing on an unopened record is the normal case.** → `docs/deep-links.md` § Landing on a record the recipient never opened
 - **Two registry notes: a settings-hosted entity must still declare `detailBuilder`, and a settings `:id` route needs its own id-keyed subtree.** → `docs/deep-links.md` § Two registry notes this depends on
+- **On web nothing delivers the link — it *is* the page URL, so `?company=` is honoured once at boot and stripped before it can persist.** → `docs/deep-links.md` § On web the link is the page URL
 
 **Adding an entity?** `test/lint/entity_copy_link_coverage_test.dart` fails the
 build unless its action enum declares `copyLink` — nothing in the type system

@@ -8,6 +8,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/calendar_week_start.dart';
+import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
@@ -197,7 +198,21 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
                   onEditFilters: _openFilters,
                 ),
                 _WeeklyHeader(formatter: _formatter, wide: wide),
-                Expanded(child: WeeklyGrid(formatter: _formatter)),
+                // Clear the `+` above (invoiceninja/flutter#167). Around the
+                // grid, not inside its scroll view: the totals row is pinned
+                // *outside* that scroll so it stays at the bottom, and padding
+                // the scroll could never lift it off the button. The whole grid
+                // rises instead, leaving page background under the totals row —
+                // which reads like a list scrolled to its end, where the
+                // alternative leaves the grand total permanently covered.
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: fabScrollClearance(context),
+                    ),
+                    child: WeeklyGrid(formatter: _formatter),
+                  ),
+                ),
               ],
             ),
           ),

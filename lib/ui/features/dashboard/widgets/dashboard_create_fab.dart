@@ -18,13 +18,6 @@ class QuickCreateOption {
   final IconData icon;
 }
 
-/// How much of the body's bottom edge [DashboardCreateFab] covers: a 56 px
-/// button plus Material's 16 px margin. The Scaffold measures both from the
-/// bottom safe inset, which the dashboard body's `SafeArea` has already
-/// removed. So a list padded by this much more can scroll its last card clear
-/// of the button.
-const double kDashboardFabClearance = 56 + kFloatingActionButtonMargin;
-
 /// The narrow dashboard's `+` (invoiceninja/flutter#164). It is the same
 /// bottom-right button every list screen carries, but it opens
 /// [showQuickCreateSheet], a choice of what to create, instead of a single

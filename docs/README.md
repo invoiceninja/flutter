@@ -21,7 +21,7 @@ read-it-first orientation for a new developer.
 - [`integration-tests.md`](integration-tests.md) — **Integration tests.** `integration_test/app_smoke_test.dart` boots the real `InvoiceNinjaApp` with in-memory Drift + `InMemoryTokenStorage` and a `MockClient`.
 - [`keyboard.md`](keyboard.md) — **The keyboard layer.** Shortcut discoverability, the focus invariant the whole keyboard layer hangs off, the `G`-leader table, and how a key is drawn in a cap.
 - [`migrations.md`](migrations.md) — **Drift schema migrations.** **The app is shipped (beta).** Installed databases hold real user data and unsynced outbox.
-- [`pane-width-and-overflow.md`](pane-width-and-overflow.md) — **When content doesn't fit its pane.** Four surfaces that overflowed a narrow pane, and the arithmetic behind each fix.
+- [`pane-width-and-overflow.md`](pane-width-and-overflow.md) — **When content doesn't fit its pane.** Five surfaces that overflowed a narrow pane, and the arithmetic behind each fix.
 - [`pickers.md`](pickers.md) — **Searchable pickers.** The main file carries which widget to reach for and one line per rule; this doc carries the evidence.
 - [`popup-dismissal.md`](popup-dismissal.md) — **Overflow menus and popups.** Which glyph an overflow menu wears, and how a surface that is not a route gets closed.
 - [`probing-the-demo-api.md`](probing-the-demo-api.md) — **Probing the demo API.** The main file lists the legacy code pointers; this doc carries the live-server probe workflow.

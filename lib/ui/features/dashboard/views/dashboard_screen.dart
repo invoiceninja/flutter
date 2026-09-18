@@ -19,6 +19,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/activity/activity_deep_link.dart';
 import 'package:admin/ui/features/dashboard/helpers/card_deep_link.dart';
@@ -460,7 +461,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           context,
                                           fabClearance: createOptions.isEmpty
                                               ? 0
-                                              : kDashboardFabClearance,
+                                              : kFabClearance,
                                         )),
                           ),
                         ),

@@ -39,6 +39,22 @@ class TaskCalendarDayCell extends StatelessWidget {
   static const _maxChips = 3;
   static const _maxEventChips = 2;
 
+  /// Interior padding on every edge, and the side of the day-number circle.
+  /// Named so [minHeight] is derived from the two numbers the build method
+  /// actually lays out, rather than repeating them.
+  static const double _padding = 4;
+  static const double _dayCircle = 22;
+
+  /// The least vertical space a cell needs to render its date at all: the day
+  /// circle inside its padding.
+  ///
+  /// Below this the cell clips the date itself, and does so **silently** — the
+  /// content sits in a `NeverScrollableScrollPhysics` scroll view precisely so
+  /// a short grid row cannot throw. So anything that takes height away from the
+  /// grid has to clamp against this rather than trust an overflow to complain;
+  /// see [kTaskCalendarMinGridHeight].
+  static const double minHeight = _dayCircle + _padding * 2;
+
   void _openDay(BuildContext context) =>
       context.go('/tasks?view=daily&date=${day.toIso()}');
 
@@ -66,7 +82,7 @@ class TaskCalendarDayCell extends StatelessWidget {
           color: tokens.surface,
           border: Border.all(color: tokens.border, width: 0.5),
         ),
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(_padding),
         child: Opacity(
           opacity: inMonth ? 1 : 0.45,
           // Whole cell content in one non-scrollable scroll view: clips
@@ -126,8 +142,8 @@ class TaskCalendarDayCell extends StatelessWidget {
       return Align(
         alignment: Alignment.topLeft,
         child: Container(
-          width: 22,
-          height: 22,
+          width: _dayCircle,
+          height: _dayCircle,
           decoration: BoxDecoration(
             color: tokens.accent,
             shape: BoxShape.circle,

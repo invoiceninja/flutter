@@ -65,6 +65,7 @@ Plus two non-negotiables carried from admin-portal:
 | Changing a Tasks view header (day / week / month nav), or its narrow branch | `docs/pane-width-and-overflow.md` § The three time-oriented Tasks headers · `lib/ui/features/tasks/widgets/calendar/task_calendar_header.dart` |
 | Adding a tab to a billing-doc edit screen, the PDF preview button, or a scrollable strip that runs off the edge | `docs/pane-width-and-overflow.md` § A tab strip is a width budget · `lib/ui/core/widgets/scroll_edge_fades.dart` |
 | Changing the Items tab's add affordances or empty state on a billing-doc edit screen, or a FAB there | `docs/pane-width-and-overflow.md` § A `Stack` mounted for a FAB · `test/lint/billing_items_affordance_test.dart` |
+| A create `+` covering the last row of a list, or adding a FAB over any scrollable | `docs/pane-width-and-overflow.md` § A floating button is a bottom inset · `lib/ui/core/utils/fab_clearance.dart` · `test/lint/fab_clearance_wiring_test.dart` |
 | Making a name in a list row or table cell tappable (or a link visible on touch) | `docs/row-actions-and-values.md` § A narrow list row has exactly one destination · `test/lint/no_list_tile_name_link_test.dart` |
 | Adding an action that only navigates (View client / View vendor) | `docs/row-actions-and-values.md` § A pure navigation action must never reach an edit screen · `test/lint/view_party_action_coverage_test.dart` |
 | Building a list tile cell, empty state, search field, or detail KPI cell | `lib/ui/core/list/cell_slot.dart` · `entity_list_empty_state.dart` · `search/entity_token_search_field.dart` · `lib/ui/core/detail/kpi_cell.dart` · `test/lint/shared_list_widgets_test.dart` |
@@ -180,6 +181,7 @@ When styling a page: read `design_tokens.dart`, reuse `InTheme`, prefer `Theme.o
 - **The three time-oriented Tasks headers take the screen's pane bool, and the calendar one had no width branch at all.** → `docs/pane-width-and-overflow.md` § The three time-oriented Tasks headers take the screen's pane bool
 - **A tab strip is a width budget, and Material spends 52 px of it before you write a line.** → `docs/pane-width-and-overflow.md` § A tab strip is a width budget, and Material spends 52 px first
 - **A `Stack` mounted for a FAB loosens what is under it, and that is what left an empty state in the corner.** → `docs/pane-width-and-overflow.md` § A `Stack` mounted for a FAB loosens what is under it
+- **A floating button is a bottom inset every scrollable under it has to pay, and passing that padding means owning the safe inset too.** → `docs/pane-width-and-overflow.md` § A floating button is a bottom inset every scrollable under it has to pay
 - **A landscape phone is not a small desktop.** → `docs/touch-targets.md` § A landscape phone is not a small desktop
 - **One surface, one safe-area owner — and the owner has to be the *last* thing, not the first.** → `docs/sidebar-and-shell.md` § One surface, one safe-area owner — and the owner must be last
 - **`Ink` is banned (`test/lint/no_ink_widget_test.dart`) — paint a tappable surface on a *local* `Material`.** → `docs/sidebar-and-shell.md` § `Ink` is banned — paint a tappable surface on a local `Material`

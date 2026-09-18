@@ -73,7 +73,7 @@ class MobileDashboardBody extends StatelessWidget {
   final Formatter formatter;
 
   /// Extra bottom padding, so the last panel can scroll clear of the screen's
-  /// `+` button. The screen passes `kDashboardFabClearance` when it shows the
+  /// `+` button. The screen passes `kFabClearance` when it shows the
   /// button and 0 when it doesn't.
   final double fabClearance;
 

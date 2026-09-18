@@ -8,6 +8,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/tasks/view_models/task_daily_view_model.dart';
 import 'package:admin/ui/features/tasks/views/task_list_screen.dart';
@@ -201,6 +202,11 @@ class _DailyList extends StatelessWidget {
     }
     final tokens = context.inTheme;
     return ListView.separated(
+      // Clear the screen's `+` (invoiceninja/flutter#167). Inside the scroll
+      // view rather than around it, so rows travel *through* the padded region
+      // instead of stopping short of it. `fabScrollClearance` carries the
+      // bottom safe inset, which a non-null padding turns off.
+      padding: EdgeInsets.only(bottom: fabScrollClearance(context)),
       itemCount: rows.length,
       separatorBuilder: (_, _) => Divider(height: 1, color: tokens.border),
       itemBuilder: (context, i) {

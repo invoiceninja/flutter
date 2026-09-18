@@ -10,6 +10,33 @@ import 'package:admin/ui/features/tasks/view_models/task_calendar_view_model.dar
 import 'package:admin/ui/features/tasks/widgets/calendar/task_calendar_day_cell.dart';
 import 'package:admin/utils/formatting.dart';
 
+/// Vertical chrome this widget spends before the week rows get any height: the
+/// 16 px of its own padding, plus the weekday header strip (an 11 px label
+/// inside 6 px of padding each side, ~27 px rendered).
+const double _kGridChrome = 16 + 27;
+
+/// The least height the month grid can take before its day cells begin clipping
+/// the date itself — six week rows at [TaskCalendarDayCell.minHeight] plus this
+/// widget's own chrome.
+///
+/// The grid never scrolls, so every pixel taken from it comes out of the week
+/// rows, and the cells swallow the loss without throwing (see
+/// [TaskCalendarDayCell.minHeight]). Anything insetting the grid clamps against
+/// this instead of trusting an overflow to complain.
+const double kTaskCalendarMinGridHeight =
+    6 * TaskCalendarDayCell.minHeight + _kGridChrome;
+
+/// How much bottom clearance the grid can afford in [availableHeight] without
+/// dropping below [kTaskCalendarMinGridHeight], never more than [desired].
+///
+/// Continuous rather than a breakpoint: a phone in landscape gets 0 and a phone
+/// in portrait the full amount, with everything between degrading smoothly
+/// instead of snapping at some width nobody can see coming.
+double taskCalendarFabClearance({
+  required double availableHeight,
+  required double desired,
+}) => (availableHeight - kTaskCalendarMinGridHeight).clamp(0.0, desired);
+
 /// The month grid: a 7-column weekday header + 6 equal-height week rows of day
 /// cells. Tasks are grouped by day once per build; each cell renders its own
 /// chips. The grid fills the available height so the layout never scrolls.

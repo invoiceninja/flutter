@@ -38,6 +38,7 @@ import 'package:admin/ui/core/list/entity_list_status_tabs.dart';
 import 'package:admin/ui/core/list/deep_link_filter_intent.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart'
     show MasterDetailNavScope, goToCreateRoute;
+import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
 import 'package:admin/ui/core/list/entity_sort_filter_sheet.dart';
 import 'package:admin/ui/core/list/generic_list_view_model.dart';
@@ -1512,7 +1513,24 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
       );
     }
 
+    // The FAB (see the `Scaffold` above) floats over the bottom-right of the
+    // body, and `Scaffold` never insets the body for it — so without this the
+    // last row sits under the button at every scroll offset, which on a narrow
+    // row is exactly where its `⋮` menu lives (invoiceninja/flutter#167).
+    //
+    // Gated on the FAB's *stable* conditions only. It is also hidden while
+    // `selecting`, but the padding deliberately is not: the status strip above
+    // stays laid out through multi-select for the same reason, and changing the
+    // scroll extent on every enter/exit would jump the rows under the thumb.
+    final showsFab = !wide && !widget.embedded && widget.canCreate;
     final listView = ListView.builder(
+      // `null`, never `EdgeInsets.zero`, on the other branch: a null padding is
+      // what lets `BoxScrollView` apply the bottom safe inset itself. Once we
+      // pass one we own that inset, which is why `fabScrollClearance` includes
+      // it. See `lib/ui/core/utils/fab_clearance.dart`.
+      padding: showsFab
+          ? EdgeInsets.only(bottom: fabScrollClearance(context))
+          : null,
       // Embedded: shrink-wrap into the detail page's scroll (single
       // scrollbar, React-like). Standalone: own scrollable + pull-to-
       // refresh.

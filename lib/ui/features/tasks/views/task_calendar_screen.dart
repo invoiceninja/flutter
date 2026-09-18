@@ -8,6 +8,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/features/shell/widgets/app_drawer.dart';
 import 'package:admin/ui/core/utils/calendar_week_start.dart';
+import 'package:admin/ui/core/utils/fab_clearance.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
 import 'package:admin/ui/features/tasks/view_models/calendar_connection_view_model.dart';
 import 'package:admin/ui/features/tasks/view_models/task_calendar_view_model.dart';
@@ -249,7 +250,31 @@ class _TaskCalendarScreenState extends State<TaskCalendarScreen> {
                   onEditFilters: _openFilters,
                 ),
                 TaskCalendarHeader(formatter: _formatter, wide: wide),
-                Expanded(child: TaskCalendarGrid(formatter: _formatter)),
+                // Clear the `+` above (invoiceninja/flutter#167) with whatever
+                // height is going spare. Around the grid, because the month
+                // grid never scrolls — its six week rows are `Expanded`, so
+                // this is the only way to get the bottom-right day cell out
+                // from under the button.
+                //
+                // Clamped rather than spent unconditionally, because those rows
+                // are where the pixels come from and the cells clip SILENTLY.
+                // The full 80 px is free in portrait (120 -> 107 px a row, all
+                // three chips still fit) but takes a landscape phone from 37 to
+                // 23, under the 30 px a date needs, and the dates would simply
+                // vanish with nothing thrown.
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => Padding(
+                      padding: EdgeInsets.only(
+                        bottom: taskCalendarFabClearance(
+                          availableHeight: constraints.maxHeight,
+                          desired: fabScrollClearance(context),
+                        ),
+                      ),
+                      child: TaskCalendarGrid(formatter: _formatter),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

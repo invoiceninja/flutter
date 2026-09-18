@@ -80,6 +80,9 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
   GeneratedColumn<int>? get archivedAtColumn => quotes.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => quotes.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

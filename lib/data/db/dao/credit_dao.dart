@@ -77,6 +77,9 @@ class CreditDao extends BaseEntityDao<$CreditsTable, CreditRow>
   GeneratedColumn<int>? get archivedAtColumn => credits.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => credits.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

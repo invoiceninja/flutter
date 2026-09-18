@@ -84,6 +84,9 @@ class RecurringExpenseDao
   @override
   GeneratedColumn<int>? get archivedAtColumn => recurringExpenses.archivedAt;
 
+  @override
+  GeneratedColumn<int>? get updatedAtColumn => recurringExpenses.updatedAt;
+
   /// Windowed list watch. Filter by state + free-text search + status chip
   /// (the 5 [kRecurringExpenseStatus*] values, or `null` for "all"). The
   /// status SQL fragments mirror admin-portal `expense_model.dart:817-854`

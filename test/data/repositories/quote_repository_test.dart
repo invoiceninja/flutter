@@ -105,6 +105,11 @@ void main() {
           (repo as QuoteRepository).save(companyId: companyId, quote: entity),
       delete: (repo, {required companyId, required id}) =>
           (repo as QuoteRepository).delete(companyId: companyId, id: id),
+      applyRefreshDelta: (repo, {required companyId, required bundle}) =>
+          (repo as QuoteRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          ),
     ),
   );
 

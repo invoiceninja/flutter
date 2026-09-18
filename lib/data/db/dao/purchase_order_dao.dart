@@ -77,6 +77,9 @@ class PurchaseOrderDao
   GeneratedColumn<int>? get archivedAtColumn => purchaseOrders.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => purchaseOrders.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

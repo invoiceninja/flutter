@@ -84,6 +84,9 @@ class ProductDao extends BaseEntityDao<$ProductsTable, ProductRow>
   @override
   GeneratedColumn<int>? get archivedAtColumn => products.archivedAt;
 
+  @override
+  GeneratedColumn<int>? get updatedAtColumn => products.updatedAt;
+
   /// The stock counters are the only badge modes that need values from outside
   /// the row: the company's `track_inventory` switch, and its
   /// `inventory_notification_threshold` as the fallback when a product carries

@@ -719,6 +719,26 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
 
   // -------------------- conversions --------------------
 
+  /// Apply this entity's slice of a `/refresh` DELTA envelope.
+  ///
+  /// A top-up, not a bundle: tasks still load page-by-page through
+  /// `BaseEntityApi`. Upsert-only and dirty-preserving, the cursor is never
+  /// marked full, and a row older than the one already stored is dropped —
+  /// see `BaseEntityRepository.applyRefreshDeltaTemplate` and `docs/sync.md`
+  /// § The refresh delta tops up the browsable tables.
+  Future<void> applyRefreshDelta({
+    required String companyId,
+    required List<TaskApi> bundle,
+  }) => applyRefreshDeltaTemplate<TaskApi, TasksCompanion>(
+    companyId: companyId,
+    bundle: bundle,
+    idOf: (a) => a.id,
+    updatedAtOf: (a) => a.updatedAt,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) =>
+        db.taskDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
+    storedUpdatedAt: db.taskDao.updatedAtAmong,
+  );
   TasksCompanion _apiToCompanion(TaskApi a, String companyId) {
     // Sorted, because `_fromRow` rebuilds the domain through `Task.fromApi`,
     // which sorts — so deriving the COLUMN from the raw order would let the

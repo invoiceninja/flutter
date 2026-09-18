@@ -50,6 +50,11 @@ void main() {
           ),
       delete: (repo, {required companyId, required id}) =>
           repo.delete(companyId: companyId, id: id),
+      applyRefreshDelta: (repo, {required companyId, required bundle}) =>
+          (repo as PurchaseOrderRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          ),
     ),
   );
 }

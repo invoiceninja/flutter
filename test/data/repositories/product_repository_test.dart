@@ -51,6 +51,11 @@ EntityRepositoryContractFixture<Product, ProductApi> _productFixture() =>
           ),
       delete: (repo, {required companyId, required id}) =>
           (repo as ProductRepository).delete(companyId: companyId, id: id),
+      applyRefreshDelta: (repo, {required companyId, required bundle}) =>
+          (repo as ProductRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          ),
     );
 
 void main() {

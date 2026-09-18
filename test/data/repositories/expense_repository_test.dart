@@ -50,6 +50,19 @@ class _ExpenseFixture
   String idOf(Expense item) => item.id;
 
   @override
+  Future<void> Function(
+    BaseEntityRepository<Expense, ExpenseApi> repo, {
+    required String companyId,
+    required List<ExpenseApi> bundle,
+  })?
+  get applyRefreshDelta =>
+      (repo, {required companyId, required bundle}) =>
+          (repo as ExpenseRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          );
+
+  @override
   bool isDirtyOf(Expense item) => item.isDirty;
 
   @override

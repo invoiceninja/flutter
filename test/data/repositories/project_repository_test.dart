@@ -50,6 +50,19 @@ class _ProjectFixture
   String idOf(Project item) => item.id;
 
   @override
+  Future<void> Function(
+    BaseEntityRepository<Project, ProjectApi> repo, {
+    required String companyId,
+    required List<ProjectApi> bundle,
+  })?
+  get applyRefreshDelta =>
+      (repo, {required companyId, required bundle}) =>
+          (repo as ProjectRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          );
+
+  @override
   bool isDirtyOf(Project item) => item.isDirty;
 
   @override

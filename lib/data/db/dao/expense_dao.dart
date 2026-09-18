@@ -81,6 +81,9 @@ class ExpenseDao extends BaseEntityDao<$ExpensesTable, ExpenseRow>
   GeneratedColumn<int>? get archivedAtColumn => expenses.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => expenses.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

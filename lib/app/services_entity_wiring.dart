@@ -133,6 +133,22 @@ typedef BundleApplier =
       required bool fullSync,
     });
 
+/// Wraps a browsable-entity delta applier so it runs on a DELTA refresh only.
+///
+/// On a FULL sync the `/refresh` envelope is the entire dataset for every
+/// company (`current_company=false&updated_at=0&first_load=true`), and
+/// `Services.resyncAllEntities` already owns that path — applying here would
+/// turn a cold start into one very long write inside the per-company
+/// transaction. Keeping the policy in one named place rather than fourteen
+/// copies of `if (fullSync) return;` is what stops a future entity from
+/// quietly shipping without it.
+BundleApplier _deltaOnly(
+  Future<void> Function(String companyId, CompanyEnvelopeApi company) apply,
+) => ({required companyId, required company, required fullSync}) async {
+  if (fullSync) return;
+  await apply(companyId, company);
+};
+
 /// The full set of per-entity APIs + repositories built by [wireEntities],
 /// returned typed so [Services.build] can unpack them into its named
 /// constructor params without going through a runtime cast bag.
@@ -201,6 +217,7 @@ class WiredEntities {
     required this.tokensApi,
     required this.tokens,
     required this.bundleAppliers,
+    required this.refreshDeltaAppliers,
     required this.countWatchers,
     required this.firstPagePrefetchers,
     required this.repos,
@@ -274,6 +291,22 @@ class WiredEntities {
   /// `Services`. Populated only for entities with a workspace sidebar nav row
   /// (entries whose `EntityModuleSpec.sidebarSection != none`).
   final Map<EntityType, SidebarCountWatcher> countWatchers;
+
+  /// Browsable-entity DELTA appliers, keyed by type.
+  ///
+  /// These are NOT bundles: all fourteen still load page-by-page through
+  /// `BaseEntityApi` (CLAUDE.md § Data loading). The `/refresh` envelope
+  /// already carries each of them filtered to `updated_at >= <watermark>`
+  /// because the server parses the full `first_load` include set
+  /// unconditionally, and v2 used to discard it — which is why a long-lived
+  /// session showed days-old data (invoiceninja/flutter#170).
+  ///
+  /// A map rather than a list so `refresh_delta_coverage_test` can assert every
+  /// workspace-sidebar entity has one; a new list entity shipping with no delta
+  /// path would otherwise be invisible. Each value is wrapped in [_deltaOnly],
+  /// so a FULL sync skips them entirely — `Services.resyncAllEntities` owns
+  /// that path.
+  final Map<EntityType, BundleApplier> refreshDeltaAppliers;
 
   /// First-page prefetch callbacks per entity type. Fired in parallel on
   /// every `auth.onActiveCompanyChanged` (login, refresh, switchCompany,
@@ -1964,6 +1997,70 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
     EntityType.transaction: (c, mode, user) => bankTransactionRepo
         .watchBadgeCount(companyId: c, modeId: mode, currentUserId: user),
   };
+  // Browsable-entity DELTA appliers — see [WiredEntities.refreshDeltaAppliers].
+  // Every entry is `deltaOnly`, so a FULL sync skips the whole map.
+  final refreshDeltaAppliers = <EntityType, BundleApplier>{
+    EntityType.client: _deltaOnly(
+      (c, co) => clientRepo.applyRefreshDelta(companyId: c, bundle: co.clients),
+    ),
+    EntityType.product: _deltaOnly(
+      (c, co) =>
+          productRepo.applyRefreshDelta(companyId: c, bundle: co.products),
+    ),
+    EntityType.invoice: _deltaOnly(
+      (c, co) =>
+          invoiceRepo.applyRefreshDelta(companyId: c, bundle: co.invoices),
+    ),
+    EntityType.recurringInvoice: _deltaOnly(
+      (c, co) => recurringInvoiceRepo.applyRefreshDelta(
+        companyId: c,
+        bundle: co.recurringInvoices,
+      ),
+    ),
+    EntityType.quote: _deltaOnly(
+      (c, co) => quoteRepo.applyRefreshDelta(companyId: c, bundle: co.quotes),
+    ),
+    EntityType.credit: _deltaOnly(
+      (c, co) => creditRepo.applyRefreshDelta(companyId: c, bundle: co.credits),
+    ),
+    EntityType.payment: _deltaOnly(
+      (c, co) =>
+          paymentRepo.applyRefreshDelta(companyId: c, bundle: co.payments),
+    ),
+    EntityType.task: _deltaOnly(
+      (c, co) => taskRepo.applyRefreshDelta(companyId: c, bundle: co.tasks),
+    ),
+    EntityType.project: _deltaOnly(
+      (c, co) =>
+          projectRepo.applyRefreshDelta(companyId: c, bundle: co.projects),
+    ),
+    EntityType.expense: _deltaOnly(
+      (c, co) =>
+          expenseRepo.applyRefreshDelta(companyId: c, bundle: co.expenses),
+    ),
+    EntityType.recurringExpense: _deltaOnly(
+      (c, co) => recurringExpenseRepo.applyRefreshDelta(
+        companyId: c,
+        bundle: co.recurringExpenses,
+      ),
+    ),
+    EntityType.vendor: _deltaOnly(
+      (c, co) => vendorRepo.applyRefreshDelta(companyId: c, bundle: co.vendors),
+    ),
+    EntityType.purchaseOrder: _deltaOnly(
+      (c, co) => purchaseOrderRepo.applyRefreshDelta(
+        companyId: c,
+        bundle: co.purchaseOrders,
+      ),
+    ),
+    EntityType.transaction: _deltaOnly(
+      (c, co) => bankTransactionRepo.applyRefreshDelta(
+        companyId: c,
+        bundle: co.bankTransactions,
+      ),
+    ),
+  };
+
   final firstPagePrefetchers = <EntityType, Future<bool> Function(String)>{
     EntityType.client: (c) =>
         clientRepo.ensurePageLoaded(companyId: c, page: 1),
@@ -2135,6 +2232,7 @@ WiredEntities wireEntities(EntityWiringContext ctx) {
             fullSync: fullSync,
           ),
     ],
+    refreshDeltaAppliers: refreshDeltaAppliers,
     countWatchers: countWatchers,
     firstPagePrefetchers: firstPagePrefetchers,
   );

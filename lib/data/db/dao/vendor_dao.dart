@@ -31,6 +31,9 @@ class VendorDao extends BaseEntityDao<$VendorsTable, VendorRow>
   @override
   GeneratedColumn<int>? get archivedAtColumn => vendors.archivedAt;
 
+  @override
+  GeneratedColumn<int>? get updatedAtColumn => vendors.updatedAt;
+
   /// The vendors table itself has no status, balance or date to count — so
   /// both counters here look *outward*, at what the user owes each vendor.
   /// The number is a count of **vendors**, not documents: "3" means three

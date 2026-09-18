@@ -464,6 +464,32 @@ class RecurringExpenseRepository
 
   // -------------------- conversions --------------------
 
+  /// Apply this entity's slice of a `/refresh` DELTA envelope.
+  ///
+  /// A top-up, not a bundle: recurring expenses still load page-by-page through
+  /// `BaseEntityApi`. Upsert-only and dirty-preserving, the cursor is never
+  /// marked full, and a row older than the one already stored is dropped —
+  /// see `BaseEntityRepository.applyRefreshDeltaTemplate` and `docs/sync.md`
+  /// § The refresh delta tops up the browsable tables.
+  Future<void> applyRefreshDelta({
+    required String companyId,
+    required List<RecurringExpenseApi> bundle,
+  }) =>
+      applyRefreshDeltaTemplate<
+        RecurringExpenseApi,
+        RecurringExpensesCompanion
+      >(
+        companyId: companyId,
+        bundle: bundle,
+        idOf: (a) => a.id,
+        updatedAtOf: (a) => a.updatedAt,
+        toCompanion: (a) => _apiToCompanion(a, companyId),
+        upsert: (byId) => db.recurringExpenseDao.upsertAllPreservingDirty(
+          companyId: companyId,
+          byId: byId,
+        ),
+        storedUpdatedAt: db.recurringExpenseDao.updatedAtAmong,
+      );
   RecurringExpensesCompanion _apiToCompanion(
     RecurringExpenseApi a,
     String companyId,

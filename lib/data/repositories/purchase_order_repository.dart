@@ -483,6 +483,28 @@ class PurchaseOrderRepository
 
   // ── Conversions ────────────────────────────────────────────────────
 
+  /// Apply this entity's slice of a `/refresh` DELTA envelope.
+  ///
+  /// A top-up, not a bundle: purchase orders still load page-by-page through
+  /// `BaseEntityApi`. Upsert-only and dirty-preserving, the cursor is never
+  /// marked full, and a row older than the one already stored is dropped —
+  /// see `BaseEntityRepository.applyRefreshDeltaTemplate` and `docs/sync.md`
+  /// § The refresh delta tops up the browsable tables.
+  Future<void> applyRefreshDelta({
+    required String companyId,
+    required List<PurchaseOrderApi> bundle,
+  }) => applyRefreshDeltaTemplate<PurchaseOrderApi, PurchaseOrdersCompanion>(
+    companyId: companyId,
+    bundle: bundle,
+    idOf: (a) => a.id,
+    updatedAtOf: (a) => a.updatedAt,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) => db.purchaseOrderDao.upsertAllPreservingDirty(
+      companyId: companyId,
+      byId: byId,
+    ),
+    storedUpdatedAt: db.purchaseOrderDao.updatedAtAmong,
+  );
   PurchaseOrdersCompanion _apiToCompanion(
     PurchaseOrderApi a,
     String companyId,

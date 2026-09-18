@@ -44,6 +44,19 @@ class _PaymentFixture
   String idOf(Payment item) => item.id;
 
   @override
+  Future<void> Function(
+    BaseEntityRepository<Payment, PaymentApi> repo, {
+    required String companyId,
+    required List<PaymentApi> bundle,
+  })?
+  get applyRefreshDelta =>
+      (repo, {required companyId, required bundle}) =>
+          (repo as PaymentRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          );
+
+  @override
   bool isDirtyOf(Payment item) => item.isDirty;
 
   @override

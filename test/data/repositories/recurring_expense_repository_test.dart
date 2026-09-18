@@ -53,6 +53,19 @@ class _RecurringExpenseFixture
   String idOf(RecurringExpense item) => item.id;
 
   @override
+  Future<void> Function(
+    BaseEntityRepository<RecurringExpense, RecurringExpenseApi> repo, {
+    required String companyId,
+    required List<RecurringExpenseApi> bundle,
+  })?
+  get applyRefreshDelta =>
+      (repo, {required companyId, required bundle}) =>
+          (repo as RecurringExpenseRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          );
+
+  @override
   bool isDirtyOf(RecurringExpense item) => item.isDirty;
 
   @override

@@ -84,6 +84,9 @@ class InvoiceDao extends BaseEntityDao<$InvoicesTable, InvoiceRow>
   GeneratedColumn<int>? get archivedAtColumn => invoices.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => invoices.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

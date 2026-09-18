@@ -80,6 +80,9 @@ class RecurringInvoiceDao
   GeneratedColumn<int>? get archivedAtColumn => recurringInvoices.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => recurringInvoices.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

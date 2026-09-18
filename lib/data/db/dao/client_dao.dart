@@ -34,6 +34,9 @@ class ClientDao extends BaseEntityDao<$ClientsTable, ClientRow>
   GeneratedColumn<int>? get archivedAtColumn => clients.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => clients.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

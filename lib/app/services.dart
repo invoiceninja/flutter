@@ -324,8 +324,10 @@ class Services implements SidebarBadgeContext {
     required Map<EntityType, SidebarCountWatcher> countWatchers,
     required Map<EntityType, Future<bool> Function(String companyId)>
     firstPagePrefetchers,
+    required Map<EntityType, BundleApplier> refreshDeltaAppliers,
   }) : _countWatchers = countWatchers,
-       _firstPagePrefetchers = firstPagePrefetchers;
+       _firstPagePrefetchers = firstPagePrefetchers,
+       _refreshDeltaAppliers = refreshDeltaAppliers;
 
   final AppDatabase db;
   final AuthRepository auth;
@@ -892,6 +894,18 @@ class Services implements SidebarBadgeContext {
   /// company is seen does this hit the network for every entity.
   Future<void> prefetchSidebarEntities(String companyId) =>
       _runSidebarPrefetch(_firstPagePrefetchers, companyId);
+
+  /// Browsable-entity `/refresh` DELTA appliers keyed by entity type, run from
+  /// the `auth.onPersistBundles` fan-out in [Services.build].
+  final Map<EntityType, BundleApplier> _refreshDeltaAppliers;
+
+  /// EntityTypes topped up from a `/refresh` delta. Derived from
+  /// [_refreshDeltaAppliers] so the wiring and the coverage set can't drift —
+  /// same reason [resyncEntityTypes] exists. `refresh_delta_coverage_test`
+  /// asserts this covers every workspace-sidebar list entity; without it a new
+  /// list entity ships stale-forever inside a long session and nothing fails.
+  Set<EntityType> get refreshDeltaEntityTypes =>
+      _refreshDeltaAppliers.keys.toSet();
 
   /// Re-download every user-browsable ("own route") entity for [companyId] in a
   /// single user-initiated pass — the download half of the "Sync" / "Force full
@@ -1512,6 +1526,38 @@ class Services implements SidebarBadgeContext {
               fullSync: fullSync,
             );
           }
+          // Then the browsable tables' DELTA top-up. Same transaction, so a
+          // refresh that actually changed something is still one commit and
+          // one watch-fire wave; the entity tables are untouched on a quiet
+          // tick, because every applier short-circuits on an empty array. Each
+          // is wrapped in `_deltaOnly`, so this whole loop is a no-op on a full
+          // sync. invoiceninja/flutter#170.
+          //
+          // Isolated per entity, unlike the reference bundles above. The whole
+          // hook runs inside ONE `_db.transaction` whose only try/catch sits
+          // OUTSIDE it (`_persistAndActivate`), so an uncaught throw here would
+          // roll back the reference bundles and the user roster too — settings
+          // silently stop updating because one entity's payload was malformed.
+          // `applyBundleUpsertOnly` opens a nested transaction (a SAVEPOINT),
+          // so catching here rolls back exactly the failing entity. Mirrors
+          // `resyncAllEntities`, which collects per-entity failures rather than
+          // aborting the pass, and names the entity for the same reason.
+          for (final entry in entities.refreshDeltaAppliers.entries) {
+            try {
+              await entry.value(
+                companyId: companyId,
+                company: company,
+                fullSync: fullSync,
+              );
+            } catch (e, st) {
+              _servicesLog.warning(
+                'refresh delta: "${entry.key.name}" failed for company '
+                '$companyId',
+                e,
+                st,
+              );
+            }
+          }
         };
     // Seed the static catalog from the /refresh envelope's `static` blob
     // instead of a separate GET /api/v1/statics. No-op on the empty map a
@@ -1856,6 +1902,7 @@ class Services implements SidebarBadgeContext {
       diagnosticsLog: diagnosticsLog,
       countWatchers: entities.countWatchers,
       firstPagePrefetchers: entities.firstPagePrefetchers,
+      refreshDeltaAppliers: entities.refreshDeltaAppliers,
     );
     return services;
   }

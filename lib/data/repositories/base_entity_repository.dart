@@ -1410,4 +1410,75 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       );
     });
   }
+
+  /// Shared shape for the fourteen browsable entities' `applyRefreshDelta`.
+  ///
+  /// These are **not** bundled entities — they still load page-by-page through
+  /// `BaseEntityApi` (CLAUDE.md § Data loading). This applies the *top-up*
+  /// slice the `/refresh` envelope already carries: the server's
+  /// `refreshResponse()` parses the full `first_load` include set
+  /// unconditionally, so every delta refresh ships each of these tables
+  /// filtered to `updated_at >= <watermark>`. Dropping it on the floor is what
+  /// let a long-lived session show days-old data (invoiceninja/flutter#170).
+  ///
+  /// Two things this adds on top of [applyBundleUpsertOnly]:
+  ///
+  ///  1. **`wasFullSync: false` is not a parameter.** A browsable entity's
+  ///     cursor must never be marked full from a delta, or its own pagination
+  ///     stops back-filling. Hard-coding it means a call site cannot get it
+  ///     wrong.
+  ///  2. **A staleness guard.** The `/refresh` body is computed server-side
+  ///     before it is persisted here, so an outbox echo landing in between
+  ///     holds a NEWER row than the delta does — and that echo has already
+  ///     cleared `is_dirty`, so `upsertAllPreservingDirty` will not skip it.
+  ///     Without the guard the user's just-saved change visibly reverts until
+  ///     the next tick. Rows whose delta `updated_at` is **strictly older**
+  ///     than the stored row are dropped; equal-or-newer still applies, so a
+  ///     legitimate update is never suppressed.
+  ///
+  /// [storedUpdatedAt] is the entity DAO's `updatedAtAmong`. The cursor is
+  /// advanced from the rows that actually applied, so dropping a stale row can
+  /// only make the watermark **lag** — costing at most one cheap idempotent
+  /// re-fetch — and can never walk it past a row we haven't stored. That is
+  /// the same trade [applyBundleUpsertOnly] already makes at an equal
+  /// timestamp: lag is safe, a skip is not.
+  @protected
+  Future<void> applyRefreshDeltaTemplate<TItem, TCompanion>({
+    required String companyId,
+    required List<TItem> bundle,
+    required String Function(TItem) idOf,
+    required int Function(TItem) updatedAtOf,
+    required TCompanion Function(TItem) toCompanion,
+    required Future<void> Function(Map<String, TCompanion> byId) upsert,
+    required Future<Map<String, int>> Function({
+      required String companyId,
+      required List<String> ids,
+    })
+    storedUpdatedAt,
+  }) async {
+    if (bundle.isEmpty) return;
+    final stored = await storedUpdatedAt(
+      companyId: companyId,
+      ids: [for (final a in bundle) idOf(a)],
+    );
+    final fresh = [
+      for (final a in bundle)
+        if (updatedAtOf(a) >= (stored[idOf(a)] ?? 0)) a,
+    ];
+    if (fresh.isNotEmpty) {
+      _log.fine(
+        'refresh delta: $entityTypeName applied ${fresh.length}/'
+        '${bundle.length} row(s) for company $companyId',
+      );
+    }
+    await applyBundleUpsertOnly<TItem, TCompanion>(
+      companyId: companyId,
+      bundle: fresh,
+      idOf: idOf,
+      updatedAtOf: updatedAtOf,
+      toCompanion: toCompanion,
+      upsert: upsert,
+      wasFullSync: false,
+    );
+  }
 }

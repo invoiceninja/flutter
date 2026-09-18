@@ -1,22 +1,36 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/bank_account_api_model.dart';
+import 'package:admin/data/models/api/bank_transaction_api_model.dart';
+import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/client_registration_field_api_model.dart';
 import 'package:admin/data/models/api/company_gateway_api_model.dart';
+import 'package:admin/data/models/api/credit_api_model.dart';
 import 'package:admin/data/models/api/design_api_model.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
+import 'package:admin/data/models/api/expense_api_model.dart';
 import 'package:admin/data/models/api/expense_category_api_model.dart';
 import 'package:admin/data/models/api/group_setting_api_model.dart';
+import 'package:admin/data/models/api/invoice_api_model.dart';
 import 'package:admin/data/models/api/json_coercion.dart';
+import 'package:admin/data/models/api/payment_api_model.dart';
 import 'package:admin/data/models/api/payment_term_api_model.dart';
+import 'package:admin/data/models/api/product_api_model.dart';
+import 'package:admin/data/models/api/project_api_model.dart';
+import 'package:admin/data/models/api/purchase_order_api_model.dart';
+import 'package:admin/data/models/api/quote_api_model.dart';
+import 'package:admin/data/models/api/recurring_expense_api_model.dart';
+import 'package:admin/data/models/api/recurring_invoice_api_model.dart';
 import 'package:admin/data/models/api/schedule_api_model.dart';
 import 'package:admin/data/models/api/subscription_api_model.dart';
+import 'package:admin/data/models/api/task_api_model.dart';
 import 'package:admin/data/models/api/task_status_api_model.dart';
 import 'package:admin/data/models/api/tax_config_api_model.dart';
 import 'package:admin/data/models/api/tax_rate_api_model.dart';
 import 'package:admin/data/models/api/token_api_model.dart';
 import 'package:admin/data/models/api/transaction_rule_api_model.dart';
 import 'package:admin/data/models/api/user_api_model.dart';
+import 'package:admin/data/models/api/vendor_api_model.dart';
 import 'package:admin/data/models/api/webhook_api_model.dart';
 
 part 'login_response_api_model.freezed.dart';
@@ -316,6 +330,69 @@ abstract class CompanyEnvelopeApi with _$CompanyEnvelopeApi {
     @JsonKey(name: 'designs', fromJson: _designListData)
     @Default(<DesignApi>[])
     List<DesignApi> designs,
+    // ---- Browsable entity DELTAS -------------------------------------------
+    // NOT bundles. These fourteen tables still load page-by-page through
+    // `BaseEntityApi` (CLAUDE.md § Data loading); the arrays below are a
+    // *top-up* only. `refreshResponse()` parses the full `first_load` include
+    // set unconditionally, so every `/refresh` already ships each entity
+    // filtered to `updated_at >= <the delta watermark>` — v2 used to drop it on
+    // the floor, which is why a long session showed days-old data
+    // (invoiceninja/flutter#170). Applied by `refreshDeltaAppliers` on a DELTA
+    // refresh only. See `docs/sync.md` § The refresh delta tops up the
+    // browsable tables.
+    //
+    // Every one of these MUST parse through `tolerantList`: they sit on the
+    // same envelope as the session and the reference bundles, so one malformed
+    // row parsed strictly would throw out of `LoginResponseApi.fromJson` and
+    // take the entire refresh down with it.
+    @JsonKey(name: 'clients', fromJson: _clientDeltaListData)
+    @Default(<ClientApi>[])
+    List<ClientApi> clients,
+    @JsonKey(name: 'products', fromJson: _productDeltaListData)
+    @Default(<ProductApi>[])
+    List<ProductApi> products,
+    @JsonKey(name: 'invoices', fromJson: _invoiceDeltaListData)
+    @Default(<InvoiceApi>[])
+    List<InvoiceApi> invoices,
+    @JsonKey(
+      name: 'recurring_invoices',
+      fromJson: _recurringInvoiceDeltaListData,
+    )
+    @Default(<RecurringInvoiceApi>[])
+    List<RecurringInvoiceApi> recurringInvoices,
+    @JsonKey(name: 'quotes', fromJson: _quoteDeltaListData)
+    @Default(<QuoteApi>[])
+    List<QuoteApi> quotes,
+    @JsonKey(name: 'credits', fromJson: _creditDeltaListData)
+    @Default(<CreditApi>[])
+    List<CreditApi> credits,
+    @JsonKey(name: 'payments', fromJson: _paymentDeltaListData)
+    @Default(<PaymentApi>[])
+    List<PaymentApi> payments,
+    @JsonKey(name: 'tasks', fromJson: _taskDeltaListData)
+    @Default(<TaskApi>[])
+    List<TaskApi> tasks,
+    @JsonKey(name: 'projects', fromJson: _projectDeltaListData)
+    @Default(<ProjectApi>[])
+    List<ProjectApi> projects,
+    @JsonKey(name: 'expenses', fromJson: _expenseDeltaListData)
+    @Default(<ExpenseApi>[])
+    List<ExpenseApi> expenses,
+    @JsonKey(
+      name: 'recurring_expenses',
+      fromJson: _recurringExpenseDeltaListData,
+    )
+    @Default(<RecurringExpenseApi>[])
+    List<RecurringExpenseApi> recurringExpenses,
+    @JsonKey(name: 'vendors', fromJson: _vendorDeltaListData)
+    @Default(<VendorApi>[])
+    List<VendorApi> vendors,
+    @JsonKey(name: 'purchase_orders', fromJson: _purchaseOrderDeltaListData)
+    @Default(<PurchaseOrderApi>[])
+    List<PurchaseOrderApi> purchaseOrders,
+    @JsonKey(name: 'bank_transactions', fromJson: _bankTransactionDeltaListData)
+    @Default(<BankTransactionApi>[])
+    List<BankTransactionApi> bankTransactions,
     // Top-level tax fields on the envelope, mirroring `CompanyApi`. Settings
     // → Tax Settings writes these via `host.updateCompany(...)`.
     @JsonKey(name: 'enabled_tax_rates') @Default(0) int enabledTaxRates,
@@ -612,3 +689,35 @@ List<SubscriptionApi> _subscriptionListData(Object? raw) =>
     tolerantList(raw, SubscriptionApi.fromJson, label: 'subscription');
 List<DesignApi> _designListData(Object? raw) =>
     tolerantList(raw, DesignApi.fromJson, label: 'design');
+
+// Browsable-entity delta parsers. One line each, `tolerantList` throughout —
+// see the note on the delta fields above for why strictness here would be a
+// whole-refresh outage rather than one dropped row.
+List<ClientApi> _clientDeltaListData(Object? raw) =>
+    tolerantList(raw, ClientApi.fromJson, label: 'client');
+List<ProductApi> _productDeltaListData(Object? raw) =>
+    tolerantList(raw, ProductApi.fromJson, label: 'product');
+List<InvoiceApi> _invoiceDeltaListData(Object? raw) =>
+    tolerantList(raw, InvoiceApi.fromJson, label: 'invoice');
+List<RecurringInvoiceApi> _recurringInvoiceDeltaListData(Object? raw) =>
+    tolerantList(raw, RecurringInvoiceApi.fromJson, label: 'recurring_invoice');
+List<QuoteApi> _quoteDeltaListData(Object? raw) =>
+    tolerantList(raw, QuoteApi.fromJson, label: 'quote');
+List<CreditApi> _creditDeltaListData(Object? raw) =>
+    tolerantList(raw, CreditApi.fromJson, label: 'credit');
+List<PaymentApi> _paymentDeltaListData(Object? raw) =>
+    tolerantList(raw, PaymentApi.fromJson, label: 'payment');
+List<TaskApi> _taskDeltaListData(Object? raw) =>
+    tolerantList(raw, TaskApi.fromJson, label: 'task');
+List<ProjectApi> _projectDeltaListData(Object? raw) =>
+    tolerantList(raw, ProjectApi.fromJson, label: 'project');
+List<ExpenseApi> _expenseDeltaListData(Object? raw) =>
+    tolerantList(raw, ExpenseApi.fromJson, label: 'expense');
+List<RecurringExpenseApi> _recurringExpenseDeltaListData(Object? raw) =>
+    tolerantList(raw, RecurringExpenseApi.fromJson, label: 'recurring_expense');
+List<VendorApi> _vendorDeltaListData(Object? raw) =>
+    tolerantList(raw, VendorApi.fromJson, label: 'vendor');
+List<PurchaseOrderApi> _purchaseOrderDeltaListData(Object? raw) =>
+    tolerantList(raw, PurchaseOrderApi.fromJson, label: 'purchase_order');
+List<BankTransactionApi> _bankTransactionDeltaListData(Object? raw) =>
+    tolerantList(raw, BankTransactionApi.fromJson, label: 'bank_transaction');

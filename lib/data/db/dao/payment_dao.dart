@@ -83,6 +83,9 @@ class PaymentDao extends BaseEntityDao<$PaymentsTable, PaymentRow>
   GeneratedColumn<int>? get archivedAtColumn => payments.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => payments.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

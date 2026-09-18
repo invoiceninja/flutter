@@ -11,6 +11,7 @@ import 'package:admin/data/db/company_scoped_dao.dart';
 import 'package:admin/data/db/dao/entity_query_helpers.dart';
 import 'package:admin/data/db/tables/bank_transactions_table.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
+import 'package:admin/data/db/dao/base_entity_dao.dart';
 
 // `BankTransactionFieldIds` + `BankTransactionColumnIds` moved to a leaf so this
 // DAO and the Widget-bearing column registry stop importing each other.
@@ -184,21 +185,53 @@ class BankTransactionDao extends DatabaseAccessor<AppDatabase>
   }) async {
     if (byId.isEmpty) return;
     final candidateIds = byId.keys.toList(growable: false);
-    final dirtyQ = selectOnly(bankTransactions)
-      ..addColumns([bankTransactions.id])
-      ..where(
-        bankTransactions.companyId.equals(companyId) &
-            bankTransactions.id.isIn(candidateIds) &
-            bankTransactions.isDirty.equals(true),
-      );
-    final dirty = {
-      for (final r in await dirtyQ.get()) r.read(bankTransactions.id)!,
-    };
+    final dirty = <String>{};
+    // Chunked: a `/refresh` delta can hand this far more ids than the <= 50 a
+    // page used to. See `chunkIdsForSqlIn`.
+    for (final chunk in chunkIdsForSqlIn(candidateIds)) {
+      final dirtyQ = selectOnly(bankTransactions)
+        ..addColumns([bankTransactions.id])
+        ..where(
+          bankTransactions.companyId.equals(companyId) &
+              bankTransactions.id.isIn(chunk) &
+              bankTransactions.isDirty.equals(true),
+        );
+      for (final r in await dirtyQ.get()) {
+        dirty.add(r.read(bankTransactions.id)!);
+      }
+    }
     final filtered = [
       for (final entry in byId.entries)
         if (!dirty.contains(entry.key)) entry.value,
     ];
     await upsertAll(filtered);
+  }
+
+  /// Stored `updated_at` for whichever of [ids] exist in [companyId].
+  ///
+  /// Hand-rolled twin of `BaseEntityDao.updatedAtAmong` — this DAO doesn't
+  /// extend that base (see [upsertAllPreservingDirty] right above, which is
+  /// hand-rolled for the same reason). Backs the staleness guard on the
+  /// `/refresh` delta path; see the base class for why it exists.
+  Future<Map<String, int>> updatedAtAmong({
+    required String companyId,
+    required List<String> ids,
+  }) async {
+    if (ids.isEmpty) return const {};
+    final out = <String, int>{};
+    for (final chunk in chunkIdsForSqlIn(ids)) {
+      final q = selectOnly(bankTransactions)
+        ..addColumns([bankTransactions.id, bankTransactions.updatedAt])
+        ..where(
+          bankTransactions.companyId.equals(companyId) &
+              bankTransactions.id.isIn(chunk),
+        );
+      for (final r in await q.get()) {
+        out[r.read(bankTransactions.id)!] =
+            r.read(bankTransactions.updatedAt) ?? 0;
+      }
+    }
+    return out;
   }
 
   Future<int> deleteById({required String companyId, required String id}) {

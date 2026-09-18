@@ -571,6 +571,26 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
 
   // ── Conversions ────────────────────────────────────────────────────
 
+  /// Apply this entity's slice of a `/refresh` DELTA envelope.
+  ///
+  /// A top-up, not a bundle: quotes still load page-by-page through
+  /// `BaseEntityApi`. Upsert-only and dirty-preserving, the cursor is never
+  /// marked full, and a row older than the one already stored is dropped —
+  /// see `BaseEntityRepository.applyRefreshDeltaTemplate` and `docs/sync.md`
+  /// § The refresh delta tops up the browsable tables.
+  Future<void> applyRefreshDelta({
+    required String companyId,
+    required List<QuoteApi> bundle,
+  }) => applyRefreshDeltaTemplate<QuoteApi, QuotesCompanion>(
+    companyId: companyId,
+    bundle: bundle,
+    idOf: (a) => a.id,
+    updatedAtOf: (a) => a.updatedAt,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) =>
+        db.quoteDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
+    storedUpdatedAt: db.quoteDao.updatedAtAmong,
+  );
   QuotesCompanion _apiToCompanion(QuoteApi a, String companyId) {
     return QuotesCompanion.insert(
       id: a.id,

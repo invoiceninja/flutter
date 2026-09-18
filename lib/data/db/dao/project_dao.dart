@@ -76,6 +76,9 @@ class ProjectDao extends BaseEntityDao<$ProjectsTable, ProjectRow>
   GeneratedColumn<int>? get archivedAtColumn => projects.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => projects.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

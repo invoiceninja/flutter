@@ -1530,6 +1530,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | 422 field-level validation errors | ✅ | ✅ | ✅ | ✅ | |
 | Idempotency keys on mutations | ✅ | 🟡 | ✅ | ✅ | |
 | Background outbox drain when online | — | ✅ | ✅ | ✅ | ✅ |
+| Automatic delta refresh — every 5 min while foregrounded plus once on resume, consuming the entity deltas the `/refresh` response already carries (no extra requests) | — | ✅ | ✅ | | |
 | Company-switch sync parity (prompt for pending) | — | ✅ | ✅ | ✅ | |
 | Per-company FIFO outbox ordering | — | 🟡 | ✅ | ✅ | |
 | Offline editing (full CRUD without network) | — | 🟡 | ✅ | ✅ | |

@@ -46,6 +46,19 @@ class _VendorFixture
   String idOf(Vendor item) => item.id;
 
   @override
+  Future<void> Function(
+    BaseEntityRepository<Vendor, VendorApi> repo, {
+    required String companyId,
+    required List<VendorApi> bundle,
+  })?
+  get applyRefreshDelta =>
+      (repo, {required companyId, required bundle}) =>
+          (repo as VendorRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          );
+
+  @override
   bool isDirtyOf(Vendor item) => item.isDirty;
 
   @override

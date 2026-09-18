@@ -36,6 +36,11 @@ void main() {
           (repo as CreditRepository).save(companyId: companyId, credit: entity),
       delete: (repo, {required companyId, required id}) =>
           repo.delete(companyId: companyId, id: id),
+      applyRefreshDelta: (repo, {required companyId, required bundle}) =>
+          (repo as CreditRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          ),
     ),
   );
 }

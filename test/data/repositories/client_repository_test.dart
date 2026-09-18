@@ -100,6 +100,19 @@ class _ClientFixture
   String idOf(Client item) => item.id;
 
   @override
+  Future<void> Function(
+    BaseEntityRepository<Client, ClientApi> repo, {
+    required String companyId,
+    required List<ClientApi> bundle,
+  })?
+  get applyRefreshDelta =>
+      (repo, {required companyId, required bundle}) =>
+          (repo as ClientRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          );
+
+  @override
   bool isDirtyOf(Client item) => item.isDirty;
 
   @override

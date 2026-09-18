@@ -61,11 +61,28 @@ abstract class EntityRepositoryContractFixture<TDomain, TApi> {
     bool createRequiresPassword,
     bool deleteRequiresPassword,
     DateTime Function(TDomain item)? updatedAtOf,
+    Future<void> Function(
+      BaseEntityRepository<TDomain, TApi> repo, {
+      required String companyId,
+      required List<TApi> bundle,
+    })?
+    applyRefreshDelta,
   }) = _ClosureContractFixture<TDomain, TApi>;
 
   /// Concrete subclasses that need extra plumbing keep the inheritance
   /// constructor.
   EntityRepositoryContractFixture();
+
+  /// The entity's `applyRefreshDelta`, when it is one of the fourteen browsable
+  /// tables topped up from a `/refresh` delta (invoiceninja/flutter#170). Null
+  /// for a bundled/reference entity, whose delta path is `applyBundle` instead
+  /// — those already have their own cursor tests.
+  Future<void> Function(
+    BaseEntityRepository<TDomain, TApi> repo, {
+    required String companyId,
+    required List<TApi> bundle,
+  })?
+  get applyRefreshDelta => null;
 
   /// The entity's server `updated_at`, when the domain model carries one.
   ///
@@ -192,7 +209,14 @@ class _ClosureContractFixture<TDomain, TApi>
     bool createRequiresPassword = false,
     bool deleteRequiresPassword = true,
     DateTime Function(TDomain item)? updatedAtOf,
+    Future<void> Function(
+      BaseEntityRepository<TDomain, TApi> repo, {
+      required String companyId,
+      required List<TApi> bundle,
+    })?
+    applyRefreshDelta,
   }) : _buildRepo = buildRepo,
+       _applyRefreshDelta = applyRefreshDelta,
        _updatedAtOf = updatedAtOf,
        _buildApiModel = buildApiModel,
        _fromApi = fromApi,
@@ -246,6 +270,21 @@ class _ClosureContractFixture<TDomain, TApi>
     required String id,
   })
   _delete;
+
+  final Future<void> Function(
+    BaseEntityRepository<TDomain, TApi> repo, {
+    required String companyId,
+    required List<TApi> bundle,
+  })?
+  _applyRefreshDelta;
+
+  @override
+  Future<void> Function(
+    BaseEntityRepository<TDomain, TApi> repo, {
+    required String companyId,
+    required List<TApi> bundle,
+  })?
+  get applyRefreshDelta => _applyRefreshDelta;
 
   @override
   BaseEntityRepository<TDomain, TApi> buildRepo(AppDatabase db) =>
@@ -668,5 +707,184 @@ void runEntityRepositoryContract<TDomain, TApi>(
         expect(fixture.idOf(landed as TDomain), 'real_2');
       },
     );
+
+    // -- /refresh delta top-up (invoiceninja/flutter#170) --------------------
+    //
+    // Only the fourteen browsable tables wire this; a bundled entity leaves
+    // `applyRefreshDelta` null and these are skipped.
+    final applyDelta = fixture.applyRefreshDelta;
+    if (applyDelta != null) {
+      test('a delta upserts rows and advances the cursor without claiming a '
+          'full sync', () async {
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(id: 'd1', displayValue: 'A', updatedAt: 100),
+            fixture.buildApiModel(id: 'd2', displayValue: 'B', updatedAt: 200),
+          ],
+        );
+
+        expect(
+          await fixture.watch(repo, companyId: 'co', id: 'd1').first,
+          isNotNull,
+        );
+        final cursor = await db.syncStateDao.read(
+          companyId: 'co',
+          entityType: fixture.entityType,
+        );
+        expect(cursor.updatedAt, 200);
+        // Never `lastFullAt`: marking a browsable entity's cursor full from a
+        // partial delta stops its own pagination back-filling.
+        expect(cursor.lastFullAt, isNull);
+      });
+
+      test('a delta never clobbers a row with a pending offline edit', () async {
+        // Seed a server-side row, then edit it offline so the outbox holds a
+        // pending mutation and the Drift row is `is_dirty`. A delta landing on
+        // top of that must not overwrite the user's unsent work — even though
+        // its `updated_at` is far newer.
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(
+              id: 'p1',
+              displayValue: 'Server',
+              updatedAt: 100,
+            ),
+          ],
+        );
+        final seeded = await fixture
+            .watch(repo, companyId: 'co', id: 'p1')
+            .first;
+        await fixture.save(
+          repo,
+          companyId: 'co',
+          entity: fixture.editCopy(seeded as TDomain, displayValue: 'Mine'),
+        );
+        final edited = await fixture
+            .watch(repo, companyId: 'co', id: 'p1')
+            .first;
+        expect(
+          fixture.isDirtyOf(edited as TDomain),
+          isTrue,
+          reason: 'precondition: the offline edit left the row dirty',
+        );
+
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(
+              id: 'p1',
+              displayValue: 'Server wins?',
+              updatedAt: 9999999,
+            ),
+          ],
+        );
+
+        final after = await fixture
+            .watch(repo, companyId: 'co', id: 'p1')
+            .first;
+        expect(fixture.isDirtyOf(after as TDomain), isTrue);
+      });
+
+      test('a delta NEWER than the stored row replaces it', () async {
+        // The whole point of the feature: an invoice marked paid elsewhere has
+        // to reach a list that is already showing the stale row. Deliberately
+        // paired with the OLDER test below — together they pin that the
+        // staleness guard discriminates rather than simply rejecting (or
+        // accepting) everything. A guard whose two sides disagreed on units
+        // (server seconds vs stored millis) would pass every other test in this
+        // group while silently dropping every real update.
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(
+              id: 'n1',
+              displayValue: 'Old',
+              updatedAt: 100,
+            ),
+          ],
+        );
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(
+              id: 'n1',
+              displayValue: 'New',
+              updatedAt: 300,
+            ),
+          ],
+        );
+
+        final row = await fixture.watch(repo, companyId: 'co', id: 'n1').first;
+        final updatedAt = fixture.updatedAtOf;
+        expect(updatedAt, isNotNull);
+        expect(
+          updatedAt!(row as TDomain).millisecondsSinceEpoch ~/ 1000,
+          300,
+          reason: 'the newer delta row must have replaced the stored one',
+        );
+      });
+
+      test('a delta row OLDER than the stored row is dropped', () async {
+        // The `/refresh` body is computed server-side before it is persisted
+        // here, so an outbox echo landing in between holds a newer row — and
+        // it has already cleared `is_dirty`, so `upsertAllPreservingDirty`
+        // would not skip it. Without this guard the user's just-saved change
+        // visibly reverts until the next tick.
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(
+              id: 'r1',
+              displayValue: 'New',
+              updatedAt: 200,
+            ),
+          ],
+        );
+
+        await applyDelta(
+          repo,
+          companyId: 'co',
+          bundle: [
+            fixture.buildApiModel(
+              id: 'r1',
+              displayValue: 'Old',
+              updatedAt: 100,
+            ),
+          ],
+        );
+
+        final row = await fixture.watch(repo, companyId: 'co', id: 'r1').first;
+        final updatedAt = fixture.updatedAtOf;
+        expect(
+          updatedAt,
+          isNotNull,
+          reason:
+              'a delta-wired fixture must expose updatedAtOf, or this guard '
+              'silently stops guarding',
+        );
+        expect(updatedAt!(row as TDomain).millisecondsSinceEpoch ~/ 1000, 200);
+      });
+
+      test(
+        'an empty delta writes nothing and leaves the cursor alone',
+        () async {
+          // A quiet 5-minute tick must not repaint every mounted list.
+          await applyDelta(repo, companyId: 'co', bundle: const []);
+          final cursor = await db.syncStateDao.read(
+            companyId: 'co',
+            entityType: fixture.entityType,
+          );
+          expect(cursor.isEmpty, isTrue);
+        },
+      );
+    }
   });
 }

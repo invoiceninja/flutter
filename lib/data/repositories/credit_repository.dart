@@ -496,6 +496,26 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
 
   // ── Conversions ────────────────────────────────────────────────────
 
+  /// Apply this entity's slice of a `/refresh` DELTA envelope.
+  ///
+  /// A top-up, not a bundle: credits still load page-by-page through
+  /// `BaseEntityApi`. Upsert-only and dirty-preserving, the cursor is never
+  /// marked full, and a row older than the one already stored is dropped —
+  /// see `BaseEntityRepository.applyRefreshDeltaTemplate` and `docs/sync.md`
+  /// § The refresh delta tops up the browsable tables.
+  Future<void> applyRefreshDelta({
+    required String companyId,
+    required List<CreditApi> bundle,
+  }) => applyRefreshDeltaTemplate<CreditApi, CreditsCompanion>(
+    companyId: companyId,
+    bundle: bundle,
+    idOf: (a) => a.id,
+    updatedAtOf: (a) => a.updatedAt,
+    toCompanion: (a) => _apiToCompanion(a, companyId),
+    upsert: (byId) =>
+        db.creditDao.upsertAllPreservingDirty(companyId: companyId, byId: byId),
+    storedUpdatedAt: db.creditDao.updatedAtAmong,
+  );
   CreditsCompanion _apiToCompanion(CreditApi a, String companyId) {
     return CreditsCompanion.insert(
       id: a.id,

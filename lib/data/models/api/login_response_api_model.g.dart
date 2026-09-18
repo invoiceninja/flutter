@@ -172,6 +172,48 @@ _CompanyEnvelopeApi _$CompanyEnvelopeApiFromJson(
   designs: json['designs'] == null
       ? const <DesignApi>[]
       : _designListData(json['designs']),
+  clients: json['clients'] == null
+      ? const <ClientApi>[]
+      : _clientDeltaListData(json['clients']),
+  products: json['products'] == null
+      ? const <ProductApi>[]
+      : _productDeltaListData(json['products']),
+  invoices: json['invoices'] == null
+      ? const <InvoiceApi>[]
+      : _invoiceDeltaListData(json['invoices']),
+  recurringInvoices: json['recurring_invoices'] == null
+      ? const <RecurringInvoiceApi>[]
+      : _recurringInvoiceDeltaListData(json['recurring_invoices']),
+  quotes: json['quotes'] == null
+      ? const <QuoteApi>[]
+      : _quoteDeltaListData(json['quotes']),
+  credits: json['credits'] == null
+      ? const <CreditApi>[]
+      : _creditDeltaListData(json['credits']),
+  payments: json['payments'] == null
+      ? const <PaymentApi>[]
+      : _paymentDeltaListData(json['payments']),
+  tasks: json['tasks'] == null
+      ? const <TaskApi>[]
+      : _taskDeltaListData(json['tasks']),
+  projects: json['projects'] == null
+      ? const <ProjectApi>[]
+      : _projectDeltaListData(json['projects']),
+  expenses: json['expenses'] == null
+      ? const <ExpenseApi>[]
+      : _expenseDeltaListData(json['expenses']),
+  recurringExpenses: json['recurring_expenses'] == null
+      ? const <RecurringExpenseApi>[]
+      : _recurringExpenseDeltaListData(json['recurring_expenses']),
+  vendors: json['vendors'] == null
+      ? const <VendorApi>[]
+      : _vendorDeltaListData(json['vendors']),
+  purchaseOrders: json['purchase_orders'] == null
+      ? const <PurchaseOrderApi>[]
+      : _purchaseOrderDeltaListData(json['purchase_orders']),
+  bankTransactions: json['bank_transactions'] == null
+      ? const <BankTransactionApi>[]
+      : _bankTransactionDeltaListData(json['bank_transactions']),
   enabledTaxRates: (json['enabled_tax_rates'] as num?)?.toInt() ?? 0,
   enabledItemTaxRates: (json['enabled_item_tax_rates'] as num?)?.toInt() ?? 0,
   enabledExpenseTaxRates:
@@ -298,6 +340,20 @@ Map<String, dynamic> _$CompanyEnvelopeApiToJson(
   'task_schedulers': instance.taskSchedulers,
   'subscriptions': instance.subscriptions,
   'designs': instance.designs,
+  'clients': instance.clients,
+  'products': instance.products,
+  'invoices': instance.invoices,
+  'recurring_invoices': instance.recurringInvoices,
+  'quotes': instance.quotes,
+  'credits': instance.credits,
+  'payments': instance.payments,
+  'tasks': instance.tasks,
+  'projects': instance.projects,
+  'expenses': instance.expenses,
+  'recurring_expenses': instance.recurringExpenses,
+  'vendors': instance.vendors,
+  'purchase_orders': instance.purchaseOrders,
+  'bank_transactions': instance.bankTransactions,
   'enabled_tax_rates': instance.enabledTaxRates,
   'enabled_item_tax_rates': instance.enabledItemTaxRates,
   'enabled_expense_tax_rates': instance.enabledExpenseTaxRates,

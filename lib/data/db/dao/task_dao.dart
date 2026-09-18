@@ -91,6 +91,9 @@ class TaskDao extends BaseEntityDao<$TasksTable, TaskRow> with _$TaskDaoMixin {
   GeneratedColumn<int>? get archivedAtColumn => tasks.archivedAt;
 
   @override
+  GeneratedColumn<int>? get updatedAtColumn => tasks.updatedAt;
+
+  @override
   Expression<bool>? badgeModePredicate(
     String modeId, {
     required String companyId,

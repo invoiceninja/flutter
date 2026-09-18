@@ -573,6 +573,84 @@ void main() {
     expect(after.createdAt.millisecondsSinceEpoch ~/ 1000, seconds);
     expect(after.userId, 'u_9', reason: 'the created-by column needs this');
   });
+
+  // -- /refresh delta top-up (invoiceninja/flutter#170) ----------------------
+  //
+  // Tasks are the one browsable entity not registered against the shared
+  // `BaseEntityRepository` contract, so the delta behaviour the contract
+  // covers for the other thirteen is pinned here instead. Worth having on its
+  // own: `_apiToCompanion` encodes the `time_log`, and a delta is the only
+  // path that writes it without a list fetch in front of it.
+  group('applyRefreshDelta', () {
+    test(
+      'upserts rows and advances the cursor without claiming a full sync',
+      () async {
+        final repo = makeRepo();
+        await repo.applyRefreshDelta(
+          companyId: 'co',
+          bundle: const [
+            TaskApi(id: 't_d1', description: 'A', updatedAt: 100),
+            TaskApi(id: 't_d2', description: 'B', updatedAt: 200),
+          ],
+        );
+
+        final row = await repo.watchByRealId(companyId: 'co', id: 't_d2').first;
+        expect(row, isNotNull);
+        expect(row!.description, 'B');
+
+        final cursor = await db.syncStateDao.read(
+          companyId: 'co',
+          entityType: 'task',
+        );
+        expect(cursor.updatedAt, 200);
+        expect(cursor.lastFullAt, isNull);
+      },
+    );
+
+    test('a newer row replaces the one already stored', () async {
+      // Paired with the drop test below: together they pin that the staleness
+      // guard discriminates rather than rejecting everything.
+      final repo = makeRepo();
+      await repo.applyRefreshDelta(
+        companyId: 'co',
+        bundle: const [TaskApi(id: 't_n1', description: 'Old', updatedAt: 100)],
+      );
+      await repo.applyRefreshDelta(
+        companyId: 'co',
+        bundle: const [TaskApi(id: 't_n1', description: 'New', updatedAt: 300)],
+      );
+
+      final row = await repo.watchByRealId(companyId: 'co', id: 't_n1').first;
+      expect(row!.description, 'New');
+      expect(row.updatedAt.millisecondsSinceEpoch ~/ 1000, 300);
+    });
+
+    test('drops a row older than the one already stored', () async {
+      final repo = makeRepo();
+      await repo.applyRefreshDelta(
+        companyId: 'co',
+        bundle: const [TaskApi(id: 't_r1', description: 'New', updatedAt: 200)],
+      );
+      await repo.applyRefreshDelta(
+        companyId: 'co',
+        bundle: const [TaskApi(id: 't_r1', description: 'Old', updatedAt: 100)],
+      );
+
+      final row = await repo.watchByRealId(companyId: 'co', id: 't_r1').first;
+      expect(row!.description, 'New');
+      expect(row.updatedAt.millisecondsSinceEpoch ~/ 1000, 200);
+    });
+
+    test('an empty delta writes nothing and leaves the cursor alone', () async {
+      final repo = makeRepo();
+      await repo.applyRefreshDelta(companyId: 'co', bundle: const []);
+      final cursor = await db.syncStateDao.read(
+        companyId: 'co',
+        entityType: 'task',
+      );
+      expect(cursor.isEmpty, isTrue);
+    });
+  });
 }
 
 /// The repo paths under test never hit the network, so a throwing stub is

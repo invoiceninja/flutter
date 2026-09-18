@@ -50,6 +50,43 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
   /// in-flight edit.
   GeneratedColumn<bool> get isDirtyColumn;
 
+  /// `updated_at` — bound by the DAOs whose entity is topped up from the
+  /// `/refresh` delta, so [updatedAtAmong] can power the staleness guard in
+  /// `BaseEntityRepository.applyRefreshDeltaTemplate`. Every entity table has
+  /// the column (via `EntityTimestampColumns`); leaving it null on a DAO opts
+  /// that DAO out of the guard, which is why
+  /// `refresh_delta_coverage_test` asserts every delta-wired entity binds it —
+  /// an unbound column would silently disable the guard rather than fail.
+  GeneratedColumn<int>? get updatedAtColumn => null;
+
+  /// Stored `updated_at` for whichever of [ids] exist in [companyId]. Ids with
+  /// no local row are simply absent from the map.
+  ///
+  /// Backs the "never apply a row older than the one we hold" guard on the
+  /// `/refresh` delta path. The `/refresh` response is computed server-side
+  /// *before* it is persisted here, so an outbox echo that lands in between
+  /// carries a NEWER row than the delta does — and because that echo has
+  /// already cleared `is_dirty`, [upsertAllPreservingDirty] would not skip it.
+  /// Without this the user's just-saved change visibly reverts until the next
+  /// tick. Returns `const {}` when [updatedAtColumn] is unbound.
+  Future<Map<String, int>> updatedAtAmong({
+    required String companyId,
+    required List<String> ids,
+  }) async {
+    final column = updatedAtColumn;
+    if (column == null || ids.isEmpty) return const {};
+    final out = <String, int>{};
+    for (final chunk in chunkIdsForSqlIn(ids)) {
+      final q = selectOnly(table)
+        ..addColumns([idColumn, column])
+        ..where(companyIdColumn.equals(companyId) & idColumn.isIn(chunk));
+      for (final r in await q.get()) {
+        if (r.read(idColumn) case final id?) out[id] = r.read(column) ?? 0;
+      }
+    }
+    return out;
+  }
+
   /// Count of non-deleted rows for [companyId]. Drives the empty-state UI
   /// and total-count badges on list screens.
   ///
@@ -324,15 +361,20 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
 
   Future<Set<String>> _dirtyIdsAmong(String companyId, List<String> ids) async {
     if (ids.isEmpty) return const {};
-    final q = selectOnly(table)
-      ..addColumns([idColumn])
-      ..where(
-        companyIdColumn.equals(companyId) &
-            idColumn.isIn(ids) &
-            isDirtyColumn.equals(true),
-      );
-    final rows = await q.get();
-    return {for (final r in rows) r.read(idColumn)!};
+    final out = <String>{};
+    for (final chunk in chunkIdsForSqlIn(ids)) {
+      final q = selectOnly(table)
+        ..addColumns([idColumn])
+        ..where(
+          companyIdColumn.equals(companyId) &
+              idColumn.isIn(chunk) &
+              isDirtyColumn.equals(true),
+        );
+      for (final r in await q.get()) {
+        out.add(r.read(idColumn)!);
+      }
+    }
+    return out;
   }
 
   /// Hard-delete a single row. Repositories use this when the outbox drain
@@ -419,5 +461,26 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
             isDirtyColumn.name: const Constant(true),
           }),
         );
+  }
+}
+
+/// Split [ids] into slices small enough for a single `WHERE id IN (...)`.
+///
+/// SQLite caps host parameters at `SQLITE_MAX_VARIABLE_NUMBER` (32766 on the
+/// builds we ship), and past it the statement fails to even prepare:
+/// `SqliteException(1): too many SQL variables`. Nothing hit that while the
+/// only callers were page-sized (<= 50 rows), but the `/refresh` delta
+/// (invoiceninja/flutter#170) hands these helpers **every row the server
+/// changed since the last sync** — after a long absence on a busy account that
+/// is unbounded. Measured: 5 000 ids is fine, 60 000 throws.
+///
+/// 500 is deliberately far below the limit; an extra round trip per 500 ids is
+/// nothing next to the writes they gate.
+Iterable<List<String>> chunkIdsForSqlIn(
+  List<String> ids, {
+  int size = 500,
+}) sync* {
+  for (var i = 0; i < ids.length; i += size) {
+    yield ids.sublist(i, i + size > ids.length ? ids.length : i + size);
   }
 }

@@ -50,6 +50,11 @@ void main() {
             companyId: companyId,
             id: id,
           ),
+      applyRefreshDelta: (repo, {required companyId, required bundle}) =>
+          (repo as BankTransactionRepository).applyRefreshDelta(
+            companyId: companyId,
+            bundle: bundle,
+          ),
     ),
   );
 

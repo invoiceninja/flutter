@@ -288,3 +288,99 @@ first refresh runs, rather than "Loading…".
   `setFiscalYearStart`, until a company switch. The list screens' `loadFormatter` has the same gap,
   so a date format or fiscal-year change made on another device reaches neither until then.
 - **The list re-arm can page after a cancelled pass** — § A bulk re-download re-arms mounted lists.
+
+## The refresh delta tops up the browsable tables
+
+**A `/refresh` delta carries the fourteen browsable entity tables too, and they are applied as an
+upsert-only top-up — never on a full sync, and never over a newer local row.**
+
+Shipped as [invoiceninja/flutter#170](https://github.com/invoiceninja/flutter/issues/170): an iOS
+beta user was chasing invoices that had already been marked paid, days earlier. Tapping **Sync**
+revealed the discrepancy; nothing else would have.
+
+**Two causes compounded, and only one of them was obvious.** First, nothing re-fetches a *mounted*
+list: the shell is a `StatefulShellRoute.indexedStack` (`router.dart`), so once a branch has been
+visited its `GenericListViewModel` lives for the session and `_loadInitialPage()` never runs again.
+Within one long session a list only re-fetches on pull-to-refresh, a filter/sort/tab change, or a
+manual Sync — the same structural reason `ActivityViewModel` went stale in
+[#160](https://github.com/invoiceninja/flutter/issues/160). Second, the refresh that *was* already
+running carried the answer and threw it away.
+
+**The bytes were always on the wire.** `RefreshScheduler` fires `auth.refresh()` every
+`kRefreshInterval` (5 min) plus once on resume, sending
+`current_company=true&updated_at=(lastSyncAt/1000 − kUpdatedAtBufferSeconds)`. Server-side,
+`POST /api/v1/refresh` → `LoginController::refresh` → `BaseController::refreshResponse()`, which
+calls `$this->manager->parseIncludes($this->first_load)` **unconditionally** — the `first_load`
+array is not gated on the `first_load` query param, which only steers `buildManager()`. So every
+delta response already contains clients, products, invoices, recurring invoices, quotes, credits,
+payments, tasks, projects, expenses, recurring expenses, vendors, purchase orders and bank
+transactions, each filtered `where('updated_at', '>=', $updated_at)`. `CompanyEnvelopeApi` declared
+only the thirteen *reference* bundles, so freezed's `fromJson` dropped every entity array on the
+floor. Consuming them costs **zero additional requests**.
+
+**This was a regression from v1, not a missing feature.** admin-portal ran the same 5-minute timer
+(`main_app.dart` → `RefreshData()`) and every entity reducer absorbed the arrays —
+`_setLoadedCompany` → `invoiceState.loadInvoices(company.invoices)` (`invoice_reducer.dart`), and
+the same shape for each sibling. v1 stayed fresh *because* it consumed these deltas. (v1 also gated
+its tick on `uiState.hasRecentActivity`, last interaction within 24 h; v2 stops the pump entirely
+while backgrounded, which is a stronger gate on mobile, so that was not carried over.)
+
+**Four invariants, each invisible at a call site.**
+
+1. **`tolerantList` is load-bearing here, not stylistic.** These fields share an envelope with the
+   session, the token and the reference bundles. Parsed strictly, one malformed invoice would throw
+   out of `LoginResponseApi.fromJson` and take the whole refresh with it — a far worse failure than
+   the dropped row it replaces. The same reasoning as the `*ListApi` envelopes, with higher stakes.
+2. **`wasFullSync: false` is not a parameter.** `applyRefreshDeltaTemplate` hard-codes it, so a call
+   site cannot mark a browsable entity's cursor "full" from a partial delta — doing so would stop
+   that entity's own pagination back-filling.
+3. **A row older than the stored one is dropped.** The `/refresh` body is computed server-side
+   *before* it is persisted here, so an outbox echo landing in between holds a **newer** row than
+   the delta does — and that echo has already cleared `is_dirty`, so `upsertAllPreservingDirty`
+   will not skip it. Without the guard the user's just-saved change visibly reverts until the next
+   tick. `BaseEntityDao.updatedAtAmong` (hand-rolled on `BankTransactionDao`, which does not extend
+   the base) supplies the comparison; equal-or-newer still applies, so a legitimate update is never
+   suppressed. Leaving `updatedAtColumn` unbound silently disables the guard, which is why
+   `refresh_delta_coverage_test` pins the binding.
+4. **A full sync skips the whole map.** Every entry is wrapped in `_deltaOnly`
+   (`services_entity_wiring.dart`). A full-sync envelope is the entire dataset for *every* company
+   (`current_company=false&updated_at=0&first_load=true`); `Services.resyncAllEntities` already owns
+   that path, and applying it here would turn a cold start into one very long write inside the
+   per-company transaction. Note the server only truncates for large accounts when `updated_at == 0`
+   (`is_large` in `BaseController`), so a large company **does** receive full deltas every tick.
+
+**A delta is unbounded, so the `IN (...)` helpers had to be chunked.** Both
+`BaseEntityDao.updatedAtAmong` (the guard above) and the pre-existing `_dirtyIdsAmong` behind
+`upsertAllPreservingDirty` build a `WHERE id IN (...)` over every candidate id. That was safe while
+the only callers were page-sized (<= 50 rows); a delta hands them every row changed since the last
+sync. Measured: 5 000 ids fine, 60 000 throws `SqliteException(1): while preparing statement, too
+many SQL variables` — SQLite caps host parameters at `SQLITE_MAX_VARIABLE_NUMBER` (32 766). Both
+now slice through `chunkIdsForSqlIn` (500 per statement), as do `BankTransactionDao`'s hand-rolled
+twins. `sql_in_chunking_test` pins it with a 40 000-row delta applied twice.
+
+**Why a quiet tick is free.** `applyBundleUpsertOnly` returns early on an empty bundle and
+`upsertAllPreservingDirty` is empty-safe, so a refresh where nothing changed leaves every entity
+table untouched and their watch streams quiet. (The refresh itself still writes — `_persistAndActivate`
+stamps each company's `lastSyncAt` unconditionally — but nothing a list is watching.) That is what
+stops every mounted list repainting on a timer; it is pinned by a test because it is invisible in
+review.
+
+**Each delta applier is isolated, and the reference bundles are not.** The whole `onPersistBundles`
+hook runs inside one `_db.transaction` whose only try/catch sits *outside* it, so an uncaught throw
+from any applier rolls the lot back. That was tolerable while the hook only carried thirteen small
+settings payloads; it is not once fourteen appliers are writing arbitrary volumes of user data, where
+one malformed row would silently stop task statuses and gateways updating too. The fan-out therefore
+wraps each delta applier in its own try/catch, naming the entity — `applyBundleUpsertOnly` opens a
+nested transaction, so drift rolls back exactly that entity's SAVEPOINT. Same shape as
+`resyncAllEntities`, which collects per-entity failures rather than aborting the pass.
+
+**Two things deliberately not done.** Purged rows are still never pruned (`refreshAll` is
+upsert-only too); archive and soft-delete *are* covered, since both bump `updated_at` and arrive
+with their flags set. And the envelope's `company.activities` / `company.locations` arrays still
+have no consumer — activities is the interesting one, given #160.
+
+**Known, accepted:** bundle writes land at `_persistAndActivate` *before* the `expectedGeneration`
+guard, whose own comment concedes as much, so a logout landing in that window lets these rows be
+written after the wipe. Pre-existing for the thirteen reference bundles; this extends it to user
+data. Not a cross-user leak — `_wipeIfIdentityChanged` still fires when a different identity signs
+in.

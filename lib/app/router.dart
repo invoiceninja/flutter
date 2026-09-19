@@ -268,6 +268,7 @@ ShellRoute buildEntityRouteBlock({
             basePath: basePath,
             list: _SelectedIdScope(
               selectedId: selectedId,
+              hasPane: hasPane,
               editorCoversList: editorCoversList,
               child: list(ctx, state),
             ),
@@ -356,11 +357,19 @@ class _NoPaneSentinel extends StatelessWidget {
 class _SelectedIdScope extends InheritedWidget {
   const _SelectedIdScope({
     required this.selectedId,
+    required this.hasPane,
     required this.editorCoversList,
     required super.child,
   });
 
   final String? selectedId;
+
+  /// Whether the pane host is showing **anything** — a record, an editor, or a
+  /// create form. Strictly wider than `selectedId != null`, and the difference
+  /// is load-bearing: `/<entity>/new` is its own `GoRoute` with no `:id`
+  /// (see [buildEntityRouteBlock]'s `routes`), so a create form is a visible,
+  /// focused pane with a null `selectedId`. See [paneIsOpenForList].
+  final bool hasPane;
 
   /// True when the current route is a full-width-editor `/edit` route
   /// whose editor will cover the list. Used to suppress the *visual*
@@ -380,6 +389,7 @@ class _SelectedIdScope extends InheritedWidget {
   @override
   bool updateShouldNotify(_SelectedIdScope oldWidget) =>
       selectedId != oldWidget.selectedId ||
+      hasPane != oldWidget.hasPane ||
       editorCoversList != oldWidget.editorCoversList;
 }
 
@@ -389,7 +399,19 @@ class _SelectedIdScope extends InheritedWidget {
 String? selectedIdFromRoute(BuildContext context) =>
     _SelectedIdScope._maybeOf(context)?.selectedId;
 
-/// Whether a master-detail pane is showing a record over/beside this list.
+/// Whether the master-detail pane is showing **anything** over/beside this list
+/// — a record, an editor, or a create form.
+///
+/// Reads [_SelectedIdScope.hasPane], not `selectedId != null`. It used to read
+/// the id, which made it answer **false on `/<entity>/new`**: that route carries
+/// no `:id`, so a create form was a visible, focused pane that this reported as
+/// "no pane". `FocusOwnerKeeper` is the caller, and on a wide window
+/// `MasterDetailLayout` keeps the list mounted under `Offstage` (whose children
+/// can still hold focus), so the list went on claiming focus back off the create
+/// form. `FocusOwnerKeeper._escaped` now declines to take focus from a sibling
+/// on its own, which is the real fix; this stays wrong-answer-proof for the
+/// remaining case, where focus escapes *upward* while the pane is up and the
+/// pane — not the list — should get it back.
 ///
 /// **Registers no dependency**, deliberately: the list scaffold consults this
 /// only as a guard, from a focus check that something else already triggered
@@ -398,7 +420,7 @@ String? selectedIdFromRoute(BuildContext context) =>
 /// scaffold on every row click — the cost `settingsBackTargetFor`'s comment in
 /// `entity_list_screen_scaffold.dart` already warns about.
 bool paneIsOpenForList(BuildContext context) =>
-    _SelectedIdScope._peek(context)?.selectedId != null;
+    _SelectedIdScope._peek(context)?.hasPane ?? false;
 
 /// The `selectedId` to use for the **visual** row-selection highlight.
 /// Null while navigating to a full-width editor (the editor covers the

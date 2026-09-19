@@ -259,13 +259,21 @@ class ResyncController extends ValueNotifier<ResyncProgress> {
         try {
           _inFlight = null;
           _cancelled = false;
-          value = const ResyncProgress.idle();
-          if (announce) {
-            _lastCompletion.value = ResyncCompletion(
-              serial: ++_completions,
-              companyId: companyId,
-              result: result,
-            );
+          // Both notifiers are written from a detached `.then`, so a `dispose`
+          // that lands between the pass starting and it finishing would make
+          // these throw "used after being disposed" out of an `unawaited`
+          // future. Unreachable in production (this is a `Services`-lifetime
+          // singleton) but not in a test that disposes mid-pass, and the
+          // completer below still has to complete either way.
+          if (!_disposed) {
+            value = const ResyncProgress.idle();
+            if (announce) {
+              _lastCompletion.value = ResyncCompletion(
+                serial: ++_completions,
+                companyId: companyId,
+                result: result,
+              );
+            }
           }
         } finally {
           completer.complete(result);
@@ -301,7 +309,13 @@ class ResyncController extends ValueNotifier<ResyncProgress> {
       final failed = await _runner(
         companyId: companyId,
         onProgress: (completed, total) {
-          if (_cancelled) return;
+          // `_disposed` as well as `_cancelled`: this fires once per entity —
+          // fourteen times a pass — so it is the *likelier* of the two writers
+          // to land after a dispose, and the assertion it would throw is
+          // swallowed by `_run`'s catch into `ResyncResult(completed, error:)`,
+          // which then makes `announce` false and aborts the pass silently at
+          // the next entity boundary.
+          if (_cancelled || _disposed) return;
           value = ResyncProgress.downloading(
             companyId: companyId,
             completed: completed,
@@ -318,8 +332,13 @@ class ResyncController extends ValueNotifier<ResyncProgress> {
     }
   }
 
+  /// Set before the notifiers go, so a pass still in flight stops writing to
+  /// them rather than throwing out of its detached completion callback.
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _lastCompletion.dispose();
     super.dispose();
   }

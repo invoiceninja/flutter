@@ -24,6 +24,7 @@ import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
+import 'package:admin/utils/file_names.dart';
 
 /// Quote action set. Mirrors `InvoiceAction` but drops `markPaid` /
 /// `autoBill` (payment-side, invoice-only) and adds `approve` /
@@ -377,7 +378,7 @@ class QuoteActions {
           if (!context.mounted) return;
           if (action == QuoteAction.downloadPdf) {
             final fileName =
-                'quote_${quote.number.isEmpty ? quote.id : quote.number}.pdf';
+                '${sanitizeFileName('quote_${quote.number.isEmpty ? quote.id : quote.number}')}.pdf';
             await Printing.sharePdf(bytes: bytes, filename: fileName);
           } else {
             await Printing.layoutPdf(onLayout: (_) async => bytes);

@@ -41,9 +41,18 @@ void main() {
       // The `Positioned` that places the pill, whichever side of the pill it
       // is written on. The wide branch builds the pill first and positions it
       // in a builder below; the narrow branch wraps it directly.
+      //
+      // The window is wide (35 lines) because the wide branch's offset depends on
+      // **two** things that change independently — the rail's width and whether
+      // the screen underneath shows a FAB, the latter driven by the Tasks view
+      // toggle, which changes no route — so it nests two
+      // `ValueListenableBuilder`s between the pill and its `Positioned`. Verified
+      // that neither window contains a literal `bottom: <digit>` from an
+      // unrelated widget, which is what keeps the second assertion meaningful at
+      // this width.
       final around = lines
-          .sublist((at - 12).clamp(0, lines.length), at)
-          .followedBy(lines.sublist(at, (at + 13).clamp(0, lines.length)))
+          .sublist((at - 35).clamp(0, lines.length), at)
+          .followedBy(lines.sublist(at, (at + 36).clamp(0, lines.length)))
           .join('\n');
       expect(
         around,

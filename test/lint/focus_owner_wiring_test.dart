@@ -148,8 +148,10 @@ void main() {
         list.contains('paneIsOpenForList(context)'),
         isTrue,
         reason:
-            'the pane is a sibling of this node, not a descendant, so an open '
-            'pane reads as escaped focus and the list would steal its Esc/J/K',
+            'focus that escaped UPWARD while the pane is up belongs to the pane, '
+            'not to the list — the keeper itself declines to take focus from a '
+            'sibling, so this gate covers the remaining case rather than the '
+            'open pane as a whole',
       );
     });
   });

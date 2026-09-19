@@ -11,5 +11,5 @@
 /// Default target is the web factory; `dart.library.io` swaps in native.
 library;
 
-export 'token_storage_web_factory.dart'
-    if (dart.library.io) 'token_storage_io_factory.dart';
+export 'package:admin/data/services/token_storage_web_factory.dart'
+    if (dart.library.io) 'package:admin/data/services/token_storage_io_factory.dart';

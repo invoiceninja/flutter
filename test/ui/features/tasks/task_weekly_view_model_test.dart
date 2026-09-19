@@ -8,6 +8,7 @@ import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/task_repository.dart';
+import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/ui/features/tasks/view_models/task_weekly_view_model.dart';
 
 final _epoch = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
@@ -254,6 +255,60 @@ void main() {
     expect(_secondsOn(log, days[0]), const Duration(hours: 2).inSeconds);
     expect(_secondsOn(log, days[1]), 0);
     expect(vm.errorNonce, greaterThan(0));
+    // An unparseable duration is the user's typing, not the log's shape, so
+    // there is no `TimeLogProblem` to report — the screen falls back to the key.
+    expect(vm.lastProblem, isNull);
+    expect(vm.lastError, 'please_enter_a_valid_duration');
+    await ctrl.close();
+  });
+
+  test('a refused log reports the problem itself, so the message can name the '
+      'window instead of leaking its placeholders', () async {
+    // The real user-visible bug. The view model reported every refusal with
+    // `_emitError('time_log_overlap')`, and the screen rendered that with
+    // `context.tr(key)` and **no params** — but the string is
+    // `"Overlapping times: :from – :to"`, so the user read the raw template.
+    // `no_unsubstituted_placeholders_test` cannot see a key reached through a
+    // variable, which is exactly how this one was passed, so nothing caught it.
+    //
+    // Reporting the `TimeLogProblem` instead lets the screen fill `:from` /
+    // `:to` from the window the problem already carries — and, since
+    // `timeLogProblem` also returns `inverted` and `runningNotLast`, pick the
+    // right sentence rather than always claiming an overlap. (A task with a
+    // running entry is read-only in this grid, so `runningNotLast` is not
+    // reachable from here today; the switch is there so a future edit path
+    // cannot reintroduce the mislabel.)
+    final ctrl = StreamController<List<Task>>();
+    final repo = _FakeRepo(ctrl);
+    final vm = _build(repo);
+    // Two Monday entries that already overlap — the shape the server refuses.
+    // Editing Tuesday re-validates the whole log and finds it.
+    ctrl.add([
+      _t(
+        'a',
+        log: [
+          _e(DateTime(2026, 6, 8, 9), DateTime(2026, 6, 8, 11)),
+          _e(DateTime(2026, 6, 8, 10), DateTime(2026, 6, 8, 12)),
+        ],
+      ),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+
+    vm.editCell('a', vm.weekDays[1], duration: '2');
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    expect(vm.errorNonce, greaterThan(0));
+    expect(vm.lastProblem?.kind, TimeLogProblemKind.overlap);
+    expect(
+      vm.lastError,
+      isNull,
+      reason:
+          'a shaped problem reports the problem, not a key — otherwise the '
+          'screen has nothing to fill the placeholders from',
+    );
+    // The window the message names, which is what the toast was missing.
+    expect(vm.lastProblem?.from, isNotNull);
+    expect(vm.lastProblem?.to, isNotNull);
     await ctrl.close();
   });
 

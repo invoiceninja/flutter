@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:admin/l10n/transifex_files.dart';
 
-export 'transifex_files.dart' show kTransifexFileNames;
+export 'package:admin/l10n/transifex_files.dart' show kTransifexFileNames;
 
 /// Locales we ship in `assets/i18n/`. Adding a locale:
 ///   1. Append it to [kSupportedLocales].

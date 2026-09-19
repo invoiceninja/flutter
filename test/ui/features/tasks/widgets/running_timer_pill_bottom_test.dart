@@ -27,6 +27,32 @@ void main() {
     expect(runningTimerPillBottom(paneWidth: 1368, isPhone: false), 16);
   });
 
+  test('a screen that shows its FAB regardless of width lifts it too', () {
+    // The width rule is right for every screen but three. Tasks daily / weekly /
+    // calendar mount their FAB ungated on `wide` on purpose
+    // (`tasksViewAlwaysShowsFab`), so on a desktop window this used to return 16
+    // with a real 56 px button underneath — and the pill, being the later `Stack`
+    // child, took the taps aimed at `+`.
+    expect(
+      runningTimerPillBottom(
+        paneWidth: 1368,
+        isPhone: false,
+        screenAlwaysHasFab: true,
+      ),
+      112,
+    );
+    // Still opt-in: the default is the width rule, which is what the plain Tasks
+    // list and every other screen want.
+    expect(
+      runningTimerPillBottom(
+        paneWidth: 1368,
+        isPhone: false,
+        screenAlwaysHasFab: false,
+      ),
+      16,
+    );
+  });
+
   test('the lifted offset clears a 56 px FAB with a 40 px gap', () {
     expect(
       runningTimerPillBottom(paneWidth: 390, isPhone: true),

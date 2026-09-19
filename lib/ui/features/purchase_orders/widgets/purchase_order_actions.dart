@@ -28,6 +28,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/ui/features/vendors/widgets/vendor_portal.dart';
+import 'package:admin/utils/file_names.dart';
 
 /// PurchaseOrder action set. Mirrors Quote/Credit actions plus the
 /// PO-specific actions (`addToInventory`, `convertToExpense`/`viewExpense`,
@@ -403,7 +404,7 @@ class PurchaseOrderActions {
           if (!context.mounted) return;
           if (action == PurchaseOrderAction.downloadPdf) {
             final fileName =
-                'purchase_order_${po.number.isEmpty ? po.id : po.number}.pdf';
+                '${sanitizeFileName('purchase_order_${po.number.isEmpty ? po.id : po.number}')}.pdf';
             await Printing.sharePdf(bytes: bytes, filename: fileName);
           } else {
             await Printing.layoutPdf(onLayout: (_) async => bytes);
@@ -420,8 +421,11 @@ class PurchaseOrderActions {
         try {
           final bytes = await services.purchaseOrders.api
               .downloadEPurchaseOrder(invitationKey: invitationKey);
+          // Sanitised for the same reason the PDF name above is, and it is the
+          // same `po.number`: a company numbering `PO/2026/0001` would otherwise
+          // hand `FilePicker.saveFile` a name containing a path separator.
           final fileName =
-              'purchase_order_${po.number.isEmpty ? po.id : po.number}.xml';
+              '${sanitizeFileName('purchase_order_${po.number.isEmpty ? po.id : po.number}')}.xml';
           // Save arbitrary (non-PDF) bytes via the same FilePicker path the
           // CSV / JSON exports use — `Printing.sharePdf` is PDF-typed. Web:
           // the shim downloads via a Blob; native: write defensively.

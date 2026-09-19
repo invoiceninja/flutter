@@ -83,11 +83,67 @@ void main() {
       );
     }
   });
+
+  test('the conditional platform seams contribute both of their edges', () {
+    // A seam is `export 'package:admin/x_web.dart' if (dart.library.io)
+    // 'package:admin/x_io.dart';` — two edges, and the `_io` one sits on a
+    // continuation line. Nothing above would go red if it vanished from the
+    // graph: every `_io` file is its own BFS root, so the suite stays green
+    // while quietly checking less. That is precisely how an anchored
+    // `packageRef` lost these four edges the moment the URIs stopped being
+    // relative, so the invariant is asserted rather than assumed.
+    const seams = <String, List<String>>{
+      'lib/data/db/database_opener.dart': [
+        'lib/data/db/database_opener_web.dart',
+        'lib/data/db/database_opener_io.dart',
+      ],
+      'lib/data/services/token_storage_factory.dart': [
+        'lib/data/services/token_storage_web_factory.dart',
+        'lib/data/services/token_storage_io_factory.dart',
+      ],
+      'lib/data/services/upload_source_seam.dart': [
+        'lib/data/services/upload_source_seam_web.dart',
+        'lib/data/services/upload_source_seam_io.dart',
+      ],
+      'lib/data/services/device_contacts_service_factory.dart': [
+        'lib/data/services/device_contacts_service_web.dart',
+        'lib/data/services/device_contacts_service_io.dart',
+      ],
+    };
+    for (final seam in seams.entries) {
+      expect(
+        graph[seam.key],
+        containsAll(seam.value),
+        reason:
+            '${seam.key} lost one of its two seam edges. The `_io` one is the '
+            'fragile half: check that `packageRef` in _importGraph is still '
+            'unanchored — an anchored pattern cannot see a conditional URI on '
+            'a continuation line.',
+      );
+    }
+  });
 }
 
 /// `package:admin/…` + relative import/export edges for every `.dart` under
 /// `lib/`, keyed by repo-relative path. Conditional-import targets
 /// (`if (dart.library.io) '…'`) are included — they are real edges.
+///
+/// `packageRef` is deliberately *not* anchored to the start of a directive: a
+/// conditional seam puts its second URI on a continuation line
+/// (`    if (dart.library.io) 'package:admin/…'`), and an anchored pattern
+/// cannot see it. That used to be covered by `anyRef` only because those URIs
+/// were relative; once they became `package:admin/…` an anchored `packageRef`
+/// silently dropped the four `_io` edges.
+///
+/// Scanning the whole file is not a new liberty — `anyRef` below has always
+/// done it, and already matches `.dart` paths written inside comments. What
+/// keeps both honest is `deps.where(files.containsKey)`: a match only becomes
+/// an edge if it names a file that actually exists under `lib/`. The residual
+/// hole is therefore a quoted string naming a *real* lib path — an `assert`
+/// reason, an error message, a doc comment using `'…'` where it should use
+/// backticks. One of those would become a genuine phantom edge and could flip
+/// the transitive assertions red along a nonsensical path, so write lib paths
+/// in prose with backticks.
 Map<String, Set<String>> _importGraph() {
   final files = <String, String>{};
   for (final entity in Directory('lib').listSync(recursive: true)) {
@@ -96,7 +152,7 @@ Map<String, Set<String>> _importGraph() {
     }
   }
   final packageRef = RegExp(
-    '''^\\s*(?:import|export)\\s+['"]package:admin/([^'"]+)['"]''',
+    '''['"]package:admin/([^'"]+)['"]''',
     multiLine: true,
   );
   final anyRef = RegExp(

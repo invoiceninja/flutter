@@ -619,6 +619,7 @@ class _TopBar extends StatelessWidget {
     final tr = context.tr;
     final json = _encodeDesignJson(vm);
     final bytes = Uint8List.fromList(utf8.encode(json));
+    // lint: allow-raw-file-name — the only interpolation is an epoch int.
     final name = 'invoice-design-${DateTime.now().millisecondsSinceEpoch}.json';
     try {
       final path = await FilePicker.saveFile(fileName: name, bytes: bytes);

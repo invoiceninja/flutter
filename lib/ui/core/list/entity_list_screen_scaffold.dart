@@ -926,9 +926,15 @@ class _EntityListScreenScaffoldState<T, VM extends GenericListViewModel<T>>
         // `embedded` (a detail screen mounts several list tabs at once and the
         // host owns the page), `TickerMode` (go_router keeps every visited
         // branch mounted, so without it the hidden branch's list and the
-        // visible one would both claim, forever), and `paneIsOpenForList` (the
-        // pane is a *sibling* of this node, not a descendant, so an open pane
-        // reads as "focus escaped" and we would steal its Esc / J / K).
+        // visible one would both claim, forever), and `paneIsOpenForList`.
+        //
+        // That last one is narrower than it used to be. The keeper no longer
+        // reads an open pane as escaped focus at all — the pane is *beside* this
+        // node, and `FocusOwnerKeeper._escaped` declines to take focus from a
+        // sibling. What this gate still buys is the case where focus escapes
+        // *upward* while the pane is up: the pane, not the list, should get it
+        // back. It reads `hasPane` rather than "a record is selected", because
+        // `/<entity>/new` carries no `:id` and a create form is very much a pane.
         child: FocusOwnerKeeper(
           node: _bodyFocus,
           enabled: !widget.embedded && TickerMode.valuesOf(context).enabled,

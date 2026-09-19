@@ -31,6 +31,7 @@ import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.da
 import 'package:admin/ui/features/invoices/widgets/invoice_locked_dialog.dart';
 import 'package:admin/ui/features/invoices/widgets/rectify_invoice.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
+import 'package:admin/utils/file_names.dart';
 
 /// Action set surfaced for an invoice.
 ///
@@ -545,7 +546,7 @@ class InvoiceActions {
           if (!context.mounted) return;
           if (action == InvoiceAction.downloadPdf) {
             final fileName =
-                'invoice_${invoice.number.isEmpty ? invoice.id : invoice.number}.pdf';
+                '${sanitizeFileName('invoice_${invoice.number.isEmpty ? invoice.id : invoice.number}')}.pdf';
             await Printing.sharePdf(bytes: bytes, filename: fileName);
           } else {
             await Printing.layoutPdf(onLayout: (_) async => bytes);

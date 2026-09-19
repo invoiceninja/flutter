@@ -1762,6 +1762,7 @@ class Services implements SidebarBadgeContext {
       sidebarMenu.resetInMemory();
       tasksView.resetInMemory();
       hideEmptyPanels.resetInMemory();
+      hideUnverifiedUsers.resetInMemory();
       await contactsSync.removeAllCompanies();
     };
     final priorOnActiveCompanyChanged = auth.onActiveCompanyChanged;

@@ -1992,9 +1992,37 @@ class AuthRepository {
     // company's bundle writes (all-or-nothing per company) while login
     // still completes — the session/credentials are already set above
     // and a partial-bundle response must not keep the user out.
+    // Re-checked here, and again inside the loop, because this fan-out now
+    // carries the fourteen browsable entity tables and not just the small
+    // reference bundles. The guard above is the other side of a network await
+    // and the next one is *after* this loop, so a logout landing in between used
+    // to let these rows be written into a database `logout()` had already wiped.
+    //
+    // `docs/sync.md` signed that off as "not a cross-user leak —
+    // `_wipeIfIdentityChanged` still fires when a different identity signs in",
+    // which is false on the only path that wipes: the destructive branch of
+    // `logout()` deletes `kAuthUserIdKey` / `kAuthAccountIdKey` (reasoning that
+    // "the database goes with this logout"), and `_wipeIfIdentityChanged`
+    // requires *both* sides non-empty, so with them gone it returns without
+    // wiping. The resurrected rows are upsert-only from then on, so nothing
+    // prunes them: the next person to sign in on that device — a colleague in
+    // the same company, which is exactly the case that check exists for — sees
+    // records that were never theirs.
+    //
+    // Inside the loop, not before it: `response.data` is one entry per company
+    // and each iteration awaits its own transaction, so the check has to run per
+    // company — and running it there covers the "do not start at all" case too,
+    // since it precedes the first iteration. A second copy immediately above the
+    // loop would be redundant (there is no `await` between them) and would also
+    // skip `onApplyStatic` below on a stale generation, which is a behaviour
+    // change with nothing behind it.
     final bundlesHook = onPersistBundles;
     if (bundlesHook != null) {
       for (final uc in response.data) {
+        if (expectedGeneration != null &&
+            expectedGeneration != _sessionGeneration) {
+          return;
+        }
         try {
           await _db.transaction(
             () => bundlesHook(

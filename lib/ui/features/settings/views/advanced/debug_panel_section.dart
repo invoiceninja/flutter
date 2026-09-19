@@ -392,6 +392,7 @@ Future<void> _captureAndSave(
   // pixel size (not the requested preset, which differs when the window clamped).
   final sizeTag = (width != null && height != null) ? '-${width}x$height' : '';
   final name =
+      // lint: allow-raw-file-name — an epoch int and a fixed size tag.
       'invoice-ninja$sizeTag-${DateTime.now().millisecondsSinceEpoch}.png';
   try {
     final path = await FilePicker.saveFile(fileName: name, bytes: bytes);

@@ -260,8 +260,14 @@ String markdownFromLegacyHtml(String input) {
     }
 
     if (tag == 'li') {
-      // `</li>` asks for nothing — the next `<li>` opens its own line.
-      if (isClosing) continue;
+      // `</li>` asks for nothing — the next `<li>` opens its own line. It does
+      // have to release the hold, though: an item that closed with no text in it
+      // would otherwise go on suppressing breaks for the whole rest of the
+      // document. See [_MarkdownWriter.releaseBreaks].
+      if (isClosing) {
+        out.releaseBreaks();
+        continue;
+      }
       final ordered = listStack.isNotEmpty && listStack.last;
       out
         ..requestBreak(1)
@@ -273,6 +279,10 @@ String markdownFromLegacyHtml(String input) {
 
     final heading = _kHeadingPattern.firstMatch(tag);
     if (heading != null) {
+      // Release before the request, not after: `requestBreak` is a no-op while
+      // held, so an empty `<h2></h2>` would otherwise swallow its own closing
+      // break along with every one after it.
+      if (isClosing) out.releaseBreaks();
       out.requestBreak(2);
       if (!isClosing) {
         out
@@ -287,6 +297,11 @@ String markdownFromLegacyHtml(String input) {
       // the paragraph break first, then hold breaks so the `<p>` TinyMCE nests
       // inside can't strand the marker on a line of its own. Without this the
       // quote silently degraded to a plain paragraph on the next edit.
+      //
+      // Release before the request for the same reason the heading arm does: an
+      // empty `<blockquote></blockquote>` would otherwise hold its own closing
+      // break and every one that followed.
+      if (isClosing) out.releaseBreaks();
       out.requestBreak(2);
       if (!isClosing) {
         out
@@ -322,12 +337,24 @@ String markdownFromLegacyHtml(String input) {
       continue;
     }
 
-    // `<br>` is a line break inside a paragraph; every other block tag is a
-    // paragraph boundary and needs the blank line that separates two markdown
-    // paragraphs — except inside a list, where TinyMCE's `<li><p>…</p></li>`
-    // would otherwise put a blank line between every item and make the whole
-    // list loose. A single break there is a lazy continuation of the item.
-    out.requestBreak(tag == 'br' || listStack.isNotEmpty ? 1 : 2);
+    // `<br>` is a line break the author typed inside a paragraph, so it
+    // *accumulates* — see [_MarkdownWriter.requestHardBreak], and note that a
+    // closing `</br>` is legacy data for the same thing (`one</br>two`).
+    //
+    // `inList` is not optional: the clamp the block arm below applies inside a
+    // list has to apply here too, or a double break inside an item splits the
+    // list in half. It is passed rather than inferred because the writer has no
+    // idea where in the document it is.
+    if (tag == 'br') {
+      out.requestHardBreak(inList: listStack.isNotEmpty);
+      continue;
+    }
+    // Every other block tag is a paragraph boundary and needs the blank line
+    // that separates two markdown paragraphs — except inside a list, where
+    // TinyMCE's `<li><p>…</p></li>` would otherwise put a blank line between
+    // every item and make the whole list loose. A single break there is a lazy
+    // continuation of the item.
+    out.requestBreak(listStack.isNotEmpty ? 1 : 2);
   }
   final tail = text.substring(cursor);
   if (tail.trim().isNotEmpty) out.writeText(tail);
@@ -349,8 +376,16 @@ class _MarkdownWriter {
   /// Newlines currently at the end of [_buffer].
   int _trailing = 0;
 
-  /// Largest break requested since the last write, in newlines.
+  /// Largest **block-boundary** break requested since the last write, in
+  /// newlines. Merged rather than summed, because `</p><p>` asks twice for the
+  /// one boundary it describes.
   int _pending = 0;
+
+  /// How many consecutive **author-typed** `<br>`s have arrived since the last
+  /// write. Counted separately from [_pending] and resolved against it as a max,
+  /// so two `<br>`s are two newlines while a `<br>` that merely decorates a
+  /// block boundary (`</p><br>`) adds nothing to it.
+  int _pendingBreaks = 0;
 
   /// True between a list/heading marker and the text that belongs to it, while
   /// break requests are ignored. TinyMCE writes `<li><p>One</p></li>`, and
@@ -365,17 +400,76 @@ class _MarkdownWriter {
     if (newlines > _pending) _pending = newlines;
   }
 
+  /// A break the **author typed** (`<br>`), which *adds* to any pending break
+  /// instead of being merged into it.
+  ///
+  /// [requestBreak] takes the larger of the two because `</p><p>` asks twice for
+  /// the one paragraph boundary it describes. Consecutive `<br>`s are the
+  /// opposite: each one is a separate break the author put there, and taking the
+  /// max silently collapsed `a<br><br>b` to `a\nb` — the same markdown
+  /// `a<br>b` folds to, so the blank line was gone by the next save.
+  ///
+  /// That was not an edge case. Every server default email body is
+  /// `'<p>$client<br><br>' . <message> . '</p>…'`
+  /// (`EmailTemplateDefaults.php`), so editing one word of any template dropped
+  /// the blank line after the greeting from every mail that company then sent.
+  ///
+  /// Counted separately from [requestBreak] and resolved against it as a max, so
+  /// a `<br>` that merely decorates a boundary the block tags already asked for
+  /// (`</p><br><p>`) does not push it a line wider.
+  ///
+  /// [inList] clamps the whole run to **one** newline, which is the same lazy
+  /// continuation the block arm uses inside a list and is not an approximation:
+  /// a blank line closes the item's paragraph, and the text after it is not
+  /// indented to the item's content column, so CommonMark ends the list there.
+  /// `<ol><li>a<br><br>b</li><li>c</li></ol>` would otherwise re-emit as
+  /// `<ol><li>a</li></ol><p>b</p><ol><li>c</li></ol>` — **`c` numbered 1 again**
+  /// in the rendered PDF. TinyMCE writes that shape for two Shift+Enters in an
+  /// item, and `editor_html.dart` writes it for a `ListItemNode` holding
+  /// `a\n\nb`, so the app feeds itself the trigger.
+  ///
+  /// Outside a list the run resolves to one of the values the encoding actually
+  /// defines — 1 (a soft break inside a paragraph), 2 (a paragraph boundary) or
+  /// 4 (a paragraph plus one deliberately blank one, see the `</p>` arm). **3 is
+  /// skipped deliberately**: super_editor reads two blank lines followed by text
+  /// as a single paragraph whose text begins with a newline, which re-emits as
+  /// `<p>a</p><p><br>b</p>` and folds back to 2 — so three author breaks would
+  /// survive one save and lose one on the next.
+  void requestHardBreak({required bool inList}) {
+    if (_holding) return;
+    final cap = inList ? 1 : 4;
+    if (_pendingBreaks >= cap) return;
+    _pendingBreaks++;
+    if (_pendingBreaks == 3) _pendingBreaks = 4;
+  }
+
   /// Suppress break requests until the next text arrives.
   void holdBreaks() => _holding = true;
 
+  /// Stop suppressing break requests: the construct that called [holdBreaks]
+  /// has closed, so what follows is no longer its content.
+  ///
+  /// [writeText] also clears the flag, which covers every marker construct that
+  /// contains text. One that contains **none** had nothing to clear it, and
+  /// because [requestBreak] is a no-op while held, the flag then suppressed
+  /// every break for the rest of the document: `<ul><li></li></ul><p>Next</p>`
+  /// folded to `- Next`, turning the paragraph after the list into a bullet, and
+  /// a blank bullet between two items pulled the next one into a nested list.
+  /// `<li><p></p></li>` is exactly what TinyMCE writes for an emptied item, and
+  /// `editor_html.dart` writes `<li></li>` for one too, so the app fed itself the
+  /// trigger.
+  void releaseBreaks() => _holding = false;
+
   void writeText(String text) {
     if (text.isEmpty) return;
-    final needed = _pending - _trailing;
+    final wanted = _pending > _pendingBreaks ? _pending : _pendingBreaks;
+    final needed = wanted - _trailing;
     if (_wroteAnything && needed > 0) {
       _buffer.write('\n' * needed);
       _trailing += needed;
     }
     _pending = 0;
+    _pendingBreaks = 0;
     _buffer.write(text);
     _wroteAnything = true;
     if (text.trim().isNotEmpty) _holding = false;

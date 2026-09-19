@@ -26,6 +26,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
 import 'package:admin/ui/features/payments/view_models/payment_edit_view_model.dart';
+import 'package:admin/utils/file_names.dart';
 
 /// Credit action set. Mirrors `QuoteAction` but drops the conversion
 /// actions (`approve` / `convertToInvoice` / `convertToProject`) — credits
@@ -346,7 +347,7 @@ class CreditActions {
           if (!context.mounted) return;
           if (action == CreditAction.downloadPdf) {
             final fileName =
-                'credit_${credit.number.isEmpty ? credit.id : credit.number}.pdf';
+                '${sanitizeFileName('credit_${credit.number.isEmpty ? credit.id : credit.number}')}.pdf';
             await Printing.sharePdf(bytes: bytes, filename: fileName);
           } else {
             await Printing.layoutPdf(onLayout: (_) async => bytes);

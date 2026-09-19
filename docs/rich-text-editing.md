@@ -45,3 +45,66 @@ Expense, project, product, payment, task description and line-item description a
 ## Local list search matches the markup, and that is a known cost
 
 **Searching an invoice / quote / credit / purchase-order / recurring-invoice list matches the *raw* notes value, tags included.** `payloadJsonLike` (`lib/data/db/dao/_payload_search.dart`) runs `lower(json_extract(payload,'$.public_notes')) LIKE '%needle%'`, so a search for `p`, `em`, `li` or `href` now matches every row that has a note. It was already true for anything authored on the web; storing HTML from here broadens it. It is a false-positive widening rather than lost results — the notes clause sits on top of number, PO number, custom values and client name — and the honest fixes are both disproportionate: a denormalized plain-text search column means a migration on a shipped database, and dropping notes from search costs a real capability (clients and vendors already don't search theirs). Left as is, deliberately.
+
+## A typed break accumulates, a block boundary merges
+
+`_MarkdownWriter` (`lib/utils/legacy_html_markdown.dart`) *requests* breaks rather than writing them,
+and resolves the request when real text arrives. `requestBreak` takes the **larger** of two pending
+requests, which is right for block tags: `</p><p>` asks twice for the one boundary it describes, and
+summing would open an empty paragraph between every pair.
+
+Consecutive `<br>`s are the opposite — each is a break the author typed — and taking the max collapsed
+`a<br><br>b` to `a\nb`, byte-identical to what `a<br>b` folds to. The corpus in
+`test/utils/editor_html_test.dart` pins `'<p>a<br>b</p>'` as a fixed point, i.e. one newline ↔ one
+`<br>`, so the second break was simply gone by the next save.
+
+That was not an edge case. **Every** Invoice Ninja default email body is
+`'<p>$client<br><br>' . <message> . '</p><div>$view_button</div>'`
+(`app/DataMapper/EmailTemplateDefaults.php`), and that string is exactly what
+`OverridableMarkdownField(defaultValue: defaults.body)` feeds the editor. So changing one word in
+Settings → Templates & Reminders dropped the blank line after the greeting from the saved template and
+from every mail that company sent thereafter. The same loss hit Send Email → Customize, notes/terms/
+footer pasted from an email, and the app's own output: two Shift+Enters produce `a\n\nb` in one
+`ParagraphNode`, which `editor_html.dart` emits as `<p>a<br><br>b</p>`, and the next open deleted one.
+
+`requestHardBreak` now counts consecutive `<br>`s in `_pendingBreaks`, separately from `_pending`, and
+`writeText` flushes `max(_pending, _pendingBreaks)`. Two counters, not one, because a `<br>` that merely
+decorates a boundary the block tags already asked for (`</p><br><p>`) must not push it a line wider —
+which a naive "always sum" does, and which `'<P>one</P><BR>two'` in the fold's own test catches.
+Capped at 4, the most the encoding distinguishes (1 = soft break, 2 = paragraph boundary, 4 = paragraph
+plus one deliberately blank one).
+
+Neither the fold's tests nor the fixed-point corpus had a `<br><br>` case. **Note the corpus asserts
+`cycle(cycle(x)) == cycle(x)` — stability, not identity** — so adding the shape there would have passed
+vacuously; the fix is pinned by explicit expectations in both files instead. Still open, same root
+cause, lesser: Gmail's `<div><br></div>` blank line yields a plain paragraph break rather than an empty
+paragraph, because `openParagraphIsEmpty` is tracked for `p` only.
+
+## An empty marker construct must release the break hold
+
+`holdBreaks()` suppresses break requests between a list/heading/blockquote marker and the text that
+belongs to it — TinyMCE writes `<li><p>One</p></li>`, and honouring that `<p>` would strand the marker
+on a line of its own, which CommonMark reads as an empty item plus an unrelated paragraph.
+
+The **only** thing that cleared the flag was `writeText`, and only when the text had a non-whitespace
+character. A construct containing no text had nothing to clear it, and since `requestBreak` is a no-op
+while held, the suppression then ran to the **end of the document**: its own `</li>`, the `</ul>`, and
+every later block's request was discarded, and the next real text was appended straight onto the
+stranded marker.
+
+```
+<ul><li></li></ul><p>Next</p>              ->  '- Next'
+<ul><li>One</li><li></li><li>Two</li></ul> ->  '- One\n- - Two'
+<h2></h2><p>Next</p>                       ->  '## Next'
+<blockquote></blockquote><p>Next</p>       ->  '> Next'
+```
+
+So a note whose list ended with a blank bullet had **the following paragraph turned into a bullet**, and
+a blank bullet between two items made the next one **change nesting depth** — both persisted by the save
+and both visible in the rendered PDF. `<li><p></p></li>` is what TinyMCE writes for an emptied item, and
+`editor_html.dart` writes `<li></li>` for a `ListItemNode` with empty text, so the app produced its own
+trigger.
+
+`releaseBreaks()` now runs at all three closers. It is called **before** the closing `requestBreak` in
+the heading and blockquote arms, not after: those arms request their break unconditionally, and while
+the flag is still set that request is dropped too.

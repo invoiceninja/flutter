@@ -11,6 +11,7 @@ import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
 import 'package:admin/ui/features/clients/view_models/client_statement_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/filters/date_range_picker_button.dart';
+import 'package:admin/utils/file_names.dart';
 import 'package:admin/utils/formatting.dart';
 import 'package:admin/utils/pdf_bytes_guard.dart';
 
@@ -163,7 +164,8 @@ class _Body extends StatelessWidget {
         title: context.tr('statement'),
       );
     }
-    final fileName = 'statement_${vm.client?.number ?? vm.clientId}.pdf';
+    final fileName =
+        '${sanitizeFileName('statement_${vm.client?.number ?? vm.clientId}')}.pdf';
     final scrim = Theme.of(context).colorScheme.scrim.withValues(alpha: 0.4);
     return Stack(
       children: [

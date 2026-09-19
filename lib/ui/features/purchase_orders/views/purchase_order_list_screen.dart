@@ -20,6 +20,7 @@ import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_list_empty_state.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_list_tile.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_token_search_field.dart';
+import 'package:admin/utils/file_names.dart';
 
 class PurchaseOrderListScreen extends StatelessWidget {
   const PurchaseOrderListScreen({
@@ -231,7 +232,7 @@ class PurchaseOrderListScreen extends StatelessWidget {
                     : items.first.designId,
               ),
               singleFileName:
-                  'purchase_order_${items.first.number.isEmpty ? items.first.id : items.first.number}.pdf',
+                  '${sanitizeFileName('purchase_order_${items.first.number.isEmpty ? items.first.id : items.first.number}')}.pdf',
             );
           },
         ),

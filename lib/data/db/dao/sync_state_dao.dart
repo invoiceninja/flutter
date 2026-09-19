@@ -66,6 +66,30 @@ class SyncStateDao extends DatabaseAccessor<AppDatabase>
     ),
   );
 
+  /// Stamp `last_full_sync_at` on its own, leaving the keyset cursor alone.
+  ///
+  /// Called once by `refreshAllTemplate` when a full sweep has actually walked
+  /// to the end, which is what the column is supposed to mean. It used to be a
+  /// side effect of [writeCursor]`(wasFullSync: ignoreCursor)`, and `ignoreCursor`
+  /// says "do not read the cursor" — true for page 1 of a real full sync, but
+  /// also true of every page of the two single-page sweeps that now pass it (the
+  /// dashboard's Billing Pipeline `All` tab and a saved-view apply). So the
+  /// column recorded a full sync that had fetched fifty rows.
+  ///
+  /// Harmless today only because nothing reads it back; the point of fixing it is
+  /// that the next consumer would inherit the lie.
+  Future<void> markFullSync({
+    required String companyId,
+    required String entityType,
+    required int now,
+  }) => into(syncStateRows).insertOnConflictUpdate(
+    SyncStateRowsCompanion.insert(
+      companyId: companyId,
+      entityType: entityType,
+      lastFullSyncAt: Value(now),
+    ),
+  );
+
   /// Clear the cursor — used by "Force full sync".
   Future<void> reset({required String companyId, required String entityType}) =>
       (delete(syncStateRows)..where(

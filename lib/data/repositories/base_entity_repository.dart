@@ -794,7 +794,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   ///    (long-standing behaviour — the archived/deleted tail is swept by
   ///    `refreshAll`), and any set [stateQueryParams] sends nothing for (empty,
   ///    or all of `EntityState.values` — the widest possible fetch, which is
-  ///    what `refreshAll` sends and what stamps `lastFullSyncAt`). Anything in
+  ///    what `refreshAll` sends). Anything in
   ///    between, e.g. `{archived}` from the status chip, is a slice.
   ///
   /// `staticFilters` is deliberately NOT considered: those are per-repo
@@ -913,9 +913,9 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   ///   5. Upsert via [upsert] with `{id → companion}` projected via [idOf] +
   ///      [toCompanion].
   ///   6. Advance the cursor when the server returned a non-null
-  ///      `(cursorUpdatedAt, cursorId)`. `wasFullSync` mirrors the
-  ///      established convention: true only when this call ignored the
-  ///      cursor AND we're on page 1 (a fresh full-sync sweep).
+  ///      `(cursorUpdatedAt, cursorId)` — never as a full sync, whatever
+  ///      `ignoreCursor` says. `refreshAllTemplate` stamps that once, after a
+  ///      full sweep has actually finished (`SyncStateDao.markFullSync`).
   ///   7. Return `apiRows.length >= pageSize` — more pages remain when the
   ///      server filled the page.
   ///
@@ -1080,7 +1080,14 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         companyId: companyId,
         updatedAt: result.cursorUpdatedAt!,
         id: result.cursorId!,
-        wasFullSync: ignoreCursor,
+        // Never from here. This used to be `wasFullSync: ignoreCursor`, but
+        // `ignoreCursor` means "do not read the cursor" — true for page 1 of a
+        // real full sync, and equally true of every page of a deliberately
+        // single-page sweep (the dashboard's Billing Pipeline `All` tab, a
+        // saved-view apply), which then stamped `last_full_sync_at` from fifty
+        // rows. `refreshAllTemplate` marks it once, when a sweep has actually
+        // walked to the end — see `SyncStateDao.markFullSync`.
+        wasFullSync: false,
       );
     }
 
@@ -1142,6 +1149,10 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     }
     var page = 1;
     var hasMore = true;
+    // Whether the loop ran out of pages rather than out of patience. The
+    // `maxPages` cap `break`s with `hasMore` still true, and a sweep that stopped
+    // there has NOT seen every row.
+    var walkedToTheEnd = true;
     final allStates = EntityState.values.toSet();
     while (hasMore) {
       hasMore = await fetchPage(
@@ -1160,8 +1171,21 @@ abstract class BaseEntityRepository<TDomain, TApi> {
           'in company $companyId — cursor will resume on the next sync '
           'trigger.',
         );
+        walkedToTheEnd = false;
         break;
       }
+    }
+    // Stamped here, once, and only for a full sweep that actually finished: the
+    // column reads "when did this entity last have every row". Three ways not to
+    // qualify, and all three matter — a partial (delta) sweep, a sweep that hit
+    // the `maxPages` cap (which `break`s with `hasMore` still true), and a sweep
+    // that threw (`CompanySwitchedException`), which never reaches this line.
+    if (full && walkedToTheEnd) {
+      await db.syncStateDao.markFullSync(
+        companyId: companyId,
+        entityType: entityTypeName,
+        now: DateTime.now().millisecondsSinceEpoch,
+      );
     }
   }
 

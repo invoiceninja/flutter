@@ -7,5 +7,5 @@
 /// stub; `dart.library.io` swaps in the native implementation.
 library;
 
-export 'upload_source_seam_web.dart'
-    if (dart.library.io) 'upload_source_seam_io.dart';
+export 'package:admin/data/services/upload_source_seam_web.dart'
+    if (dart.library.io) 'package:admin/data/services/upload_source_seam_io.dart';

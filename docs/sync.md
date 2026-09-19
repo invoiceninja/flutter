@@ -379,8 +379,21 @@ upsert-only too); archive and soft-delete *are* covered, since both bump `update
 with their flags set. And the envelope's `company.activities` / `company.locations` arrays still
 have no consumer — activities is the interesting one, given #160.
 
-**Known, accepted:** bundle writes land at `_persistAndActivate` *before* the `expectedGeneration`
-guard, whose own comment concedes as much, so a logout landing in that window lets these rows be
-written after the wipe. Pre-existing for the thirteen reference bundles; this extends it to user
-data. Not a cross-user leak — `_wipeIfIdentityChanged` still fires when a different identity signs
-in.
+**Fixed, and worth knowing why the note that used to sit here was wrong.** The bundle fan-out ran
+between `_persistAndActivate`'s two `expectedGeneration` guards with none of its own, so a logout
+landing in that window wrote these rows into a database `logout()` had already wiped. This note
+previously signed that off as *"not a cross-user leak — `_wipeIfIdentityChanged` still fires when a
+different identity signs in."* **That was false on the only path that wipes.** The destructive
+branch of `logout()` deletes `kAuthUserIdKey` / `kAuthAccountIdKey` — reasoning, reasonably, that
+"the database goes with this logout" — and `_wipeIfIdentityChanged` requires *both* the stored and
+the incoming id to be non-empty, so with them gone every `*Changed` flag is false and it returns
+without wiping. `refreshAll` being upsert-only then means nothing ever prunes the resurrected rows:
+the next person to sign in on that device, **a colleague in the same company**, which is precisely
+the case the identity check exists for, inherits records that were never theirs — including ones
+the server's own permission filter would have withheld.
+
+Reachable with no user action: the idle-timeout controller takes the *destructive* branch whenever
+the outbox is empty. The window was pre-existing and used to leak only the thirteen small reference
+bundles; adding the fourteen browsable entity tables to it is what turned it into user data.
+`_persistAndActivate` now re-checks the generation immediately before the fan-out **and once per
+company inside it**, since each iteration awaits its own transaction.

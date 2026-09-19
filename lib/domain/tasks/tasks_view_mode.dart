@@ -64,3 +64,21 @@ TasksViewMode resolveTasksViewMode({
   if (locked) return TasksViewMode.list;
   return urlView ?? remembered ?? TasksViewMode.list;
 }
+
+/// Whether the Tasks layout at [mode] mounts its create FAB **regardless of
+/// pane width**.
+///
+/// Daily / weekly / calendar do, deliberately — `docs/pane-width-and-overflow.md`
+/// § *A floating button is a bottom inset*: "The three Tasks FABs stay ungated on
+/// `wide`." List and kanban do not: the list's FAB is gated on the same width as
+/// everything else, and the kanban board has no FAB at all (its `+ New Task`
+/// lives in each column's footer).
+///
+/// Exists because `runningTimerPillBottom` decides whether the bottom-right
+/// corner is free from the pane width alone, which is true of every other screen
+/// and false of these three — so on a desktop window the pill sat on top of their
+/// FAB and, being the later `Stack` child, took the taps meant for it.
+bool tasksViewAlwaysShowsFab(TasksViewMode mode) => switch (mode) {
+  TasksViewMode.daily || TasksViewMode.weekly || TasksViewMode.calendar => true,
+  TasksViewMode.list || TasksViewMode.kanban => false,
+};

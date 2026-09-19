@@ -12,6 +12,7 @@ import 'package:admin/ui/features/tasks/widgets/edit/time_entry_editor_sheet.dar
 import 'package:admin/ui/features/tasks/widgets/edit/time_entry_row.dart';
 import 'package:admin/ui/features/tasks/widgets/edit/time_entry_table.dart';
 import 'package:admin/ui/features/tasks/widgets/task_total_duration_label.dart';
+import 'package:admin/ui/features/tasks/widgets/time_log_problem_message.dart';
 import 'package:admin/utils/formatting.dart';
 
 /// The time-log editor inside the Task edit form. Header row holds
@@ -124,29 +125,13 @@ class TaskEditTimesSection extends StatelessWidget {
 
     final tokens = context.inTheme;
 
-    final military = formatter?.settings.enableMilitaryTime ?? false;
-
-    String clock(DateTime? t) {
-      final local = t?.toLocal();
-
-      return local == null
-          ? ''
-          : formatTimeOfDay(local.hour, local.minute, military: military);
-    }
-
-    final message = switch (problem.kind) {
-      TimeLogProblemKind.inverted => context.tr('time_log_inverted'),
-
-      TimeLogProblemKind.runningNotLast => context.tr(
-        'time_log_running_not_last',
-      ),
-
-      TimeLogProblemKind.overlap => context.tr('time_log_overlap', {
-        'from': clock(problem.from),
-
-        'to': clock(problem.to),
-      }),
-    };
+    // Shared with the weekly grid, which used to roll its own and reported every
+    // kind as an overlap — with the `:from` / `:to` placeholders unfilled.
+    final message = timeLogProblemMessage(
+      context,
+      problem,
+      formatter: formatter,
+    );
 
     return Padding(
       padding: EdgeInsets.only(top: InSpacing.sm),

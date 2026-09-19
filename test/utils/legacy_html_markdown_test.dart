@@ -301,4 +301,138 @@ void main() {
       }
     });
   });
+
+  group('consecutive <br> accumulate', () {
+    // `requestBreak` takes the LARGER of two pending requests, because `</p><p>`
+    // asks twice for the one boundary it describes. Consecutive `<br>`s are the
+    // opposite — each is a break the author typed — and taking the max folded
+    // `a<br><br>b` to `a\nb`, which is byte-identical to what `a<br>b` folds to.
+    // So the blank line was gone by the next save, and it was gone from every
+    // company's email templates: each server default body is
+    // `'<p>$client<br><br>' . <message> . '</p>…'`.
+    test('two breaks are two newlines, not one', () {
+      expect(markdownFromLegacyHtml('<p>a<br><br>b</p>'), 'a\n\nb');
+    });
+
+    test('one break is still one newline', () {
+      // The guard on the fix: `a<br>b` and `a<br><br>b` must not agree.
+      expect(markdownFromLegacyHtml('<p>a<br>b</p>'), 'a\nb');
+    });
+
+    test(
+      'a default email template keeps the blank line after the greeting',
+      () {
+        expect(
+          markdownFromLegacyHtml(
+            r'<p>$client<br><br>Here is your invoice.</p>'
+            r'<div>$view_button</div>',
+          ),
+          r'$client'
+          '\n\n'
+          r'Here is your invoice.'
+          '\n\n'
+          r'$view_button',
+        );
+      },
+    );
+
+    test('a block boundary still merges rather than stacking', () {
+      // What `requestBreak`'s max is for, and what a naive "always sum" would
+      // break: one paragraph boundary, not two.
+      expect(markdownFromLegacyHtml('<p>a</p><p>b</p>'), 'a\n\nb');
+    });
+
+    test('inside a list the run is clamped to one, or the list splits', () {
+      // A blank line closes the item's paragraph and the text after it is not
+      // indented to the item's content column, so CommonMark ends the list —
+      // and the re-emit then restarts `<ol>` numbering at 1. The clamp the block
+      // arm applies inside a list has to apply to an author break too.
+      expect(
+        markdownFromLegacyHtml('<ol><li>a<br><br>b</li><li>c</li></ol>'),
+        '1. a\nb\n1. c',
+      );
+      expect(
+        markdownFromLegacyHtml('<ul><li>a<br><br><br>b</li></ul>'),
+        '- a\nb',
+      );
+      // A single break inside an item is unchanged.
+      expect(markdownFromLegacyHtml('<ul><li>a<br>b</li></ul>'), '- a\nb');
+    });
+
+    test('three breaks snap to four — 3 is not a value the encoding defines', () {
+      // super_editor reads two blank lines then text as ONE paragraph whose text
+      // begins with a newline, which re-emits as `<p>a</p><p><br>b</p>` and folds
+      // back to 2 — so passing 3 through would survive one save and lose a break
+      // on the next, which is the bug this group exists to fix, one break along.
+      expect(markdownFromLegacyHtml('<p>a<br><br><br>b</p>'), 'a\n\n\n\nb');
+    });
+
+    test('runs longer than the encoding distinguishes are capped', () {
+      // 4 newlines is the most the encoding means anything by (paragraph plus
+      // one deliberately blank paragraph), so a wall of breaks saturates there
+      // instead of growing without bound.
+      expect(
+        markdownFromLegacyHtml('<p>a<br><br><br><br><br><br>b</p>'),
+        'a\n\n\n\nb',
+      );
+    });
+  });
+
+  group('a marker construct with no text in it', () {
+    // `holdBreaks()` was only ever cleared by `writeText`, so a construct
+    // containing no text left the flag armed — and `requestBreak` is a no-op
+    // while it is. The suppression then ran to the end of the document: the
+    // next real text was appended straight onto the stranded marker.
+    test('an empty bullet does not swallow the paragraph after the list', () {
+      // Was `- Next`: the paragraph became a bullet, and saving persisted it as
+      // one.
+      expect(
+        markdownFromLegacyHtml('<ul><li></li></ul><p>Next</p>'),
+        '- \n\nNext',
+      );
+    });
+
+    test('an empty bullet between two items does not re-nest the second', () {
+      // Was `- One\n- - Two`, i.e. the blank item vanished and `Two` moved into
+      // a nested list — a visible change to the rendered PDF.
+      expect(
+        markdownFromLegacyHtml('<ul><li>One</li><li></li><li>Two</li></ul>'),
+        '- One\n- \n- Two',
+      );
+    });
+
+    test("TinyMCE's emptied `<li><p></p></li>` behaves the same", () {
+      expect(
+        markdownFromLegacyHtml('<ul><li><p></p></li><li><p>Two</p></li></ul>'),
+        '- \n- Two',
+      );
+    });
+
+    test('an empty heading does not swallow what follows', () {
+      expect(markdownFromLegacyHtml('<h2></h2><p>Next</p>'), '## \n\nNext');
+    });
+
+    test('an empty blockquote does not swallow what follows', () {
+      expect(
+        markdownFromLegacyHtml('<blockquote></blockquote><p>Next</p>'),
+        '> \n\nNext',
+      );
+    });
+
+    test('a marker WITH text still sits flush against it', () {
+      // The behaviour `holdBreaks` exists for, and which the release must not
+      // undo: TinyMCE nests a `<p>` inside each `<li>`, and honouring that
+      // break would strand the marker on a line of its own.
+      expect(
+        markdownFromLegacyHtml(
+          '<ul><li><p>One</p></li><li><p>Two</p></li></ul>',
+        ),
+        '- One\n- Two',
+      );
+      expect(
+        markdownFromLegacyHtml('<blockquote><p>quoted</p></blockquote>'),
+        '> quoted',
+      );
+    });
+  });
 }

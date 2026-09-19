@@ -20,6 +20,7 @@ import 'package:admin/ui/features/quotes/widgets/quote_actions.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_list_empty_state.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_list_tile.dart';
 import 'package:admin/ui/features/quotes/widgets/quote_token_search_field.dart';
+import 'package:admin/utils/file_names.dart';
 
 class QuoteListScreen extends StatelessWidget {
   const QuoteListScreen({
@@ -224,7 +225,7 @@ class QuoteListScreen extends StatelessWidget {
                     : items.first.designId,
               ),
               singleFileName:
-                  'quote_${items.first.number.isEmpty ? items.first.id : items.first.number}.pdf',
+                  '${sanitizeFileName('quote_${items.first.number.isEmpty ? items.first.id : items.first.number}')}.pdf',
             );
           },
         ),

@@ -10,5 +10,5 @@
 /// factory. Default target is the web stub; `dart.library.io` swaps in native.
 library;
 
-export 'device_contacts_service_web.dart'
-    if (dart.library.io) 'device_contacts_service_io.dart';
+export 'package:admin/data/services/device_contacts_service_web.dart'
+    if (dart.library.io) 'package:admin/data/services/device_contacts_service_io.dart';

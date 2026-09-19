@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/task.dart';
-import 'package:admin/data/models/domain/time_entry.dart';
 import 'package:admin/domain/tasks/task_schedule.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
@@ -50,6 +49,10 @@ import 'package:admin/utils/formatting.dart';
       return (text: context.tr('now'), color: tokens.warning);
     case TaskScheduleState.upcoming:
       final start = _bookedStart(task, asOf);
+      // `upcoming` means `_bookings` found one, so this is non-null in practice;
+      // falling back to the plain duration rather than asserting keeps a future
+      // divergence between the two a missing pill instead of a crash in `build`.
+      if (start == null) return null;
       return (
         text: formatTimeOfDay(
           start.hour,
@@ -69,7 +72,28 @@ import 'package:admin/utils/formatting.dart';
   }
 }
 
-/// Local wall-clock start of the booking the row is reporting on.
-DateTime _bookedStart(Task task, DateTime now) => sortTimeLog(
-  task.timeLog,
-).firstWhere((e) => !e.isRunning && e.stop!.isAfter(now)).start!.toLocal();
+/// Local wall-clock start of the booking the row is reporting on — the same
+/// entry `taskScheduleState` reached its verdict from.
+///
+/// [isTimeEntryBooking] rather than a local predicate, because a looser one
+/// disagrees with that verdict. This used to be
+/// `!e.isRunning && e.stop!.isAfter(now)`, which omits both of the clauses that
+/// make a straddling block a *plan* rather than *work*: `start > now`, or a
+/// `due_date` matching the entry's own day. So a task holding a worked block that
+/// spans now on a day that is not its due date — the weekly grid synthesizes
+/// every cell at local 09:00, so "8" typed into today's column is `09:00–17:00` —
+/// plus a genuine future booking reported `upcoming` from the booking while
+/// printing the worked block's `09:00`.
+///
+/// Nullable rather than asserting: the caller only reaches it in the `upcoming`
+/// state, which exists precisely because a booking was found, so null is
+/// unreachable today — but a future divergence between the two should be a
+/// missing pill, not a `StateError` thrown out of `build`. (The predicate it
+/// replaced was a bare `firstWhere` with no `orElse`, which would have been.)
+DateTime? _bookedStart(Task task, DateTime now) {
+  final booking = sortTimeLog(
+    task.timeLog,
+  ).where((e) => isTimeEntryBooking(e, now: now, dueDate: task.dueDate));
+  final first = booking.isEmpty ? null : booking.first;
+  return first?.start?.toLocal();
+}

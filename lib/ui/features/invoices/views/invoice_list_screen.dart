@@ -20,6 +20,7 @@ import 'package:admin/ui/features/invoices/widgets/invoice_actions.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_list_empty_state.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_list_tile.dart';
 import 'package:admin/ui/features/invoices/widgets/invoice_token_search_field.dart';
+import 'package:admin/utils/file_names.dart';
 
 /// Invoices list screen — pure config + per-entity widgets. Mirrors
 /// `ExpenseListScreen`; the screen-level chrome lives in
@@ -235,7 +236,7 @@ class InvoiceListScreen extends StatelessWidget {
                     : items.first.designId,
               ),
               singleFileName:
-                  'invoice_${items.first.number.isEmpty ? items.first.id : items.first.number}.pdf',
+                  '${sanitizeFileName('invoice_${items.first.number.isEmpty ? items.first.id : items.first.number}')}.pdf',
             );
           },
         ),

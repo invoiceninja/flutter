@@ -235,4 +235,75 @@ void main() {
       });
     }
   });
+
+  group('open-and-save preserves a blank line', () {
+    // Deliberately NOT added to the corpus above: that asserts *stability*
+    // (`cycle(cycle(x)) == cycle(x)`), not identity, so a shape that loses
+    // content on the first pass and is stable afterwards passes it vacuously.
+    // Which is exactly what `<br><br>` did. These assert the content instead.
+
+    test('two breaks survive one cycle', () {
+      // Was `<p>a<br>b</p>` — one break silently dropped, because the fold
+      // merged consecutive `<br>`s into a single newline and `a<br>b` folds to
+      // that same newline. Now a paragraph boundary, which is what a blank line
+      // between two runs of text means.
+      expect(cycle('<p>a<br><br>b</p>'), '<p>a</p><p>b</p>');
+    });
+
+    test('one break is still one break', () {
+      // The guard on the test above: the two inputs must not agree.
+      expect(cycle('<p>a<br>b</p>'), '<p>a<br>b</p>');
+    });
+
+    test('a default email template keeps the line after the greeting', () {
+      // Every server default body is `<p>$client<br><br>…</p>`
+      // (`EmailTemplateDefaults.php`), and this is the value the Templates &
+      // Reminders editor is seeded with. Before the fix, changing one word saved
+      // the greeting and the body as one run.
+      final saved = cycle(
+        r'<p>$client<br><br>Here is your invoice.</p>'
+        r'<div>$view_button</div>',
+      );
+      expect(
+        saved,
+        r'<p>$client</p><p>Here is your invoice.</p><p>$view_button</p>',
+      );
+      expect(cycle(saved), saved);
+    });
+
+    test('an empty bullet no longer eats the paragraph after the list', () {
+      // Was `<ul><li>Next</li></ul>`: the paragraph became a bullet, and the
+      // save persisted it as one. `holdBreaks` had no release, so a marker with
+      // no text in it suppressed every break to the end of the document.
+      final saved = cycle('<ul><li></li></ul><p>Next</p>');
+      expect(saved, '<ul><li></li></ul><p>Next</p>');
+      expect(cycle(saved), saved);
+    });
+
+    test('a double break inside a list item does not split the list', () {
+      // Was `<ol><li>a</li></ol><p>b</p><ol><li>c</li></ol>` — the list ends at
+      // the blank line and `c` is **numbered 1 again** in the rendered PDF. The
+      // `<br>` arm has to honour the same in-list clamp the block arm does.
+      final saved = cycle('<ol><li>a<br><br>b</li><li>c</li></ol>');
+      expect(saved, '<ol><li>a<br>b</li><li>c</li></ol>');
+      expect(cycle(saved), saved);
+    });
+
+    test('three breaks round-trip without losing one on the second save', () {
+      // 3 newlines is not a value the encoding defines: super_editor reads it as
+      // one paragraph beginning with a newline, which folds back to 2. Snapping
+      // to 4 makes it a paragraph plus a blank one, which IS stable.
+      final saved = cycle('<p>a<br><br><br>b</p>');
+      expect(cycle(saved), saved, reason: 'must not shed a break on save #2');
+    });
+
+    test('a blank bullet between two items does not re-nest the second', () {
+      // Was `<ul><li>One</li><li><ul><li>Two</li></ul></li></ul>` — a visible
+      // change to the rendered PDF.
+      expect(
+        cycle('<ul><li>One</li><li></li><li>Two</li></ul>'),
+        '<ul><li>One</li><li></li><li>Two</li></ul>',
+      );
+    });
+  });
 }

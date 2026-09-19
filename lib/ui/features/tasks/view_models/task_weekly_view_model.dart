@@ -57,8 +57,18 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
   bool _disposed = false;
 
   String? _lastError;
+  TimeLogProblem? _lastProblem;
   int _errorNonce = 0;
   String? get lastError => _lastError;
+
+  /// The rejected log's actual shape, when that is why the edit failed — so the
+  /// screen can say which of the three things went wrong (and, for an overlap,
+  /// name the window). Null when the failure was an unparseable duration.
+  ///
+  /// Reported instead of a message because building one needs a `BuildContext`
+  /// and the company `Formatter` for 12- vs 24-hour, and this view model has
+  /// neither. See `timeLogProblemMessage`.
+  TimeLogProblem? get lastProblem => _lastProblem;
 
   /// Bumped on each error so the screen's listener fires the SnackBar once.
   int get errorNonce => _errorNonce;
@@ -251,7 +261,7 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
     var logs = _logsFor(taskId);
     var anyApplied = false;
     var anyFailed = false;
-    TimeLogProblem? overlap;
+    TimeLogProblem? problem;
     for (final entry in snapshot.entries) {
       final day = Date.tryParse(entry.key);
       if (day == null) continue;
@@ -269,16 +279,25 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
         // overlap is the log's shape, and telling someone to "enter a valid
         // duration" for a duration that parsed fine is the lie this splits.
         anyFailed = true;
-        overlap ??= next.problem;
+        problem ??= next.problem;
         continue;
       }
       logs = next.logs!;
       anyApplied = true;
     }
     if (anyFailed) {
-      _emitError(
-        overlap == null ? 'please_enter_a_valid_duration' : 'time_log_overlap',
-      );
+      // A refused log reports its own kind. This used to hard-code
+      // `time_log_overlap` for every `TimeLogProblem`, but `timeLogProblem` also
+      // returns `inverted` and `runningNotLast` — and `weekly_merge.dart`'s own
+      // comment names the reachable one: `remaining.add` can leave a running
+      // entry on another day no longer last. So typing into a cell while a timer
+      // ran elsewhere in the week announced an overlap that did not exist, using
+      // a template whose `:from` / `:to` were never filled in.
+      if (problem == null) {
+        _emitError('please_enter_a_valid_duration');
+      } else {
+        _emitProblem(problem);
+      }
     }
     // Drop the whole snapshot: applied cells are now in `logs`, and the failed
     // cell reverts to its last-good value on the next emission (no re-arm loop).
@@ -325,6 +344,15 @@ class TaskWeeklyViewModel extends ChangeNotifier with TaskFiltersMixin {
 
   void _emitError(String key) {
     _lastError = key;
+    _lastProblem = null;
+    _errorNonce++;
+  }
+
+  /// Report a refused time log by its shape rather than by a key, so the screen
+  /// can render the right one of the three sentences with its parameters filled.
+  void _emitProblem(TimeLogProblem problem) {
+    _lastError = null;
+    _lastProblem = problem;
     _errorNonce++;
   }
 

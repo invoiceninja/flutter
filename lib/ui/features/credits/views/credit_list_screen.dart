@@ -20,6 +20,7 @@ import 'package:admin/ui/features/credits/widgets/credit_list_empty_state.dart';
 import 'package:admin/ui/features/credits/widgets/credit_list_tile.dart';
 import 'package:admin/ui/features/credits/widgets/credit_token_search_field.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
+import 'package:admin/utils/file_names.dart';
 
 class CreditListScreen extends StatelessWidget {
   const CreditListScreen({super.key, this.clientId, this.embedded = false});
@@ -191,7 +192,7 @@ class CreditListScreen extends StatelessWidget {
                     : items.first.designId,
               ),
               singleFileName:
-                  'credit_${items.first.number.isEmpty ? items.first.id : items.first.number}.pdf',
+                  '${sanitizeFileName('credit_${items.first.number.isEmpty ? items.first.id : items.first.number}')}.pdf',
             );
           },
         ),

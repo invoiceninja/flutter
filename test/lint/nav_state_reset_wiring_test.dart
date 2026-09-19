@@ -44,11 +44,70 @@ void main() {
     expect(wipe, isNotNull, reason: 'the onBeforeDataWipe closure is missing');
     final body = wipe!.group(1)!;
 
-    for (final call in const [
-      'sidebarMenu.resetInMemory()',
-      'tasksView.resetInMemory()',
-      'hideEmptyPanels.resetInMemory()',
-    ]) {
+    // **Derived, not listed.** This test used to name three controllers, and the
+    // day a fourth (`hideUnverifiedUsers`, invoiceninja/flutter#150) shipped in
+    // the same release as two of them it slipped straight past — the guard built
+    // for the bug could not see the newest instance of it. Any controller that
+    // declares `resetInMemory` is now required to be wired, so a fifth is covered
+    // the day it is written.
+    //
+    // Three things about *how* it derives, each a hole the first version had:
+    //
+    //  * **recursive** — `lib/app/shortcuts/keyboard_shortcuts_controller.dart`
+    //    is a `Services` field that touches `nav_state` and sits in a
+    //    subdirectory, so a flat `listSync()` could never see it;
+    //  * the `Services` field name is **looked up**, not guessed from the file
+    //    name: two getters are plural where their file is singular
+    //    (`sidebar_badge_mode_controller.dart` → `sidebarBadgeModes`,
+    //    `shortcut_hint_controller.dart` → `shortcutHints`), so camelCasing the
+    //    file name would demand a getter that does not exist;
+    //  * the probe runs on **comment-stripped** source, so a doc comment quoting
+    //    the signature cannot enlist a controller.
+    final classToField = <String, String>{
+      // `final FooController foo;` and `late final FooController foo = …` alike.
+      for (final m in RegExp(
+        r'\b(\w+Controller)\s+(\w+)\s*[;=]',
+      ).allMatches(services))
+        m.group(1)!: m.group(2)!,
+    };
+
+    final declared = <String>[];
+    for (final f in Directory('lib/app').listSync(recursive: true)) {
+      if (f is! File || !f.path.endsWith('_controller.dart')) continue;
+      final src = read(f.path);
+      if (!src.contains('void resetInMemory(')) continue;
+      final cls = RegExp(r'\bclass\s+(\w+Controller)\b').firstMatch(src);
+      expect(
+        cls,
+        isNotNull,
+        reason: '${f.path} declares resetInMemory but no *Controller class',
+      );
+      final field = classToField[cls!.group(1)!];
+      expect(
+        field,
+        isNotNull,
+        reason:
+            '${cls.group(1)} declares resetInMemory but Services exposes no '
+            'field of that type — either wire it or say here why it is exempt',
+      );
+      declared.add(field!);
+    }
+    declared.sort();
+
+    expect(
+      declared,
+      containsAll(<String>[
+        'hideEmptyPanels',
+        'hideUnverifiedUsers',
+        'sidebarMenu',
+        'tasksView',
+      ]),
+      reason:
+          'the scan lost a controller it used to find — if one was renamed, '
+          'update this floor; if one dropped resetInMemory, say why here',
+    );
+
+    for (final call in declared.map((n) => '$n.resetInMemory()')) {
       expect(
         body,
         contains(call),

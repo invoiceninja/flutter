@@ -50,10 +50,17 @@ class RunningTimerPill extends StatefulWidget {
 /// landscape, where the window is wide enough for the shell's railed layout
 /// (invoiceninja/flutter#164). Anywhere else the corner is free, and the pill
 /// sits 16 from the bottom.
+///
+/// [screenAlwaysHasFab] is the exception to that width rule: the Tasks daily /
+/// weekly / calendar views mount their FAB ungated on width **on purpose**
+/// (`tasksViewAlwaysShowsFab`), so on a desktop window this returned 16 while
+/// there really was a 56 px button underneath. The pill is the later `Stack`
+/// child, so it won the hit test: aiming at `+` hit stop/start instead.
 double runningTimerPillBottom({
   required double paneWidth,
   required bool isPhone,
-}) => isPhone || paneWidth < Breakpoints.wide ? 112 : 16;
+  bool screenAlwaysHasFab = false,
+}) => isPhone || screenAlwaysHasFab || paneWidth < Breakpoints.wide ? 112 : 16;
 
 class _RunningTimerPillState extends State<RunningTimerPill>
     with WidgetsBindingObserver {

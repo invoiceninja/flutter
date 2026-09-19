@@ -18,6 +18,7 @@ import 'package:admin/ui/features/tasks/widgets/daily/task_daily_actions.dart';
 import 'package:admin/ui/features/tasks/widgets/task_filter_bar.dart';
 import 'package:admin/ui/features/tasks/widgets/task_filters_sheet.dart';
 import 'package:admin/ui/features/tasks/widgets/tasks_view_toggle.dart';
+import 'package:admin/ui/features/tasks/widgets/time_log_problem_message.dart';
 import 'package:admin/ui/features/tasks/widgets/weekly/weekly_grid.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -113,10 +114,23 @@ class _TaskWeeklyScreenState extends State<TaskWeeklyScreen> {
   void _onVmChanged() {
     if (_vm.errorNonce == _lastErrorNonce) return;
     _lastErrorNonce = _vm.errorNonce;
+    if (!mounted) return;
+    // A refused log carries its own shape, and the sentence for it needs both a
+    // context and the formatter (12- vs 24-hour) that this view model has not
+    // got — so it reports the problem and the message is built here, from the
+    // same helper the time-log table uses.
+    final problem = _vm.lastProblem;
+    if (problem != null) {
+      Notify.error(
+        context,
+        timeLogProblemMessage(context, problem, formatter: _formatter),
+      );
+      return;
+    }
     // Blank guard as well as null: `tr('')` returns `''`, which would toast an
     // empty card rather than an error.
     final key = _vm.lastError?.trim();
-    if (key != null && key.isNotEmpty && mounted) {
+    if (key != null && key.isNotEmpty) {
       Notify.error(context, context.tr(key));
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -110,6 +112,70 @@ void main() {
       );
     });
 
+    testWidgets('claims when it mounts under an ancestor that already holds '
+        'focus, with no route change to move it', (tester) async {
+      // The case the class doc names as its own reason to exist — "a list
+      // rebuilt under a route that already existed" — and the one the rest of
+      // this file cannot see, because `harness` always mounts with
+      // `primaryFocus == null`, which escapes through the `primary == null` arm.
+      //
+      // It matters because `_schedule` evaluates `_needsCheck()` *synchronously*
+      // from `didChangeDependencies`, i.e. during the keeper's own first build,
+      // before the child `Focus` has reparented the node. So `node.ancestors` is
+      // still empty at that moment, and a direction test that reads it cannot
+      // tell "above" from "beside" yet. Nothing re-arms afterwards:
+      // `didChangeDependencies` won't re-run, `didUpdateWidget` sees no change,
+      // and attaching a node fires no `FocusManager` notification.
+      //
+      // Live trigger: the Tasks view toggle `go`s `/tasks`, which go_router
+      // treats as a no-op on an unchanged `RouteMatchList`, so the body swaps
+      // through a `ValueListenableBuilder` with no route push, no disposal and
+      // no focus change at all.
+      final ancestor = FocusNode(debugLabel: 'ancestor');
+      addTearDown(ancestor.dispose);
+
+      Widget tree({required bool withKeeper}) => MaterialApp(
+        home: Scaffold(
+          body: Focus(
+            focusNode: ancestor,
+            autofocus: true,
+            child: withKeeper
+                ? FocusOwnerKeeper(
+                    node: shell,
+                    focusIsStale: (_) => false,
+                    child: Focus(
+                      focusNode: shell,
+                      onKeyEvent: (node, event) {
+                        if (event is KeyDownEvent) seen.add(event.logicalKey);
+                        return KeyEventResult.handled;
+                      },
+                      child: const SizedBox.shrink(),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(tree(withKeeper: false));
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, ancestor);
+
+      await tester.pumpWidget(tree(withKeeper: true));
+      await settle(tester);
+
+      expect(
+        FocusManager.instance.primaryFocus,
+        shell,
+        reason:
+            'the surface mounted with focus above it and nothing else will ever '
+            'move it, so a keeper that declines here leaves every shortcut '
+            'below it dead until the user clicks',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      expect(seen, <LogicalKeyboardKey>[LogicalKeyboardKey.keyN]);
+    });
+
     testWidgets('focus parked on the root scope is reclaimed', (tester) async {
       await tester.pumpWidget(harness(revision: 0, focusIsStale: (_) => false));
       await tester.pump();
@@ -156,6 +222,143 @@ void main() {
             'a popped route hands focus back to the shell page\'s own '
             'scope, which is an ancestor of the shell node, not a descendant',
       );
+    });
+  });
+
+  group('a nested navigator — the entity list\'s real shape', () {
+    // The group above passes because `harness` mounts ONE navigator, so the
+    // keeper's nearest `ModalRoute` is the same route the dialog is pushed over
+    // and `isCurrent` flips to false. The entity list is not shaped like that.
+    //
+    // `buildEntityRouteBlock` is a `ShellRoute` whose `pageBuilder` builds the
+    // list as a *sibling* of its inner Navigator, and that shell page lives on a
+    // `StatefulShellRoute.indexedStack` branch Navigator. So the list's nearest
+    // `ModalRoute` is the branch's page — and `Route.isCurrent` is strictly
+    // per-navigator (`navigator.dart`: it compares `this` against its own
+    // `_navigator`'s last present route entry). `showDialog` defaults to
+    // `useRootNavigator: true`, so that branch page stays `isCurrent == true`
+    // for the whole life of the dialog and `_routeIsCurrent` never stands down.
+    //
+    // Note the inversion this makes: `showModalBottomSheet` defaults to the
+    // *nearest* navigator, so sheets disarm the keeper and dialogs do not —
+    // the opposite way round from what the guard is for.
+    Widget nested({bool Function()? canClaim}) => MaterialApp(
+      home: Navigator(
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            body: FocusOwnerKeeper(
+              node: shell,
+              focusIsStale: (_) => false,
+              canClaim: canClaim,
+              child: Focus(
+                focusNode: shell,
+                autofocus: true,
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent) seen.add(event.logicalKey);
+                  return KeyEventResult.handled;
+                },
+                child: const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('a dialog on the ROOT navigator keeps its focus', (
+      tester,
+    ) async {
+      await tester.pumpWidget(nested());
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, shell);
+
+      unawaited(
+        showDialog<void>(
+          context: tester.element(find.byType(Scaffold)),
+          builder: (_) =>
+              const AlertDialog(content: TextField(autofocus: true)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The keeper's post-frame reclaim needs two more frames to land, and
+      // `pumpAndSettle` above has already given it them — but pump again so a
+      // reclaim scheduled off the dialog's own focus change is included.
+      await settle(tester);
+
+      expect(
+        FocusManager.instance.primaryFocus,
+        isNot(shell),
+        reason:
+            'the dialog legitimately owns focus. Reclaiming it blurs the '
+            'field one frame after it opens, so the command palette cannot be '
+            'typed into and its arrow keys stop working — and because '
+            'isTextInputFocused() is then false, bare letters are serviced by '
+            'the list underneath instead (N navigates behind the dialog)',
+      );
+
+      await tester.enterText(find.byType(TextField), 'abc');
+      await tester.pump();
+      expect(
+        find.text('abc'),
+        findsOneWidget,
+        reason: 'a field the keeper keeps blurring cannot be typed into',
+      );
+    });
+
+    testWidgets('a field in a sibling subtree — the master-detail pane — keeps '
+        'its focus', (tester) async {
+      // The create-route half of the same bug, and the reason the fix is the
+      // direction test rather than a better route check. `/x/new` is its own
+      // `GoRoute` with no `:id`, so `paneIsOpenForList` (which reads
+      // `pathParameters['id']`) is false there even though the pane is up and
+      // owns focus — and on a wide window `MasterDetailLayout` keeps the list
+      // mounted under `Offstage`, whose children "can receive focus and have
+      // keyboard input directed to them". So neither of the keeper's two guards
+      // fires, and the list pulls focus off the create form.
+      //
+      // No `canClaim` here on purpose: this asserts the keeper leaves a sibling
+      // alone on its own, without the host having to know about it.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                Expanded(
+                  child: FocusOwnerKeeper(
+                    node: shell,
+                    focusIsStale: (_) => false,
+                    child: Focus(
+                      focusNode: shell,
+                      autofocus: true,
+                      child: const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+                // The pane: a sibling of the keeper's node, not a descendant.
+                const Expanded(child: TextField()),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(FocusManager.instance.primaryFocus, shell);
+
+      await tester.tap(find.byType(TextField));
+      await settle(tester);
+
+      expect(
+        FocusManager.instance.primaryFocus,
+        isNot(shell),
+        reason:
+            'every tap into a create-form field would otherwise be blurred '
+            'one frame later, so the form is untypable and the keystrokes '
+            'drive the hidden list instead',
+      );
+
+      await tester.enterText(find.byType(TextField), 'abc');
+      await tester.pump();
+      expect(find.text('abc'), findsOneWidget);
     });
   });
 

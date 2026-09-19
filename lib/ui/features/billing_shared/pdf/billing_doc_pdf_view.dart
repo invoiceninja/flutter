@@ -10,6 +10,7 @@ import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/utils/file_names.dart';
 import 'package:admin/utils/pdf_bytes_guard.dart';
 
 /// Shared PDF preview pane for billing docs. Fetches bytes via the
@@ -179,8 +180,19 @@ class _BillingDocPdfViewState extends State<BillingDocPdfView> {
         title: context.tr('view_pdf'),
       );
     }
-    final fileName =
-        '${widget.entity.wireName}_${widget.entityNumber.isEmpty ? 'preview' : widget.entityNumber}.pdf';
+    // Sanitized here rather than at each producer: `entityNumber` arrives
+    // carrying a company-configured document number (`INV/2026/0001` is an
+    // ordinary European pattern) and, on the History tab, a saved-version
+    // timestamp rendered through the company's `date_format_id` — which is `/`
+    // separated on the server's own default and colon-separated on all of them.
+    // `printing` hands this straight to the native share, which concatenates it
+    // onto a temp path and swallows the write error, so an illegal character was
+    // a Share/Download button that silently did nothing. See [sanitizeFileName].
+    final previewName = '${widget.entity.wireName}_preview';
+    final rawName = widget.entityNumber.isEmpty
+        ? previewName
+        : '${widget.entity.wireName}_${widget.entityNumber}';
+    final fileName = '${sanitizeFileName(rawName, fallback: previewName)}.pdf';
     final scrim = Theme.of(context).colorScheme.scrim.withValues(alpha: 0.4);
     final preview = Stack(
       children: [

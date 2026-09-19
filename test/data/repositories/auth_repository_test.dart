@@ -1764,6 +1764,91 @@ void main() {
       },
     );
 
+    test('a logout during the bundle fan-out stops it, so the companies after '
+        'it never get their rows written', () async {
+      // The fan-out sits between `_persistAndActivate`'s two generation guards
+      // and used to have none of its own, so a logout landing here wrote rows
+      // into a database `logout()` had already wiped. That used to leak only the
+      // thirteen small reference bundles; it now carries the fourteen browsable
+      // entity tables, i.e. the user's clients, invoices, payments and tasks.
+      //
+      // Nothing cleans them up afterwards: the destructive `logout()` deletes
+      // the stored user/account ids, and `_wipeIfIdentityChanged` needs *both*
+      // sides non-empty, so the next sign-in — a colleague in the same company —
+      // gets no wipe, and `refreshAll` is upsert-only. See `docs/sync.md`.
+      final twoCompanies = _envelope(
+        companies: [
+          (
+            id: 'co_a',
+            name: 'Acme',
+            token: 'tok_a',
+            isAdmin: false,
+            isOwner: false,
+          ),
+          (
+            id: 'co_b',
+            name: 'Beta',
+            token: 'tok_b',
+            isAdmin: false,
+            isOwner: false,
+          ),
+        ],
+      );
+      authService.queueLogin(twoCompanies);
+      await repo.login(
+        baseUrl: 'https://test',
+        isHosted: false,
+        email: 'a',
+        password: 'b',
+      );
+
+      final seen = <String>[];
+      Future<void>? logoutFuture;
+      repo.onPersistBundles =
+          ({required companyId, required company, required fullSync}) async {
+            seen.add(companyId);
+            // Simulates the idle-timeout controller firing, which takes the
+            // *destructive* branch whenever the outbox is empty — so this is
+            // reachable with no user action at all.
+            //
+            // Two things about how this is started are load-bearing.
+            //
+            // Not awaited: `logout()` bumps the session generation synchronously,
+            // before its first `await`, which is exactly what the guard reads —
+            // and awaiting its `_db.wipe()` from inside the transaction this hook
+            // runs in would deadlock on that transaction.
+            //
+            // From `Zone.root`, because the real trigger is a `Timer` callback in
+            // the idle-timeout controller, which does not inherit drift's
+            // transaction zone. Called from this zone instead, `wipe()`'s own
+            // `transaction` would join the one already open here and then throw
+            // "a transaction was used after being closed" — an artefact of the
+            // test's vantage point, not something production can hit.
+            logoutFuture ??= Zone.root.run(() => repo.logout());
+          };
+      repo.apiClient = gatedClient(
+        MockClient((req) async {
+          if (req.url.path == '/api/v1/refresh') {
+            return http.Response(jsonEncode(twoCompanies.toJson()), 200);
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      await repo.refresh(fullSync: true);
+      await logoutFuture;
+      await pumpEventQueue();
+
+      expect(
+        seen,
+        ['co_a'],
+        reason:
+            'the generation is re-checked once per company, so the logout that '
+            'landed inside co_a stops co_b from being applied at all',
+      );
+      expect(repo.isAuthenticated, isFalse);
+    });
+
     test('a company switch while /refresh is in flight is not reverted by the '
         'commit', () async {
       final twoCompanies = _envelope(

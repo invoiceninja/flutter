@@ -111,8 +111,12 @@ void main() {
       expect(advance(), isTrue);
     });
 
-    test('the WIDEST fetch advances — every refreshAll passes all states, and '
-        'that is what stamps lastFullSyncAt on a forced full resync', () {
+    test('the WIDEST fetch advances — every refreshAll passes all states', () {
+      // Deliberately no longer says "and that is what stamps lastFullSyncAt":
+      // advancing the cursor and recording a completed full sync are now separate
+      // decisions. `refreshAllTemplate` stamps the latter once, after its loop,
+      // and only when the walk actually reached the end — see
+      // `SyncStateDao.markFullSync`.
       expect(advance(states: EntityState.values.toSet()), isTrue);
       expect(advance(states: const {}), isTrue);
     });

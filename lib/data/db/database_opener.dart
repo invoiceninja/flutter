@@ -19,5 +19,5 @@
 /// VM / Flutter native, false on web) swaps in the native implementation.
 library;
 
-export 'database_opener_web.dart'
-    if (dart.library.io) 'database_opener_io.dart';
+export 'package:admin/data/db/database_opener_web.dart'
+    if (dart.library.io) 'package:admin/data/db/database_opener_io.dart';

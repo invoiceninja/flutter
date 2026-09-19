@@ -24,6 +24,7 @@ import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/billing_cross_clone.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
+import 'package:admin/utils/file_names.dart';
 
 /// RecurringInvoice action set. Mirrors invoice actions but drops markPaid
 /// / autoBill / cancel / convert (recurring doesn't have those), and adds
@@ -350,7 +351,7 @@ class RecurringInvoiceActions {
           if (!context.mounted) return;
           if (action == RecurringInvoiceAction.downloadPdf) {
             final fileName =
-                'recurring_invoice_${ri.number.isEmpty ? ri.id : ri.number}.pdf';
+                '${sanitizeFileName('recurring_invoice_${ri.number.isEmpty ? ri.id : ri.number}')}.pdf';
             await Printing.sharePdf(bytes: bytes, filename: fileName);
           } else {
             await Printing.layoutPdf(onLayout: (_) async => bytes);

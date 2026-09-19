@@ -50,19 +50,24 @@ typedef StaleFocusTest = bool Function(FocusNode? primary);
 ///  4. **App-lifecycle suspend**, which parks focus on `rootScope` and restores
 ///     `_suspendedNode` on resume only if that node is still alive.
 ///
-/// Four things here are load-bearing. **The escape test is ancestry, never
-/// `primaryFocus == rootScope`** — the root-scope spelling looks right and
-/// misses case 3, which lands on a scope that is not the root but is still
-/// above everything that handles keys; `!primary.ancestors.contains(node)`
-/// covers the root scope, an intermediate scope and a detached node (empty
-/// `ancestors`) in one expression. **It stands down while the app is not
-/// `resumed`**, or it would beat the framework's own suspend/restore and blur
-/// whatever the user was typing in when they switched away. **It stands down
-/// while a route above [node] is current** — a dialog, sheet or command palette
-/// legitimately owns focus up there. And it re-checks **post-frame, one pending
-/// check at a time**, because focus moves in bursts: a route push lifts it
-/// above the host and drops it back inside the same frame, and acting on the
-/// intermediate state would fight the framework.
+/// Four things here are load-bearing. **The escape test asks for the
+/// *direction* focus went, never just "is it below me"** — see [_escaped]: focus
+/// above the node (an ancestor scope, the root scope, a detached node) is the
+/// failure this repairs, while focus *beside* it (a dialog or sheet on any
+/// navigator, the master-detail pane, a create form) belongs to a surface that
+/// chose it. A test of the form `!primary.ancestors.contains(node)` answers both
+/// with "escaped" and makes the keeper steal from whatever is beside it.
+/// **It stands down while the app is not `resumed`**, or it would beat the
+/// framework's own suspend/restore and blur whatever the user was typing in when
+/// they switched away. **It also stands down while a route above [node] is
+/// current** — a cheap extra guard, and deliberately *not* the one that protects
+/// a dialog: `ModalRoute.of` resolves to the nearest navigator, so for a host
+/// inside a `StatefulShellRoute` branch it never sees a `showDialog` on the root
+/// navigator at all. The direction test is what covers that, on every navigator.
+/// And it re-checks **post-frame, one pending check at a time**, because focus
+/// moves in bursts: a route push lifts it above the host and drops it back
+/// inside the same frame, and acting on the intermediate state would fight the
+/// framework.
 ///
 /// There is no loop risk, and no fight between two keepers: a `requestFocus`
 /// that cannot land fires no `FocusManager` notification, and a nested keeper
@@ -169,11 +174,61 @@ class _FocusOwnerKeeperState extends State<FocusOwnerKeeper>
 
   void _onFocusChanged() => _schedule();
 
-  /// True when primary focus cannot reach the handlers above [FocusOwnerKeeper.node].
+  /// True when primary focus has drifted somewhere the handlers above
+  /// [FocusOwnerKeeper.node] can never see it, *and* nobody else owns it.
+  ///
+  /// The distinction is the whole correctness of this widget, because "focus is
+  /// not below me" covers two situations that want opposite treatment:
+  ///
+  ///  * **Above** — an ancestor scope, the root scope, or a node detached from
+  ///    the tree (`parent == null`). Key dispatch walks up from `primaryFocus`
+  ///    and never down, so nothing below this point can see a key again. That
+  ///    is the failure this widget exists to repair, and nobody chose it.
+  ///  * **Beside** — a dialog or sheet on *any* navigator, the master-detail
+  ///    pane, a create form. A real surface owns focus there on purpose, and
+  ///    stealing it blurs a field the user is typing in.
+  ///
+  /// This used to be the single expression `!primary.ancestors.contains(node)`,
+  /// which returns true for both, leaving [_routeIsCurrent] as the only thing
+  /// standing between the keeper and a surface beside it. That check reads
+  /// `ModalRoute.of(context)`, which resolves to the **nearest** navigator — and
+  /// the entity list's nearest route is its `StatefulShellRoute` branch page,
+  /// whose `isCurrent` is per-navigator and so stays true for the whole life of
+  /// a `showDialog` (which defaults to `useRootNavigator: true`). Note the
+  /// inversion that produced: `showModalBottomSheet` defaults to the nearest
+  /// navigator, so sheets disarmed the keeper and dialogs did not. Asking the
+  /// direction question here fixes every navigator at once and needs nothing
+  /// from the host. Pinned by the `a nested navigator` group in
+  /// `focus_owner_keeper_test.dart`.
   bool _escaped(FocusNode? primary) {
     if (primary == null) return true;
     if (identical(primary, widget.node)) return false;
-    return !primary.ancestors.contains(widget.node);
+    // Below us: the resting state, and anything this surface focused itself.
+    if (primary.ancestors.contains(widget.node)) return false;
+    // **Our own node is not attached yet, so the direction cannot be read.**
+    // [_schedule] evaluates this synchronously from [didChangeDependencies] —
+    // during this widget's first build, before the child `Focus` has reparented
+    // the node — and an unattached node has no `parent` and an empty
+    // `ancestors`, so the "above" arm below would answer "beside" for a *live
+    // ancestor* and decline. Nothing would re-arm: `didChangeDependencies` does
+    // not re-run, `didUpdateWidget` sees no change, and attaching a node fires
+    // no `FocusManager` notification.
+    //
+    // Answering "escaped" here is free — [_reclaim] re-runs this test post-frame
+    // with the node attached — and it is what keeps the surface-mounts-with-focus
+    // -already-above case working: a list rebuilt under a route that already
+    // existed, which is how the Tasks view toggle swaps its body (it `go`s an
+    // unchanged location, so there is no route push and no focus change at all).
+    if (widget.node.parent == null) return true;
+    // Above us, or orphaned. `parent == null` is both the root scope and a node
+    // that has been detached, which is where `_markDetached` can leave things.
+    if (primary.parent == null || widget.node.ancestors.contains(primary)) {
+      return true;
+    }
+    // Beside us. Left alone — [FocusOwnerKeeper.focusIsStale] is how a host
+    // says that a *particular* sibling is nonetheless stale (the shell uses it
+    // for focus left behind in an off-stage branch).
+    return false;
   }
 
   bool _needsCheck() {

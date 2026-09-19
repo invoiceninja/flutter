@@ -17,6 +17,7 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/leader_shortcuts.dart';
+import 'package:admin/domain/tasks/tasks_view_mode.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/utils/platform_modifier.dart';
@@ -429,6 +430,44 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     context.go(route);
   }
 
+  /// Whether the screen currently on stage mounts its create FAB regardless of
+  /// pane width, which `runningTimerPillBottom` cannot tell from the width alone.
+  ///
+  /// Only the Tasks daily / weekly / calendar views do
+  /// (`tasksViewAlwaysShowsFab`). Resolved the same way the Tasks screen resolves
+  /// its own body — URL first, then the remembered preference — because a view
+  /// restored from `nav_state` carries no `?view=` at all, and reading just the
+  /// URL would leave the pill back on top of the FAB on exactly the path
+  /// invoiceninja/flutter#133 exists to support.
+  /// [remembered] is passed in rather than read off `Services` so the caller can
+  /// supply it from a `ValueListenableBuilder`: the Tasks view toggle changes the
+  /// preference **without a router notification** (it `go`s an unchanged
+  /// location, which go_router treats as a no-op), so a `.value` read here would
+  /// never be recomputed and the pill would stay where it was — leaving it on top
+  /// of the FAB on the commonest route into those three views.
+  bool _activeScreenAlwaysHasFab(
+    BuildContext context,
+    TasksViewMode? remembered,
+  ) {
+    final uri = GoRouterState.of(context).uri;
+    if (uri.path != '/tasks') return false;
+    return tasksViewAlwaysShowsFab(
+      resolveTasksViewMode(
+        urlView: tasksViewModeFromQuery(uri.queryParameters['view']),
+        remembered: remembered,
+        // Deliberately not tracked, and deliberately erring one way. The bare
+        // `/tasks` path IS locked to the plain list in two cases the URL path
+        // does not show — a dashboard card's `ListFilterIntent` route `extra`,
+        // and `?client_id=` — so this can answer "has a FAB" when the screen is
+        // showing the list. That direction is the safe one: the cost is the pill
+        // sitting 112 px up with nothing beneath it, where the opposite mistake
+        // is a swallowed tap on `+`. Reading `extra` here would couple the shell
+        // to the list's intent type for a purely cosmetic gain.
+        locked: false,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Outermost, and outside `_buildShell`'s LayoutBuilder so it covers the
@@ -602,24 +641,44 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                                   // whenever the pane may show one, which
                                   // depends on the rail's width, so the offset
                                   // follows the collapse toggle.
-                                  ValueListenableBuilder<bool>(
-                                    valueListenable: services.sidebar,
+                                  // Two listeners, because the offset depends on
+                                  // two things that change independently: the
+                                  // rail's width (collapse toggle) and whether
+                                  // the screen under it shows a FAB (the Tasks
+                                  // view toggle, which changes no route). The
+                                  // pill itself rides through `child` so neither
+                                  // rebuild reaches it.
+                                  ValueListenableBuilder<TasksViewMode?>(
+                                    valueListenable: services.tasksView,
                                     child: const RunningTimerPill(),
-                                    builder: (context, collapsed, pill) =>
-                                        Positioned(
-                                          right: 16,
-                                          bottom: runningTimerPillBottom(
-                                            paneWidth:
-                                                constraints.maxWidth -
-                                                (collapsed
-                                                    ? kInSidebarCollapsedWidth
-                                                    : kInSidebarWidth),
-                                            isPhone: Breakpoints.isPhone(
-                                              context,
+                                    builder: (context, remembered, pill) {
+                                      final alwaysHasFab =
+                                          _activeScreenAlwaysHasFab(
+                                            context,
+                                            remembered,
+                                          );
+                                      return ValueListenableBuilder<bool>(
+                                        valueListenable: services.sidebar,
+                                        child: pill,
+                                        builder: (context, collapsed, inner) =>
+                                            Positioned(
+                                              right: 16,
+                                              bottom: runningTimerPillBottom(
+                                                paneWidth:
+                                                    constraints.maxWidth -
+                                                    (collapsed
+                                                        ? kInSidebarCollapsedWidth
+                                                        : kInSidebarWidth),
+                                                isPhone: Breakpoints.isPhone(
+                                                  context,
+                                                ),
+                                                screenAlwaysHasFab:
+                                                    alwaysHasFab,
+                                              ),
+                                              child: inner!,
                                             ),
-                                          ),
-                                          child: pill!,
-                                        ),
+                                      );
+                                    },
                                   ),
                                 ],
                               ),
@@ -713,6 +772,12 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
                               // empty space.
                               Positioned(
                                 right: 12,
+                                // No `screenAlwaysHasFab` here: this branch is
+                                // only reached below `Breakpoints.wide`, and it
+                                // measures the whole window as the pane — so the
+                                // width rule already forces the lifted offset.
+                                // Passing it would cost a `GoRouterState` read
+                                // per layout pass and change nothing.
                                 bottom: runningTimerPillBottom(
                                   paneWidth: constraints.maxWidth,
                                   isPhone: Breakpoints.isPhone(context),

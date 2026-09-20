@@ -1346,7 +1346,9 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Template editor (subject + body, per entity type) | ✅ | ✅ | ✅ | ✅ | |
 | Template variables reference | ✅ | ✅ | ✅ | ✅ | |
 | Template variables render as chips — friendly labels, tap to change / remove (with Undo), Insert variable, default template shown as muted chips until customised | — | — | ✅ | | |
-| Send Email — subject variables show the document's real values (server probe), unknown tokens flagged, rendered subject shown on phones | — | — | ✅ | | |
+| Send Email — subject and body variables show the document's real values (server probe), unknown tokens flagged, rendered subject shown under the field | — | — | ✅ | | |
+| Send Email — CC address validated against the server's own list grammar (comma/space separated) before sending | — | — | ✅ | | |
+| Send Email — live preview is its own tab beside PDF and History on every layout | — | — | ✅ | | |
 | First reminder rule (days before / after due + email) | ✅ | ✅ | ✅ | ✅ | |
 | Second reminder rule | ✅ | ✅ | ✅ | ✅ | |
 | Third reminder rule | ✅ | ✅ | ✅ | ✅ | |

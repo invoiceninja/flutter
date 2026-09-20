@@ -454,7 +454,6 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/views/advanced/templates_reminders/templates_reminders_body.dart',
       'lib/ui/features/settings/views/advanced/templates_reminders/template_options.dart',
       'lib/ui/features/settings/views/advanced/templates_reminders/widgets/reminder_rule_section.dart',
-      'lib/ui/features/settings/views/advanced/templates_reminders/widgets/template_variables_card.dart',
       'lib/ui/features/settings/views/advanced/templates_reminders/widgets/template_preview_panel.dart',
     ],
     keys: kTemplatesRemindersSearchKeys,

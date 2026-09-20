@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/env.dart';
 import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
+import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/template_variables/markdown_template_variables.dart';
+import 'package:admin/ui/core/widgets/template_variables/template_default_badge.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_chip.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_picker.dart';
 import 'package:admin/utils/editor_html.dart';
@@ -79,7 +81,10 @@ class MarkdownTextField extends StatefulWidget {
     this.controller,
     this.debounce = const Duration(milliseconds: 300),
     this.templateVariables,
+    this.values,
     this.defaultValue,
+    this.defaultCaption,
+    this.onEditing,
     this.labelTrailing,
   }) : assert(
          maxHeight == null || maxHeight >= height,
@@ -160,12 +165,38 @@ class MarkdownTextField extends StatefulWidget {
   /// `markdown_template_variables.dart`.
   final TemplateVariableScope? templateVariables;
 
+  /// The document's values, per token (the Send Email probe). Chips then read
+  /// label + value — "Amount  £10.00" — instead of the label alone, matching
+  /// the single-line [TemplateVariableFieldShell]. Null in Templates &
+  /// Reminders, which edits a template with no document to resolve against.
+  final ValueListenable<Map<String, TemplateVariableValue>>? values;
+
   /// Rendered, muted, when [initialValue] is empty — the default template the
   /// server uses for an empty value. Nothing is emitted until a real edit
   /// makes the document differ from it, and a document edited back to it
   /// emits `''`, so an untouched default stays the per-language server
   /// default.
   final String? defaultValue;
+
+  /// The line under a field showing its [defaultValue]. Defaults to the
+  /// settings copy ("…your first edit saves a custom copy"), which is a lie on
+  /// a surface that saves nothing — the Send Email composer passes its own.
+  final String? defaultCaption;
+
+  /// Whether the document now differs from the value the parent holds.
+  ///
+  /// **Both edges, and the true one is synchronous** — fired on the user's
+  /// first document change, before [debounce] and therefore before
+  /// [onChanged]. A host whose "is this form dirty?" answer is read during
+  /// build (`PopScope.canPop`) cannot wait for the debounced value, and one
+  /// that reads it before an `await` (the Send Email schedule warning) would
+  /// read a stale one.
+  ///
+  /// The **false** edge matters just as much: an edit that round-trips —
+  /// typing a character and deleting it, or clearing a default and letting it
+  /// come back — settles with the value unchanged, so [onChanged] never fires.
+  /// A host latching on the true edge alone would stay dirty for ever.
+  final ValueChanged<bool>? onEditing;
 
   /// Extra widgets at the end of the label row (e.g. "Reset to default").
   final Widget? labelTrailing;
@@ -199,6 +230,18 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
 
   bool _isApplyingExternal = false;
 
+  /// Where the promote tap landed, until the editor has mounted to receive it.
+  DocumentPosition? _pendingCaret;
+
+  /// A [MarkdownTextField.defaultValue] that arrived while the document was
+  /// not safe to replace — mid-edit, or with a live editor over it. Adopted
+  /// on the blur instead. See the reseed rules in [didUpdateWidget].
+  bool _pendingDefaultSeed = false;
+
+  /// True once [MarkdownTextField.onEditing] has reported that the document
+  /// differs from what the parent holds, until it reports otherwise.
+  bool _reportedEditing = false;
+
   /// The reader's document layout, for hit-testing a tapped chip while the
   /// reader sits under its `SliverIgnorePointer`. Attached for every field,
   /// chips or not — without a scope the hit test simply never runs. The editor
@@ -221,6 +264,17 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   /// body was emptied, by hand or by removing its last chip.
   bool get _needsDefaultReseed =>
       _showingDefault && _lastSerialized != _defaultSerialized;
+
+  /// The document is exactly what the parent believes it is: no edit waiting
+  /// on the debounce, and what it serializes to is still the default's (or
+  /// empty, where there is no default).
+  ///
+  /// Distinct from `_lastEmitted.isEmpty`, which is what the PARENT holds and
+  /// stays `''` for a whole typing burst — the debounce restarts on every
+  /// keystroke, so "the parent has nothing" is true right up until the user
+  /// pauses. Reseeding on that reads as losing everything they just typed.
+  bool get _isPristine =>
+      _debounce == null && _lastSerialized == (_defaultSerialized ?? '');
 
   bool get _chipsEditable => widget.enabled && !widget.readOnly;
   // When false, the heavy editing `SuperEditor` (which attaches an IME
@@ -253,6 +307,47 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     _focusNode.addListener(_onFocusChanged);
     _seedDocument(widget.initialValue ?? '');
     widget.controller?._attach(_flushNow);
+    widget.values?.addListener(_onValuesChanged);
+  }
+
+  /// The probe answered. Chips are built by the stylesheet's inline-widget
+  /// chain, and `Stylesheet` declares no `==`, so the fresh one `build` makes
+  /// always compares unequal and super_editor rebuilds its layout presenter —
+  /// a plain `setState` is enough to repaint them.
+  void _onValuesChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Map<String, TemplateVariableValue> get _values =>
+      widget.values?.value ?? const <String, TemplateVariableValue>{};
+
+  /// What a screen reader hears for one chip. With a probed value the label
+  /// alone would under-report the field: the single-line shell speaks
+  /// "Amount, £10.00", so a body reading only "Amount" is a regression against
+  /// its own sibling.
+  String _semanticsChipLabel(
+    BuildContext context,
+    String token,
+    TemplateVariableScope scope,
+  ) {
+    final display = describeTemplateVariable(
+      context,
+      token,
+      scope,
+      value: _values[token],
+    );
+    if (display == null) return token;
+    // `''` is a value, not the absence of one — the chip paints an em dash for
+    // it, and a reader hearing only "Amount" would be told the document has
+    // something there. Matched to the shell's own chip semantics.
+    final detail =
+        display.warning ??
+        switch (display.value) {
+          null => null,
+          '' => context.tr('empty'),
+          final value => value,
+        };
+    return detail == null ? display.label : '${display.label}, $detail';
   }
 
   /// Cancel the debounce, serialize now, emit if changed, return the value the
@@ -260,7 +355,9 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   String _flushNow() {
     _debounce?.cancel();
     _debounce = null;
-    return _emitCurrent();
+    final value = _emitCurrent();
+    _reportEditing(false);
+    return value;
   }
 
   /// Every serialize goes through here: chips back into tokens, stray U+FFFC
@@ -304,6 +401,11 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       widget.controller?._attach(_flushNow);
     }
 
+    if (widget.values != oldWidget.values) {
+      oldWidget.values?.removeListener(_onValuesChanged);
+      widget.values?.addListener(_onValuesChanged);
+    }
+
     if (widget.focusNode != oldWidget.focusNode) {
       _focusNode.removeListener(_onFocusChanged);
       if (_ownsFocusNode) _focusNode.dispose();
@@ -321,10 +423,40 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     // from somewhere other than our own emission (e.g. override toggle).
     // The `_lastEmitted` guard prevents echoing our own writes back through
     // the document.
-    if (widget.externalValueKey != oldWidget.externalValueKey) {
+    //
+    // A changed `defaultValue` is the second trigger, and it needs its own
+    // arm: `_defaultSerialized` is computed nowhere but `_seedDocument`, so a
+    // default that lands after the first build (statics arriving late in
+    // settings; the Send Email composer, whose default comes from a preview
+    // render and is therefore ALWAYS late) would otherwise never render — the
+    // value is still `''`, so the `next != _lastEmitted` arm is false too.
+    //
+    // That arm cannot fire on `_lastEmitted.isEmpty` alone, though. Two things
+    // are true while the parent still holds `''`:
+    //
+    //  * the user may be **mid-burst** — the debounce restarts on every
+    //    keystroke, so nothing has been emitted yet and the document is full
+    //    of their text. `_isPristine` is the real question, not `_lastEmitted`.
+    //  * a **live `SuperEditor`** may be mounted over it, and `_seedDocument`
+    //    disposes the composer it is holding — the hazard `_restore` and
+    //    `_onFocusChanged` both defer a frame for, and which additionally
+    //    re-parents the frame here when `_defaultSerialized` flips off null.
+    //
+    // So a default-only change waits for the blur when either is true. An
+    // external *value* change still reseeds at once: that is a deliberate
+    // overwrite by the parent (an override toggle, Reset) and predates this.
+    final defaultChanged = widget.defaultValue != oldWidget.defaultValue;
+    if (widget.externalValueKey != oldWidget.externalValueKey ||
+        defaultChanged) {
       final next = widget.initialValue ?? '';
       if (next != _lastEmitted) {
         _seedDocument(next);
+      } else if (defaultChanged && _lastEmitted.isEmpty) {
+        if (_isPristine && !_editing) {
+          _seedDocument(next);
+        } else {
+          _pendingDefaultSeed = true;
+        }
       }
     }
   }
@@ -346,6 +478,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       }
     }
     widget.controller?._detach(_flushNow);
+    widget.values?.removeListener(_onValuesChanged);
     _document.removeListener(_onDocumentChange);
     _focusNode.removeListener(_onFocusChanged);
     if (_ownsFocusNode) _focusNode.dispose();
@@ -360,6 +493,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   void _seedDocument(String markdown) {
     _isApplyingExternal = true;
     _clearedDocument = null;
+    _pendingDefaultSeed = false;
 
     // Tear down the previous generation before creating new instances.
     // `_initialized` is false only on the very first call (from initState),
@@ -430,13 +564,33 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
 
   void _onDocumentChange(DocumentChangeLog _) {
     if (_isApplyingExternal) return;
+    // Before the debounce: a host whose dirty flag is read during build can't
+    // wait for `onChanged`. `_isApplyingExternal` above is what keeps this to
+    // genuine user edits — a seed installs a *new* document and this listener
+    // with it, so a reseed emits no change events of its own. No serialize
+    // here: any change means the document *may* differ, which is the honest
+    // answer this early, and `_emitNow` retracts it when it turns out not to.
+    _reportEditing(true);
     _debounce?.cancel();
     _debounce = Timer(widget.debounce, _emitNow);
+  }
+
+  void _reportEditing(bool editing) {
+    if (_reportedEditing == editing) return;
+    _reportedEditing = editing;
+    widget.onEditing?.call(editing);
   }
 
   void _emitNow() {
     final wasDefault = _showingDefault;
     _emitCurrent();
+    // Unconditional, and it is the whole point of the false edge: once this
+    // returns the parent holds the current value by construction — either
+    // `onChanged` just handed it over, or it was already equal and
+    // `_emitCurrent` returned early without saying so. Either way the document
+    // no longer differs from what the parent holds, and a host that latched on
+    // the true edge would otherwise stay dirty for an edit that round-tripped.
+    _reportEditing(false);
     if (!mounted) return;
     if (!_editing && _needsDefaultReseed) {
       // At rest, a body just emptied shows the default it now holds. While
@@ -494,6 +648,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       context,
       scope: scope,
       currentToken: hit.token,
+      values: _values,
     );
     if (pick == null || !mounted) return;
     // Settle an edit still in its debounce first, so the Undo below knows
@@ -602,7 +757,11 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     final scope = widget.templateVariables;
     if (scope == null || !_chipsEditable) return;
     final selection = _editing ? _composer.selection : null;
-    final pick = await showTemplateVariablePicker(context, scope: scope);
+    final pick = await showTemplateVariablePicker(
+      context,
+      scope: scope,
+      values: _values,
+    );
     if (pick is! TemplateVariablePicked || !mounted) return;
 
     final range = selection == null || selection.isCollapsed
@@ -668,6 +827,16 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     return true;
   }
 
+  /// The document position under [globalPosition], from the reader's layout.
+  /// Null when the reader isn't laid out yet (or this is the editor already).
+  DocumentPosition? _readerPositionAt(Offset globalPosition) {
+    final Object? layout = _readerLayoutKey.currentState;
+    if (layout is! DocumentLayout) return null;
+    return layout.getDocumentPositionNearestToOffset(
+      layout.getDocumentOffsetFromAncestorOffset(globalPosition),
+    );
+  }
+
   void _onFocusChanged() {
     // Flush any pending edits the moment focus leaves the editor so that
     // blur-then-save races don't drop the last keystroke.
@@ -684,13 +853,20 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     // receive focus from here first.
     if (!_focusNode.hasFocus && _editing && mounted) {
       setState(() => _editing = false);
-      // A body emptied while editing holds `''` — the default — so it shows
-      // the default again, once the editor has gone: SuperEditor's own blur
-      // handler runs after this one and executes a `ClearSelectionRequest`
-      // against the composer a reseed would already have disposed.
-      if (_needsDefaultReseed) {
+      // Two reseeds wait for this moment, for the same reason: SuperEditor's
+      // own blur handler runs after this one and executes a
+      // `ClearSelectionRequest` against the composer a reseed would already
+      // have disposed. A body emptied while editing holds `''` — the default —
+      // so it shows the default again; and a `defaultValue` that arrived while
+      // the user was in the field is adopted now.
+      if (_needsDefaultReseed || _pendingDefaultSeed) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_editing && _needsDefaultReseed) _reseedDefault();
+          if (!mounted || _editing) return;
+          if (_pendingDefaultSeed) {
+            setState(() => _seedDocument(widget.initialValue ?? ''));
+          } else if (_needsDefaultReseed) {
+            _reseedDefault();
+          }
         });
       }
     }
@@ -702,11 +878,43 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   /// torn its `SuperEditor` down — guaranteeing at most one `SuperEditor`
   /// (one IME client) is ever mounted in a single frame, even when the user
   /// taps straight from one markdown field to another.
-  void _enterEditing() {
+  void _enterEditing({Offset? at}) {
     if (_editing) return;
+    // Where the user actually pointed, resolved against the READER's layout —
+    // the editor doesn't exist yet. Captured here because the reader is torn
+    // down in the same frame the editor mounts.
+    _pendingCaret = at == null ? null : _readerPositionAt(at);
     FocusManager.instance.primaryFocus?.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_editing) setState(() => _editing = true);
+      if (mounted && !_editing) {
+        setState(() => _editing = true);
+        _applyPendingCaret();
+      }
+    });
+  }
+
+  /// Put the caret where the promote tap landed. `SuperEditor.autofocus` with
+  /// `placeCaretAtEndOfDocumentOnGainFocus` (its default) otherwise drops it
+  /// past the end of the document — on a compose surface the usual act is
+  /// "fix the greeting on line 1", so that cost a second tap every time.
+  /// Runs after the editor has mounted and taken focus, or its own
+  /// place-at-end would land last.
+  void _applyPendingCaret() {
+    final position = _pendingCaret;
+    _pendingCaret = null;
+    if (position == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_editing) return;
+      // The document was reseeded between the tap and this frame (a default
+      // reseed, an external value): the captured node id no longer exists.
+      if (_document.getNodeById(position.nodeId) == null) return;
+      _editor.execute([
+        ChangeSelectionRequest(
+          DocumentSelection.collapsed(position: position),
+          SelectionChangeType.placeCaret,
+          SelectionReason.userInteraction,
+        ),
+      ]);
     });
   }
 
@@ -910,10 +1118,13 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
       body = Semantics(
         container: true,
         label: widget.label,
+        // Semicolons, not commas: a chip's own label now reads
+        // "Amount, £10.00", so comma-joining three of them gives a reader no
+        // way to hear where one chip ends and the next begins.
         value: [
           for (final token in templateVariableTokensIn(_document))
-            describeTemplateVariable(context, token, scope)?.label ?? token,
-        ].join(', '),
+            _semanticsChipLabel(context, token, scope),
+        ].join('; '),
         child: body,
       );
     }
@@ -932,7 +1143,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
             Padding(
               padding: const EdgeInsets.only(top: InSpacing.xs, left: 2),
               child: Text(
-                context.tr('default_template_caption'),
+                widget.defaultCaption ?? context.tr('default_template_caption'),
                 style: TextStyle(color: t.ink3, fontSize: 12),
               ),
             ),
@@ -962,7 +1173,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
                 ),
               if (showingDefault) ...[
                 const SizedBox(width: InSpacing.sm),
-                _DefaultBadge(label: context.tr('default')),
+                TemplateDefaultBadge(label: context.tr('default')),
               ],
               const SizedBox(width: InSpacing.sm),
               // The actions take what the label leaves, end-aligned, and wrap
@@ -975,25 +1186,10 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (insert)
-                        TextButton.icon(
+                        FieldActionButton(
+                          icon: Icons.add,
+                          label: context.tr('insert_variable'),
                           onPressed: _insertVariable,
-                          icon: const Icon(Icons.add, size: 16),
-                          label: Text(context.tr('insert_variable')),
-                          style: TextButton.styleFrom(
-                            // No density on touch: `compact` subtracts 8 from
-                            // `minimumSize` (§ Design system, touch-target
-                            // trap 2), so the 44 below would render as 36 —
-                            // and `shrinkWrap` drops the 48 px `padded` floor
-                            // that would otherwise have masked it.
-                            visualDensity: Env.isTouchPrimary
-                                ? null
-                                : VisualDensity.compact,
-                            minimumSize: Size(
-                              0,
-                              Env.isTouchPrimary ? InSizes.touchTarget : 32,
-                            ),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
                         ),
                       ?trailing,
                     ],
@@ -1020,6 +1216,7 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
         if (scope != null)
           templateVariableChipBuilder(
             scope: scope,
+            values: _values,
             muted: muted,
             editable: _chipsEditable,
           ),
@@ -1047,35 +1244,6 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
   }
 }
 
-/// Neutral "Default" marker beside the label of a field showing its default
-/// template.
-class _DefaultBadge extends StatelessWidget {
-  const _DefaultBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.inTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: t.surfaceAlt,
-        borderRadius: BorderRadius.circular(InRadii.r1),
-        border: Border.all(color: t.border),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          color: t.ink2,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
 /// Sizes the editor and gives SuperEditor/SuperReader their own (closer)
 /// sliver host.
 ///
@@ -1085,7 +1253,7 @@ class _DefaultBadge extends StatelessWidget {
 /// CustomScrollView the returned Sliver would collide with the non-sliver
 /// parent. The focus/tap wrappers are applied *around* the scroll host so the
 /// sliver protocol between CustomScrollView and the editor is never broken.
-class _EditorHost extends StatelessWidget {
+class _EditorHost extends StatefulWidget {
   const _EditorHost({
     required this.height,
     required this.maxHeight,
@@ -1114,12 +1282,37 @@ class _EditorHost extends StatelessWidget {
 
   /// Non-null only in the editable read-only state: invoked to promote the
   /// field to the editing `SuperEditor` (by pointer tap, by Tab focusing the
-  /// host, or by Enter/Space activating it).
-  final VoidCallback? enterEditing;
+  /// host, or by Enter/Space activating it). [at] is the tap's global position
+  /// when there was one, so the caret can land where the user pointed; Tab and
+  /// Enter/Space pass none and keep SuperEditor's place-at-end.
+  final void Function({Offset? at})? enterEditing;
   final Widget sliver;
 
   @override
+  State<_EditorHost> createState() => _EditorHostState();
+}
+
+class _EditorHostState extends State<_EditorHost> {
+  /// Set by `onTapDown`, read by `onTap`. **State, not a `build` local**: a
+  /// `TapGestureRecognizer` reports `onTapDown` at `kPressTimeout` (100 ms)
+  /// and `onTap` at pointer-up, so all but the briefest taps span a frame
+  /// boundary — and a rebuild in that window (a variable probe answering, a
+  /// preview landing) would install fresh closures over a fresh null and drop
+  /// the caret back to the end of the document, intermittently.
+  Offset? _tapPosition;
+
+  /// Set by `onTapUp`, which fires before `onTap` for the same tap.
+  bool _tappedChip = false;
+
+  @override
   Widget build(BuildContext context) {
+    final height = widget.height;
+    final expand = widget.expand;
+    final excludeFocus = widget.excludeFocus;
+    final ignorePointer = widget.ignorePointer;
+    final enterEditing = widget.enterEditing;
+    final chipTapAt = widget.chipTapAt;
+    final sliver = widget.sliver;
     Widget content = sliver;
     if (ignorePointer) {
       // Make the document inert to pointers: in the tap-to-edit reader so the
@@ -1164,15 +1357,15 @@ class _EditorHost extends StatelessWidget {
       host = ExcludeFocus(child: host);
     }
     if (enterEditing != null) {
-      final enter = enterEditing!;
+      final enter = enterEditing;
       final chipTap = chipTapAt;
-      // Set by `onTapUp`, which fires before `onTap` for the same tap.
-      var tappedChip = false;
       host = FocusableActionDetector(
         // Tab lands on this single lightweight host node; focusing or
         // activating (Enter/Space) it promotes to the editor — markdown
         // fields stay keyboard-reachable.
         onFocusChange: (focused) {
+          // Keyboard promotion has no tap offset, so the caret keeps
+          // SuperEditor's own place-at-end behaviour.
           if (focused) enter();
         },
         actions: {
@@ -1191,15 +1384,22 @@ class _EditorHost extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTapUp: chipTap == null
               ? null
-              : (details) => tappedChip = chipTap(details.globalPosition),
+              : (details) => _tappedChip = chipTap(details.globalPosition),
+          onTapDown: (details) => _tapPosition = details.globalPosition,
           onTap: () {
-            if (tappedChip) {
-              tappedChip = false;
+            if (_tappedChip) {
+              _tappedChip = false;
               return;
             }
-            enter();
+            enter(at: _tapPosition);
           },
-          child: host,
+          child: MouseRegion(
+            // Without this the body reads as a block of grey text rather than
+            // a field: the reader is under a `SliverIgnorePointer`, so nothing
+            // below claims a cursor. The single-line shell does the same.
+            cursor: SystemMouseCursors.text,
+            child: host,
+          ),
         ),
       );
     }
@@ -1215,8 +1415,9 @@ class _EditorHost extends StatelessWidget {
   /// field from turning into a page of its own. Never below [height], so a
   /// caller's floor always wins.
   double _resolveMaxHeight(BuildContext context) => math.max(
-    height,
-    maxHeight ?? math.min(MediaQuery.sizeOf(context).height * 0.5, 480.0),
+    widget.height,
+    widget.maxHeight ??
+        math.min(MediaQuery.sizeOf(context).height * 0.5, 480.0),
   );
 }
 

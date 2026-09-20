@@ -52,6 +52,16 @@ class TemplateVariableDisplay {
 /// value always renders as a normal chip, and an echoed (unrecognised) token
 /// always warns. Without one, a catalogued token the scope's engine doesn't
 /// define warns "Not available".
+///
+/// A value that just **repeats the label** is dropped: `$view_button`'s probe
+/// answer is the button's own caption, so the chip read "View Invoice  View
+/// Invoice", and every server default body ends with that token.
+///
+/// Deliberately keyed on the duplication and not on `isMarkup`, which the
+/// probe sets for *any* HTML in the rendered value: `$public_notes`, `$terms`
+/// and `$footer` are stored as HTML by this app's own editor, so suppressing
+/// on markup blanked their values — and label-only renders identically to
+/// "the probe hasn't answered yet", leaving no way to tell the two apart.
 TemplateVariableDisplay? describeTemplateVariable(
   BuildContext context,
   String token,
@@ -62,6 +72,8 @@ TemplateVariableDisplay? describeTemplateVariable(
   final notRecognized = context.tr('variable_not_recognized');
   if (lookup == null) {
     return switch (value) {
+      // An uncatalogued token's label IS the token, which a value can't
+      // repeat, so there is nothing to suppress here.
       TemplateVariableResolved(:final text) => TemplateVariableDisplay(
         token: token,
         label: token,
@@ -85,6 +97,8 @@ TemplateVariableDisplay? describeTemplateVariable(
   }
   final label = templateVariableLabel(context, lookup.variable);
   return switch (value) {
+    TemplateVariableResolved(:final text) when _repeatsLabel(text, label) =>
+      TemplateVariableDisplay(token: token, label: label),
     TemplateVariableResolved(:final text) => TemplateVariableDisplay(
       token: token,
       label: label,
@@ -108,6 +122,9 @@ TemplateVariableDisplay? describeTemplateVariable(
     null => TemplateVariableDisplay(token: token, label: label),
   };
 }
+
+bool _repeatsLabel(String value, String label) =>
+    value.trim().toLowerCase() == label.trim().toLowerCase();
 
 /// The chip's fill for [display]. Exposed so a host that makes the chip
 /// tappable can paint it on a local `Material` instead (and pass

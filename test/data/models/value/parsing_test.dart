@@ -92,4 +92,65 @@ void main() {
       expect(isPortalPlaceholderEmail('ab3xy9@example.com'), isFalse);
     });
   });
+
+  group('isLikelyEmailAddress', () {
+    test('accepts an ordinary address', () {
+      expect(isLikelyEmailAddress('a@b.c'), isTrue);
+      expect(isLikelyEmailAddress('bob.smith+tag@mail.example.co.uk'), isTrue);
+      expect(isLikelyEmailAddress('  padded@example.com  '), isTrue);
+      // Deliberately not ASCII-only: an IDN address is not a typo.
+      expect(isLikelyEmailAddress('jose@piñata.com'), isTrue);
+    });
+
+    test('rejects the shapes that are certainly a typo', () {
+      expect(isLikelyEmailAddress(''), isFalse);
+      expect(isLikelyEmailAddress('   '), isFalse);
+      expect(isLikelyEmailAddress('bob@acme'), isFalse, reason: 'no dot');
+      expect(isLikelyEmailAddress('@b.c'), isFalse, reason: 'no local part');
+      expect(isLikelyEmailAddress('a@'), isFalse, reason: 'no domain');
+      expect(isLikelyEmailAddress('a@b.'), isFalse, reason: 'trailing dot');
+      expect(isLikelyEmailAddress('a@.b'), isFalse, reason: 'leading dot');
+      expect(isLikelyEmailAddress('a@@b.c'), isFalse);
+      expect(isLikelyEmailAddress('a b@c.d'), isFalse, reason: 'inner space');
+      expect(isLikelyEmailAddress('plainword'), isFalse);
+    });
+
+    test('documents what it deliberately lets through: only the FIRST dot in '
+        'the domain is checked', () {
+      // Loose by design — anything strict enough to police RFC 5322 rejects
+      // addresses that work, and the cost of a miss is the status quo (the
+      // server drops it silently) rather than a user who cannot send.
+      expect(isLikelyEmailAddress('a@b.c.'), isTrue);
+    });
+  });
+
+  group('splitAddressList', () {
+    test('splits on comma and space, as the server does', () {
+      // `SendEmailRequest::prepareForValidation` explodes on both, so treating
+      // a list as one address disabled Send on a perfectly good entry.
+      expect(splitAddressList('a@x.com,b@y.com'), ['a@x.com', 'b@y.com']);
+      expect(splitAddressList('a@x.com b@y.com'), ['a@x.com', 'b@y.com']);
+      expect(splitAddressList('a@x.com, b@y.com  c@z.com'), [
+        'a@x.com',
+        'b@y.com',
+        'c@z.com',
+      ]);
+    });
+
+    test('drops the empties a trailing separator leaves', () {
+      expect(splitAddressList('a@x.com, '), ['a@x.com']);
+      expect(splitAddressList(' , , '), isEmpty);
+      expect(splitAddressList(''), isEmpty);
+    });
+
+    test('an empty list is not an invalid one', () {
+      // The CC field is optional: nothing typed must never block Send.
+      expect(splitAddressList('   ').any(isLikelyEmailAddress), isFalse);
+      expect(
+        splitAddressList('   ').any((a) => !isLikelyEmailAddress(a)),
+        isFalse,
+        reason: 'the gate asks this question, and blank has to answer no',
+      );
+    });
+  });
 }

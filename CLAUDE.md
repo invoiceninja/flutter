@@ -74,7 +74,7 @@ Plus two non-negotiables carried from admin-portal:
 | Deciding whether a zero renders, dashes, or disappears | `docs/row-actions-and-values.md` §§ An empty value… · A zero in a detail KPI cell… |
 | An "Email History" tab listing contacts nothing was sent to, an invisible spam complaint, or either email tab's empty copy | `docs/contacts-and-invitations.md` § An invitation is created when the document is saved · `lib/data/models/domain/billing/invitation.dart` |
 | Localization / Transifex import | § Localization |
-| Email-template `$variables` as chips (T&R subject/body, Send Email subject), which variables a template supports, the value probe, or linkify mangling a typed `$token` | `docs/template-variables.md` · `lib/domain/email_template_variables.dart` · `test/domain/email_template_variables_test.dart` |
+| Email-template `$variables` as chips (T&R subject/body, Send Email subject/body), which variables a template supports, the value probe, or linkify mangling a typed `$token` | `docs/template-variables.md` · `lib/domain/email_template_variables.dart` · `test/domain/email_template_variables_test.dart` |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
 | macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
 | Building a release app / injecting the Sentry DSN | `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
@@ -309,12 +309,16 @@ them untypeable.
 
 ### Template variable fields
 
-Email-template `$variables` render as chips wherever a template is edited — the Templates & Reminders subject and body, and the Send Email subject — because non-technical users read raw tokens as code to replace: the report was someone backspacing `$company.name` and typing the company name on every send (invoiceninja/flutter#139). A chip shows a friendly label ("Company Name"); on Send Email it adds the document's value ("Company Name  Acme Ltd"); tapping one opens `showTemplateVariablePicker` (change, remove with an Undo toast, "Did you mean …" for a typo), and every field has a labelled "Insert variable".
+Email-template `$variables` render as chips wherever a template is edited — the Templates & Reminders subject and body, and both Send Email fields — because non-technical users read raw tokens as code to replace: the report was someone backspacing `$company.name` and typing the company name on every send (invoiceninja/flutter#139). A chip shows a friendly label ("Company Name"); on Send Email it adds the document's value ("Company Name  Acme Ltd"), unless the value just repeats the label (`$view_button`); tapping one opens `showTemplateVariablePicker` (change, remove with an Undo toast, "Did you mean …" for a typo), and every field has a labelled "Insert variable".
 
 - **Which variables a template supports is a property of the server engine, not of a list.** → `docs/template-variables.md` § Which variables a template supports is a property of the server engine
 - **A single-line field can't hold chips and be edited as text,** → `docs/template-variables.md` § A single-line field can't hold chips and be edited as text
 - **The default template is shown, never silently saved.** → `docs/template-variables.md` § The default template is shown, never silently saved
 - **Values come from the server, exactly, or not at all.** → `docs/template-variables.md` § Values come from the server, exactly, or not at all
+- **A rendered `raw_subject` / `raw_body` is the request echoed back, so a default is adopted only from a render that asked for it — and never survives a template switch.** → `docs/template-variables.md` § A rendered raw_body is the request echoed back
+- **A markdown field reports both edges of "is this dirty", and the false one is what an edit that round-trips needs.** → `docs/template-variables.md` § A markdown field reports both edges of dirty
+- **A field action is a labelled `FieldActionButton` outside the field — Insert variable above-right, Reset below-right — never a bare glyph in the suffix.** → `docs/template-variables.md` § A field action is a labelled button outside the field
+- **A `defaultValue` that lands late is adopted only when the document is pristine and no editor is mounted over it.** → `docs/template-variables.md` § A late defaultValue waits for a pristine document
 
 ### Two-choice fields → radio, not dropdown
 

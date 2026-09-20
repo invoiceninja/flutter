@@ -63,6 +63,7 @@ class TemplateVariableFieldShell extends StatefulWidget {
     this.interactive = true,
     this.values,
     this.defaultText,
+    this.showDefaultCaption = true,
     this.showInsertButton = true,
     this.forSubject = true,
     this.style,
@@ -95,6 +96,12 @@ class TemplateVariableFieldShell extends StatefulWidget {
 
   /// The template the server uses when the field is empty.
   final String? defaultText;
+
+  /// Whether the "showing the default" caption renders under the field. False
+  /// where the host says it once for a group of fields — the Send Email
+  /// composer captions its body and lets that cover the subject above it,
+  /// rather than printing the same two wrapped lines twice on a phone.
+  final bool showDefaultCaption;
 
   /// A suffix Insert button. The Send Email composer puts its own in the
   /// label row instead and calls [TemplateVariableFieldShellState.insertVariable].
@@ -373,7 +380,7 @@ class TemplateVariableFieldShellState
           : suffix == null
           ? insert
           : Row(mainAxisSize: MainAxisSize.min, children: [insert, suffix]),
-      helperText: _showingDefault
+      helperText: _showingDefault && widget.showDefaultCaption
           ? context.tr('default_template_caption')
           : base.helperText,
     );

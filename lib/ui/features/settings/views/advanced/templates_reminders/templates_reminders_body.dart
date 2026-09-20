@@ -16,7 +16,6 @@ import 'package:admin/ui/features/settings/views/advanced/templates_reminders/pr
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/template_options.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/widgets/reminder_rule_section.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/widgets/template_preview_panel.dart';
-import 'package:admin/ui/features/settings/views/advanced/templates_reminders/widgets/template_variables_card.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_markdown_field.dart';
 import 'package:admin/ui/features/settings/widgets/overridable_text_field.dart';
@@ -50,7 +49,9 @@ const kTemplatesRemindersSearchKeys = <String>[
   'after_quote_date',
   'before_valid_until_date',
   'after_valid_until_date',
-  'variables',
+  // No 'variables': the reference card that carried that heading is gone —
+  // the tokens are labelled chips in the fields now, and "Insert variable"
+  // lists them with search.
   'view_docs',
   'preview',
 ];
@@ -207,13 +208,11 @@ class _TemplatesRemindersBodyState extends State<TemplatesRemindersBody> {
       staticTemplates: services.statics.templates,
     );
 
-    final auxiliary = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TemplateVariablesCard(templateKey: selected.key),
-        _ViewDocsButton(),
-      ],
-    );
+    // No reference card: every `$variable` is a labelled chip in the fields
+    // themselves now, and "Insert variable" lists them all with search — a
+    // second copy-to-clipboard catalogue underneath was one more place to
+    // fall out of date. The docs link stays; it covers more than the tokens.
+    final auxiliary = _ViewDocsButton();
 
     final pickerCard = FormSection(
       title: context.tr('template'),

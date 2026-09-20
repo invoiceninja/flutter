@@ -23,8 +23,29 @@ class TemplatePreviewLoading extends TemplatePreviewState {
 }
 
 class TemplatePreviewLoaded extends TemplatePreviewState {
-  const TemplatePreviewLoaded(this.preview);
+  const TemplatePreviewLoaded(this.preview, this.request);
   final TemplatePreview preview;
+
+  /// What was asked for. `rawSubject` / `rawBody` are the request **echoed
+  /// back** (`TemplateEngine.php` assigns them after `setTemplates()`), so
+  /// they are the stored template only when the request left them empty —
+  /// a caller adopting them as "the template" has to know which it got.
+  final TemplatePreviewRequest request;
+}
+
+/// The inputs a [TemplatePreviewLoaded] came from, so a caller can tell a
+/// response to its own current state from a stale one. Deliberately carries
+/// only what that question needs.
+class TemplatePreviewRequest {
+  const TemplatePreviewRequest({
+    required this.template,
+    required this.subjectWasEmpty,
+    required this.bodyWasEmpty,
+  });
+
+  final String template;
+  final bool subjectWasEmpty;
+  final bool bodyWasEmpty;
 }
 
 /// Categorized error so the preview panel can pattern-match on the kind
@@ -120,7 +141,14 @@ class PreviewController extends ChangeNotifier
           )
           .timeout(_timeout);
       if (_disposed || token != _currentToken) return; // disposed or stale
-      _value = TemplatePreviewLoaded(preview);
+      _value = TemplatePreviewLoaded(
+        preview,
+        TemplatePreviewRequest(
+          template: req.template,
+          subjectWasEmpty: req.subject.isEmpty,
+          bodyWasEmpty: req.body.isEmpty,
+        ),
+      );
       notifyListeners();
     } catch (e, st) {
       if (_disposed || token != _currentToken) return;

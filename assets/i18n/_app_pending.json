@@ -276,6 +276,7 @@
   "default_exempt_code": "Default exempt code",
   "default_taxable_code": "Default taxable code",
   "default_template_caption": "Showing the default template. Your first edit saves a custom copy.",
+  "default_template_caption_send": "This is what will be sent. Edit it to change this email only.",
   "delete_view": "Delete view",
   "deleted_bank_transaction": "Successfully deleted bank transaction",
   "deleted_purchase_orders": "Successfully deleted :count purchase orders",

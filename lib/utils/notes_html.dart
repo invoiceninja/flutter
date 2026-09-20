@@ -49,10 +49,9 @@ String escapeHtmlAttribute(String value) =>
 /// bulk-update note — so `5 * 3 * 2` stays `5 * 3 * 2` rather than turning
 /// into emphasis.
 ///
-/// A field that is *seeded* from a stored value instead (the Send Email
-/// screen's body, a Custom gateway's `text` config) shows the fold's markdown,
-/// so its way back out has to be the fold's inverse — `htmlFromEditableValue`
-/// in `editor_html.dart`, not this.
+/// A field that is *seeded* from a stored value instead (a Custom gateway's
+/// `text` config) shows the fold's markdown, so its way back out has to be the
+/// fold's inverse — `htmlFromEditableValue` in `editor_html.dart`, not this.
 ///
 /// Returns `''` for blank input, so an untouched field never becomes a
 /// `<p></p>` that reads downstream as "the user entered something".

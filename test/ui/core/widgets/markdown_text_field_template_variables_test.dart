@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +23,10 @@ const _caption =
 class _Harness {
   final toasts = ToastController();
   final emitted = <String>[];
+
+  /// Every `onEditing` edge, in order — the false ones matter as much as the
+  /// true ones.
+  final editing = <bool>[];
 }
 
 Future<_Harness> _pump(
@@ -30,6 +35,8 @@ Future<_Harness> _pump(
   String? defaultValue,
   bool enabled = true,
   bool readOnly = false,
+  ValueListenable<Map<String, TemplateVariableValue>>? values,
+  String? defaultCaption,
 }) async {
   final h = _Harness();
   addTearDown(h.toasts.dispose);
@@ -48,9 +55,12 @@ Future<_Harness> _pump(
                 label: 'Body',
                 initialValue: value,
                 defaultValue: defaultValue,
+                defaultCaption: defaultCaption,
                 enabled: enabled,
                 readOnly: readOnly,
                 templateVariables: TemplateVariableScope.invoice,
+                values: values,
+                onEditing: h.editing.add,
                 onChanged: h.emitted.add,
               ),
             ),
@@ -311,4 +321,212 @@ void main() {
       expect(h.emitted, isEmpty);
     });
   }
+
+  group('values', () {
+    testWidgets('a chip reads label + value, and picks the value up when the '
+        'probe answers after the first build', (tester) async {
+      final values = ValueNotifier<Map<String, TemplateVariableValue>>(
+        const {},
+      );
+      addTearDown(values.dispose);
+      await _pump(tester, r'Pay $amount today', values: values);
+
+      // Before the probe: the label alone.
+      expect(find.text('Amount'), findsOneWidget);
+      expect(find.text('£10.00'), findsNothing);
+
+      values.value = const {r'$amount': TemplateVariableResolved('£10.00')};
+      await tester.pump();
+
+      // Asserting the rendered TEXT, not merely that a chip exists:
+      // `_LayoutOptimizedWidgetSpan.compareTo` ignores its child and reports
+      // `RenderComparison.identical`, so a chip that never repainted would
+      // still be found by type.
+      expect(find.text('Amount'), findsOneWidget);
+      expect(find.text('£10.00'), findsOneWidget);
+    });
+
+    testWidgets('a markup value shows the label alone — the value slot would '
+        'repeat it', (tester) async {
+      final values = ValueNotifier<Map<String, TemplateVariableValue>>(const {
+        r'$view_button': TemplateVariableResolved(
+          'View Invoice',
+          isMarkup: true,
+        ),
+      });
+      addTearDown(values.dispose);
+      await _pump(tester, r'$view_button', values: values);
+
+      // Not two: every server default body ends with this token, and the
+      // probe answers it with the button's own caption.
+      expect(find.text('View Invoice'), findsOneWidget);
+    });
+  });
+
+  group('late default', () {
+    testWidgets('a default arriving after the first build still renders', (
+      tester,
+    ) async {
+      // The Send Email composer's default comes from a preview render, so it
+      // is ALWAYS late. `_showingDefault` is false here (no default has
+      // arrived yet), which is why the reseed cannot be gated on it.
+      final h = _Harness();
+      addTearDown(h.toasts.dispose);
+      Widget build(String? defaultValue) =>
+          ChangeNotifierProvider<ToastController>.value(
+            value: h.toasts,
+            child: MaterialApp(
+              theme: buildInTheme(InTheme.light),
+              localizationsDelegates: kTestLocalizationsDelegates,
+              supportedLocales: kTestSupportedLocales,
+              home: Scaffold(
+                body: Center(
+                  child: SizedBox(
+                    width: 480,
+                    child: MarkdownTextField(
+                      label: 'Body',
+                      initialValue: '',
+                      defaultValue: defaultValue,
+                      templateVariables: TemplateVariableScope.invoice,
+                      onChanged: h.emitted.add,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(build(null));
+      await tester.pump();
+      expect(find.text('Amount'), findsNothing);
+
+      await tester.pumpWidget(build(r'<p>Pay $amount today</p>'));
+      await tester.pump();
+      expect(find.text('Amount'), findsOneWidget);
+      expect(find.text(_caption), findsOneWidget);
+      expect(h.emitted, isEmpty, reason: 'showing a default writes nothing');
+    });
+
+    testWidgets('a default arriving mid-burst does NOT discard what is being '
+        'typed, and does not reseed under the live editor', (tester) async {
+      // `_lastEmitted` is `''` for the WHOLE of a typing burst — the debounce
+      // restarts on every keystroke — so "the parent holds nothing" is not
+      // "the document is untouched". Reseeding on it threw the user's text
+      // away, disposed the composer a mounted `SuperEditor` was holding, and
+      // re-parented the frame when `_defaultSerialized` stopped being null.
+      final h = _Harness();
+      addTearDown(h.toasts.dispose);
+      Widget build(String? defaultValue) =>
+          ChangeNotifierProvider<ToastController>.value(
+            value: h.toasts,
+            child: MaterialApp(
+              theme: buildInTheme(InTheme.light),
+              localizationsDelegates: kTestLocalizationsDelegates,
+              supportedLocales: kTestSupportedLocales,
+              home: Scaffold(
+                body: Center(
+                  child: SizedBox(
+                    width: 480,
+                    child: MarkdownTextField(
+                      label: 'Body',
+                      initialValue: '',
+                      defaultValue: defaultValue,
+                      templateVariables: TemplateVariableScope.invoice,
+                      onEditing: h.editing.add,
+                      onChanged: h.emitted.add,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+
+      await tester.pumpWidget(build(null));
+      await tester.pump();
+      await _startEditing(tester);
+      final editorState = tester.state(find.byType(SuperEditor));
+
+      // Mid-burst: typed, nothing emitted yet.
+      _liveEditor(
+        tester,
+      ).execute([InsertCharacterAtCaretRequest(character: 'Z')]);
+      expect(h.emitted, isEmpty);
+
+      // The render lands and hands over a default.
+      await tester.pumpWidget(build(r'<p>Pay $amount today</p>'));
+      await tester.pump();
+
+      expect(
+        find.textContaining('Z', findRichText: true),
+        findsWidgets,
+        reason: 'the typed character survives the late default',
+      );
+      expect(find.text('Amount'), findsNothing, reason: 'default not adopted');
+      expect(
+        tester.state(find.byType(SuperEditor)),
+        same(editorState),
+        reason: 'the live editor was neither disposed nor remounted',
+      );
+
+      // It is adopted on the blur instead.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(h.emitted.single, contains('Z'));
+    });
+
+    testWidgets('defaultCaption replaces the settings copy', (tester) async {
+      await _pump(
+        tester,
+        '',
+        defaultValue: r'Pay $amount now',
+        defaultCaption: 'Sent as is.',
+      );
+      expect(find.text('Sent as is.'), findsOneWidget);
+      expect(find.text(_caption), findsNothing);
+    });
+  });
+
+  group('onEditing', () {
+    testWidgets('reports true synchronously, before the debounce', (
+      tester,
+    ) async {
+      // A host whose dirty flag is read during build (`PopScope.canPop`)
+      // cannot wait for `onChanged`.
+      final h = await _pump(tester, 'Hello');
+      await _startEditing(tester);
+      expect(h.editing, isEmpty, reason: 'promoting is not an edit');
+
+      final editor = _liveEditor(tester);
+      editor.execute([InsertCharacterAtCaretRequest(character: 'X')]);
+      expect(h.editing, [true]);
+      expect(h.emitted, isEmpty, reason: 'still inside the debounce');
+
+      editor.execute([InsertCharacterAtCaretRequest(character: 'Y')]);
+      expect(h.editing, [true], reason: 'one edge, not one per keystroke');
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(h.emitted.single, contains('XY'));
+      expect(h.editing, [true, false], reason: 'settled: the parent has it');
+    });
+
+    testWidgets('reports false again when an edit round-trips, so a host '
+        'cannot latch dirty for ever', (tester) async {
+      // Type a character and delete it inside the debounce: `_emitCurrent`
+      // returns early without calling `onChanged`, so this edge is the ONLY
+      // signal the host gets that there is nothing left to save.
+      final h = await _pump(tester, 'Hello');
+      await _startEditing(tester);
+
+      final editor = _liveEditor(tester);
+      editor.execute([InsertCharacterAtCaretRequest(character: 'X')]);
+      expect(h.editing, [true]);
+      editor.execute([const DeleteUpstreamCharacterRequest()]);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(h.emitted, isEmpty, reason: 'the value never changed');
+      expect(h.editing, [true, false]);
+    });
+  });
 }

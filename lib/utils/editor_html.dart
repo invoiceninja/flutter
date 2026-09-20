@@ -43,13 +43,14 @@ import 'package:admin/utils/legacy_html_markdown.dart';
 import 'package:admin/utils/notes_html.dart';
 
 /// Canonical HTML for a value held by a field that has **no editor behind it**
-/// but *is* seeded from a stored one — the ad-hoc Send Email body, a Custom
-/// gateway's `text` config.
+/// but *is* seeded from a stored one — a Custom gateway's `text` config. (The
+/// Send Email body was the other, until it became a `MarkdownTextField` and
+/// took over both conversions itself — invoiceninja/flutter#139.)
 ///
 /// Those fields show `markdownFromLegacyHtml`'s output so the user reads words
 /// rather than tags, which means whatever comes back is markdown; this is its
-/// inverse, so a template that is customised and sent untouched arrives exactly
-/// as it was stored. Escaping it as plain text instead is not the inverse and
+/// inverse, so a template that is edited and sent arrives exactly as it was
+/// stored. Escaping it as plain text instead is not the inverse and
 /// silently destroyed the formatting: `<strong>` came back as `**Bob**`, a
 /// `<ul>` as `- One<br>- Two`, and an `<a href>` as a literal
 /// `[label](url)` — a dead link.

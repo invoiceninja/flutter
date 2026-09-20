@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_field_shell.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_text_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -108,6 +109,10 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
   /// Template fields only: the shell swaps the field in and out, so it needs
   /// a node it can focus when edit mode begins.
   FocusNode? _focusNode;
+
+  /// Template fields only: lets the "Insert variable" button above the field
+  /// drive the shell, which owns the picker and the caret.
+  final _shellKey = GlobalKey<TemplateVariableFieldShellState>();
 
   @override
   void initState() {
@@ -264,8 +269,11 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
             focusNode != null &&
             controller is TemplateVariableTextController
         ? TemplateVariableFieldShell(
+            key: _shellKey,
             controller: controller,
             focusNode: focusNode,
+            // The button lives above the field instead — see below.
+            showInsertButton: false,
             decoration: decoration,
             enabled: widget.enabled,
             // An inherited value renders but stays inert — and unfocusable,
@@ -279,11 +287,36 @@ class _OverridableTextFieldState extends State<OverridableTextField> {
                 buildField(decoration, onTapOutside: onTapOutside),
           )
         : buildField(decoration);
+    // "Insert variable" sits above the field, right-aligned and labelled,
+    // rather than as a bare `+` inside it. Three reasons it moved: a suffix
+    // glyph has no tooltip on touch, so it said nothing about what it did; it
+    // competed with "Reset to default" for the one suffix slot; and it sat on
+    // top of the chip row, which a long subject runs underneath. This is also
+    // the shape the body below already has, and the Send Email composer.
+    final Widget withActions = templateScope == null
+        ? field
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: FieldActionButton(
+                  icon: Icons.add,
+                  label: context.tr('insert_variable'),
+                  onPressed: widget.enabled
+                      ? () => _shellKey.currentState?.insertVariable()
+                      : null,
+                ),
+              ),
+              field,
+            ],
+          );
     return OverridableField.bind(
       apiKey: widget.apiKey,
       label: widget.label,
       cascadedValueOnEnable: () => _read(host.settings) ?? '',
-      child: field,
+      child: withActions,
     );
   }
 }

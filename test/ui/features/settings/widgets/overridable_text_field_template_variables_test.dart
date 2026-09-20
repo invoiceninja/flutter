@@ -7,7 +7,9 @@ import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/domain/email_template_variables.dart';
+import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_chip.dart';
+import 'package:admin/ui/core/widgets/template_variables/template_variable_field_shell.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -183,5 +185,47 @@ void main() {
     expect(find.text('Change variable'), findsNothing);
     expect(find.byType(TextField), findsNothing);
     expect(host.writes, isEmpty);
+  });
+
+  testWidgets('"Insert variable" is a labelled button above the field, not a '
+      'bare + inside it', (tester) async {
+    // A suffix glyph has no tooltip on touch, competed with "Reset to
+    // default" for the one suffix slot, and sat on top of the chip row that a
+    // long subject runs underneath.
+    final host = await _pump(tester);
+    final button = find.widgetWithText(FieldActionButton, 'Insert variable');
+    expect(button, findsOneWidget);
+    expect(
+      tester.getCenter(button).dy,
+      lessThan(tester.getCenter(find.byType(TemplateVariableFieldShell)).dy),
+      reason: 'above the field',
+    );
+    expect(
+      find.descendant(
+        of: find.byType(TemplateVariableFieldShell),
+        matching: find.byIcon(Icons.add),
+      ),
+      findsNothing,
+      reason: 'and no longer a suffix inside it',
+    );
+    final shell = find.byType(TemplateVariableFieldShell);
+    expect(
+      tester.getCenter(button).dx,
+      greaterThan(tester.getCenter(shell).dx),
+      reason: 'right-aligned over the field it acts on',
+    );
+    expect(
+      tester.getBottomRight(button).dx,
+      closeTo(tester.getBottomRight(shell).dx, 1),
+    );
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('Balance'), findsOneWidget, reason: 'the picker opened');
+
+    await tester.tap(find.text('Balance'));
+    await tester.pumpAndSettle();
+    expect(host.writes.last, contains(r'$balance'));
+    await tester.pump(const Duration(seconds: 30));
   });
 }

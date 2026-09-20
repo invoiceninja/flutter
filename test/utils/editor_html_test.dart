@@ -219,7 +219,7 @@ void main() {
       '<hr>',
       '<img src="https://x.test/a.png" alt="a">',
       '<p>a <span style="color:red">red</span> word</p>',
-      // The shapes a Send Email "Customize" hands back — the regression that
+      // The shapes an edited email template hands back — the regression that
       // made `htmlFromEditableValue` its own function.
       '<p>Hi <strong>Bob</strong></p><ul><li>One</li><li>Two</li></ul>',
       '<p>See <a href="https://x.test">this</a></p>',

@@ -267,15 +267,26 @@ Iterable<String> templateVariableTokensIn(Document document) sync* {
 /// [TemplateVariablePlaceholder], known or not: super_editor adds nothing to
 /// the span for an unclaimed placeholder, and the layout's offsets then drift
 /// from the document's.
+///
+/// [values] are the document's probed values, per token (the Send Email
+/// composer). With them a chip reads label + value — "Amount  £10.00" — the
+/// same as the single-line shell's. Empty everywhere else: Templates &
+/// Reminders edits a template with no document to resolve it against.
 InlineWidgetBuilder templateVariableChipBuilder({
   required TemplateVariableScope scope,
+  Map<String, TemplateVariableValue> values = const {},
   bool muted = false,
   bool editable = true,
 }) {
   return (context, textStyle, placeholder) {
     if (placeholder is! TemplateVariablePlaceholder) return null;
     final display =
-        describeTemplateVariable(context, placeholder.token, scope) ??
+        describeTemplateVariable(
+          context,
+          placeholder.token,
+          scope,
+          value: values[placeholder.token],
+        ) ??
         TemplateVariableDisplay(
           token: placeholder.token,
           label: placeholder.token,

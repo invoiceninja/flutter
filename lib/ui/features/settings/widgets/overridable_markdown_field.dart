@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/env.dart';
 import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -102,28 +102,6 @@ class OverridableMarkdownField extends StatelessWidget {
       debounce: debounce ?? const Duration(milliseconds: 300),
       templateVariables: templateVariables,
       defaultValue: companyDefault,
-      labelTrailing: canReset
-          ? TextButton.icon(
-              // At company scope an empty value is the server's default.
-              onPressed: () => host.updateSettings((s) => writeFn(s, '')),
-              icon: const Icon(Icons.restart_alt, size: 16),
-              label: Text(context.tr('reset_to_default')),
-              style: TextButton.styleFrom(
-                // No density on touch: `compact` subtracts 8 from
-                // `minimumSize` (§ Design system, touch-target trap 2), so the
-                // 44 below would have rendered as 36 — and `shrinkWrap` drops
-                // the 48 px `padded` floor that would otherwise have hidden it.
-                visualDensity: Env.isTouchPrimary
-                    ? null
-                    : VisualDensity.compact,
-                minimumSize: Size(
-                  0,
-                  Env.isTouchPrimary ? InSizes.touchTarget : 32,
-                ),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            )
-          : null,
       onChanged: (v) {
         // See OverridableTextField: at cascade scope an empty edit removes the
         // override (null) instead of persisting '', which the server treats as
@@ -133,24 +111,41 @@ class OverridableMarkdownField extends StatelessWidget {
       },
     );
 
-    final field = errorText == null
+    // "Reset to default" sits **below** the editor, right-aligned, not in its
+    // label row. It undoes the whole body, so it reads as a conclusion rather
+    // than a heading — and the label row already carries "Insert variable",
+    // which acts on the caret; two actions of different scope side by side
+    // invited the wrong one. It follows the default caption, which is the
+    // sentence it answers.
+    final reset = canReset
+        ? Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: FieldActionButton(
+              icon: Icons.restart_alt,
+              label: context.tr('reset_to_default'),
+              // At company scope an empty value is the server's default.
+              onPressed: () => host.updateSettings((s) => writeFn(s, '')),
+            ),
+          )
+        : null;
+    final error = errorText == null
+        ? null
+        : Padding(
+            padding: const EdgeInsets.only(top: InSpacing.xs, left: 2),
+            child: Text(
+              errorText,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          );
+    final field = reset == null && error == null
         ? editor
         : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
-            children: [
-              editor,
-              Padding(
-                padding: const EdgeInsets.only(top: InSpacing.xs, left: 2),
-                child: Text(
-                  errorText,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
+            children: [editor, ?error, ?reset],
           );
 
     return OverridableField.bind(

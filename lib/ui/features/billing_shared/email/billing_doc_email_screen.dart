@@ -5,19 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/app/env.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/vendor.dart';
+import 'package:admin/data/models/value/parsing.dart';
 import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/dialogs/discard_changes_dialog.dart';
+import 'package:admin/ui/core/widgets/field_action_button.dart';
+import 'package:admin/ui/core/widgets/markdown_text_field.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/widgets/template_variables/template_default_badge.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_field_shell.dart';
-import 'package:admin/ui/core/widgets/template_variables/template_variable_picker.dart';
 import 'package:admin/ui/core/widgets/template_variables/template_variable_text_controller.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/email/billing_doc_email_sheet.dart'
@@ -30,9 +32,7 @@ import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/sends/billing_doc_sends_tab.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/preview_controller.dart';
 import 'package:admin/ui/features/settings/views/advanced/templates_reminders/widgets/template_preview_panel.dart';
-import 'package:admin/utils/editor_html.dart';
 import 'package:admin/utils/formatting.dart';
-import 'package:admin/utils/legacy_html_markdown.dart';
 
 /// Callback types so the screen stays entity-agnostic — the route screen
 /// binds these to the owning repo's `email` / `scheduleEmail` /
@@ -57,16 +57,19 @@ typedef ScheduleEmailCallback =
 /// (invoice / quote / credit / purchase order / recurring invoice).
 ///
 /// Desktop (≥1024): two panels — left = the email form (read-only
-/// recipients, template, CC, subject, body) with a live preview beneath;
-/// right = PDF + History tabs. Mobile (<1024): one `[Email | PDF | History]`
-/// tab strip with the form + inline preview together under "Email".
+/// recipients, template, CC, subject, body) at full height; right =
+/// `[Preview | PDF | History]` tabs. Mobile (<1024): one
+/// `[Email | Preview | PDF | History]` tab strip. The preview is a tab on both
+/// so the body editor gets the whole compose column: stacked under the form it
+/// left ~446 px for ~532 px of fields, while rendering the very same default
+/// body the editor above it was already showing.
 ///
 /// It is **entity-agnostic**: data + the send/schedule/reactivate/PDF
 /// behaviors arrive as plain values + callbacks from
 /// [BillingDocEmailRouteScreen]. The live preview reuses [PreviewController]
 /// + [TemplatePreviewPanel] (the same engine as Settings → Templates):
-/// WebView-rendered HTML on iOS/Android, `SuperReader` markdown on
-/// desktop/web — the PDF panel is the rendered-fidelity anchor on desktop.
+/// WebView-rendered HTML on iOS/Android, `HtmlWidget` on desktop/web — the PDF
+/// panel is the rendered-fidelity anchor on desktop.
 class BillingDocEmailScreen extends StatefulWidget {
   const BillingDocEmailScreen({
     super.key,
@@ -134,15 +137,39 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   );
   late final TemplateVariableTextController _subject =
       TemplateVariableTextController(scope: _scope);
-  late final TemplateVariableTextController _body =
-      TemplateVariableTextController(scope: _scope);
   final _cc = TextEditingController();
   final _subjectFocus = FocusNode();
   final _subjectShell = GlobalKey<TemplateVariableFieldShellState>();
 
-  /// What the subject's chips show — the document's own values. Only when
-  /// the preview is bound to it; unbound, the server answers with another
-  /// record's (invoiceninja/flutter#31).
+  /// The body, as the editor emits it: **HTML**, and `''` while the template's
+  /// own default is what will be sent.
+  String _bodyValue = '';
+
+  /// Forces an immediate serialize + emit, bypassing the editor's debounce.
+  /// Every synchronous read of [_bodyValue] goes behind this.
+  final _bodyFlush = MarkdownFieldController();
+
+  /// Bumped to make the editor reseed — "Reset".
+  int _bodySeed = 0;
+
+  /// The user touched the body but the debounce hasn't fired yet. `canPop` is
+  /// read during build and cannot await a flush, so the editor reports the
+  /// first change synchronously through `onEditing` and this carries it until
+  /// [_bodyValue] catches up.
+  bool _touchedBody = false;
+
+  /// The server's own subject / body for the selected template, rendered muted
+  /// under a "Default" badge until the user edits. **Only ever assigned while
+  /// our own value is empty**: `raw_subject` / `raw_body` echo the *request*
+  /// back (`TemplateEngine.php` assigns them after `setTemplates()`), so once
+  /// the user types they are the user's text, not the template — and a default
+  /// poisoned with it makes Reset restore what it just reset away.
+  String _defaultSubject = '';
+  String _defaultBody = '';
+
+  /// What the chips show — the document's own values. Only when the preview is
+  /// bound to it; unbound, the server answers with another record's
+  /// (invoiceninja/flutter#31).
   TemplateVariableValuesController? _values;
   bool _previewBound = false;
 
@@ -158,20 +185,25 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   /// (explain why Send is disabled).
   bool _contactsLoaded = false;
 
-  /// True until the next server render lands; then the (still empty) subject
-  /// is seeded from the template. Disarmed the instant the user types, and
-  /// re-checked at apply time, so an in-flight render can never overwrite
-  /// text the user just entered.
-  bool _seedSubjectArmed = true;
-
-  /// The body is **not** pre-filled: an empty body sends the template's own
-  /// (often a wall of literal HTML), so it starts empty — "Use default" —
-  /// and is seeded only when the user asks to customize it.
-  bool _seedBodyArmed = false;
-  bool _bodyCustomized = false;
-  bool _editedSubject = false;
-  bool _editedBody = false;
   bool _editedCc = false;
+  final _ccFocus = FocusNode();
+
+  /// Set on blur, not per keystroke — an address is malformed right up until
+  /// the moment it isn't, so validating as you type flags every prefix.
+  bool _ccInvalid = false;
+
+  /// Both fields show the server's template until the user changes it, so
+  /// "edited" is **derived from the value**, never latched. The editor emits
+  /// `''` for a document edited back to the default, and the shell leaves its
+  /// adopted copy in the controller after a blur — a sticky flag would leave
+  /// Reset on screen, the form dirty, and the schedule warning firing for an
+  /// edit that no longer exists.
+  bool get _editedBody => _bodyValue.isNotEmpty || _touchedBody;
+
+  bool get _editedSubject {
+    final text = _subject.text.trim();
+    return text.isNotEmpty && text != _defaultSubject.trim();
+  }
 
   /// Synchronous double-submit guard — set before any await so two taps in
   /// one frame can't both enqueue.
@@ -195,13 +227,41 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
       widget.invitations.isNotEmpty &&
       widget.invitations.every((i) => i.hasBounced || i.hasError);
 
-  bool get _canSend => !_inFlight && !_isTmp && _hasDeliverable;
+  bool get _canSend => !_inFlight && !_isTmp && _hasDeliverable && !_ccInvalid;
+
+  /// Whether the CC field holds something the server would silently drop.
+  ///
+  /// A list, not an address: the server splits `cc_email` on comma **and**
+  /// space, so `"a@x.com, b@y.com"` is two addresses and validating it as one
+  /// string would disable Send on a perfectly good entry.
+  bool get _ccHasTypo =>
+      splitAddressList(_cc.text).any((a) => !isLikelyEmailAddress(a));
+
+  /// A CC typo is otherwise invisible: the field posts whatever it holds, the
+  /// server drops what it can't parse without telling anyone, and the screen
+  /// pops saying "Email queued".
+  ///
+  /// Blur is early feedback, not the gate — on touch an `AppBar` button takes
+  /// no focus, so tapping Send never blurs this field and this never runs.
+  /// [_validateCc] is the gate.
+  void _onCcFocus() {
+    if (_ccFocus.hasFocus) return;
+    _validateCc();
+  }
+
+  /// Returns false when the field is unusable, having shown the error.
+  bool _validateCc() {
+    final invalid = _ccHasTypo;
+    if (invalid != _ccInvalid) setState(() => _ccInvalid = invalid);
+    return !invalid;
+  }
 
   @override
   void initState() {
     super.initState();
     _preview = PreviewController(api: widget.services.templates);
     _preview.addListener(_onPreviewChanged);
+    _ccFocus.addListener(_onCcFocus);
     _template = BillingEmailTemplate.forType(widget.type).first.value;
 
     // The doc's client/vendor (hence its contacts) may not be in Drift yet
@@ -253,7 +313,8 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     _values?.dispose();
     _subjectFocus.dispose();
     _subject.dispose();
-    _body.dispose();
+    _ccFocus.removeListener(_onCcFocus);
+    _ccFocus.dispose();
     _cc.dispose();
     super.dispose();
   }
@@ -261,6 +322,10 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   // ---- preview + seeding -------------------------------------------------
 
   void _scheduleRender({bool immediate = false}) {
+    // A flush from `_send` / `_schedule` / `_handleClose` re-enters here
+    // through `onChanged`; the screen is on its way out, so the render would
+    // land on nobody.
+    if (_inFlight) return;
     // Bind the render to the document being emailed — see
     // [emailPreviewBinding] for why, and for the two cases that must stay
     // on the server's generic sample.
@@ -273,8 +338,8 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
       template: _template,
       subject: _subject.text,
       // The same shape the send will use, so the preview isn't a rehearsal of
-      // something else.
-      body: htmlFromEditableValue(_body.text),
+      // something else. Already HTML: that is what the editor emits.
+      body: _bodyValue,
       entity: binding.entity,
       entityId: binding.entityId,
       immediate: immediate,
@@ -284,16 +349,33 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   void _onPreviewChanged() {
     final value = _preview.value;
     if (value is! TemplatePreviewLoaded) return;
-    // Re-check emptiness HERE (not only when arming) — closes the window
-    // where the user types while a render is in flight.
-    if (_seedSubjectArmed && _subject.text.isEmpty) {
-      _seedSubjectArmed = false;
-      _subject.text = value.preview.rawSubject;
-      _values?.noteText(_subject.text);
+    // Adopt the render's templates as the fields' defaults — but only from a
+    // render that actually ASKED for the template. `rawSubject` / `rawBody`
+    // are the request echoed back, so a response to a request that carried
+    // the user's own text carries it straight back, and `PreviewController`
+    // only invalidates its token inside `_fire()` — a non-immediate
+    // `schedule()` merely restarts the debounce, so such a response can still
+    // land after the user has cleared the field. Without the request check
+    // that made their own deleted draft the muted "Default".
+    //
+    // The template check is the other half: a response for the template we
+    // have since switched away from is never this one's default.
+    final req = value.request;
+    final forThisTemplate = req.template == _template;
+    if (forThisTemplate && req.subjectWasEmpty && _subject.text.isEmpty) {
+      if (value.preview.rawSubject != _defaultSubject) {
+        setState(() => _defaultSubject = value.preview.rawSubject);
+        _values?.noteText(_defaultSubject);
+      }
     }
-    if (_seedBodyArmed && _body.text.isEmpty) {
-      _seedBodyArmed = false;
-      _body.text = _editableBody(value.preview.rawBody);
+    if (forThisTemplate && req.bodyWasEmpty && _bodyValue.isEmpty) {
+      if (value.preview.rawBody != _defaultBody) {
+        setState(() => _defaultBody = value.preview.rawBody);
+        // Probe the default's own tokens here: an untouched default never
+        // fires `onChanged` (the editor emits nothing until the document
+        // differs from it), so `_onBodyChanged` would never see them.
+        _values?.noteText(_defaultBody);
+      }
     }
     // Read by the "Preview:" line, whose builder listens to `_preview` after
     // this listener (registered first, in `initState`) has run.
@@ -301,90 +383,68 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   }
 
   void _onTemplateChanged(String value) {
+    // Read BEFORE the cache they are derived from is cleared: once
+    // `_defaultSubject` is `''`, `_editedSubject` degrades to "the field has
+    // any text at all", which is true of the copy the shell adopts merely
+    // because the user tapped in.
+    final keepSubject = _editedSubject;
     setState(() {
       _template = value;
-      // Keep what the user wrote (just re-render the preview against the new
-      // template); otherwise reseed from the new template.
-      if (!_editedSubject) {
-        _subject.clear();
-        _seedSubjectArmed = true;
-      }
-      if (_bodyCustomized && !_editedBody) {
-        _body.clear();
-        _seedBodyArmed = true;
-      }
+      // The cached defaults belong to the template we are leaving, so they go
+      // **unconditionally** — an edited field is exactly the case where they
+      // can never be refreshed (every adopt path requires our own value to be
+      // empty), and a stale one there is not cosmetic: `_editedSubject`
+      // compares against it, so typing the old template's wording back would
+      // read as "unedited" and send `null`, i.e. the NEW template's subject,
+      // while the user watches their own on screen.
+      //
+      // Clearing rather than keeping is the point for the unedited case too:
+      // leaving the *first* reminder's body under a "Default" badge while the
+      // third renders is a plausible-looking lie, where a blank box for one
+      // render cycle is merely empty.
+      _defaultSubject = '';
+      _defaultBody = '';
+      // Keep what the user wrote; otherwise start clean for the new template.
+      if (!keepSubject) _subject.clear();
     });
     _scheduleRender(immediate: true);
   }
 
   void _onSubjectChanged(String _) {
-    _seedSubjectArmed = false;
-    if (!_editedSubject) setState(() => _editedSubject = true);
+    // `_editedSubject` is derived, so this only has to rebuild.
+    setState(() {});
     _values?.noteText(_subject.text);
     _scheduleRender();
   }
 
-  void _onBodyChanged(String _) {
-    _seedBodyArmed = false;
-    if (!_editedBody) setState(() => _editedBody = true);
+  void _onBodyChanged(String html) {
+    // The editor schedules its final emit on a microtask from `dispose`, so
+    // this can arrive after the screen is gone.
+    if (!mounted) return;
+    setState(() {
+      _bodyValue = html;
+      _touchedBody = false;
+    });
+    _values?.noteText(html);
     _scheduleRender();
   }
 
   /// Put the template's own subject back.
   void _resetSubject() {
     _subject.clear();
-    _seedSubjectArmed = true;
-    setState(() => _editedSubject = false);
+    setState(() {});
     _scheduleRender(immediate: true);
   }
 
-  /// Load the template's body for editing. Not an edit: the form stays clean
-  /// (and an unchanged body sends as the template anyway) until the text
-  /// actually changes.
-  void _customizeBody() {
-    final value = _preview.value;
-    if (value is! TemplatePreviewLoaded) return;
-    setState(() {
-      _bodyCustomized = true;
-      _body.text = _editableBody(value.preview.rawBody);
-    });
-  }
-
-  /// Back to the template's own body — "Use default".
+  /// Back to the template's own body. Bumping the seed is what makes the
+  /// editor reseed — it owns its document, not our string.
   void _resetBody() {
-    _body.clear();
     setState(() {
-      _editedBody = false;
-      _bodyCustomized = false;
-      _seedBodyArmed = false;
+      _bodyValue = '';
+      _touchedBody = false;
+      _bodySeed++;
     });
     _scheduleRender(immediate: true);
-  }
-
-  /// Insert a variable into the raw body at the caret (or at the end).
-  Future<void> _insertIntoBody() async {
-    final selection = _body.selection;
-    final pick = await showTemplateVariablePicker(
-      context,
-      scope: _scope,
-      values: _values?.value ?? const {},
-    );
-    if (pick is! TemplateVariablePicked || !mounted) return;
-    final text = _body.text;
-    final valid = selection.isValid && selection.end <= text.length;
-    final start = valid ? selection.start : text.length;
-    final end = valid ? selection.end : text.length;
-    final after = end < text.length ? text[end] : '';
-    // Keep the token from running on into the next word.
-    final spacer = RegExp(r'[A-Za-z0-9_]').hasMatch(after) ? ' ' : '';
-    final insert = '${pick.token}$spacer';
-    final next = text.replaceRange(start, end, insert);
-    _body.value = TextEditingValue(
-      text: next,
-      selection: TextSelection.collapsed(offset: start + insert.length),
-    );
-    if (!_bodyCustomized) setState(() => _bodyCustomized = true);
-    _onBodyChanged(next);
   }
 
   // ---- contacts ----------------------------------------------------------
@@ -451,37 +511,41 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     return t.isEmpty ? null : t;
   }
 
-  /// A stored template body, as text a plain field can show.
-  ///
-  /// Email bodies are HTML — React edits them with its rich editor, and this
-  /// app's Templates & Reminders screen writes HTML too — so "Customize" used
-  /// to drop raw `<p>` tags into this field.
-  String _editableBody(String stored) => markdownFromLegacyHtml(stored);
+  /// The subject as it goes on the wire — **null when it is the template's
+  /// own**, so the server resolves it against the *client's* language at send
+  /// time rather than receiving a snapshot fixed in ours. The shell leaves the
+  /// copy it adopted on tap sitting in the controller, so tapping in and back
+  /// out would otherwise post that copy as a deliberate override.
+  String? _subjectOrNull() {
+    final text = _subject.text.trim();
+    if (text.isEmpty || text == _defaultSubject.trim()) return null;
+    return text;
+  }
 
-  /// The body as it goes on the wire.
+  /// The body as it goes on the wire: HTML, already, because that is what the
+  /// editor emits — and null while the document is still the template's own,
+  /// for the same reason [_subjectOrNull] returns null there.
   ///
-  /// The server runs CommonMark over a non-`custom` template body
-  /// (`EmailDefaults.php:247`) and injects a custom one raw, so a typed line
-  /// break survives neither. HTML renders the same either way.
-  ///
-  /// [htmlFromEditableValue] and not `htmlFromPlainText`: the field shows
-  /// [_editableBody]'s fold of a stored template, so the way back has to be the
-  /// fold's inverse. Escaping it as plain text sent `**Bob**` and a dead
-  /// `[label](url)` whenever a formatted template was customised and sent.
+  /// Flushes first: the editor emits on a debounce, so a body typed in the
+  /// last fraction of a second is otherwise dropped silently.
   String? _bodyOrNull() {
-    final html = htmlFromEditableValue(_body.text);
+    final html = _bodyFlush.flush() ?? _bodyValue;
     return html.isEmpty ? null : html;
   }
 
   Future<void> _send() async {
     if (_inFlight) return;
+    // Before anything else: the CC gate (blur never fires on touch), then
+    // settle the editor's debounce so what we send is what is on screen.
+    if (!_validateCc()) return;
+    final body = _bodyOrNull();
     setState(() => _inFlight = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
       await widget.onSend(
         template: _template,
-        subject: _trimOrNull(_subject),
-        body: _bodyOrNull(),
+        subject: _subjectOrNull(),
+        body: body,
         ccEmail: _trimOrNull(_cc),
       );
       if (!mounted) return;
@@ -501,6 +565,11 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
 
   Future<void> _schedule() async {
     if (_inFlight || widget.onSchedule == null) return;
+    if (!_validateCc()) return;
+    // Flush BEFORE the edited check, not merely before the send: the warning
+    // below is the only thing standing between a just-typed body and the
+    // server discarding it, and `_editedBody` is debounced.
+    final body = _bodyOrNull();
     // The server's scheduler sends the saved template and ignores a subject
     // or body override (`EmailRecord.php`; see BACKEND.md) — say so, rather
     // than drop the user's edits silently.
@@ -532,8 +601,8 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
       await widget.onSchedule!(
         template: _template,
         sendAt: sendAt,
-        subject: _trimOrNull(_subject),
-        body: _bodyOrNull(),
+        subject: _subjectOrNull(),
+        body: body,
         ccEmail: _trimOrNull(_cc),
       );
       if (!mounted) return;
@@ -562,6 +631,10 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
 
   Future<void> _handleClose() async {
     if (_inFlight) return;
+    // Settle the editor's debounce so `_dirty` sees a body typed a moment ago
+    // — the ✕ is an `IconButton`, which takes no focus, so nothing blurred the
+    // editor on the way here.
+    _bodyFlush.flush();
     if (_dirty && !(await showDiscardChangesDialog(context))) return;
     if (!mounted) return;
     _doPop();
@@ -685,21 +758,33 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
 
   Widget _buildWide(BuildContext context) {
     final tokens = context.inTheme;
-    return Scaffold(
-      appBar: _appBar(context, wide: true),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: _composePaneWide(context)),
-          VerticalDivider(width: 1, thickness: 1, color: tokens.border),
-          Expanded(child: _rightTabs(context)),
-        ],
+    // The controller sits ABOVE the `Row` because `_rightTabs` no longer owns
+    // one, and because the compose pane on the left reads it too — the
+    // rendered-subject line under the Subject field jumps to the Preview tab.
+    //
+    // Keyed, so `LayoutBuilder` cannot reuse this element across the
+    // breakpoint: a 4→3 remap would carry the index over, landing a resize
+    // from narrow "Preview" (1) on wide "PDF" (1).
+    return DefaultTabController(
+      key: const ValueKey('email-tabs-wide'),
+      length: 3,
+      child: Scaffold(
+        appBar: _appBar(context, wide: true),
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: _composeScroll(context, wide: true)),
+            VerticalDivider(width: 1, thickness: 1, color: tokens.border),
+            Expanded(child: _rightTabs(context)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildNarrow(BuildContext context) {
     return DefaultTabController(
+      key: const ValueKey('email-tabs-narrow'),
       length: 4,
       child: Scaffold(
         appBar: _appBar(
@@ -714,7 +799,7 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
         ),
         body: TabBarView(
           children: [
-            _composeScroll(context),
+            _composeScroll(context, wide: false),
             _previewTab(context),
             _pdfView(),
             _historyView(),
@@ -735,15 +820,23 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     );
   }
 
+  /// Preview leads: the user is composing an email, and the PDF is its
+  /// attachment. It also puts the preview where it has a full pane instead of
+  /// a ~300 px strip under the form, and makes wide and narrow the same shape.
   Widget _rightTabs(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          _tabBar(context, [context.tr('pdf'), context.tr('history')]),
-          Expanded(child: TabBarView(children: [_pdfView(), _historyView()])),
-        ],
-      ),
+    return Column(
+      children: [
+        _tabBar(context, [
+          context.tr('preview'),
+          context.tr('pdf'),
+          context.tr('history'),
+        ]),
+        Expanded(
+          child: TabBarView(
+            children: [_previewTab(context), _pdfView(), _historyView()],
+          ),
+        ),
+      ],
     );
   }
 
@@ -768,46 +861,28 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     ),
   );
 
-  Widget _composePaneWide(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          flex: 3,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(InSpacing.lg(context)),
-            child: _form(context, wide: true),
-          ),
-        ),
-        Expanded(
-          flex: 2,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              InSpacing.lg(context),
-              0,
-              InSpacing.lg(context),
-              InSpacing.lg(context),
-            ),
-            child: TemplatePreviewPanel(controller: _preview),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _composeScroll(BuildContext context) {
+  Widget _composeScroll(BuildContext context, {required bool wide}) {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: _form(context, wide: false),
+      padding: EdgeInsets.fromLTRB(
+        InSpacing.lg(context),
+        InSpacing.lg(context),
+        InSpacing.lg(context),
+        // The body is `SuperEditor`, not an `EditableText`, so Flutter's
+        // scroll-the-caret-into-view never runs for it and the editor's own
+        // `CustomScrollView` is the inner scrollable, not this one. Without
+        // the inset the keyboard simply covers the field. Templates &
+        // Reminders needed the identical padding for the identical reason.
+        InSpacing.lg(context) + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: _form(context, wide: wide),
     );
   }
 
-  /// Standalone preview tab (mobile). Deliberately kept OUT of the compose
-  /// scroll: on desktop/web the preview is `SuperReader`, which integrates
-  /// with a *vertical* ancestor scrollable and then renders as a sliver —
-  /// inside the compose `SingleChildScrollView` that crashes (a sliver in a
-  /// box context). A tab body's only scrollable ancestor is the horizontal
-  /// `TabBarView`, which super_editor ignores, so the panel renders as a box.
+  /// Standalone preview tab. Deliberately kept OUT of the compose scroll:
+  /// `TemplatePreviewPanel` is a `WebViewWidget` on mobile-native and an
+  /// `HtmlWidget` elsewhere, and its frame falls back to a hard 600 px when
+  /// its height is unbounded — inside the compose `SingleChildScrollView`
+  /// that is a 600 px block with a nested scroll inside it.
   Widget _previewTab(BuildContext context) => Padding(
     padding: EdgeInsets.all(InSpacing.lg(context)),
     child: TemplatePreviewPanel(controller: _preview),
@@ -843,43 +918,72 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
           label: context.tr('cc_email'),
           child: TextField(
             controller: _cc,
+            focusNode: _ccFocus,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(hintText: 'name@example.com'),
+            decoration: InputDecoration(
+              hintText: 'name@example.com',
+              errorText: _ccInvalid ? context.tr('email_is_invalid') : null,
+            ),
             onChanged: (_) {
-              if (!_editedCc) setState(() => _editedCc = true);
+              setState(() {
+                _editedCc = true;
+                // Clear the complaint as soon as they start fixing it; the
+                // blur decides again.
+                _ccInvalid = false;
+              });
             },
           ),
         ),
         SizedBox(height: InSpacing.md(context)),
         // Variables render as chips carrying this document's values, so
         // "$company.name" reads as the company's name rather than as code
-        // someone has to replace by hand (invoiceninja/flutter#139).
+        // someone has to replace by hand (invoiceninja/flutter#139). Both
+        // fields show the server's own template, muted, until the user edits:
+        // it is what will actually be sent, and posting a snapshot of it back
+        // would freeze the per-client language the server resolves at send.
         LabeledField(
           label: context.tr('subject'),
-          trailing: _labelAction(
-            context,
-            icon: Icons.add,
-            label: context.tr('insert_variable'),
-            onPressed: _inFlight
-                ? null
-                : () => _subjectShell.currentState?.insertVariable(),
+          // `!_editedSubject`, not `text.isEmpty`: the shell adopts a copy of
+          // the default into the controller the moment the user taps in, so
+          // an emptiness test drops the badge off a field that is still
+          // showing the default — muted grey text with nothing to explain it,
+          // which is the reading the badge exists to overturn.
+          badge: !_editedSubject && _defaultSubject.isNotEmpty
+              ? TemplateDefaultBadge(label: context.tr('default'))
+              : null,
+          trailing: Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _labelAction(
+                context,
+                icon: Icons.add,
+                label: context.tr('insert_variable'),
+                onPressed: _inFlight
+                    ? null
+                    : () => _subjectShell.currentState?.insertVariable(),
+              ),
+              if (_editedSubject)
+                _labelAction(
+                  context,
+                  key: const Key('reset_subject'),
+                  icon: Icons.restart_alt,
+                  label: context.tr('reset'),
+                  onPressed: _resetSubject,
+                ),
+            ],
           ),
           child: TemplateVariableFieldShell(
             key: _subjectShell,
             controller: _subject,
             focusNode: _subjectFocus,
             values: _values,
+            defaultText: _defaultSubject,
+            // The body below captions the pair; two copies of the same two
+            // wrapped lines is noise on a 360 px phone.
+            showDefaultCaption: false,
             showInsertButton: false,
-            decoration: InputDecoration(
-              hintText: context.tr('use_default'),
-              suffixIcon: _editedSubject
-                  ? IconButton(
-                      icon: const Icon(Icons.restart_alt, size: 18),
-                      tooltip: context.tr('reset'),
-                      onPressed: _resetSubject,
-                    )
-                  : null,
-            ),
+            decoration: const InputDecoration(),
             onEdited: _onSubjectChanged,
             fieldBuilder: (context, decoration, onTapOutside) => TextField(
               controller: _subject,
@@ -891,52 +995,55 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
             ),
           ),
         ),
-        if (!wide) _renderedSubjectLine(context),
+        _renderedSubjectLine(context, wide: wide),
         SizedBox(height: InSpacing.md(context)),
-        LabeledField(
+        // No `LabeledField`: the editor draws its own label row (label +
+        // "Default" badge + Insert variable + `labelTrailing`), and two label
+        // rows would be worse than one.
+        MarkdownTextField(
           label: context.tr('body'),
-          trailing: ListenableBuilder(
-            listenable: Listenable.merge([_body, _preview]),
-            builder: (context, _) {
-              if (!_bodyCustomized && _body.text.isEmpty) {
-                return _labelAction(
+          initialValue: _bodyValue,
+          // `_defaultBody` is in the key because it arrives from a preview
+          // render, i.e. always after the first build.
+          externalValueKey: Object.hash(_bodySeed, _template, _defaultBody),
+          defaultValue: _defaultBody.isEmpty ? null : _defaultBody,
+          // The shared string says an edit "saves a custom copy", which is
+          // true in Templates & Reminders and false here — nothing is saved,
+          // the edit applies to this one email. Read before typing, the wrong
+          // one reads as "editing this rewrites my template for every send".
+          defaultCaption: context.tr('default_template_caption_send'),
+          templateVariables: _scope,
+          values: _values,
+          controller: _bodyFlush,
+          onChanged: _onBodyChanged,
+          // Both edges. The false one is what stops an edit that round-trips
+          // — typing a character and deleting it, or clearing the default and
+          // letting it come back — from leaving the form dirty for ever.
+          onEditing: (editing) {
+            if (_touchedBody != editing) setState(() => _touchedBody = editing);
+          },
+          // Deliberately no `enabled:` gate on `_inFlight`: it swaps the live
+          // editor for a reader mid-send, which drops focus (flushing, and
+          // possibly reseeding, underneath the send) and takes the field's own
+          // "Insert variable" button out of the label row. `_canSend` already
+          // blocks both buttons.
+          height: 120,
+          // Explicit, because the default is half the *window* — not half this
+          // pane — which on a phone is a 450 px scroller nested in the compose
+          // scroll, where the inner one wins the gesture arena.
+          maxHeight: 240,
+          // Matches Templates & Reminders: tight enough to keep this plus the
+          // preview's own 400 ms under a 600 ms perceived latency.
+          debounce: const Duration(milliseconds: 150),
+          labelTrailing: _editedBody
+              ? _labelAction(
                   context,
-                  icon: Icons.edit_note,
-                  label: context.tr('customize'),
-                  onPressed: _preview.value is TemplatePreviewLoaded
-                      ? _customizeBody
-                      : null,
-                );
-              }
-              // A `Wrap`, not a `Row`: two labelled actions beside "Body"
-              // don't fit a 360 px phone at large text.
-              return Wrap(
-                alignment: WrapAlignment.end,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  _labelAction(
-                    context,
-                    icon: Icons.add,
-                    label: context.tr('insert_variable'),
-                    onPressed: _inFlight ? null : _insertIntoBody,
-                  ),
-                  _labelAction(
-                    context,
-                    icon: Icons.restart_alt,
-                    label: context.tr('reset'),
-                    onPressed: _resetBody,
-                  ),
-                ],
-              );
-            },
-          ),
-          child: TextField(
-            controller: _body,
-            minLines: 4,
-            maxLines: 8,
-            decoration: InputDecoration(hintText: context.tr('use_default')),
-            onChanged: _onBodyChanged,
-          ),
+                  key: const Key('reset_body'),
+                  icon: Icons.restart_alt,
+                  label: context.tr('reset'),
+                  onPressed: _resetBody,
+                )
+              : null,
         ),
         if (_allBounced) ...[
           SizedBox(height: InSpacing.md(context)),
@@ -946,25 +1053,18 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
     );
   }
 
-  /// A compact label-row action ("Insert variable", "Customize", "Reset").
+  /// A compact label-row action ("Insert variable", "Reset").
   Widget _labelAction(
     BuildContext context, {
     required IconData icon,
     required String label,
     required VoidCallback? onPressed,
-  }) => TextButton.icon(
+    Key? key,
+  }) => FieldActionButton(
+    key: key,
+    icon: icon,
+    label: label,
     onPressed: onPressed,
-    icon: Icon(icon, size: 16),
-    label: Text(label),
-    style: TextButton.styleFrom(
-      // No density on touch: `compact` subtracts 8 from `minimumSize`
-      // (§ Design system, touch-target trap 2), so the 44 below would have
-      // rendered as 36 — and `shrinkWrap` drops the 48 px `padded` floor that
-      // would otherwise have masked it.
-      visualDensity: Env.isTouchPrimary ? null : VisualDensity.compact,
-      minimumSize: Size(0, Env.isTouchPrimary ? InSizes.touchTarget : 32),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    ),
   );
 
   /// Narrow layout only: the subject as recipients will read it. On a phone
@@ -972,7 +1072,11 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
   /// user sees what `$company.name` becomes before sending. Dimmed while a
   /// new render is in flight; hidden when unbound, since an unbound render
   /// shows another record's values (#31). Tapping it opens the Preview tab.
-  Widget _renderedSubjectLine(BuildContext context) {
+  Widget _renderedSubjectLine(BuildContext context, {required bool wide}) {
+    // The Preview tab's index, which is not the same on both: the wide strip
+    // is [Preview, PDF, History], the narrow one [Email, Preview, PDF,
+    // History].
+    final previewTab = wide ? 0 : 1;
     return ValueListenableBuilder<TemplatePreviewState>(
       valueListenable: _preview,
       builder: (context, state, _) {
@@ -990,9 +1094,11 @@ class _BillingDocEmailScreenState extends State<BillingDocEmailScreen> {
           button: true,
           label: '$prefix$text',
           excludeSemantics: true,
-          onTap: () => DefaultTabController.maybeOf(context)?.animateTo(1),
+          onTap: () =>
+              DefaultTabController.maybeOf(context)?.animateTo(previewTab),
           child: InkWell(
-            onTap: () => DefaultTabController.maybeOf(context)?.animateTo(1),
+            onTap: () =>
+                DefaultTabController.maybeOf(context)?.animateTo(previewTab),
             borderRadius: BorderRadius.circular(InRadii.r1),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),

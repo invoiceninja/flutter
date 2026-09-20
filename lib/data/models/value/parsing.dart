@@ -104,3 +104,39 @@ List<Document> mapDocuments(List<DocumentApi>? raw) =>
     (raw ?? const <DocumentApi>[])
         .map(Document.fromApi)
         .toList(growable: false);
+
+/// A deliberately loose "did they mistype this?" check for **one** address —
+/// one `@`, something either side, and a dot somewhere inside the domain.
+///
+/// Not RFC 5322: the grammar admits quoted locals, comments and IP literals,
+/// and anything strict enough to police that rejects addresses that work.
+/// This exists for the case where the *only* other feedback is silence — the
+/// Send Email composer's CC field posts whatever it holds, and the server
+/// drops what it can't parse **without saying so**, so a typo surfaces as a
+/// bounce long after the screen said "Email queued".
+bool isLikelyEmailAddress(String email) {
+  final value = email.trim();
+  if (value.isEmpty || value.contains(RegExp(r'\s'))) return false;
+  final at = value.indexOf('@');
+  if (at <= 0 || at != value.lastIndexOf('@')) return false;
+  final domain = value.substring(at + 1);
+  final dot = domain.indexOf('.');
+  return dot > 0 && dot < domain.length - 1;
+}
+
+/// Split an address list the way the server does.
+///
+/// `SendEmailRequest::prepareForValidation` explodes `cc_email` on **both**
+/// comma and space, trims and lowercases each part, and drops the empties —
+/// so `"a@x.com, b@y.com"` and `"a@x.com b@y.com"` are both two addresses, and
+/// treating either as one string is how a perfectly good CC list ends up
+/// rejected. (It then also dedupes and keeps at most [kMaxCcAddresses].)
+List<String> splitAddressList(String value) => value
+    .split(RegExp(r'[,\s]+'))
+    .map((part) => part.trim())
+    .where((part) => part.isNotEmpty)
+    .toList(growable: false);
+
+/// How many addresses the server keeps from a `cc_email` list; the rest are
+/// silently sliced off (`SendEmailRequest::prepareForValidation`).
+const int kMaxCcAddresses = 4;

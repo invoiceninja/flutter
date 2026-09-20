@@ -118,11 +118,26 @@ class _TemplateVariablePickerBodyState
 
   void _pop([TemplateVariablePick? pick]) => Navigator.of(context).pop(pick);
 
-  String? _valueText(String token) => switch (widget.values[token]) {
-    TemplateVariableResolved(:final text) => text,
-    TemplateVariableEmpty() => '—',
-    _ => null,
-  };
+  /// The value column, and part of the search haystack.
+  ///
+  /// Routed through [describeTemplateVariable] rather than reading
+  /// `widget.values` directly, so a row shows exactly what the chip it opens
+  /// from shows — notably a value that merely repeats its own label
+  /// (`$view_button`) is suppressed in both places, instead of the chip
+  /// hiding it and the picker printing it back.
+  String? _valueText(String token) {
+    final display = describeTemplateVariable(
+      context,
+      token,
+      widget.scope,
+      value: widget.values[token],
+    );
+    return switch (display?.value) {
+      null => null,
+      '' => '—',
+      final value => value,
+    };
+  }
 
   List<TemplateVariable> _matching(TemplateVariableGroup group, String query) =>
       [

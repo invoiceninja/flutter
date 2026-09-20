@@ -243,4 +243,67 @@ void main() {
       );
     });
   });
+
+  group('a value that repeats its own label', () {
+    testWidgets('is dropped, so the chip does not read the same words twice', (
+      tester,
+    ) async {
+      // `$view_button`'s probe answer is the button's caption, which is also
+      // its name — and every server default body ends with that token, so the
+      // chip read "View Invoice  View Invoice" on the common case.
+      final display = await _describe(
+        tester,
+        r'$view_button',
+        TemplateVariableScope.invoice,
+        value: const TemplateVariableResolved('View Invoice', isMarkup: true),
+      );
+      expect(display!.label, 'View Invoice');
+      expect(display.value, isNull);
+      expect(display.warning, isNull);
+    });
+
+    testWidgets('ignores case and surrounding space', (tester) async {
+      final display = await _describe(
+        tester,
+        r'$view_button',
+        TemplateVariableScope.invoice,
+        value: const TemplateVariableResolved('  view invoice '),
+      );
+      expect(display!.value, isNull);
+    });
+
+    testWidgets('a markup value that says something ELSE keeps it', (
+      tester,
+    ) async {
+      // The predicate is deliberately NOT `isMarkup`: the probe sets that for
+      // any HTML in the rendered value, and `$public_notes` / `$terms` /
+      // `$footer` are stored as HTML by this app's own editor — suppressing on
+      // markup blanked them, and label-only is indistinguishable from "the
+      // probe has not answered yet".
+      final display = await _describe(
+        tester,
+        r'$public_notes',
+        TemplateVariableScope.invoice,
+        value: const TemplateVariableResolved(
+          'Thanks for your business',
+          isMarkup: true,
+        ),
+      );
+      expect(display!.label, 'Public Notes');
+      expect(display.value, 'Thanks for your business');
+    });
+
+    testWidgets('an uncatalogued token has the token for a label, which a '
+        'value cannot repeat', (tester) async {
+      final display = await _describe(
+        tester,
+        r'$made_up',
+        TemplateVariableScope.invoice,
+        value: const TemplateVariableResolved('anything', isMarkup: true),
+      );
+      expect(display!.label, r'$made_up');
+      expect(display.monospace, isTrue);
+      expect(display.value, 'anything');
+    });
+  });
 }

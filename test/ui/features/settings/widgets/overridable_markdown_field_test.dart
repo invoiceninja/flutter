@@ -8,6 +8,7 @@ import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/domain/email_template_variables.dart';
+import 'package:admin/ui/core/widgets/field_action_button.dart';
 import 'package:admin/ui/core/widgets/markdown_text_field.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/view_models/settings_draft_view_model.dart';
@@ -150,6 +151,22 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Default'), findsNothing);
+
+    // Below the editor and right-aligned, not in the label row: it undoes the
+    // whole body, so it reads as a conclusion rather than a heading — and the
+    // label row already carries "Insert variable", which acts on the caret.
+    final reset = find.widgetWithText(FieldActionButton, 'Reset to default');
+    final editor = find.byType(MarkdownTextField);
+    expect(
+      tester.getCenter(reset).dy,
+      greaterThan(tester.getCenter(editor).dy),
+      reason: 'below the editor',
+    );
+    expect(
+      tester.getBottomRight(reset).dx,
+      closeTo(tester.getBottomRight(editor).dx, 1),
+      reason: 'right-aligned',
+    );
 
     await tester.tap(find.text('Reset to default'));
     await tester.pump();

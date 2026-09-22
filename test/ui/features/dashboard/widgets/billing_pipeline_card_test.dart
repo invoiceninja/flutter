@@ -381,6 +381,22 @@ int _selectedIndex(WidgetTester tester) => tester
     .widget<EntityListStatusTabs>(find.byType(EntityListStatusTabs))
     .selectedIndex;
 
+/// Position of a tab in the live strip. Derived rather than written as a
+/// literal: these assertions are about *which* tab is selected, and a literal
+/// index silently becomes an assertion about the strip's length too — adding
+/// `cancelled` broke four of them at once.
+int _indexOfTab(WidgetTester tester, String labelKey) {
+  final i = tester
+      .widget<EntityListStatusTabs>(find.byType(EntityListStatusTabs))
+      .tabs
+      .indexWhere((t) => t.labelKey == labelKey);
+  // Both this and the card's own `selectedIndex` are `indexWhere`, so both
+  // return -1 for a tab that left the strip — and `-1 == -1` would pass while
+  // asserting nothing. Fail here instead.
+  expect(i, isNonNegative, reason: 'no "$labelKey" tab in the strip');
+  return i;
+}
+
 void main() {
   setUpAll(_loadDateSymbols);
 
@@ -400,6 +416,7 @@ void main() {
       'sent',
       'approved',
       'rejected',
+      'cancelled',
       'expired',
     ]);
   });
@@ -613,12 +630,7 @@ void main() {
       nav: _Nav(),
       initialTabId: 'expired',
     );
-    expect(
-      tester
-          .widget<EntityListStatusTabs>(find.byType(EntityListStatusTabs))
-          .selectedIndex,
-      6,
-    );
+    expect(_selectedIndex(tester), _indexOfTab(tester, 'expired'));
 
     await _pump(
       tester,
@@ -657,7 +669,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       _selectedIndex(tester),
-      6,
+      _indexOfTab(tester, 'expired'),
       reason: 'the late-arriving restored tab must still apply',
     );
   });
@@ -717,7 +729,7 @@ void main() {
 
     expect(
       _selectedIndex(tester),
-      6,
+      _indexOfTab(tester, 'expired'),
       reason: "the new company's restored tab must apply",
     );
   });

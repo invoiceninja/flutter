@@ -98,8 +98,9 @@ void main() {
   });
 
   testWidgets(
-    'status options are exactly the six server client_status values — '
-    'no "rejected" (server QuoteFilters has no rejected branch)',
+    'status options are exactly the seven server client_status values — '
+    '"cancelled" yes (the server branch shipped 2026-09-22), "rejected" no '
+    '(QuoteFilters still has no rejected branch)',
     (tester) async {
       late BuildContext ctx;
       await tester.pumpWidget(
@@ -122,6 +123,7 @@ void main() {
           'expired',
           'upcoming',
           'converted',
+          'cancelled',
         ]);
         expect(rawValues, isNot(contains('rejected')));
         vm.dispose();

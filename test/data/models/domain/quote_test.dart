@@ -55,6 +55,30 @@ void main() {
     });
   });
 
+  group('cancelled status (id 6)', () {
+    test('fromWire / labelKey map 6 → cancelled (not the draft fallback)', () {
+      expect(QuoteStatus.fromWire('6'), QuoteStatus.cancelled);
+      expect(QuoteStatus.cancelled.labelKey, 'cancelled');
+      expect(quoteStatusLabelKey('6'), 'cancelled');
+    });
+
+    test('a cancelled quote reports isCancelled and not the other states', () {
+      final c = q(statusId: '6');
+      expect(c.isCancelled, isTrue);
+      expect(c.isDraft, isFalse);
+      expect(c.isSent, isFalse);
+      expect(c.isApproved, isFalse);
+      expect(c.isRejected, isFalse);
+      expect(c.isConverted, isFalse);
+    });
+
+    test('a past-due cancelled quote is "cancelled", never "expired"', () {
+      final c = q(statusId: '6', dueDate: '2000-01-01');
+      expect(c.isExpired, isFalse);
+      expect(c.calculatedStatusId, QuoteStatus.cancelled.wireId); // '6'
+    });
+  });
+
   group('calculatedStatusId precedence', () {
     test('converted / approved / rejected trump computed states', () {
       expect(q(statusId: '4').calculatedStatusId, '4');

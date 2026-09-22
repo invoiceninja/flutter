@@ -96,7 +96,13 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
     // `notTerminal` clause excludes `status_id = '5'`, so `rejected` is
     // provably disjoint from `expired` / `upcoming` — the buckets can't
     // double-count the same quote.
-    'rejected' => quoteClientStatusFilter(quotes, modeId, Date.today().toIso()),
+    'rejected' ||
+    // Same story for `cancelled` ('6'), also excluded by `notTerminal`.
+    'cancelled' => quoteClientStatusFilter(
+      quotes,
+      modeId,
+      Date.today().toIso(),
+    ),
     kBadgeModeAssignedToMe => assignedToUserFilter(
       currentUserId,
       column: quotes.assignedUserId,
@@ -204,7 +210,8 @@ class QuoteDao extends BaseEntityDao<$QuotesTable, QuoteRow>
       // `client_status` is the computed quote status. Mirror the domain
       // getters (`Quote.isConverted/isApproved/isExpired`,
       // `quote_status.dart`): draft='1' sent='2' approved='3'
-      // converted='4' rejected='5'. `converted` also covers a set `invoice_id`;
+      // converted='4' rejected='5' cancelled='6'. `converted` also covers a
+      // set `invoice_id`;
       // `expired`/`upcoming` split non-terminal quotes by whether the
       // (non-empty) due date is before/onafter `statusAsOf` (the domain's
       // `Date.today()`). Approximation: precedence isn't applied (a
@@ -420,7 +427,8 @@ extension on Quotes {
 /// `Quote.isExpired`), shared by the list's `client_status` chip and the
 /// sidebar counter. Returns null for a label this mirror doesn't model.
 ///
-/// Wire ids: draft='1' sent='2' approved='3' converted='4' rejected='5'.
+/// Wire ids: draft='1' sent='2' approved='3' converted='4' rejected='5'
+/// cancelled='6'.
 /// `converted` also covers a set `invoice_id`; `expired`/`upcoming` split
 /// non-terminal quotes by whether the (non-empty) due date falls before or on
 /// or after [asOf] — pass `Date.today().toIso()`.
@@ -440,7 +448,8 @@ Expression<bool>? quoteClientStatusFilter(
       e.statusId.equals('4').not() &
       e.invoiceId.equals('') &
       e.statusId.equals('3').not() &
-      e.statusId.equals('5').not();
+      e.statusId.equals('5').not() &
+      e.statusId.equals('6').not();
   return switch (status) {
     'draft' => e.statusId.equals('1'),
     // Server `QuoteFilters::client_status` scopes `sent` to NOT-yet-expired
@@ -454,6 +463,7 @@ Expression<bool>? quoteClientStatusFilter(
     'approved' => e.statusId.equals('3'),
     'converted' => e.statusId.equals('4') | e.invoiceId.equals('').not(),
     'rejected' => e.statusId.equals('5'),
+    'cancelled' => e.statusId.equals('6'),
     'expired' =>
       notTerminal & dueNN.isNotNull() & dueNN.isSmallerThanValue(asOf),
     'upcoming' =>

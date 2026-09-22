@@ -187,6 +187,9 @@ const List<SidebarBadgeMode> kQuoteBadgeModes = [
   // outcome belongs. A second red bucket would also compete with `expired`
   // for the same attention on the dashboard's Invoices & Quotes strip.
   SidebarBadgeMode('rejected', labelKey: 'rejected'),
+  // Neutral for the same reason as `rejected`: cancelling is terminal, so
+  // there is nothing left to act on.
+  SidebarBadgeMode('cancelled', labelKey: 'cancelled'),
   _assignedToMe,
   _none,
 ];

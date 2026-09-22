@@ -37,6 +37,13 @@ class StatusBadge extends StatelessWidget {
         return StatusTone.paid;
       case 5: // rejected — negative terminal state (matches QuoteStatusPill)
         return StatusTone.overdue;
+      // cancelled — inert, so the muted tone. `StatusTone` has no `ink3`, so
+      // this is as close as the badge palette gets to `QuoteStatusPill`'s
+      // cancelled colour; identical in the light themes, marginally lighter in
+      // dark. Spelled out rather than left to `default` so the map reads as
+      // complete.
+      case 6:
+        return StatusTone.draft;
       case 3:
         return StatusTone.partial;
       case 2:
@@ -71,9 +78,13 @@ class StatusBadge extends StatelessWidget {
   /// caller (it overrides the status), not resolved here.
   static String quoteStatusLabel(BuildContext context, int statusId) {
     // Quote wire status_id: 1 draft, 2 sent, 3 approved, 4 converted,
-    // 5 rejected (see quote_status.dart). The earlier mapping was shifted
-    // (3→"partial", 4→"approved", 5→"converted") — corrected here.
+    // 5 rejected, 6 cancelled (see quote_status.dart). The earlier mapping was
+    // shifted (3→"partial", 4→"approved", 5→"converted") — corrected here.
+    // Note this int-keyed map is independent of `QuoteStatusPill`: a missing
+    // arm here reads "Draft" rather than failing.
     switch (statusId) {
+      case 6:
+        return context.tr('cancelled');
       case 5:
         return context.tr('rejected');
       case 4:

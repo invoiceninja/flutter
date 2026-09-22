@@ -123,8 +123,9 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
 
   // `quoteClientStatusFilter` was written to mirror `QuoteFilters::
   // client_status` clause-for-clause, incl. `sent`'s not-yet-expired guard —
-  // so those three are exact. `expired` is NOT: the server requires
-  // `status_id = 2`, while the app also counts a past-due *draft* as expired.
+  // so those three, plus `cancelled`, are exact. `expired` is NOT: the server
+  // requires `status_id = 2`, while the app also counts a past-due *draft* as
+  // expired.
   // The `,draft` widens it back to a superset. `rejected` has no server clause
   // at all — see its own comment below.
   EntityType.quote: [
@@ -158,6 +159,15 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
     // so the fetch stays unnarrowed and only the local predicate narrows.
     // Tracked as BACKEND.md § F1; swap in `client_status` when that ships.
     ListStatusTabSpec('rejected'),
+    // Server-backed, unlike its neighbour: `QuoteFilters::client_status` gained
+    // a `cancelled` branch with the cancel action (2026-09-22), so this maps
+    // EXACTLY onto `status_id = 6` — no widening, and the count is exact.
+    ListStatusTabSpec(
+      'cancelled',
+      serverFilters: {
+        'client_status': {'cancelled'},
+      },
+    ),
     ListStatusTabSpec(
       'expired',
       serverFilters: {

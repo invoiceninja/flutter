@@ -156,12 +156,13 @@ extension QuoteCalculation on Quote {
   bool get isSent => statusId == QuoteStatus.sent;
   bool get isApproved => statusId == QuoteStatus.approved;
   bool get isRejected => statusId == QuoteStatus.rejected;
+  bool get isCancelled => statusId == QuoteStatus.cancelled;
   bool get isConverted =>
       statusId == QuoteStatus.converted || invoiceId.isNotEmpty;
   bool get isExpired {
     // Terminal statuses are never "expired" — a past-due rejected quote
     // must read "Rejected", not "Expired" (mirrors converted/approved).
-    if (isConverted || isApproved || isRejected) return false;
+    if (isConverted || isApproved || isRejected || isCancelled) return false;
     final today = Date.today();
     final due = dueDate;
     if (due == null) return false;
@@ -180,6 +181,11 @@ extension QuoteCalculation on Quote {
   /// trump the stored value (a viewed-but-unsent quote shows "Viewed" not
   /// "Sent", etc.).
   String get calculatedStatusId {
+    // Leads, matching `Invoice.calculatedStatusId`. The server only allows a
+    // cancel from Sent, so this can't collide with the arms below — the order
+    // matters only for corrupt data, and the two billing documents should
+    // resolve a shared status the same way.
+    if (isCancelled) return QuoteStatus.cancelled.wireId;
     if (isConverted) return QuoteStatus.converted.wireId;
     if (isApproved) return QuoteStatus.approved.wireId;
     if (isRejected) return QuoteStatus.rejected.wireId;

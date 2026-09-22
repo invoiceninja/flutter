@@ -77,6 +77,9 @@ class QuoteStatusPill extends StatelessWidget {
     case '-1': // expired (computed)
     case '5': // rejected — negative terminal state, shares the overdue red
       return (fg: tokens.overdue, bg: tokens.overdueSoft);
+    case '6': // cancelled — inert, not urgent: no red (matches the invoice
+      // pill's cancelled/reversed and the server's own `badge-secondary`).
+      return (fg: tokens.ink3, bg: tokens.draftSoft);
     case '1': // draft
     default:
       return (fg: tokens.draft, bg: tokens.draftSoft);

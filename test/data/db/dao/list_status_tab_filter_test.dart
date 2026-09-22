@@ -131,6 +131,9 @@ void main() {
       // proving nothing. Given a past due date too, so it also proves
       // `rejected` and `expired` stay disjoint (`notTerminal` excludes '5').
       await quote('q-rejected', status: '5', dueDate: past);
+      // Same reasoning for '6': past-due so it also proves `cancelled` and
+      // `expired` stay disjoint (`notTerminal` excludes '6' too).
+      await quote('q-cancelled', status: '6', dueDate: past);
     },
     rows: (m) => db.quoteDao
         .watchPage(companyId: co, offset: 0, limit: 500, badgeModeId: m)
@@ -732,5 +735,20 @@ void main() {
       await entities[EntityType.task]!.rows('running'),
       containsAll(['t-running', 't-running-booked']),
     );
+  });
+
+  test('quote `cancelled` and `rejected` each name their own row', () async {
+    // Same reasoning as the task case above: the sweep only proves
+    // rows == count, so `'cancelled' => statusId.equals('5')` — a plausible
+    // copy-paste of the arm directly above it — would return q-rejected,
+    // count 1, and pass green. Both rows are past-due on purpose, so this
+    // also pins `notTerminal` excluding '5' AND '6': either one missing and
+    // the row shows up under `expired` too.
+    await entities[EntityType.quote]!.seed();
+    expect(await entities[EntityType.quote]!.rows('cancelled'), [
+      'q-cancelled',
+    ]);
+    expect(await entities[EntityType.quote]!.rows('rejected'), ['q-rejected']);
+    expect(await entities[EntityType.quote]!.rows('expired'), ['q-expired']);
   });
 }

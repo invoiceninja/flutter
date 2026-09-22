@@ -18,9 +18,7 @@ import '../../shell/_shell_test_helpers.dart';
 ///     `Draft || Sent`, admin-portal's `!isApproved`;
 ///   - convert-to-invoice gates purely on "not yet converted", drafts included;
 ///   - convert-to-project additionally needs an empty `projectId`;
-///   - there is deliberately **no Cancel** — the server's quote bulk allow-list
-///     has none, so it only ever produced a success toast and a dead 422'd
-///     outbox row. The enum member survives as an unreachable no-op.
+///   - Cancel is Sent-only AND not-yet-lapsed — see its group below.
 Quote _quote({
   String id = 'q1',
   QuoteStatus status = QuoteStatus.draft,
@@ -28,6 +26,7 @@ Quote _quote({
   String invoiceId = '',
   bool isDeleted = false,
   int archivedAt = 0,
+  String dueDate = '',
 }) => Quote.fromApi(
   QuoteApi(
     id: id,
@@ -36,6 +35,7 @@ Quote _quote({
     invoiceId: invoiceId,
     isDeleted: isDeleted,
     archivedAt: archivedAt,
+    dueDate: dueDate,
   ),
 );
 
@@ -104,6 +104,7 @@ void main() {
       QuoteStatus.approved: false,
       QuoteStatus.converted: false,
       QuoteStatus.rejected: false,
+      QuoteStatus.cancelled: false,
     }.entries) {
       testWidgets('${entry.key.name} → ${entry.value}', (tester) async {
         final items = await resolveItems(tester, _quote(status: entry.key));
@@ -134,6 +135,30 @@ void main() {
 
       expect(enabled(items, QuoteAction.convertToInvoice), isFalse);
     });
+
+    // `QuoteService::isConvertable()` rejects a cancelled quote and the bulk
+    // endpoint then skips the id in SILENCE — no error to surface, so the
+    // client gate is the only thing that tells the user.
+    testWidgets('disabled on a cancelled quote', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _quote(status: QuoteStatus.cancelled),
+      );
+
+      expect(enabled(items, QuoteAction.convertToInvoice), isFalse);
+    });
+
+    // `isConvertable()` rejects STATUS_EXPIRED as well, and via
+    // `getStatusIdAttribute` that is every past-due Sent quote — the common
+    // case, not an edge one. Same silent skip.
+    testWidgets('disabled on an expired quote', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _quote(status: QuoteStatus.sent, dueDate: '2000-01-01'),
+      );
+
+      expect(enabled(items, QuoteAction.convertToInvoice), isFalse);
+    });
   });
 
   group('convert to project — also needs an empty projectId', () {
@@ -159,23 +184,94 @@ void main() {
 
       expect(enabled(items, QuoteAction.convertToProject), isFalse);
     });
+
+    testWidgets('disabled on a cancelled quote', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _quote(status: QuoteStatus.cancelled),
+      );
+
+      expect(enabled(items, QuoteAction.convertToProject), isFalse);
+    });
+
+    // The deliberate asymmetry with convert-to-INVOICE, and the one a future
+    // reader is most likely to "simplify" away by reusing `canConvert`:
+    // `convert_to_project` is a different server path that never calls
+    // `isConvertable()`, so an expired quote still makes a valid project.
+    testWidgets(
+      'still ENABLED on an expired quote, unlike convert-to-invoice',
+      (tester) async {
+        final expired = _quote(status: QuoteStatus.sent, dueDate: '2000-01-01');
+        final items = await resolveItems(tester, expired);
+
+        expect(enabled(items, QuoteAction.convertToProject), isTrue);
+        expect(enabled(items, QuoteAction.convertToInvoice), isFalse);
+      },
+    );
   });
 
   // One case per status rather than a loop inside a single test: each
   // resolveItems call builds a full ShellFixture (in-memory DB + Services +
-  // a periodic refresh timer), and looping would keep all five alive at once.
-  group('Cancel is never offered — the server bulk allow-list has none', () {
+  // a periodic refresh timer), and looping would keep all six alive at once.
+  group('Cancel — Sent only', () {
     for (final status in QuoteStatus.values) {
-      testWidgets('on a ${status.name} quote', (tester) async {
+      final expected = status == QuoteStatus.sent;
+      testWidgets('${status.name} → $expected', (tester) async {
         final items = await resolveItems(tester, _quote(status: status));
 
+        // `enabled` is also false for an ABSENT item, so pin presence too —
+        // otherwise wrapping the item in `if (canCancel)` later would keep
+        // every case here green while turning disabled-visible into gone.
+        expect(present(items, QuoteAction.cancel), isTrue);
         expect(
-          present(items, QuoteAction.cancel),
-          isFalse,
-          reason: 'a cancel on ${status.name} would 422 in the outbox',
+          enabled(items, QuoteAction.cancel),
+          expected,
+          reason:
+              'BulkActionQuoteRequest::withValidator 422s the whole request '
+              'unless every id reads as STATUS_SENT',
         );
       });
     }
+
+    // `Quote::getStatusIdAttribute` reports a stored STATUS_SENT as
+    // STATUS_EXPIRED once `hasLapsedValidUntil()`, and the validator reads
+    // through that accessor — so a lapsed quote is NOT cancellable
+    // server-side, and offering it would park a dead 422'd outbox row.
+    //
+    // Note what this is really defending. A freshly-synced lapsed quote
+    // already arrives as '-1' (the transformer serialises the accessor), which
+    // `fromWire` maps to `draft`, so `isSent` is false and the gate never runs.
+    // The case that reaches it is a STALE one — a row cached as '2' that has
+    // since lapsed, or a local optimistic markSent — which is exactly the
+    // fixture below. Its pill already reads "Expired".
+    // Nothing else pins either flag on this action, and it is the one verb
+    // here the server cannot undo — so a silent drop of `confirm` would ship.
+    // It can't join the `gated` set below: that loops over a *draft*, where
+    // Cancel is correctly absent.
+    testWidgets('is confirmed, and is not painted destructive', (tester) async {
+      final items = await resolveItems(
+        tester,
+        _quote(status: QuoteStatus.sent),
+      );
+      final cancel = flattenActionItems(
+        items,
+      ).firstWhere((i) => i.kind == QuoteAction.cancel);
+
+      expect(cancel.confirm, isTrue);
+      // The red button is for data loss (§ Action confirmations); cancelling
+      // destroys nothing. `archive` is the analogue and is likewise not red.
+      expect(cancel.isDestructive, isFalse);
+    });
+
+    testWidgets('a past-due Sent quote is not cancellable', (tester) async {
+      final lapsed = _quote(status: QuoteStatus.sent, dueDate: '2000-01-01');
+      expect(lapsed.isSent, isTrue, reason: 'the raw status is still sent');
+      expect(lapsed.isExpired, isTrue);
+
+      final items = await resolveItems(tester, lapsed);
+
+      expect(enabled(items, QuoteAction.cancel), isFalse);
+    });
   });
 
   group('permission gating (non-admin, non-owner)', () {

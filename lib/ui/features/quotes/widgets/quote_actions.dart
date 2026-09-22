@@ -139,14 +139,31 @@ class QuoteActions {
     final canMarkSent = canEdit && quote.isDraft;
     // Approve any non-terminal quote (draft or sent) — matches React
     // (`Draft || Sent`) and admin-portal (`!isApproved`); excludes
-    // approved / converted / rejected.
+    // approved / converted / rejected / cancelled. No explicit
+    // `!isCancelled` needed: these are status equality checks, so a
+    // cancelled quote is neither draft nor sent.
     final canApprove = canEdit && (quote.isDraft || quote.isSent);
-    // Convert any not-yet-converted quote (incl. drafts) — admin-portal
-    // gates only on `invoiceId.isEmpty`.
-    final canConvert = canEdit && !quote.isConverted;
-    // Cancel is server-allowed for Sent quotes (rarely used in practice
-    // but available — mirrors the Invoice rule). Converted quotes can't
-    // be cancelled since their downstream invoice has its own lifecycle.
+    // Convert-to-INVOICE mirrors `QuoteService::isConvertable()` exactly:
+    // it rejects a set `invoice_id`, STATUS_CANCELLED **and STATUS_EXPIRED**,
+    // and `QuoteController::bulk` then skips the id *silently* — no error,
+    // nothing happens. Expired is the common case, not the rare one:
+    // `Quote::getStatusIdAttribute` reports any past-due Sent quote as
+    // STATUS_EXPIRED, so this is every lapsed quote on the list.
+    final canConvert =
+        canEdit && !quote.isConverted && !quote.isCancelled && !quote.isExpired;
+    // Convert-to-PROJECT is a different server path that does NOT call
+    // `isConvertable()` — it converts unconditionally. So it must not inherit
+    // the expiry gate above (an expired quote still makes a valid project).
+    // `!isCancelled` is a deliberate client-only restriction: the server would
+    // allow it, but a cancelled quote should not spawn work.
+    final canConvertToProject =
+        canEdit && !quote.isConverted && !quote.isCancelled;
+    // Cancel → Sent only, and NOT once the quote has lapsed:
+    // `Quote::getStatusIdAttribute` reports a past-due Sent quote as
+    // STATUS_EXPIRED, and `BulkActionQuoteRequest::withValidator` 422s the
+    // whole request unless every id reads as STATUS_SENT. The server cannot
+    // reverse a quote cancellation (unlike an invoice's).
+    final canCancel = canEdit && quote.isSent && !quote.isExpired;
 
     return [
       if (canEdit)
@@ -186,7 +203,9 @@ class QuoteActions {
         kind: QuoteAction.sendEmail,
         icon: Icons.mail_outline,
         label: context.tr('send_email'),
-        enabled: canEdit,
+        // Sending a cancelled quote to the client is meaningless — mirrors
+        // `InvoiceActions.canEmail`.
+        enabled: canEdit && !quote.isCancelled,
         onTap: () => onTap(QuoteAction.sendEmail),
       ),
       EntityActionItem(
@@ -226,13 +245,22 @@ class QuoteActions {
           label: context.tr('convert_to_project'),
           // Hidden once a project is linked — mirrors admin-portal's
           // `projectId.isEmpty` gate.
-          enabled: canEdit && !quote.isConverted && quote.projectId.isEmpty,
+          enabled: canConvertToProject && quote.projectId.isEmpty,
           onTap: () => onTap(QuoteAction.convertToProject),
         ),
-      // 'Cancel' is an invoice-only action — the server's quote bulk whitelist
-      // has no 'cancel', so offering it here only produced a success toast then
-      // a dead 422'd outbox row. Removed (the QuoteAction.cancel enum/handler
-      // stay as unreachable no-ops).
+      EntityActionItem(
+        kind: QuoteAction.cancel,
+        confirm: true,
+        // Confirmed but not `isDestructive` — the red button is for data loss
+        // (§ Action confirmations), and this destroys nothing. Irreversible,
+        // but so is a status change; archive is the analogue and it is not red
+        // either.
+        confirmSubject: _confirmSubject(quote),
+        icon: Icons.block_outlined,
+        label: context.tr('cancel_quote'),
+        enabled: canCancel,
+        onTap: () => onTap(QuoteAction.cancel),
+      ),
       if (canCreate)
         cloneGroupActionItem(
           context: context,

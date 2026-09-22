@@ -32,6 +32,7 @@ void main() {
         'sent',
         'approved',
         'rejected',
+        'cancelled',
         'expired',
       ]);
       expect(tabs().first.isAll, isTrue);
@@ -45,7 +46,13 @@ void main() {
       // consumers treat null as "no narrowing" — `watchPage` skips its WHERE
       // and `watchBadgeCount` does `if (extra != null)` — so passing it down
       // would list and count every invoice in the company.
-      for (final id in ['sent', 'approved', 'rejected', 'expired']) {
+      for (final id in [
+        'sent',
+        'approved',
+        'rejected',
+        'cancelled',
+        'expired',
+      ]) {
         expect(byId[id]!.invoiceModeId, isNull, reason: id);
         expect(byId[id]!.quoteModeId, id, reason: id);
         expect(byId[id]!.isMixed, isFalse, reason: id);
@@ -73,6 +80,7 @@ void main() {
         'sent',
         'approved',
         'rejected',
+        'cancelled',
         'expired',
       ]);
 

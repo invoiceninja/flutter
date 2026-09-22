@@ -8,6 +8,7 @@
   "account_deleted": "Account deleted",
   "account_settings_syncing_notice": "Loading your latest settings — these options unlock once they sync from the server. Check your connection if they stay disabled.",
   "accrual_cash": "Accrual / cash basis",
+  "activity_170": ":user cancelled quote :quote for :client",
   "activity_48_actor_only": ":user created a user",
   "activity_49_actor_only": ":user updated a user",
   "activity_50_actor_only": ":user archived a user",

@@ -34,6 +34,14 @@ List<ReportFilterOption>? reportStatusOptions(String reportIdentifier) {
         (id: 'expired', labelKey: 'expired'),
         (id: 'upcoming', labelKey: 'upcoming'),
         (id: 'converted', labelKey: 'converted'),
+        // No `cancelled` here, despite `Quote::STATUS_CANCELLED` existing and
+        // the LIST filter supporting it: reports go through
+        // `BaseExport::addQuoteStatusFilter`, a different method from
+        // `QuoteFilters::client_status`, and it has no `cancelled` arm. An
+        // unmatched value there leaves the nested `where` closure empty, which
+        // Laravel drops — so the option would return EVERY quote under a
+        // "Cancelled" heading. See BACKEND.md. (`addInvoiceStatusFilter` does
+        // have the arm, which is why the invoice list above can offer it.)
       ];
     case 'credit':
       return const [

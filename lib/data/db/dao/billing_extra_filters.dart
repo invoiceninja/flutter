@@ -78,7 +78,7 @@ Set<String> parseExpenseStatusFilter(Map<String, Set<String>> extraFilters) =>
     extraFilters['client_status'] ?? const <String>{};
 
 /// Quote `client_status` — wire labels (`draft|sent|approved|expired|
-/// upcoming|converted`). Passed through verbatim; `QuoteDao.watchPage`
+/// upcoming|converted|cancelled`). Passed through verbatim; `QuoteDao.watchPage`
 /// turns the enumerated + computed members into a single OR predicate
 /// mirroring `Quote.calculatedStatusId` / `Quote.isExpired`.
 Set<String> parseQuoteStatusFilter(Map<String, Set<String>> extraFilters) =>

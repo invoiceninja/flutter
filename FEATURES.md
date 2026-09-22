@@ -239,6 +239,7 @@ the honest default.
 | Quote — clone to invoice | ✅ | ✅ | ✅ | ✅ | |
 | Quote — convert / approve to invoice | ✅ | ✅ | ✅ | ✅ | |
 | Quote — mark sent | ✅ | ✅ | ✅ | ✅ | |
+| Quote — cancel (Sent only, irreversible) | — | — | ✅ | | |
 | Quote — email to client | ✅ | ✅ | ✅ | ✅ | |
 | Quote — schedule email | ✅ | ❌ | ✅ | ✅ | |
 | Quote — change template / design | ✅ | ✅ | ✅ | ✅ | |

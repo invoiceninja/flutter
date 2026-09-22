@@ -283,6 +283,15 @@ server exposes is a superset of "rejected". Adding the branch above lets the tab
 declare `client_status: {'rejected'}` and drop out of `list_status_tabs_test`'s
 `localOnly` set.
 
+**UPDATE 2026-09-22.** The quote-cancellation work added a `cancelled` branch
+to this same `client_status` method (`Quote::STATUS_CANCELLED = 6`), so the
+method now handles `sent / draft / approved / cancelled / expired / upcoming /
+converted`. **`rejected` was not added** — this item stays open and is now
+about `rejected` alone. The v2 client ships `cancelled` as a server-backed tab
+*and* chip and `rejected` as a local-only tab, which is the asymmetry this
+section explains; see `docs/entity-lists.md` § Quote `rejected` is a tab but
+not a chip.
+
 ### F2. `app/Filters/PaymentFilters.php` — `company_gateway_id` — **O**
 
 `payments?company_gateway_id=<id>` is **silently ignored today** — confirmed
@@ -2402,6 +2411,39 @@ preview-only: `serverReportKeys()` and `serverGroupBy` strip the column from
 export / email / schedule, because the CSV would otherwise carry a raw epoch and
 `BaseExport::groupRows` groups on the exact value with no date bucketing. React
 has no workaround and shows no such column at all.
+
+## Reports: `addQuoteStatusFilter` has no `cancelled` arm — **O**
+
+**Provenance** — 2026-09-22, alongside the quote-cancellation client work,
+verified against `v5-develop` HEAD.
+
+`Quote::STATUS_CANCELLED = 6` shipped, and `app/Filters/QuoteFilters.php:108`
+gained a matching `client_status` branch — so the **list** filters correctly.
+The **report** path is a *different method* and did not:
+`BaseExport::addQuoteStatusFilter` (`app/Export/CSV/BaseExport.php:1158`) still
+handles only `sent / draft / approved / expired / upcoming / converted`. Its
+invoice twin `addInvoiceStatusFilter` (`:1302`) **does** have a `cancelled`
+arm, which is what makes the asymmetry easy to miss.
+
+Requested, mirroring that arm:
+```php
+if (in_array('cancelled', $status_parameters)) {
+    $quote_filters[] = Quote::STATUS_CANCELLED;
+}
+```
+
+**Acceptance check.** `POST /api/v1/reports/quotes` with `status: 'cancelled'`
+returns only cancelled quotes. Today it returns **every** quote: the method's
+body is a single `$query->where(function ($q) { … })`, an unmatched value fires
+no branch, and Laravel's `addNestedWhereQuery` drops an empty group
+(`if (count($query->wheres))`) — so the filter silently disappears rather than
+matching nothing. That is the general rule worth recording here: **an unmatched
+value in any `addXStatusFilter` helper means UNFILTERED, not empty.**
+
+**Client status.** v2 deliberately omits `cancelled` from the quote report's
+status options (`report_filter_options.dart`) until this ships — offering it
+would return the whole table under a "Cancelled" heading, on both the Reports
+screen and scheduled reports. The comment there points back at this section.
 
 ## Reports: two smaller defects found alongside — **O**
 

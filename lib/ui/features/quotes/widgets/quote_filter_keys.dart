@@ -65,10 +65,16 @@ class QuoteClientStatusFilterKey extends FilterKey {
   static const String _serverKey = 'client_status';
 
   /// `(wire value, localization key)`. Mirrors `QuoteFilters::client_status`
-  /// exactly — the server handles only these six. `rejected` (status_id=5) is
-  /// a valid *displayed* status but NOT a server filter dimension, so it's
+  /// exactly — the server handles only these seven. `rejected` (status_id=5)
+  /// is a valid *displayed* status but NOT a server filter dimension, so it's
   /// intentionally absent (offering it showed locally-cached rows that a
   /// refresh then wiped). React omits it too.
+  ///
+  /// `cancelled` (status_id=6) IS here, and the difference is the whole point:
+  /// the server grew a `cancelled` branch alongside the cancel action
+  /// (2026-09-22), so the value narrows the fetch instead of hitting the
+  /// no-op. Same shape of status, opposite answer, because the rule was never
+  /// about quote statuses — it is about whether the server can honour it.
   ///
   /// **That is a rule about this CHIP, not about surfacing `rejected` at all.**
   /// A chip writes its value to `extraFilters` under `_serverKey`, so it
@@ -84,6 +90,7 @@ class QuoteClientStatusFilterKey extends FilterKey {
     ('expired', 'expired'),
     ('upcoming', 'upcoming'),
     ('converted', 'converted'),
+    ('cancelled', 'cancelled'),
   ];
 
   static String _labelKeyFor(String wire) {

@@ -96,14 +96,15 @@ class BillingStatusTab {
 /// **Derived, not invented.** Filtered to each entity's participating ids this
 /// reproduces that entity's own `kListStatusTabs` order exactly — invoices read
 /// `draft, unpaid` (their strip minus the deliberately-omitted `overdue`) and
-/// quotes read `draft, sent, approved, rejected, expired` — so the panel can
+/// quotes read `draft, sent, approved, rejected, cancelled, expired` — so the
+/// panel can
 /// never disagree with the list its footer links land on.
 /// `billing_status_tabs_test` pins that property in both directions.
 ///
 /// `unpaid` sits second rather than last because it is not a lifecycle *stage*:
-/// draft → sent are stages and approved/rejected/expired are terminal outcomes
-/// of a sent quote, so lifecycle order is silent about where a cross-cutting
-/// money state goes. Parking it last would cost the strip's most actionable
+/// draft → sent are stages and approved/rejected/cancelled/expired are terminal
+/// outcomes of a sent quote, so lifecycle order is silent about where a
+/// cross-cutting money state goes. Parking it last would cost the strip's most actionable
 /// number the most horizontal travel.
 ///
 /// `overdue` is omitted deliberately: the shipped "Needs your attention" panel
@@ -115,6 +116,11 @@ const List<String> kBillingPipelineTabOrder = [
   'sent',
   'approved',
   'rejected',
+  // Between `rejected` and `expired` so the quote-filtered subsequence still
+  // equals `kListStatusTabs[EntityType.quote]` — asserted in
+  // `billing_status_tabs_test`, which is also what forces a new list-catalog
+  // mode to reach this panel rather than silently skipping it.
+  'cancelled',
   'expired',
 ];
 

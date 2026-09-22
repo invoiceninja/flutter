@@ -167,13 +167,19 @@ class QuoteListViewModel extends GenericListViewModel<Quote> {
       confirm: true,
       id: 'convert_to_invoice',
       labelKey: 'convert_to_invoice',
-      eligible: (q) => !q.isConverted && !isDeleted(q),
+      // Mirrors `quote_actions.dart` canConvert, which mirrors
+      // `QuoteService::isConvertable()`: it rejects cancelled AND expired, and
+      // the bulk endpoint then skips those ids in silence — the user would
+      // select rows, see no error, and watch nothing happen.
+      eligible: (q) =>
+          !q.isConverted && !q.isCancelled && !q.isExpired && !isDeleted(q),
       apply: (id) => repo.convertToInvoice(companyId: companyId, id: id),
     ),
     BulkAction<Quote>(
       id: 'email',
       labelKey: 'email',
-      eligible: (q) => !isDeleted(q),
+      // `!isCancelled` mirrors the single-record Send Email gate.
+      eligible: (q) => !q.isCancelled && !isDeleted(q),
       applyArg: (id, arg) {
         final r = arg as BillingEmailResult;
         final scheduledFor = r.scheduledFor;

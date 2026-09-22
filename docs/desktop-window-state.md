@@ -139,3 +139,38 @@ Moved here from CLAUDE.md § Design system (v2), which now carries the one-line 
 ## The drawn window buttons are the one exception to every shape rule
 
 **The drawn window buttons are the one exception to every shape rule in the design system.** `WindowControls` (`window_controls.dart`) paints minimize / maximize / close for the frameless Windows and Linux runners at Windows' own 46x32 metric: square, unrounded, flat full-height hover fill, no ripple — because a caption button is OS chrome, not app chrome, and a rounded rippling one reads as broken there. It is also why the close hover is a literal `Color(0xFFC42B1C)` rather than `InTheme.overdue`: the status tokens are user-overridable per preset, so a themed "overdue" could hand someone a green close button. One treatment ships on both platforms — there is no single Linux convention (Adwaita draws circles, Breeze squares), `gtk-decoration-layout` is unreadable from Flutter without a runner push, and every cross-platform app the audience runs already does exactly this. Everything else in the app follows CLAUDE.md § Design system (v2)'s *always rounded rectangles, never pills*.
+
+
+## The sidebar's history arrows hide behind the browser's own
+
+`NavHistoryButtons` renders in three places and is suppressed in a fourth. On
+macOS it moves into the window caption row and on frameless Windows/Linux into
+the drawn title bar (`chromeHostsArrows` / `captionHostsArrows` in
+`in_sidebar.dart`); in an ordinary **browser tab** it is not rendered at all.
+
+The reason is that the browser toolbar's back/forward walk the *same* history:
+`NavHistoryController` records full URLs and go_router drives the address bar,
+so a second pair a couple of centimetres below the first is duplicated chrome
+costing 88 px of a 232 px rail.
+
+Two things about that gate are easy to get wrong.
+
+**It is not `kIsWeb`.** `web/manifest.json` asks for `"display": "standalone"`,
+and an installed PWA has no toolbar at all — hiding the arrows there would
+strand a touch user who followed a client/vendor link with no keyboard for
+Cmd/Alt+←/→ and no mouse thumb buttons, which is the exact scenario
+`NavHistoryButtons`' own doc comment exists to prevent. The gate is
+`browserProvidesHistoryControls()` (`lib/app/browser_chrome.dart`), a seam that
+asks whether the display mode is `browser` or `minimal-ui`. When it cannot tell,
+it answers `false` and the arrows stay: a redundant pair is cosmetic, a missing
+pair is a dead end.
+
+**The row has to drop with them.** The arrows share a padded row with the global
+search box and, under `hideHeader`, the Sync button — and when neither is
+present they are its only child. Hiding just the arrows would leave that
+`Padding` wrapped around nothing, so the row itself is conditional on
+`showNavArrows || showSearch || hideHeader`.
+
+Everything else is untouched: the history, the keyboard shortcuts,
+`NavHistoryMouseListener`'s thumb-button handling and Android's
+`SystemBackGate` all still walk the same stack.

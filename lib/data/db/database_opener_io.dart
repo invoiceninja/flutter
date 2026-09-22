@@ -103,7 +103,13 @@ Future<QueryExecutor> openDatabaseExecutor() async {
 /// Native recovery: rename the corrupt file to `<name>.broken.<ts>` (so
 /// support can inspect it) and prune old snapshots. The next
 /// [openDatabaseExecutor] opens a fresh file at the same path.
-Future<void> destroyDatabaseStore() async {
+///
+/// Returns whether the next open is guaranteed clean — always `true` here,
+/// because a failed rename *throws* (a Windows sharing violation, say) rather
+/// than returning. The bool exists for the web half, where the browser can
+/// refuse a delete without any error the caller would otherwise see; the
+/// shared signature lets `openAppDatabase()` stop inferring success.
+Future<bool> destroyDatabaseStore() async {
   final file = await _dbFile();
   final dir = file.parent;
   if (await file.exists()) {
@@ -115,6 +121,7 @@ Future<void> destroyDatabaseStore() async {
   // is enough for support to compare "this failure" against "the previous
   // one"; older snapshots are unrecoverable anyway.
   await pruneBrokenDbFiles(dir);
+  return true;
 }
 
 /// Delete `invoiceninja.sqlite.broken.<ts>` files in [dir], keeping the

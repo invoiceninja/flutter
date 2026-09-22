@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/browser_chrome.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/native_window.dart';
 import 'package:admin/app/env.dart';
@@ -398,6 +399,25 @@ class _InSidebarState extends State<InSidebar> {
             // BOTH places in release, so the two questions stay separate.
             final captionHostsArrows =
                 chromeHostsArrows && WindowCaptionStrip.hostsCaptionRow();
+            // In an ordinary browser tab the toolbar's own back/forward sit a
+            // couple of centimetres above ours and walk the *same* history —
+            // `NavHistoryController` records full URLs and go_router drives the
+            // address bar — so a second pair inside the app is duplicated
+            // chrome, and the rail has better uses for 88 px.
+            //
+            // Gated on the browser actually showing that toolbar, not on
+            // `kIsWeb`: `manifest.json` asks for `"display": "standalone"`, and
+            // an installed PWA has no toolbar at all. There the arrows are the
+            // only way back for a touch user who followed a cross-entity link,
+            // exactly as `NavHistoryButtons`' own doc comment warns.
+            //
+            // Presentation only: the history itself, the Cmd/Alt+←/→ shortcuts
+            // and `NavHistoryMouseListener`'s thumb-button handling are all
+            // untouched. Distinct from `chromeHostsArrows`, which means "the
+            // arrows moved into the window caption" — here nothing renders them
+            // at all, so the row they would otherwise own has to drop too (see
+            // the `Padding` below) rather than render empty.
+            final showNavArrows = !browserProvidesHistoryControls();
             // SafeArea (top AND bottom): the sidebar has no AppBar in either
             // host — the mobile drawer (Flutter's `Drawer` adds no inset of its
             // own) and the iPad persistent rail (Positioned at top: 0) — so
@@ -483,7 +503,11 @@ class _InSidebarState extends State<InSidebar> {
                   // keyboard and `NavHistoryMouseListener` needs thumb
                   // buttons, so without these a tablet/phone user who follows
                   // a cross-entity link has no way back.
-                  if (!chromeHostsArrows)
+                  // The row survives without the arrows only when something
+                  // else still needs it (search, or Sync under `hideHeader`);
+                  // otherwise it would be pure padding around nothing.
+                  if (!chromeHostsArrows &&
+                      (showNavArrows || showSearch || hideHeader))
                     Padding(
                       // left 10 is an alignment, not a leftover: with touch
                       // sizing the back arrow's 18-px glyph starts at
@@ -535,7 +559,7 @@ class _InSidebarState extends State<InSidebar> {
                       child: showSearch || hideHeader
                           ? Row(
                               children: [
-                                navHistory,
+                                if (showNavArrows) navHistory,
                                 // Deliberately no gap widget: `_HistoryButton`
                                 // centres an 18-px glyph in a 44-px box, so 13 px
                                 // of optical separation is already built in, and

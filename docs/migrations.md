@@ -61,6 +61,50 @@ path is bump + `onUpgrade` + new dump + matrix entry:
 - **Upgrade matrix** — every prior version must migrate cleanly up to the current schema; a
   missing or wrong `onUpgrade` step → red. (Dormant while only v1 exists.)
 
+## `user_version = 1` is not one schema
+
+The dumped `drift_schemas/drift_schema_v1.json` is the baseline as it stood at
+the *end* of the pre-launch squashes, and real databases on disk predate it.
+v1 was re-squashed repeatedly while the app was pre-beta, so tables joined the
+baseline with no version bump — `tags` arrived in `8c4d8b7e` (2026-06-11) while
+`schemaVersion` was still 1. A database written by any build before that
+reports `user_version = 1` and has no `tags` table.
+
+The matrix test cannot see this. It starts every run from the *dumped* v1, which
+does have `tags`, so it stays green while the real upgrade throws.
+
+It shipped. The 2026-09-22 web demo replaced a build from 2026-06-08, and every
+returning visitor's `onUpgrade` died on
+
+```
+SqliteException(1): no such table: main.tags
+  Causing statement: CREATE INDEX IF NOT EXISTS idx_tags_company_updated ON tags (company_id, updated_at)
+```
+
+because the `onUpgrade` steps only add `nav_state` columns and then run the
+index pass over tables they assume already exist. `openAppDatabase`'s catch then
+did what it is designed to do — destroyed the store and reopened it fresh —
+so the failure presented as *every returning user silently losing their local
+database, pending offline edits included*, and on web as a boot that never
+painted at all.
+
+**So `onUpgrade` creates any declared table the database is missing before the
+index pass**, diffing `allTables` against `sqlite_master`. Two consequences
+worth keeping:
+
+- It is deliberately a diff, not `createAll()` — only genuinely absent tables
+  are touched, and it does not depend on whether drift's generated DDL carries
+  `IF NOT EXISTS`.
+- A table that exists but is missing a *column* is a different failure, and
+  `isSchemaIntact()` still resets for it. That is correct: a column add is what
+  the versioned `onUpgrade` steps are for, and a database that skipped one
+  cannot be repaired by guessing.
+
+`test/data/db/migration_test.dart` pins it — the test drops `tags` from a v1
+schema before migrating, and fails with the exact error above if the backstop
+is removed. **Add a case there for any other table suspected of post-dating a
+squash**; the matrix test will not cover it.
+
 ## The reset backstop is a last resort, not a migration path
 
 `openAppDatabase()` + `isSchemaIntact()` (`app_database.dart`) self-heal a genuinely corrupt

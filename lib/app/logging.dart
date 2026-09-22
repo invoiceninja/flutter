@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 
+import 'package:admin/app/boot_log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
@@ -51,6 +52,17 @@ void initLogging() {
       error: record.error,
       stackTrace: record.stackTrace,
     );
+    // `dart:developer`'s `log` is a no-op on the web compile targets, and web
+    // is also the one platform with no diagnostics log (`diagnostics_log.dart`
+    // is disabled there). Without this mirror, *every* record — including the
+    // `severe` ones from the database open / recovery path — is invisible in
+    // the browser console, which is why a wedged web boot showed up as nothing
+    // but a spinner. Cheap: the level gate above already dropped the noise.
+    if (kIsWeb) {
+      bootLog('[${record.level.name}] ${record.loggerName}: $message');
+      if (record.error != null) bootLog('  error: ${record.error}');
+      if (record.stackTrace != null) bootLog('${record.stackTrace}');
+    }
   });
 }
 

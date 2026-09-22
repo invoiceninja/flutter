@@ -9,7 +9,8 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/database_opener_io.dart' show pruneBrokenDbFiles;
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:admin/data/db/db_open_exception.dart';
+import 'package:drift/drift.dart' show QueryExecutor, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -418,6 +419,51 @@ void main() {
 
       final rows = await db.outboxDao.nextReady(companyId: 'co', now: 1);
       expect(rows.single.payload, '{"client_id":"real_c"}');
+    });
+  });
+
+  group('openAppDatabase recovery', () {
+    // The recovery contract, not the happy path: `resetAndReopen` used to
+    // return `wasReset: true` unconditionally, so a store the platform failed
+    // to clear was reopened and reported as clean. On web that shipped — the
+    // browser refused to delete the IndexedDB store, the error was swallowed,
+    // and the app ran on a schema-drifted database where every read of
+    // `nav_state` threw "Null check operator used on a null value" and every
+    // write to `tasks` threw `no column named tag_names`, across every reload.
+    //
+    // The real seam needs `path_provider` + the keychain (native) or a browser
+    // (web), so these drive it through the test-only overrides.
+
+    Future<QueryExecutor> Function() failingFirstOpen() {
+      var calls = 0;
+      return () async {
+        calls++;
+        // First open fails the way a corrupt store does, to enter the catch
+        // that triggers recovery; the reopen then succeeds.
+        if (calls == 1) throw StateError('corrupt store');
+        return NativeDatabase.memory();
+      };
+    }
+
+    test('a store that could not be cleared throws, never wasReset', () async {
+      await expectLater(
+        openAppDatabase(
+          openExecutor: failingFirstOpen(),
+          destroyStore: () async => false,
+        ),
+        throwsA(isA<DatabaseResetFailedException>()),
+        reason: 'claiming a reset that did not happen is the shipped bug',
+      );
+    });
+
+    test('a cleared store reopens clean and reports wasReset', () async {
+      final opened = await openAppDatabase(
+        openExecutor: failingFirstOpen(),
+        destroyStore: () async => true,
+      );
+      expect(opened.wasReset, isTrue);
+      expect(await isSchemaIntact(opened.db), isTrue);
+      await opened.db.close();
     });
   });
 

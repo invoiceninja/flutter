@@ -304,6 +304,39 @@ class AppDatabase extends _$AppDatabase {
       if (from < 11) {
         await m.addColumn(navState, navState.hideEmptyPanels);
       }
+      // Create any declared table this database is missing, before the index
+      // pass below touches it.
+      //
+      // `user_version = 1` is not one schema. v1 was squashed repeatedly while
+      // the app was pre-beta, so tables were folded into the baseline without a
+      // version bump — `tags` arrived in `8c4d8b7e` (2026-06-11) with
+      // `schemaVersion` still 1. A database written by a build from *before*
+      // that therefore reports v1, takes none of the steps above (they only add
+      // `nav_state` columns), and then `createPerformanceIndexes` runs
+      // `CREATE INDEX … ON tags` against a table that does not exist.
+      //
+      // That threw `no such table: main.tags` out of `onUpgrade`, so the open
+      // failed and the catch in `openAppDatabase` wiped the whole database —
+      // pending offline edits included — on every such upgrade. It is what the
+      // 2026-09-22 web demo did to every returning visitor.
+      //
+      // Explicitly diffing against `sqlite_master` rather than leaning on
+      // `createAll()`: only the genuinely missing tables are touched, and it
+      // does not depend on whether drift's generated DDL carries
+      // `IF NOT EXISTS`. A table that exists but is missing a *column* is a
+      // different failure, and `isSchemaIntact()` already catches it.
+      final existingTables = (await customSelect(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      ).get()).map((row) => row.data['name'] as String).toSet();
+      for (final table in allTables) {
+        if (!existingTables.contains(table.actualTableName)) {
+          _log.warning(
+            'Upgrade from v$from: creating missing table '
+            '${table.actualTableName}',
+          );
+          await m.createTable(table);
+        }
+      }
       // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
       // step adds reaches installed DBs. Cheap no-op for the current indexes.
       await createPerformanceIndexes(this);
@@ -364,21 +397,59 @@ class AppDatabase extends _$AppDatabase {
 /// platform-agnostic and identical on every target.
 ///
 /// Two failure modes trigger recovery (destroy the store + open fresh +
-/// return `wasReset: true` so `main` routes the user to `/login`):
+/// return `wasReset: true`):
 ///   1. Open / probe fails (corrupt store, irreconcilable downgrade).
 ///   2. Open succeeds but a table is missing a column the code expects —
 ///      i.e. a prior schema migration didn't fully apply on this device.
 ///      Without this backstop a missing column surfaces as a fatal
 ///      `SqliteException` deep inside login (`_persistAndActivate` INSERT)
-///      with no path forward for the user. Caught here, the user just sees
-///      "/login" and a fresh sync.
-Future<({AppDatabase db, bool wasReset})> openAppDatabase() async {
-  Future<AppDatabase> openFresh() async =>
-      AppDatabase(await openDatabaseExecutor());
+///      with no path forward for the user.
+///
+/// Recovery that does not work throws [DatabaseResetFailedException] rather
+/// than reporting a reset it did not achieve; `main` renders an actionable
+/// screen for it.
+///
+/// **`wasReset` is currently near-inert** — it reaches one `debugPrint` in
+/// `_InvoiceNinjaAppState.initState` and nothing else. It does *not* route to
+/// `/login` (an earlier version of this comment claimed it did) and it does
+/// not force a re-sync; the user simply finds an empty local cache that
+/// refills from the server. Anything that needs to react to a wipe has to be
+/// wired up first — don't assume this flag already did it.
+///
+/// [openExecutor] / [destroyStore] override the platform seam and exist only
+/// so tests can drive the recovery contract: the real ones need
+/// `path_provider` + the OS keychain on native and a browser on web, so the
+/// branch that matters most — recovery that *fails* — is otherwise unreachable
+/// under `flutter test`.
+Future<({AppDatabase db, bool wasReset})> openAppDatabase({
+  Future<QueryExecutor> Function()? openExecutor,
+  Future<bool> Function()? destroyStore,
+}) async {
+  final openStore = openExecutor ?? openDatabaseExecutor;
+  final destroy = destroyStore ?? destroyDatabaseStore;
+  Future<AppDatabase> openFresh() async => AppDatabase(await openStore());
 
   Future<({AppDatabase db, bool wasReset})> resetAndReopen() async {
-    await destroyDatabaseStore();
-    return (db: await openFresh(), wasReset: true);
+    final destroyed = await destroy();
+    final db = await openFresh();
+    // Verify, never assume. This used to `return (db: …, wasReset: true)`
+    // straight after `destroyDatabaseStore()`, which on web swallowed its own
+    // failures — so a browser that refused to delete the store left the app
+    // reopening the *same* corrupt database while reporting a clean reset.
+    // Every subsequent write failed, across every reload, invisibly.
+    //
+    // `isSchemaIntact` is the same check that sent us down this path, so a
+    // genuinely fresh store passes it by construction; if it still fails, the
+    // recovery did not work and saying so is the only honest option.
+    if (!destroyed || !await isSchemaIntact(db)) {
+      await db.close();
+      throw DatabaseResetFailedException(
+        destroyed
+            ? 'the local database is still not usable after being reset'
+            : 'the local database could not be cleared',
+      );
+    }
+    return (db: db, wasReset: true);
   }
 
   AppDatabase? opened;

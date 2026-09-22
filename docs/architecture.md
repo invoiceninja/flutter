@@ -141,3 +141,122 @@ Two of CLAUDE.md § Strict rules' bullets are investigations rather than rules. 
 ## Why Android system back needs three things to keep working
 
 **Android system back == the sidebar `←` (history back), and three things keep it working.** The app only ever calls `go()`, so no navigator can pop and Android used to kill the Activity from every entity detail screen (flutter#39). `SystemBackGate` (`lib/ui/features/shell/widgets/system_back_gate.dart`) binds the platform back event to `NavHistoryController` from the `StatefulShellRoute` page, so dialogs / sheets / pushed modals / the drawer / `/settings/**` / `/x/:id/edit` all still consume back first. Don't break: (1) **any** `ShellRoute` layout that renders something other than its `child` must still keep that child mounted — wrap it in `HiddenShellNavigator` (`MasterDetailLayout` on a bare list URL, `SettingsShell` on the wide `/settings` index) — because go_router dereferences every shell's `navigatorKey` with a bang while walking for a pop target, and an unmounted one throws; never mute its `TickerMode`, or the route the user just closed never finishes its pop and is never disposed; (2) the gate's `NavigationNotification` listener must stay — `WidgetsApp` applies the *last* notification it sees and an inner navigator swapping a page announces `canHandlePop: false`, so without the upgrade the fix works exactly once per screen; (3) a new "close / back" affordance must `go()` to the current location's **URL-parent** (or call `navHistory.back()`), because `isUpNavigation` is what makes the controller *replace* rather than append — otherwise back walks straight into the screen the user just closed. The pane's leading `←` stays structural *up* (`entityCloseTargetPath`); Back and Up are deliberately different. Full rationale: `docs/architecture.md` § Navigation.
+
+## Why boot must always reach `runApp()`
+
+Nothing renders until `runApp()` is called, and on web the consequence is total:
+`web/index.html` removes its boot spinner on the engine's `flutter-first-frame`
+event, so a `main()` that throws or stalls before `runApp()` leaves the user on
+that spinner forever. After 30s the HTML safety-net swaps in "This is taking
+longer than expected." with a Reload button — which cannot help, because a
+deterministic boot failure reproduces on every load.
+
+That shipped in the 2026-09-22 web demo. Returning visitors wedged while a fresh
+incognito window loaded fine; the network tab showed a *fully successful*
+authenticated session (`refresh?first_load=true`, then every entity page) with no
+frame ever painted. Those reconcile because an unhandled error in `main()`'s async
+body does not kill the isolate: fire-and-forget work already scheduled by
+`AuthRepository.restore()` (the background refresh at `auth_repository.dart:1462`
+and the `onActiveCompanyChanged` prefetch fan-out) runs to completion while
+`runApp()` is never reached.
+
+Two independent defects produced it, and both are now closed:
+
+**1. Unbounded, uncaught awaits in front of `runApp()`.** The *network* steps were
+carefully bounded (demo `loginWithToken` 15s, `statics.ensureLoaded()` 10s, both in
+`try`/`catch`) but the *database* steps were not:
+
+- `openAppDatabase()` recovers from a bad store by destroying and reopening it, but
+  `resetAndReopen()` can itself throw — on web a second `WasmDatabase.open` timing
+  out against a store still locked by a stale browser context. `main()` caught only
+  `KeyringUnavailableException`, so that `TimeoutException` escaped and `runApp()`
+  never ran. There is now a catch-all that renders `_LocalDataUnavailableApp`.
+- `Future.wait([...16 restore() calls])` — all sixteen read the same single
+  `nav_state` row over one connection, so a wedged store stalls the lot. Now
+  `.timeout(_kRestoreBudget)` + `catch`; every controller has a working default, so
+  a failure costs the launch's *preferences*, never the app.
+- `navStateDao.current()` — the last await before `runApp()`, so a stall there is
+  indistinguishable from a hung app. Now `.timeout(_kNavStateBudget)` + `catch`,
+  falling back to the default route.
+
+The budgets are deliberately generous: they must only ever fire on a genuinely
+wedged store, never on a cold, slow disk.
+
+**2. On web the failure was invisible.** Three sinks were all silent at once, which
+is why this took a reproduction attempt rather than a glance at the console:
+
+- `_zoneOnError` wrote only to `_diagnosticsLogRef` (always null on web —
+  `diagnostics_log.dart` is disabled there) and `_debugCaptureStoreRef` (null until
+  `Services` is built, i.e. null for most of the window that matters), and
+  `runZonedGuarded` suppresses Dart's own console print. It now `debugPrint`s first,
+  unconditionally.
+- `initLogging()` routes every record to `dart:developer`'s `log`, which is a no-op
+  on the web compile targets — so even `_log.severe('Drift open failed…')` was
+  invisible. It now mirrors to `debugPrint` under `kIsWeb`.
+- The `mark()` cold-start instrumentation was `kDebugMode`-only. It now also runs in
+  release **on web**, because the last stage printed is the only thing that names the
+  await that never returned on the one platform you cannot attach a debugger to.
+
+The rule that falls out: **treat `runApp()` as unconditional.** Anything between
+`WidgetsFlutterBinding.ensureInitialized()` and `runApp()` either has a timeout and a
+`catch` that degrades to a working default, or it renders an actionable screen — the
+`_SecureStorageUnavailableApp` / `_LocalDataUnavailableApp` pattern. A boot path that
+can only either succeed or hang is a bug even when it always succeeds in testing.
+
+
+## Why the web database reset needs a store it can abandon
+
+A reset must leave the caller with a database it can actually write to. On
+native that is easy: `database_opener_io.dart` renames the file to
+`<name>.broken.<ts>` and the next open creates a new one. On web the equivalent
+was "delete the IndexedDB store", and **the browser is allowed to refuse**.
+
+`IndexedDB.deleteDatabase` blocks for as long as any connection is open. Drift's
+shared worker holds one, and it releases asynchronously — several message-port
+hops and a work-queue drain after the page's own `close()` future has already
+resolved, with no signal back to the page. So a store this page has already
+opened generally cannot be deleted *in* this page. Worse, drift 2.33's
+`CompleteIdbRequest.complete` (`src/web/wasm_setup/shared.dart`) reads
+`IDBRequest.error` inside its `blocked` listener while the request is still
+pending; that getter throws, the exception escapes the listener, and the
+completer is **never completed** — so the delete does not fail, it hangs.
+
+That is what shipped on 2026-09-22. The 4s bound turned the hang into a
+`TimeoutException`, `destroyDatabaseStore()` swallowed it as "best-effort", and
+`resetAndReopen()` reopened the *same* store and returned `wasReset: true`. The
+app then ran on a schema-drifted database: every read of `nav_state` threw
+`Null check operator used on a null value` (drift's generated mapper does
+`data['confirm_actions']!` on a column that isn't there) and every write to
+`tasks` / `projects` threw `no column named tag_names`. Only the screens that
+touch neither — Dashboard, Reports, Activity — appeared to work, and no reload
+could ever fix it because each one repeated the same failed delete.
+
+Three rules came out of it:
+
+**1. A reset reports what it achieved, not what it attempted.**
+`destroyDatabaseStore()` returns `bool`, and `resetAndReopen()` re-runs
+`isSchemaIntact()` on the reopened database. If the store was not cleared, or
+the reopened one is still drifted, it throws `DatabaseResetFailedException`
+instead of returning `wasReset: true`. `main` renders `_LocalDataUnavailableApp`
+for it. An error screen the user can act on beats a silently unusable app.
+
+**2. A store that cannot be deleted is abandoned instead.** The live store name
+carries a *generation* in `localStorage` (`invoiceninja`, then
+`invoiceninja_g1`, …). When the delete is refused, the generation is bumped and
+the old name recorded as an orphan, so the next open gets an empty store without
+needing IndexedDB's cooperation. This is the web mirror of `.broken.<ts>`, and
+it is why the user is never stuck.
+
+**3. Orphans are swept at the one moment deletion works** — once per page load,
+at the top of `openDatabaseExecutor()`, *before* anything has opened a store.
+A store abandoned on an earlier load has no live handle, so deleting it there
+succeeds. The sweep is gated on the orphan list being non-empty, so a normal
+boot spawns nothing and pays nothing.
+
+The delete itself goes through `IndexedDbFileSystem.deleteDatabase`
+(`package:sqlite3/wasm.dart`), not drift's `probe.deleteDatabase`: the probe
+re-attaches to the same shared worker (so it can re-block the delete it is about
+to attempt), leaks a `SharedWorker` and a `Worker` on every call, and reaches the
+never-completing code path above. The sqlite3 helper carries its own 1s bound.
+Deletion is then **verified** against `IndexedDbFileSystem.databases()` rather
+than trusted.

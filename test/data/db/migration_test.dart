@@ -8,6 +8,7 @@ import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../generated/schema.dart';
+import '../../generated/schema_v1.dart' as v1;
 import '../../generated/schema_v8.dart' as v8;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
@@ -190,6 +191,49 @@ void main() {
       // phone, off elsewhere), so an upgraded install resolves exactly as a
       // fresh one on the same device (invoiceninja/flutter#161).
       expect(row?.hideEmptyPanels, isNull);
+      await db.close();
+    });
+
+    test('a pre-squash v1 database missing a table still migrates', () async {
+      // `user_version = 1` is not one schema. v1 was re-squashed repeatedly
+      // while the app was pre-beta, so tables joined the baseline with no
+      // version bump: `tags` landed in `8c4d8b7e` (2026-06-11) with
+      // `schemaVersion` still 1. Every database written before that reports v1
+      // and has no `tags` table, which the dumped v1 above cannot represent —
+      // so the matrix test passes while the real upgrade throws.
+      //
+      // It shipped: the 2026-09-22 web demo failed `onUpgrade` on
+      // `CREATE INDEX … ON tags` with `no such table: main.tags`, and
+      // `openAppDatabase`'s catch wiped the whole database — pending offline
+      // edits included — for every returning visitor.
+      final schema = await verifier.schemaAt(1);
+      final old = v1.DatabaseAtV1(schema.newConnection());
+      await old.customStatement('DROP TABLE tags');
+      final before = await old
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'tags'",
+          )
+          .get();
+      expect(before, isEmpty, reason: 'the pre-squash state must have no tags');
+      await old.close();
+
+      // The real `AppDatabase`, so this exercises the shipped `onUpgrade`.
+      final db = AppDatabase(schema.newConnection());
+      await db.customSelect('SELECT 1').getSingleOrNull();
+      final after = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'tags'",
+          )
+          .get();
+      expect(
+        after,
+        hasLength(1),
+        reason: 'the upgrade must create the table it is about to index',
+      );
+      // The backstop that decides whether the user's data gets wiped.
+      expect(await isSchemaIntact(db), isTrue);
       await db.close();
     });
   });

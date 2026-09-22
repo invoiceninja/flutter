@@ -17,3 +17,23 @@ class KeyringUnavailableException implements Exception {
   @override
   String toString() => 'KeyringUnavailableException: $message';
 }
+
+/// Thrown by `openAppDatabase()` when recovery ran but did not produce a
+/// usable database: the store was destroyed (or abandoned) and reopened, and
+/// the result is *still* missing tables or columns the generated code needs.
+///
+/// Exists so the reset can stop claiming a success it did not achieve. It used
+/// to return `wasReset: true` unconditionally, which on web meant reopening
+/// the very store the browser had just refused to delete — the app then ran on
+/// a schema-drifted database where every read of `nav_state` threw
+/// "Null check operator used on a null value" and every write to `tasks` /
+/// `projects` threw `no column named tag_names`, with no way out across
+/// reloads. An error screen the user can act on beats that.
+class DatabaseResetFailedException implements Exception {
+  const DatabaseResetFailedException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'DatabaseResetFailedException: $message';
+}

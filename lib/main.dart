@@ -11,6 +11,8 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'package:admin/app/app_deep_links.dart';
 import 'package:admin/app/debug_capture_store.dart';
+import 'package:admin/app/app_reload.dart';
+import 'package:admin/app/boot_log.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:timezone/data/latest_10y.dart' as tz;
 import 'package:admin/app/diagnostics_log.dart';
@@ -30,6 +32,7 @@ import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/database_opener.dart';
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/password_cache.dart';
@@ -90,6 +93,14 @@ Future<void> main() async {
 /// wrapped and direct). Routes escaped async errors to the diagnostics log
 /// + debug-capture ring exactly as before.
 void _zoneOnError(Object error, StackTrace stack) {
+  // Print first, unconditionally — both sinks below are null exactly when this
+  // matters most. A throw inside [_bootstrap] happens before `runApp`, so the
+  // user is left on the HTML boot loader (`web/index.html`) with no Flutter
+  // tree to show it; and on web `_diagnosticsLogRef` is *never* non-null
+  // (`_initDiagnostics` returns null there). Without this line a fatal boot
+  // error is completely invisible and an endless spinner is the only symptom —
+  // which is how the demo's returning-visitor wedge went undiagnosed.
+  bootLog('Uncaught zone error: $error\n$stack');
   _diagnosticsLogRef?.recordError(error, stack, context: 'runZonedGuarded');
   _debugCaptureStoreRef?.recordError(error, stack, context: 'runZonedGuarded');
 }
@@ -108,6 +119,14 @@ DiagnosticsLog? _diagnosticsLogRef;
 /// Mirror of [_diagnosticsLogRef] for the always-on debug-capture store.
 /// Set during [_bootstrap]; null until then.
 DebugCaptureStore? _debugCaptureStoreRef;
+
+/// Bounds on the two boot phases that read the local database without a
+/// network call of their own. Neither used to be bounded, and both sit before
+/// `runApp` — so a store that stalls instead of failing took the whole app
+/// down to a blank boot loader. Generous on purpose: these must only ever fire
+/// on a genuinely wedged store, never on a cold, slow disk.
+const _kRestoreBudget = Duration(seconds: 20);
+const _kNavStateBudget = Duration(seconds: 10);
 
 Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -133,15 +152,21 @@ Future<void> _bootstrap() async {
     return true;
   }());
 
-  // Debug-only cold-start instrumentation. Each stage logs its own
-  // duration and the cumulative time-to-here so a regression in any one
-  // boot phase (secure-storage key fetch, DB open, session restore,
-  // statics warm) is attributable from the console without a profiler.
-  // Compiled out of release builds (`kDebugMode` is a const false there).
+  // Cold-start instrumentation. Each stage logs its own duration and the
+  // cumulative time-to-here so a regression in any one boot phase
+  // (secure-storage key fetch, DB open, session restore, statics warm) is
+  // attributable from the console without a profiler.
+  //
+  // Debug everywhere, and **also release on web**: a boot that never reaches
+  // `runApp` leaves the user on the HTML loader with no Flutter tree and — on
+  // web — no diagnostics log either, so the last stage printed is the only
+  // thing that names the await which never returned. Half a dozen log lines
+  // per boot is a cheap price for the one platform that can't be attached to
+  // a debugger after the fact. Still compiled out of native release builds.
   final bootSw = Stopwatch()..start();
   var lastMs = 0;
   void mark(String stage) {
-    if (!kDebugMode) return;
+    if (!kDebugMode && !kIsWeb) return;
     final now = bootSw.elapsedMilliseconds;
     Logger('main.boot').info('$stage: ${now - lastMs}ms (t+${now}ms)');
     lastMs = now;
@@ -162,6 +187,18 @@ Future<void> _bootstrap() async {
     diag?.recordError(e, st, context: 'openAppDatabase: keyring unavailable');
     runApp(const _SecureStorageUnavailableApp());
     return;
+  } catch (e, st) {
+    // `openAppDatabase` recovers from a bad store by destroying and reopening
+    // it, but that recovery can itself throw — on web a second
+    // `WasmDatabase.open` timing out because a stale browser context still
+    // holds the IndexedDB/OPFS lock (the forced reload Flutter's service
+    // worker performs after a redeploy leaves exactly that). This branch used
+    // not to exist, so the `TimeoutException` escaped `_bootstrap`, `runApp`
+    // was never called, and the user sat on the HTML boot loader forever with
+    // no route out but clearing site data. Boot must always paint.
+    diag?.recordError(e, st, context: 'openAppDatabase');
+    runApp(_LocalDataUnavailableApp(detail: '$e'));
+    return;
   }
   mark('db-open (incl. secure-storage key)');
   final services = Services.build(db: opened.db, diagnosticsLog: diag);
@@ -172,24 +209,35 @@ Future<void> _bootstrap() async {
   _debugCaptureStoreRef = services.debugCaptureStore;
   _authForSentry = services.auth;
   _installCaptureHandlers(services.debugCaptureStore);
-  await Future.wait([
-    services.auth.restore(),
-    services.theme.restore(),
-    services.locale.restore(),
-    services.textScale.restore(),
-    services.keyboardShortcuts.restore(),
-    services.sidebar.restore(),
-    services.confirmActions.restore(),
-    services.statusTabs.restore(),
-    services.hideUnverifiedUsers.restore(),
-    services.tasksView.restore(),
-    services.hideEmptyPanels.restore(),
-    services.phoneActions.restore(),
-    services.sidebarBadgeModes.restore(),
-    services.sidebarMenu.restore(),
-    services.recentlyViewed.restore(),
-    services.contactsSync.restore(),
-  ]);
+  // Bounded and guarded: all sixteen reads hit the same single `nav_state`
+  // row over one database connection, so a wedged store stalls the lot — and
+  // an unbounded, uncaught `Future.wait` here meant `runApp` was never
+  // reached. Every one of these controllers has a working default, so a
+  // failure or timeout costs the user their *preferences* for this launch,
+  // never the app itself.
+  try {
+    await Future.wait([
+      services.auth.restore(),
+      services.theme.restore(),
+      services.locale.restore(),
+      services.textScale.restore(),
+      services.keyboardShortcuts.restore(),
+      services.sidebar.restore(),
+      services.confirmActions.restore(),
+      services.statusTabs.restore(),
+      services.hideUnverifiedUsers.restore(),
+      services.tasksView.restore(),
+      services.hideEmptyPanels.restore(),
+      services.phoneActions.restore(),
+      services.sidebarBadgeModes.restore(),
+      services.sidebarMenu.restore(),
+      services.recentlyViewed.restore(),
+      services.contactsSync.restore(),
+    ]).timeout(_kRestoreBudget);
+  } catch (e, st) {
+    diag?.recordError(e, st, context: 'boot restore');
+    Logger('main').warning('Session/preference restore failed at boot', e, st);
+  }
   mark('restore (auth/theme/locale/sidebar)');
 
   // Demo build: if no session was restored, bootstrap one from a baked-in API
@@ -241,7 +289,17 @@ Future<void> _bootstrap() async {
   // When biometric is enabled, the router's redirect routes the deep link
   // through `/lock?from=<encoded>` and back out on unlock — we just feed it
   // the user's last route here.
-  final navState = await opened.db.navStateDao.current();
+  // Bounded and guarded for the same reason as the restore block above: this
+  // is the last await before `runApp`, so a stalled read here is invisible —
+  // it looks exactly like a hung app. Falling back to `null` just means the
+  // user lands on the default route instead of their last one.
+  NavStateData? navState;
+  try {
+    navState = await opened.db.navStateDao.current().timeout(_kNavStateBudget);
+  } catch (e, st) {
+    diag?.recordError(e, st, context: 'boot nav-state');
+    Logger('main').warning('Restoring the last route failed at boot', e, st);
+  }
   // Strip any entity-row segment from the restored URL so cold-start
   // lands on the bare entity list rather than the last-viewed row
   // (`/clients/c_42` → `/clients`; `/settings/...` passes through — see
@@ -338,6 +396,132 @@ class _SecureStorageUnavailableApp extends StatelessWidget {
                   SelectableText(
                     'snap connect invoiceninja:password-manager-service',
                     style: TextStyle(fontFamily: kMonoFontFamily),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Minimal full-screen error shown when the local database could not be
+/// opened *and* `openAppDatabase`'s own destroy-and-reopen recovery failed
+/// too. `Services` and localization aren't available this early, so the copy
+/// is plain English.
+///
+/// This exists because the alternative is worse than an error screen: before
+/// it, that failure escaped `_bootstrap` uncaught, `runApp` was never called,
+/// and the user was left on the HTML boot loader (`web/index.html`) — a dead
+/// end whose only escape was clearing site data. The overwhelmingly common
+/// cause on web is a store still locked by a stale browser context, which
+/// clears on its own within seconds, so "Try again" is a real fix and is
+/// offered first.
+class _LocalDataUnavailableApp extends StatefulWidget {
+  const _LocalDataUnavailableApp({required this.detail});
+
+  /// The underlying error, shown small — enough for a bug report without
+  /// making the screen look like a crash dump.
+  final String detail;
+
+  @override
+  State<_LocalDataUnavailableApp> createState() =>
+      _LocalDataUnavailableAppState();
+}
+
+class _LocalDataUnavailableAppState extends State<_LocalDataUnavailableApp> {
+  bool _busy = false;
+
+  Future<void> _resetAndReload() async {
+    setState(() => _busy = true);
+    try {
+      await destroyDatabaseStore();
+    } catch (e, st) {
+      Logger('main').warning('Resetting local data failed', e, st);
+    }
+    if (kIsWeb) {
+      reloadApp();
+    } else if (mounted) {
+      setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Nothing here is localized on purpose: this screen renders before
+    // `Services` exists, so there is no `Localization` to read from.
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.storage_outlined, size: 48),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Could not open local data',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    kIsWeb
+                        ? 'This is usually another tab or a just-closed one '
+                              'still holding the local database. Trying again '
+                              'normally clears it.\n\n'
+                              'If it keeps happening, reset the local data — '
+                              'everything is re-downloaded from the server.'
+                        : 'Invoice Ninja could not open its local database.\n\n'
+                              'Resetting clears the local copy; everything is '
+                              're-downloaded from the server.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  // Paired side-by-side, never stacked (§ Design system).
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (kIsWeb) ...[
+                        FilledButton(
+                          onPressed: _busy ? null : reloadApp,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(64, 44),
+                          ),
+                          child: const Text('Try again'),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      OutlinedButton(
+                        onPressed: _busy ? null : _resetAndReload,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(64, 40),
+                        ),
+                        child: Text(_busy ? 'Resetting…' : 'Reset local data'),
+                      ),
+                    ],
+                  ),
+                  if (!kIsWeb) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Then relaunch the app.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  SelectableText(
+                    widget.detail,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: kMonoFontFamily,
+                    ),
                   ),
                 ],
               ),

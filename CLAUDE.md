@@ -88,7 +88,7 @@ Plus two non-negotiables carried from admin-portal:
 | Editing a CI / release workflow (test gate, job wiring) | `.github/workflows/_test.yaml` + `docs/setup.md` § Shipping to the stores |
 | Debugging a runtime error or stale outbox row | § Diagnostics log + `docs/diagnostics.md` |
 | Desktop window persistence (native runners) | `docs/desktop-window-state.md` |
-| Changing the desktop title bar, its drawn window buttons, or the nav arrows' home | `docs/desktop-window-state.md` § Drawn window buttons · `lib/ui/features/shell/widgets/window_frame.dart` |
+| Changing the desktop title bar, its drawn window buttons, or where the nav arrows live — including hiding them behind the browser's own | `docs/desktop-window-state.md` § Drawn window buttons · § The sidebar's history arrows hide behind the browser's own · `lib/ui/features/shell/widgets/window_frame.dart` · `lib/app/browser_chrome.dart` |
 | Sharing a link to a record, or handling an incoming one | § Deep links · `docs/deep-links.md` |
 | Enabling https App Links / Universal Links (Apple capability, Play fingerprints, deploy order) | `APP_LINKS.md` |
 | Contacts sync (client contacts → device address book) | `docs/contacts-sync.md` |
@@ -132,6 +132,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Never add a Claude / AI `Co-Authored-By` (or any "Generated with" / assistant) trailer or line** to commit messages or PR bodies. Commit messages contain only the human-authored description. This overrides the harness default.
 - **Never create, switch, rename, or delete git branches in this working tree** (no `git branch`, `git checkout <branch>`, `git switch`). Multiple Claude sessions share this single checkout; a branch create/switch in one corrupts every other in-flight session. Work on whatever branch is checked out; commit there only when the user asks; if a task seems to need its own branch, stop and ask. This overrides the harness default ("branch first"). **Sole exception:** the integration-test procedure (`docs/integration-tests.md`), which branches inside an *isolated sibling worktree*, never this checkout.
 - **Android system back == the sidebar `←` (history back), and three things keep it working.** → `docs/architecture.md` § Why Android system back needs three things to keep working
+- **Boot must always reach `runApp()` — every await in front of it is bounded and caught, and on web the failure has to be printed or it is invisible.** → `docs/architecture.md` § Why boot must always reach `runApp()`
 - **Workarounds for open upstream bugs are logged in `docs/upstream-workarounds.md`.** When you add, change, or remove a workaround for an open Flutter/package bug, update that file — issue link, exact files/changes tagged KEEP vs MUST-REVERT, and revert steps — so it can be cleanly undone when the upstream fix ships.
 
 ## Architecture — at a glance
@@ -681,6 +682,8 @@ Each desktop runner persists window size, position, and fullscreen across launch
 Web is a supported target (`flutter run -d chrome`, `flutter build web`). Native (iOS/macOS) behavior is **byte-identical** — every platform difference is a `kIsWeb` branch or a conditional-import seam that resolves to the unchanged native code on native.
 
 **Persistence.** drift WASM over IndexedDB/OPFS, unencrypted (no SQLCipher, no `PRAGMA key`) — the browser origin sandbox is the trust boundary, a locked product decision; don't add a web encryption layer without re-deciding. The auth token lives in `window.localStorage` (`LocalStorageTokenStorage`), not `flutter_secure_storage`. IndexedDB eviction (storage pressure / private mode) surfaces as the existing `dbWasReset` "fresh sync" flow, not a crash.
+
+- **A web database reset must be verified, and a store the browser won't delete is abandoned (generation-bumped), never reopened.** → `docs/architecture.md` § Why the web database reset needs a store it can abandon
 
 **Conditional-import seams** (default file = web, `if (dart.library.io)` override = native):
 - `lib/data/db/database_opener.dart` → `_io` (SQLCipher file + keychain key + `.broken.<ts>` recovery) / `_web` (`WasmDatabase` + IndexedDB delete on reset). `pruneBrokenDbFiles` is native-only (`database_opener_io.dart`).

@@ -19,7 +19,10 @@ class PaymentTokenSearchField extends StatelessWidget {
   Widget build(BuildContext context) => EntityTokenSearchField(
     vm: vm,
     wide: wide,
-    hintKey: 'search_payments',
+    // Matches the other entity search fields. The Transifex `search_payments`
+    // is a bare "Search Payments" label and never mentions the filter tokens
+    // this field accepts.
+    hintKey: 'search_payments_or_filter_hint',
     customFieldPrefix: 'payment',
     nameSources: [
       (services, companyId) => services.clients

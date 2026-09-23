@@ -222,6 +222,13 @@ class ReportsViewModel extends ChangeNotifier {
   String? get group => _group;
   ReportSubgroup? _subgroup;
   ReportSubgroup? get subgroup => _subgroup;
+
+  /// Date column splitting a non-date [group] by period (granularity
+  /// [subgroup]) — see [ReportUiState.periodColumn]. Local-only: the server
+  /// has no two-level grouping, so export / email / schedule stay grouped by
+  /// [serverGroupBy] alone.
+  String? _periodColumn;
+  String? get periodColumn => _periodColumn;
   String? _selectedGroup;
   String? get selectedGroup => _selectedGroup;
 
@@ -358,6 +365,7 @@ class ReportsViewModel extends ChangeNotifier {
       sortAscending: _sortAscending,
       group: _group,
       subgroup: _subgroup,
+      periodColumn: _periodColumn,
       selectedGroup: _selectedGroup,
       convertCurrency: convertCurrency,
     );
@@ -472,6 +480,7 @@ class ReportsViewModel extends ChangeNotifier {
     'columnFilters': _columnFilters,
     if (_group != null) 'group': _group,
     if (_subgroup != null) 'subgroup': _subgroup!.name,
+    if (_periodColumn != null) 'periodColumn': _periodColumn,
     if (_sortField != null) 'sortField': _sortField,
     'sortAscending': _sortAscending,
     'panelCollapsed': _panelCollapsed,
@@ -512,6 +521,8 @@ class ReportsViewModel extends ChangeNotifier {
     if (sg is String) {
       _subgroup = ReportSubgroup.values.where((e) => e.name == sg).firstOrNull;
     }
+    final pcol = s['periodColumn'];
+    if (pcol is String && pcol.isNotEmpty) _periodColumn = pcol;
     final sf = s['sortField'];
     if (sf is String) _sortField = sf;
     final sa = s['sortAscending'];
@@ -646,6 +657,12 @@ class ReportsViewModel extends ChangeNotifier {
     if (_group != null && !ids.contains(_group)) {
       _group = null;
       _subgroup = null;
+      _periodColumn = null;
+    }
+    if (_periodColumn != null && !ids.contains(_periodColumn)) {
+      _periodColumn = null;
+      // The drill was into a composite bucket that no longer exists.
+      _selectedGroup = null;
     }
     if (_sortField != null && !ids.contains(_sortField)) {
       _sortField = null;
@@ -668,6 +685,7 @@ class ReportsViewModel extends ChangeNotifier {
     _sortField = null;
     _group = null;
     _subgroup = null;
+    _periodColumn = null;
     _selectedGroup = null;
     _chartColumn = null;
     // Both are per-report: the snapshot is one-report-shaped by design, and
@@ -749,9 +767,35 @@ class ReportsViewModel extends ChangeNotifier {
   void setGroup(String? columnId, {ReportSubgroup? subgroup}) {
     _group = columnId;
     _subgroup = columnId == null ? null : (subgroup ?? _subgroup);
+    // A period only splits a non-date grouping. Kept across a switch between
+    // two non-date columns (User → Assigned User keeps "by month").
+    if (columnId == null || _isDateColumn(columnId)) _periodColumn = null;
     _selectedGroup = null;
     _invalidateMemo();
     notifyListeners();
+  }
+
+  /// Split the current non-date grouping by [columnId]'s date (null to stop
+  /// splitting). Defaults the granularity to month.
+  void setPeriodColumn(String? columnId) {
+    final id = (columnId == null || columnId.isEmpty) ? null : columnId;
+    if (id == _periodColumn) return;
+    _periodColumn = id;
+    if (id != null) _subgroup ??= ReportSubgroup.month;
+    // A drill names a bucket of the old key shape, which no longer exists.
+    _selectedGroup = null;
+    _invalidateMemo();
+    notifyListeners();
+  }
+
+  bool _isDateColumn(String columnId) {
+    for (final c in _run.preview?.columns ?? const <ReportColumn>[]) {
+      if (c.identifier == columnId) return isReportDateType(c.type);
+    }
+    // Not fetched yet — `_GroupByField` groups by the optional date column
+    // *before* the run that brings it, and a period left set then would be
+    // persisted and resurface on the next non-date grouping.
+    return isReportDateType(inferColumnType(columnId));
   }
 
   void setSubgroup(ReportSubgroup? sg) {
@@ -815,6 +859,7 @@ class ReportsViewModel extends ChangeNotifier {
     _sortAscending = true;
     _group = null;
     _subgroup = null;
+    _periodColumn = null;
     _selectedGroup = null;
     _chartColumn = null;
     _chartVisible = true;
@@ -1117,6 +1162,15 @@ class ReportsViewModel extends ChangeNotifier {
     if (!value && _group != null && _group == definition.optionalDateColumnId) {
       _group = null;
       _subgroup = null;
+      _periodColumn = null;
+      _selectedGroup = null;
+      _invalidateMemo();
+    }
+    // Same for a period split on it.
+    if (!value &&
+        _periodColumn != null &&
+        _periodColumn == definition.optionalDateColumnId) {
+      _periodColumn = null;
       _selectedGroup = null;
       _invalidateMemo();
     }
@@ -1159,6 +1213,9 @@ class ReportsViewModel extends ChangeNotifier {
   /// (`BaseExport::groupRows` also groups on the *exact* value with no date
   /// bucketing, so grouping a file by a per-second timestamp would emit one
   /// group per row anyway.)
+  ///
+  /// [periodColumn] is never sent: the server groups on one column only, so
+  /// a file downloaded from a "user × month" view is grouped by user.
   String? get serverGroupBy =>
       _group == definition.optionalDateColumnId ? null : _group;
 

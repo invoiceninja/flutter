@@ -49,6 +49,7 @@ const kReportDefinitions = <ReportDefinition>[
   ReportDefinition(
     identifier: 'contact',
     dateRangeKey: 'created_at',
+    optionalDateColumnId: 'contact.created_at',
     endpoint: '/api/v1/reports/contacts',
     labelKey: 'contact',
     icon: EntityType.client,
@@ -247,6 +248,7 @@ const kReportDefinitions = <ReportDefinition>[
   ReportDefinition(
     identifier: 'product',
     dateRangeKey: 'created_at',
+    optionalDateColumnId: 'product.created_at',
     endpoint: '/api/v1/reports/products',
     labelKey: 'product',
     icon: EntityType.product,
@@ -292,6 +294,7 @@ const kReportDefinitions = <ReportDefinition>[
   ReportDefinition(
     identifier: 'vendor',
     dateRangeKey: 'created_at',
+    optionalDateColumnId: 'vendor.created_at',
     endpoint: '/api/v1/reports/vendors',
     labelKey: 'vendor',
     icon: EntityType.vendor,

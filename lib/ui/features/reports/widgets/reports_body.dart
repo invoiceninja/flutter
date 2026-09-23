@@ -539,9 +539,15 @@ class _DateRangeKeyHint extends StatelessWidget {
   }
 }
 
-/// Bucket granularity for a date grouping. Hidden for every other column
-/// type — the engine only reads `subgroup` for a date column, so offering
-/// it elsewhere would be an inert control.
+/// Subgroup controls under Group by.
+///
+/// - A **date** grouping gets the bucket granularity (day … year).
+/// - A **non-date** grouping gets a period split: pick one of the report's
+///   date columns and the same granularity, and each bucket becomes
+///   `<group> · <period>` — hours per user per month, invoiced per client
+///   per quarter. Offered only when there is a date column to split by
+///   (including the report's optional date column, fetched on pick exactly
+///   as the Group by entry does).
 class _SubgroupField extends StatelessWidget {
   const _SubgroupField({required this.vm});
 
@@ -550,46 +556,152 @@ class _SubgroupField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final column = _groupColumn(vm);
-    final isDate =
-        column != null &&
-        (column.type == ReportColumnType.date ||
-            column.type == ReportColumnType.dateTime);
-    if (!isDate) return const SizedBox.shrink();
+    if (column == null) return const SizedBox.shrink();
+    if (isReportDateType(column.type)) {
+      return Padding(
+        padding: EdgeInsets.only(top: InSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Labelled above the field like every other control in this
+            // panel, rather than with an inline `labelText` that would sit in
+            // a different place, size and colour from the three above it.
+            _PanelLabel(text: context.tr('subgroup')),
+            _GranularityDropdown(vm: vm),
+          ],
+        ),
+      );
+    }
+    final columns = vm.run.preview?.columns ?? const <ReportColumn>[];
+    final dateColumns = _periodCandidates(vm, columns);
+    final offerable = _offerableDateColumn(vm, columns);
+    if (dateColumns.isEmpty && offerable == null) {
+      return const SizedBox.shrink();
+    }
+    final current = vm.periodColumn;
+    final currentValid =
+        current != null &&
+        (dateColumns.any((c) => c.identifier == current) ||
+            current == offerable);
     return Padding(
       padding: EdgeInsets.only(top: InSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Labelled above the field like every other control in this panel,
-          // rather than with an inline `labelText` that would sit in a
-          // different place, size and colour from the three above it.
           _PanelLabel(text: context.tr('subgroup')),
-          DropdownButtonFormField<ReportSubgroup>(
-            initialValue: vm.subgroup ?? ReportSubgroup.month,
+          DropdownButtonFormField<String>(
+            initialValue: currentValid ? current : '',
             isExpanded: true,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               isDense: true,
             ),
-            onChanged: (value) {
-              if (value != null) vm.setSubgroup(value);
+            onChanged: (id) {
+              if (id == null || id.isEmpty) {
+                vm.setPeriodColumn(null);
+                return;
+              }
+              if (id == offerable) {
+                // Not in the preview yet — fetch it, as `_GroupByField` does.
+                vm.setIncludeDateColumn(true);
+                vm.setPeriodColumn(id);
+                unawaited(vm.runReport());
+                return;
+              }
+              // Once fetched it must stay opted in, or the next Run drops
+              // it and `_reconcileWithColumns` silently clears the split.
+              if (id == vm.definition.optionalDateColumnId) {
+                vm.setIncludeDateColumn(true);
+              }
+              vm.setPeriodColumn(id);
             },
             items: [
-              for (final sub in ReportSubgroup.values)
+              DropdownMenuItem(value: '', child: Text(context.tr('none'))),
+              for (final col in dateColumns)
                 DropdownMenuItem(
-                  value: sub,
-                  child: Text(context.tr(sub.labelKey)),
+                  value: col.identifier,
+                  child: Text(col.displayLabel),
+                ),
+              if (offerable != null)
+                DropdownMenuItem(
+                  value: offerable,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          context.tr(
+                            reportDateKeyLabelKey(vm.definition.dateRangeKey)!,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      SizedBox(width: InSpacing.sm),
+                      Icon(
+                        Icons.cloud_download_outlined,
+                        size: 16,
+                        color: context.inTheme.ink3,
+                      ),
+                    ],
+                  ),
                 ),
             ],
           ),
+          if (currentValid) ...[
+            SizedBox(height: InSpacing.sm),
+            _GranularityDropdown(vm: vm),
+          ],
         ],
       ),
     );
   }
 }
 
+/// The preview's date columns a non-date grouping can be split by, with the
+/// one the report's date range filters on first — it is almost always the
+/// one meant ("per month" of an invoice means its date, of a task its start).
+List<ReportColumn> _periodCandidates(
+  ReportsViewModel vm,
+  List<ReportColumn> columns,
+) {
+  final dates = columns.where((c) => isReportDateType(c.type)).toList();
+  final key = switch (vm.definition.dateRangeKey) {
+    'calculated_start_date' => 'start_date',
+    final k => k,
+  };
+  if (key == null) return dates;
+  bool matches(ReportColumn c) =>
+      c.identifier == key || c.identifier.endsWith('.$key');
+  return [...dates.where(matches), ...dates.where((c) => !matches(c))];
+}
+
+class _GranularityDropdown extends StatelessWidget {
+  const _GranularityDropdown({required this.vm});
+
+  final ReportsViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<ReportSubgroup>(
+      initialValue: vm.subgroup ?? ReportSubgroup.month,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      onChanged: (value) {
+        if (value != null) vm.setSubgroup(value);
+      },
+      items: [
+        for (final sub in ReportSubgroup.values)
+          DropdownMenuItem(value: sub, child: Text(context.tr(sub.labelKey))),
+      ],
+    );
+  }
+}
+
 /// Opt-in for a report whose date range filters on a column its default
-/// column set omits — today only Clients / `created_at`.
+/// column set omits — Clients, Contacts, Vendors and Products / `created_at`.
 ///
 /// The Group by entry below is the discoverable path (and runs the report
 /// itself); this is the state display, the "I want the column but not the

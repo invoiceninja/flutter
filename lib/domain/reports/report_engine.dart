@@ -14,6 +14,21 @@ final _log = Logger('ReportEngine');
 /// points fl_chart is being handed more spots than the axis can show.
 const int kMaxReportChartBuckets = 750;
 
+/// Joins the two halves of a composite group key — the group column's own
+/// key and the period bucket — when [ReportUiState.periodColumn] splits a
+/// non-date grouping by date. The ASCII unit separator: it cannot occur in a
+/// display value, so the split is unambiguous.
+const String kReportGroupKeySeparator = '\u001F';
+
+/// Splits a group key into its group part and, for a composite key, its
+/// period part (an ISO bucket start, or `''` for a row with no date). A
+/// plain key returns a null period.
+(String, String?) splitReportGroupKey(String key) {
+  final i = key.indexOf(kReportGroupKeySeparator);
+  if (i < 0) return (key, null);
+  return (key.substring(0, i), key.substring(i + 1));
+}
+
 /// How a date-typed group column buckets its values when grouped.
 enum ReportSubgroup { day, week, month, quarter, year }
 
@@ -49,6 +64,7 @@ class ReportUiState {
     this.sortAscending = true,
     this.group,
     this.subgroup,
+    this.periodColumn,
     this.selectedGroup,
     this.convertCurrency = false,
   });
@@ -78,8 +94,15 @@ class ReportUiState {
   final String? group;
 
   /// When the group column is a date or dateTime, which bucket to roll up
-  /// into. Ignored otherwise.
+  /// into. When it isn't, the granularity of [periodColumn]'s buckets.
   final ReportSubgroup? subgroup;
+
+  /// A date / dateTime column that splits a **non-date** grouping by period —
+  /// "hours per user per month" is group `task.assigned_user_id` + period
+  /// `task.start_date` + subgroup month. Each bucket key is then composite
+  /// (see [kReportGroupKeySeparator]). Ignored when [group] is itself a date
+  /// column, or when the preview doesn't carry this column.
+  final String? periodColumn;
 
   /// Drill-down: when set, rows are filtered to those belonging to this
   /// group bucket and rendered ungrouped. The breadcrumb chip in the UI
@@ -100,6 +123,7 @@ class ReportUiState {
     bool? sortAscending,
     String? Function()? group,
     ReportSubgroup? Function()? subgroup,
+    String? Function()? periodColumn,
     String? Function()? selectedGroup,
     bool? convertCurrency,
   }) {
@@ -111,6 +135,7 @@ class ReportUiState {
       sortAscending: sortAscending ?? this.sortAscending,
       group: group == null ? this.group : group(),
       subgroup: subgroup == null ? this.subgroup : subgroup(),
+      periodColumn: periodColumn == null ? this.periodColumn : periodColumn(),
       selectedGroup: selectedGroup == null
           ? this.selectedGroup
           : selectedGroup(),
@@ -137,6 +162,7 @@ class ReportUiState {
       sortAscending == other.sortAscending &&
       group == other.group &&
       subgroup == other.subgroup &&
+      periodColumn == other.periodColumn &&
       selectedGroup == other.selectedGroup &&
       convertCurrency == other.convertCurrency;
 
@@ -149,6 +175,7 @@ class ReportUiState {
     sortAscending,
     group,
     subgroup,
+    periodColumn,
     selectedGroup,
     convertCurrency,
   );
@@ -281,18 +308,10 @@ class ReportEngine {
         ui.group!.isNotEmpty &&
         ui.selectedGroup != null &&
         ui.selectedGroup!.isNotEmpty) {
-      final groupIdx = _columnIndex(preview.columns, ui.group!);
-      if (groupIdx >= 0) {
+      final keyOf = _rowGroupKeyFn(preview.columns, ui);
+      if (keyOf != null) {
         filtered = filtered
-            .where(
-              (row) =>
-                  _groupKey(
-                    row.cells[groupIdx],
-                    preview.columns[groupIdx],
-                    subgroup: ui.subgroup,
-                  ) ==
-                  ui.selectedGroup,
-            )
+            .where((row) => keyOf(row) == ui.selectedGroup)
             .toList(growable: false);
       }
     }
@@ -600,30 +619,38 @@ class ReportEngine {
     ReportUiState ui,
   ) {
     final groupIdx = _columnIndex(columns, ui.group!);
-    if (groupIdx < 0) return const [];
+    final keyOf = _rowGroupKeyFn(columns, ui);
+    if (groupIdx < 0 || keyOf == null) return const [];
     final buckets = <String, List<ReportRow>>{};
     for (final row in rows) {
-      final key = _groupKey(
-        row.cells[groupIdx],
-        columns[groupIdx],
-        subgroup: ui.subgroup,
-      );
-      (buckets[key] ??= <ReportRow>[]).add(row);
+      (buckets[keyOf(row)] ??= <ReportRow>[]).add(row);
     }
     final keys = buckets.keys.toList();
-    if (_numericGroupOrder(columns[groupIdx].type)) {
-      // Bucket keys are display strings; for numeric group columns those sort
-      // lexicographically ("$1,000" before "$200", "10" before "9"). Order by
-      // each bucket's representative typed sort key instead.
-      keys.sort(
-        (a, b) => _compareSortKeys(
-          buckets[a]!.first.cells[groupIdx].sortKey,
-          buckets[b]!.first.cells[groupIdx].sortKey,
-        ),
+    final numeric = _numericGroupOrder(columns[groupIdx].type);
+    // Orders the group part: bucket keys are display strings, and for
+    // numeric group columns those sort lexicographically ("$1,000" before
+    // "$200", "10" before "9") — so order by each bucket's representative
+    // typed sort key instead.
+    int compareGroupPart(String a, String b) {
+      if (!numeric) {
+        return splitReportGroupKey(a).$1.compareTo(splitReportGroupKey(b).$1);
+      }
+      return _compareSortKeys(
+        buckets[a]!.first.cells[groupIdx].sortKey,
+        buckets[b]!.first.cells[groupIdx].sortKey,
       );
-    } else {
-      keys.sort();
     }
+
+    keys.sort((a, b) {
+      final byGroup = compareGroupPart(a, b);
+      if (byGroup != 0) return byGroup;
+      // Composite keys: periods chronologically (ISO sorts as a date), the
+      // no-date bucket last.
+      final pa = splitReportGroupKey(a).$2 ?? '';
+      final pb = splitReportGroupKey(b).$2 ?? '';
+      if (pa.isEmpty != pb.isEmpty) return pa.isEmpty ? 1 : -1;
+      return pa.compareTo(pb);
+    });
     return [
       for (final key in keys)
         GroupTotals(
@@ -632,6 +659,40 @@ class ReportEngine {
           numericTotals: _perCurrencyTotals(buckets[key]!, columns),
         ),
     ];
+  }
+
+  /// The bucket key of a row under [ui]'s grouping, or null when the group
+  /// column isn't in [columns]. The **only** place a row's key is derived:
+  /// `_bucket` builds the groups with it and `compute`'s drill-down matches
+  /// `selectedGroup` with it, so the two cannot disagree about a key.
+  ///
+  /// Composite (`<group>␟<period>`) when [ReportUiState.periodColumn] names a
+  /// date column in [columns] and the group column is not itself a date;
+  /// otherwise the plain group key.
+  String Function(ReportRow row)? _rowGroupKeyFn(
+    List<ReportColumn> columns,
+    ReportUiState ui,
+  ) {
+    final group = ui.group;
+    if (group == null || group.isEmpty) return null;
+    final groupIdx = _columnIndex(columns, group);
+    if (groupIdx < 0) return null;
+    final groupCol = columns[groupIdx];
+    String plain(ReportRow row) =>
+        _groupKey(row.cells[groupIdx], groupCol, subgroup: ui.subgroup);
+    final period = ui.periodColumn;
+    if (period == null || period.isEmpty || isReportDateType(groupCol.type)) {
+      return plain;
+    }
+    final periodIdx = _columnIndex(columns, period);
+    if (periodIdx < 0 || !isReportDateType(columns[periodIdx].type)) {
+      return plain;
+    }
+    final periodCol = columns[periodIdx];
+    final sub = ui.subgroup ?? ReportSubgroup.month;
+    return (row) =>
+        '${plain(row)}$kReportGroupKeySeparator'
+        '${_groupKey(row.cells[periodIdx], periodCol, subgroup: sub)}';
   }
 
   /// Bucket key for a cell when grouping by its column. Date columns honor

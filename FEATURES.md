@@ -660,8 +660,9 @@ the honest default.
 | Report — chart series: record count | ❌ | ❌ | ✅ | — | v1 computes a `count` total but its chart picker only offers numeric *columns*, so it can't be charted there |
 | Report — chart fills empty periods with zero | ❌ | ❌ | ✅ | — | v1 sidesteps gaps with a real time axis rather than filling them; v2 plots period buckets by index, so it fills |
 | Report — date subgroup granularity (day / week / month / quarter / year) | ❌ | ✅ | ✅ | — | |
+| Report — split a grouping by period (e.g. hours per user per month) | ❌ | ❌ | ✅ | — | v1's subgroup only buckets a *date* group column; v2 also splits any non-date grouping by one of the report's date columns (`<group> · <period>` rows). Local-only: exports stay grouped by the primary column |
 | Report — names the date field the range filters | ❌ | 🟡 | ✅ | — | v1 shows a date-field dropdown only when a report has more than one date column |
-| Report — date-created column (client report) | ❌ | ✅ | ✅ | — | |
+| Report — date-created column (client report) | ❌ | ✅ | ✅ | — | v2 also offers it on the contact, vendor and product reports (fetched on pick) |
 
 ---
 

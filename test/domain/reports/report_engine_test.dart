@@ -588,6 +588,135 @@ void main() {
     });
   });
 
+  group('ReportEngine period split (periodColumn)', () {
+    const engine = ReportEngine();
+    const sep = kReportGroupKeySeparator;
+
+    const userCol = ReportColumn(
+      identifier: 'task.assigned_user_id',
+      displayLabel: 'Assigned User',
+      type: ReportColumnType.string,
+    );
+    const startCol = ReportColumn(
+      identifier: 'task.start_date',
+      displayLabel: 'Start Date',
+      type: ReportColumnType.date,
+    );
+    const durationCol = ReportColumn(
+      identifier: 'task.duration',
+      displayLabel: 'Duration',
+      type: ReportColumnType.duration,
+    );
+
+    List<ReportCell> entry(String user, String? date, int seconds) => [
+      ReportStringCell(value: user),
+      ReportDateCell(value: date == null ? null : Date.tryParse(date)),
+      ReportDurationCell(seconds: seconds),
+    ];
+
+    // One row per time-log entry, as TaskExport emits them — deliberately
+    // out of order so the bucket ordering is what's under test.
+    final preview = ReportPreview(
+      columns: const [userCol, startCol, durationCol],
+      rows: [
+        for (final cells in [
+          entry('Bob', '2026-08-03', 3600),
+          entry('Alice', '2026-09-01', 1800),
+          entry('Alice', '2026-08-10', 7200),
+          entry('Alice', '2026-08-25', 3600),
+          entry('Bob', null, 60),
+          entry('Bob', '2026-07-31', 900),
+        ])
+          ReportRow(cells: cells),
+      ],
+    );
+
+    ReportView run(ReportUiState ui) => engine.compute(
+      preview: preview,
+      ui: ui,
+      exchangeRates: const {},
+      companyCurrencyId: '1',
+    );
+
+    const byUserMonth = ReportUiState(
+      group: 'task.assigned_user_id',
+      periodColumn: 'task.start_date',
+      subgroup: ReportSubgroup.month,
+    );
+
+    test('buckets per user per month, user first, then chronological', () {
+      final view = run(byUserMonth);
+      expect(view.groups.map((g) => g.key), [
+        'Alice${sep}2026-08-01',
+        'Alice${sep}2026-09-01',
+        'Bob${sep}2026-07-01',
+        'Bob${sep}2026-08-01',
+        // A row with no date sorts after its user's dated periods.
+        'Bob$sep',
+      ]);
+    });
+
+    test('sums the duration of each user-month bucket', () {
+      final view = run(byUserMonth);
+      final aliceAug = view.groups.first;
+      expect(aliceAug.count, 2);
+      expect(aliceAug.numericTotals['task.duration'], {
+        '': Decimal.fromInt(10800),
+      });
+    });
+
+    test('drill-down on a composite key returns exactly its rows', () {
+      final view = run(
+        byUserMonth.copyWith(selectedGroup: () => 'Alice${sep}2026-08-01'),
+      );
+      expect(view.groups, isEmpty);
+      expect(view.rows, hasLength(2));
+      expect(
+        view.rows.map((r) => (r.cells[1] as ReportDateCell).value!.toIso()),
+        ['2026-08-10', '2026-08-25'],
+      );
+    });
+
+    test('a null subgroup splits by month', () {
+      final view = run(byUserMonth.copyWith(subgroup: () => null));
+      expect(view.groups.first.key, 'Alice${sep}2026-08-01');
+    });
+
+    test('a period column missing from the preview falls back to plain', () {
+      final view = run(
+        byUserMonth.copyWith(periodColumn: () => 'task.end_date'),
+      );
+      expect(view.groups.map((g) => g.key), ['Alice', 'Bob']);
+    });
+
+    test('a date group column ignores periodColumn', () {
+      final view = run(
+        const ReportUiState(
+          group: 'task.start_date',
+          periodColumn: 'task.start_date',
+          subgroup: ReportSubgroup.month,
+        ),
+      );
+      expect(view.groups.map((g) => g.key), everyElement(isNot(contains(sep))));
+    });
+
+    test('periodColumn participates in value equality', () {
+      expect(
+        byUserMonth,
+        isNot(byUserMonth.copyWith(periodColumn: () => null)),
+      );
+    });
+
+    test('splitReportGroupKey', () {
+      expect(splitReportGroupKey('Alice'), ('Alice', null));
+      expect(splitReportGroupKey('Alice${sep}2026-08-01'), (
+        'Alice',
+        '2026-08-01',
+      ));
+      expect(splitReportGroupKey('Alice$sep'), ('Alice', ''));
+    });
+  });
+
   group('ReportUiState value equality', () {
     test('identical-field instances compare equal and share hashCode', () {
       final a = ReportUiState(

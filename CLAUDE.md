@@ -587,6 +587,7 @@ The whole feature is **server-backed**: `runPreview` POSTs `<endpoint>?output=js
 - **A column the server omits can still be asked for, and that is how "new clients per month" works at all.** → `docs/reports.md` § Asking for a column the server omits
 - **A period with no rows has no bucket, so a chart plotting buckets by index closes the gap.** → `docs/reports.md` § A period with no rows has no bucket
 - **`GroupTotals.count` is a chart series, and bucket keys are identity.** → `docs/reports.md` § The count series, and bucket keys as identity
+- **A non-date grouping splits by period (user × month) through a composite `<group>␟<period>` key that only `_rowGroupKeyFn` derives, and it never reaches the server.** → `docs/reports.md` § A non-date grouping splits by period through a composite key
 
 ## Localization
 

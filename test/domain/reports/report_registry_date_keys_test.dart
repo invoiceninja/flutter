@@ -94,19 +94,26 @@ void main() {
       }
     });
 
-    test('only the clients report can ask for its date column', () {
-      // Every other report's date column is already in the server's default
-      // set, so there is nothing to offer; `client_report_keys` alone omits
-      // `created_at`.
-      final offered = [
+    test('the created_at reports without the column can ask for it', () {
+      // `client_report_keys`, `contact`, `vendor_report_keys` and
+      // `product_report_keys` all omit `created_at`; every other preview
+      // report's date column is already in its default set. Each of the four
+      // was probed live: the server falls through to the transformed model
+      // and returns epoch seconds under the header `"texts."`.
+      final offered = {
         for (final def in kReportDefinitions)
-          if (def.optionalDateColumnId != null) def.identifier,
-      ];
-      expect(offered, ['client']);
-      expect(
-        reportDefinitionFor('client').optionalDateColumnId,
-        'client.created_at',
-      );
+          if (def.optionalDateColumnId != null)
+            def.identifier: def.optionalDateColumnId,
+      };
+      expect(offered, {
+        'client': 'client.created_at',
+        'contact': 'contact.created_at',
+        'product': 'product.created_at',
+        'vendor': 'vendor.created_at',
+      });
+      for (final id in offered.keys) {
+        expect(reportDefinitionFor(id).dateRangeKey, 'created_at');
+      }
     });
   });
 }

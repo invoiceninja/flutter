@@ -162,4 +162,43 @@ void main() {
       );
     });
   });
+
+  group('composite (period split) keys', () {
+    const sep = kReportGroupKeySeparator;
+
+    String label(String key, {ReportSubgroup? subgroup}) =>
+        reportGroupDisplayLabel(
+          key: key,
+          // The group column is a string; the period drives the date label.
+          columnType: ReportColumnType.string,
+          subgroup: subgroup,
+          formatter: _formatter(),
+        );
+
+    test('renders "<group> · <period>" at the subgroup granularity', () {
+      expect(
+        label('Alice${sep}2026-08-01', subgroup: ReportSubgroup.month),
+        'Alice · August 2026',
+      );
+      expect(
+        label('Alice${sep}2026-07-01', subgroup: ReportSubgroup.quarter),
+        'Alice · Q3 2026',
+      );
+    });
+
+    test('a null subgroup labels the period as a month', () {
+      expect(label('Alice${sep}2026-08-01'), 'Alice · August 2026');
+    });
+
+    test('a row with no date renders as the group alone', () {
+      expect(label('Alice$sep'), 'Alice');
+    });
+
+    test('an empty group renders as the period alone', () {
+      expect(
+        label('${sep}2026-08-01', subgroup: ReportSubgroup.month),
+        'August 2026',
+      );
+    });
+  });
 }

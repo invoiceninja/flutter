@@ -94,6 +94,9 @@ Future<ReportsViewModel> _panelVm(
   return vm;
 }
 
+/// `reportKeys` of the most recent preview request.
+List<String> _lastPreviewKeys = const [];
+
 /// Returns the supplied preview on Run; everything else is unreachable from
 /// the settings panel.
 class _SeededRepo implements ReportsRepository {
@@ -109,7 +112,10 @@ class _SeededRepo implements ReportsRepository {
     int maxRetries = ReportsApi.defaultPreviewRetries,
     Duration pollInterval = ReportsApi.defaultPollInterval,
     ReportPollingCancellation? isCancelled,
-  }) async => _preview;
+  }) async {
+    _lastPreviewKeys = reportKeys;
+    return _preview;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -140,8 +146,8 @@ void main() {
       // group id that isn't among its items (no preview → no columns).
       final vm = ReportsViewModel(repo: _FakeReportsRepo(), statics: statics);
       vm.setReport('contact'); // minimal filter fields, no entity streams
-      vm.setGroup('contact.created_at');
-      expect(vm.group, 'contact.created_at');
+      vm.setGroup('contact.first_name');
+      expect(vm.group, 'contact.first_name');
       expect(vm.run.preview, isNull);
 
       await tester.pumpWidget(
@@ -216,5 +222,115 @@ void main() {
       find.byType(DropdownButtonFormField<ReportSubgroup>),
       findsOneWidget,
     );
+  });
+
+  // "Hours per user per month": a non-date grouping split by a date column.
+  testWidgets('a non-date grouping offers a period split by date column', (
+    tester,
+  ) async {
+    // Documents: simple filters, and `created_at` (the range's column) is
+    // already in the default set, so nothing optional is offered.
+    final vm = await _panelVm(
+      tester,
+      'document',
+      preview: const ReportPreview(
+        columns: [
+          ReportColumn(
+            identifier: 'document.name',
+            displayLabel: 'Name',
+            type: ReportColumnType.string,
+          ),
+          ReportColumn(
+            identifier: 'document.updated_at',
+            displayLabel: 'Updated At',
+            type: ReportColumnType.dateTime,
+          ),
+          ReportColumn(
+            identifier: 'document.created_at',
+            displayLabel: 'Created At',
+            type: ReportColumnType.dateTime,
+          ),
+        ],
+        rows: [],
+      ),
+    );
+    vm.setGroup('document.name');
+    await tester.pump();
+
+    expect(find.text('Subgroup'), findsOneWidget);
+    // Resting on None, so no granularity yet.
+    expect(find.text('None'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<ReportSubgroup>), findsNothing);
+
+    // The column the date range filters on is offered first.
+    await tester.tap(find.text('None'));
+    await tester.pumpAndSettle();
+    final createdY = tester.getTopLeft(find.text('Created At').last).dy;
+    final updatedY = tester.getTopLeft(find.text('Updated At').last).dy;
+    expect(createdY, lessThan(updatedY));
+
+    await tester.tap(find.text('Created At').last);
+    await tester.pumpAndSettle();
+    expect(vm.periodColumn, 'document.created_at');
+    expect(vm.subgroup, ReportSubgroup.month);
+    expect(
+      find.byType(DropdownButtonFormField<ReportSubgroup>),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('no period split when there is no date column to split by', (
+    tester,
+  ) async {
+    final vm = await _panelVm(
+      tester,
+      'document',
+      preview: const ReportPreview(
+        columns: [
+          ReportColumn(
+            identifier: 'document.name',
+            displayLabel: 'Name',
+            type: ReportColumnType.string,
+          ),
+        ],
+        rows: [],
+      ),
+    );
+    vm.setGroup('document.name');
+    await tester.pump();
+    expect(find.text('Subgroup'), findsNothing);
+  });
+
+  // Vendors have no date column by default, but can ask for created_at.
+  testWidgets('the optional date column is offered as a period', (
+    tester,
+  ) async {
+    final vm = await _panelVm(
+      tester,
+      'vendor',
+      preview: const ReportPreview(
+        columns: [
+          ReportColumn(
+            identifier: 'vendor.name',
+            displayLabel: 'Vendor Name',
+            type: ReportColumnType.string,
+          ),
+        ],
+        rows: [],
+      ),
+    );
+    vm.setGroup('vendor.name');
+    await tester.pump();
+    expect(find.text('Subgroup'), findsOneWidget);
+
+    await tester.tap(find.text('None'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Date Created').last);
+    await tester.pumpAndSettle();
+    // Picking it opts in and re-runs asking for the column. (This fake
+    // answers every run with the same column-less preview, so the split
+    // itself is then reconciled away — a real server returns the column.)
+    expect(vm.includeDateColumn, isTrue);
+    expect(_lastPreviewKeys, contains('vendor.created_at'));
   });
 }

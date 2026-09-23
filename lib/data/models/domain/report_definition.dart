@@ -99,11 +99,13 @@ class ReportDefinition {
 
   /// A column to append to `report_keys` when the user asks for it, for a
   /// report whose [dateRangeKey] names a column the server's *default*
-  /// column set omits. Only `client` has one today: the range filters on
-  /// `clients.created_at`, but `BaseExport::$client_report_keys` carries no
-  /// `created_at`, so there is nothing to group or chart by until we ask
-  /// for it explicitly. Verified live — the server returns the column, with
-  /// an epoch-seconds value (already handled by `_parseTyped`) and an
+  /// column set omits. `client`, `contact`, `vendor` and `product` have one:
+  /// each range filters on `created_at`, but none of their report-key maps
+  /// carries it, so there is nothing to group, split or chart by until we
+  /// ask for it explicitly. Verified live for all four — the server returns
+  /// the column (products' keys are unprefixed server-side, yet
+  /// `product.created_at` still resolves through `Decorator::product()`),
+  /// with an epoch-seconds value (already handled by `_parseTyped`) and an
   /// unresolved `"texts."` header (replaced locally).
   final String? optionalDateColumnId;
 

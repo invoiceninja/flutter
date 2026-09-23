@@ -1086,6 +1086,166 @@ void main() {
       expect(vm.selectedGroup, isNull);
     });
 
+    // ─── Period split (a non-date grouping × a date column) ───
+
+    test('setPeriodColumn defaults to month and clears the drill', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.country', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.country');
+      vm.setSelectedGroup('Canada');
+
+      vm.setPeriodColumn('client.created_at');
+      expect(vm.periodColumn, 'client.created_at');
+      expect(vm.subgroup, ReportSubgroup.month);
+      expect(vm.selectedGroup, isNull);
+
+      vm.setPeriodColumn(null);
+      expect(vm.periodColumn, isNull);
+    });
+
+    test('regrouping keeps the period across non-date columns only', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.name', 'client.country', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.country');
+      vm.setPeriodColumn('client.created_at');
+
+      vm.setGroup('client.name');
+      expect(vm.periodColumn, 'client.created_at');
+
+      // A date grouping has no use for a period.
+      vm.setGroup('client.created_at', subgroup: ReportSubgroup.month);
+      expect(vm.periodColumn, isNull);
+
+      vm.setGroup('client.name');
+      vm.setPeriodColumn('client.created_at');
+      vm.setGroup(null);
+      expect(vm.periodColumn, isNull);
+    });
+
+    test(
+      'the period is local-only: group_by stays the primary column',
+      () async {
+        final repo = _FakeRepo();
+        repo.queue(
+          _Trigger()..release(),
+          clientPreview(['client.country', 'client.created_at']),
+        );
+        final vm = ReportsViewModel(repo: repo, statics: statics);
+        vm.setIncludeDateColumn(true);
+        await vm.runReport();
+        vm.setGroup('client.country');
+        vm.setPeriodColumn('client.created_at');
+        expect(vm.serverGroupBy, 'client.country');
+        expect(vm.serverReportKeys(), isNot(contains('client.created_at')));
+      },
+    );
+
+    // `_GroupByField`'s offerable branch groups by the optional column before
+    // the run that fetches it, so the preview can't say it's a date yet.
+    test(
+      'grouping by the unfetched optional column clears the period',
+      () async {
+        final repo = _FakeRepo();
+        repo.queue(
+          _Trigger()..release(),
+          clientPreview(['client.country', 'client.updated_at']),
+        );
+        final vm = ReportsViewModel(repo: repo, statics: statics);
+        await vm.runReport();
+        vm.setGroup('client.country');
+        vm.setPeriodColumn('client.updated_at');
+
+        vm.setGroup('client.created_at', subgroup: ReportSubgroup.month);
+        expect(vm.periodColumn, isNull);
+      },
+    );
+
+    test('turning the opt-in off clears a period split on it', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.country', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.country');
+      vm.setPeriodColumn('client.created_at');
+
+      vm.setIncludeDateColumn(false);
+      expect(vm.periodColumn, isNull);
+      // The grouping itself doesn't depend on the column and survives.
+      expect(vm.group, 'client.country');
+    });
+
+    test('a run that drops the period column clears it', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.country', 'client.created_at']),
+      );
+      repo.queue(_Trigger()..release(), clientPreview(['client.country']));
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.country');
+      vm.setPeriodColumn('client.created_at');
+
+      await vm.runReport();
+      expect(vm.periodColumn, isNull);
+      expect(vm.group, 'client.country');
+    });
+
+    test('the period column round-trips across restart', () async {
+      final preview = clientPreview(['client.country', 'client.created_at']);
+      final repo1 = _FakeRepo();
+      repo1.queue(_Trigger()..release(), preview);
+      final vm1 = ReportsViewModel(
+        repo: repo1,
+        statics: statics,
+        navStateDao: db.navStateDao,
+        companyId: 'co1',
+        persistDebounce: Duration.zero,
+      );
+      await vm1.hydration;
+      vm1.setIncludeDateColumn(true);
+      await vm1.runReport();
+      vm1.setGroup('client.country');
+      vm1.setPeriodColumn('client.created_at');
+      vm1.setSubgroup(ReportSubgroup.quarter);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final repo2 = _FakeRepo();
+      repo2.queue(_Trigger()..release(), preview);
+      final vm2 = ReportsViewModel(
+        repo: repo2,
+        statics: statics,
+        navStateDao: db.navStateDao,
+        companyId: 'co1',
+      );
+      await vm2.hydration;
+      expect(vm2.group, 'client.country');
+      expect(vm2.periodColumn, 'client.created_at');
+      expect(vm2.subgroup, ReportSubgroup.quarter);
+
+      // The cold run is augmented, so the restored split survives it.
+      await vm2.runReport();
+      expect(repo2.previewReportKeys.single, contains('client.created_at'));
+      expect(vm2.periodColumn, 'client.created_at');
+    });
+
     test('switching reports resets the opt-in', () async {
       final repo = _FakeRepo();
       repo.queue(_Trigger()..release(), clientPreview(['client.name']));

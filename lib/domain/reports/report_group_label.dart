@@ -30,16 +30,32 @@ import 'package:admin/utils/formatting.dart';
 /// Day and week resolve through [Formatter.date] instead, so they honour
 /// the company's `date_format_id` like every other date on the screen; a
 /// week bucket is labelled by the date it starts on.
+///
+/// A composite key (a non-date grouping split by period, see
+/// [kReportGroupKeySeparator]) renders as `<group> · <period>`, the period
+/// labelled exactly as a date grouping at [subgroup] would be; a row with no
+/// date in the period column renders as the group part alone.
 String reportGroupDisplayLabel({
   required String key,
   required ReportColumnType? columnType,
   required ReportSubgroup? subgroup,
   required Formatter? formatter,
 }) {
-  if (columnType != ReportColumnType.date &&
-      columnType != ReportColumnType.dateTime) {
-    return key;
+  final (groupPart, periodPart) = splitReportGroupKey(key);
+  if (periodPart != null) {
+    if (periodPart.isEmpty) return groupPart;
+    final period = _dateLabel(
+      periodPart,
+      subgroup ?? ReportSubgroup.month,
+      formatter,
+    );
+    return groupPart.isEmpty ? period : '$groupPart · $period';
   }
+  if (!isReportDateType(columnType)) return key;
+  return _dateLabel(key, subgroup, formatter);
+}
+
+String _dateLabel(String key, ReportSubgroup? subgroup, Formatter? formatter) {
   final date = Date.tryParse(key);
   // An unparsable key is the engine's own '' bucket for a null cell, or a
   // display string that only looked like a date — show it as-is.

@@ -165,3 +165,8 @@ bool isAggregatable(ReportColumnType type) =>
     type == ReportColumnType.money ||
     type == ReportColumnType.number ||
     type == ReportColumnType.duration;
+
+/// Whether [type] is bucketed by a `ReportSubgroup` when grouped — i.e. a
+/// column that can be a date grouping or a period split.
+bool isReportDateType(ReportColumnType? type) =>
+    type == ReportColumnType.date || type == ReportColumnType.dateTime;

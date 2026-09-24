@@ -10,6 +10,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:admin/data/models/api/user_api_model.dart';
 import 'package:admin/data/repositories/auth/auth_helpers.dart';
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/data/repositories/auth/auth_session.dart';
 import 'package:admin/data/repositories/company_repository.dart'
     show kCompanyWireName;
@@ -21,6 +22,9 @@ import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/domain/sync/refresh_sync_constants.dart';
+
+export 'package:admin/data/repositories/local_data_disposer.dart'
+    show DisposalReason, LocalDataPolicy;
 
 export 'package:admin/data/repositories/auth/auth_session.dart'
     show AuthSession, AuthCompany, CanAddCompanyResult, kMaxCompaniesPerAccount;
@@ -76,14 +80,21 @@ class AuthRepository {
     required AuthService authService,
     required TokenStorage tokenStorage,
     required PasswordCache passwordCache,
+    LocalDataDisposer? disposer,
     DateTime Function()? now,
   }) : _db = db,
        _auth = authService,
        _secure = tokenStorage,
        _passwordCache = passwordCache,
+       _disposer = disposer ?? LocalDataDisposer(db),
        _now = now ?? DateTime.now;
 
   final AppDatabase _db;
+  final LocalDataDisposer _disposer;
+
+  /// The one owner of destroying local data — for a wipe that is not a
+  /// logout (the Danger Zone's purged or deleted company).
+  LocalDataDisposer get localData => _disposer;
   final AuthService _auth;
   final TokenStorage _secure;
   final PasswordCache _passwordCache;
@@ -106,7 +117,7 @@ class AuthRepository {
   /// boot). Invoked synchronously in [logout]'s in-memory clear block so a
   /// second user on the same install never inherits the previous user's state
   /// (e.g. the calendar connection's connected email — a cross-user leak).
-  /// Runs on both the full and `preserveLocalData` paths. Failures are
+  /// Runs whatever the [LocalDataPolicy]. Failures are
   /// swallowed; logout must complete regardless.
   void Function()? onSessionReset;
 
@@ -116,7 +127,7 @@ class AuthRepository {
   /// Invoked immediately before
   /// the database is wiped — by [logout], and by the different-identity wipe
   /// at sign-in — and **only on those destructive paths**: deliberately not
-  /// on the `preserveLocalData` idle-timeout re-lock, where the session is
+  /// on the [LocalDataPolicy.keep] idle-timeout re-lock, where the session is
   /// coming back.
   ///
   /// Distinct from [onBeforeLogout], which fires for both paths and so can't
@@ -292,7 +303,7 @@ class AuthRepository {
   /// DIFFERENT user or account than the one whose data is still on disk.
   ///
   /// An involuntary logout — a 401, or an idle timeout with unsynced work —
-  /// takes `logout(preserveLocalData: true)`, which deliberately returns before
+  /// takes `logout(data: LocalDataPolicy.keep)`, which deliberately returns before
   /// `_db.wipe()` so the same user's queued outbox rows survive to drain on the
   /// next sign-in. Nothing on the login path used to reconsider that:
   /// `_persistAndActivate`'s only destructive step is `pruneExcept`, which
@@ -391,7 +402,7 @@ class AuthRepository {
         _log.warning('onBeforeDataWipe failed', e, st);
       }
     }
-    await _db.wipe();
+    await _disposer.wipeAll(DisposalReason.identityChanged);
     // The per-company token map lives in secure storage, not Drift, so
     // `_db.wipe()` does not touch it and the incoming user would otherwise
     // activate over the outgoing user's tokens.
@@ -914,7 +925,8 @@ class AuthRepository {
   /// token window.
   Future<void> endAllSessions() async {
     await _requireApi.postJson('/api/v1/logout', body: const {});
-    await logout();
+    // Its only caller (Security Settings) has asked about unsynced work first.
+    await logout(data: LocalDataPolicy.destroy);
   }
 
   /// Self-hosted only: redeem a white-label / license key against
@@ -1034,29 +1046,30 @@ class AuthRepository {
     );
   }
 
-  /// Called by [ApiClient] when a 401 lands. Wipes everything and flips
-  /// [credentials] back to null so the redirect to `/login` fires.
+  /// End the session: clear the in-memory session and flip [credentials]
+  /// back to null so the redirect to `/login` fires, doing with this device's
+  /// data what [data] says — no default, so every caller decides.
   ///
-  /// [preserveLocalData] keeps the on-disk tokens + encrypted Drift database
-  /// intact while still clearing the in-memory session (so the router still
-  /// redirects to `/login`). Used by the idle session-timeout when the outbox
-  /// still holds unsynced rows: wiping would silently destroy the user's
-  /// offline edits, so instead the data survives to drain on the next login or
-  /// cold-start [restore]. Default `false` = full destructive logout.
+  /// [LocalDataPolicy.keep] keeps the on-disk tokens + encrypted Drift
+  /// database: a 401, or the idle timeout while the outbox still holds
+  /// unsynced rows — wiping would silently destroy the user's offline edits,
+  /// so they survive to drain on the next login or cold-start [restore].
+  /// [LocalDataPolicy.destroy] is the full logout, only after the user saw
+  /// what it destroys (or with nothing unsynced); the wipe goes through
+  /// [LocalDataDisposer].
   ///
-  /// [setReLockGate] controls whether the preserve path also writes
+  /// [LocalDataPolicy.keepUnlocked] is [LocalDataPolicy.keep] without writing
   /// `kAuthSessionLockedKey`, the flag that makes the NEXT [restore] demand
-  /// re-auth instead of silently re-entering. Right for every caller that ends
-  /// a live session (the idle timeout, a 401, the too-old screen) and wrong for
-  /// [restore]'s own stale-token bounce: there is no session to re-lock, the
-  /// flag's documented meaning is "the idle timeout locked this", and — because
-  /// [restore] tests it BEFORE reading the token map — setting it there means a
-  /// later cold start returns early and the usable-token fallback can never run
-  /// again. Ignored on the destructive path, which deletes the flag outright.
-  Future<void> logout({
-    bool preserveLocalData = false,
-    bool setReLockGate = true,
-  }) async {
+  /// re-auth instead of silently re-entering. The gate is right for every
+  /// caller that ends a live session (the idle timeout, a 401, the too-old
+  /// screen) and wrong for [restore]'s own stale-token bounce: there is no
+  /// session to re-lock, the flag's documented meaning is "the idle timeout
+  /// locked this", and — because [restore] tests it BEFORE reading the token
+  /// map — setting it there means a later cold start returns early and the
+  /// usable-token fallback can never run again. The destructive path deletes
+  /// the flag outright.
+  Future<void> logout({required LocalDataPolicy data}) async {
+    final preserveLocalData = data != LocalDataPolicy.destroy;
     // Ending a session is the most destructive thing this app does, and until
     // now it left NO trace: an involuntary logout (ApiClient's 401 handler)
     // surfaced only as the downstream `UnauthorizedException: Not
@@ -1065,7 +1078,7 @@ class AuthRepository {
     // on-disk diagnostics log (`main.dart`). The stack is the payload: it is
     // what distinguishes a 401 from the idle timeout from a user tap.
     _log.warning(
-      'logout(preserveLocalData: $preserveLocalData) '
+      'logout(data: ${data.name}) '
       'company=${_session.value?.currentCompanyId} '
       'companies=${_session.value?.companies.length ?? 0}\n'
       '${StackTrace.current}',
@@ -1117,7 +1130,9 @@ class AuthRepository {
       // — otherwise keeping the tokens would defeat the session-timeout's
       // security purpose on a shared/unattended device (esp. web, where
       // biometric is never available). Cleared on successful re-entry.
-      if (setReLockGate) await _secure.write(kAuthSessionLockedKey, 'true');
+      if (data == LocalDataPolicy.keep) {
+        await _secure.write(kAuthSessionLockedKey, 'true');
+      }
       return;
     }
     await _secure.delete(kAuthTokensKey);
@@ -1146,7 +1161,7 @@ class AuthRepository {
         _log.warning('onBeforeDataWipe failed', e, st);
       }
     }
-    await _db.wipe();
+    await _disposer.wipeAll(DisposalReason.sessionEnded);
   }
 
   /// Persist the user's biometric preference and reflect it in the active
@@ -1257,7 +1272,11 @@ class AuthRepository {
       // still gets `_wipeIfIdentityChanged`). No re-lock gate: nothing was
       // unlocked, the user simply lands on sign-in.
       final keepLocalData = await _outboxHasRows();
-      await logout(preserveLocalData: keepLocalData, setReLockGate: false);
+      await logout(
+        data: keepLocalData
+            ? LocalDataPolicy.keepUnlocked
+            : LocalDataPolicy.destroy,
+      );
       return;
     }
     _tokensByCompany = tokensMap;
@@ -1445,7 +1464,7 @@ class AuthRepository {
           'restore(): no usable token in the map for '
           '${session.currentCompanyId}; forcing logout (local data preserved)',
         );
-        await logout(preserveLocalData: true, setReLockGate: false);
+        await logout(data: LocalDataPolicy.keepUnlocked);
         return;
       }
       _log.warning(

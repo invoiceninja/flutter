@@ -116,7 +116,9 @@ class IdleTimeoutController with WidgetsBindingObserver {
   /// pending, or everything drained) does the normal full logout.
   Future<void> _expire() async {
     final preserve = await shouldPreserveOnTimeout();
-    await auth.logout(preserveLocalData: preserve);
+    await auth.logout(
+      data: preserve ? LocalDataPolicy.keep : LocalDataPolicy.destroy,
+    );
   }
 
   /// Decide whether an idle timeout should PRESERVE local data (re-lock, keeping

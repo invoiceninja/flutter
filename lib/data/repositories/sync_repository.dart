@@ -33,6 +33,10 @@ const int kMaxAttempts = 5;
 /// reconnect / resume / enqueue triggers usually beat it anyway).
 const Duration kOfflineRetryDelay = Duration(seconds: 60);
 
+/// How old a failed change is before the Outbox offers to discard it in bulk
+/// ([SyncRepository.pruneDeadRows]).
+const Duration kOldFailureAge = Duration(days: 90);
+
 /// Server answers after which a write may or may not have been applied: the
 /// app threw part-way through (500), or a proxy gave up waiting on an app
 /// server that may have finished (502, 504, and Cloudflare's 520 / 524). A
@@ -241,7 +245,7 @@ class SyncRepository {
 
   /// True when ANY company still holds unsynced outbox rows — the predicate
   /// every involuntary session-end must consult before choosing a destructive
-  /// logout. `AuthRepository.logout()`'s default (`preserveLocalData: false`)
+  /// logout. `AuthRepository.logout(data: LocalDataPolicy.destroy)`
   /// wipes the whole Drift database, outbox included, so ending a session
   /// without this check silently destroys the user's offline edits (CLAUDE.md:
   /// "never silently drops user data").
@@ -267,6 +271,22 @@ class SyncRepository {
   /// can't send. Surfaced by the sign-out prompt, whose pending count
   /// deliberately leaves them out.
   Future<int> attentionCountEverywhere() => db.outboxDao.attentionCountAll();
+
+  /// Drop the failed save [id] once a newer save of the same record has gone
+  /// through: its payload is stale. Only a `dead` create / update is
+  /// superseded by a save — anything else on the record (a rejected email,
+  /// a payment) is separate work the save did not replace, and stays.
+  /// Returns whether a row was dropped.
+  Future<bool> supersedeDeadSave(int id) async {
+    final row = await db.outboxDao.byId(id);
+    if (row == null || row.state != 'dead') return false;
+    final kind = MutationKind.tryParse(row.mutationKind);
+    if (kind != MutationKind.create && kind != MutationKind.update) {
+      return false;
+    }
+    await db.outboxDao.deleteRow(id);
+    return true;
+  }
 
   /// Fetch what `unconfirmed` [row] may have changed, so the user can see
   /// whether it went through before choosing Send again or Discard: for a
@@ -535,21 +555,12 @@ class SyncRepository {
     }
   }
 
-  /// Discard every `pending` outbox row for [companyId] — the "Discard"
-  /// branch of the confirm-before-switch / logout dialog and the 409
-  /// "discard mine" path. Each row routes through [discardOutboxRow] so a
-  /// never-synced offline `create` also removes its orphaned local record;
-  /// non-ghost rows behave exactly as the old blanket delete (dead /
-  /// in_flight rows are untouched, matching `deletePendingForCompany`).
-  ///
-  /// Deliberate asymmetry with [pendingCountFor] (which also counts
-  /// `in_flight`): an in-flight row's HTTP attempt is already on the wire and
-  /// can't be unsent, and deleting its row would race the response applier —
-  /// so the guard COUNTS it (never silently proceed past unsynced work) while
-  /// Discard leaves it to settle (success = synced anyway; failure re-parks
-  /// it pending, where the guard's re-check still catches it).
-  /// Delete dead outbox rows older than [ttl], releasing each one's optimistic
-  /// `is_dirty` flag on the way out. Called once per launch from `main`.
+  /// Delete [companyId]'s dead outbox rows older than [ttl] — every
+  /// company's when null — releasing each one's optimistic `is_dirty` flag on
+  /// the way out. The Outbox screen's "Discard them" on its old-failures
+  /// notice; it used to run unattended at every launch, deleting failed
+  /// changes nobody had decided to give up (CLAUDE.md § Sync: unsynced work is
+  /// destroyed only with the user's confirmation).
   ///
   /// The delete alone used to live in `OutboxDao`, which cannot reach the
   /// registry — so it ran as a bare `DELETE` with no reconciliation, and that
@@ -563,15 +574,23 @@ class SyncRepository {
   /// from.
   ///
   /// The local record is deliberately LEFT IN PLACE, including a never-synced
-  /// `tmp_` create's phantom. Ghost-discarding one is what `discardOutboxRow`
-  /// does, but that runs on an explicit user gesture; this runs unattended at
-  /// boot, and destroying a record nobody asked to destroy is not a trade to
-  /// make there.
-  Future<int> pruneDeadRows({Duration ttl = const Duration(days: 90)}) async {
+  /// `tmp_` create's phantom: the user chose to drop old failed CHANGES, not
+  /// the records they were made to — `discardOutboxRow` is the gesture that
+  /// ghost-deletes one.
+  Future<int> pruneDeadRows({
+    String? companyId,
+    Duration ttl = kOldFailureAge,
+  }) async {
     final cutoff = _now().subtract(ttl).millisecondsSinceEpoch;
-    final doomed = await db.outboxDao.deadRowsOlderThan(olderThanMs: cutoff);
+    final doomed = await db.outboxDao.deadRowsOlderThan(
+      olderThanMs: cutoff,
+      companyId: companyId,
+    );
     if (doomed.isEmpty) return 0;
-    final removed = await db.outboxDao.pruneDead(olderThanMs: cutoff);
+    final removed = await db.outboxDao.pruneDead(
+      olderThanMs: cutoff,
+      companyId: companyId,
+    );
     // Delete first, reconcile second: `_reconcileDiscardedDirty` probes for a
     // surviving edit row for the same entity, and its doc requires the row
     // being abandoned to be gone already so it cannot match itself.
@@ -590,6 +609,19 @@ class SyncRepository {
     return removed;
   }
 
+  /// Discard every `pending` outbox row for [companyId] — the "Discard"
+  /// branch of the confirm-before-switch / logout dialog and the 409
+  /// "discard mine" path. Each row routes through [discardOutboxRow] so a
+  /// never-synced offline `create` also removes its orphaned local record;
+  /// non-ghost rows behave exactly as the old blanket delete (dead /
+  /// in_flight rows are untouched, matching `deletePendingForCompany`).
+  ///
+  /// Deliberate asymmetry with [pendingCountFor] (which also counts
+  /// `in_flight`): an in-flight row's HTTP attempt is already on the wire and
+  /// can't be unsent, and deleting its row would race the response applier —
+  /// so the guard COUNTS it (never silently proceed past unsynced work) while
+  /// Discard leaves it to settle (success = synced anyway; failure re-parks
+  /// it pending, where the guard's re-check still catches it).
   Future<void> discardPendingFor(String companyId) async {
     final rows = await db.outboxDao.pendingRowsForCompany(companyId);
     for (final row in rows) {

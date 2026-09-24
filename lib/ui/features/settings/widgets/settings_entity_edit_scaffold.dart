@@ -216,7 +216,7 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId == null) return;
-    final row = await services.db.outboxDao.findDeadForEntity(
+    final row = await services.db.outboxDao.findDeadSaveForEntity(
       companyId: companyId,
       entityType: widget.wireName,
       entityId: existingId,
@@ -276,7 +276,7 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     // `save_failed_banner.dart` documents ("the screen's discard handler does
     // the fallback dao lookup") and `EntityEditScreenScaffold` shares.
     //
-    // `findDiscardableForEntity`, NOT `findDeadForEntity`: the banner renders
+    // `findDiscardableForEntity`, NOT `findDeadSaveForEntity`: the banner renders
     // off `submitError`, and only a 422 kills the row. A 5xx or a lost
     // connection leaves it `pending` with backoff, so the dead-only query
     // finds nothing and the tap degenerates into `clearFailedSync()` alone —

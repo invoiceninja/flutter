@@ -1061,7 +1061,7 @@ void main() {
     ApiClient wired(MockClient http) => ApiClient(
       credentials: repo.credentials,
       passwordCache: PasswordCache(),
-      onUnauthorized: () async => repo.logout(preserveLocalData: true),
+      onUnauthorized: () async => repo.logout(data: LocalDataPolicy.keep),
       onUnauthorizedCandidate: repo.handleUnauthorized,
       onAuthenticatedResponse: repo.markCredentialProven,
       httpClient: http,
@@ -1374,7 +1374,7 @@ void main() {
       passwordCache.set('user-password');
       expect(passwordCache.read(), 'user-password');
 
-      await repo.logout();
+      await repo.logout(data: LocalDataPolicy.destroy);
 
       expect(repo.session.value, isNull);
       expect(repo.credentials.value, isNull);
@@ -1389,7 +1389,7 @@ void main() {
     });
 
     test(
-      'preserveLocalData keeps Drift + tokens (idle re-lock) but still clears '
+      'a LocalDataPolicy.keep logout keeps Drift + tokens (idle re-lock) but still clears '
       'the in-memory session',
       () async {
         authService.queueLogin(_envelope());
@@ -1402,7 +1402,7 @@ void main() {
         expect(await db.companiesDao.all(), isNotEmpty);
         expect(await storage.read('invoiceninja.tokens.v1'), isNotNull);
 
-        await repo.logout(preserveLocalData: true);
+        await repo.logout(data: LocalDataPolicy.keep);
 
         // In-memory session cleared → the router redirects to /login.
         expect(repo.session.value, isNull);
@@ -1413,12 +1413,12 @@ void main() {
         expect(
           await db.companiesDao.all(),
           isNotEmpty,
-          reason: 'preserveLocalData must not wipe Drift',
+          reason: 'LocalDataPolicy.keep must not wipe Drift',
         );
         expect(
           await storage.read('invoiceninja.tokens.v1'),
           isNotNull,
-          reason: 'preserveLocalData must keep the tokens for restore',
+          reason: 'LocalDataPolicy.keep must keep the tokens for restore',
         );
         expect(
           await storage.read('invoiceninja.session_locked.v1'),
@@ -1431,7 +1431,7 @@ void main() {
     );
 
     test(
-      'restore after a preserveLocalData logout (biometric off) requires '
+      'restore after a LocalDataPolicy.keep logout (biometric off) requires '
       're-auth: session stays inactive (→ /login), DB + tokens survive',
       () async {
         authService.queueLogin(_envelope());
@@ -1441,7 +1441,7 @@ void main() {
           email: 'a',
           password: 'b',
         );
-        await repo.logout(preserveLocalData: true);
+        await repo.logout(data: LocalDataPolicy.keep);
 
         // Cold start: fresh repo sharing the same storage + DB.
         final repo2 = AuthRepository(
@@ -1464,7 +1464,7 @@ void main() {
     );
 
     test(
-      'restore after a preserveLocalData logout (biometric on) gates via the '
+      'restore after a LocalDataPolicy.keep logout (biometric on) gates via the '
       'biometric lock screen',
       () async {
         authService.queueLogin(_envelope());
@@ -1475,7 +1475,7 @@ void main() {
           password: 'b',
         );
         await repo.setBiometricEnabled(true);
-        await repo.logout(preserveLocalData: true);
+        await repo.logout(data: LocalDataPolicy.keep);
 
         final repo2 = AuthRepository(
           db: db,
@@ -1492,7 +1492,7 @@ void main() {
     );
 
     test(
-      'a fresh login after a preserveLocalData logout clears the re-lock flag',
+      'a fresh login after a LocalDataPolicy.keep logout clears the re-lock flag',
       () async {
         authService.queueLogin(_envelope());
         await repo.login(
@@ -1501,7 +1501,7 @@ void main() {
           email: 'a',
           password: 'b',
         );
-        await repo.logout(preserveLocalData: true);
+        await repo.logout(data: LocalDataPolicy.keep);
         expect(await storage.read('invoiceninja.session_locked.v1'), 'true');
 
         authService.queueLogin(_envelope());
@@ -1535,7 +1535,7 @@ void main() {
         // Live session → the convenience accessor returns the active id.
         expect(repo.currentCompanyId, 'co_a');
 
-        await repo.logout();
+        await repo.logout(data: LocalDataPolicy.destroy);
 
         // After logout `session` is null; the accessor degrades to null instead
         // of throwing. Re-entrant `build` / `didChangeDependencies` paths that
@@ -1566,7 +1566,7 @@ void main() {
           await gate.future;
         };
 
-        final logoutFuture = repo.logout();
+        final logoutFuture = repo.logout(data: LocalDataPolicy.destroy);
         await Future<void>.delayed(Duration.zero);
         expect(hookCalled, isTrue);
         expect(await db.companiesDao.all(), isNotEmpty, reason: 'wipe waits');
@@ -1586,14 +1586,14 @@ void main() {
       );
       repo.onBeforeLogout = () async => throw StateError('hook blew up');
 
-      await repo.logout(); // must not rethrow
+      await repo.logout(data: LocalDataPolicy.destroy); // must not rethrow
 
       expect(repo.session.value, isNull);
       expect(await db.companiesDao.all(), isEmpty);
     });
 
     test(
-      'onSessionReset fires even on the preserveLocalData re-lock path '
+      'onSessionReset fires even on the LocalDataPolicy.keep re-lock path '
       '(per-session state must reset for the next user without an app restart)',
       () async {
         authService.queueLogin(_envelope());
@@ -1608,10 +1608,10 @@ void main() {
 
         // Idle-timeout re-lock keeps the DB/tokens but must still clear
         // in-memory per-session repo state (e.g. the calendar connection) —
-        // the hook is invoked BEFORE the preserveLocalData early return. A
+        // the hook is invoked BEFORE the LocalDataPolicy.keep early return. A
         // refactor that moved it after would silently re-introduce the
         // cross-user leak on re-lock; this pins it.
-        await repo.logout(preserveLocalData: true);
+        await repo.logout(data: LocalDataPolicy.keep);
         expect(resets, 1);
       },
     );
@@ -1631,7 +1631,7 @@ void main() {
         throw StateError('reset blew up');
       };
 
-      await repo.logout(); // must not rethrow
+      await repo.logout(data: LocalDataPolicy.destroy); // must not rethrow
 
       expect(called, isTrue, reason: 'hook is invoked on a full logout');
       expect(repo.session.value, isNull, reason: 'logout still completes');
@@ -1682,7 +1682,7 @@ void main() {
         final refreshFuture = repo.refresh();
         await refreshEntered.future.timeout(const Duration(seconds: 2));
 
-        await repo.logout();
+        await repo.logout(data: LocalDataPolicy.destroy);
         expect(repo.isAuthenticated, isFalse);
         expect(repo.session.value, isNull);
         expect(repo.credentials.value, isNull);
@@ -1746,7 +1746,7 @@ void main() {
         final refreshFuture = repo.refresh(fullSync: true);
         await persistEntered.future.timeout(const Duration(seconds: 2));
 
-        await repo.logout();
+        await repo.logout(data: LocalDataPolicy.destroy);
 
         releasePersist.complete();
         await refreshFuture;
@@ -1824,7 +1824,9 @@ void main() {
             // `transaction` would join the one already open here and then throw
             // "a transaction was used after being closed" — an artefact of the
             // test's vantage point, not something production can hit.
-            logoutFuture ??= Zone.root.run(() => repo.logout());
+            logoutFuture ??= Zone.root.run(
+              () => repo.logout(data: LocalDataPolicy.destroy),
+            );
           };
       repo.apiClient = gatedClient(
         MockClient((req) async {
@@ -1951,7 +1953,7 @@ void main() {
         await refreshEntered.future.timeout(const Duration(seconds: 2));
 
         // Log out, then immediately log back in with a DIFFERENT token.
-        await repo.logout();
+        await repo.logout(data: LocalDataPolicy.destroy);
         authService.queueLogin(
           _envelope(
             companies: [
@@ -3173,7 +3175,7 @@ void main() {
         email: 'a',
         password: 'b',
       );
-      await repo.logout();
+      await repo.logout(data: LocalDataPolicy.destroy);
 
       authService.queueLogin(
         _envelope(
@@ -3237,7 +3239,7 @@ void main() {
         password: 'b',
       );
       await repo.setBiometricEnabled(true);
-      await repo.logout();
+      await repo.logout(data: LocalDataPolicy.destroy);
       expect(
         await storage.read('invoiceninja.biometric_enabled.v1'),
         isNull,
@@ -3673,7 +3675,7 @@ void main() {
 
   group('cross-user isolation on a shared device', () {
     // An involuntary logout (401, or an idle timeout with unsynced work) takes
-    // `preserveLocalData: true`, which returns before `_db.wipe()`. Nothing on
+    // `LocalDataPolicy.keep`, which returns before the wipe. Nothing on
     // the login path used to reconsider that: `pruneExcept` only touches
     // `companies` / `accounts`, so every company-scoped table survived into the
     // next person's session — and `onActiveCompanyChanged` then kicked a drain,
@@ -3709,7 +3711,7 @@ void main() {
       expect(await outboxRows(), 1);
 
       // Involuntary end of session — data deliberately survives.
-      await repo.logout(preserveLocalData: true);
+      await repo.logout(data: LocalDataPolicy.keep);
       expect(
         await outboxRows(),
         1,
@@ -3744,7 +3746,7 @@ void main() {
         password: 'pw',
       );
       await seedQueuedWork();
-      await repo.logout(preserveLocalData: true);
+      await repo.logout(data: LocalDataPolicy.keep);
 
       authService.queueLogin(_envelope(accountId: 'acct_2'));
       await repo.login(
@@ -3771,7 +3773,7 @@ void main() {
         password: 'pw',
       );
       await seedQueuedWork();
-      await repo.logout(preserveLocalData: true);
+      await repo.logout(data: LocalDataPolicy.keep);
 
       authService.queueLogin(
         _envelope(user: const UserSummaryApi(id: 'user_a')),
@@ -3821,7 +3823,7 @@ void main() {
         password: 'pw',
       );
       await seedQueuedWork();
-      await repo.logout(preserveLocalData: true);
+      await repo.logout(data: LocalDataPolicy.keep);
 
       authService.queueLogin(
         _envelope(user: const UserSummaryApi(id: 'user_a')),
@@ -3857,7 +3859,7 @@ void main() {
           password: 'pw',
         );
         await seedQueuedWork();
-        await repo.logout(preserveLocalData: true);
+        await repo.logout(data: LocalDataPolicy.keep);
 
         authService.queueLogin(
           _envelope(user: const UserSummaryApi(id: 'user_a')),
@@ -3891,7 +3893,7 @@ void main() {
         email: 'a@example.com',
         password: 'pw',
       );
-      await repo.logout(preserveLocalData: true);
+      await repo.logout(data: LocalDataPolicy.keep);
       expect(
         jsonDecode(await storage.read(kAuthTokensKey) ?? '{}'),
         containsPair('co_a', 'tok_a'),
@@ -3942,7 +3944,7 @@ void main() {
       );
       expect(await storage.read(kAuthUserIdKey), 'user_a');
 
-      await repo.logout();
+      await repo.logout(data: LocalDataPolicy.destroy);
 
       // The database is already gone, so a retained identity would only make
       // the next sign-in do a redundant wipe.

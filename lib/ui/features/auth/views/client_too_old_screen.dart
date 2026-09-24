@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
 
@@ -84,7 +85,9 @@ class ClientTooOldScreen extends StatelessWidget {
                           // dashboard of a server that rejects every request.
                           services.clientTooOld.value = null;
                           await services.auth.logout(
-                            preserveLocalData: preserve,
+                            data: preserve
+                                ? LocalDataPolicy.keep
+                                : LocalDataPolicy.destroy,
                           );
                         },
                       ),

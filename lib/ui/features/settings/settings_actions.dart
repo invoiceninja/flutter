@@ -10,6 +10,7 @@ import 'package:admin/data/repositories/auth_repository.dart'
     show CompanyCreatedNotActivatedException;
 import 'package:admin/data/repositories/auth/auth_session.dart'
     show CanAddCompanyResult;
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
@@ -83,7 +84,7 @@ class SettingsActions {
       }
     }
     onStart?.call();
-    await services.auth.logout();
+    await services.auth.logout(data: LocalDataPolicy.destroy);
     return true;
   }
 

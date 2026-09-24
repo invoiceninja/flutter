@@ -10,6 +10,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/auth_repository.dart'
     show SwitchCompanyResult;
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -426,7 +427,10 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
           body: {'cancellation_message': _feedbackCtrl.text},
           requiresPassword: true,
         );
-        await services.db.wipeForCompany(companyId);
+        await services.auth.localData.wipeCompany(
+          companyId,
+          DisposalReason.companyGoneOnServer,
+        );
         try {
           // Local per-entity sync cursors were just wiped — force a full
           // snapshot so the purged company re-seeds instead of pulling an
@@ -470,7 +474,10 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
           .where((c) => c.id != companyId)
           .toList();
       try {
-        await services.db.wipeForCompany(companyId);
+        await services.auth.localData.wipeCompany(
+          companyId,
+          DisposalReason.companyGoneOnServer,
+        );
       } catch (_) {
         /* non-fatal */
       }
@@ -500,8 +507,9 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
         // store when anything is queued; the next sign-in drains it.
         final keepLocalData = await services.sync.hasUnsyncedWork();
         await services.auth.logout(
-          preserveLocalData: keepLocalData,
-          setReLockGate: false,
+          data: keepLocalData
+              ? LocalDataPolicy.keepUnlocked
+              : LocalDataPolicy.destroy,
         );
         if (!mounted) return;
         Navigator.of(context).pop();

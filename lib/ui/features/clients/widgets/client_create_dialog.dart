@@ -254,7 +254,7 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
   Future<OutboxRow?> _failedAttemptRow() async {
     final tmpId = _vm.recoveryTempId;
     if (tmpId == null) return null;
-    return _services.db.outboxDao.findDeadForEntity(
+    return _services.db.outboxDao.findDeadSaveForEntity(
       companyId: widget.companyId,
       entityType: 'client',
       entityId: tmpId,
@@ -267,7 +267,7 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
   Future<void> _deletePriorDeadRow() async {
     final row = await _failedAttemptRow();
     if (row == null) return;
-    await _services.db.outboxDao.deleteRow(row.id);
+    await _services.sync.supersedeDeadSave(row.id);
     _vm.clearFailedSync();
   }
 

@@ -30,7 +30,7 @@ const String kAuthBiometricEnabledKey = 'invoiceninja.biometric_enabled.v1';
 
 /// Set when the idle session-timeout re-locks a session that still has unsynced
 /// outbox work (so the local DB + tokens are preserved instead of wiped — see
-/// `AuthRepository.logout(preserveLocalData:)`). On the next `restore()` this
+/// `AuthRepository.logout(data: LocalDataPolicy.keep)`). On the next `restore()` this
 /// forces a re-auth gate before re-entering — biometric if enabled, otherwise a
 /// fresh sign-in — instead of silently auto-restoring the prior session. Cleared
 /// on successful re-entry. Persisted as `'true'` / absent.

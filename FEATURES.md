@@ -1547,6 +1547,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Encrypted local database (SQLCipher) | — | ❌ | ✅ | ✅ | |
 | Unsynced changes survive a local-database reset (quarantine + salvage; native only, web still loses them; not yet surfaced in the UI) | — | — | 🟡 | | |
 | A change that may already have reached the server is held for review, never re-sent on its own (Outbox Check / Resend / Discard, edit-form banner, sign-out prompt) | — | — | ✅ | | |
+| Failed changes older than 90 days are offered for bulk discard in the Outbox (were deleted silently at launch) | — | — | ✅ | | |
 | One-tap Sync in the sidebar (push + download, shared progress) | — | — | ✅ | | |
 | Single-company drawer compaction — hides the company header row, moving Sync into the toolbar row and the switcher into the footer | — | — | ✅ | | |
 

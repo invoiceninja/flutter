@@ -132,7 +132,7 @@ void main() {
     });
   });
 
-  group('findDeadForEntity', () {
+  group('findDeadSaveForEntity', () {
     test('returns the newest dead row for the (type, id) tuple', () async {
       await enqueue(entityId: 'c1', state: 'dead', idempotencyKey: 'k1');
       final newerDead = await enqueue(
@@ -145,7 +145,7 @@ void main() {
       // Dead rows for a different entity are excluded.
       await enqueue(entityId: 'c2', state: 'dead', idempotencyKey: 'k4');
 
-      final row = await db.outboxDao.findDeadForEntity(
+      final row = await db.outboxDao.findDeadSaveForEntity(
         companyId: 'co',
         entityType: 'client',
         entityId: 'c1',
@@ -153,9 +153,32 @@ void main() {
       expect(row?.id, newerDead);
     });
 
+    test('finds the record\'s failed SAVE, never another failed change to '
+        'it', () async {
+      // A rejected email on the same record used to match: the form opened
+      // on its error, and the next good save deleted it.
+      final save = await enqueue(
+        entityId: 'c1',
+        state: 'dead',
+        idempotencyKey: 'k1',
+      );
+      await enqueue(
+        entityId: 'c1',
+        kind: 'email_entity',
+        state: 'dead',
+        idempotencyKey: 'k2',
+      );
+      final row = await db.outboxDao.findDeadSaveForEntity(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: 'c1',
+      );
+      expect(row?.id, save);
+    });
+
     test('returns null when no dead row exists', () async {
       await enqueue(entityId: 'c1'); // pending
-      final row = await db.outboxDao.findDeadForEntity(
+      final row = await db.outboxDao.findDeadSaveForEntity(
         companyId: 'co',
         entityType: 'client',
         entityId: 'c1',
@@ -165,30 +188,33 @@ void main() {
   });
 
   group('findDiscardableForEntity', () {
-    // Backs "Discard failed save" on BOTH edit scaffolds. `findDeadForEntity`
+    // Backs "Discard failed save" on BOTH edit scaffolds. `findDeadSaveForEntity`
     // was the wrong query there: only a 422 kills a row, so a 5xx or a lost
     // connection leaves the banner up over a `pending` row the dead-only
     // lookup cannot see — the tap cleared the banner and left the queued write
     // to apply anyway.
-    test('finds a still-pending row, which findDeadForEntity cannot', () async {
-      final pending = await enqueue(entityId: 'c1', idempotencyKey: 'k1');
+    test(
+      'finds a still-pending row, which findDeadSaveForEntity cannot',
+      () async {
+        final pending = await enqueue(entityId: 'c1', idempotencyKey: 'k1');
 
-      expect(
-        await db.outboxDao.findDeadForEntity(
+        expect(
+          await db.outboxDao.findDeadSaveForEntity(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: 'c1',
+          ),
+          isNull,
+          reason: 'precondition: the row is retrying, not dead',
+        );
+        final row = await db.outboxDao.findDiscardableForEntity(
           companyId: 'co',
           entityType: 'client',
           entityId: 'c1',
-        ),
-        isNull,
-        reason: 'precondition: the row is retrying, not dead',
-      );
-      final row = await db.outboxDao.findDiscardableForEntity(
-        companyId: 'co',
-        entityType: 'client',
-        entityId: 'c1',
-      );
-      expect(row?.id, pending);
-    });
+        );
+        expect(row?.id, pending);
+      },
+    );
 
     test('prefers the newest row, dead or pending', () async {
       await enqueue(entityId: 'c1', state: 'dead', idempotencyKey: 'k1');

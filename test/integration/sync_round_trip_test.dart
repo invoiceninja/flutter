@@ -204,7 +204,7 @@ void main() {
   });
 
   test('422 round-trip: dead row carries fieldErrorsJson and is locatable '
-      'via findDeadForEntity for the edit-form replay', () async {
+      'via findDeadSaveForEntity for the edit-form replay', () async {
     final api = _FakeClientsApi();
     api.createValidationErrors['Bad'] = const ValidationException(
       'Validation failed',
@@ -240,7 +240,7 @@ void main() {
     // The row is dead, not pending, so the standard pending count is 0
     // — but a direct lookup by entity finds it for the edit form.
     expect(await sync.pendingCountFor('co'), 0);
-    final dead = await db.outboxDao.findDeadForEntity(
+    final dead = await db.outboxDao.findDeadSaveForEntity(
       companyId: 'co',
       entityType: 'client',
       entityId: tmpId,

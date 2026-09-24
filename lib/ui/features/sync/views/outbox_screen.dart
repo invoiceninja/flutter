@@ -8,6 +8,8 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/sync_repository.dart'
+    show kOldFailureAge;
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/l10n/localization.dart';
@@ -113,6 +115,26 @@ class _OutboxBodyState extends State<_OutboxBody> {
     Notify.error(context, context.tr('an_error_occurred'));
   }
 
+  /// Bulk discard of failed changes older than [kOldFailureAge]. Always asks —
+  /// it drops several changes the server never took, at once.
+  Future<void> _discardOldFailures(int count) async {
+    final ok = await showConfirmActionDialog(
+      context,
+      title: context.tr('discard'),
+      message: context.tr(
+        count == 1
+            ? 'discard_old_failures_body_singular'
+            : 'discard_old_failures_body_plural',
+        {'count': '$count'},
+      ),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    if (!await _vm.discardOldFailures() && mounted) {
+      Notify.error(context, context.tr('an_error_occurred'));
+    }
+  }
+
   /// Resend of an `unconfirmed` row: asks first (it may do the change a
   /// second time), then reports like Retry.
   Future<void> _resend(OutboxRow row) async {
@@ -154,25 +176,36 @@ class _OutboxBodyState extends State<_OutboxBody> {
             subtitle: context.tr('sync_queue_empty_subtitle'),
           );
         }
+        final oldFailures = _vm.oldFailureCount;
+        final lead = oldFailures > 0 ? 1 : 0;
         return ListView.separated(
           padding: EdgeInsets.symmetric(
             horizontal: InSpacing.lg(context),
             vertical: InSpacing.md(context),
           ),
-          itemCount: rows.length,
+          itemCount: rows.length + lead,
           separatorBuilder: (_, _) => const SizedBox(height: InSpacing.sm),
           // Key by row identity, not list position, so removing one row
           // doesn't rebind every tile below it to a new row.
-          itemBuilder: (context, i) => KeyedSubtree(
-            key: ValueKey(rows[i].id),
-            child: _OutboxTile(
-              row: rows[i],
-              onDiscard: () => _discard(rows[i]),
-              onRetry: () => _retry(rows[i]),
-              onCheck: () => checkUnconfirmedRow(context, rows[i]),
-              onResend: () => _resend(rows[i]),
-            ),
-          ),
+          itemBuilder: (context, i) {
+            if (i < lead) {
+              return _OldFailuresNotice(
+                count: oldFailures,
+                onDiscard: _discardOldFailures,
+              );
+            }
+            final row = rows[i - lead];
+            return KeyedSubtree(
+              key: ValueKey(row.id),
+              child: _OutboxTile(
+                row: row,
+                onDiscard: () => _discard(row),
+                onRetry: () => _retry(row),
+                onCheck: () => checkUnconfirmedRow(context, row),
+                onResend: () => _resend(row),
+              ),
+            );
+          },
         );
       },
     );
@@ -426,6 +459,51 @@ String _titleCaseSnake(String key) {
       .split('_')
       .map((p) => p.isEmpty ? p : p[0].toUpperCase() + p.substring(1))
       .join(' ');
+}
+
+/// Heads the list when failed changes older than [kOldFailureAge] are
+/// waiting. Those used to be deleted at every launch without a word; now the
+/// user decides, in one tap.
+class _OldFailuresNotice extends StatelessWidget {
+  const _OldFailuresNotice({required this.count, required this.onDiscard});
+
+  final int count;
+  final Future<void> Function(int count) onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Material(
+      color: tokens.surfaceAlt,
+      borderRadius: BorderRadius.circular(InRadii.r2),
+      child: Padding(
+        padding: EdgeInsets.all(InSpacing.md(context)),
+        child: Row(
+          children: [
+            Icon(Icons.history_toggle_off, size: 20, color: tokens.ink2),
+            SizedBox(width: InSpacing.md(context)),
+            Expanded(
+              child: Text(
+                context.tr(
+                  count == 1
+                      ? 'old_failed_changes_singular'
+                      : 'old_failed_changes_plural',
+                  {'count': '$count'},
+                ),
+                style: TextStyle(color: tokens.ink2, fontSize: 13),
+              ),
+            ),
+            SizedBox(width: InSpacing.sm),
+            TextButton(
+              style: TextButton.styleFrom(minimumSize: const Size(64, 36)),
+              onPressed: () => onDiscard(count),
+              child: Text(context.tr('discard')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _StatePill extends StatelessWidget {

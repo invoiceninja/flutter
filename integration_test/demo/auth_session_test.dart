@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/error_view.dart';
 import 'package:admin/ui/features/auth/views/login_screen.dart';
 import 'package:admin/ui/features/dashboard/views/dashboard_screen.dart';
 
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import '../support/demo_harness.dart';
 
 void main() {
@@ -91,7 +92,7 @@ void main() {
     await pumpUntilFound(tester, find.byType(DashboardScreen));
     expect(find.byType(DashboardScreen), findsOneWidget);
 
-    await services.auth.logout();
+    await services.auth.logout(data: LocalDataPolicy.destroy);
     await pumpUntilFound(tester, find.byType(LoginScreen));
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(services.auth.isAuthenticated, isFalse);

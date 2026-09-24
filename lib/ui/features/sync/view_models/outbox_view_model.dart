@@ -158,6 +158,27 @@ class OutboxViewModel extends ChangeNotifier {
     }
   }
 
+  /// Failed rows older than [kOldFailureAge] — what the screen's notice
+  /// offers to discard in one go.
+  int get oldFailureCount {
+    final cutoff = DateTime.now()
+        .subtract(kOldFailureAge)
+        .millisecondsSinceEpoch;
+    return rows.where((r) => r.state == 'dead' && r.createdAt < cutoff).length;
+  }
+
+  /// Discard this company's failed rows older than [kOldFailureAge], once the
+  /// user has confirmed. They used to be deleted at every launch, silently.
+  Future<bool> discardOldFailures() async {
+    try {
+      await sync.pruneDeadRows(companyId: companyId);
+      return true;
+    } catch (e, st) {
+      _log.warning('Discarding old failed changes failed', e, st);
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;

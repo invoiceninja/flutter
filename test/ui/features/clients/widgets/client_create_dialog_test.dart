@@ -74,13 +74,13 @@ class _FakeStatics implements StaticsRepository {
 /// The 422 path looks for a dead outbox row to bin, and in production it
 /// ALWAYS finds one — `awaitRow` only reports `validationFailed` for a row
 /// that is already `state='dead'` with `lastStatusCode == 422`, which is
-/// exactly `findDeadForEntity`'s filter. Returning null here would skip the
+/// exactly `findDeadSaveForEntity`'s filter. Returning null here would skip the
 /// discard entirely and hide whatever it does to the form's state.
 class _FakeOutboxDao implements OutboxDao {
   int discardLookups = 0;
 
   @override
-  Future<OutboxRow?> findDeadForEntity({
+  Future<OutboxRow?> findDeadSaveForEntity({
     required String companyId,
     required String entityType,
     required String entityId,
@@ -147,6 +147,14 @@ class _FakeSync implements SyncRepository {
   @override
   Future<bool> discardOutboxRow(int id) async {
     discarded.add(id);
+    return true;
+  }
+
+  final List<int> superseded = [];
+
+  @override
+  Future<bool> supersedeDeadSave(int id) async {
+    superseded.add(id);
     return true;
   }
 

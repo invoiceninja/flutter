@@ -276,6 +276,63 @@ void main() {
     });
   });
 
+  group('pruneDeadRows', () {
+    test(
+      'scoped to a company, it leaves every other company\'s failures',
+      () async {
+        final engine = makeEngine(_ProgrammableDispatcher());
+        final mine = await enqueueClient(entityId: 'c1');
+        await db.outboxDao.markDead(id: mine, error: '422');
+        final theirs = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'other',
+            entityType: 'client',
+            entityId: 'c2',
+            mutationKind: 'update',
+            payload: '{}',
+            idempotencyKey: 'k-other',
+            nextAttemptAt: 0,
+            createdAt: 0,
+            state: const Value('dead'),
+          ),
+        );
+
+        expect(
+          await engine.pruneDeadRows(companyId: 'co', ttl: Duration.zero),
+          1,
+        );
+        expect(await db.outboxDao.byId(mine), isNull);
+        expect(await db.outboxDao.byId(theirs), isNotNull);
+      },
+    );
+  });
+
+  group('supersedeDeadSave', () {
+    // After a successful re-save the edit form drops the failed attempt it
+    // replaced. It used to delete whatever dead row the record had — a
+    // rejected email or payment included.
+    test('drops a failed save, and only a failed save', () async {
+      final engine = makeEngine(_ProgrammableDispatcher());
+      final save = await enqueueClient(entityId: 'c1');
+      await db.outboxDao.markDead(id: save, error: '422');
+      final email = await enqueueClient(
+        entityId: 'c1',
+        kind: MutationKind.emailEntity,
+        idempotencyKey: 'k2',
+      );
+      await db.outboxDao.markDead(id: email, error: '400');
+      final pending = await enqueueClient(entityId: 'c1', idempotencyKey: 'k3');
+
+      expect(await engine.supersedeDeadSave(email), isFalse);
+      expect(await engine.supersedeDeadSave(pending), isFalse);
+      expect(await engine.supersedeDeadSave(save), isTrue);
+
+      expect(await db.outboxDao.byId(save), isNull);
+      expect(await db.outboxDao.byId(email), isNotNull);
+      expect(await db.outboxDao.byId(pending), isNotNull);
+    });
+  });
+
   group('an outcome the server never confirmed', () {
     // The server ignores `Idempotency-Key`, so a write that went out with no
     // answer may have been applied. Re-sending one whose replay repeats its

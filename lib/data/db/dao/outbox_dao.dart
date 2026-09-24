@@ -708,9 +708,16 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.getSingleOrNull();
   }
 
-  /// Newest `dead` row for the given entity (if any). The edit form calls
-  /// this on open so it can replay 422 field errors against the form.
-  Future<OutboxRow?> findDeadForEntity({
+  /// Newest `dead` save of the given entity — its own `create` / `update` —
+  /// if any. The edit form calls this on open so it can replay 422 field
+  /// errors against the form, and after a successful re-save to drop the
+  /// failed attempt it replaced (`SyncRepository.supersedeDeadSave`).
+  ///
+  /// Saves only. Any failed row for the record used to match — a rejected
+  /// email or payment on the same invoice included — so the form opened on
+  /// that row's error as if the save had failed, and the next successful
+  /// save deleted it: unrelated user work, gone without a word.
+  Future<OutboxRow?> findDeadSaveForEntity({
     required String companyId,
     required String entityType,
     required String entityId,
@@ -721,7 +728,11 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
-            o.state.equals('dead'),
+            o.state.equals('dead') &
+            o.mutationKind.isIn([
+              MutationKind.create.wireName,
+              MutationKind.update.wireName,
+            ]),
       )
       ..orderBy([
         (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
@@ -734,7 +745,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// legitimately abandon: the entity's own `create` / `update`, in state
   /// `dead`, `unconfirmed` **or** `pending`.
   ///
-  /// [findDeadForEntity] is not enough for that surface. `SaveFailedBanner`
+  /// [findDeadSaveForEntity] is not enough for that surface. `SaveFailedBanner`
   /// renders off `submitError`, and only a **422** kills the row — a 5xx or a
   /// lost connection leaves it `pending` with backoff, so the banner is up
   /// while no dead row exists. Falling back to the dead-only query there
@@ -801,19 +812,28 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// The dead rows [SyncRepository.pruneDeadRows] is about to delete, so it can
   /// reconcile each one's `is_dirty` flag before the row that explains it is
   /// gone. Read-only; the delete is still [pruneDead].
-  Future<List<OutboxRow>> deadRowsOlderThan({required int olderThanMs}) =>
+  Future<List<OutboxRow>> deadRowsOlderThan({
+    required int olderThanMs,
+    String? companyId,
+  }) =>
       (select(outbox)..where(
             (o) =>
                 o.state.equals('dead') &
-                o.createdAt.isSmallerThanValue(olderThanMs),
+                o.createdAt.isSmallerThanValue(olderThanMs) &
+                (companyId == null
+                    ? const Constant(true)
+                    : o.companyId.equals(companyId)),
           ))
           .get();
 
-  Future<int> pruneDead({required int olderThanMs}) =>
+  Future<int> pruneDead({required int olderThanMs, String? companyId}) =>
       (delete(outbox)..where(
             (o) =>
                 o.state.equals('dead') &
-                o.createdAt.isSmallerThanValue(olderThanMs),
+                o.createdAt.isSmallerThanValue(olderThanMs) &
+                (companyId == null
+                    ? const Constant(true)
+                    : o.companyId.equals(companyId)),
           ))
           .go();
 

@@ -156,7 +156,7 @@ fails in a way that doesn't look like the cause.
   diff built from a partial view, and that diff implies deletes. It's reported distinctly so the UI
   can explain rather than no-op.
 - **`logout()` wipes the link table.** `AuthRepository.onBeforeDataWipe` (destructive path only — not
-  the `preserveLocalData` idle-timeout re-lock) runs `removeAllCompanies` first. Without it a
+  the `LocalDataPolicy.keep` idle-timeout re-lock) runs `removeAllCompanies` first. Without it a
   signed-out user's whole client list stays in their address book.
 - **A blank user id must never widen the scope.** `ClientDao.pageForContactSync` treats a null *or
   empty* assignee as "no filter" — a reasonable general contract, but it means passing an empty

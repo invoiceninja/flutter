@@ -223,7 +223,7 @@ void main() {
     controller.setPreview(const Color(0xFFEF4444));
     expect(controller.value, const Color(0xFFEF4444));
 
-    await auth.logout();
+    await auth.logout(data: LocalDataPolicy.destroy);
     await pumpEventQueue();
     expect(controller.value, isNull);
   });

@@ -41,7 +41,8 @@ class LockViewModel extends ChangeNotifier {
     _busy = true;
     _safeNotify();
     try {
-      await _auth.logout();
+      // The lock screen asked about unsynced work before calling this.
+      await _auth.logout(data: LocalDataPolicy.destroy);
     } finally {
       _busy = false;
       _safeNotify();

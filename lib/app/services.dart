@@ -1292,7 +1292,7 @@ class Services implements SidebarBadgeContext {
       // layout, hide-empty-panels), which the preserved row still holds.
       // `logout()` still writes the re-lock gate, so re-entry requires
       // re-auth.
-      onUnauthorized: () async => auth.logout(preserveLocalData: true),
+      onUnauthorized: () async => auth.logout(data: LocalDataPolicy.keep),
       // Consulted first: a 401 under a company token the user *just* switched
       // into fails the switch (roll back + heal) instead of the session.
       onUnauthorizedCandidate: auth.handleUnauthorized,

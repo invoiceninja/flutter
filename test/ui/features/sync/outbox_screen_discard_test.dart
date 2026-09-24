@@ -58,6 +58,20 @@ class _FakeSync implements SyncRepository {
     return true;
   }
 
+  final List<String?> pruned = [];
+
+  @override
+  Future<int> pruneDeadRows({
+    String? companyId,
+    Duration ttl = const Duration(days: 90),
+  }) async {
+    pruned.add(companyId);
+    return db.outboxDao.pruneDead(
+      olderThanMs: DateTime.now().subtract(ttl).millisecondsSinceEpoch,
+      companyId: companyId,
+    );
+  }
+
   @override
   Object? noSuchMethod(Invocation invocation) =>
       throw UnimplementedError(invocation.memberName.toString());
@@ -111,6 +125,8 @@ AuthSession _sessionFor(String companyId) => AuthSession(
   currentCompanyId: companyId,
 );
 
+final int _recent = DateTime.now().millisecondsSinceEpoch;
+
 void main() {
   late AppDatabase db;
   late ToastController toasts;
@@ -142,7 +158,9 @@ void main() {
       payload: jsonEncode({'id': entityId}),
       idempotencyKey: idempotencyKey,
       nextAttemptAt: 0,
-      createdAt: createdAt,
+      // Recent: a failure older than 90 days also raises the Outbox's
+      // bulk-discard notice, which these per-row tests are not about.
+      createdAt: _recent + createdAt,
       state: const Value('dead'),
     ),
   );
@@ -340,5 +358,77 @@ void main() {
     expect(find.byKey(ValueKey(first)), findsOneWidget);
     expect(find.byKey(ValueKey(second)), findsOneWidget);
     await teardownTree(tester);
+  });
+
+  group('failed changes older than 90 days', () {
+    // They used to be deleted at every launch without a word. Now the Outbox
+    // says they are there and the user decides, in one tap.
+    Future<int> seedOld(String entityId, String key) => db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'schedule',
+        entityId: entityId,
+        mutationKind: 'create',
+        payload: jsonEncode({'id': entityId}),
+        idempotencyKey: key,
+        nextAttemptAt: 0,
+        createdAt: 0,
+        state: const Value('dead'),
+      ),
+    );
+
+    testWidgets('only old failures raise the notice', (tester) async {
+      await seed(entityId: 'tmp_recent', idempotencyKey: 'k1');
+      await tester.pumpWidget(host(_FakeSync(db)));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('more than 90 days old'), findsNothing);
+
+      await seedOld('tmp_old', 'k2');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('1 failed change is more than 90 days old.'),
+        findsOneWidget,
+      );
+      await teardownTree(tester);
+    });
+
+    testWidgets('Discard always asks, even with Confirm actions off — and '
+        'Cancel keeps them', (tester) async {
+      final sync = _FakeSync(db);
+      final old = await seedOld('tmp_old', 'k2');
+      await tester.pumpWidget(host(sync));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(sync.pruned, isEmpty);
+      expect(await db.outboxDao.byId(old), isNotNull);
+      await teardownTree(tester);
+    });
+
+    testWidgets('confirming discards this company\'s old failures', (
+      tester,
+    ) async {
+      final sync = _FakeSync(db);
+      final recent = await seed(entityId: 'tmp_recent', idempotencyKey: 'k1');
+      final old = await seedOld('tmp_old', 'k2');
+      await tester.pumpWidget(host(sync));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Discard'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+
+      expect(sync.pruned, ['co']);
+      expect(await db.outboxDao.byId(old), isNull);
+      expect(await db.outboxDao.byId(recent), isNotNull);
+      expect(find.textContaining('more than 90 days old'), findsNothing);
+      await teardownTree(tester);
+    });
   });
 }

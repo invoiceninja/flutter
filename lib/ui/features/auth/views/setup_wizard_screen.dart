@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/ui/core/dialogs/confirm_sign_out_dialog.dart';
 import 'package:admin/ui/features/shell/widgets/confirm_pending_outbox.dart';
 import 'package:admin/data/models/value/currency.dart';
@@ -265,7 +266,7 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
       );
       if (outbox == OutboxConfirmResult.cancelled || !mounted) return;
     }
-    await services.auth.logout();
+    await services.auth.logout(data: LocalDataPolicy.destroy);
   }
 
   Future<void> _onSwitchCompany() async {

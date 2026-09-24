@@ -244,7 +244,7 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     String companyId,
     String entityId,
   ) async {
-    final row = await services.db.outboxDao.findDeadForEntity(
+    final row = await services.db.outboxDao.findDeadSaveForEntity(
       companyId: companyId,
       entityType: widget.entityTypeName,
       entityId: entityId,
@@ -289,7 +289,7 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     if (cached != null) return cached;
     final entityId = widget.existingId;
     if (entityId == null) return null;
-    final row = await services.db.outboxDao.findDeadForEntity(
+    final row = await services.db.outboxDao.findDeadSaveForEntity(
       companyId: _companyId,
       entityType: widget.entityTypeName,
       entityId: entityId,
@@ -331,7 +331,7 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
   Future<void> _cleanupPriorDeadRow(Services services, VM vm) async {
     final priorDeadId = await _resolveDeadRowId(services, vm);
     if (priorDeadId != null) {
-      await services.db.outboxDao.deleteRow(priorDeadId);
+      await services.sync.supersedeDeadSave(priorDeadId);
       vm.clearFailedSync();
     }
   }

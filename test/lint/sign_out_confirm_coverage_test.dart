@@ -4,10 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// CI lint: every user-facing sign-out routes through a confirmation.
 ///
-/// `AuthRepository.logout()` wipes the whole Drift DB — every company's
-/// still-pending outbox rows included — and `endAllSessions()` additionally
-/// rotates every `is_system` token on the company, signing out every user of
-/// it on all their devices. A new surface that calls either and forgets the
+/// `AuthRepository.logout(data: LocalDataPolicy.destroy)` wipes the whole
+/// Drift DB — every company's still-pending outbox rows included — and
+/// `endAllSessions()` additionally rotates every `is_system` token on the
+/// company, signing out every user of it on all their devices. A new surface that calls either and forgets the
 /// prompt compiles, runs, and passes every other test; it just destroys data
 /// on one tap. That invisibility is why this is a build-time check.
 ///

@@ -1222,5 +1222,9 @@
   "may_have_been_sent_help": "The server didn't confirm it, so it won't be sent again on its own \u2014 that could do it twice. Check whether it went through, then resend or discard it.",
   "waiting_on_unconfirmed_change": "Waiting on an earlier change to this record",
   "check": "Check",
-  "resend_change_body": "If the first attempt went through, this will do it a second time."
+  "resend_change_body": "If the first attempt went through, this will do it a second time.",
+  "old_failed_changes_singular": ":count failed change is more than 90 days old.",
+  "old_failed_changes_plural": ":count failed changes are more than 90 days old.",
+  "discard_old_failures_body_singular": "The server never took it, and it can't be recovered once discarded.",
+  "discard_old_failures_body_plural": "The server never took them, and they can't be recovered once discarded."
 }

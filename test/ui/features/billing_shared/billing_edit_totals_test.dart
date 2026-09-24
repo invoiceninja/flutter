@@ -12,6 +12,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
 
@@ -42,7 +43,9 @@ void main() {
     // documented hang in this suite. The real event loop runs them to
     // completion exactly as production does, leaving the session null for the
     // mount assertion below.
-    await tester.runAsync(() => fixture.services.auth.logout());
+    await tester.runAsync(
+      () => fixture.services.auth.logout(data: LocalDataPolicy.destroy),
+    );
     expect(fixture.services.auth.currentCompanyId, isNull);
 
     // Fresh mount with a client selected → `_ensureStream` takes the

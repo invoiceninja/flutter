@@ -34,7 +34,7 @@ read-it-first orientation for a new developer.
 - [`setup.md`](setup.md) — **Setup.** .
 - [`sidebar-and-shell.md`](sidebar-and-shell.md) — **The sidebar and the page shell.** The sidebar's own chrome — safe areas, ink, the upsell gate, the customisable menu and the pinned rows — plus which widget owns a full-page host.
 - [`store-deployment-setup.md`](store-deployment-setup.md) — **Store deployment — setup runbook.** **How to get the six publish workflows working from zero.** This is the *how*; `docs/setup.md` §§ Shipping to the stores → Windows / Microsoft Store is the *why* (rationale, design decisions, per-platform background).
-- [`sync.md`](sync.md) — **Sync — the non-obvious rules, with evidence.** The main file still states all 33 rules, one line each — it is the most-cited anchor in the repo.
+- [`sync.md`](sync.md) — **Sync — the non-obvious rules, with evidence.** The main file still states all 34 rules, one line each — it is the most-cited anchor in the repo.
 - [`tap-to-call.md`](tap-to-call.md) — **Tap to call — dialling a phone number from the app.** Settings → Device Settings → **Phone numbers**.
 - [`task-scheduling.md`](task-scheduling.md) — **Task scheduling — booked blocks and starting the timer.** A task carries no stored start time, so scheduling one means seeding a future `time_log` entry — which makes "start the timer" a decision rather than an append.
 - [`tasks-views.md`](tasks-views.md) — **Tasks layout views.** The main file carries the `?view=` / `nav_state` precedence rule and the rule for each behaviour; this doc carries the evidence — why the URL is an override rather than the carrier, what the lock exists for, and why the kanban board has no create FAB.

@@ -50,6 +50,13 @@ class RecurringInvoiceEditViewModel
   @override
   bool draftIsNonEmpty() {
     final d = draft;
+    // The schedule is measured against the new form's own defaults, so a
+    // default is not input and a change is. The frequency was tested with
+    // `isNotEmpty`, which the monthly default always passed — every untouched
+    // new form asked to discard its changes — and the rest of the schedule
+    // not at all, so a form holding only a next send date left without
+    // asking.
+    final blank = emptyRecurringInvoice();
     return d.clientId.isNotEmpty ||
         d.number.isNotEmpty ||
         d.poNumber.isNotEmpty ||
@@ -60,10 +67,11 @@ class RecurringInvoiceEditViewModel
         d.lineItems.isNotEmpty ||
         d.amount != Decimal.zero ||
         d.discount != Decimal.zero ||
-        // A new recurring invoice starts monthly, so only a different choice
-        // is input — this used to test `isNotEmpty`, which the default always
-        // passed, and every untouched new form asked to discard its changes.
-        d.frequencyId != kDefaultRecurringFrequencyId;
+        d.frequencyId != blank.frequencyId ||
+        d.nextSendDate != blank.nextSendDate ||
+        d.remainingCycles != blank.remainingCycles ||
+        d.dueDateDays != blank.dueDateDays ||
+        d.autoBill != blank.autoBill;
   }
 
   @override

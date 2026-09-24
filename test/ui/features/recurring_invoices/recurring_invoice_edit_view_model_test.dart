@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/recurring_invoice_repository.dart';
 import 'package:admin/data/services/recurring_invoices_api.dart';
 import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoice_edit_view_model.dart';
@@ -51,6 +52,26 @@ void main() {
         expect(vm.isDirty, isFalse);
       },
     );
+
+    // Measured against the new form's own defaults, so the schedule counts
+    // as input the way the frequency does: leaving a form holding only a
+    // next send date used to drop it without asking.
+    for (final (label, edit)
+        in <(String, void Function(RecurringInvoiceEditViewModel))>[
+          (
+            'a next send date',
+            (vm) => vm.setNextSendDate(const Date(2026, 10, 1)),
+          ),
+          ('a remaining-cycles count', (vm) => vm.setRemainingCycles(12)),
+          ('a due-date choice', (vm) => vm.setDueDateDays('15')),
+          ('an auto-bill choice', (vm) => vm.setAutoBill('always')),
+        ]) {
+      test('$label is input', () {
+        final vm = buildVm();
+        edit(vm);
+        expect(vm.isDirty, isTrue);
+      });
+    }
   });
 
   // The recurring server derives `auto_bill_enabled` from `auto_bill`

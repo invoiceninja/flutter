@@ -298,8 +298,10 @@ void main() {
         await unmount(tester, fixture);
       }, timeout: timeout);
 
-      testWidgets('tablet: no PDF tab, the wide items table', (tester) async {
+      testWidgets('tablet: a PDF tab, the wide items table', (tester) async {
         final fixture = await mount(tester, doc, 900);
+        // Map equality ignores order, so the strip's order is pinned apart.
+        expect(tabBarLabels(tester).first, [..._tablet(doc).keys]);
         expect(await fieldsPerTab(tester), _tablet(doc));
         await unmount(tester, fixture);
       }, timeout: timeout);
@@ -326,6 +328,18 @@ void main() {
         },
         timeout: timeout,
       );
+
+      testWidgets('e-invoicing on a tablet comes after the PDF tab', (
+        tester,
+      ) async {
+        final fixture = await mount(tester, doc, 900, eInvoice: true);
+        expect(tabBarLabels(tester).first, [
+          ..._phone[doc]!.keys,
+          'PDF',
+          if (_hasEInvoice.contains(doc)) 'E-Invoice',
+        ]);
+        await unmount(tester, fixture);
+      }, timeout: timeout);
 
       testWidgets('e-invoicing adds a desktop notes sub-tab likewise', (
         tester,

@@ -14,6 +14,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/detail/entity_destination.dart';
 import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
+import 'package:admin/ui/core/sync/unconfirmed_change_actions.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/error_view.dart';
@@ -112,6 +113,13 @@ class _OutboxBodyState extends State<_OutboxBody> {
     Notify.error(context, context.tr('an_error_occurred'));
   }
 
+  /// Resend of an `unconfirmed` row: asks first (it may do the change a
+  /// second time), then reports like Retry.
+  Future<void> _resend(OutboxRow row) async {
+    if (!await resendUnconfirmedRow(context, row) || !mounted) return;
+    Notify.success(context, context.tr('sync_started'));
+  }
+
   /// Retry leaves the row in place (its state pill flips once the queue
   /// moves), so say something either way — otherwise the tap looks inert.
   Future<void> _retry(OutboxRow row) async {
@@ -161,6 +169,8 @@ class _OutboxBodyState extends State<_OutboxBody> {
               row: rows[i],
               onDiscard: () => _discard(rows[i]),
               onRetry: () => _retry(rows[i]),
+              onCheck: () => checkUnconfirmedRow(context, rows[i]),
+              onResend: () => _resend(rows[i]),
             ),
           ),
         );
@@ -174,11 +184,15 @@ class _OutboxTile extends StatelessWidget {
     required this.row,
     required this.onDiscard,
     required this.onRetry,
+    required this.onCheck,
+    required this.onResend,
   });
 
   final OutboxRow row;
   final Future<void> Function() onDiscard;
   final Future<void> Function() onRetry;
+  final Future<void> Function() onCheck;
+  final Future<void> Function() onResend;
 
   @override
   Widget build(BuildContext context) {
@@ -258,9 +272,19 @@ class _OutboxTile extends StatelessWidget {
                     handlers: handlers,
                     onDiscard: onDiscard,
                     onRetry: onRetry,
+                    onCheck: onCheck,
+                    onResend: onResend,
                   ),
                 ],
               ),
+              // What the state asks of the user, above the technical reason.
+              if (row.state == 'unconfirmed') ...[
+                const SizedBox(height: InSpacing.sm),
+                Text(
+                  context.tr('may_have_been_sent_help'),
+                  style: TextStyle(color: tokens.ink2, fontSize: 12),
+                ),
+              ],
               if (row.lastError != null && row.lastError!.isNotEmpty) ...[
                 const SizedBox(height: InSpacing.sm),
                 Text(
@@ -379,14 +403,17 @@ class _OutboxTile extends StatelessWidget {
 }
 
 /// Route to navigate to when the user "Open"s an outbox row. Dead rows
-/// land on the edit form so the user can fix the rejected fields directly;
-/// pending / in-flight rows land on the detail screen since the local
-/// state already reflects the in-progress mutation.
+/// land on the edit form so the user can fix the rejected fields directly,
+/// and so does an unconfirmed save, whose banner offers Check / Resend /
+/// Discard in place; pending / in-flight rows land on the detail screen
+/// since the local state already reflects the in-progress mutation.
 String _destinationFor(EntityHandlers handlers, OutboxRow row) =>
     entityDestination(
       handlers: handlers,
       entityId: row.entityId,
-      edit: row.state == 'dead',
+      edit:
+          row.state == 'dead' ||
+          (row.state == 'unconfirmed' && isSaveMutation(row.mutationKind)),
     );
 
 /// Split a `snake_case` key into title-cased words. Used for both entity
@@ -415,6 +442,11 @@ class _StatePill extends StatelessWidget {
         tokens.partialSoft,
       ),
       'in_flight' => (context.tr('in_flight'), tokens.sent, tokens.sentSoft),
+      'unconfirmed' => (
+        context.tr('may_have_been_sent'),
+        tokens.warning,
+        tokens.warningSoft,
+      ),
       'dead' => (context.tr('sync_failed'), tokens.overdue, tokens.overdueSoft),
       _ => (state, tokens.draft, tokens.draftSoft),
     };
@@ -490,6 +522,8 @@ class _RowMenu extends StatelessWidget {
     required this.handlers,
     required this.onDiscard,
     required this.onRetry,
+    required this.onCheck,
+    required this.onResend,
   });
   final OutboxRow row;
   final EntityHandlers? handlers;
@@ -499,6 +533,8 @@ class _RowMenu extends StatelessWidget {
   // context can't be the one that reports a failure.
   final Future<void> Function() onDiscard;
   final Future<void> Function() onRetry;
+  final Future<void> Function() onCheck;
+  final Future<void> Function() onResend;
 
   @override
   Widget build(BuildContext context) {
@@ -510,6 +546,10 @@ class _RowMenu extends StatelessWidget {
       iconSize: 18,
       onSelected: (action) async {
         switch (action) {
+          case 'check':
+            await onCheck();
+          case 'resend':
+            await onResend();
           case 'retry':
             await onRetry();
           case 'discard':
@@ -551,7 +591,33 @@ class _RowMenu extends StatelessWidget {
         // here is a button that promises a fix and delivers the same failure.
         // The row's `last_error` (visible in the tile and the inspector) is
         // the server's own instruction to restore it.
+        //
+        // Nor for an `unconfirmed` row: it may already have gone through, so
+        // it gets Check and a Resend that asks first, never a silent Retry.
+        if (row.state == 'unconfirmed') ...[
+          PopupMenuItem<String>(
+            value: 'check',
+            child: Row(
+              children: [
+                const Icon(Icons.fact_check_outlined, size: 16),
+                const SizedBox(width: InSpacing.sm),
+                Text(context.tr('check')),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'resend',
+            child: Row(
+              children: [
+                const Icon(Icons.send_outlined, size: 16),
+                const SizedBox(width: InSpacing.sm),
+                Text(context.tr('resend')),
+              ],
+            ),
+          ),
+        ],
         if (row.state != 'in_flight' &&
+            row.state != 'unconfirmed' &&
             !isRecordDeletedRejection(row.lastStatusCode, row.lastError))
           PopupMenuItem<String>(
             value: 'retry',

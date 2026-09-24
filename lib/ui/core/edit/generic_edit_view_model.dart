@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/utils/formatting.dart';
@@ -220,6 +221,54 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// affordance uses this to delete the right row from the outbox.
   int? get deadOutboxRowId => _deadOutboxRowId;
 
+  int? _unconfirmedRowId;
+  bool _unconfirmedIsSave = false;
+  String? _unconfirmedMessage;
+
+  /// The `unconfirmed` outbox row this record's save is held on (see
+  /// `OutboxState`), or null: a change that may already have reached the
+  /// server, which nothing sends again until the user decides. Set by a
+  /// [save] that came back [SyncRowOutcome.unconfirmed] or was refused with
+  /// [UnconfirmedPriorMutationException], and by [applyUnconfirmed] when the
+  /// form reopens onto one.
+  int? get unconfirmedRowId => _unconfirmedRowId;
+
+  /// Whether [unconfirmedRowId] is this record's own create / update — the
+  /// banner offers Check / Resend / Discard for it — rather than another
+  /// change to the record (an email, a payment) that the next save queues
+  /// behind, which the banner points to on the Outbox screen.
+  bool get unconfirmedIsSave => _unconfirmedIsSave;
+
+  /// The technical reason the row's outcome is unknown (its `last_error`).
+  String? get unconfirmedMessage => _unconfirmedMessage;
+
+  void applyUnconfirmed({
+    required int rowId,
+    required bool isSave,
+    String? message,
+  }) {
+    _unconfirmedRowId = rowId;
+    _unconfirmedIsSave = isSave;
+    _unconfirmedMessage = message;
+    notifyListeners();
+  }
+
+  /// Drop the unconfirmed-row link alone — after a Resend put the row back in
+  /// line. Unlike [clearFailedSync] it keeps [recoveryTempId]: the row still
+  /// carries that temp id, and a later Save that minted a fresh one would
+  /// queue a second create.
+  void clearUnconfirmed() {
+    if (_unconfirmedRowId == null) return;
+    _clearUnconfirmedState();
+    notifyListeners();
+  }
+
+  void _clearUnconfirmedState() {
+    _unconfirmedRowId = null;
+    _unconfirmedIsSave = false;
+    _unconfirmedMessage = null;
+  }
+
   String? _recoveryTempId;
 
   /// `tmp_<uuid>` from a prior CREATE attempt that didn't fully drain (422
@@ -291,9 +340,11 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
         _fieldErrors.isEmpty &&
         !_localValidationOnly &&
         _submitError == null &&
-        _recoveryTempId == null) {
+        _recoveryTempId == null &&
+        _unconfirmedRowId == null) {
       return;
     }
+    _clearUnconfirmedState();
     _deadOutboxRowId = null;
     _fieldErrors = const {};
     _localValidationOnly = false;
@@ -323,6 +374,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   void reset({required T emptyDraft}) {
     _draft = _original ?? emptyDraft;
     _savedClean = true;
+    _clearUnconfirmedState();
     _submitError = null;
     _fieldErrors = const {};
     _localValidationOnly = false;
@@ -450,6 +502,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     _fieldErrors = const {};
     _localValidationOnly = false;
     _lastSaveWasOptimistic = false;
+    _clearUnconfirmedState();
     // Note: `_deadOutboxRowId` deliberately survives `save()` entry — the
     // screen's `onSaved` callback reads it to delete the prior dead row
     // after a successful re-save. If `performSave` itself throws a 422
@@ -504,6 +557,17 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
                 outcome.statusCode ?? 0,
                 outcome.message ?? 'Save failed',
               );
+            case SyncRowOutcome.unconfirmed:
+              // Nothing will send it until the user decides, so waiting out
+              // the timeout would only delay saying so. The form stays open
+              // on the banner's Check / Resend / Discard.
+              _unconfirmedRowId = outcome.unconfirmedRowId;
+              _unconfirmedIsSave = const {
+                'create',
+                'update',
+              }.contains(outcome.unconfirmedMutationKind);
+              _unconfirmedMessage = outcome.message;
+              return null;
           }
         }
       }
@@ -516,6 +580,13 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       _savedClean = true;
       _recoveryTempId = null;
       return result.entity;
+    } on UnconfirmedPriorMutationException catch (e) {
+      // The earlier create of this record may already have made it on the
+      // server; nothing was queued this time.
+      _unconfirmedRowId = e.rowId;
+      _unconfirmedIsSave = true;
+      _unconfirmedMessage = null;
+      return null;
     } on ValidationException catch (e) {
       _fieldErrors = Map.unmodifiable(e.fieldErrors);
       // The prior dead-row link (if any) refers to the previous failure's

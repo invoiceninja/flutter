@@ -145,6 +145,24 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       return;
     }
 
+    // A change that may already have gone through is never sent again on its
+    // own, so the user has to hear about it — escalated exactly like a death.
+    if (event is UnconfirmedEvent) {
+      if (event.handledByCaller) {
+        _showUnconfirmedToast();
+        return;
+      }
+      final services = context.read<Services>();
+      final online = await services.connectivity.isOnline;
+      if (!mounted) return;
+      if (online && !_dialogOpen) {
+        await _showUnconfirmedModal(event);
+      } else {
+        _showUnconfirmedToast();
+      }
+      return;
+    }
+
     // Suppress overlapping dialogs — but neither event is re-emitted (see
     // `_deferredEvents`), so DEFER the event (don't drop it) and replay it when
     // the current modal closes. Otherwise a flurry of failed rows would stack N
@@ -161,6 +179,7 @@ class _SyncEventListenerState extends State<SyncEventListener> {
         await _handleConflict(event);
       case ValidationFailedEvent():
       case DeadEvent():
+      case UnconfirmedEvent():
         break; // handled above
     }
   }
@@ -253,6 +272,59 @@ class _SyncEventListenerState extends State<SyncEventListener> {
         builder: (ctx) => AlertDialog(
           title: Text(ctx.tr('could_not_save')),
           content: event.message.isEmpty ? null : Text(event.message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(ctx.tr('dismiss')),
+            ),
+            PrimaryDialogAction(
+              label: ctx.tr('view'),
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (view == true) context.go('/sync/outbox');
+    } finally {
+      _dialogOpen = false;
+      _replayDeferredEvents();
+    }
+  }
+
+  /// Non-blocking notice for an `unconfirmed` row, routing to the Outbox,
+  /// where its Check / Resend / Discard live.
+  void _showUnconfirmedToast() {
+    Notify.warning(
+      context,
+      context.tr('may_have_been_sent_title'),
+      detail: context.tr('may_have_been_sent_help'),
+      action: NotifyAction(context.tr('view'), () {
+        if (mounted) context.go('/sync/outbox');
+      }),
+    );
+  }
+
+  /// The [_showFailureModal] escalation, for a change that may have gone
+  /// through rather than one that failed.
+  Future<void> _showUnconfirmedModal(UnconfirmedEvent event) async {
+    _dialogOpen = true;
+    try {
+      final view = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(ctx.tr('may_have_been_sent_title')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(ctx.tr('may_have_been_sent_help')),
+              if (event.message.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(event.message, style: Theme.of(ctx).textTheme.bodySmall),
+              ],
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),

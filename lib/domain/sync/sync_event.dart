@@ -108,3 +108,23 @@ class DeadEvent extends SyncEvent {
   final int? statusCode;
   final bool handledByCaller;
 }
+
+/// A non-idempotent change whose attempt may have reached the server — the
+/// connection dropped after it was sent, the server answered 500 / 502 / 504,
+/// the app died mid-request, or the server accepted a create whose reply was
+/// then lost. Re-sending could do it twice (another invoice, another email,
+/// another charge), so the row waits on the Outbox screen as `unconfirmed`
+/// until the user checks and chooses Send again or Discard.
+///
+/// [handledByCaller] as on [DeadEvent]: an open edit form surfacing it itself
+/// keeps the toast; otherwise the shell escalates while online.
+class UnconfirmedEvent extends SyncEvent {
+  const UnconfirmedEvent({
+    required super.entityType,
+    required super.entityId,
+    required this.message,
+    this.handledByCaller = false,
+  });
+  final String message;
+  final bool handledByCaller;
+}

@@ -1215,6 +1215,12 @@
   "invoices_and_quotes": "Invoices & Quotes",
   "none_synced_yet": "None synced yet",
   "counted_from_local_data": "Counted from data on this device",
-  "failed_changes_sign_out_body_plural": ":count changes couldn't be saved to the server and are waiting in the Outbox for you to fix and retry. Signing out deletes them.",
-  "failed_changes_sign_out_body_singular": ":count change couldn't be saved to the server and is waiting in the Outbox for you to fix and retry. Signing out deletes it."
+  "review_changes_sign_out_body_singular": ":count change is waiting in the Outbox for you \u2014 it couldn't be saved, or may already have gone through without the server confirming it. Signing out deletes it.",
+  "review_changes_sign_out_body_plural": ":count changes are waiting in the Outbox for you \u2014 they couldn't be saved, or may already have gone through without the server confirming them. Signing out deletes them.",
+  "may_have_been_sent": "May have been sent",
+  "may_have_been_sent_title": "A change may already have gone through",
+  "may_have_been_sent_help": "The server didn't confirm it, so it won't be sent again on its own \u2014 that could do it twice. Check whether it went through, then resend or discard it.",
+  "waiting_on_unconfirmed_change": "Waiting on an earlier change to this record",
+  "check": "Check",
+  "resend_change_body": "If the first attempt went through, this will do it a second time."
 }

@@ -99,6 +99,68 @@ void main() {
     );
   });
 
+  // A change that may already have gone through is never re-sent on its own,
+  // so it escalates exactly like a death. The cheapest honest way to produce
+  // one: a create left in flight by a process that died mid-request — the
+  // next drain can't know whether it landed.
+  Future<void> orphanInFlightCreate(ShellFixture fixture) async {
+    final id = await fixture.services.db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: 'tmp_c1',
+        mutationKind: 'create',
+        payload: '{}',
+        idempotencyKey: 'k1',
+        nextAttemptAt: 0,
+        createdAt: 0,
+      ),
+    );
+    await fixture.services.db.outboxDao.markInFlight(id);
+  }
+
+  for (final online in [true, false]) {
+    testWidgets(
+      online
+          ? 'online + an unconfirmed change → modal pointing to the Outbox'
+          : 'offline + an unconfirmed change → toast, no modal',
+      (tester) async {
+        final fixture = await buildFixture(
+          companies: const [FakeCompany(id: 'co', name: 'Co')],
+          currentCompanyId: 'co',
+          online: online,
+        );
+        addTearDown(fixture.dispose);
+        await tester.pumpWidget(
+          wrapWithShell(
+            fixture.services,
+            const SyncEventListener(child: SizedBox.shrink()),
+          ),
+        );
+        await tester.pump();
+
+        await orphanInFlightCreate(fixture);
+        await fixture.services.sync.drainOnce(companyId: 'co');
+        await tester.pumpAndSettle();
+
+        final title = find.text('A change may already have gone through');
+        if (online) {
+          expect(find.byType(AlertDialog), findsOneWidget);
+          expect(title, findsOneWidget);
+          expect(find.text('View'), findsOneWidget);
+          await tester.tap(find.text('Dismiss'));
+          await tester.pumpAndSettle();
+          expect(find.byType(AlertDialog), findsNothing);
+        } else {
+          expect(find.byType(AlertDialog), findsNothing);
+          expect(title, findsOneWidget, reason: 'the toast');
+          fixture.services.toasts.clearAll();
+          await tester.pump();
+        }
+      },
+    );
+  }
+
   // Overlapping conflict/password events are DEFERRED and replayed when the
   // current modal closes (neither is re-emitted by the sync engine). For a
   // password event that replay is wrong: `retryPasswordRows` re-arms every

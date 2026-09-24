@@ -877,8 +877,8 @@ class Services implements SidebarBadgeContext {
       db.outboxDao.watchPendingCount(companyId: companyId);
 
   @override
-  Stream<int> watchOutboxDead(String companyId) =>
-      db.outboxDao.watchDeadCount(companyId: companyId);
+  Stream<int> watchOutboxAttention(String companyId) =>
+      db.outboxDao.watchAttentionCount(companyId: companyId);
 
   /// Sidebar count streams keyed by entity type. Populated once in
   /// [Services.build] from [WiredEntities.countWatchers] and read by
@@ -1359,6 +1359,12 @@ class Services implements SidebarBadgeContext {
     // Same binding for the drain: a pass that outlives a company switch would
     // otherwise dispatch the old company's mutations under the new token.
     sync.activeCompanyId = liveCompanyId;
+    // Re-fetches after a write whose reply was lost, and for the Outbox's
+    // Check on a change that may have been sent (`SyncRepository.recheck`).
+    sync.refreshRecord = (companyId, type, id) async =>
+        entities.repos[type]?.refreshByIds(companyId: companyId, ids: [id]);
+    sync.refreshNewest = (companyId, type) async =>
+        entities.firstPagePrefetchers[type]?.call(companyId);
     final companiesApi = CompaniesApi(apiClient);
     // Built at the end of this factory and returned directly, so the closures
     // below capture it via `late final` — they only run at runtime, long after

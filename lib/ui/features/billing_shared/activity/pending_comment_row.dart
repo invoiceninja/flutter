@@ -65,6 +65,7 @@ class PendingCommentRow extends StatelessWidget {
     final tokens = context.inTheme;
     final theme = Theme.of(context);
     final notes = _extractNotes(row.payload);
+    final unconfirmed = row.state == 'unconfirmed';
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: kEntityListRowHeight),
       child: Container(
@@ -92,10 +93,18 @@ class PendingCommentRow extends StatelessWidget {
             SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: tokens.ink3,
-              ),
+              // An `unconfirmed` note is not moving: it may already be on the
+              // server, and it waits in the Outbox for Check / Resend.
+              child: unconfirmed
+                  ? Icon(
+                      Icons.sync_problem_outlined,
+                      size: 16,
+                      color: tokens.warning,
+                    )
+                  : CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: tokens.ink3,
+                    ),
             ),
             SizedBox(width: InSpacing.md(context)),
             Expanded(
@@ -119,9 +128,11 @@ class PendingCommentRow extends StatelessWidget {
                       ),
                   const SizedBox(height: 2),
                   Text(
-                    context.tr('in_flight'),
+                    context.tr(
+                      unconfirmed ? 'may_have_been_sent' : 'in_flight',
+                    ),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: tokens.ink3,
+                      color: unconfirmed ? tokens.warning : tokens.ink3,
                     ),
                   ),
                 ],

@@ -33,6 +33,13 @@ const int kMaxAttempts = 5;
 /// reconnect / resume / enqueue triggers usually beat it anyway).
 const Duration kOfflineRetryDelay = Duration(seconds: 60);
 
+/// Server answers after which a write may or may not have been applied: the
+/// app threw part-way through (500), or a proxy gave up waiting on an app
+/// server that may have finished (502, 504, and Cloudflare's 520 / 524). A
+/// 503 — maintenance, or an origin that was never reached — is not here:
+/// nothing ran.
+const Set<int> kOutcomeUnknownStatuses = {500, 502, 504, 520, 524};
+
 /// Terminal state observed by [SyncRepository.awaitRow] for one outbox row.
 enum SyncRowOutcome {
   /// Row was successfully drained (server returned 2xx; the row was deleted).
@@ -51,6 +58,12 @@ enum SyncRowOutcome {
   /// was still pending / in-flight. Caller pops the form optimistically and
   /// lets the outbox keep draining in the background.
   timeout,
+
+  /// The row — or an earlier change to the same record it is queued behind —
+  /// may already have reached the server, and nothing sends it until the user
+  /// checks and chooses Send again or Discard ([OutboxState.unconfirmed]).
+  /// [SyncRowResult.unconfirmedRowId] names the row that needs them.
+  unconfirmed,
 }
 
 /// Result of [SyncRepository.awaitRow]. [fieldErrors] is populated only for
@@ -62,12 +75,19 @@ class SyncRowResult {
     this.fieldErrors = const <String, List<String>>{},
     this.message,
     this.statusCode,
+    this.unconfirmedRowId,
+    this.unconfirmedMutationKind,
   });
 
   final SyncRowOutcome outcome;
   final Map<String, List<String>> fieldErrors;
   final String? message;
   final int? statusCode;
+
+  /// For [SyncRowOutcome.unconfirmed]: the `unconfirmed` row — the awaited
+  /// one, or the earlier one holding it back — and its `mutation_kind`.
+  final int? unconfirmedRowId;
+  final String? unconfirmedMutationKind;
 }
 
 /// Long-running consumer of the outbox. Drains rows in FIFO order per
@@ -107,6 +127,19 @@ class SyncRepository {
   /// never skips the attempt, so a platform that misreports "offline" can't
   /// stall the outbox.
   Future<bool> Function()? isOnline;
+
+  /// Re-fetches one record from the server into Drift, dirty-preserving —
+  /// wired by DI to the entity repository's `refreshByIds`; null (tests)
+  /// skips it. Run once a row whose write landed has been settled without its
+  /// reply ([_settleCommitted]), so the local copy converges on what the
+  /// server now holds.
+  Future<void> Function(String companyId, EntityType type, String id)?
+  refreshRecord;
+
+  /// Re-fetches the newest page of one entity's list — wired by DI to its
+  /// first-page prefetcher; null (tests) skips it. A record the server
+  /// created leads that page, which is what [recheck] needs for a create.
+  Future<void> Function(String companyId, EntityType type)? refreshNewest;
 
   final StreamController<SyncEvent> _events =
       StreamController<SyncEvent>.broadcast();
@@ -229,10 +262,44 @@ class SyncRepository {
     }
   }
 
-  /// Count of `dead` rows across every company — the failed changes a full
-  /// logout would delete. Surfaced by the sign-out prompt, whose pending
-  /// count deliberately leaves them out (they can't be synced).
-  Future<int> failedCountEverywhere() => db.outboxDao.deadCountAll();
+  /// Count of rows that need the user — `dead` and `unconfirmed` — across
+  /// every company: the changes a full logout would delete that "Sync first"
+  /// can't send. Surfaced by the sign-out prompt, whose pending count
+  /// deliberately leaves them out.
+  Future<int> attentionCountEverywhere() => db.outboxDao.attentionCountAll();
+
+  /// Fetch what `unconfirmed` [row] may have changed, so the user can see
+  /// whether it went through before choosing Send again or Discard: for a
+  /// create, the newest page of its list (a record the server made would lead
+  /// it); for anything else, the record itself. Best-effort — never throws.
+  Future<void> recheck(OutboxRow row) async {
+    final handlers = registry.byWireName(row.entityType);
+    if (handlers == null) return;
+    try {
+      if (row.mutationKind == MutationKind.create.wireName) {
+        await refreshNewest?.call(row.companyId, handlers.type);
+      } else if (!row.entityId.startsWith('_')) {
+        await refreshRecord?.call(row.companyId, handlers.type, row.entityId);
+      }
+    } catch (e) {
+      _log.fine('Re-checking ${row.entityType} ${row.entityId} failed: $e');
+    }
+  }
+
+  /// The user checked an `unconfirmed` row and chose to send it again — the
+  /// Outbox screen's Send again, or the edit form's. It goes back in line with
+  /// a fresh budget and the same idempotency key, and a drain is kicked.
+  /// Returns whether the row was still `unconfirmed` to move.
+  Future<bool> resendUnconfirmed(int id) async {
+    final row = await db.outboxDao.byId(id);
+    if (row == null) return false;
+    final moved = await db.outboxDao.resendUnconfirmed(
+      id: id,
+      now: _now().millisecondsSinceEpoch,
+    );
+    if (moved) unawaited(drainOnce(companyId: row.companyId));
+    return moved;
+  }
 
   /// Discard one outbox row. If it's a never-synced offline `create`
   /// (`tmp_` id, no `id_remap` entry yet) the orphaned local Drift record
@@ -573,6 +640,10 @@ class SyncRepository {
   ///   * [SyncRowOutcome.serverError] — row is `dead` with a non-422 status,
   ///     or row is `pending` with a future `nextAttemptAt` (a backoff was
   ///     scheduled; surface the `lastError`).
+  ///   * [SyncRowOutcome.unconfirmed] — the row went `unconfirmed`, or it is
+  ///     queued behind an `unconfirmed` row for the same record, which no
+  ///     drain sends until the user decides. Returned at once rather than
+  ///     after [timeout]: waiting cannot change it.
   ///   * [SyncRowOutcome.timeout] — [timeout] elapsed with the row still
   ///     pending or in_flight; caller should fall back to background sync.
   Future<SyncRowResult> awaitRow({
@@ -617,6 +688,32 @@ class SyncRepository {
             message: row.lastError ?? 'Save failed',
             statusCode: row.lastStatusCode,
           );
+        }
+        if (row.state == 'unconfirmed') {
+          return SyncRowResult(
+            outcome: SyncRowOutcome.unconfirmed,
+            message: row.lastError,
+            statusCode: row.lastStatusCode,
+            unconfirmedRowId: row.id,
+            unconfirmedMutationKind: row.mutationKind,
+          );
+        }
+        if (row.state == 'pending') {
+          final ahead = await db.outboxDao.unconfirmedRowAhead(
+            companyId: row.companyId,
+            entityType: row.entityType,
+            entityId: row.entityId,
+            beforeId: row.id,
+          );
+          if (ahead != null) {
+            return SyncRowResult(
+              outcome: SyncRowOutcome.unconfirmed,
+              message: ahead.lastError,
+              statusCode: ahead.lastStatusCode,
+              unconfirmedRowId: ahead.id,
+              unconfirmedMutationKind: ahead.mutationKind,
+            );
+          }
         }
         final nowMs = _now().millisecondsSinceEpoch;
         if (row.state == 'pending' && row.nextAttemptAt > nowMs) {
@@ -755,7 +852,9 @@ class SyncRepository {
   /// response (`recordCreateSuccess`), and the outbox row is deleted in a
   /// separate statement after it. A create whose tmp id already maps died in
   /// that gap — it is delivered, and re-sending it re-created the record.
-  /// Everything else is re-armed as before.
+  /// Any other row whose replay would repeat its effect
+  /// (`DeliverySafety.nonIdempotent`) may or may not have landed, so it waits
+  /// for the user as `unconfirmed`. The rest are re-armed as before.
   ///
   /// Only the rows read here are settled — the set is fixed at pass start,
   /// where the blanket reset this replaced used to run.
@@ -773,6 +872,15 @@ class SyncRepository {
           'instead of re-sending a duplicate',
         );
         await db.outboxDao.deleteRow(row.id);
+        continue;
+      }
+      final kind = MutationKind.tryParse(row.mutationKind);
+      if (kind != null && !_autoResendable(row, kind)) {
+        await _markUnconfirmed(
+          row,
+          'The app stopped while this was being sent',
+          null,
+        );
         continue;
       }
       rearm.add(row.id);
@@ -1067,20 +1175,86 @@ class SyncRepository {
       await scope.run(() => handlers.dispatcher.dispatch(row: row, kind: kind));
       await db.outboxDao.deleteRow(row.id);
       return true;
-    } on CompanySwitchedException catch (e) {
-      if (scope.committed) {
-        // A write already landed under the right company; the switch caught
-        // a follow-up request (a handler that reads back after writing).
-        // Re-sending would repeat the write, so the row is done — the next
-        // refresh brings the record the follow-up would have fetched.
-        _log.warning(
-          'Company switched after row ${row.id} (${row.entityType} '
-          '${row.mutationKind}) had already written; not re-sending: $e',
-        );
-        await db.outboxDao.deleteRow(row.id);
-        return true;
+    } catch (e, st) {
+      // Settled by what reached the server before the exception says what
+      // failed: once a write has committed, nothing that goes wrong after it
+      // may send the row again.
+      if (scope.committed) return _settleCommitted(row, kind, e, st);
+      return _settleFailed(row, handlers, kind, scope, e, st);
+    }
+  }
+
+  /// The server accepted this row's write, and something after it failed —
+  /// decoding the reply, the client-too-old header, a follow-up read,
+  /// applying the response, a company switch before the follow-up. No
+  /// handler makes a second write, so the change is done and a re-send would
+  /// repeat it (the server ignores `Idempotency-Key`): the row is deleted, the
+  /// record's dirty flag released and the record re-fetched, so the local
+  /// copy converges on what the server now holds. These used to be retried —
+  /// a 2xx carrying the client-too-old header re-sent the write every hour.
+  ///
+  /// Except a create whose reply never reached `applyCreateResponse`: the
+  /// server holds the record under an id this device never learned. A re-send
+  /// duplicates it, and deleting the row strands the local copy and
+  /// everything queued against its temp id, so it waits for the user as
+  /// `unconfirmed`.
+  Future<bool> _settleCommitted(
+    OutboxRow row,
+    MutationKind kind,
+    Object error,
+    StackTrace stackTrace,
+  ) async {
+    _log.warning(
+      'Row ${row.id} (${row.entityType} ${row.mutationKind}) reached the '
+      'server; what failed after it does not undo that',
+      error,
+      stackTrace,
+    );
+    if (kind == MutationKind.create &&
+        row.entityId.startsWith('tmp_') &&
+        await db.idRemapDao.resolveAnyType(row.entityId) == null) {
+      await _markUnconfirmed(
+        row,
+        'The server accepted this, but its reply was lost: '
+        '${_messageOf(error)}',
+        null,
+      );
+      return false;
+    }
+    await db.outboxDao.deleteRow(row.id);
+    await _reconcileDiscardedDirty(row);
+    final handlers = registry.byWireName(row.entityType);
+    final refresh = refreshRecord;
+    // `_sort` / `_bulk` name no single record to re-fetch.
+    if (handlers != null && refresh != null && !row.entityId.startsWith('_')) {
+      try {
+        await refresh(row.companyId, handlers.type, row.entityId);
+      } catch (e) {
+        _log.fine('Re-fetching ${row.entityType} ${row.entityId} failed: $e');
       }
-      // Nothing was sent under the wrong token. Put the row back exactly as
+    }
+    return true;
+  }
+
+  /// A row whose attempt failed with nothing committed: routed by the
+  /// exception, as it always was — except that a failure after a write went
+  /// out with no answer (a dropped connection, a 500 / 502 / 504, an
+  /// unclassified throw) leaves the outcome unknown, and a row whose replay
+  /// would repeat its effect then waits for the user as `unconfirmed` instead
+  /// of being retried ([_unknownOutcome]).
+  Future<bool> _settleFailed(
+    OutboxRow row,
+    EntityHandlers handlers,
+    MutationKind kind,
+    RequestScope scope,
+    Object error,
+    StackTrace stackTrace,
+  ) async {
+    try {
+      Error.throwWithStackTrace(error, stackTrace);
+    } on CompanySwitchedException catch (e) {
+      // Nothing was sent under the wrong token (a switch after a committed
+      // write is [_settleCommitted]'s). Put the row back exactly as
       // it was — budget untouched, due now — for its own company's drain;
       // the live-company check ends this pass at the next row.
       _log.fine('Row ${row.id} re-queued: $e');
@@ -1284,7 +1458,23 @@ class SyncRepository {
         statusCode: 401,
       );
       return false;
+    } on RequestNotSentException catch (e) {
+      // Provably never reached the server — see the next arm for why a lost
+      // connection is re-parked rather than counted against the budget.
+      await db.outboxDao.scheduleRetry(
+        id: row.id,
+        attempts: row.attempts,
+        nextAttemptAt:
+            _now().millisecondsSinceEpoch + kOfflineRetryDelay.inMilliseconds,
+        error: e.message,
+        statusCode: null,
+      );
+      return false;
     } on NetworkException catch (e) {
+      if (_unknownOutcome(row, kind, scope)) {
+        await _markUnconfirmed(row, e.message, null);
+        return false;
+      }
       // Offline (or an unreachable host) is "wait for an external condition",
       // not a reason to dead-letter the user's work — the same reasoning the
       // 429 / 401 / client-too-old arms above already apply by re-parking with
@@ -1325,6 +1515,9 @@ class SyncRepository {
       // that the entity vanished.
       if (e.statusCode >= 400 && e.statusCode < 500) {
         await _markDead(row, e.message, e.statusCode);
+      } else if (kOutcomeUnknownStatuses.contains(e.statusCode) &&
+          _unknownOutcome(row, kind, scope)) {
+        await _markUnconfirmed(row, e.message, e.statusCode);
       } else {
         await _retryWithBackoff(row, e.message, e.statusCode);
       }
@@ -1352,8 +1545,61 @@ class SyncRepository {
         e,
         st,
       );
+      if (_unknownOutcome(row, kind, scope)) {
+        await _markUnconfirmed(row, e.toString(), null);
+        return false;
+      }
       await _retryWithBackoff(row, e.toString(), null);
       return false;
+    }
+  }
+
+  /// Whether this failed attempt may have changed the server AND re-sending
+  /// [row] could change it again: a write went out with no answer
+  /// ([RequestScope.writeSent] without [RequestScope.committed] — a failure
+  /// before any write, such as a follow-up read or a throw before the
+  /// request, proves nothing was changed), and the row's replay is not
+  /// harmless ([deliverySafetyFor]). Such a row waits for the user as
+  /// `unconfirmed`; everything else keeps its old retry.
+  bool _unknownOutcome(OutboxRow row, MutationKind kind, RequestScope scope) =>
+      scope.writeSent && !scope.committed && !_autoResendable(row, kind);
+
+  bool _autoResendable(OutboxRow row, MutationKind kind) {
+    Object? payload;
+    try {
+      payload = jsonDecode(row.payload);
+    } catch (_) {
+      // Undecodable — judged on the kind alone.
+    }
+    return deliverySafetyFor(kind, payload).autoResendable;
+  }
+
+  static String _messageOf(Object error) =>
+      error is ApiException ? error.message : error.toString();
+
+  /// Park [row] as `unconfirmed` ([OutboxState]) and tell the shell. No
+  /// dirty-flag reconciliation, unlike [_markDead]: the change may have
+  /// landed, or may still be sent again, so the local copy stays the user's.
+  Future<void> _markUnconfirmed(OutboxRow row, String error, int? code) async {
+    _log.warning(
+      'Row ${row.id} (${row.entityType} ${row.mutationKind} ${row.entityId}) '
+      'may have reached the server; holding it for the user: $error',
+    );
+    await db.outboxDao.markUnconfirmed(
+      id: row.id,
+      error: error,
+      statusCode: code,
+    );
+    final handlers = registry.byWireName(row.entityType);
+    if (handlers != null) {
+      _events.add(
+        UnconfirmedEvent(
+          entityType: handlers.type,
+          entityId: row.entityId,
+          message: error,
+          handledByCaller: _callerDisplayedRows.contains(row.id),
+        ),
+      );
     }
   }
 

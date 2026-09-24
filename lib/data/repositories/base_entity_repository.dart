@@ -20,6 +20,7 @@ import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/data/services/request_scope.dart';
+import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 
 export 'package:admin/data/services/company_switched_exception.dart';
 
@@ -286,12 +287,28 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// dropped the action: the invoice synced with the edit and stayed a draft,
   /// with nothing in the Outbox to show for it. Callers that build a payload
   /// merge this in via [mergeSaveQuery].
+  ///
+  /// A `create` whose earlier create of the same record is `unconfirmed`
+  /// throws [UnconfirmedPriorMutationException] instead: the server may
+  /// already have made the record, so a second create would make it twice.
+  /// Callers run this inside their save transaction, which then rolls back.
   @protected
   Future<Map<String, String>> dedupPendingMutations({
     required String companyId,
     required String entityId,
     required MutationKind kind,
   }) async {
+    if (kind == MutationKind.create) {
+      final unconfirmed = await _outbox.findUnconfirmedForEntity(
+        companyId: companyId,
+        entityType: entityTypeName,
+        entityId: entityId,
+      );
+      if (unconfirmed != null &&
+          unconfirmed.mutationKind == MutationKind.create.wireName) {
+        throw UnconfirmedPriorMutationException(unconfirmed.id);
+      }
+    }
     final superseded = await _outbox.pendingRowsForEntity(
       companyId: companyId,
       entityType: entityTypeName,

@@ -11,6 +11,7 @@ import 'package:admin/ui/core/edit/entity_edit_scaffold.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
+import 'package:admin/ui/core/sync/unconfirmed_change_actions.dart';
 import 'package:admin/ui/core/widgets/save_failed_banner.dart';
 import 'package:admin/ui/core/widgets/sync_first_banner.dart';
 
@@ -219,6 +220,14 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
       _ready = true;
     });
     await _hydrateFailedSync(services, companyId, existingId);
+    if (!mounted || _vm == null) return;
+    await hydrateUnconfirmed(
+      services,
+      companyId: companyId,
+      entityType: widget.entityTypeName,
+      entityId: existingId,
+      vm: _vm!,
+    );
   }
 
   /// Replay a prior rejection onto the VM. Reads the newest dead outbox row
@@ -299,7 +308,11 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// apply anyway. `findDiscardableForEntity` documents why `in_flight` and
   /// the non-save mutation kinds are excluded.
   Future<int?> _resolveDiscardableRowId(Services services, VM vm) async {
-    final cached = vm.deadOutboxRowId;
+    // A save held on an `unconfirmed` row discards THAT row — the newest
+    // discardable one may be a later save queued behind it.
+    final cached =
+        vm.deadOutboxRowId ??
+        (vm.unconfirmedIsSave ? vm.unconfirmedRowId : null);
     if (cached != null) return cached;
     final entityId = widget.existingId;
     if (entityId == null) return null;

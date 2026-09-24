@@ -1129,14 +1129,20 @@ class RawOrPending {
 /// mistaken. `BrowserClient` reads the body before calling `fetch`, so on web
 /// it is always true and every failure stays "outcome unknown", which is the
 /// conservative answer.
+///
+/// A write's body being read also marks the [RequestScope] it was created in
+/// ([RequestScope.markWriteSent]) — captured at construction, so the mark
+/// does not depend on which zone the transport happens to listen from.
 mixin _BodyProbe on http.BaseRequest {
   bool _bodyRead = false;
+  final RequestScope? _scope = RequestScope.current;
 
   bool get bodyRead => _bodyRead;
 
   http.ByteStream _probed(Stream<List<int>> body) => http.ByteStream(
     Stream<List<int>>.multi((controller) {
       _bodyRead = true;
+      if (method != 'GET') _scope?.markWriteSent();
       controller.addStream(body).whenComplete(controller.close);
     }),
   );

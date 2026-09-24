@@ -8,6 +8,7 @@ import 'package:admin/data/models/api/location_api_model.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/domain/entity_state.dart';
@@ -876,6 +877,42 @@ void main() {
         expect(payload['name'], 'Second name');
       },
     );
+
+    test('re-creating is refused while the earlier create may already have '
+        'made the record — and changes nothing', () async {
+      final (:repo, :api) = makeRepo();
+      final first = await repo.create(
+        companyId: 'co',
+        draft: Client.fromApi(apiClient('', name: 'First name')),
+      );
+      await db.outboxDao.markUnconfirmed(
+        id: first.outboxRowId,
+        error: 'Connection reset by peer',
+      );
+
+      await expectLater(
+        repo.create(
+          companyId: 'co',
+          draft: Client.fromApi(apiClient('', name: 'Second name')),
+          existingTempId: first.entity.id,
+        ),
+        throwsA(
+          isA<UnconfirmedPriorMutationException>().having(
+            (e) => e.rowId,
+            'rowId',
+            first.outboxRowId,
+          ),
+        ),
+      );
+
+      final rows = await db.select(db.outbox).get();
+      expect(rows, hasLength(1), reason: 'no second create queued');
+      expect(rows.single.state, 'unconfirmed');
+      final stored = await db.clientDao
+          .watchById(companyId: 'co', id: first.entity.id)
+          .first;
+      expect(stored!.name, 'First name', reason: 'the save rolled back');
+    });
   });
 
   group('stale tmp-id save after create drained (#1 ghost duplicate)', () {

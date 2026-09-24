@@ -147,4 +147,64 @@ void main() {
       expect(find.byType(TextButton), findsNothing);
     },
   );
+
+  group('a save held on a change that may already have gone through', () {
+    // Retry is exactly what could do it twice, so this variant never offers
+    // it — whatever the host passes.
+    testWidgets('its own save offers Check, Resend and Discard, never Retry', (
+      tester,
+    ) async {
+      var discarded = 0;
+      final vm = _FakeVm()
+        ..applyUnconfirmed(rowId: 7, isSave: true, message: 'reset');
+      await pumpAt(
+        tester,
+        800,
+        SaveFailedBanner(
+          vm: vm,
+          onDiscard: () async => discarded++,
+          onRetry: () async {},
+        ),
+      );
+
+      expect(find.text('A change may already have gone through'), findsOne);
+      expect(find.textContaining("won't be sent again on its own"), findsOne);
+      expect(find.text('Check'), findsOneWidget);
+      expect(find.text('Resend'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+
+      await tester.tap(find.text('Discard'));
+      await tester.pump();
+      expect(discarded, 1);
+    });
+
+    testWidgets('another change it waits behind is pointed to, not acted on', (
+      tester,
+    ) async {
+      final vm = _FakeVm()..applyUnconfirmed(rowId: 7, isSave: false);
+      await pumpBanner(tester, vm, onRetry: () async {});
+
+      expect(
+        find.text('Waiting on an earlier change to this record'),
+        findsOneWidget,
+      );
+      expect(find.text('View'), findsOneWidget);
+      expect(find.text('Check'), findsNothing);
+      expect(find.text('Resend'), findsNothing);
+      expect(find.text('Discard'), findsNothing);
+    });
+
+    testWidgets('a narrow phone fits it — the actions wrap below the text', (
+      tester,
+    ) async {
+      final vm = _FakeVm()..applyUnconfirmed(rowId: 7, isSave: true);
+      await pumpAt(
+        tester,
+        320,
+        SaveFailedBanner(vm: vm, onDiscard: () async {}),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.text('Resend'), findsOneWidget);
+    });
+  });
 }

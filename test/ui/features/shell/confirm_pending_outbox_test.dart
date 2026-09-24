@@ -15,6 +15,7 @@ void main() {
   Future<({ShellFixture fixture, List<OutboxConfirmResult> results})> setUp(
     WidgetTester tester, {
     required bool checkAllCompanies,
+    String state = 'dead',
   }) async {
     final fixture = await buildFixture(
       companies: const [FakeCompany(id: 'c1', name: 'Acme Co', token: 't1')],
@@ -31,7 +32,7 @@ void main() {
         idempotencyKey: 'k',
         createdAt: 0,
         nextAttemptAt: 0,
-        state: const Value('dead'),
+        state: Value(state),
       ),
     );
     final results = <OutboxConfirmResult>[];
@@ -64,7 +65,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  final failedBody = find.textContaining("couldn't be saved to the server");
+  final failedBody = find.textContaining('is waiting in the Outbox for you');
 
   testWidgets('a full logout asks about failed changes; Cancel keeps them', (
     tester,
@@ -76,7 +77,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(results, [OutboxConfirmResult.cancelled]);
-    expect(await fixture.db.outboxDao.deadCountAll(), 1);
+    expect(await fixture.db.outboxDao.attentionCountAll(), 1);
+    await tearDownTree(tester, fixture);
+  });
+
+  testWidgets('a change that may already have gone through is asked about '
+      'too, and offers the Outbox', (tester) async {
+    final (:fixture, :results) = await setUp(
+      tester,
+      checkAllCompanies: true,
+      state: 'unconfirmed',
+    );
+
+    expect(failedBody, findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'View'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(results, [OutboxConfirmResult.cancelled]);
+    expect(await fixture.db.outboxDao.attentionCountAll(), 1);
     await tearDownTree(tester, fixture);
   });
 

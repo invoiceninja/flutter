@@ -217,7 +217,7 @@ void main() {
       final id = await enqueueClient(entityId: 'c1');
       await db.outboxDao.markDead(id: id, error: '422', statusCode: 422);
       expect(await engine.hasUnsyncedWork(), isTrue);
-      expect(await engine.failedCountEverywhere(), 1);
+      expect(await engine.attentionCountEverywhere(), 1);
     });
   });
 
@@ -255,13 +255,15 @@ void main() {
       expect(await db.outboxDao.byId(id), isNull);
     });
 
-    test('a create with no remap is still re-sent', () async {
-      await orphan(entityId: 'tmp_c2', kind: MutationKind.create);
-      final disp = _ProgrammableDispatcher()..queueSuccess();
+    test('a create with no remap may have landed: it waits for the user, '
+        'never re-sent on its own', () async {
+      final id = await orphan(entityId: 'tmp_c2', kind: MutationKind.create);
+      final disp = _ProgrammableDispatcher();
 
       await makeEngine(disp).drainOnce(companyId: 'co');
 
-      expect(disp.dispatches, 1);
+      expect(disp.dispatches, 0);
+      expect((await db.outboxDao.byId(id))?.state, 'unconfirmed');
     });
 
     test('other kinds are re-armed as before', () async {
@@ -271,6 +273,280 @@ void main() {
       await makeEngine(disp).drainOnce(companyId: 'co');
 
       expect(disp.dispatches, 1);
+    });
+  });
+
+  group('an outcome the server never confirmed', () {
+    // The server ignores `Idempotency-Key`, so a write that went out with no
+    // answer may have been applied. Re-sending one whose replay repeats its
+    // effect (another record, another email, another payment) could do it
+    // twice — it waits for the user as `unconfirmed` instead. What provably
+    // never went out, or is harmless to repeat, keeps its old retry.
+    late List<SyncEvent> events;
+
+    SyncRepository engineFor(SyncDispatcher disp) {
+      final engine = makeEngine(disp);
+      events = [];
+      engine.events.listen(events.add);
+      return engine;
+    }
+
+    /// What `ApiClient` records for a write whose body went out, then [error].
+    _CallbackDispatcher sentThen(Object error, {bool committed = false}) =>
+        _CallbackDispatcher((_) async {
+          RequestScope.current!.markWriteSent();
+          if (committed) RequestScope.current!.markCommitted();
+          throw error;
+        });
+
+    Future<int> enqueue(
+      String entityId,
+      MutationKind kind, {
+      Map<String, Object?>? payload,
+    }) => db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: entityId,
+        mutationKind: kind.wireName,
+        payload: jsonEncode(payload ?? {'id': entityId}),
+        idempotencyKey: 'k-$entityId',
+        nextAttemptAt: 0,
+        createdAt: 0,
+      ),
+    );
+
+    Future<OutboxRow> drained(SyncRepository engine, int id) async {
+      await engine.drainOnce(companyId: 'co');
+      await Future<void>.delayed(Duration.zero); // flush broadcast
+      return (await db.outboxDao.byId(id))!;
+    }
+
+    test('a create that went out with no answer waits for the user, and '
+        'says so', () async {
+      final id = await enqueue('tmp_c1', MutationKind.create);
+      var dispatches = 0;
+      final engine = engineFor(
+        _CallbackDispatcher((_) async {
+          dispatches++;
+          RequestScope.current!.markWriteSent();
+          throw const NetworkException('Connection reset by peer');
+        }),
+      );
+
+      final row = await drained(engine, id);
+
+      expect(row.state, 'unconfirmed');
+      expect(row.attempts, 0);
+      expect(row.lastError, 'Connection reset by peer');
+      expect(events.single, isA<UnconfirmedEvent>());
+      await engine.drainOnce(companyId: 'co');
+      expect(dispatches, 1, reason: 'no drain sends it again');
+    });
+
+    test('an idempotent write is retried as before', () async {
+      final id = await enqueue('c1', MutationKind.update);
+      final row = await drained(
+        engineFor(sentThen(const NetworkException('reset'))),
+        id,
+      );
+      expect(row.state, 'pending');
+      expect(events, isEmpty);
+    });
+
+    test('a save that carries a payment is not idempotent', () async {
+      final id = await enqueue(
+        'c1',
+        MutationKind.update,
+        payload: {
+          'id': 'c1',
+          kSaveQueryPayloadKey: {'paid': 'true'},
+        },
+      );
+      final row = await drained(
+        engineFor(sentThen(const NetworkException('reset'))),
+        id,
+      );
+      expect(row.state, 'unconfirmed');
+    });
+
+    test('provably never sent — or nothing written yet — is retried, '
+        'whatever the kind', () async {
+      final notSent = await enqueue('tmp_a', MutationKind.create);
+      var row = await drained(
+        engineFor(sentThen(const RequestNotSentException('No route to host'))),
+        notSent,
+      );
+      expect(row.state, 'pending');
+
+      // A follow-up read failing before any write proves nothing changed.
+      final readFirst = await enqueue('tmp_b', MutationKind.create);
+      row = await drained(
+        engineFor(
+          _CallbackDispatcher(
+            (_) async => throw const NetworkException('reset'),
+          ),
+        ),
+        readFirst,
+      );
+      expect(row.state, 'pending');
+    });
+
+    test('a 500 / 502 / 504 may have been applied; a 503 was not', () async {
+      for (final code in [500, 502, 504]) {
+        final id = await enqueue('tmp_$code', MutationKind.create);
+        final row = await drained(
+          engineFor(sentThen(ServerException(code, 'Bad gateway'))),
+          id,
+        );
+        expect(row.state, 'unconfirmed', reason: '$code');
+        expect(row.lastStatusCode, code);
+      }
+      final id = await enqueue('tmp_503', MutationKind.create);
+      final row = await drained(
+        engineFor(sentThen(const ServerException(503, 'Maintenance'))),
+        id,
+      );
+      expect(row.state, 'pending');
+      expect(row.attempts, 1, reason: 'the ordinary 5xx backoff');
+    });
+
+    test('an unclassified throw after the write went out', () async {
+      final id = await enqueue('tmp_c1', MutationKind.create);
+      final row = await drained(engineFor(sentThen(StateError('?'))), id);
+      expect(row.state, 'unconfirmed');
+    });
+
+    group('after the server accepted the write', () {
+      test('a failure after it does not re-send it: the row is done and the '
+          'record re-fetched', () async {
+        // The client-too-old header on a 2xx used to re-park the row for an
+        // hour and send the write again, every hour.
+        final id = await enqueue('c1', MutationKind.update);
+        final refetched = <String>[];
+        final engine = engineFor(
+          sentThen(
+            const ClientTooOldException(
+              minRequiredVersion: '9.9.9',
+              currentVersion: '1.0.0',
+            ),
+            committed: true,
+          ),
+        )..refreshRecord = (companyId, type, id) async => refetched.add(id);
+
+        await engine.drainOnce(companyId: 'co');
+
+        expect(await db.outboxDao.byId(id), isNull);
+        expect(refetched, ['c1']);
+      });
+
+      test('a create whose reply was lost waits for the user', () async {
+        final id = await enqueue('tmp_c1', MutationKind.create);
+        final row = await drained(
+          engineFor(
+            sentThen(const FormatException('bad json'), committed: true),
+          ),
+          id,
+        );
+        expect(row.state, 'unconfirmed');
+      });
+
+      test('a create whose reply was applied is done', () async {
+        final id = await enqueue('tmp_c1', MutationKind.create);
+        final engine = engineFor(
+          _CallbackDispatcher((_) async {
+            RequestScope.current!
+              ..markWriteSent()
+              ..markCommitted();
+            await db.idRemapDao.remember(
+              entityType: 'client',
+              tempId: 'tmp_c1',
+              realId: 'real_c1',
+              now: 0,
+            );
+            throw StateError('a follow-up failed');
+          }),
+        );
+        await engine.drainOnce(companyId: 'co');
+        expect(await db.outboxDao.byId(id), isNull);
+      });
+    });
+
+    group('once a row is unconfirmed', () {
+      Future<int> unconfirmedEmail() async {
+        final id = await enqueue('c1', MutationKind.emailEntity);
+        await db.outboxDao.markUnconfirmed(id: id, error: 'reset');
+        return id;
+      }
+
+      test('a later save of the same record waits behind it, and awaitRow '
+          'says so at once', () async {
+        final ahead = await unconfirmedEmail();
+        final save = await enqueue('c1', MutationKind.update);
+        final disp = _ProgrammableDispatcher();
+        final engine = engineFor(disp);
+
+        final result = await engine.awaitRow(
+          rowId: save,
+          companyId: 'co',
+          timeout: const Duration(seconds: 20),
+        );
+
+        expect(result.outcome, SyncRowOutcome.unconfirmed);
+        expect(result.unconfirmedRowId, ahead);
+        expect(result.unconfirmedMutationKind, 'email_entity');
+        expect(disp.dispatches, 0, reason: 'held back, not sent');
+      });
+
+      test('awaitRow reports a row that went unconfirmed itself', () async {
+        final id = await enqueue('tmp_c1', MutationKind.create);
+        final engine = engineFor(sentThen(const NetworkException('reset')));
+        final result = await engine.awaitRow(
+          rowId: id,
+          companyId: 'co',
+          timeout: const Duration(seconds: 20),
+        );
+        expect(result.outcome, SyncRowOutcome.unconfirmed);
+        expect(result.unconfirmedRowId, id);
+        expect(
+          (events.single as UnconfirmedEvent).handledByCaller,
+          isTrue,
+          reason: 'the waiting form surfaces it',
+        );
+      });
+
+      test('Resend puts it back in line and sends it', () async {
+        final id = await unconfirmedEmail();
+        final disp = _ProgrammableDispatcher()..queueSuccess();
+        final engine = engineFor(disp);
+
+        expect(await engine.resendUnconfirmed(id), isTrue);
+        await engine.drainOnce(companyId: 'co');
+
+        expect(disp.dispatches, 1);
+        expect(await db.outboxDao.byId(id), isNull);
+      });
+
+      test(
+        'Check re-fetches the record — or, for a create, its list',
+        () async {
+          final fetched = <String>[];
+          final engine = engineFor(_ProgrammableDispatcher());
+          engine.refreshRecord = (companyId, type, id) async {
+            fetched.add('record $id');
+          };
+          engine.refreshNewest = (companyId, type) async {
+            fetched.add('list');
+          };
+          final email = await unconfirmedEmail();
+          final create = await enqueue('tmp_c1', MutationKind.create);
+
+          await engine.recheck((await db.outboxDao.byId(email))!);
+          await engine.recheck((await db.outboxDao.byId(create))!);
+
+          expect(fetched, ['record c1', 'list']);
+        },
+      );
     });
   });
 

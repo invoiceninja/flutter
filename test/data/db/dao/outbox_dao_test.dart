@@ -116,11 +116,13 @@ void main() {
       expect(await db.outboxDao.companiesWithActiveRows(), ['co_pending']);
     });
 
-    test('deadCountAll counts failed rows across every company', () async {
+    test('attentionCountAll counts failed and unconfirmed rows across every '
+        'company', () async {
       await enqueue(companyId: 'a', state: 'dead', idempotencyKey: 'k1');
       await enqueue(companyId: 'b', state: 'dead', idempotencyKey: 'k2');
+      await enqueue(companyId: 'b', state: 'unconfirmed', idempotencyKey: 'k4');
       await enqueue(companyId: 'b', idempotencyKey: 'k3');
-      expect(await db.outboxDao.deadCountAll(), 2);
+      expect(await db.outboxDao.attentionCountAll(), 3);
     });
 
     test('hasAnyRows sees any state and nothing else', () async {
@@ -413,5 +415,167 @@ void main() {
         expect(row.fieldErrorsJson, '{"name":["bad"]}');
       },
     );
+  });
+
+  group('unconfirmed rows (may have reached the server)', () {
+    // A non-idempotent change whose attempt may have landed: the drain never
+    // re-sends it, so every query has to say which side of the line it is on
+    // — "Sync first" can't send it, the user's review has to count it, and
+    // later edits of the same record must wait behind it.
+    Future<int> unconfirmed({
+      String entityId = 'c1',
+      String kind = 'email_entity',
+      String key = 'ku',
+    }) => enqueue(
+      entityId: entityId,
+      kind: kind,
+      state: 'unconfirmed',
+      idempotencyKey: key,
+    );
+
+    test(
+      'is never sent by a drain, and "Sync first" does not wait on it',
+      () async {
+        await unconfirmed();
+        expect(await db.outboxDao.nextReady(companyId: 'co', now: 1), isEmpty);
+        expect(await db.outboxDao.pendingCountForCompany('co'), 0);
+        expect(await db.outboxDao.companiesWithActiveRows(), isEmpty);
+        expect(await db.outboxDao.companiesWithUnsyncedRows(), ['co']);
+        expect(await db.outboxDao.attentionCountAll(), 1);
+        expect(
+          await db.outboxDao.watchAttentionCount(companyId: 'co').first,
+          1,
+        );
+      },
+    );
+
+    test('holds back later changes to the same record, however long it '
+        'waits, and only those', () async {
+      final ahead = await unconfirmed();
+      final behind = await enqueue(idempotencyKey: 'k2');
+      final other = await enqueue(entityId: 'c2', idempotencyKey: 'k3');
+      Future<bool> blocked(int id, String entityId) =>
+          db.outboxDao.hasEarlierActiveRowForEntity(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: entityId,
+            beforeId: id,
+            // Far past any parked horizon: an unconfirmed row has none.
+            now: 1 << 40,
+          );
+      expect(await blocked(behind, 'c1'), isTrue);
+      expect(await blocked(other, 'c2'), isFalse);
+      expect(
+        (await db.outboxDao.unconfirmedRowAhead(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+          beforeId: behind,
+        ))?.id,
+        ahead,
+      );
+      expect(
+        await db.outboxDao.unconfirmedRowAhead(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+          beforeId: ahead,
+        ),
+        isNull,
+      );
+    });
+
+    test('markUnconfirmed parks a row; resendUnconfirmed puts only an '
+        'unconfirmed one back in line, same key, fresh budget', () async {
+      final id = await enqueue(idempotencyKey: 'same-key');
+      await db.outboxDao.scheduleRetry(
+        id: id,
+        attempts: 3,
+        nextAttemptAt: 99,
+        error: 'x',
+      );
+      await db.outboxDao.markUnconfirmed(
+        id: id,
+        error: 'Connection closed',
+        statusCode: 502,
+      );
+      var row = (await db.outboxDao.byId(id))!;
+      expect(row.state, 'unconfirmed');
+      expect(row.lastStatusCode, 502);
+
+      expect(await db.outboxDao.resendUnconfirmed(id: id, now: 500), isTrue);
+      row = (await db.outboxDao.byId(id))!;
+      expect(row.state, 'pending');
+      expect(row.attempts, 0);
+      expect(row.nextAttemptAt, 500);
+      expect(row.idempotencyKey, 'same-key');
+
+      expect(
+        await db.outboxDao.resendUnconfirmed(id: id, now: 600),
+        isFalse,
+        reason: 'a pending row is not moved again',
+      );
+    });
+
+    test('the edit form finds it, and its Discard may abandon it', () async {
+      final id = await unconfirmed(kind: 'update');
+      expect(
+        (await db.outboxDao.findUnconfirmedForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ))?.id,
+        id,
+      );
+      expect(
+        (await db.outboxDao.findDiscardableForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ))?.id,
+        id,
+      );
+    });
+
+    test('counts as a local edit still in charge of the record', () async {
+      await unconfirmed(kind: 'update');
+      expect(
+        await db.outboxDao.hasActiveRowsForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isTrue,
+      );
+      expect(
+        await db.outboxDao.hasActiveRowsFor(
+          companyId: 'co',
+          entityType: 'client',
+        ),
+        isTrue,
+      );
+    });
+
+    test('a landed create heals its temp id without re-arming it', () async {
+      final id = await unconfirmed(entityId: 'tmp_x', kind: 'update');
+      await db.outboxDao.rewriteTempIdInPayloads(
+        companyId: 'co',
+        entityType: 'client',
+        tempId: 'tmp_x',
+        realId: 'real_x',
+      );
+      final row = (await db.outboxDao.byId(id))!;
+      expect(row.entityId, 'real_x');
+      expect(row.payload, contains('real_x'));
+      expect(row.state, 'unconfirmed', reason: 'it still waits for the user');
+    });
+
+    test('shows up in the stale-row snapshot', () async {
+      await unconfirmed();
+      expect(
+        await db.outboxDao.staleRowsForCompany(companyId: 'co', now: 0),
+        hasLength(1),
+      );
+    });
   });
 }

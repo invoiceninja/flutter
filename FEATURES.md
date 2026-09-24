@@ -1546,6 +1546,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | "Unsynced" indicator on rows with a pending/rejected outbox edit | — | — | ✅ | | |
 | Encrypted local database (SQLCipher) | — | ❌ | ✅ | ✅ | |
 | Unsynced changes survive a local-database reset (quarantine + salvage; native only, web still loses them; not yet surfaced in the UI) | — | — | 🟡 | | |
+| A change that may already have reached the server is held for review, never re-sent on its own (Outbox Check / Resend / Discard, edit-form banner, sign-out prompt) | — | — | ✅ | | |
 | One-tap Sync in the sidebar (push + download, shared progress) | — | — | ✅ | | |
 | Single-company drawer compaction — hides the company header row, moving Sync into the toolbar row and the switcher into the footer | — | — | ✅ | | |
 

@@ -7,12 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 
 void main() {
+  _unconfirmedSaveTests();
   group('GenericEditViewModel', () {
     test('save() returns the entity on success and clears errors', () async {
       final vm = _FakeEditVM(initialDraft: 'draft-v1');
@@ -568,6 +570,95 @@ void main() {
       gate.complete(const SyncRowResult(outcome: SyncRowOutcome.success));
       final result = await saveFuture;
       expect(result, 'tmp_AAA');
+    });
+  });
+}
+
+/// A save whose change may already have gone through ([SyncRowOutcome.
+/// unconfirmed]) is held for the user's Check / Resend / Discard — it must not
+/// read as saved, and must not re-send on the next Save.
+void _unconfirmedSaveTests() {
+  group('GenericEditViewModel — a save held on an unconfirmed change', () {
+    late AppDatabase db;
+    late _FakeSyncRepository sync;
+
+    setUp(() {
+      db = AppDatabase(NativeDatabase.memory());
+      sync = _FakeSyncRepository(db);
+    });
+    tearDown(() => db.close());
+
+    _FakeEditVM online() => _FakeEditVM(
+      initialDraft: 'tmp_AAA',
+      sync: sync,
+      connectivity: ConnectivityWatcher.fixed(online: true),
+      companyId: 'co',
+    );
+
+    test('its own row: not saved, held on that row, temp id kept', () async {
+      final vm = online();
+      sync.handler = (rowId) => SyncRowResult(
+        outcome: SyncRowOutcome.unconfirmed,
+        message: 'reset',
+        unconfirmedRowId: rowId,
+        unconfirmedMutationKind: 'create',
+      );
+
+      expect(await vm.save(), isNull);
+      expect(vm.unconfirmedRowId, 1);
+      expect(vm.unconfirmedIsSave, isTrue);
+      expect(vm.unconfirmedMessage, 'reset');
+      expect(vm.submitError, isNull, reason: 'not a rejection');
+      expect(
+        vm.recoveryTempId,
+        'tmp_AAA',
+        reason: 'a fresh temp id on the next Save would queue a second create',
+      );
+    });
+
+    test('behind another change to the record: pointed at that one', () async {
+      final vm = online();
+      sync.handler = (_) => const SyncRowResult(
+        outcome: SyncRowOutcome.unconfirmed,
+        unconfirmedRowId: 9,
+        unconfirmedMutationKind: 'email_entity',
+      );
+
+      expect(await vm.save(), isNull);
+      expect(vm.unconfirmedRowId, 9);
+      expect(vm.unconfirmedIsSave, isFalse);
+    });
+
+    test(
+      'a re-save refused because the earlier create may have landed',
+      () async {
+        final vm = online()
+          ..throwOnSave = const UnconfirmedPriorMutationException(5);
+
+        expect(await vm.save(), isNull);
+        expect(vm.unconfirmedRowId, 5);
+        expect(vm.unconfirmedIsSave, isTrue);
+        expect(vm.submitError, isNull);
+      },
+    );
+
+    test('Resend clears the hold but keeps the temp id; Discard clears '
+        'both', () async {
+      final vm = online();
+      sync.handler = (rowId) => SyncRowResult(
+        outcome: SyncRowOutcome.unconfirmed,
+        unconfirmedRowId: rowId,
+        unconfirmedMutationKind: 'create',
+      );
+      await vm.save();
+      vm.clearUnconfirmed();
+      expect(vm.unconfirmedRowId, isNull);
+      expect(vm.recoveryTempId, 'tmp_AAA');
+
+      vm.applyUnconfirmed(rowId: 1, isSave: true);
+      vm.clearFailedSync();
+      expect(vm.unconfirmedRowId, isNull);
+      expect(vm.recoveryTempId, isNull);
     });
   });
 }

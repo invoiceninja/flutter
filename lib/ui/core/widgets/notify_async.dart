@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
@@ -84,6 +85,20 @@ Future<void> runQueuedActionWithNotify(
       case SyncRowOutcome.serverError:
       case SyncRowOutcome.validationFailed:
         break; // surfaced by the shell SyncEventListener (modal while online)
+      case SyncRowOutcome.unconfirmed:
+        // This row going unconfirmed is surfaced by the shell like a death.
+        // Queued behind an earlier unconfirmed change to the same record, it
+        // raised nothing — say why it hasn't gone.
+        if (outcome.unconfirmedRowId != rowId) {
+          Notify.warning(
+            context,
+            context.tr('waiting_on_unconfirmed_change'),
+            detail: context.tr('may_have_been_sent_help'),
+            action: NotifyAction(context.tr('view'), () {
+              if (context.mounted) context.go('/sync/outbox');
+            }),
+          );
+        }
     }
   } catch (e) {
     if (!context.mounted) return;

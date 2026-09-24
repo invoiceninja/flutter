@@ -8,8 +8,16 @@ import 'package:admin/domain/sync/mutation.dart';
 
 part 'outbox_dao.g.dart';
 
-/// `state` values: `pending | in_flight | dead`.
-enum OutboxState { pending, inFlight, dead }
+/// `state` values: `pending | in_flight | unconfirmed | dead`.
+///
+/// `pending` and `in_flight` are **active**: the drain sends them on its own.
+/// `unconfirmed` and `dead` **need the user**: `dead` was refused (or ran out
+/// of retries); `unconfirmed` is a non-idempotent change whose attempt may
+/// have reached the server — the connection dropped after sending, a 5xx, the
+/// app died mid-request — so re-sending it could do it twice. It waits for
+/// the user to check and then Send again or Discard, and meanwhile holds back
+/// later changes to the same record ([hasEarlierActiveRowForEntity]).
+enum OutboxState { pending, inFlight, unconfirmed, dead }
 
 @DriftAccessor(tables: [Outbox])
 class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
@@ -22,8 +30,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   Future<OutboxRow?> byId(int id) =>
       (select(outbox)..where((o) => o.id.equals(id))).getSingleOrNull();
 
-  /// One-shot count of non-`dead` rows for [companyId]. The picker uses this
-  /// to decide whether a company switch needs a "you have unsaved changes"
+  /// One-shot count of active (`pending` / `in_flight`) rows for
+  /// [companyId] — what "Sync first" can send. The picker uses this to decide
+  /// whether a company switch needs a "you have unsaved changes"
   /// confirmation; the streaming variant below feeds badges that refresh
   /// continuously.
   ///
@@ -31,18 +40,22 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// a logout/switch guard reads this is still the user's unsynced work — if
   /// the attempt fails it re-parks as pending, and a guard that saw 0 would
   /// already have wiped it. (Badges use [watchPendingCount], unaffected.)
+  /// `unconfirmed` is left out with `dead`: no drain sends it, so counting it
+  /// here would leave "Sync first" waiting forever. [attentionCountAll]
+  /// counts both.
   Future<int> pendingCountForCompany(String companyId) async {
     final count = outbox.id.count();
     final q = selectOnly(outbox)
       ..addColumns([count])
       ..where(
-        outbox.companyId.equals(companyId) & outbox.state.isNotValue('dead'),
+        outbox.companyId.equals(companyId) &
+            outbox.state.isIn(const ['pending', 'in_flight']),
       );
     final row = await q.getSingle();
     return row.read(count) ?? 0;
   }
 
-  /// Distinct company ids holding any non-`dead` (pending or in_flight)
+  /// Distinct company ids holding any active (`pending` / `in_flight`)
   /// outbox row. The full-logout / idle-timeout guards read this instead of
   /// `session.companies`: the wipe destroys EVERY company's rows, and the
   /// outbox is the ground truth for unsynced work — a company that vanished
@@ -51,7 +64,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   Future<List<String>> companiesWithActiveRows() async {
     final q = selectOnly(outbox, distinct: true)
       ..addColumns([outbox.companyId])
-      ..where(outbox.state.isNotValue('dead'));
+      ..where(outbox.state.isIn(const ['pending', 'in_flight']));
     final rows = await q.get();
     return [
       for (final row in rows)
@@ -77,13 +90,14 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     ];
   }
 
-  /// One-shot count of `dead` rows across every company — what a full logout
-  /// would delete that the sign-out prompt's pending count doesn't show.
-  Future<int> deadCountAll() async {
+  /// One-shot count of rows that need the user — `dead` and `unconfirmed` —
+  /// across every company: what a full logout would delete that the sign-out
+  /// prompt's pending count doesn't show.
+  Future<int> attentionCountAll() async {
     final count = outbox.id.count();
     final q = selectOnly(outbox)
       ..addColumns([count])
-      ..where(outbox.state.equals('dead'));
+      ..where(outbox.state.isIn(const ['dead', 'unconfirmed']));
     final row = await q.getSingle();
     return row.read(count) ?? 0;
   }
@@ -147,6 +161,19 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.map((row) => row.read(count) ?? 0).watchSingle();
   }
 
+  /// Live count of rows that need the user — `dead` and `unconfirmed` — for
+  /// [companyId]. The sidebar's Outbox badge adds it to [watchPendingCount].
+  Stream<int> watchAttentionCount({required String companyId}) {
+    final count = outbox.id.count();
+    final q = selectOnly(outbox)
+      ..addColumns([count])
+      ..where(
+        outbox.companyId.equals(companyId) &
+            outbox.state.isIn(const ['dead', 'unconfirmed']),
+      );
+    return q.map((row) => row.read(count) ?? 0).watchSingle();
+  }
+
   Future<List<OutboxRow>> nextReady({
     required String companyId,
     required int now,
@@ -183,6 +210,11 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// it. Blocking on those would starve the record for a year — far worse than
   /// the reordering. Same horizon [staleRowsForCompany] uses to call a row
   /// parked.
+  ///
+  /// An `unconfirmed` row DOES block, parked or not: the user's Send again
+  /// puts it back in line, and a later full-record PUT sent ahead of it would
+  /// then be overwritten by the older one — the same lost update. The save
+  /// held behind it says why ([unconfirmedRowAhead]).
   Future<bool> hasEarlierActiveRowForEntity({
     required String companyId,
     required String entityType,
@@ -199,12 +231,37 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
             o.id.isSmallerThanValue(beforeId) &
-            (o.state.equals('in_flight') |
+            (o.state.isIn(const ['in_flight', 'unconfirmed']) |
                 (o.state.equals('pending') &
                     o.nextAttemptAt.isSmallerOrEqualValue(horizon))),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
+  }
+
+  /// The newest `unconfirmed` row for the same record that is older than row
+  /// [beforeId] — the one holding that row back
+  /// ([hasEarlierActiveRowForEntity]). Null when nothing is.
+  Future<OutboxRow?> unconfirmedRowAhead({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+    required int beforeId,
+  }) {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityType.equals(entityType) &
+            o.entityId.equals(entityId) &
+            o.id.isSmallerThanValue(beforeId) &
+            o.state.equals('unconfirmed'),
+      )
+      ..orderBy([
+        (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
+      ])
+      ..limit(1);
+    return q.getSingleOrNull();
   }
 
   /// Find an existing `pending` row for [companyId] + [entityType] so the
@@ -402,10 +459,11 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// `in_flight`) — same predicate as [deletePendingForCompany], but
   /// returns the rows so a caller can apply per-row discard logic. Used by
   /// `SyncRepository.discardPendingFor`.
-  /// True when any non-terminal (`pending` or `in_flight`) row exists for
-  /// [companyId] + [entityType]. `in_flight` matters: a refresh that lands
-  /// while the row's HTTP attempt is mid-send must still treat the local
-  /// edit as in charge — the attempt may fail and re-park as pending.
+  /// True when any non-terminal (`pending`, `in_flight` or `unconfirmed`)
+  /// row exists for [companyId] + [entityType]. `in_flight` matters: a
+  /// refresh that lands while the row's HTTP attempt is mid-send must still
+  /// treat the local edit as in charge — the attempt may fail and re-park as
+  /// pending. `unconfirmed` for the same reason: the user may send it again.
   Future<bool> hasActiveRowsFor({
     required String companyId,
     required String entityType,
@@ -415,7 +473,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         (o) =>
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
-            (o.state.equals('pending') | o.state.equals('in_flight')),
+            o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
@@ -425,7 +483,8 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// reconciliation uses it to decide whether clearing a local record's
   /// `is_dirty` is safe — only when NO other pending/in_flight outbox row
   /// for that exact record remains (else clearing would un-protect a still-
-  /// queued edit from the next server refresh).
+  /// queued edit from the next server refresh). An `unconfirmed` row counts:
+  /// the user may still send it again.
   Future<bool> hasActiveRowsForEntity({
     required String companyId,
     required String entityType,
@@ -437,7 +496,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
-            (o.state.equals('pending') | o.state.equals('in_flight')),
+            o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
@@ -530,6 +589,38 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         );
   }
 
+  /// Park row [id] as `unconfirmed`: its attempt may have reached the server
+  /// and a re-send could do it twice, so no drain sends it until the user
+  /// chooses ([resendUnconfirmed], or a discard). [OutboxState] has the rest.
+  Future<void> markUnconfirmed({
+    required int id,
+    required String error,
+    int? statusCode,
+  }) => (update(outbox)..where((o) => o.id.equals(id))).write(
+    OutboxCompanion(
+      state: const Value('unconfirmed'),
+      lastError: Value(error),
+      lastStatusCode: Value(statusCode),
+    ),
+  );
+
+  /// The user checked row [id] and chose to send it again: back in line with
+  /// a fresh budget, keeping its payload and idempotency key. Only an
+  /// `unconfirmed` row moves; returns whether one did.
+  Future<bool> resendUnconfirmed({required int id, required int now}) async {
+    final moved =
+        await (update(
+          outbox,
+        )..where((o) => o.id.equals(id) & o.state.equals('unconfirmed'))).write(
+          OutboxCompanion(
+            state: const Value('pending'),
+            attempts: const Value(0),
+            nextAttemptAt: Value(now),
+          ),
+        );
+    return moved > 0;
+  }
+
   Future<void> markDead({
     required int id,
     required String error,
@@ -593,6 +684,30 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.watch().distinctRows();
   }
 
+  /// Newest `unconfirmed` row for the given entity (if any), any mutation
+  /// kind. The edit form calls this on open: a save of the record queues
+  /// behind it ([hasEarlierActiveRowForEntity]), so the form says so up
+  /// front instead of letting the next save wait on it silently.
+  Future<OutboxRow?> findUnconfirmedForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityType.equals(entityType) &
+            o.entityId.equals(entityId) &
+            o.state.equals('unconfirmed'),
+      )
+      ..orderBy([
+        (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
+      ])
+      ..limit(1);
+    return q.getSingleOrNull();
+  }
+
   /// Newest `dead` row for the given entity (if any). The edit form calls
   /// this on open so it can replay 422 field errors against the form.
   Future<OutboxRow?> findDeadForEntity({
@@ -617,7 +732,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
 
   /// Newest row for the given entity that a "Discard failed save" tap may
   /// legitimately abandon: the entity's own `create` / `update`, in state
-  /// `dead` **or** `pending`.
+  /// `dead`, `unconfirmed` **or** `pending`.
   ///
   /// [findDeadForEntity] is not enough for that surface. `SaveFailedBanner`
   /// renders off `submitError`, and only a **422** kills the row — a 5xx or a
@@ -649,7 +764,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
-            o.state.isIn(['dead', 'pending']) &
+            o.state.isIn(const ['dead', 'unconfirmed', 'pending']) &
             o.mutationKind.isIn([
               MutationKind.create.wireName,
               MutationKind.update.wireName,
@@ -702,9 +817,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
           ))
           .go();
 
-  /// Snapshot of rows that aren't on the happy path: `dead`, `in_flight`,
-  /// or `pending` whose `next_attempt_at` is parked more than 24 h out (the
-  /// 409 / password-required / 1-year-park cases in [SyncRepository]).
+  /// Snapshot of rows that aren't on the happy path: `dead`, `unconfirmed`,
+  /// `in_flight`, or `pending` whose `next_attempt_at` is parked more than
+  /// 24 h out (the 409 / password-required / 1-year-park cases in
+  /// [SyncRepository]).
   ///
   /// Used by the debug-only diagnostics log on the System Logs screen. The
   /// drain-loop path keeps using [nextReady]; this query is read-only.
@@ -717,8 +833,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
       ..where(
         (o) =>
             o.companyId.equals(companyId) &
-            (o.state.equals('dead') |
-                o.state.equals('in_flight') |
+            (o.state.isIn(const ['dead', 'unconfirmed', 'in_flight']) |
                 (o.state.equals('pending') &
                     o.nextAttemptAt.isBiggerThanValue(parkedThreshold))),
       )
@@ -726,8 +841,8 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.get();
   }
 
-  /// Rewrite tmp ids inside payloads of pending AND dead rows once a
-  /// `create` lands and produces a real id. The repository / sync engine
+  /// Rewrite tmp ids inside payloads of pending, unconfirmed AND dead rows
+  /// once a `create` lands and produces a real id. The repository / sync engine
   /// calls this in the same transaction as inserting into `id_remap`.
   ///
   /// Dead rows are included so a dependent mutation that died while the
@@ -746,7 +861,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         await (select(outbox)..where(
               (o) =>
                   o.companyId.equals(companyId) &
-                  (o.state.equals('pending') | o.state.equals('dead')) &
+                  o.state.isIn(const ['pending', 'unconfirmed', 'dead']) &
                   (o.payload.contains(tempId) | o.entityId.equals(tempId)),
             ))
             .get();
@@ -761,9 +876,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
       // stays parked and `pendingCountFor` still counts it → logout cancels
       // on a chain that's actually fine. `attempts` is deliberately NOT
       // reset (a row failing for a real reason must still exhaust its retry
-      // budget). DEAD rows keep their state and scheduling untouched — a
-      // dead dependent heals its payload for a manual Retry but must stay
-      // dead (see the dead-row test in outbox_dao_test).
+      // budget). DEAD and UNCONFIRMED rows keep their state and scheduling
+      // untouched — they heal their payload for the user's Retry / Send
+      // again but must not start sending on their own (see the dead-row
+      // test in outbox_dao_test).
       final reArm = row.state == 'pending';
       await (update(outbox)..where((o) => o.id.equals(row.id))).write(
         OutboxCompanion(

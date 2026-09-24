@@ -40,6 +40,16 @@ class RequestScope {
 
   void markCommitted() => _committed = true;
 
+  /// Whether a write — a non-GET — has started going out during this attempt:
+  /// the transport began reading its body. Until one has, a failure proves
+  /// the server was never asked to change anything (a follow-up read failing,
+  /// a throw before the request), whatever the exception says. Once one has
+  /// and has not [committed], its outcome is unknown.
+  bool get writeSent => _writeSent;
+  bool _writeSent = false;
+
+  void markWriteSent() => _writeSent = true;
+
   /// Set by the drain when the device reported no connectivity just before
   /// this attempt. A transport failure then counts as "never sent" even
   /// where the transport itself can't prove it (web, where the body is read

@@ -13,6 +13,7 @@ import 'package:admin/ui/core/unsaved_changes/unsaved_changes_scope.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/core/sync/unconfirmed_change_actions.dart';
 import 'package:admin/ui/core/widgets/save_failed_banner.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_overflow_menu.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
@@ -192,6 +193,7 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
       if (vm != null) {
         try {
           await _relinkFailedSync(vm);
+          await _relinkUnconfirmed(vm);
         } catch (e, st) {
           _log.warning('failed to relink a prior rejection', e, st);
         }
@@ -246,9 +248,30 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     );
   }
 
+  /// A change to this record that may already have reached the server holds
+  /// the next save back; say so on open (`hydrateUnconfirmed`).
+  Future<void> _relinkUnconfirmed(VM vm) async {
+    final existingId = widget.existingId;
+    if (existingId == null) return;
+    final services = context.read<Services>();
+    final companyId = services.auth.session.value?.currentCompanyId;
+    if (companyId == null) return;
+    await hydrateUnconfirmed(
+      services,
+      companyId: companyId,
+      entityType: widget.wireName,
+      entityId: existingId,
+      vm: vm,
+    );
+  }
+
   Future<void> _discardFailedSync(VM vm) async {
     final services = context.read<Services>();
-    var rowId = vm.deadOutboxRowId;
+    // A save held on an `unconfirmed` row discards THAT row — the newest
+    // discardable one may be a later save queued behind it.
+    var rowId =
+        vm.deadOutboxRowId ??
+        (vm.unconfirmedIsSave ? vm.unconfirmedRowId : null);
     // Fall back to a dao lookup when the VM has no cached id — the contract
     // `save_failed_banner.dart` documents ("the screen's discard handler does
     // the fallback dao lookup") and `EntityEditScreenScaffold` shares.
@@ -294,7 +317,9 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
       // A field-mapped 422 is surfaced by the banner below (a toast would just
       // cover the fields the user has to fix); everything else — network, 5xx,
       // permanent 4xx — has only the server's own words.
-      if (vm.fieldErrors.isEmpty && vm.submitError != null) {
+      if (vm.fieldErrors.isEmpty &&
+          vm.submitError != null &&
+          vm.unconfirmedRowId == null) {
         Notify.error(
           context,
           context.tr('could_not_save'),

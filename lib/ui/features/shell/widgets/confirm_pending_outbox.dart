@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
@@ -51,17 +52,20 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
   return _confirmFailedRows(context);
 }
 
-/// A full logout wipes `dead` rows too: the changes the server rejected,
-/// waiting in the Outbox (and in their dirty local rows, which the edit form
-/// reopens onto) for the user to fix and retry. The pending prompt can't
-/// cover them — "Sync first" does nothing for a row the server refused — so
-/// they used to go with no warning at all. Ask separately, with the safe
-/// action focused: this dialog exists to catch an accidental sign-out.
+/// A full logout wipes the rows waiting on the user too: `dead` ones (the
+/// changes the server rejected, waiting in the Outbox — and in their dirty
+/// local rows, which the edit form reopens onto — for a fix and retry) and
+/// `unconfirmed` ones (changes that may already have gone through, waiting
+/// for a Check before Resend or Discard). The pending prompt can't cover
+/// them — "Sync first" sends neither — so they used to go with no warning at
+/// all. Ask separately, with the safe action focused: this dialog exists to
+/// catch an accidental sign-out. View cancels the sign-out and opens the
+/// Outbox, where each can be dealt with.
 Future<OutboxConfirmResult> _confirmFailedRows(BuildContext context) async {
   final services = context.read<Services>();
   final int failed;
   try {
-    failed = await services.sync.failedCountEverywhere();
+    failed = await services.sync.attentionCountEverywhere();
   } catch (e) {
     // Unknowable is not the same as none — refuse rather than wipe blind.
     if (context.mounted) {
@@ -72,15 +76,15 @@ Future<OutboxConfirmResult> _confirmFailedRows(BuildContext context) async {
   if (failed == 0) return OutboxConfirmResult.proceed;
   if (!context.mounted) return OutboxConfirmResult.cancelled;
 
-  final discard = await showDialog<bool>(
+  final choice = await showDialog<_ReviewChoice>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text(ctx.tr('unsynced_changes')),
       content: Text(
         ctx.tr(
           failed == 1
-              ? 'failed_changes_sign_out_body_singular'
-              : 'failed_changes_sign_out_body_plural',
+              ? 'review_changes_sign_out_body_singular'
+              : 'review_changes_sign_out_body_plural',
           {'count': failed.toString()},
         ),
       ),
@@ -88,8 +92,13 @@ Future<OutboxConfirmResult> _confirmFailedRows(BuildContext context) async {
         OutlinedButton(
           autofocus: true,
           style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
-          onPressed: () => Navigator.of(ctx).pop(false),
+          onPressed: () => Navigator.of(ctx).pop(_ReviewChoice.cancel),
           child: Text(ctx.tr('cancel')),
+        ),
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          onPressed: () => Navigator.of(ctx).pop(_ReviewChoice.view),
+          child: Text(ctx.tr('view')),
         ),
         PrimaryDialogAction(
           variant: DialogActionVariant.destructive,
@@ -97,15 +106,20 @@ Future<OutboxConfirmResult> _confirmFailedRows(BuildContext context) async {
           // Never focused, never advertised — see `showConfirmActionDialog`.
           autofocus: false,
           showEnterHint: false,
-          onPressed: () => Navigator.of(ctx).pop(true),
+          onPressed: () => Navigator.of(ctx).pop(_ReviewChoice.discard),
         ),
       ],
     ),
   );
-  return discard == true
+  if (choice == _ReviewChoice.view && context.mounted) {
+    context.go('/sync/outbox');
+  }
+  return choice == _ReviewChoice.discard
       ? OutboxConfirmResult.proceed
       : OutboxConfirmResult.cancelled;
 }
+
+enum _ReviewChoice { cancel, view, discard }
 
 /// The pending (non-`dead`) half of [confirmPendingOutboxIfAny] — sync first,
 /// discard, or cancel.

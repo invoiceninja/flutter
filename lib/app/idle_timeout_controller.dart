@@ -123,9 +123,10 @@ class IdleTimeoutController with WidgetsBindingObserver {
   /// the encrypted DB + outbox) rather than do a destructive full logout: true
   /// when ANY company still has unsynced outbox rows — the full logout wipes
   /// the whole DB, so a non-active company's pending edits count just as much
-  /// as the active one's. The company set comes from the OUTBOX itself
-  /// (`companiesWithActiveRows`), not `session.companies`, so a company that
-  /// vanished from the session envelope still protects its rows. This is a
+  /// as the active one's — and so do rows in every state, failed and
+  /// unconfirmed included. The company set comes from the OUTBOX itself
+  /// (`SyncRepository.hasUnsyncedWork`), not `session.companies`, so a company
+  /// that vanished from the session envelope still protects its rows. This is a
   /// fast local read only — no network drain on the security-lock path, so
   /// the lock happens promptly; the preserved outbox drains after the next
   /// sign-in (which also clears the re-lock gate). Errs toward preserving on

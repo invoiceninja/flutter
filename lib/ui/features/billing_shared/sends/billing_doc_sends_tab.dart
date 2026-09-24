@@ -222,11 +222,17 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
               // no enqueuer anywhere in `lib/`, so it is dead wiring and not
               // what that action produces), and `sendEInvoice` is a
               // transmission, not an email.
-              final sendQueued = rows.any(
+              final sends = rows.where(
                 (r) => r.mutationKind == MutationKind.emailEntity.wireName,
               );
               return ActivityListCard(
-                child: _buildList(context, contacts, pendingIds, sendQueued),
+                child: _buildList(
+                  context,
+                  contacts,
+                  pendingIds,
+                  sendQueued: sends.isNotEmpty,
+                  sendUnconfirmed: sends.any((r) => r.state == 'unconfirmed'),
+                ),
               );
             },
           );
@@ -238,9 +244,10 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
   Widget _buildList(
     BuildContext context,
     PartyContacts contacts,
-    Set<String> pendingIds,
-    bool sendQueued,
-  ) {
+    Set<String> pendingIds, {
+    required bool sendQueued,
+    required bool sendUnconfirmed,
+  }) {
     final invitations = widget.invitations
         .where((i) => i.hasSendHistory)
         .toList();
@@ -259,7 +266,8 @@ class _BillingDocSendsTabState extends State<BillingDocSendsTab> {
     // the combined total so the divider lands on the real final row.
     final total = (sendQueued ? 1 : 0) + invitations.length;
     final children = <Widget>[
-      if (sendQueued) _QueuedSendRow(isLast: total == 1),
+      if (sendQueued)
+        _QueuedSendRow(isLast: total == 1, unconfirmed: sendUnconfirmed),
     ];
     for (var i = 0; i < invitations.length; i++) {
       final inv = invitations[i];
@@ -368,10 +376,15 @@ class _SendsRowShell extends StatelessWidget {
 /// The spinner is indeterminate and runs for as long as the row is queued, so
 /// `pumpAndSettle` over any screen in this state never returns; pump
 /// explicitly, as `pending_comment_row_test.dart` records for its twin.
+///
+/// Except an `unconfirmed` send — it may already have gone out, and nothing
+/// sends it again until the user decides on the Outbox screen — which shows
+/// that instead of a spinner that would run forever.
 class _QueuedSendRow extends StatelessWidget {
-  const _QueuedSendRow({required this.isLast});
+  const _QueuedSendRow({required this.isLast, required this.unconfirmed});
 
   final bool isLast;
+  final bool unconfirmed;
 
   @override
   Widget build(BuildContext context) {
@@ -385,10 +398,13 @@ class _QueuedSendRow extends StatelessWidget {
           SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: tokens.ink3,
-            ),
+            child: unconfirmed
+                ? Icon(
+                    Icons.sync_problem_outlined,
+                    size: 16,
+                    color: tokens.warning,
+                  )
+                : CircularProgressIndicator(strokeWidth: 2, color: tokens.ink3),
           ),
           SizedBox(width: InSpacing.md(context)),
           Expanded(
@@ -401,9 +417,9 @@ class _QueuedSendRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  context.tr('in_flight'),
+                  context.tr(unconfirmed ? 'may_have_been_sent' : 'in_flight'),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.ink3,
+                    color: unconfirmed ? tokens.warning : tokens.ink3,
                   ),
                 ),
               ],

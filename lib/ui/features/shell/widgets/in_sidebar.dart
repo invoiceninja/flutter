@@ -926,7 +926,7 @@ class _InSidebarState extends State<InSidebar> {
             kind: FixedBranchKind.outbox,
             badgeStream: (s, c) => _combineOutboxCounts(
               s.watchOutboxPending(c),
-              s.watchOutboxDead(c),
+              s.watchOutboxAttention(c),
             ),
             hideWhenZero: true,
             selection: SidebarNavSelection.neutral,
@@ -1345,7 +1345,10 @@ class _DashboardRowSearchButton extends StatelessWidget {
 /// Merge the pending and dead outbox-count streams. Emits the sum on every
 /// emission from either source — the user wants one badge that reflects
 /// total mutations awaiting action.
-Stream<int> _combineOutboxCounts(Stream<int> pending, Stream<int> dead) async* {
+Stream<int> _combineOutboxCounts(
+  Stream<int> pending,
+  Stream<int> attention,
+) async* {
   int p = 0;
   int d = 0;
   final controller = StreamController<int>();
@@ -1353,7 +1356,7 @@ Stream<int> _combineOutboxCounts(Stream<int> pending, Stream<int> dead) async* {
     p = v;
     controller.add(p + d);
   });
-  final subD = dead.listen((v) {
+  final subD = attention.listen((v) {
     d = v;
     controller.add(p + d);
   });

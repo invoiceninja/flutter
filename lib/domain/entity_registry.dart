@@ -173,7 +173,9 @@ abstract class SidebarBadgeContext {
     String modeId = kBadgeModeTotal,
   });
   Stream<int> watchOutboxPending(String companyId);
-  Stream<int> watchOutboxDead(String companyId);
+
+  /// Rows that need the user: `dead` and `unconfirmed`.
+  Stream<int> watchOutboxAttention(String companyId);
 }
 
 /// One slot in the [StatefulShellRoute.indexedStack]'s branch list. Mixed

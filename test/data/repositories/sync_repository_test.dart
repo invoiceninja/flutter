@@ -1209,6 +1209,32 @@ void main() {
       expect(disp.dispatches, 2);
     });
 
+    test('a document upload that fails holds back no later save of its '
+        'record in the same pass', () async {
+      // The in-pass latch is the SQL ordering guard's twin, and the guard
+      // lets an upload hold nothing back — it writes no field of the record.
+      // Two gates disagreeing about the same question is the shape the drain
+      // warns against.
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(const ServerException(503, 'Maintenance'))
+        ..queueSuccess();
+      final engine = makeEngine(disp);
+      await enqueueClient(
+        entityId: 'c1',
+        kind: MutationKind.documentUpload,
+        idempotencyKey: 'k-upload',
+      );
+      final save = await enqueueClient(
+        entityId: 'c1',
+        idempotencyKey: 'k-save',
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.dispatches, 2);
+      expect(await db.outboxDao.byId(save), isNull, reason: 'sent');
+    });
+
     test(
       'unknown mutation_kind is marked dead, not silently retried forever',
       () async {

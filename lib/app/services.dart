@@ -1369,12 +1369,6 @@ class Services implements SidebarBadgeContext {
     // Same binding for the drain: a pass that outlives a company switch would
     // otherwise dispatch the old company's mutations under the new token.
     sync.activeCompanyId = liveCompanyId;
-    // Re-fetches after a write whose reply was lost, and for the Outbox's
-    // Check on a change that may have been sent (`SyncRepository.recheck`).
-    sync.refreshRecord = (companyId, type, id) async =>
-        entities.repos[type]?.refreshByIds(companyId: companyId, ids: [id]);
-    sync.refreshNewest = (companyId, type) async =>
-        entities.firstPagePrefetchers[type]?.call(companyId);
     final companiesApi = CompaniesApi(apiClient);
     // Built at the end of this factory and returned directly, so the closures
     // below capture it via `late final` — they only run at runtime, long after
@@ -1401,6 +1395,22 @@ class Services implements SidebarBadgeContext {
         unawaited(services.settings.resolved(companyId: companyId));
       },
     );
+    // Re-fetches after a write whose reply was lost, and for the Outbox's
+    // Check on a change that may have been sent (`SyncRepository.recheck`).
+    // Neither the company nor a user is an entity repo: the company is
+    // fetched whole (`applyEchoTemplate` keeps a queued settings save), and
+    // users arrive with the roster in the `/refresh` envelope — `GET
+    // /users/{id}` is 412-gated. Both used to be no-ops, so Check fetched
+    // nothing for them.
+    sync.refreshRecord = (companyId, type, id) async => switch (type) {
+      EntityType.company => companyRepo.refresh(companyId),
+      EntityType.user => auth.refresh(),
+      _ => entities.repos[type]?.refreshByIds(companyId: companyId, ids: [id]),
+    };
+    sync.refreshNewest = (companyId, type) async => switch (type) {
+      EntityType.user => auth.refresh(),
+      _ => entities.firstPagePrefetchers[type]?.call(companyId),
+    };
     final quickbooksRepo = QuickbooksRepository(
       apiClient: apiClient,
       auth: auth,

@@ -1125,8 +1125,17 @@ class SyncRepository {
         // independent one (`convertMatched` and `unlinkTransaction` over
         // disjoint transaction ids). Over-blocking costs one pass;
         // under-blocking costs a lost update on bank data.
+        //
+        // Nor on a document upload, which the SQL barrier likewise lets hold
+        // nothing back ([isDocumentUploadRow]): it writes no field of the
+        // record, so nothing queued behind it can be applied out of order.
         final after = await db.outboxDao.byId(current.id);
-        if (after != null && after.state != 'dead') {
+        if (after != null &&
+            after.state != 'dead' &&
+            !isDocumentUploadRow(
+              mutationKind: after.mutationKind,
+              payload: after.payload,
+            )) {
           blockedEntities.add(entityKey);
         }
       }

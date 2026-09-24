@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
@@ -33,8 +34,27 @@ Future<void> checkUnconfirmedRow(BuildContext context, OutboxRow row) async {
 String unconfirmedRowDestination(Services services, OutboxRow row) {
   final handlers = services.entityRegistry.byWireName(row.entityType);
   if (handlers == null) return '/sync/outbox';
+  final isCreate = row.mutationKind == MutationKind.create.wireName;
+  switch (handlers.type) {
+    // `entityDestination` knows one user: the signed-in one, whose profile it
+    // opens. Another user's change was made in User Management, and shows
+    // there.
+    case EntityType.user
+        when row.entityType == kUserWireName &&
+            row.entityId != services.auth.session.value?.userId:
+      return isCreate ? '/settings/users' : '/settings/users/${row.entityId}';
+    // The document an upload attached shows on the Documents tab.
+    case EntityType.company
+        when isDocumentUploadRow(
+          mutationKind: row.mutationKind,
+          payload: row.payload,
+        ):
+      return '/settings/company_details/documents';
+    default:
+      break;
+  }
   final listRoute =
-      row.mutationKind == MutationKind.create.wireName &&
+      isCreate &&
       handlers.routePath.isNotEmpty &&
       !_kNoListRoute.contains(handlers.type);
   return listRoute

@@ -191,6 +191,12 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.get();
   }
 
+  /// [isDocumentUploadRow], in SQL — keep the two in step.
+  Expression<bool> _isDocumentUpload($OutboxTable o) =>
+      o.mutationKind.equals(MutationKind.documentUpload.wireName) |
+      (o.mutationKind.equals(MutationKind.update.wireName) &
+          o.payload.contains(kUploadDocumentActionJson));
+
   /// Whether an EARLIER row for the same record is still going to be sent.
   ///
   /// The outbox has no per-entity ordering guarantee: `nextReady` is id-ordered
@@ -215,6 +221,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// puts it back in line, and a later full-record PUT sent ahead of it would
   /// then be overwritten by the older one — the same lost update. The save
   /// held behind it says why ([unconfirmedRowAhead]).
+  ///
+  /// A document upload never blocks ([isDocumentUploadRow]): it writes no
+  /// field of the record, so it can cause no lost update.
   Future<bool> hasEarlierActiveRowForEntity({
     required String companyId,
     required String entityType,
@@ -231,6 +240,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
             o.id.isSmallerThanValue(beforeId) &
+            _isDocumentUpload(o).not() &
             (o.state.isIn(const ['in_flight', 'unconfirmed']) |
                 (o.state.equals('pending') &
                     o.nextAttemptAt.isSmallerOrEqualValue(horizon))),
@@ -255,7 +265,8 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
             o.id.isSmallerThanValue(beforeId) &
-            o.state.equals('unconfirmed'),
+            o.state.equals('unconfirmed') &
+            _isDocumentUpload(o).not(),
       )
       ..orderBy([
         (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
@@ -464,6 +475,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// refresh that lands while the row's HTTP attempt is mid-send must still
   /// treat the local edit as in charge — the attempt may fail and re-park as
   /// pending. `unconfirmed` for the same reason: the user may send it again.
+  /// A document upload is no local edit of the table's columns
+  /// ([isDocumentUploadRow]) — counting one withheld the company's columns
+  /// from `/refresh` for as long as an upload waited.
   Future<bool> hasActiveRowsFor({
     required String companyId,
     required String entityType,
@@ -473,7 +487,8 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         (o) =>
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
-            o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']),
+            o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']) &
+            _isDocumentUpload(o).not(),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
@@ -699,7 +714,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
-            o.state.equals('unconfirmed'),
+            o.state.equals('unconfirmed') &
+            // Holds nothing back, so the form has nothing to wait on.
+            _isDocumentUpload(o).not(),
       )
       ..orderBy([
         (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),

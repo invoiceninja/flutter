@@ -573,6 +573,29 @@ const Set<String> kNonIdempotentSaveParams = {
 /// (`CompanySyncDispatcher`): another document each time.
 const Set<String> kNonIdempotentCompanyActions = {'upload_document'};
 
+/// How the company's document upload names its action in the stored payload:
+/// `jsonEncode` of `{'_action': 'upload_document', …}`
+/// (`CompanyRepository.uploadDocument`). No field value can forge it —
+/// `jsonEncode` escapes the quotes inside a user's own text.
+const String kUploadDocumentActionJson = '"_action":"upload_document"';
+
+/// Whether an outbox row only attaches a document to its record: a
+/// `document_upload`, or the company's `update` carrying
+/// [kUploadDocumentActionJson]. It writes no field of the record, so it can't
+/// overwrite a later save — it holds none back
+/// (`OutboxDao.hasEarlierActiveRowForEntity`, and the drain's in-pass latch)
+/// and is no pending edit a refresh must defer to (`OutboxDao.hasActiveRowsFor`).
+/// Uploads are the likeliest rows to go `unconfirmed`, and one used to hold
+/// every later save of its record until the user dealt with it. The DAO's SQL
+/// twin is `OutboxDao._isDocumentUpload` — keep the two in step.
+bool isDocumentUploadRow({
+  required String mutationKind,
+  required String payload,
+}) =>
+    mutationKind == MutationKind.documentUpload.wireName ||
+    (mutationKind == MutationKind.update.wireName &&
+        payload.contains(kUploadDocumentActionJson));
+
 /// [MutationKind.deliverySafety], made stricter by what this row's decoded
 /// [payload] actually asks for. Only ever escalates: a payload can turn a
 /// plain save into a payment, never a create into something harmless.

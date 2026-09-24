@@ -529,6 +529,92 @@ void main() {
       );
     });
 
+    test(
+      'a document upload holds nothing back, and no refresh waits on it',
+      () async {
+        // Uploads are the likeliest rows to time out once the body is out, and
+        // an unconfirmed one held back every later save of its record until
+        // the user dealt with it — for the company, every settings screen,
+        // silently — while `/refresh` withheld the company's columns. An upload
+        // writes no field of the record, so it can cause none of the lost
+        // updates the hold exists to prevent.
+        final upload = await unconfirmed(kind: 'document_upload');
+        final save = await enqueue(idempotencyKey: 'k-save');
+        expect(
+          await db.outboxDao.hasEarlierActiveRowForEntity(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: 'c1',
+            beforeId: save,
+            now: 1 << 40,
+          ),
+          isFalse,
+        );
+        expect(
+          await db.outboxDao.unconfirmedRowAhead(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: 'c1',
+            beforeId: save,
+          ),
+          isNull,
+        );
+        expect(
+          await db.outboxDao.findUnconfirmedForEntity(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: 'c1',
+          ),
+          isNull,
+          reason: 'the edit form has nothing to wait on',
+        );
+        expect((await db.outboxDao.byId(upload))!.state, 'unconfirmed');
+
+        // The company's upload is an `update` carrying the action.
+        final companyUpload = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'company',
+            entityId: 'co',
+            mutationKind: 'update',
+            payload: jsonEncode({
+              '_action': 'upload_document',
+              'file_name': 'contract.pdf',
+            }),
+            idempotencyKey: 'k-company-upload',
+            nextAttemptAt: 0,
+            createdAt: 0,
+            state: const Value('unconfirmed'),
+          ),
+        );
+        final settingsSave = await enqueue(
+          entityType: 'company',
+          entityId: 'co',
+          idempotencyKey: 'k-settings',
+        );
+        expect(
+          await db.outboxDao.hasEarlierActiveRowForEntity(
+            companyId: 'co',
+            entityType: 'company',
+            entityId: 'co',
+            beforeId: settingsSave,
+            now: 1 << 40,
+          ),
+          isFalse,
+        );
+        await db.outboxDao.deleteRow(settingsSave);
+        expect(
+          await db.outboxDao.hasActiveRowsFor(
+            companyId: 'co',
+            entityType: 'company',
+          ),
+          isFalse,
+          reason: 'no company column is waiting to be sent',
+        );
+        expect((await db.outboxDao.byId(companyUpload))!.state, 'unconfirmed');
+      },
+    );
+
     test('markUnconfirmed parks a row; resendUnconfirmed puts only an '
         'unconfirmed one back in line, same key, fresh budget', () async {
       final id = await enqueue(idempotencyKey: 'same-key');

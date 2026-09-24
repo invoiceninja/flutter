@@ -45,7 +45,7 @@ Plus two non-negotiables carried from admin-portal:
 | Adding a sign-out / session-ending surface | § Action confirmations · `docs/adding-an-entity.md` § Action confirmations — the sign-out case |
 | A shortcut that stops working until you click, a macOS beep, or a bare key served by the wrong screen | `docs/keyboard.md` § The whole keyboard layer hangs off one focus node · `test/lint/focus_owner_wiring_test.dart` |
 | Adding or changing a `G`-leader jump (`G` then a letter) | `docs/keyboard.md` § The `G`-leader table has one copy · `lib/domain/leader_shortcuts.dart` |
-| Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules (all 34 rules) · `docs/sync.md` (the evidence) |
+| Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules (all 35 rules) · `docs/sync.md` (the evidence) |
 | Bundled vs per-entity data loading | § Data loading — bundled vs per-entity |
 | Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
 | Changing the Drift schema (forward migration), or adding a device preference (which needs none) | `docs/migrations.md` · `docs/device-preferences.md` · `lib/data/prefs/device_pref_keys.dart` |
@@ -423,6 +423,7 @@ Every render surface must wire `guardedOnTap(context, item)` rather than `item.o
 - Every outbound request sends `Idempotency-Key: <uuid from the outbox row>`, generated once at row creation and never regenerated — **but the server ignores it, so it does not make a retry safe.** What a re-send may do is `MutationKind.deliverySafety`. → `docs/sync.md` § A retry is only as safe as what the endpoint does twice
 - Logout / company-switch with active (pending / in-flight) outbox rows **prompts** the user (sync now / discard / cancel) — never silently drops user data.
 - **A change that may already have reached the server goes `unconfirmed` and is never re-sent on its own** — it waits for Check / Resend / Discard and holds back later changes to its record; a write the server accepted is done, whatever fails after it. → `docs/sync.md` § A change that may already have gone through waits for the user
+- **A document upload holds nothing back — no later save of its record, no `/refresh` of the company — because it writes no field of the record (`isDocumentUploadRow`, and its SQL twin in `OutboxDao`).** → `docs/sync.md` § A document upload holds nothing back
 - **A failed (`dead`) change is still unsynced work — every destructive session end must count it.** → `docs/sync.md` § A failed change is still unsynced work
 - **Local data is destroyed only by its owners** — wipes through `LocalDataDisposer`, outbox deletes through the sync engine (`test/lint/local_data_disposal_test.dart`) — and `logout` takes a required `LocalDataPolicy`. → `docs/sync.md` § Local data is destroyed only by its owners
 - **A server copy of one record goes through `applyEchoTemplate` / `applyCreateResponseTemplate` — never a bare upsert — so it can't overwrite a newer queued edit.** → `docs/sync.md` § A server copy never overwrites a newer queued edit

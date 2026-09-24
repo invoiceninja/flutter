@@ -31,6 +31,28 @@ void main() {
     crossClientLineItemsMessage: 'cross client',
   );
 
+  group('a new recurring invoice', () {
+    test('is not dirty until the user changes something — its default '
+        'frequency is not input', () {
+      // It used to be: the monthly default passed `frequencyId.isNotEmpty`,
+      // so leaving an untouched new form always asked to discard changes.
+      final vm = buildVm();
+      expect(vm.draft.frequencyId, kDefaultRecurringFrequencyId);
+      expect(vm.isDirty, isFalse);
+    });
+
+    test(
+      'a different frequency is input, and choosing monthly again is not',
+      () {
+        final vm = buildVm();
+        vm.setFrequencyId('1');
+        expect(vm.isDirty, isTrue);
+        vm.setFrequencyId(kDefaultRecurringFrequencyId);
+        expect(vm.isDirty, isFalse);
+      },
+    );
+  });
+
   // The recurring server derives `auto_bill_enabled` from `auto_bill`
   // (Store/UpdateRecurringInvoiceRequest::setAutoBillFlag: always/optout →
   // true) and overwrites it on save — there is no separate toggle. The VM

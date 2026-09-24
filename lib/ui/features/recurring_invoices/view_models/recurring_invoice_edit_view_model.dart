@@ -60,7 +60,10 @@ class RecurringInvoiceEditViewModel
         d.lineItems.isNotEmpty ||
         d.amount != Decimal.zero ||
         d.discount != Decimal.zero ||
-        d.frequencyId.isNotEmpty;
+        // A new recurring invoice starts monthly, so only a different choice
+        // is input — this used to test `isNotEmpty`, which the default always
+        // passed, and every untouched new form asked to discard its changes.
+        d.frequencyId != kDefaultRecurringFrequencyId;
   }
 
   @override
@@ -160,6 +163,9 @@ final _recurringInvoiceWriter = BillingDocWriter<RecurringInvoice>(
   footer: (d, v) => d.copyWith(footer: v),
 );
 
+/// Monthly — what a new recurring invoice starts on.
+const kDefaultRecurringFrequencyId = '5';
+
 RecurringInvoice emptyRecurringInvoice() => RecurringInvoice(
   id: '',
   number: '',
@@ -209,7 +215,7 @@ RecurringInvoice emptyRecurringInvoice() => RecurringInvoice(
   // Defaults mirror admin-portal / React new-recurring-invoice forms: monthly
   // frequency, "use payment terms", endless cycles. An empty frequency_id is a
   // 422 risk on save and a poor blank-form UX.
-  frequencyId: '5', // monthly
+  frequencyId: kDefaultRecurringFrequencyId,
   nextSendDate: null,
   nextSendDatetime: '',
   lastSentDate: null,

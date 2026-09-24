@@ -417,7 +417,12 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     required String companyId,
     required PaymentApi serverResponse,
   }) async {
-    await db.paymentDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.paymentDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
     await _refreshRelatedFromResponse(companyId, serverResponse);
   }
 

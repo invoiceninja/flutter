@@ -248,7 +248,12 @@ class PaymentLinkRepository
     required String companyId,
     required SubscriptionApi serverResponse,
   }) async {
-    await db.paymentLinkDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.paymentLinkDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

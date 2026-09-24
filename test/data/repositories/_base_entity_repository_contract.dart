@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
+import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/domain/sync/mutation.dart';
 
 /// Universal contract every CRUD-list entity repository must satisfy.
@@ -617,15 +618,181 @@ void runEntityRepositoryContract<TDomain, TApi>(
       final dirty = await fixture.watch(repo, companyId: 'co', id: id).first;
       expect(fixture.isDirtyOf(dirty as TDomain), isTrue);
 
-      await repo.applyUpdateResponse(
-        companyId: 'co',
-        serverResponse: fixture.buildApiModel(
-          id: id,
-          displayValue: 'A renamed',
+      // As the drain applies it: inside the dispatch of the save's own row.
+      // (Outside the drain, a queued edit wins — see the group below.)
+      final row = [
+        for (final r in await db.select(db.outbox).get())
+          if (r.entityId == id) r,
+      ].single;
+      await RequestScope(
+        'co',
+        sourceRowId: row.id,
+        sourceEntityType: row.entityType,
+        sourceEntityId: id,
+      ).run(
+        () => repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: fixture.buildApiModel(
+            id: id,
+            displayValue: 'A renamed',
+          ),
         ),
       );
       final clean = await fixture.watch(repo, companyId: 'co', id: id).first;
       expect(fixture.isDirtyOf(clean as TDomain), isFalse);
+    });
+
+    group('a server copy never overwrites a newer queued edit', () {
+      // Every response used to be a plain upsert, so with v1 in flight and v2
+      // saved behind it, v1's echo replaced the local v2 (and cleared its
+      // dirty flag); if v2 then failed validation the edit form reopened on
+      // v1. `applyEchoTemplate` / `hasNewerLocalEdit` are the guard.
+      Future<TDomain> seedClean(String id) async {
+        await repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: id,
+          serverResponse: fixture.buildApiModel(id: id, displayValue: 'A'),
+        );
+        return (await fixture.watch(repo, companyId: 'co', id: id).first)
+            as TDomain;
+      }
+
+      Future<TDomain> local(String id) async =>
+          (await fixture.watch(repo, companyId: 'co', id: id).first) as TDomain;
+
+      Future<List<OutboxRow>> rowsFor(String id) async => [
+        for (final r in await db.select(db.outbox).get())
+          if (r.entityId == id) r,
+      ];
+
+      /// The scope the drain runs [row]'s dispatch in.
+      RequestScope dispatching(OutboxRow row) => RequestScope(
+        row.companyId,
+        sourceRowId: row.id,
+        sourceEntityType: row.entityType,
+        sourceEntityId: row.entityId,
+      );
+
+      /// Whether [item]'s display field reads [value] — `editCopy` sets only
+      /// that field, so an item already holding it is unchanged by it.
+      bool shows(TDomain item, String value) =>
+          fixture.editCopy(item, displayValue: value) == item;
+
+      test('the echo of the row being dispatched is applied', () async {
+        final seeded = await seedClean('p_1');
+        await fixture.save(
+          repo,
+          companyId: 'co',
+          entity: fixture.editCopy(seeded, displayValue: 'B'),
+        );
+        final row = (await rowsFor('p_1')).single;
+        await dispatching(row).run(
+          () => repo.applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: fixture.buildApiModel(id: 'p_1', displayValue: 'B'),
+          ),
+        );
+        expect(fixture.isDirtyOf(await local('p_1')), isFalse);
+      });
+
+      test('an older row\'s echo keeps the newer local edit', () async {
+        final seeded = await seedClean('p_1');
+        await fixture.save(
+          repo,
+          companyId: 'co',
+          entity: fixture.editCopy(seeded, displayValue: 'v1'),
+        );
+        final v1Row = (await rowsFor('p_1')).single;
+        await db.outboxDao.markInFlight(v1Row.id); // v1 is on the wire
+        await fixture.save(
+          repo,
+          companyId: 'co',
+          entity: fixture.editCopy(await local('p_1'), displayValue: 'v2'),
+        );
+        expect(await rowsFor('p_1'), hasLength(2), reason: 'v2 queued behind');
+
+        await dispatching(v1Row).run(
+          () => repo.applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: fixture.buildApiModel(
+              id: 'p_1',
+              displayValue: 'v1',
+            ),
+          ),
+        );
+
+        final after = await local('p_1');
+        expect(shows(after, 'v2'), isTrue, reason: 'v1\'s echo is older');
+        expect(fixture.isDirtyOf(after), isTrue, reason: 'v2 is still unsent');
+      });
+
+      test('outside the drain, a queued edit wins over a server copy '
+          '(a refresh)', () async {
+        final seeded = await seedClean('p_1');
+        await fixture.save(
+          repo,
+          companyId: 'co',
+          entity: fixture.editCopy(seeded, displayValue: 'B'),
+        );
+        await repo.applyUpdateResponse(
+          companyId: 'co',
+          serverResponse: fixture.buildApiModel(id: 'p_1', displayValue: 'A'),
+        );
+        final after = await local('p_1');
+        expect(shows(after, 'B'), isTrue);
+        expect(fixture.isDirtyOf(after), isTrue);
+      });
+
+      test('a create response keeps an edit saved while it was in flight, '
+          'under the real id', () async {
+        final created = await fixture.create(
+          repo,
+          companyId: 'co',
+          draft: fixture.fromApi(
+            fixture.buildApiModel(id: '', displayValue: 'A'),
+          ),
+        );
+        final tmpId = fixture.idOf(created.entity);
+        final createRow = (await rowsFor(tmpId)).single;
+        await db.outboxDao.markInFlight(createRow.id);
+        await fixture.save(
+          repo,
+          companyId: 'co',
+          entity: fixture.editCopy(await local(tmpId), displayValue: 'A2'),
+        );
+
+        await dispatching(createRow).run(
+          () => repo.applyCreateResponse(
+            companyId: 'co',
+            tempId: tmpId,
+            serverResponse: fixture.buildApiModel(
+              id: 'real_1',
+              displayValue: 'A',
+            ),
+          ),
+        );
+
+        final real = await local('real_1');
+        expect(
+          await db.idRemapDao.resolve(
+            entityType: fixture.entityType,
+            tempId: tmpId,
+          ),
+          'real_1',
+        );
+        // The re-key needs the entity's own DAO; entities without one keep
+        // the plain behaviour (their create flows are settings forms, where
+        // a second save mid-create is not a thing).
+        // ignore: invalid_use_of_protected_member
+        if (repo.localDao != null) {
+          expect(shows(real, 'A2'), isTrue, reason: 'the newer edit survives');
+          expect(fixture.isDirtyOf(real), isTrue);
+          // The model reads its id from the payload JSON, not the id column:
+          // a re-key that moved only the column left the record calling
+          // itself by the temp id, so actions on it queued against `tmp_`.
+          expect(fixture.idOf(real), 'real_1');
+        }
+      });
     });
 
     test('a locally-edited row keeps its server timestamps', () async {

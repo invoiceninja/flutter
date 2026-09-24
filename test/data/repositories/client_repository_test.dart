@@ -9,6 +9,7 @@ import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/services/clients_api.dart';
+import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/domain/sync/mutation.dart';
 import 'package:decimal/decimal.dart';
@@ -175,6 +176,22 @@ void main() {
 
   /// Build a repo with a fake API and deterministic uuid + clock so we can
   /// assert outbox row fields exactly.
+  /// Apply a server response as the drain does: inside the dispatch scope of
+  /// the newest outbox row for client [id] — the save being confirmed. A
+  /// response applied outside any dispatch never overwrites a queued edit.
+  Future<void> asDrainFor(String id, Future<void> Function() apply) async {
+    final row = [
+      for (final r in await db.select(db.outbox).get())
+        if (r.entityId == id) r,
+    ].last;
+    await RequestScope(
+      row.companyId,
+      sourceRowId: row.id,
+      sourceEntityType: row.entityType,
+      sourceEntityId: id,
+    ).run(apply);
+  }
+
   ({ClientRepository repo, _FakeClientsApi api}) makeRepo({
     Map<int, List<ClientApi>> pages = const {},
   }) {
@@ -667,13 +684,16 @@ void main() {
         // A later server response that still embeds `locations` (the real,
         // probe-verified server behavior) keeps them after upsert — this is
         // the path the location* dispatcher handlers feed.
-        await repo.applyUpdateResponse(
-          companyId: 'co',
-          serverResponse: apiWithLoc.copyWith(
-            locations: const [
-              LocationApi(id: 'L1', clientId: 'c1', name: 'HQ'),
-              LocationApi(id: 'L2', clientId: 'c1', name: 'Warehouse'),
-            ],
+        await asDrainFor(
+          'c1',
+          () => repo.applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: apiWithLoc.copyWith(
+              locations: const [
+                LocationApi(id: 'L1', clientId: 'c1', name: 'HQ'),
+                LocationApi(id: 'L2', clientId: 'c1', name: 'Warehouse'),
+              ],
+            ),
           ),
         );
         final after = await repo.watch(companyId: 'co', id: 'c1').first;
@@ -1540,9 +1560,12 @@ void main() {
         expect(got!.isDirty, isTrue);
 
         // Server confirms the save → applyUpdateResponse clears the flag.
-        await repo.applyUpdateResponse(
-          companyId: 'co',
-          serverResponse: apiClient('c1', name: 'Acme'),
+        await asDrainFor(
+          'c1',
+          () => repo.applyUpdateResponse(
+            companyId: 'co',
+            serverResponse: apiClient('c1', name: 'Acme'),
+          ),
         );
         final clean = await repo.watch(companyId: 'co', id: 'c1').first;
         expect(clean!.isDirty, isFalse);

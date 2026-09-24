@@ -696,12 +696,20 @@ void main() {
       expect(live.existsSync(), isFalse);
       expect(journal.existsSync(), isFalse, reason: 'must not stay live');
       final names = tmp.listSync().map((f) => p.basename(f.path)).toList();
-      final snapshot = names.singleWhere((n) => !n.endsWith('-journal'));
-      expect(snapshot, startsWith('invoiceninja.sqlite.broken.'));
+      final snapshot = names.singleWhere(
+        (n) => n.contains('.broken.') && !n.endsWith('-journal'),
+      );
       expect(
         names,
         contains('$snapshot-journal'),
         reason: 'keeps the <db>-journal pairing on the snapshot',
+      );
+      expect(
+        File(
+          p.join(tmp.path, 'invoiceninja.sqlite.salvage'),
+        ).readAsStringSync(),
+        snapshot,
+        reason: 'the next open carries its durable tables across',
       );
     });
 

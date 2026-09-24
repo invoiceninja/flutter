@@ -18,33 +18,12 @@ import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/db/dao/sync_state_dao.dart';
 import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/company_switched_exception.dart';
+import 'package:admin/data/services/request_scope.dart';
+
+export 'package:admin/data/services/company_switched_exception.dart';
 
 final _log = Logger('BaseEntityRepository');
-
-/// Raised when a paged fetch comes back after the active company has changed,
-/// so the rows it carries were fetched under a *different* company's token
-/// than the `companyId` they would be stamped with.
-///
-/// Benign by nature — the work is simply abandoned — so callers should treat it
-/// as a no-op rather than a failure: `GenericListViewModel` swallows it without
-/// flashing an error (its `hasMore` is left untouched, so paging stays armed),
-/// and a `refreshAll` loop lets it end the sweep.
-class CompanySwitchedException implements Exception {
-  const CompanySwitchedException({
-    required this.expected,
-    required this.active,
-    required this.entityType,
-  });
-
-  final String expected;
-  final String? active;
-  final String entityType;
-
-  @override
-  String toString() =>
-      'CompanySwitchedException: a $entityType page for $expected arrived '
-      'while ${active ?? "no company"} was active';
-}
 
 /// Force-refreshes related entities whose server state changed as a *side
 /// effect* of a mutation on a different entity — e.g. adding a payment updates
@@ -487,6 +466,12 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// All three steps run inside a single transaction. Concrete repos call
   /// this from their [applyCreateResponse] override, supplying the typed
   /// dao calls and the per-entity `_apiToCompanion` projection.
+  ///
+  /// When a newer local edit of the record is still queued (it was saved
+  /// again while the create was in flight), the server's copy is the OLDER
+  /// one: the local row is re-keyed to the real id with its content intact
+  /// instead of being replaced — see [hasNewerLocalEdit]. Needs [localDao];
+  /// an entity without one keeps the plain behaviour.
   @protected
   Future<void> applyCreateResponseTemplate<TCompanion>({
     required String companyId,
@@ -497,9 +482,25 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     required Future<void> Function(String id) deleteById,
   }) async {
     await db.transaction(() async {
-      await upsert(companion);
-      if (realId != tempId) {
-        await deleteById(tempId);
+      final dao = localDao;
+      // Only while the drain dispatches THIS create: outside it (tests, any
+      // future direct caller) the queued create row itself would count as a
+      // "newer" edit of its own record.
+      final dispatching = RequestScope.current?.isFor(entityTypeName, tempId);
+      if (dao != null &&
+          realId != tempId &&
+          dispatching == true &&
+          await hasNewerLocalEdit(companyId: companyId, id: tempId)) {
+        _log.fine(
+          'Keeping the newer local edit of $entityTypeName $tempId as '
+          '$realId over the create response',
+        );
+        await dao.rekeyRow(companyId: companyId, fromId: tempId, toId: realId);
+      } else {
+        await upsert(companion);
+        if (realId != tempId) {
+          await deleteById(tempId);
+        }
       }
       await recordCreateSuccess(
         companyId: companyId,
@@ -508,6 +509,55 @@ abstract class BaseEntityRepository<TDomain, TApi> {
       );
     });
   }
+
+  /// Whether the user has an edit of record [id] that a server copy would
+  /// overwrite: a create/update outbox row for it — pending, in flight or
+  /// failed — newer than the row whose response is being applied.
+  ///
+  /// Applying a response by upserting the server's copy used to be
+  /// unconditional, so with v1 in flight and v2 saved behind it, v1's echo
+  /// replaced the local v2 (and cleared its dirty flag); if v2 then failed
+  /// validation, the edit form reopened on v1 and v2 survived only in the
+  /// dead row's payload. "Newer" is measured against the dispatching row
+  /// ([RequestScope]) when that row is for this same record; anywhere else —
+  /// a response for a related record, a refresh outside the drain — any
+  /// queued edit of the record counts.
+  Future<bool> hasNewerLocalEdit({
+    required String companyId,
+    required String id,
+  }) {
+    final scope = RequestScope.current;
+    final afterRowId = scope != null && scope.isFor(entityTypeName, id)
+        ? scope.sourceRowId
+        : null;
+    return db.outboxDao.hasEditRowForEntity(
+      companyId: companyId,
+      entityType: entityTypeName,
+      entityId: id,
+      afterRowId: afterRowId,
+    );
+  }
+
+  /// Write a server copy of one record — [write], typically the DAO upsert of
+  /// the response — unless [hasNewerLocalEdit] says the user has a newer edit
+  /// of it queued: the single-row counterpart of `upsertAllPreservingDirty`.
+  /// Every `applyUpdateResponse` goes through this
+  /// (`test/lint/echo_apply_guard_test.dart`).
+  @protected
+  Future<void> applyEchoTemplate({
+    required String companyId,
+    required String id,
+    required Future<void> Function() write,
+  }) => db.transaction(() async {
+    if (await hasNewerLocalEdit(companyId: companyId, id: id)) {
+      _log.fine(
+        'Keeping the newer local edit of $entityTypeName $id over a server '
+        'copy',
+      );
+      return;
+    }
+    await write();
+  });
 
   /// Sync engine entry point for "the server accepted our `create` and
   /// returned the real entity." Concrete repos override and:

@@ -342,9 +342,11 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
   ///
   /// Use this on every server-payload write path: `ensurePageLoaded`
   /// (paged refresh) and `applyBundle` (login/refresh fan-out). Single-
-  /// row `applyXxxResponse` handlers (post-drain success) intentionally
-  /// keep using [upsert] — the dirty bit on that row was set by the very
-  /// mutation that just succeeded, and clearing it is correct.
+  /// row `applyXxxResponse` handlers use [upsert] through
+  /// `BaseEntityRepository.applyEchoTemplate` instead: clearing the dirty bit
+  /// is right only when no NEWER edit of the record is still queued — the
+  /// bit may have been set by a later save than the mutation that just
+  /// succeeded (it used to be cleared unconditionally, losing that save).
   Future<void> upsertAllPreservingDirty({
     required String companyId,
     required Map<String, Insertable<RowT>> byId,
@@ -375,6 +377,44 @@ abstract class BaseEntityDao<TableT extends Table, RowT>
       }
     }
     return out;
+  }
+
+  /// Move the local row [fromId] to [toId], keeping its content and its
+  /// dirty flag, and replacing whatever was stored under [toId]. Used when an
+  /// offline create's response lands while a newer local edit of the same
+  /// record is still queued: the record takes its real id, but the content
+  /// the user is still sending wins over the server's older copy.
+  ///
+  /// The `payload` JSON's `id` moves too: repositories decode the model from
+  /// the payload, not the id column, so moving only the column left the
+  /// record calling itself by its temp id — and anything done to it queued
+  /// against an id the server has never heard of.
+  Future<void> rekeyRow({
+    required String companyId,
+    required String fromId,
+    required String toId,
+  }) async {
+    final name = table.actualTableName;
+    final payloadId = table.$columns.any((c) => c.name == 'payload')
+        ? ', payload = CASE WHEN json_valid(payload) '
+              "THEN json_set(payload, '\$.id', ?1) ELSE payload END"
+        : '';
+    await customUpdate(
+      'DELETE FROM $name WHERE company_id = ? AND id = ?',
+      variables: [Variable.withString(companyId), Variable.withString(toId)],
+      updates: {table},
+      updateKind: UpdateKind.delete,
+    );
+    await customUpdate(
+      'UPDATE $name SET id = ?1$payloadId WHERE company_id = ?2 AND id = ?3',
+      variables: [
+        Variable.withString(toId),
+        Variable.withString(companyId),
+        Variable.withString(fromId),
+      ],
+      updates: {table},
+      updateKind: UpdateKind.update,
+    );
   }
 
   /// Hard-delete a single row. Repositories use this when the outbox drain

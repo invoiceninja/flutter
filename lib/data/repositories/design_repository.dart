@@ -215,7 +215,12 @@ class DesignRepository extends BaseEntityRepository<Design, DesignApi> {
     required String companyId,
     required DesignApi serverResponse,
   }) async {
-    await db.designDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.designDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

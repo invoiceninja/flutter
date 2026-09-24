@@ -422,7 +422,12 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     required String companyId,
     required ProductApi serverResponse,
   }) async {
-    await db.productDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.productDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

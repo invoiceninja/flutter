@@ -367,7 +367,12 @@ class ExpenseRepository extends BaseEntityRepository<Expense, ExpenseApi>
     required String companyId,
     required ExpenseApi serverResponse,
   }) async {
-    await db.expenseDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.expenseDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   /// Lazily hydrate a single expense into Drift on a cache miss — backs

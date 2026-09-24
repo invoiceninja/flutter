@@ -9,6 +9,8 @@ import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/domain/sync/sync_event.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/company_switched_exception.dart';
+import 'package:admin/data/services/request_scope.dart';
 
 final _log = Logger('SyncRepository');
 
@@ -97,6 +99,14 @@ class SyncRepository {
   /// query results", and the row parks a year as a bogus conflict whose only
   /// forward option hard-deletes a local record that is alive on the server.
   String? Function()? activeCompanyId;
+
+  /// The device's connectivity, wired by DI (`ConnectivityWatcher.isOnline`);
+  /// null (tests) means "assume online". Read just before each attempt so a
+  /// transport failure after the device reported no connectivity is filed
+  /// as "never sent" ([RequestScope.offlineBeforeSend]). It classifies — it
+  /// never skips the attempt, so a platform that misreports "offline" can't
+  /// stall the outbox.
+  Future<bool> Function()? isOnline;
 
   final StreamController<SyncEvent> _events =
       StreamController<SyncEvent>.broadcast();
@@ -1015,6 +1025,18 @@ class SyncRepository {
     return tokens;
   }
 
+  /// [isOnline], degrading every failure to "online" — only a positive
+  /// "no connectivity" reading may classify a failure as unsent.
+  Future<bool> _probablyOnline() async {
+    final probe = isOnline;
+    if (probe == null) return true;
+    try {
+      return await probe();
+    } catch (_) {
+      return true;
+    }
+  }
+
   Future<bool> _attempt(OutboxRow row) async {
     final handlers = registry.byWireName(row.entityType);
     if (handlers == null) {
@@ -1033,10 +1055,43 @@ class SyncRepository {
     }
 
     await db.outboxDao.markInFlight(row.id);
+    // Every request the dispatch makes is bound to this row's company, and
+    // the scope records whether a write has committed — see `RequestScope`.
+    final scope = RequestScope(
+      row.companyId,
+      sourceRowId: row.id,
+      sourceEntityType: row.entityType,
+      sourceEntityId: row.entityId,
+    )..offlineBeforeSend = !await _probablyOnline();
     try {
-      await handlers.dispatcher.dispatch(row: row, kind: kind);
+      await scope.run(() => handlers.dispatcher.dispatch(row: row, kind: kind));
       await db.outboxDao.deleteRow(row.id);
       return true;
+    } on CompanySwitchedException catch (e) {
+      if (scope.committed) {
+        // A write already landed under the right company; the switch caught
+        // a follow-up request (a handler that reads back after writing).
+        // Re-sending would repeat the write, so the row is done — the next
+        // refresh brings the record the follow-up would have fetched.
+        _log.warning(
+          'Company switched after row ${row.id} (${row.entityType} '
+          '${row.mutationKind}) had already written; not re-sending: $e',
+        );
+        await db.outboxDao.deleteRow(row.id);
+        return true;
+      }
+      // Nothing was sent under the wrong token. Put the row back exactly as
+      // it was — budget untouched, due now — for its own company's drain;
+      // the live-company check ends this pass at the next row.
+      _log.fine('Row ${row.id} re-queued: $e');
+      await db.outboxDao.scheduleRetry(
+        id: row.id,
+        attempts: row.attempts,
+        nextAttemptAt: _now().millisecondsSinceEpoch,
+        error: row.lastError ?? '',
+        statusCode: row.lastStatusCode,
+      );
+      return false;
     } on ValidationException catch (e) {
       _log.info('422 on ${row.entityType}/${row.entityId}: ${e.message}');
       // Marks dead directly rather than via `_markDead` because the failure

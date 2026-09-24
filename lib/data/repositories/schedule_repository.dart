@@ -255,7 +255,12 @@ class ScheduleRepository extends BaseEntityRepository<Schedule, ScheduleApi> {
     required String companyId,
     required ScheduleApi serverResponse,
   }) async {
-    await db.scheduleDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.scheduleDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

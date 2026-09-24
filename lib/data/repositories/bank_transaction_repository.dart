@@ -370,8 +370,12 @@ class BankTransactionRepository
     final existing = await db.bankTransactionDao
         .watchById(companyId: companyId, id: serverResponse.id)
         .first;
-    await db.bankTransactionDao.upsert(
-      _apiToCompanion(serverResponse, companyId),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.bankTransactionDao.upsert(
+        _apiToCompanion(serverResponse, companyId),
+      ),
     );
     final domain = BankTransaction.fromApi(serverResponse);
     // Union the response with the pre-update row so a reversal (`unlink`, whose

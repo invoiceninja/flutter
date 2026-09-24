@@ -468,7 +468,12 @@ class QuoteRepository extends BaseEntityRepository<Quote, QuoteApi>
     required String companyId,
     required QuoteApi serverResponse,
   }) async {
-    await db.quoteDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.quoteDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
     await _refreshConverted(companyId, serverResponse);
   }
 

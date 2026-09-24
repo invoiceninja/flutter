@@ -5,10 +5,12 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:admin/data/db/db_open_exception.dart';
+import 'package:admin/data/db/salvage.dart';
 import 'package:admin/data/services/token_storage.dart' show kSecureStorage;
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqlite3/sqlite3.dart' as raw;
 
 final _log = Logger('AppDatabase');
 
@@ -29,7 +31,8 @@ Future<File> _dbFile() async {
 ///
 /// Returned as a hex string suitable for the raw-bytes form of `PRAGMA key`
 /// — `"x'<hex>'"` — so SQLCipher uses it directly without PBKDF2 derivation.
-Future<String> _getOrCreateDbKey() async {
+/// `minted` is true when no usable key was stored and this call made one.
+Future<({String key, bool minted})> _getOrCreateDbKey() async {
   // kSecureStorage pins iOS/macOS Keychain accessibility to
   // first_unlock_this_device — see token_storage.dart for the rationale.
   // Both call sites (auth tokens, this DB key) MUST use the same instance
@@ -49,7 +52,9 @@ Future<String> _getOrCreateDbKey() async {
     // still runs normally.
     throw KeyringUnavailableException(e.message ?? e.code, st);
   }
-  if (existing != null && existing.length == 64) return existing;
+  if (existing != null && existing.length == 64) {
+    return (key: existing, minted: false);
+  }
   final rng = Random.secure();
   final bytes = List<int>.generate(32, (_) => rng.nextInt(256));
   final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
@@ -62,9 +67,9 @@ Future<String> _getOrCreateDbKey() async {
     // key under a different signing identity / accessibility flag than the
     // one we read with). We can't recover the existing key — delete the
     // orphan and retry. The SQLite file encrypted with the old key becomes
-    // unreadable, but `destroyDatabaseStore` handles that by renaming it to
-    // `.broken.<ts>` and starting fresh. Better a fresh DB than a blank
-    // window.
+    // unreadable; the reset quarantines it, and salvage keeps it as
+    // `.unrecovered.<ts>` ([readQuarantinedStore]) before starting fresh.
+    // Better a fresh DB than a blank window.
     if (e.code == '-25299' ||
         (e.message?.contains('already exists in the keychain') ?? false)) {
       await secure.delete(key: _kDbEncryptionKeyName);
@@ -76,15 +81,29 @@ Future<String> _getOrCreateDbKey() async {
       throw KeyringUnavailableException(e.message ?? e.code, st);
     }
   }
-  return hex;
+  return (key: hex, minted: true);
 }
+
+/// Set when a key had to be minted while a store already existed: the
+/// keychain item that encrypted that store is gone, so it can never be
+/// decrypted again and its salvage is reported as [DatabaseKeyLostException]
+/// rather than as damage.
+bool _keyLost = false;
 
 /// Native executor: a background-isolate SQLCipher connection over the
 /// app-support file. Behavior is byte-identical to the pre-web-seam
 /// implementation — this code was moved here verbatim.
 Future<QueryExecutor> openDatabaseExecutor() async {
   final file = await _dbFile();
-  final key = await _getOrCreateDbKey();
+  final hadStore = await file.exists();
+  final (:key, :minted) = await _getOrCreateDbKey();
+  if (minted && hadStore) {
+    _keyLost = true;
+    _log.severe(
+      'No database key in the keychain, but a store exists at ${file.path}: '
+      'it was encrypted with a key that is gone and will be quarantined',
+    );
+  }
   return NativeDatabase.createInBackground(
     file,
     // SQLite3MultipleCiphers (bundled via `hooks: user_defines: sqlite3:
@@ -125,25 +144,45 @@ Future<bool> destroyDatabaseStore() async {
   return true;
 }
 
-/// Move [file] and its sidecars aside as one `.broken.<ts>` snapshot, then
-/// prune old snapshots — the body of [destroyDatabaseStore], taking the file
-/// directly so tests can drive it without `path_provider`.
-Future<void> quarantineDatabaseFile(File file) async {
+/// Names the one snapshot whose durable tables have not been carried into the
+/// live store yet. A file rather than process state, so the salvage survives
+/// the process: the app killed between the quarantine and the import, or the
+/// boot screen's Reset followed by a relaunch. Only ever the snapshot the
+/// latest quarantine made — an older one was imported by the reset that made
+/// it, and reading it again would resurrect outbox rows delivered since.
+const _kSalvageMarkerName = '$_kDbFileName.salvage';
+
+/// Move [file] and its sidecars aside as one `.broken.<ts>` snapshot, mark it
+/// for salvage, then prune old snapshots — the body of
+/// [destroyDatabaseStore], taking the file directly so tests can drive it
+/// without `path_provider`. Returns the snapshot's path, or null when there
+/// was no store to move.
+Future<String?> quarantineDatabaseFile(File file) async {
   final dir = file.parent;
   final snapshot = p.join(
     dir.path,
     '$_kDbFileName.broken.${DateTime.now().millisecondsSinceEpoch}',
   );
+  final moved = await file.exists();
+  // Marked before the move: a crash in between leaves a marker naming a
+  // snapshot that never appeared, which the reader drops — the other order
+  // could leave a moved store nobody salvages.
+  if (moved) {
+    await File(
+      p.join(dir.path, _kSalvageMarkerName),
+    ).writeAsString(p.basename(snapshot), flush: true);
+  }
   for (final suffix in _kSidecarSuffixes) {
     final sidecar = File('${file.path}$suffix');
     if (await sidecar.exists()) await sidecar.rename('$snapshot$suffix');
   }
-  if (await file.exists()) await file.rename(snapshot);
+  if (moved) await file.rename(snapshot);
   // Keep at most the two most-recent `.broken.*` snapshots so a device that
   // hits repeated corruption doesn't accumulate encrypted PII forever. Two
   // is enough for support to compare "this failure" against "the previous
   // one"; older snapshots are unrecoverable anyway.
   await pruneBrokenDbFiles(dir);
+  return moved ? snapshot : null;
 }
 
 /// `invoiceninja.sqlite.broken.<ts>`, optionally with the sidecar suffix it
@@ -187,5 +226,114 @@ Future<void> pruneBrokenDbFiles(Directory dir, {int keep = 2}) async {
     }
   } catch (e, st) {
     _log.warning('pruneBrokenDbFiles failed', e, st);
+  }
+}
+
+/// Read the durable and anchor tables ([kSalvagedTables]) out of the store
+/// the latest reset quarantined, so `openAppDatabase` can carry them into the
+/// live one. Null when nothing is awaiting salvage.
+///
+/// Raw `package:sqlite3`, not drift: opening it through `AppDatabase` would
+/// run the very migrations that may have broken it. The same three cipher
+/// pragmas as [openDatabaseExecutor] run first. An unreadable store — damaged
+/// past reading, or encrypted with a key this install no longer has (a device
+/// restored from a backup does not bring `first_unlock_this_device` keychain
+/// items with it) — is renamed `.unrecovered.<ts>`, so snapshot pruning never
+/// deletes it.
+Future<QuarantinedStore?> readQuarantinedStore() async => readPendingSalvage(
+  (await _dbFile()).parent,
+  key: () async => (await _getOrCreateDbKey()).key,
+  keyLost: _keyLost,
+);
+
+/// [readQuarantinedStore] with its inputs explicit — exposed for tests. [key]
+/// returns null for an unencrypted store.
+Future<QuarantinedStore?> readPendingSalvage(
+  Directory dir, {
+  required Future<String?> Function() key,
+  bool keyLost = false,
+}) async {
+  final marker = File(p.join(dir.path, _kSalvageMarkerName));
+  if (!await marker.exists()) return null;
+  final name = (await marker.readAsString()).trim();
+  // Taken before the import, never after it: a crash between the import's
+  // commit and the marker's removal would import these rows again on the
+  // next launch, resurrecting outbox rows delivered in between. Losing the
+  // import instead still leaves the snapshot on disk.
+  await marker.delete();
+  if (name.isEmpty) return null;
+  final snapshot = File(p.join(dir.path, name));
+  if (!await snapshot.exists()) return null;
+  final String? secret;
+  try {
+    secret = await key();
+  } catch (e) {
+    return QuarantinedStore(
+      source: await retainQuarantinedStore(snapshot.path),
+      error: e,
+    );
+  }
+  final store = readQuarantinedStoreFrom(snapshot, key: secret);
+  if (store.readable) return store;
+  return QuarantinedStore(
+    source: await retainQuarantinedStore(snapshot.path),
+    error: keyLost ? const DatabaseKeyLostException() : store.error,
+  );
+}
+
+/// [readQuarantinedStore]'s read of one file with an explicit [key] (null
+/// for an unencrypted store) — exposed for tests.
+QuarantinedStore readQuarantinedStoreFrom(File snapshot, {String? key}) {
+  final raw.Database db;
+  try {
+    db = raw.sqlite3.open(snapshot.path);
+  } catch (e) {
+    return QuarantinedStore(source: snapshot.path, error: e);
+  }
+  try {
+    if (key != null) {
+      db.execute("PRAGMA cipher = 'sqlcipher'");
+      db.execute('PRAGMA legacy = 4');
+      db.execute("PRAGMA key = \"x'$key'\"");
+    }
+    // The key is only checked on the first read; fail here, not per table.
+    db.select('SELECT count(*) FROM sqlite_master');
+    final tables = <String, List<Map<String, Object?>>>{};
+    for (final name in kSalvagedTables) {
+      try {
+        final result = db.select('SELECT * FROM "$name"');
+        tables[name] = [
+          for (final row in result)
+            {for (final column in result.columnNames) column: row[column]},
+        ];
+      } catch (e) {
+        // One unreadable table must not cost the others.
+        _log.warning('Salvage could not read $name from ${snapshot.path}: $e');
+      }
+    }
+    return QuarantinedStore(source: snapshot.path, tables: tables);
+  } catch (e) {
+    return QuarantinedStore(source: snapshot.path, error: e);
+  } finally {
+    db.close();
+  }
+}
+
+/// Rename a quarantined snapshot (and its sidecars) to `.unrecovered.<ts>`,
+/// out of reach of [pruneBrokenDbFiles]. Returns the new path — or the old
+/// one if the rename failed.
+Future<String> retainQuarantinedStore(String source) async {
+  final target = source.replaceFirst('.broken.', '.unrecovered.');
+  if (target == source) return source;
+  try {
+    for (final suffix in _kSidecarSuffixes) {
+      final sidecar = File('$source$suffix');
+      if (await sidecar.exists()) await sidecar.rename('$target$suffix');
+    }
+    await File(source).rename(target);
+    return target;
+  } catch (e, st) {
+    _log.warning('Could not retain the quarantined store $source', e, st);
+    return source;
   }
 }

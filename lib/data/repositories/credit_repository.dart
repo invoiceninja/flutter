@@ -395,18 +395,14 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
     required String tempId,
     required CreditApi serverResponse,
   }) async {
-    final realId = serverResponse.id;
-    await db.transaction(() async {
-      await db.creditDao.upsert(_apiToCompanion(serverResponse, companyId));
-      if (realId != tempId) {
-        await db.creditDao.deleteById(companyId: companyId, id: tempId);
-      }
-      await recordCreateSuccess(
-        companyId: companyId,
-        tempId: tempId,
-        realId: realId,
-      );
-    });
+    await applyCreateResponseTemplate(
+      companyId: companyId,
+      tempId: tempId,
+      realId: serverResponse.id,
+      companion: _apiToCompanion(serverResponse, companyId),
+      upsert: db.creditDao.upsert,
+      deleteById: (id) => db.creditDao.deleteById(companyId: companyId, id: id),
+    );
   }
 
   @override
@@ -414,7 +410,12 @@ class CreditRepository extends BaseEntityRepository<Credit, CreditApi>
     required String companyId,
     required CreditApi serverResponse,
   }) async {
-    await db.creditDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.creditDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   /// Force-refetch credits by id (e.g. after a payment consumed/reversed them).

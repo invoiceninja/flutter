@@ -12,6 +12,9 @@ import 'package:admin/app/env.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/company_switched_exception.dart';
+import 'package:admin/data/services/http_client_factory.dart';
+import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/upload_source.dart';
 
@@ -61,6 +64,12 @@ class ApiClient {
     // tests can drive the timeout path without a real wait.
     Duration requestTimeout = const Duration(seconds: 60),
     DebugCaptureStore? debugCaptureStore,
+    // Whether outbox mutations carry their `Idempotency-Key`. Off on web: the
+    // API's CORS allow-list doesn't include the header, so the browser's
+    // preflight rejected EVERY web write — while the server ignores the key
+    // anyway (BACKEND.md). Re-enable once the server allows AND honours it.
+    // Injectable so the header's presence can be tested off the web.
+    bool? sendIdempotencyKey,
   }) : _credentialsListenable = credentials,
        _passwordCache = passwordCache,
        _onUnauthorized = onUnauthorized,
@@ -68,11 +77,12 @@ class ApiClient {
        _onAuthenticatedResponse = onAuthenticatedResponse,
        _onServerVersion = onServerVersion,
        _onClientTooOld = onClientTooOld,
-       _http = httpClient ?? http.Client(),
+       _http = httpClient ?? createDefaultHttpClient(),
        _decoder = decoder ?? _defaultDecoder,
        _decodeTimeout = decodeTimeout,
        _requestTimeout = requestTimeout,
-       _debugCaptureStore = debugCaptureStore;
+       _debugCaptureStore = debugCaptureStore,
+       _sendIdempotencyKey = sendIdempotencyKey ?? !kIsWeb;
 
   final ValueListenable<ApiCredentials?> _credentialsListenable;
   final PasswordCache _passwordCache;
@@ -86,6 +96,7 @@ class ApiClient {
   final Duration _decodeTimeout;
   final Duration _requestTimeout;
   final DebugCaptureStore? _debugCaptureStore;
+  final bool _sendIdempotencyKey;
 
   /// Coalesces concurrent 401s — every parallel caller that 401s while a
   /// logout is in flight `await`s the same future.
@@ -393,7 +404,8 @@ class ApiClient {
     if (Env.demoMode) throw const DemoModeException();
     final creds = _requireCreds();
     final uri = Uri.parse(creds.baseUrl).resolve(path);
-    final req = http.MultipartRequest('POST', uri)
+    final abort = Completer<void>();
+    final req = _ProbedMultipartRequest('POST', uri, abort.future)
       ..followRedirects = false
       ..fields.addAll(fields)
       ..files.addAll(files)
@@ -407,11 +419,15 @@ class ApiClient {
     } on TimeoutException {
       // Map transport failures to NetworkException (an ApiException) so
       // callers that only catch ApiException — e.g. the Restore tab — surface
-      // a proper error instead of an uncaught async error. Mirrors
-      // `_sendNoRedirect`.
-      throw NetworkException('Upload timed out after ${timeout.inSeconds}s');
+      // a proper error instead of an uncaught async error. Aborted, not just
+      // abandoned, and classified sent / not sent — both as `_sendNoRedirect`.
+      if (!abort.isCompleted) abort.complete();
+      throw _transportFailure(
+        req,
+        'Upload timed out after ${timeout.inSeconds}s',
+      );
     } on http.ClientException catch (e) {
-      throw NetworkException(e.message);
+      throw _transportFailure(req, e.message);
     }
     if (response.statusCode >= 300 && response.statusCode < 400) {
       // Same defense as `_sendNoRedirect`: refuse redirects so the
@@ -627,10 +643,23 @@ class ApiClient {
     required Map<String, String> headers,
     String? body,
   }) async {
-    final request = http.Request(method, uri)
-      ..followRedirects = false
-      ..headers.addAll(headers);
-    if (body != null) request.body = body;
+    // Aborted — not merely abandoned — when the budget runs out: `.timeout()`
+    // alone stops waiting but leaves the request running, so a write that had
+    // "timed out" could still reach the server after its outbox row was
+    // re-queued, and its retry then did it twice.
+    final abort = Completer<void>();
+    // `utf8.encode` is byte-identical to `http.Request.body=` here: the JSON
+    // content type already names UTF-8, and http leaves JSON types' charset
+    // alone.
+    final request =
+        _ProbedRequest(
+            method,
+            uri,
+            body == null ? const <int>[] : utf8.encode(body),
+            abort.future,
+          )
+          ..followRedirects = false
+          ..headers.addAll(headers);
     try {
       final streamed = await _http.send(request).timeout(_requestTimeout);
       final response = await http.Response.fromStream(
@@ -650,16 +679,32 @@ class ApiClient {
       // A server that accepted the socket but never (fully) responded.
       // Surface as a NetworkException like any other transport failure so
       // callers/sync treat it uniformly instead of hanging.
-      throw NetworkException(
+      if (!abort.isCompleted) abort.complete();
+      throw _transportFailure(
+        request,
         'Request timed out after ${_requestTimeout.inSeconds}s',
       );
     } on http.ClientException catch (e) {
-      throw NetworkException(e.message);
+      throw _transportFailure(request, e.message);
     } on ServerException {
       rethrow;
     } catch (e) {
-      throw NetworkException(e.toString());
+      throw _transportFailure(request, e.toString());
     }
+  }
+
+  /// Classify a transport failure. [RequestNotSentException] only when the
+  /// request provably never went out — its body was never read (the
+  /// connection failed first; see [_BodyProbe]) or the drain saw the device
+  /// offline right before sending ([RequestScope.offlineBeforeSend]).
+  /// Anything else may have been applied by the server, so it stays a plain
+  /// [NetworkException]: outcome unknown.
+  NetworkException _transportFailure(_BodyProbe request, String message) {
+    final notSent =
+        !request.bodyRead || (RequestScope.current?.offlineBeforeSend ?? false);
+    return notSent
+        ? RequestNotSentException(message)
+        : NetworkException(message);
   }
 
   /// [method] + [uri] are threaded in purely so a forced logout can name the
@@ -670,6 +715,15 @@ class ApiClient {
     required String method,
     required Uri uri,
   }) async {
+    // First, before anything below can throw: from here on the server has
+    // applied this write, so a failure later in the attempt — an undecodable
+    // body, the client-too-old header, a follow-up request — must not be
+    // mistaken for a request that never landed (see `RequestScope`).
+    if (method != 'GET' &&
+        response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      RequestScope.current?.markCommitted();
+    }
     if (response.statusCode >= 200 && response.statusCode < 300) {
       _onAuthenticatedResponse?.call(creds);
     }
@@ -979,7 +1033,8 @@ class ApiClient {
       'X-Requested-With': 'com.invoiceninja.admin',
       if (creds.isHosted && creds.apiSecret.isNotEmpty)
         'X-API-SECRET': creds.apiSecret,
-      if (idempotencyKey != null) 'Idempotency-Key': idempotencyKey,
+      if (idempotencyKey != null && _sendIdempotencyKey)
+        'Idempotency-Key': idempotencyKey,
       if (passwordBase64 != null) 'X-API-PASSWORD-BASE64': passwordBase64,
     };
   }
@@ -988,6 +1043,24 @@ class ApiClient {
     final c = _creds;
     if (c == null || !c.isAuthenticated) {
       throw const UnauthorizedException('Not authenticated');
+    }
+    // An outbox row's request goes out under its OWN company's token or not
+    // at all. The drain checks the active company before each row, but a
+    // switch can land after that check — while the row is being marked in
+    // flight, or between a handler's two requests — and these credentials
+    // are the LIVE ones, so the row would have been sent under the other
+    // workspace's token. Nothing has been sent when this throws; the drain
+    // puts the row back for its own company.
+    final scope = RequestScope.current;
+    if (scope != null &&
+        scope.companyId.isNotEmpty &&
+        c.companyId.isNotEmpty &&
+        scope.companyId != c.companyId) {
+      throw CompanySwitchedException(
+        expected: scope.companyId,
+        active: c.companyId,
+        entityType: 'an outbox request',
+      );
     }
     return c;
   }
@@ -1046,4 +1119,58 @@ class RawOrPending {
 
   final Uint8List? bytes;
   final bool isPending;
+}
+
+/// Records whether the transport has started reading a request's body.
+///
+/// `IOClient` opens the connection — DNS, TCP, TLS — BEFORE it reads the
+/// body, so a failure while [bodyRead] is still false proves nothing reached
+/// the server: the one signal about a transport failure that can't be
+/// mistaken. `BrowserClient` reads the body before calling `fetch`, so on web
+/// it is always true and every failure stays "outcome unknown", which is the
+/// conservative answer.
+mixin _BodyProbe on http.BaseRequest {
+  bool _bodyRead = false;
+
+  bool get bodyRead => _bodyRead;
+
+  http.ByteStream _probed(Stream<List<int>> body) => http.ByteStream(
+    Stream<List<int>>.multi((controller) {
+      _bodyRead = true;
+      controller.addStream(body).whenComplete(controller.close);
+    }),
+  );
+}
+
+/// The JSON / raw request `_sendNoRedirect` sends: an `http.Request`
+/// equivalent that can be aborted and knows whether it was sent.
+class _ProbedRequest extends http.BaseRequest with http.Abortable, _BodyProbe {
+  _ProbedRequest(super.method, super.url, this._body, this.abortTrigger) {
+    contentLength = _body.length;
+  }
+
+  final List<int> _body;
+
+  @override
+  final Future<void>? abortTrigger;
+
+  @override
+  http.ByteStream finalize() {
+    super.finalize();
+    return _probed(
+      _body.isEmpty ? const Stream<List<int>>.empty() : Stream.value(_body),
+    );
+  }
+}
+
+/// [http.MultipartRequest] that can be aborted and knows whether it was sent.
+class _ProbedMultipartRequest extends http.MultipartRequest
+    with http.Abortable, _BodyProbe {
+  _ProbedMultipartRequest(super.method, super.url, this.abortTrigger);
+
+  @override
+  final Future<void>? abortTrigger;
+
+  @override
+  http.ByteStream finalize() => _probed(super.finalize());
 }

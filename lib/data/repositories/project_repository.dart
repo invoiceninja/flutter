@@ -418,7 +418,12 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     required String companyId,
     required ProjectApi serverResponse,
   }) async {
-    await db.projectDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.projectDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   /// Force-refetch projects by id (e.g. after a quote was converted to one).

@@ -420,8 +420,12 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
         response = response.copyWith(companyUser: existing.toApi().companyUser);
       }
     }
-    await db.userDao.upsert(
-      _apiToCompanion(response, companyId, isDirty: false),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.userDao.upsert(
+        _apiToCompanion(response, companyId, isDirty: false),
+      ),
     );
   }
 

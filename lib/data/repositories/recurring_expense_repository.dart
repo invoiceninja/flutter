@@ -398,8 +398,12 @@ class RecurringExpenseRepository
     required String companyId,
     required RecurringExpenseApi serverResponse,
   }) async {
-    await db.recurringExpenseDao.upsert(
-      _apiToCompanion(serverResponse, companyId),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.recurringExpenseDao.upsert(
+        _apiToCompanion(serverResponse, companyId),
+      ),
     );
   }
 

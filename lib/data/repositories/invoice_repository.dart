@@ -650,7 +650,12 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     required String companyId,
     required InvoiceApi serverResponse,
   }) async {
-    await db.invoiceDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.invoiceDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
     await _refreshInvoiceSideEffects(companyId, serverResponse);
   }
 

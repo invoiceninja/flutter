@@ -18,6 +18,20 @@ class KeyringUnavailableException implements Exception {
   String toString() => 'KeyringUnavailableException: $message';
 }
 
+/// The keychain no longer holds the key that encrypted the local store — a
+/// device restored from a backup does not bring `first_unlock_this_device`
+/// keychain items with it, and a code-signing change can orphan the item — so
+/// the store can never be decrypted again. Reported as the reason a reset
+/// salvaged nothing; the store itself is kept as `.unrecovered.<ts>`.
+class DatabaseKeyLostException implements Exception {
+  const DatabaseKeyLostException();
+
+  @override
+  String toString() =>
+      'DatabaseKeyLostException: the key that encrypted the local store is '
+      'gone from the keychain';
+}
+
 /// Thrown by `openAppDatabase()` when recovery ran but did not produce a
 /// usable database: the store was destroyed (or abandoned) and reopened, and
 /// the result is *still* missing tables or columns the generated code needs.

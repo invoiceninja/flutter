@@ -378,20 +378,15 @@ class PurchaseOrderRepository
     required String tempId,
     required PurchaseOrderApi serverResponse,
   }) async {
-    final realId = serverResponse.id;
-    await db.transaction(() async {
-      await db.purchaseOrderDao.upsert(
-        _apiToCompanion(serverResponse, companyId),
-      );
-      if (realId != tempId) {
-        await db.purchaseOrderDao.deleteById(companyId: companyId, id: tempId);
-      }
-      await recordCreateSuccess(
-        companyId: companyId,
-        tempId: tempId,
-        realId: realId,
-      );
-    });
+    await applyCreateResponseTemplate(
+      companyId: companyId,
+      tempId: tempId,
+      realId: serverResponse.id,
+      companion: _apiToCompanion(serverResponse, companyId),
+      upsert: db.purchaseOrderDao.upsert,
+      deleteById: (id) =>
+          db.purchaseOrderDao.deleteById(companyId: companyId, id: id),
+    );
   }
 
   @override
@@ -399,8 +394,12 @@ class PurchaseOrderRepository
     required String companyId,
     required PurchaseOrderApi serverResponse,
   }) async {
-    await db.purchaseOrderDao.upsert(
-      _apiToCompanion(serverResponse, companyId),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.purchaseOrderDao.upsert(
+        _apiToCompanion(serverResponse, companyId),
+      ),
     );
     await _refreshConvertedExpense(companyId, serverResponse);
   }

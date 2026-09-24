@@ -320,7 +320,12 @@ class GroupSettingRepository
     required String companyId,
     required GroupSettingApi serverResponse,
   }) async {
-    await db.groupSettingDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.groupSettingDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

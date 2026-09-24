@@ -373,7 +373,12 @@ class TaskStatusRepository
     required String companyId,
     required TaskStatusApi serverResponse,
   }) async {
-    await db.taskStatusDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.taskStatusDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

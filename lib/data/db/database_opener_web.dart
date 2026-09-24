@@ -4,6 +4,8 @@ import 'package:logging/logging.dart';
 import 'package:sqlite3/wasm.dart';
 import 'package:web/web.dart' as web;
 
+import 'package:admin/data/db/salvage.dart';
+
 final _log = Logger('AppDatabase');
 
 /// Base name of the drift store (the IndexedDB key) for generation 0.
@@ -206,3 +208,13 @@ Future<bool> destroyDatabaseStore() async {
   _abandonCurrentStore();
   return _dbName() != target;
 }
+
+/// Web half of the salvage seam: not yet implemented, so a reset on web
+/// still loses unsynced work — `openAppDatabase` reports no recovery (null)
+/// rather than claiming one. Reading an abandoned IndexedDB store raw needs
+/// drift's on-disk layout inside the `IndexedDbFileSystem` and a browser to
+/// test it in.
+Future<QuarantinedStore?> readQuarantinedStore() async => null;
+
+/// Web half of [readQuarantinedStore]'s retention: nothing to rename.
+Future<String> retainQuarantinedStore(String source) async => source;

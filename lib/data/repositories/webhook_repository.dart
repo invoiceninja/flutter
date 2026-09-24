@@ -219,7 +219,12 @@ class WebhookRepository extends BaseEntityRepository<Webhook, WebhookApi> {
     required String companyId,
     required WebhookApi serverResponse,
   }) async {
-    await db.webhookDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.webhookDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

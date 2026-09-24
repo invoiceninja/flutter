@@ -266,8 +266,12 @@ class CompanyGatewayRepository
     required String companyId,
     required CompanyGatewayApi serverResponse,
   }) async {
-    await db.companyGatewayDao.upsert(
-      _apiToCompanion(serverResponse, companyId),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.companyGatewayDao.upsert(
+        _apiToCompanion(serverResponse, companyId),
+      ),
     );
   }
 

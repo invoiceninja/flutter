@@ -176,7 +176,7 @@ Future<void> _bootstrap() async {
   _diagnosticsLogRef = diag;
   mark('diagnostics');
 
-  final ({AppDatabase db, bool wasReset}) opened;
+  final OpenedDatabase opened;
   try {
     opened = await openAppDatabase();
   } on KeyringUnavailableException catch (e, st) {
@@ -208,6 +208,14 @@ Future<void> _bootstrap() async {
     return;
   }
   mark('db-open (incl. secure-storage key)');
+  if (opened.recovery case final recovery?) {
+    // Not yet surfaced in the UI — the diagnostics log is where a reset's
+    // outcome (what was carried over, or where the old store was kept) lands.
+    // `wasReset` is false when an earlier launch's salvage finished here.
+    Logger('main.boot').warning(
+      'Local data recovery (reset this launch: ${opened.wasReset}): $recovery',
+    );
+  }
   final services = Services.build(db: opened.db, diagnosticsLog: diag);
   // Subscribe to the desktop runner's window pushes (fullscreen enter/exit) and
   // seed the current state. No-op off desktop; nothing downstream awaits it, so
@@ -510,13 +518,22 @@ class _LocalDataUnavailableAppState extends State<_LocalDataUnavailableApp> {
                   // "everything is re-downloaded from the server", which is
                   // true of the cache and false of the outbox: changes made on
                   // this device that never reached the server exist nowhere
-                  // else, and resetting deletes them.
-                  const Text(
-                    'Resetting deletes this device\'s copy of your data. '
-                    'Everything already synced downloads again, but changes '
-                    'made on this device that haven\'t synced yet are lost.',
+                  // else. Native keeps the old store and carries those tables
+                  // into the new one on relaunch (`readQuarantinedStore`) when
+                  // it can still be read; web has no salvage yet.
+                  Text(
+                    kIsWeb
+                        ? 'Resetting deletes this device\'s copy of your data. '
+                              'Everything already synced downloads again, but '
+                              'changes made on this device that haven\'t '
+                              'synced yet are lost.'
+                        : 'Resetting starts this device\'s copy of your data '
+                              'over, and everything already synced downloads '
+                              'again. Changes that haven\'t synced yet are '
+                              'carried over if the old copy can still be read, '
+                              'and lost if it can\'t.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13),
+                    style: const TextStyle(fontSize: 13),
                   ),
                   const SizedBox(height: 20),
                   // Paired side-by-side, never stacked (§ Design system).

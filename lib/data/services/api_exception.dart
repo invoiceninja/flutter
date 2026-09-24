@@ -137,6 +137,20 @@ class NetworkException extends ApiException {
   const NetworkException(super.message);
 }
 
+/// A [NetworkException] where the request provably never reached the server —
+/// the connection (DNS, TCP, TLS) failed before a byte of the request was
+/// written, or the device was known to be offline when it was attempted.
+///
+/// The plain [NetworkException] means the OPPOSITE of what it looks like: the
+/// outcome is unknown. A timeout or a dropped connection after the request
+/// went out may well have been applied by the server, and since the server
+/// ignores `Idempotency-Key`, re-sending such a request can do it twice. Only
+/// this subtype is safe to retry blindly. A subtype, so every existing
+/// `on NetworkException` "you're offline" path keeps working unchanged.
+class RequestNotSentException extends NetworkException {
+  const RequestNotSentException(super.message);
+}
+
 /// Demo builds short-circuit non-GET requests; this is the error the UI
 /// surfaces to explain the no-op.
 class DemoModeException extends ApiException {

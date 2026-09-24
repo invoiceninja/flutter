@@ -12,7 +12,7 @@ section lists symptoms that were *client* bugs (already fixed and shipped in
 the Flutter app) so they are explicitly **out of scope** here.
 
 **Also in this file (non-filter backend asks, appended at the bottom):**
-- Web platform CORS — `Idempotency-Key` not allow-listed (**R**, blocks web writes).
+- Web platform CORS — `Idempotency-Key` not allow-listed (**O** since 2026-09-24: the client stopped sending it on web, so web writes work; still needed before the key can be honoured on web).
 - Server-side `Idempotency-Key` dedupe — not implemented (**R**, retry-safety / duplicate creates); the server now has the machinery but keys it on a 1-second body hash, so the ask is smaller — see that section.
 - OIDC sign-in — the callback hardcodes the React SPA, so no Flutter client (native **or** web) can complete it (**O**, blocks self-hosted SSO; same shape as the calendar-connect fix).
 - Bulk `ids` are now existence-checked, so one stale id 422s the whole batch (**O**, shared-cache UX).
@@ -1040,6 +1040,15 @@ No server change is required; this note exists only so the gap is traceable.
 ---
 
 ## Web platform CORS — `Idempotency-Key` not allow-listed — **R (server gap, blocks web writes)**
+
+> **UPDATE 2026-09-24 — no longer blocking.** The client now omits
+> `Idempotency-Key` on web (`ApiClient(sendIdempotencyKey:)` defaults to
+> `!kIsWeb`), since the server ignores it anyway (§ Server-side
+> `Idempotency-Key` dedupe) and it was the only header failing preflight. Web
+> writes therefore work against every server version. The change below is
+> still wanted — together with the dedupe — before the client can send the key
+> on web again; the "no client change needed" note at the end of this section
+> is superseded.
 
 **Provenance** — 2026-05-19, live `OPTIONS` preflight probe vs
 `demo.invoiceninja.com` while adding the web platform target.

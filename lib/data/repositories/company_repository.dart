@@ -649,157 +649,192 @@ class CompanyRepository extends BaseEntityRepository<Company, CompanyApi> {
     required String companyId,
     required CompanyApi serverResponse,
   }) async {
-    await (db.update(
-      db.companies,
-    )..where((c) => c.id.equals(serverResponse.id))).write(
-      CompaniesCompanion(
-        settings: Value(jsonEncode(serverResponse.settings)),
-        // Keep the dedicated logo_url column in sync with the freshly-applied
-        // settings. `_onCompaniesChanged` / `restore` prefer this column over
-        // the settings blob, so without this a logo upload (Invoice Ninja
-        // returns a new logo URL) leaves the picker avatar on the old logo
-        // even though the Logo tab preview — which reads settings — updates.
-        logoUrl: Value(companyLogoUrl(serverResponse.settings)),
-        customFields: Value(jsonEncode(serverResponse.customFields)),
-        sizeId: Value(serverResponse.sizeId),
-        industryId: Value(serverResponse.industryId),
-        firstMonthOfYear: Value(serverResponse.firstMonthOfYear),
-        firstDayOfWeek: Value(serverResponse.firstDayOfWeek),
-        useCommaAsDecimalPlace: Value(serverResponse.useCommaAsDecimalPlace),
-        legalEntityId: Value(serverResponse.legalEntityId),
-        hasEInvoiceCertificate: Value(serverResponse.hasEInvoiceCertificate),
-        eInvoiceCertificatePassphrase: Value(
-          serverResponse.eInvoiceCertificatePassphrase,
-        ),
-        hasEInvoiceCertificatePassphrase: Value(
-          serverResponse.hasEInvoiceCertificatePassphrase,
-        ),
-        enabledModules: Value(serverResponse.enabledModules),
-        googleAnalyticsKey: Value(serverResponse.googleAnalyticsKey),
-        matomoId: Value(serverResponse.matomoId),
-        matomoUrl: Value(serverResponse.matomoUrl),
-        sessionTimeout: Value(serverResponse.sessionTimeout),
-        defaultPasswordTimeout: Value(serverResponse.defaultPasswordTimeout),
-        oauthPasswordRequired: Value(serverResponse.oauthPasswordRequired),
-        isDisabled: Value(serverResponse.isDisabled),
-        markdownEnabled: Value(serverResponse.markdownEnabled),
-        markdownEmailEnabled: Value(serverResponse.markdownEmailEnabled),
-        reportIncludeDrafts: Value(serverResponse.reportIncludeDrafts),
-        reportIncludeDeleted: Value(serverResponse.reportIncludeDeleted),
-        enableApplyingPayments: Value(serverResponse.enableApplyingPayments),
-        convertPaymentCurrency: Value(serverResponse.convertPaymentCurrency),
-        quickbooksJson: Value(
-          serverResponse.quickbooks == null
-              ? null
-              : jsonEncode(serverResponse.quickbooks),
-        ),
-        enabledTaxRates: Value(serverResponse.enabledTaxRates),
-        enabledItemTaxRates: Value(serverResponse.enabledItemTaxRates),
-        enabledExpenseTaxRates: Value(serverResponse.enabledExpenseTaxRates),
-        calculateTaxes: Value(serverResponse.calculateTaxes),
-        taxDataJson: Value(
-          serverResponse.taxData == null
-              ? null
-              : jsonEncode(serverResponse.taxData!.toJson()),
-        ),
-        // Preserve the existing blob when the response omits `e_invoice` (a
-        // plain company PUT echoes settings but not the derived e-invoice
-        // config) — `Value.absent()` leaves the column untouched. Only a
-        // response that actually carries it (e.g. /refresh) overwrites.
-        eInvoiceJson: serverResponse.eInvoice == null
-            ? const Value.absent()
-            : Value(jsonEncode(serverResponse.eInvoice)),
-        customSurchargeTaxes1: Value(serverResponse.customSurchargeTaxes1),
-        customSurchargeTaxes2: Value(serverResponse.customSurchargeTaxes2),
-        customSurchargeTaxes3: Value(serverResponse.customSurchargeTaxes3),
-        customSurchargeTaxes4: Value(serverResponse.customSurchargeTaxes4),
-        trackInventory: Value(serverResponse.trackInventory),
-        stockNotification: Value(serverResponse.stockNotification),
-        inventoryNotificationThreshold: Value(
-          serverResponse.inventoryNotificationThreshold,
-        ),
-        enableProductDiscount: Value(serverResponse.enableProductDiscount),
-        enableProductCost: Value(serverResponse.enableProductCost),
-        enableProductQuantity: Value(serverResponse.enableProductQuantity),
-        defaultQuantity: Value(serverResponse.defaultQuantity),
-        showProductDetails: Value(serverResponse.showProductDetails),
-        fillProducts: Value(serverResponse.fillProducts),
-        updateProducts: Value(serverResponse.updateProducts),
-        convertProducts: Value(serverResponse.convertProducts),
-        convertRateToClient: Value(serverResponse.convertRateToClient),
-        stopOnUnpaidRecurring: Value(serverResponse.stopOnUnpaidRecurring),
-        useQuoteTermsOnConversion: Value(
-          serverResponse.useQuoteTermsOnConversion,
-        ),
-        autoStartTasks: Value(serverResponse.autoStartTasks),
-        showTaskEndDate: Value(serverResponse.showTaskEndDate),
-        showTasksTable: Value(serverResponse.showTasksTable),
-        invoiceTaskDatelog: Value(serverResponse.invoiceTaskDatelog),
-        invoiceTaskTimelog: Value(serverResponse.invoiceTaskTimelog),
-        invoiceTaskHours: Value(serverResponse.invoiceTaskHours),
-        invoiceTaskItemDescription: Value(
-          serverResponse.invoiceTaskItemDescription,
-        ),
-        invoiceTaskProject: Value(serverResponse.invoiceTaskProject),
-        invoiceTaskProjectHeader: Value(
-          serverResponse.invoiceTaskProjectHeader,
-        ),
-        invoiceTaskLock: Value(serverResponse.invoiceTaskLock),
-        invoiceTaskDocuments: Value(serverResponse.invoiceTaskDocuments),
-        markExpensesInvoiceable: Value(serverResponse.markExpensesInvoiceable),
-        markExpensesPaid: Value(serverResponse.markExpensesPaid),
-        convertExpenseCurrency: Value(serverResponse.convertExpenseCurrency),
-        invoiceExpenseDocuments: Value(serverResponse.invoiceExpenseDocuments),
-        notifyVendorWhenPaid: Value(serverResponse.notifyVendorWhenPaid),
-        calculateExpenseTaxByAmount: Value(
-          serverResponse.calculateExpenseTaxByAmount,
-        ),
-        expenseInclusiveTaxes: Value(serverResponse.expenseInclusiveTaxes),
-        expenseMailboxActive: Value(serverResponse.expenseMailboxActive),
-        expenseMailbox: Value(serverResponse.expenseMailbox),
-        inboundMailboxAllowCompanyUsers: Value(
-          serverResponse.inboundMailboxAllowCompanyUsers,
-        ),
-        inboundMailboxAllowVendors: Value(
-          serverResponse.inboundMailboxAllowVendors,
-        ),
-        inboundMailboxAllowClients: Value(
-          serverResponse.inboundMailboxAllowClients,
-        ),
-        inboundMailboxWhitelist: Value(serverResponse.inboundMailboxWhitelist),
-        inboundMailboxBlacklist: Value(serverResponse.inboundMailboxBlacklist),
-        inboundMailboxAllowUnknown: Value(
-          serverResponse.inboundMailboxAllowUnknown,
-        ),
-        smtpHost: Value(serverResponse.smtpHost),
-        smtpPort: Value(serverResponse.smtpPort),
-        smtpEncryption: Value(serverResponse.smtpEncryption),
-        smtpUsername: Value(serverResponse.smtpUsername),
-        smtpPassword: Value(serverResponse.smtpPassword),
-        smtpLocalDomain: Value(serverResponse.smtpLocalDomain),
-        smtpVerifyPeer: Value(serverResponse.smtpVerifyPeer),
-        subdomain: Value(serverResponse.subdomain),
-        portalDomain: Value(serverResponse.portalDomain),
-        portalMode: Value(serverResponse.portalMode),
-        clientCanRegister: Value(serverResponse.clientCanRegister),
-        companyKey: Value(serverResponse.companyKey),
-        clientRegistrationFields: Value(
-          _encodeRegistrationFields(serverResponse.clientRegistrationFields),
-        ),
-        documents: Value(
-          jsonEncode(serverResponse.documents.map((d) => d.toJson()).toList()),
-        ),
-        name: Value(
-          serverResponse.name.isNotEmpty
-              ? serverResponse.name
-              : (serverResponse.settings['name'] as String? ?? ''),
-        ),
-        updatedAt: Value(
-          serverResponse.updatedAt > 0
-              ? serverResponse.updatedAt
-              : _nowSeconds(),
-        ),
-      ),
+    // Through the echo guard like every other entity: a company settings
+    // save queued behind this one must not be overwritten by the older
+    // copy — nor by `refresh`, which applies the server's company here.
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () async {
+        await (db.update(
+          db.companies,
+        )..where((c) => c.id.equals(serverResponse.id))).write(
+          CompaniesCompanion(
+            settings: Value(jsonEncode(serverResponse.settings)),
+            // Keep the dedicated logo_url column in sync with the freshly-applied
+            // settings. `_onCompaniesChanged` / `restore` prefer this column over
+            // the settings blob, so without this a logo upload (Invoice Ninja
+            // returns a new logo URL) leaves the picker avatar on the old logo
+            // even though the Logo tab preview — which reads settings — updates.
+            logoUrl: Value(companyLogoUrl(serverResponse.settings)),
+            customFields: Value(jsonEncode(serverResponse.customFields)),
+            sizeId: Value(serverResponse.sizeId),
+            industryId: Value(serverResponse.industryId),
+            firstMonthOfYear: Value(serverResponse.firstMonthOfYear),
+            firstDayOfWeek: Value(serverResponse.firstDayOfWeek),
+            useCommaAsDecimalPlace: Value(
+              serverResponse.useCommaAsDecimalPlace,
+            ),
+            legalEntityId: Value(serverResponse.legalEntityId),
+            hasEInvoiceCertificate: Value(
+              serverResponse.hasEInvoiceCertificate,
+            ),
+            eInvoiceCertificatePassphrase: Value(
+              serverResponse.eInvoiceCertificatePassphrase,
+            ),
+            hasEInvoiceCertificatePassphrase: Value(
+              serverResponse.hasEInvoiceCertificatePassphrase,
+            ),
+            enabledModules: Value(serverResponse.enabledModules),
+            googleAnalyticsKey: Value(serverResponse.googleAnalyticsKey),
+            matomoId: Value(serverResponse.matomoId),
+            matomoUrl: Value(serverResponse.matomoUrl),
+            sessionTimeout: Value(serverResponse.sessionTimeout),
+            defaultPasswordTimeout: Value(
+              serverResponse.defaultPasswordTimeout,
+            ),
+            oauthPasswordRequired: Value(serverResponse.oauthPasswordRequired),
+            isDisabled: Value(serverResponse.isDisabled),
+            markdownEnabled: Value(serverResponse.markdownEnabled),
+            markdownEmailEnabled: Value(serverResponse.markdownEmailEnabled),
+            reportIncludeDrafts: Value(serverResponse.reportIncludeDrafts),
+            reportIncludeDeleted: Value(serverResponse.reportIncludeDeleted),
+            enableApplyingPayments: Value(
+              serverResponse.enableApplyingPayments,
+            ),
+            convertPaymentCurrency: Value(
+              serverResponse.convertPaymentCurrency,
+            ),
+            quickbooksJson: Value(
+              serverResponse.quickbooks == null
+                  ? null
+                  : jsonEncode(serverResponse.quickbooks),
+            ),
+            enabledTaxRates: Value(serverResponse.enabledTaxRates),
+            enabledItemTaxRates: Value(serverResponse.enabledItemTaxRates),
+            enabledExpenseTaxRates: Value(
+              serverResponse.enabledExpenseTaxRates,
+            ),
+            calculateTaxes: Value(serverResponse.calculateTaxes),
+            taxDataJson: Value(
+              serverResponse.taxData == null
+                  ? null
+                  : jsonEncode(serverResponse.taxData!.toJson()),
+            ),
+            // Preserve the existing blob when the response omits `e_invoice` (a
+            // plain company PUT echoes settings but not the derived e-invoice
+            // config) — `Value.absent()` leaves the column untouched. Only a
+            // response that actually carries it (e.g. /refresh) overwrites.
+            eInvoiceJson: serverResponse.eInvoice == null
+                ? const Value.absent()
+                : Value(jsonEncode(serverResponse.eInvoice)),
+            customSurchargeTaxes1: Value(serverResponse.customSurchargeTaxes1),
+            customSurchargeTaxes2: Value(serverResponse.customSurchargeTaxes2),
+            customSurchargeTaxes3: Value(serverResponse.customSurchargeTaxes3),
+            customSurchargeTaxes4: Value(serverResponse.customSurchargeTaxes4),
+            trackInventory: Value(serverResponse.trackInventory),
+            stockNotification: Value(serverResponse.stockNotification),
+            inventoryNotificationThreshold: Value(
+              serverResponse.inventoryNotificationThreshold,
+            ),
+            enableProductDiscount: Value(serverResponse.enableProductDiscount),
+            enableProductCost: Value(serverResponse.enableProductCost),
+            enableProductQuantity: Value(serverResponse.enableProductQuantity),
+            defaultQuantity: Value(serverResponse.defaultQuantity),
+            showProductDetails: Value(serverResponse.showProductDetails),
+            fillProducts: Value(serverResponse.fillProducts),
+            updateProducts: Value(serverResponse.updateProducts),
+            convertProducts: Value(serverResponse.convertProducts),
+            convertRateToClient: Value(serverResponse.convertRateToClient),
+            stopOnUnpaidRecurring: Value(serverResponse.stopOnUnpaidRecurring),
+            useQuoteTermsOnConversion: Value(
+              serverResponse.useQuoteTermsOnConversion,
+            ),
+            autoStartTasks: Value(serverResponse.autoStartTasks),
+            showTaskEndDate: Value(serverResponse.showTaskEndDate),
+            showTasksTable: Value(serverResponse.showTasksTable),
+            invoiceTaskDatelog: Value(serverResponse.invoiceTaskDatelog),
+            invoiceTaskTimelog: Value(serverResponse.invoiceTaskTimelog),
+            invoiceTaskHours: Value(serverResponse.invoiceTaskHours),
+            invoiceTaskItemDescription: Value(
+              serverResponse.invoiceTaskItemDescription,
+            ),
+            invoiceTaskProject: Value(serverResponse.invoiceTaskProject),
+            invoiceTaskProjectHeader: Value(
+              serverResponse.invoiceTaskProjectHeader,
+            ),
+            invoiceTaskLock: Value(serverResponse.invoiceTaskLock),
+            invoiceTaskDocuments: Value(serverResponse.invoiceTaskDocuments),
+            markExpensesInvoiceable: Value(
+              serverResponse.markExpensesInvoiceable,
+            ),
+            markExpensesPaid: Value(serverResponse.markExpensesPaid),
+            convertExpenseCurrency: Value(
+              serverResponse.convertExpenseCurrency,
+            ),
+            invoiceExpenseDocuments: Value(
+              serverResponse.invoiceExpenseDocuments,
+            ),
+            notifyVendorWhenPaid: Value(serverResponse.notifyVendorWhenPaid),
+            calculateExpenseTaxByAmount: Value(
+              serverResponse.calculateExpenseTaxByAmount,
+            ),
+            expenseInclusiveTaxes: Value(serverResponse.expenseInclusiveTaxes),
+            expenseMailboxActive: Value(serverResponse.expenseMailboxActive),
+            expenseMailbox: Value(serverResponse.expenseMailbox),
+            inboundMailboxAllowCompanyUsers: Value(
+              serverResponse.inboundMailboxAllowCompanyUsers,
+            ),
+            inboundMailboxAllowVendors: Value(
+              serverResponse.inboundMailboxAllowVendors,
+            ),
+            inboundMailboxAllowClients: Value(
+              serverResponse.inboundMailboxAllowClients,
+            ),
+            inboundMailboxWhitelist: Value(
+              serverResponse.inboundMailboxWhitelist,
+            ),
+            inboundMailboxBlacklist: Value(
+              serverResponse.inboundMailboxBlacklist,
+            ),
+            inboundMailboxAllowUnknown: Value(
+              serverResponse.inboundMailboxAllowUnknown,
+            ),
+            smtpHost: Value(serverResponse.smtpHost),
+            smtpPort: Value(serverResponse.smtpPort),
+            smtpEncryption: Value(serverResponse.smtpEncryption),
+            smtpUsername: Value(serverResponse.smtpUsername),
+            smtpPassword: Value(serverResponse.smtpPassword),
+            smtpLocalDomain: Value(serverResponse.smtpLocalDomain),
+            smtpVerifyPeer: Value(serverResponse.smtpVerifyPeer),
+            subdomain: Value(serverResponse.subdomain),
+            portalDomain: Value(serverResponse.portalDomain),
+            portalMode: Value(serverResponse.portalMode),
+            clientCanRegister: Value(serverResponse.clientCanRegister),
+            companyKey: Value(serverResponse.companyKey),
+            clientRegistrationFields: Value(
+              _encodeRegistrationFields(
+                serverResponse.clientRegistrationFields,
+              ),
+            ),
+            documents: Value(
+              jsonEncode(
+                serverResponse.documents.map((d) => d.toJson()).toList(),
+              ),
+            ),
+            name: Value(
+              serverResponse.name.isNotEmpty
+                  ? serverResponse.name
+                  : (serverResponse.settings['name'] as String? ?? ''),
+            ),
+            updatedAt: Value(
+              serverResponse.updatedAt > 0
+                  ? serverResponse.updatedAt
+                  : _nowSeconds(),
+            ),
+          ),
+        );
+      },
     );
   }
 

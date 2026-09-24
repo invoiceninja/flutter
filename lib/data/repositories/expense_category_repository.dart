@@ -253,8 +253,12 @@ class ExpenseCategoryRepository
     required String companyId,
     required ExpenseCategoryApi serverResponse,
   }) async {
-    await db.expenseCategoryDao.upsert(
-      _apiToCompanion(serverResponse, companyId),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.expenseCategoryDao.upsert(
+        _apiToCompanion(serverResponse, companyId),
+      ),
     );
   }
 

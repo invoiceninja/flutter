@@ -370,10 +370,15 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// onto the local row with a `SaveFailedBanner` + Retry, so its `is_dirty`
   /// flag must keep protecting it from the next refresh. [hasActiveRowsForEntity]
   /// can't answer this — it matches only `pending` / `in_flight`.
+  ///
+  /// [afterRowId] narrows it to rows NEWER than that one — what a server copy
+  /// applied while dispatching row [afterRowId] must not overwrite
+  /// (`BaseEntityRepository.hasNewerLocalEdit`).
   Future<bool> hasEditRowForEntity({
     required String companyId,
     required String entityType,
     required String entityId,
+    int? afterRowId,
   }) async {
     final q = select(outbox)
       ..where(
@@ -384,7 +389,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.mutationKind.isIn([
               MutationKind.create.wireName,
               MutationKind.update.wireName,
-            ]),
+            ]) &
+            (afterRowId == null
+                ? const Constant(true)
+                : o.id.isBiggerThanValue(afterRowId)),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;

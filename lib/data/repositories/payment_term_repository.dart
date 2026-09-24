@@ -245,7 +245,12 @@ class PaymentTermRepository
     required String companyId,
     required PaymentTermApi serverResponse,
   }) async {
-    await db.paymentTermDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.paymentTermDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

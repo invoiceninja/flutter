@@ -277,7 +277,12 @@ class TokenRepository extends BaseEntityRepository<Token, TokenApi> {
     required String companyId,
     required TokenApi serverResponse,
   }) async {
-    await db.tokenDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.tokenDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

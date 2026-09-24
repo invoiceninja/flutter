@@ -420,23 +420,15 @@ class RecurringInvoiceRepository
     required String tempId,
     required RecurringInvoiceApi serverResponse,
   }) async {
-    final realId = serverResponse.id;
-    await db.transaction(() async {
-      await db.recurringInvoiceDao.upsert(
-        _apiToCompanion(serverResponse, companyId),
-      );
-      if (realId != tempId) {
-        await db.recurringInvoiceDao.deleteById(
-          companyId: companyId,
-          id: tempId,
-        );
-      }
-      await recordCreateSuccess(
-        companyId: companyId,
-        tempId: tempId,
-        realId: realId,
-      );
-    });
+    await applyCreateResponseTemplate(
+      companyId: companyId,
+      tempId: tempId,
+      realId: serverResponse.id,
+      companion: _apiToCompanion(serverResponse, companyId),
+      upsert: db.recurringInvoiceDao.upsert,
+      deleteById: (id) =>
+          db.recurringInvoiceDao.deleteById(companyId: companyId, id: id),
+    );
   }
 
   @override
@@ -444,8 +436,12 @@ class RecurringInvoiceRepository
     required String companyId,
     required RecurringInvoiceApi serverResponse,
   }) async {
-    await db.recurringInvoiceDao.upsert(
-      _apiToCompanion(serverResponse, companyId),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.recurringInvoiceDao.upsert(
+        _apiToCompanion(serverResponse, companyId),
+      ),
     );
   }
 

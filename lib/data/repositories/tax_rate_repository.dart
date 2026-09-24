@@ -224,7 +224,12 @@ class TaxRateRepository extends BaseEntityRepository<TaxRate, TaxRateApi> {
     required String companyId,
     required TaxRateApi serverResponse,
   }) async {
-    await db.taxRateDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.taxRateDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

@@ -307,7 +307,11 @@ class TagRepository extends BaseEntityRepository<Tag, TagApi> {
     required String companyId,
     required TagApi serverResponse,
   }) async {
-    await db.tagDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.tagDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

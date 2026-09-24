@@ -5,6 +5,8 @@ import 'package:admin/app/version.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/company_switched_exception.dart';
+import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,7 +23,228 @@ ValueListenable<ApiCredentials?> _creds([ApiCredentials? c]) =>
       c ?? const ApiCredentials(baseUrl: 'https://test', token: 't'),
     );
 
+/// A client whose connection fails before it reads the request body — what
+/// `IOClient` does when DNS, TCP or TLS fails.
+class _FailsBeforeBody extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async =>
+      throw http.ClientException('Connection refused', request.url);
+}
+
+/// A client that reads (sends) the whole body, then loses the connection.
+class _FailsAfterBody extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    await request.finalize().toBytes();
+    throw http.ClientException('Connection reset by peer', request.url);
+  }
+}
+
+/// A client that sends the body and then never answers, but honours an
+/// abort the way `IOClient` does.
+class _Hangs extends http.BaseClient {
+  bool aborted = false;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    await request.finalize().toBytes();
+    final done = Completer<http.StreamedResponse>();
+    if (request case http.Abortable(:final abortTrigger?)) {
+      unawaited(
+        abortTrigger.then((_) {
+          aborted = true;
+          if (!done.isCompleted) {
+            done.completeError(http.RequestAbortedException(request.url));
+          }
+        }),
+      );
+    }
+    return done.future;
+  }
+}
+
 void main() {
+  group('never sent vs outcome unknown', () {
+    // The outbox retried every transport failure as if nothing had been
+    // sent, and the server ignores Idempotency-Key — so a lost response
+    // re-created the record. Only a provably unsent request may be retried
+    // blindly.
+    ApiClient clientWith(
+      http.Client http_, {
+      Duration requestTimeout = const Duration(seconds: 60),
+    }) => ApiClient(
+      credentials: _creds(),
+      passwordCache: PasswordCache(),
+      onUnauthorized: () async {},
+      httpClient: http_,
+      requestTimeout: requestTimeout,
+    );
+
+    test(
+      'a connection that failed before the body was read was never sent',
+      () async {
+        await expectLater(
+          clientWith(_FailsBeforeBody()).postJson('/api/v1/clients'),
+          throwsA(isA<RequestNotSentException>()),
+        );
+      },
+    );
+
+    test('a failure after the body went out is outcome-unknown', () async {
+      await expectLater(
+        clientWith(_FailsAfterBody()).postJson('/api/v1/clients'),
+        throwsA(
+          allOf(isA<NetworkException>(), isNot(isA<RequestNotSentException>())),
+        ),
+      );
+    });
+
+    test(
+      '...unless the drain saw the device offline just before sending',
+      () async {
+        final scope = RequestScope('')..offlineBeforeSend = true;
+        await expectLater(
+          scope.run(() => clientWith(_FailsAfterBody()).postJson('/x')),
+          throwsA(isA<RequestNotSentException>()),
+        );
+      },
+    );
+
+    test(
+      'a timeout ABORTS the request instead of leaving it running',
+      () async {
+        // `.timeout()` alone stopped waiting but left the request in flight, so
+        // a "timed-out" write could still land after its row was re-queued.
+        final hangs = _Hangs();
+        await expectLater(
+          clientWith(
+            hangs,
+            requestTimeout: const Duration(milliseconds: 20),
+          ).postJson('/api/v1/clients'),
+          throwsA(
+            allOf(
+              isA<NetworkException>(),
+              isNot(isA<RequestNotSentException>()),
+              predicate((e) => '$e'.contains('timed out')),
+            ),
+          ),
+        );
+        // The abort fires through `abortTrigger` listeners — let them run.
+        await Future<void>.delayed(Duration.zero);
+        expect(hangs.aborted, isTrue);
+      },
+    );
+
+    test(
+      'a 2xx write with an unreadable body still counts as committed',
+      () async {
+        // A PHP notice in front of the JSON used to look like a failed send.
+        final scope = RequestScope('');
+        final client = clientWith(
+          MockClient((_) async => http.Response('Notice: oops {', 200)),
+        );
+        await expectLater(
+          scope.run(() => client.postJson('/api/v1/clients')),
+          throwsA(isA<FormatException>()),
+        );
+        expect(scope.committed, isTrue);
+      },
+    );
+  });
+
+  group('Idempotency-Key', () {
+    Future<Map<String, String>> headersSent({bool? sendIdempotencyKey}) async {
+      late Map<String, String> headers;
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: PasswordCache(),
+        onUnauthorized: () async {},
+        sendIdempotencyKey: sendIdempotencyKey,
+        httpClient: MockClient((req) async {
+          headers = req.headers;
+          return http.Response('{"data":{}}', 200);
+        }),
+      );
+      await client.mutate(
+        method: 'POST',
+        path: '/api/v1/clients',
+        idempotencyKey: 'k-1',
+        body: const {},
+      );
+      return headers;
+    }
+
+    test('sent by default off the web', () async {
+      expect((await headersSent())['Idempotency-Key'], 'k-1');
+    });
+
+    test('omitted when disabled — the web default, where the API\'s CORS '
+        'allow-list rejected every write carrying it', () async {
+      expect(
+        (await headersSent(
+          sendIdempotencyKey: false,
+        )).containsKey('Idempotency-Key'),
+        isFalse,
+      );
+    });
+  });
+
+  group(
+    'RequestScope (an outbox row\'s requests are bound to its company)',
+    () {
+      ApiClient clientFor(String companyId, List<http.Request> sent) =>
+          ApiClient(
+            credentials: _creds(
+              ApiCredentials(
+                baseUrl: 'https://test',
+                token: 't',
+                companyId: companyId,
+              ),
+            ),
+            passwordCache: PasswordCache(),
+            onUnauthorized: () async {},
+            httpClient: MockClient((req) async {
+              sent.add(req);
+              return http.Response('{"data":{}}', 200);
+            }),
+          );
+
+      test('refuses, before sending anything, when the live credentials belong '
+          'to another company', () async {
+        // A company switch between the drain's per-row check and the request
+        // used to send the row under the other workspace's token.
+        final sent = <http.Request>[];
+        final client = clientFor('co_b', sent);
+        await expectLater(
+          RequestScope('co_a').run(() => client.postJson('/api/v1/clients')),
+          throwsA(isA<CompanySwitchedException>()),
+        );
+        expect(sent, isEmpty, reason: 'nothing may reach the wire');
+      });
+
+      test('a matching company sends, and a 2xx write marks the attempt '
+          'committed', () async {
+        final sent = <http.Request>[];
+        final client = clientFor('co_a', sent);
+        final scope = RequestScope('co_a');
+        await scope.run(() => client.getOne('/api/v1/clients/1'));
+        expect(scope.committed, isFalse, reason: 'a read changes nothing');
+        await scope.run(() => client.postJson('/api/v1/clients'));
+        expect(sent, hasLength(2));
+        expect(scope.committed, isTrue);
+      });
+
+      test(
+        'outside any scope nothing is checked (ordinary UI requests)',
+        () async {
+          final sent = <http.Request>[];
+          await clientFor('co_b', sent).postJson('/api/v1/clients');
+          expect(sent, hasLength(1));
+        },
+      );
+    },
+  );
+
   group('ApiClient 401 handling', () {
     test(
       'single-flight: parallel 401s call onUnauthorized exactly once',

@@ -1545,6 +1545,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Offline editing (full CRUD without network) | — | 🟡 | ✅ | ✅ | |
 | "Unsynced" indicator on rows with a pending/rejected outbox edit | — | — | ✅ | | |
 | Encrypted local database (SQLCipher) | — | ❌ | ✅ | ✅ | |
+| Unsynced changes survive a local-database reset (quarantine + salvage; native only, web still loses them; not yet surfaced in the UI) | — | — | 🟡 | | |
 | One-tap Sync in the sidebar (push + download, shared progress) | — | — | ✅ | | |
 | Single-company drawer compaction — hides the company header row, moving Sync into the toolbar row and the switcher into the footer | — | — | ✅ | | |
 
@@ -1639,5 +1640,5 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Web platform support (`flutter build web`) | ✅ | — | ✅ | | |
 | Web persistence (drift WASM / IndexedDB, unencrypted) | — | — | ✅ | | |
 | Web auth token storage (localStorage) | — | — | ✅ | | |
-| Web data writes (blocked on server `Idempotency-Key` CORS — see BACKEND.md) | — | — | 🟡 | | |
+| Web data writes (sent without `Idempotency-Key`, the one header the API's CORS rejected — see BACKEND.md) | — | — | ✅ | | |
 | Biometric / IAP / native-window / OAuth-login on web | — | — | — | | |

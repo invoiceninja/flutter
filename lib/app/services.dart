@@ -1579,6 +1579,7 @@ class Services implements SidebarBadgeContext {
     // Auto-drain on connectivity transitions to online — the offline edits
     // that piled up will all flush as soon as the radio comes back.
     final connectivity = connectivityWatcher ?? ConnectivityWatcher.live();
+    sync.isOnline = () => connectivity.isOnline;
     connectivity.onOnline.listen((_) {
       final companyId = auth.session.value?.currentCompanyId;
       if (companyId == null || companyId.isEmpty) return;

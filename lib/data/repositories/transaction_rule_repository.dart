@@ -251,8 +251,12 @@ class TransactionRuleRepository
     required String companyId,
     required TransactionRuleApi serverResponse,
   }) async {
-    await db.transactionRuleDao.upsert(
-      _apiToCompanion(serverResponse, companyId),
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () => db.transactionRuleDao.upsert(
+        _apiToCompanion(serverResponse, companyId),
+      ),
     );
   }
 

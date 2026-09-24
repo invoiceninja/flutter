@@ -5,6 +5,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/request_scope.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
@@ -52,6 +53,29 @@ class _ProgrammableDispatcher implements SyncDispatcher {
       throw outcome;
     }
   }
+
+  @override
+  Future<void> deleteLocalRecord({
+    required String companyId,
+    required String id,
+  }) async {}
+
+  @override
+  Future<void> clearLocalDirty({
+    required String companyId,
+    required String id,
+  }) async {}
+}
+
+/// Dispatcher that runs [onDispatch] — for asserting what the dispatch sees
+/// (its `RequestScope`) or scripting a failure after a partial success.
+class _CallbackDispatcher implements SyncDispatcher {
+  _CallbackDispatcher(this.onDispatch);
+  final Future<void> Function(OutboxRow row) onDispatch;
+
+  @override
+  Future<void> dispatch({required OutboxRow row, required MutationKind kind}) =>
+      onDispatch(row);
 
   @override
   Future<void> deleteLocalRecord({
@@ -248,6 +272,85 @@ void main() {
 
       expect(disp.dispatches, 1);
     });
+  });
+
+  group('connectivity before an attempt', () {
+    Future<bool?> offlineSeenByDispatch(
+      Future<bool> Function()? isOnline,
+    ) async {
+      bool? seen;
+      final engine = makeEngine(
+        _CallbackDispatcher(
+          (_) async => seen = RequestScope.current?.offlineBeforeSend,
+        ),
+      )..isOnline = isOnline;
+      await enqueueClient(entityId: 'c1');
+      await engine.drainOnce(companyId: 'co');
+      return seen;
+    }
+
+    test('a "no connectivity" reading is carried into the dispatch — and the '
+        'attempt still goes ahead', () async {
+      expect(await offlineSeenByDispatch(() async => false), isTrue);
+    });
+
+    test('online, unwired, or a failing probe all count as online', () async {
+      expect(await offlineSeenByDispatch(() async => true), isFalse);
+      expect(await offlineSeenByDispatch(null), isFalse);
+      expect(
+        await offlineSeenByDispatch(() async => throw StateError('dbus')),
+        isFalse,
+      );
+    });
+  });
+
+  group('a company switch mid-dispatch', () {
+    test('the dispatch runs bound to the row\'s company', () async {
+      final seen = <String?>[];
+      final disp = _CallbackDispatcher(
+        (_) async => seen.add(RequestScope.current?.companyId),
+      );
+      await enqueueClient(entityId: 'c1');
+      await makeEngine(disp).drainOnce(companyId: 'co');
+      expect(seen, ['co']);
+    });
+
+    test('caught before anything was sent: the row goes back for its own '
+        'company, budget untouched', () async {
+      final id = await enqueueClient(entityId: 'c1', attempts: 2);
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(
+          const CompanySwitchedException(
+            expected: 'co',
+            active: 'other',
+            entityType: 'an outbox request',
+          ),
+        );
+      await makeEngine(disp).drainOnce(companyId: 'co');
+      final row = await db.outboxDao.byId(id);
+      expect(row?.state, 'pending');
+      expect(row?.attempts, 2, reason: 'a switch is not a failed attempt');
+      expect(row?.nextAttemptAt, lessThanOrEqualTo(1000), reason: 'due now');
+    });
+
+    test(
+      'caught after a write committed: the row is done, never re-sent',
+      () async {
+        // e.g. a handler that POSTs, then reads the record back: the switch
+        // stops the read, but the write already happened.
+        final id = await enqueueClient(entityId: 'c1');
+        final disp = _CallbackDispatcher((_) async {
+          RequestScope.current!.markCommitted();
+          throw const CompanySwitchedException(
+            expected: 'co',
+            active: 'other',
+            entityType: 'an outbox request',
+          );
+        });
+        await makeEngine(disp).drainOnce(companyId: 'co');
+        expect(await db.outboxDao.byId(id), isNull);
+      },
+    );
   });
 
   group('success path', () {

@@ -416,7 +416,12 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
     required String companyId,
     required VendorApi serverResponse,
   }) async {
-    await db.vendorDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.vendorDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

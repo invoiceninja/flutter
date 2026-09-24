@@ -5,6 +5,8 @@ import 'package:logging/logging.dart';
 import 'package:admin/data/db/database_opener.dart';
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/db/open_failure.dart';
+import 'package:admin/data/db/salvage.dart';
+import 'package:admin/data/db/schema_repair.dart';
 
 import 'package:admin/data/db/dao/bank_account_dao.dart';
 import 'package:admin/data/db/dao/bank_transaction_dao.dart';
@@ -375,6 +377,30 @@ class AppDatabase extends _$AppDatabase {
           await createClientFilterIndexes(this);
         });
       } catch (e, st) {
+        // The steps rolled back. Before declaring the upgrade failed — which
+        // the opener answers with a reset — try to reach the declared shape
+        // directly: every step so far only adds columns and tables, so the
+        // shape is all an upgrade has to produce, and a repair keeps the
+        // user's data where a reset destroys it. Cursors are reset either
+        // way, so the cache re-downloads anything a skipped step would have
+        // transformed.
+        try {
+          await repairSchema(this, forceCursorReset: true);
+          if (await isSchemaIntact(this)) {
+            _log.warning(
+              'Upgrade v$from → v$to failed; repaired the schema instead',
+              e,
+              st,
+            );
+            return;
+          }
+        } catch (repairError, repairSt) {
+          _log.severe(
+            'Repairing after a failed upgrade failed too',
+            repairError,
+            repairSt,
+          );
+        }
         Error.throwWithStackTrace(
           DatabaseMigrationException(from: from, to: to, cause: e),
           st,
@@ -453,11 +479,18 @@ class AppDatabase extends _$AppDatabase {
 /// ([classifyDbOpenFailure]) and the store is destroyed only when that can
 /// actually help:
 ///   1. The file is corrupt / not a database, or one of our `onUpgrade`
-///      steps failed → destroy, open fresh, return `wasReset: true`.
+///      steps failed and could not be repaired → quarantine the store, open
+///      fresh, and carry its durable and anchor tables (the outbox,
+///      `id_remap`, saved views, device prefs, the session's company rows)
+///      into the new one — `recovery` says how that went. Only the cache is
+///      lost; it downloads again.
 ///   2. The open succeeds but a table is missing a column the code expects
-///      (a prior migration didn't fully apply) → same. Without this backstop
-///      a missing column surfaces as a fatal `SqliteException` deep inside
-///      login (`_persistAndActivate` INSERT) with no path forward.
+///      (a prior migration didn't fully apply) → [repairSchema] first: missing
+///      tables are created, nullable / defaulted columns added in place, and
+///      a broken cache table rebuilt. Only when that can't reach the declared
+///      shape — a durable table missing a column it can't add — does it fall
+///      through to the reset. Without this backstop a missing column surfaces
+///      as a fatal `SqliteException` deep inside login.
 ///   3. Anything else — a lock another tab or process holds (on web that is
 ///      just the app being open twice), a full disk, an error nobody has
 ///      classified — leaves the store untouched. Native retries once after
@@ -472,11 +505,13 @@ class AppDatabase extends _$AppDatabase {
 /// **`wasReset` is currently near-inert** — it reaches one `debugPrint` in
 /// `_InvoiceNinjaAppState.initState` and nothing else. It does *not* route to
 /// `/login` (an earlier version of this comment claimed it did) and it does
-/// not force a re-sync; the user simply finds an empty local cache that
-/// refills from the server. Anything that needs to react to a wipe has to be
-/// wired up first — don't assume this flag already did it.
+/// not force a re-sync; the user finds the cache empty and it refills from the
+/// server. `recovery` says what became of their own data on a reset — `main`
+/// logs it; nothing shows it yet. Anything that needs to react to a wipe has
+/// to be wired up first — don't assume these fields already did it.
 ///
-/// [openExecutor] / [destroyStore] override the platform seam and exist only
+/// [openExecutor] / [destroyStore] / [readQuarantined] override the platform
+/// seam and exist only
 /// so tests can drive the recovery contract: the real ones need
 /// `path_provider` + the OS keychain on native and a browser on web, so the
 /// branch that matters most — recovery that *fails* — is otherwise unreachable
@@ -484,18 +519,34 @@ class AppDatabase extends _$AppDatabase {
 /// and none on web, where a timed-out open can still complete later and hold
 /// the store's lock in this very page, so an in-process retry would queue
 /// behind our own abandoned attempt — reloading the page is the clean retry.
-Future<({AppDatabase db, bool wasReset})> openAppDatabase({
+Future<OpenedDatabase> openAppDatabase({
   Future<QueryExecutor> Function()? openExecutor,
   Future<bool> Function()? destroyStore,
+  Future<QuarantinedStore?> Function()? readQuarantined,
   int? transientRetries,
   Duration transientRetryDelay = const Duration(seconds: 2),
 }) async {
   final openStore = openExecutor ?? openDatabaseExecutor;
   final destroy = destroyStore ?? destroyDatabaseStore;
+  // A test that injects the store seams gets no salvage unless it injects a
+  // reader too — the real one needs `path_provider` and the keychain.
+  final readOld =
+      readQuarantined ??
+      (openExecutor == null && destroyStore == null
+          ? readQuarantinedStore
+          : () async => null);
+  // Every successful open takes a pending salvage, not only a reset in this
+  // process: the one before may have died between quarantine and import, or
+  // the boot screen's Reset asked for it before a relaunch.
+  Future<OpenedDatabase> finish(
+    AppDatabase db, {
+    required bool wasReset,
+  }) async =>
+      (db: db, wasReset: wasReset, recovery: await _salvageInto(db, readOld));
   final retries = transientRetries ?? (kIsWeb ? 0 : 1);
   Future<AppDatabase> openFresh() async => AppDatabase(await openStore());
 
-  Future<({AppDatabase db, bool wasReset})> resetAndReopen() async {
+  Future<OpenedDatabase> resetAndReopen() async {
     final destroyed = await destroy();
     final db = await openFresh();
     // Verify, never assume. This used to `return (db: …, wasReset: true)`
@@ -515,7 +566,7 @@ Future<({AppDatabase db, bool wasReset})> openAppDatabase({
             : 'the local database could not be cleared',
       );
     }
-    return (db: db, wasReset: true);
+    return finish(db, wasReset: true);
   }
 
   for (var attempt = 0; ; attempt++) {
@@ -527,7 +578,20 @@ Future<({AppDatabase db, bool wasReset})> openAppDatabase({
       // This also drives the lazy connection open + runs any pending
       // migrations.
       await db.customSelect('SELECT 1').getSingleOrNull();
-      if (await isSchemaIntact(db)) return (db: db, wasReset: false);
+      if (await isSchemaIntact(db)) return finish(db, wasReset: false);
+      // Drifted — a prior migration didn't fully land on this device. Bring
+      // it to the declared shape in place when that costs nothing but cache;
+      // reset only when it can't (a durable table missing a column that
+      // can't be added).
+      try {
+        final report = await repairSchema(db);
+        if (await isSchemaIntact(db)) {
+          _log.warning('Local schema had drifted; repaired in place: $report');
+          return finish(db, wasReset: false);
+        }
+      } catch (e, st) {
+        _log.severe('Repairing the drifted schema failed', e, st);
+      }
       _log.severe('Drift schema drift detected; resetting local data');
       await _closeQuietly(db);
       break;
@@ -575,6 +639,65 @@ Future<({AppDatabase db, bool wasReset})> openAppDatabase({
     }
   }
   return resetAndReopen();
+}
+
+/// What [openAppDatabase] hands back: the database, whether it had to be
+/// reset, and — when it was — what became of the user's local data.
+typedef OpenedDatabase = ({
+  AppDatabase db,
+  bool wasReset,
+  LocalDataRecovery? recovery,
+});
+
+/// Carry the durable and anchor rows of the store a reset just quarantined
+/// into the fresh [db]. Null when the platform has no salvage (web, for now)
+/// or there was nothing quarantined; never throws — a salvage failure is
+/// reported, and the fresh database is still usable.
+Future<LocalDataRecovery?> _salvageInto(
+  AppDatabase db,
+  Future<QuarantinedStore?> Function() readOld,
+) async {
+  final QuarantinedStore? store;
+  try {
+    store = await readOld();
+  } catch (e, st) {
+    _log.severe('Reading the quarantined store failed', e, st);
+    return LocalDataUnrecoverable(reason: '$e');
+  }
+  if (store == null) return null;
+  if (!store.readable) {
+    _log.severe(
+      'The quarantined store at ${store.source} is unreadable: '
+      '${store.error}',
+    );
+    return LocalDataUnrecoverable(
+      reason: '${store.error}',
+      retainedAt: store.source,
+    );
+  }
+  try {
+    final (:rowsByTable, :incompleteTables) = await importSalvaged(db, store);
+    if (incompleteTables.isEmpty) {
+      _log.warning('Carried $rowsByTable over from ${store.source}');
+      return LocalDataSalvaged(rowsByTable: rowsByTable, source: store.source);
+    }
+    final kept = await retainQuarantinedStore(store.source);
+    _log.severe(
+      'Salvage left rows behind in $incompleteTables; the old store is kept '
+      'at $kept',
+    );
+    return LocalDataSalvaged(
+      rowsByTable: rowsByTable,
+      source: kept,
+      incompleteTables: incompleteTables,
+    );
+  } catch (e, st) {
+    _log.severe('Importing the salvaged rows failed', e, st);
+    return LocalDataUnrecoverable(
+      reason: 'import failed: $e',
+      retainedAt: await retainQuarantinedStore(store.source),
+    );
+  }
 }
 
 Future<void> _closeQuietly(AppDatabase? db) async {

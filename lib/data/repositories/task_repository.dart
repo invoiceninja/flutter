@@ -606,7 +606,12 @@ class TaskRepository extends BaseEntityRepository<Task, TaskApi>
     required String companyId,
     required TaskApi serverResponse,
   }) async {
-    await db.taskDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.taskDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   /// Force-refetch tasks by id (e.g. after an invoice billed/un-billed them —

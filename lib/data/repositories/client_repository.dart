@@ -762,7 +762,12 @@ class ClientRepository extends BaseEntityRepository<Client, ClientApi>
     required String companyId,
     required ClientApi serverResponse,
   }) async {
-    await db.clientDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.clientDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

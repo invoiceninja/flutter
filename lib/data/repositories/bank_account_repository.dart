@@ -294,7 +294,12 @@ class BankAccountRepository
     required String companyId,
     required BankAccountApi serverResponse,
   }) async {
-    await db.bankAccountDao.upsert(_apiToCompanion(serverResponse, companyId));
+    await applyEchoTemplate(
+      companyId: companyId,
+      id: serverResponse.id,
+      write: () =>
+          db.bankAccountDao.upsert(_apiToCompanion(serverResponse, companyId)),
+    );
   }
 
   @override

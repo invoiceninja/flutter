@@ -111,12 +111,14 @@ squash**; the matrix test will not cover it.
 ## The reset backstop is a last resort, not a migration path
 
 `openAppDatabase()` + `isSchemaIntact()` (`app_database.dart`) self-heal a genuinely corrupt
-or unreadable store by destroying it; the cache refills from the server (`wasReset: true`,
-which today reaches only a `debugPrint` — it does not route to `/login`). That is a recovery
-net for corruption, **not** a way to "migrate" — it discards the local DB, including any
-unsynced outbox edits. Never lean on it to absorb a schema change; always ship the
-`onUpgrade`. Which failures may reach it at all: § A failed open destroys the store only
-when a fresh store fixes it.
+or unreadable store by quarantining it and starting fresh; the cache refills from the server
+(`wasReset: true`, which today reaches only a `debugPrint` — it does not route to `/login`).
+That is a recovery net for corruption, **not** a way to "migrate" — natively it carries the
+durable and anchor tables across only when the old store can still be read, and on web it
+carries nothing, unsynced outbox edits included. Never lean on it to absorb a schema change;
+always ship the `onUpgrade`. Which failures may reach it at all: § A failed open destroys
+the store only when a fresh store fixes it. What it keeps: § A reset carries the user's own
+tables across.
 
 ## Every upgrade step is idempotent and transactional
 
@@ -153,8 +155,8 @@ The store is the only home of unsynced work (outbox, `id_remap`, dirty and `tmp_
 | Kind | Examples | Result |
 |---|---|---|
 | `corrupt` | SQLITE_CORRUPT (11), SQLITE_NOTADB (26 — also a wrong key) | reset |
-| `migrationFailed` | `DatabaseMigrationException` out of `onUpgrade` | reset |
-| schema drift | the open succeeds but `isSchemaIntact()` is false | reset |
+| `migrationFailed` | `DatabaseMigrationException` out of `onUpgrade` (the in-upgrade repair below also failed) | reset |
+| schema drift | the open succeeds but `isSchemaIntact()` is false | `repairSchema`; reset only if that fails |
 | `transient` | BUSY / LOCKED / READONLY / IOERR / CANTOPEN, `TimeoutException` | store untouched |
 | `storageFull` | SQLITE_FULL, `QuotaExceededError` | store untouched |
 | `unknown` | anything else | store untouched |
@@ -180,8 +182,80 @@ having the app open twice abandoned the store, and the next load swept it.
   whatever file is next opened under that name — the fresh store. `pruneBrokenDbFiles` keeps
   or deletes a snapshot and its sidecars together.
 
-A reset still loses unsynced work until salvage-before-reset lands; the boot screen now says
-so instead of promising that everything is re-downloaded.
+"Reset" means quarantine, not delete — § A reset carries the user's own tables across. The
+boot screen's copy says what that keeps on each platform instead of promising that
+everything is re-downloaded.
+
+## Drift is repaired in place, and only the cache may be dropped
+
+`repairSchema` (`lib/data/db/schema_repair.dart`) brings a database to the declared shape
+without a reset: a missing table is created; missing columns are added in place when each is
+nullable or has a SQL default (rows kept); a table missing a column that can't be added
+(NOT NULL, no default) is dropped and recreated — **only** if it is a cache table.
+`lib/data/db/table_retention.dart` classifies every table: *durable* (the outbox, `id_remap`,
+saved views, `nav_state`, `drafts` — data that exists nowhere else), *anchor* (`accounts`,
+`companies`, `users` — `restore()` signs the user out without them) and *cache* (everything
+the server can send again). A durable or anchor table in that state throws
+`SchemaUnrepairableException` and the opener falls back to the reset. Any change to a cache
+table resets `sync_state_rows`, `companies.last_sync_at` and `dashboard_cache`, so rows kept
+through an added column (holding its default, not the server's value) download again.
+
+It runs in two places: when an open succeeds but `isSchemaIntact()` fails, and inside
+`onUpgrade` when the versioned steps throw — they roll back, and the repair then reaches the
+declared shape directly (with a forced cursor reset, so the cache re-downloads anything a
+skipped step would have transformed). Every step so far only adds columns and tables, so the
+shape is all an upgrade has to produce. **A future step that transforms durable data cannot
+lean on this** — the repair restores shape, not data; such a step must be written so it can
+be re-run, and tested failing. One transaction, so a refusal changes nothing.
+`test/data/db/schema_repair_test.dart` pins it, including a v10 store whose upgrade fails and
+is repaired instead of reset; a new table without a classification fails that file.
+
+## A reset carries the user's own tables across
+
+A reset moves the store aside (`.broken.<ts>` natively) and the next open imports its
+*durable* and *anchor* tables — `kSalvagedTables`, `lib/data/db/salvage.dart` — into the
+fresh one: the outbox with its ids and idempotency keys, `id_remap`, saved views, device
+preferences, and the rows `restore()` resumes the session from. Only the cache is lost, and
+it downloads again. It used to delete the store outright, taking the only copy of every
+change that had not reached the server.
+
+- **Read raw, never through `AppDatabase`.** `readQuarantinedStoreFrom`
+  (`database_opener_io.dart`) opens the snapshot with `package:sqlite3` and the same cipher
+  pragmas as the live open; going through drift would run the very migrations that may have
+  broken it. One unreadable table does not cost the others.
+- **Only the latest quarantine's snapshot, and only once.** `quarantineDatabaseFile` writes
+  `invoiceninja.sqlite.salvage`, naming its snapshot, *before* it moves the store (a crash in
+  between leaves a marker for a snapshot that never appeared, which is dropped).
+  `readPendingSalvage` deletes the marker *before* importing. An older snapshot was imported
+  by the reset that made it, and its outbox rows may have been delivered since — importing it
+  again would resurrect them and send them twice. Deleting after the commit risks exactly
+  that on a crash in between; deleting first risks only losing the import, with the snapshot
+  still on disk.
+- **A file, not process state.** Every successful open looks for the marker (`finish` in
+  `openAppDatabase`), not only a reset in the same process: the launch that quarantined may
+  have died before importing, and the boot screen's Reset — a bare `destroyDatabaseStore` —
+  is imported on relaunch.
+- **Forgiving on shape, strict on count.** `importSalvaged` copies only the columns both
+  schemas have, skips a table whose rows lack a column the current schema requires, and
+  inserts `OR IGNORE`. A table that comes across short — skipped, or fewer rows than the
+  store held — is listed in `LocalDataSalvaged.incompleteTables`, and the snapshot is then
+  kept as `.unrecovered.<ts>`. `companies.last_sync_at` is reset: the cache it described is
+  gone.
+- **Unreadable is kept, never pruned.** A store damaged past reading, or one whose key is
+  gone, is renamed `.unrecovered.<ts>`, out of `pruneBrokenDbFiles`' reach. A lost key is
+  told apart: `_getOrCreateDbKey` minting a key while a store already exists means the item
+  that encrypted it is gone (a device restored from a backup does not bring
+  `first_unlock_this_device` keychain items), reported as `DatabaseKeyLostException`.
+- **The outcome is `OpenedDatabase.recovery`** — sealed `LocalDataRecovery`:
+  `LocalDataSalvaged` or `LocalDataUnrecoverable`. `main` logs it at WARNING, so it lands in
+  the diagnostics log; nothing shows it to the user yet.
+
+Pinned by `test/data/db/salvage_test.dart`, including a round trip through an encrypted
+file — `flutter test` builds sqlite3mc, so the wrong-key case genuinely fails to read.
+
+**Web has no reader yet.** `readQuarantinedStore` returns null there, so a web reset still
+loses the durable tables. Closing it means reading the abandoned store's bytes
+(`IndexedDbFileSystem` / OPFS) into an in-memory wasm sqlite before it is deleted.
 
 ## Appendix — historical: the pre-launch squash (do NOT run)
 

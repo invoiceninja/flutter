@@ -41,6 +41,13 @@ class _UserEditScreenState extends State<UserEditScreen> {
 
   bool get _isCreate => widget.existingId == null;
 
+  /// The view model is this screen's to dispose; it never was.
+  @override
+  void dispose() {
+    _vm?.dispose();
+    super.dispose();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();

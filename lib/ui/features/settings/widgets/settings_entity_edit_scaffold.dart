@@ -149,6 +149,16 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     _load();
   }
 
+  /// The view model is this screen's to dispose, as in
+  /// `EntityEditScreenScaffold`. It never was, so every visit leaked it — and
+  /// with it any watch it holds (the group-setting one keeps a Drift stream
+  /// open for its duplicate-name check).
+  @override
+  void dispose() {
+    _vm?.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     if (widget.existingId == null) {
       setState(() {

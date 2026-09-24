@@ -229,6 +229,17 @@ void main() {
     expect(vm.submitError, isNull);
   });
 
+  testWidgets('closing the screen disposes its view model', (tester) async {
+    // It never did, so every visit leaked the VM and any watch it holds —
+    // the group-setting VM keeps a Drift stream open for its duplicate-name
+    // check. `EntityEditScreenScaffold` always disposed its own.
+    await pumpScaffold(tester);
+    expect(vm.isDisposed, isFalse);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(vm.isDisposed, isTrue);
+  });
+
   testWidgets('Discard finds a still-retrying row the VM has no id for', (
     tester,
   ) async {

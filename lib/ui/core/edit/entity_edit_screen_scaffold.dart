@@ -309,10 +309,12 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// the non-save mutation kinds are excluded.
   Future<int?> _resolveDiscardableRowId(Services services, VM vm) async {
     // A save held on an `unconfirmed` row discards THAT row — the newest
-    // discardable one may be a later save queued behind it.
+    // discardable one may be a later save queued behind it. It comes first:
+    // it is what the banner shows, and a dead row cached when the form opened
+    // may be stale (a later save replaced it) or simply not the one in view.
     final cached =
-        vm.deadOutboxRowId ??
-        (vm.unconfirmedIsSave ? vm.unconfirmedRowId : null);
+        (vm.unconfirmedIsSave ? vm.unconfirmedRowId : null) ??
+        vm.deadOutboxRowId;
     if (cached != null) return cached;
     final entityId = widget.existingId;
     if (entityId == null) return null;

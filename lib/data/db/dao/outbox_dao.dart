@@ -793,14 +793,23 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// `idempotency_key`, `payload`, and `field_errors_json` so the server
   /// sees the same request and the UI can still surface the prior errors
   /// if the retry fails again.
-  Future<void> retryDead({required int id, required int now}) =>
-      (update(outbox)..where((o) => o.id.equals(id))).write(
-        OutboxCompanion(
-          state: const Value('pending'),
-          attempts: const Value(0),
-          nextAttemptAt: Value(now),
-        ),
-      );
+  ///
+  /// Only a `dead` row, or a `pending` one waiting out its backoff: the
+  /// Outbox menu that asked can be stale, and a row that went `unconfirmed`
+  /// meanwhile may already have reached the server — only Resend, which asks
+  /// first, may send it again. Returns whether a row was re-armed.
+  Future<bool> retryDead({required int id, required int now}) async =>
+      await (update(outbox)..where(
+            (o) => o.id.equals(id) & o.state.isIn(const ['dead', 'pending']),
+          ))
+          .write(
+            OutboxCompanion(
+              state: const Value('pending'),
+              attempts: const Value(0),
+              nextAttemptAt: Value(now),
+            ),
+          ) >
+      0;
 
   /// Delete `dead` rows whose `created_at` is older than [olderThanMs].
   /// Returns the number of rows removed.

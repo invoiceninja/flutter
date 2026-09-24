@@ -220,6 +220,28 @@ void main() {
     },
   );
 
+  test('retry on a row that turned unconfirmed meanwhile reports failure '
+      'and sends nothing', () async {
+    final id = await enqueue(
+      entityId: 'a',
+      idempotencyKey: 'k1',
+      state: 'dead',
+    );
+    final sync = _FakeSync(onDiscard: (_) async {});
+    final vm = build(sync);
+    addTearDown(vm.dispose);
+    await pumpEventQueue();
+    final row = vm.rows.single;
+
+    // A drain retried it and its outcome is unknown now; only Resend, with
+    // its confirmation, may send it again.
+    await db.outboxDao.markUnconfirmed(id: id, error: 'reset');
+
+    expect(await vm.retry(row), isFalse);
+    expect((await db.outboxDao.byId(id))!.state, 'unconfirmed');
+    expect(sync.drains, isEmpty);
+  });
+
   test('a failed watch surfaces an error instead of a blank screen', () async {
     final dao = _ScriptedDao();
     final vm = OutboxViewModel(

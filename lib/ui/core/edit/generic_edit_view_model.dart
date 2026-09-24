@@ -355,6 +355,15 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Latch the form clean the way a completed [save] does, for a change that
+  /// went out another way — a banner Resend — so leaving the form doesn't ask
+  /// to discard what was just sent. The next real edit re-arms it.
+  void markSaved() {
+    if (_savedClean) return;
+    _savedClean = true;
+    notifyListeners();
+  }
+
   /// Replace the working draft and notify. Per-field setters in subclasses
   /// route through here.
   @protected

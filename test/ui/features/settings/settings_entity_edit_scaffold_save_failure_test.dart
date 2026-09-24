@@ -309,4 +309,30 @@ void main() {
       expect(sync.discarded, isNot(contains(commentRow)));
     },
   );
+
+  testWidgets('Discard on a save held as unconfirmed abandons that row, not '
+      'a stale failure the form opened with', (tester) async {
+    // The banner shows the unconfirmed save, and its Discard reached for the
+    // dead row cached on open first — so the change that may already have
+    // gone through survived the discard.
+    final deadRow = await enqueueRow(
+      dead: true,
+      error: 'The rate field must be a number.',
+      statusCode: 422,
+    );
+    final unconfirmedRow = await enqueueRow(
+      dead: false,
+      state: 'unconfirmed',
+      idempotencyKey: 'idem-unconfirmed',
+    );
+
+    await pumpScaffold(tester);
+    expect(vm.deadOutboxRowId, deadRow, reason: 'precondition');
+    expect(vm.unconfirmedRowId, unconfirmedRow, reason: 'precondition');
+
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(sync.discarded, [unconfirmedRow]);
+  });
 }

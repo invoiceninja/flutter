@@ -142,14 +142,15 @@ class OutboxViewModel extends ChangeNotifier {
   /// state — the row stays put and its state pill flips off the watch stream.
   Future<bool> retry(OutboxRow row) async {
     try {
-      // The row can vanish while the menu is open (a drain, or a discard from
-      // another surface). `retryDead` is an UPDATE that quietly matches zero
-      // rows, so without this the tap would claim "Sync has started".
-      if (await dao.byId(row.id) == null) return false;
-      await dao.retryDead(
+      // The row can change while the menu is open: gone (a drain, or a
+      // discard from another surface), or `unconfirmed`, which only Resend
+      // may send again. `retryDead` then matches nothing, and the tap must
+      // not claim "Sync has started".
+      final rearmed = await dao.retryDead(
         id: row.id,
         now: DateTime.now().millisecondsSinceEpoch,
       );
+      if (!rearmed) return false;
       unawaited(sync.drainOnce(companyId: row.companyId));
       return true;
     } catch (e, st) {

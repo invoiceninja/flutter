@@ -324,7 +324,10 @@ class SyncRepository {
   /// Discard one outbox row. If it's a never-synced offline `create`
   /// (`tmp_` id, no `id_remap` entry yet) the orphaned local Drift record
   /// is also hard-deleted — with no outbox row it could never reach the
-  /// server, so it would otherwise linger forever as a ghost. A row that's
+  /// server, so it would otherwise linger forever as a ghost. An
+  /// `unconfirmed` create goes the same way, but what was made offline
+  /// against it is kept, dead: the record may exist on the server after all
+  /// ([_ParentGone.discardedUnconfirmed]). A row that's
   /// currently `in_flight` only has its outbox row dropped: its network
   /// attempt may be landing concurrently and would re-create the local row
   /// + write an `id_remap`, so ghost-deleting it would race that (TOCTOU).
@@ -385,8 +388,16 @@ class SyncRepository {
     // there is no parent left to mint a real id, so the drain's
     // tmp_-dependency guard would defer them forever (also blocking the
     // logout/switch "Sync first" pending check). Recursively resolve the
-    // whole offline subtree.
-    await _failTmpDependents(row.companyId, row.entityId, discard: true);
+    // whole offline subtree — unless the create may already have reached the
+    // server: then the parent may well exist there, and the offline work
+    // pointing at it is kept for the user to re-point once it arrives.
+    await _failTmpDependents(
+      row.companyId,
+      row.entityId,
+      row.state == 'unconfirmed'
+          ? _ParentGone.discardedUnconfirmed
+          : _ParentGone.discarded,
+    );
     return localDeleted;
   }
 
@@ -430,18 +441,23 @@ class SyncRepository {
   /// such a row every 60s indefinitely, and it would keep `pendingCountFor`
   /// above zero so "Sync first" on logout/switch could never settle).
   ///
-  /// [discard] true = the parent was a never-synced ghost the user discarded.
-  /// A dependent that is ITSELF a ghost create can never sync either, so it's
-  /// removed wholesale (local record + all its outbox rows) and we recurse
-  /// into ITS tmp id (catching e.g. a payment created against an offline
-  /// invoice created against the discarded client). A non-ghost dependent
-  /// (an update/action on a real entity that merely referenced the tmp) is
-  /// marked dead.
+  /// [_ParentGone.discarded] = the parent was a never-synced ghost the user
+  /// discarded. A dependent that is ITSELF a ghost create can never sync
+  /// either, so it's removed wholesale (local record + all its outbox rows)
+  /// and we recurse into ITS tmp id (catching e.g. a payment created against
+  /// an offline invoice created against the discarded client). A non-ghost
+  /// dependent (an update/action on a real entity that merely referenced the
+  /// tmp) is marked dead.
   ///
-  /// [discard] false = the parent's CREATE died (422). Dependents are marked
-  /// dead (kept, not deleted) — the user may fix + retry the parent, and
-  /// `rewriteTempIdInPayloads` (which covers dead rows) then heals their refs
-  /// for a manual Retry. Recursion marks deeper levels dead too.
+  /// [_ParentGone.failed] = the parent's CREATE died (422). Dependents are
+  /// marked dead (kept, not deleted) — the user may fix + retry the parent,
+  /// and `rewriteTempIdInPayloads` (which covers dead rows) then heals their
+  /// refs for a manual Retry. Recursion marks deeper levels dead too.
+  ///
+  /// [_ParentGone.discardedUnconfirmed] = the user discarded a create that
+  /// may already have reached the server. Nothing depending on it is deleted
+  /// — the parent may exist there, and the invoice made offline for it is the
+  /// user's work. Dependents are marked dead, saying so, as for a failure.
   ///
   /// Terminates: every branch removes the row from the `pending` set
   /// (`markDead` flips state, ghost-delete removes it) and
@@ -450,9 +466,9 @@ class SyncRepository {
   /// cycle).
   Future<void> _failTmpDependents(
     String companyId,
-    String parentTmpId, {
-    required bool discard,
-  }) async {
+    String parentTmpId,
+    _ParentGone why,
+  ) async {
     if (!parentTmpId.startsWith('tmp_')) return;
     final deps = await db.outboxDao.pendingRowsReferencing(
       companyId: companyId,
@@ -467,7 +483,7 @@ class SyncRepository {
                 tempId: dep.entityId,
               ) ==
               null;
-      if (discard && isGhostDep) {
+      if (why == _ParentGone.discarded && isGhostDep) {
         // Same best-effort rule as the primary row — and it matters more
         // here: this cleanup runs *after* the user's row was deleted, so a
         // throw would reject a discard that already succeeded.
@@ -481,15 +497,9 @@ class SyncRepository {
           entityType: dep.entityType,
           entityId: dep.entityId,
         );
-        await _failTmpDependents(companyId, dep.entityId, discard: true);
+        await _failTmpDependents(companyId, dep.entityId, why);
       } else {
-        await _markDead(
-          dep,
-          discard
-              ? 'References a discarded unsynced record'
-              : 'References a record that could not be saved',
-          null,
-        );
+        await _markDead(dep, why.message, null);
         // Recurse into a dead create's OWN tmp dependents (deeper levels).
         // The `!= parentTmpId` guard skips a same-entity update keyed to the
         // parent's tmp id (already handled above), so we never re-query the
@@ -497,7 +507,13 @@ class SyncRepository {
         if (MutationKind.tryParse(dep.mutationKind) == MutationKind.create &&
             dep.entityId.startsWith('tmp_') &&
             dep.entityId != parentTmpId) {
-          await _failTmpDependents(companyId, dep.entityId, discard: discard);
+          await _failTmpDependents(
+            companyId,
+            dep.entityId,
+            // A level down, the record referenced is this dependent — dead
+            // now, not one that may exist on the server.
+            why == _ParentGone.discardedUnconfirmed ? _ParentGone.failed : why,
+          );
         }
       }
     }
@@ -965,7 +981,31 @@ class SyncRepository {
         beforeId: row.id,
         now: _now().millisecondsSinceEpoch,
       )) {
-        // An older mutation for this record is still going to be sent.
+        // An older mutation for this record is still going to be sent. Held
+        // behind an `unconfirmed` one, this row waits on the user for as long
+        // as they take — so it vacates the `nextReady` window, as the tmp_
+        // deferral below does, rather than coming back in every snapshot and,
+        // with enough like it, starving everything queued after. Budget-
+        // neutral, and `awaitRow` still reports the hold: its
+        // `unconfirmedRowAhead` check runs before it looks at the schedule.
+        final ahead = await db.outboxDao.unconfirmedRowAhead(
+          companyId: companyId,
+          entityType: row.entityType,
+          entityId: row.entityId,
+          beforeId: row.id,
+        );
+        if (ahead != null) {
+          await db.outboxDao.scheduleRetry(
+            id: row.id,
+            attempts: row.attempts,
+            nextAttemptAt:
+                _now().millisecondsSinceEpoch +
+                const Duration(minutes: 1).inMilliseconds,
+            error:
+                'Waiting for an earlier change that may already have been '
+                'sent',
+          );
+        }
         continue;
       }
       var current = row;
@@ -1337,7 +1377,11 @@ class SyncRepository {
           // save with their remaining tags, instead of marking them dead (M1).
           await _stripFailedTagFromDependents(row.companyId, row.entityId);
         } else {
-          await _failTmpDependents(row.companyId, row.entityId, discard: false);
+          await _failTmpDependents(
+            row.companyId,
+            row.entityId,
+            _ParentGone.failed,
+          );
         }
       }
       return false;
@@ -1865,4 +1909,19 @@ class SyncRepository {
   }
 
   EntityType _entityTypeFrom(EntityType t) => t;
+}
+
+/// Why a `tmp_` parent's dependents can no longer go out as queued
+/// (`SyncRepository._failTmpDependents`), and what the dead ones say.
+enum _ParentGone {
+  failed('References a record that could not be saved'),
+  discarded('References a discarded unsynced record'),
+  discardedUnconfirmed(
+    'References a record that may already exist on the server — choose it '
+    'again, then retry',
+  );
+
+  const _ParentGone(this.message);
+
+  final String message;
 }

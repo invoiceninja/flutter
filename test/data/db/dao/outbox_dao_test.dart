@@ -441,6 +441,24 @@ void main() {
         expect(row.fieldErrorsJson, '{"name":["bad"]}');
       },
     );
+
+    test('touches only a failed or waiting row — never one that turned '
+        'unconfirmed or went in flight while its menu was open', () async {
+      // Re-arming an unconfirmed row here skipped the Resend confirmation for
+      // a change that may already have gone through.
+      final unconfirmed = await enqueue(idempotencyKey: 'u');
+      await db.outboxDao.markUnconfirmed(id: unconfirmed, error: 'reset');
+      final inFlight = await enqueue(entityId: 'c2', idempotencyKey: 'f');
+      await db.outboxDao.markInFlight(inFlight);
+      final dead = await enqueue(entityId: 'c3', idempotencyKey: 'd');
+      await db.outboxDao.markDead(id: dead, error: 'boom', statusCode: 500);
+
+      expect(await db.outboxDao.retryDead(id: unconfirmed, now: 1), isFalse);
+      expect(await db.outboxDao.retryDead(id: inFlight, now: 1), isFalse);
+      expect(await db.outboxDao.retryDead(id: dead, now: 1), isTrue);
+      expect((await db.outboxDao.byId(unconfirmed))!.state, 'unconfirmed');
+      expect((await db.outboxDao.byId(inFlight))!.state, 'in_flight');
+    });
   });
 
   group('unconfirmed rows (may have reached the server)', () {

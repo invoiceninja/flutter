@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
@@ -202,6 +203,28 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
     // outbox row, so the errors below cover both it and a server 422.
     final saved = await _vm.save();
     if (!mounted) return;
+
+    if (saved == null && _vm.unconfirmedRowId != null) {
+      // The create may already have gone through — the server can hold this
+      // client under an id the device never learned. Saving again could make
+      // a second one, and handing the local copy back would point the record
+      // being edited at a client that may be a duplicate. So close, hand back
+      // nothing, and say where the change waits for a decision. That outcome
+      // sets no submitError, so the dialog used to show nothing at all — and
+      // refuse every later Save, silently.
+      _closing = true;
+      final router = GoRouter.maybeOf(context);
+      Notify.warning(
+        context,
+        context.tr('may_have_been_sent_title'),
+        detail: context.tr('may_have_been_sent_help'),
+        action: router == null
+            ? null
+            : NotifyAction(context.tr('view'), () => router.go('/sync/outbox')),
+      );
+      Navigator.of(context).pop();
+      return;
+    }
 
     if (saved == null) {
       // A 422 carrying per-field errors leaves `submitError` null by design

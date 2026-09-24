@@ -555,6 +555,28 @@ void main() {
         expect(disp.dispatches, 0, reason: 'held back, not sent');
       });
 
+      test('a save held behind it leaves the drain window rather than '
+          'staying due', () async {
+        // Left due, a held row came back in every `nextReady` snapshot — a
+        // 50-row window — for as long as the unconfirmed change waited on the
+        // user, and enough of them starved every row queued after them.
+        await unconfirmedEmail();
+        final save = await enqueue('c1', MutationKind.update);
+        final disp = _ProgrammableDispatcher();
+        final engine = engineFor(disp);
+
+        await engine.drainOnce(companyId: 'co');
+
+        final row = (await db.outboxDao.byId(save))!;
+        expect(disp.dispatches, 0, reason: 'still held back');
+        expect(row.state, 'pending');
+        expect(row.attempts, 0, reason: 'waiting costs no retry budget');
+        expect(
+          await db.outboxDao.nextReady(companyId: 'co', now: 1000),
+          isEmpty,
+        );
+      });
+
       test('awaitRow reports a row that went unconfirmed itself', () async {
         final id = await enqueue('tmp_c1', MutationKind.create);
         final engine = engineFor(sentThen(const NetworkException('reset')));
@@ -1812,6 +1834,40 @@ void main() {
         isEmpty,
         reason: "the child's rows go too, throw or no throw",
       );
+    });
+
+    test('discarding an unconfirmed create keeps the offline work that '
+        'references it — the record may already exist on the server', () async {
+      // It cascaded like a never-sent ghost: every offline dependent (an
+      // invoice made for this client) was hard-deleted along with its rows.
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      final parentId = await enqueueClient(
+        entityId: 'tmp_parent',
+        kind: MutationKind.create,
+      );
+      await db.outboxDao.markUnconfirmed(id: parentId, error: 'reset');
+      final childId = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'tmp_child',
+          mutationKind: 'create',
+          payload: jsonEncode({'id': 'tmp_child', 'parent': 'tmp_parent'}),
+          idempotencyKey: 'k-child',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+
+      final removed = await engine.discardOutboxRow(parentId);
+
+      expect(removed, isTrue, reason: 'the discarded record itself goes');
+      expect(await rawRow(parentId), isNull);
+      expect(repo.localDeletes, [('co', 'tmp_parent')]);
+      final child = await rawRow(childId);
+      expect(child?.state, 'dead', reason: 'kept, for the user to re-point');
+      expect(child?.lastError, contains('may already exist on the server'));
     });
 
     test('discardOutboxRow on an in_flight ghost create only drops the '

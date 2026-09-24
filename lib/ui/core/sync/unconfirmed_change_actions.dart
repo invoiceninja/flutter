@@ -25,20 +25,21 @@ Future<void> checkUnconfirmedRow(BuildContext context, OutboxRow row) async {
   final services = context.read<Services>();
   await services.sync.recheck(row);
   if (!context.mounted) return;
+  context.go(unconfirmedRowDestination(services, row));
+}
+
+/// Where [row]'s change would show — what Check opens: for a create, its
+/// list (the server's newest records lead it); for anything else, the record.
+String unconfirmedRowDestination(Services services, OutboxRow row) {
   final handlers = services.entityRegistry.byWireName(row.entityType);
-  if (handlers == null) {
-    context.go('/sync/outbox');
-    return;
-  }
+  if (handlers == null) return '/sync/outbox';
   final listRoute =
       row.mutationKind == MutationKind.create.wireName &&
       handlers.routePath.isNotEmpty &&
       !_kNoListRoute.contains(handlers.type);
-  context.go(
-    listRoute
-        ? handlers.routePath
-        : entityDestination(handlers: handlers, entityId: row.entityId),
-  );
+  return listRoute
+      ? handlers.routePath
+      : entityDestination(handlers: handlers, entityId: row.entityId);
 }
 
 /// Registered with a `routePath` that is not a list screen — see

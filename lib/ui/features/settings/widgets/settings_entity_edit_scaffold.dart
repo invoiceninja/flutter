@@ -278,10 +278,12 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
   Future<void> _discardFailedSync(VM vm) async {
     final services = context.read<Services>();
     // A save held on an `unconfirmed` row discards THAT row — the newest
-    // discardable one may be a later save queued behind it.
+    // discardable one may be a later save queued behind it. It comes first:
+    // it is what the banner shows, and a dead row cached when the form opened
+    // may be stale (a later save replaced it) or simply not the one in view.
     var rowId =
-        vm.deadOutboxRowId ??
-        (vm.unconfirmedIsSave ? vm.unconfirmedRowId : null);
+        (vm.unconfirmedIsSave ? vm.unconfirmedRowId : null) ??
+        vm.deadOutboxRowId;
     // Fall back to a dao lookup when the VM has no cached id — the contract
     // `save_failed_banner.dart` documents ("the screen's discard handler does
     // the fallback dao lookup") and `EntityEditScreenScaffold` shares.

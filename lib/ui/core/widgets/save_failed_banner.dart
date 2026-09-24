@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/sync/unconfirmed_change_actions.dart';
@@ -271,10 +272,21 @@ class SaveFailedBanner extends StatelessWidget {
     await action(row);
   }
 
+  /// A resent **create** leaves its form, for where Check would have gone.
+  /// Left open, the form invites another Save — which queues a second
+  /// create while this one is in flight, or after it has landed under an id
+  /// the form never learns: two records on the server. An update resent is
+  /// the same record either way, so its form stays.
   Future<void> _resend(BuildContext context, OutboxRow row) async {
     if (!await resendUnconfirmedRow(context, row) || !context.mounted) return;
     vm.clearUnconfirmed();
     Notify.success(context, context.tr('sync_started'));
+    if (row.mutationKind == MutationKind.create.wireName) {
+      // What the form held is what was just sent: leaving must not ask to
+      // discard it — nor offer "Keep editing" back into the form.
+      vm.markSaved();
+      context.go(unconfirmedRowDestination(context.read<Services>(), row));
+    }
   }
 
   /// The rejection's reason, or null when there's nothing to show at all.

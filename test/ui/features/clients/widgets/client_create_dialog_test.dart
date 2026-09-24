@@ -19,6 +19,7 @@ import 'package:admin/data/repositories/group_setting_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/services/connectivity_watcher.dart';
+import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/clients/widgets/client_create_dialog.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -204,6 +205,7 @@ void main() {
     SyncRowResult? syncResult,
     bool online = true,
     Size size = const Size(1200, 900),
+    ToastController? toasts,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
@@ -223,8 +225,14 @@ void main() {
     closed = false;
 
     await tester.pumpWidget(
-      Provider<Services>.value(
-        value: services,
+      MultiProvider(
+        providers: [
+          Provider<Services>.value(value: services),
+          // Only where a test reads the toasts: shown, each one holds an
+          // auto-dismiss timer the binding would find still pending.
+          if (toasts != null)
+            ChangeNotifierProvider<ToastController>.value(value: toasts),
+        ],
         child: MaterialApp(
           theme: buildInTheme(InTheme.light),
           localizationsDelegates: kTestLocalizationsDelegates,
@@ -418,6 +426,33 @@ void main() {
 
       expect(closed, isFalse);
       expect(find.text('is invalid'), findsOneWidget);
+    });
+
+    testWidgets('a create that may already have gone through closes with a '
+        'warning and hands back no client', (tester) async {
+      // That outcome sets no submitError, so the dialog showed nothing at all
+      // — and refused every later Save, silently. Handing the local copy on
+      // could attach a document to a client the server may hold twice.
+      final toasts = ToastController();
+      await open(
+        tester,
+        initialName: 'Acme Corp',
+        toasts: toasts,
+        syncResult: const SyncRowResult(
+          outcome: SyncRowOutcome.unconfirmed,
+          unconfirmedRowId: 7,
+          unconfirmedMutationKind: 'create',
+        ),
+      );
+      await save(tester);
+
+      expect(closed, isTrue);
+      expect(result, isNull);
+      expect(
+        toasts.toasts.single.message,
+        'A change may already have gone through',
+      );
+      toasts.clearAll();
     });
 
     // Offline creation must not hang on the outbox: `save()` checks

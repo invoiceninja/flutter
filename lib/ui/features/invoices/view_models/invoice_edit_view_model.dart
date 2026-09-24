@@ -1,7 +1,5 @@
 import 'package:decimal/decimal.dart';
 
-import 'package:admin/data/models/domain/billing/invitation.dart';
-import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/invoice.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/value/date.dart';
@@ -9,16 +7,15 @@ import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/invoice_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/billing/invoice_lock.dart';
-import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
-import 'package:admin/utils/formatting.dart';
 
-/// Drives the Invoice edit + create screen. Inherits the shared
-/// line-item / invitation / eInvoice / totals plumbing from
-/// [GenericBillingDocEditViewModel]; this class only owns the
-/// invoice-specific bridge (`copyWith*` overrides + `performSave` +
-/// per-field simple setters).
-class InvoiceEditViewModel extends GenericBillingDocEditViewModel<Invoice> {
+/// Drives the Invoice edit + create screen. The shared fields, setters and
+/// bridges come from [BillingDocEditViewModel] through [_invoiceWriter];
+/// what is the invoice's own lives here — its repository calls (with the
+/// lock backstop), [validate], the balance rule in [copyWithStampedTotals]
+/// and the auto-bill toggle.
+class InvoiceEditViewModel extends BillingDocEditViewModel<Invoice>
+    with BillingDocPartialSetters<Invoice> {
   InvoiceEditViewModel({
     required this.repo,
     required this.companyId,
@@ -32,12 +29,14 @@ class InvoiceEditViewModel extends GenericBillingDocEditViewModel<Invoice> {
     super.sync,
     super.connectivity,
   }) : super(
+         writer: _invoiceWriter,
          initialDraft: cloneFrom ?? existing ?? emptyInvoice(),
          original: existing,
          companyId: companyId,
        );
 
   final InvoiceRepository repo;
+  @override
   final String companyId;
 
   /// Localized "please select a client" — injected from the screen's
@@ -84,20 +83,22 @@ class InvoiceEditViewModel extends GenericBillingDocEditViewModel<Invoice> {
   }
 
   @override
-  Future<SaveResult<Invoice>> performSave() async {
-    // One-shot SAVE-PARAM query (mark_sent / paid / cancel / auto_bill)
-    // set by the edit-screen action bar; null on a plain Save.
-    final extraQuery = consumeSaveQuery();
-    if (isCreate) {
-      final result = await repo.create(
-        companyId: companyId,
-        draft: draft,
-        extraQuery: extraQuery,
-        existingTempId: recoveryTempId,
-      );
-      rememberCreateTempId(result.entity.id);
-      return result;
-    }
+  Future<SaveResult<Invoice>> createDocument(
+    Invoice draft, {
+    Map<String, String>? extraQuery,
+    String? existingTempId,
+  }) => repo.create(
+    companyId: companyId,
+    draft: draft,
+    extraQuery: extraQuery,
+    existingTempId: existingTempId,
+  );
+
+  @override
+  Future<SaveResult<Invoice>> saveDocument(
+    Invoice draft, {
+    Map<String, String>? extraQuery,
+  }) async {
     try {
       return await repo.save(
         companyId: companyId,
@@ -131,58 +132,6 @@ class InvoiceEditViewModel extends GenericBillingDocEditViewModel<Invoice> {
 
   void resetToEmpty() => reset(emptyDraft: emptyInvoice());
 
-  // ── GenericBillingDocEditViewModel bridge ──────────────────────────
-
-  @override
-  List<LineItem> lineItemsOf(Invoice draft) => draft.lineItems;
-
-  @override
-  Invoice copyWithLineItems(Invoice draft, List<LineItem> items) =>
-      draft.copyWith(lineItems: items);
-
-  @override
-  List<Invitation> invitationsOf(Invoice draft) => draft.invitations;
-
-  @override
-  Invoice copyWithInvitations(Invoice draft, List<Invitation> invitations) =>
-      draft.copyWith(invitations: invitations);
-
-  @override
-  String clientIdOf(Invoice draft) => draft.clientId;
-
-  @override
-  Invoice copyWithClientId(Invoice draft, String clientId) =>
-      draft.copyWith(clientId: clientId);
-
-  @override
-  Map<String, dynamic>? eInvoiceOf(Invoice draft) => draft.eInvoice;
-
-  @override
-  Invoice copyWithEInvoice(Invoice draft, Map<String, dynamic>? eInvoice) =>
-      draft.copyWith(eInvoice: eInvoice);
-
-  @override
-  BillingTotalsInput totalsInputOf(Invoice d) => BillingTotalsInput(
-    lineItems: d.lineItems,
-    discount: d.discount,
-    isAmountDiscount: d.isAmountDiscount,
-    usesInclusiveTaxes: d.usesInclusiveTaxes,
-    taxName1: d.taxName1,
-    taxRate1: d.taxRate1,
-    taxName2: d.taxName2,
-    taxRate2: d.taxRate2,
-    taxName3: d.taxName3,
-    taxRate3: d.taxRate3,
-    customSurcharge1: d.customSurcharge1,
-    customSurcharge2: d.customSurcharge2,
-    customSurcharge3: d.customSurcharge3,
-    customSurcharge4: d.customSurcharge4,
-    customTaxes1: d.customTaxes1,
-    customTaxes2: d.customTaxes2,
-    customTaxes3: d.customTaxes3,
-    customTaxes4: d.customTaxes4,
-  );
-
   @override
   Invoice copyWithStampedTotals(
     Invoice draft, {
@@ -203,152 +152,60 @@ class InvoiceEditViewModel extends GenericBillingDocEditViewModel<Invoice> {
     taxAmount: taxAmount,
   );
 
-  // ── Identity / dates ───────────────────────────────────────────────
-
-  void setClientId(String v) => updateDraft(draft.copyWith(clientId: v));
-  void setTagIds(List<String> ids) => updateDraft(draft.copyWith(tagIds: ids));
-  void setVendorId(String v) => updateDraft(draft.copyWith(vendorId: v));
-  void setLocationId(String v) => updateDraft(draft.copyWith(locationId: v));
-  void setProjectId(String v) => updateDraft(draft.copyWith(projectId: v));
-  void setSubscriptionId(String v) =>
-      updateDraft(draft.copyWith(subscriptionId: v));
-  void setAssignedUserId(String v) =>
-      updateDraft(draft.copyWith(assignedUserId: v));
-  void setNumber(String v) => updateDraft(draft.copyWith(number: v));
-  void setPoNumber(String v) => updateDraft(draft.copyWith(poNumber: v));
-  void setDate(Date? d) => updateDraft(draft.copyWith(date: d));
-  void setDueDate(Date? d) => updateDraft(draft.copyWith(dueDate: d));
-  void setPartialDueDate(Date? d) =>
-      updateDraft(draft.copyWith(partialDueDate: d));
-
-  // ── Money + amounts ────────────────────────────────────────────────
-
-  void setPartial(String input) => updateDraft(
-    draft.copyWith(
-      partial:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-  void setExchangeRate(String input) => updateDraft(
-    draft.copyWith(
-      exchangeRate:
-          parseDecimal(
-            input,
-            zeroIsNull: true,
-            useCommaAsDecimalPlace: useCommaAsDecimalPlace,
-          ) ??
-          Decimal.one,
-    ),
-  );
-  void setDiscount(String input, {required bool isAmount}) => updateDraft(
-    draft.copyWith(
-      discount:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-      isAmountDiscount: isAmount,
-    ),
-  );
-
-  // ── Design + tax ───────────────────────────────────────────────────
-
-  void setDesignId(String v) => updateDraft(draft.copyWith(designId: v));
-  void setUsesInclusiveTaxes(bool v) =>
-      updateDraft(draft.copyWith(usesInclusiveTaxes: v));
-  void setTaxName1(String v) => updateDraft(draft.copyWith(taxName1: v));
-  void setTaxName2(String v) => updateDraft(draft.copyWith(taxName2: v));
-  void setTaxName3(String v) => updateDraft(draft.copyWith(taxName3: v));
-  void setTaxRate1(String input) => updateDraft(
-    draft.copyWith(
-      taxRate1:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-  void setTaxRate2(String input) => updateDraft(
-    draft.copyWith(
-      taxRate2:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-  void setTaxRate3(String input) => updateDraft(
-    draft.copyWith(
-      taxRate3:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-
-  // ── Surcharges ─────────────────────────────────────────────────────
-
-  void setCustomSurcharge1(String input) => updateDraft(
-    draft.copyWith(
-      customSurcharge1:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-  void setCustomSurcharge2(String input) => updateDraft(
-    draft.copyWith(
-      customSurcharge2:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-  void setCustomSurcharge3(String input) => updateDraft(
-    draft.copyWith(
-      customSurcharge3:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-  void setCustomSurcharge4(String input) => updateDraft(
-    draft.copyWith(
-      customSurcharge4:
-          parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
-          Decimal.zero,
-    ),
-  );
-  void setCustomTaxes1(bool v) => updateDraft(draft.copyWith(customTaxes1: v));
-  void setCustomTaxes2(bool v) => updateDraft(draft.copyWith(customTaxes2: v));
-  void setCustomTaxes3(bool v) => updateDraft(draft.copyWith(customTaxes3: v));
-  void setCustomTaxes4(bool v) => updateDraft(draft.copyWith(customTaxes4: v));
-
-  // ── Custom fields ──────────────────────────────────────────────────
-
-  void setCustomValue1(String v) =>
-      updateDraft(draft.copyWith(customValue1: v));
-  void setCustomValue2(String v) =>
-      updateDraft(draft.copyWith(customValue2: v));
-  void setCustomValue3(String v) =>
-      updateDraft(draft.copyWith(customValue3: v));
-  void setCustomValue4(String v) =>
-      updateDraft(draft.copyWith(customValue4: v));
-
-  // ── Notes / content ────────────────────────────────────────────────
-
-  void setPublicNotes(String v) => updateDraft(draft.copyWith(publicNotes: v));
-  void setPrivateNotes(String v) =>
-      updateDraft(draft.copyWith(privateNotes: v));
-  void setTerms(String v) => updateDraft(draft.copyWith(terms: v));
-  void setFooter(String v) => updateDraft(draft.copyWith(footer: v));
-
-  // Line-item collection ops, invitation toggle, and eInvoice field
-  // updates all live on [GenericBillingDocEditViewModel] — see the
-  // copyWith* / *Of bridge methods above.
-
-  // ── Recurring fields (used when this is a RecurringInvoice) ────────
-
-  void setFrequencyId(String v) => updateDraft(draft.copyWith(frequencyId: v));
-  void setNextSendDate(Date? d) => updateDraft(draft.copyWith(nextSendDate: d));
-  void setRemainingCycles(int v) =>
-      updateDraft(draft.copyWith(remainingCycles: v));
-  void setAutoBill(String v) => updateDraft(draft.copyWith(autoBill: v));
   void setAutoBillEnabled(bool v) =>
       updateDraft(draft.copyWith(autoBillEnabled: v));
-  void setDueDateDays(String v) => updateDraft(draft.copyWith(dueDateDays: v));
+
+  @override
+  Invoice Function(Invoice, Decimal) get partialWriter =>
+      (d, v) => d.copyWith(partial: v);
+
+  @override
+  Invoice Function(Invoice, Date?) get partialDueDateWriter =>
+      (d, v) => d.copyWith(partialDueDate: v);
 }
+
+/// The shared fields, written onto an [Invoice] — see [BillingDocWriter].
+final _invoiceWriter = BillingDocWriter<Invoice>(
+  lineItems: (d, v) => d.copyWith(lineItems: v),
+  invitations: (d, v) => d.copyWith(invitations: v),
+  clientId: (d, v) => d.copyWith(clientId: v),
+  eInvoice: (d, v) => d.copyWith(eInvoice: v),
+  number: (d, v) => d.copyWith(number: v),
+  poNumber: (d, v) => d.copyWith(poNumber: v),
+  date: (d, v) => d.copyWith(date: v),
+  dueDate: (d, v) => d.copyWith(dueDate: v),
+  vendorId: (d, v) => d.copyWith(vendorId: v),
+  projectId: (d, v) => d.copyWith(projectId: v),
+  assignedUserId: (d, v) => d.copyWith(assignedUserId: v),
+  designId: (d, v) => d.copyWith(designId: v),
+  tagIds: (d, v) => d.copyWith(tagIds: v),
+  exchangeRate: (d, v) => d.copyWith(exchangeRate: v),
+  discount: (d, v, isAmount) =>
+      d.copyWith(discount: v, isAmountDiscount: isAmount),
+  usesInclusiveTaxes: (d, v) => d.copyWith(usesInclusiveTaxes: v),
+  taxName1: (d, v) => d.copyWith(taxName1: v),
+  taxName2: (d, v) => d.copyWith(taxName2: v),
+  taxName3: (d, v) => d.copyWith(taxName3: v),
+  taxRate1: (d, v) => d.copyWith(taxRate1: v),
+  taxRate2: (d, v) => d.copyWith(taxRate2: v),
+  taxRate3: (d, v) => d.copyWith(taxRate3: v),
+  customSurcharge1: (d, v) => d.copyWith(customSurcharge1: v),
+  customSurcharge2: (d, v) => d.copyWith(customSurcharge2: v),
+  customSurcharge3: (d, v) => d.copyWith(customSurcharge3: v),
+  customSurcharge4: (d, v) => d.copyWith(customSurcharge4: v),
+  customTaxes1: (d, v) => d.copyWith(customTaxes1: v),
+  customTaxes2: (d, v) => d.copyWith(customTaxes2: v),
+  customTaxes3: (d, v) => d.copyWith(customTaxes3: v),
+  customTaxes4: (d, v) => d.copyWith(customTaxes4: v),
+  customValue1: (d, v) => d.copyWith(customValue1: v),
+  customValue2: (d, v) => d.copyWith(customValue2: v),
+  customValue3: (d, v) => d.copyWith(customValue3: v),
+  customValue4: (d, v) => d.copyWith(customValue4: v),
+  publicNotes: (d, v) => d.copyWith(publicNotes: v),
+  privateNotes: (d, v) => d.copyWith(privateNotes: v),
+  terms: (d, v) => d.copyWith(terms: v),
+  footer: (d, v) => d.copyWith(footer: v),
+);
 
 /// Empty draft for new invoices. Defaults match admin-portal's create
 /// factory: `exchange_rate = 1`, `date = today`, status = Draft, and the

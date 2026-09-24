@@ -60,8 +60,10 @@ void main() {
       'LockedClientFieldRow',
       'locked_after_save_clone',
     ),
-    'lib/ui/features/purchase_orders/widgets/edit/purchase_order_edit_layout.dart':
-        ('LockedVendorFieldRow', 'locked_after_save_clone'),
+    'lib/ui/features/billing_shared/edit/billing_doc_vendor_picker.dart': (
+      'LockedVendorFieldRow',
+      'locked_after_save_clone',
+    ),
     'lib/ui/features/payments/widgets/edit/payment_edit_layout.dart': (
       'LockedClientFieldRow',
       'locked_after_save',
@@ -187,22 +189,17 @@ void main() {
 
     // Pinning only the callee leaves the door open: `isCreate: true` hardcoded
     // at a call site restores the back door with a green suite.
-    for (final path in const [
-      'lib/ui/features/invoices/widgets/edit/invoice_edit_layout.dart',
-      'lib/ui/features/quotes/widgets/edit/quote_edit_layout.dart',
-      'lib/ui/features/credits/widgets/edit/credit_edit_layout.dart',
-      'lib/ui/features/recurring_invoices/widgets/edit/recurring_invoice_edit_layout.dart',
-      'lib/ui/features/purchase_orders/widgets/edit/purchase_order_edit_layout.dart',
-    ]) {
-      test('$path passes the real flag', () {
-        final code = codeOf(path);
-        expect(
-          code,
-          contains('openLineItemPicker('),
-          reason: '$path no longer opens the picker — update this list',
-        );
-        expect(code, contains('isCreate: vm.isCreate,'));
-      });
-    }
+    // The five billing documents open it from their one shared layout.
+    test('the shared billing-doc layout passes the real flag', () {
+      final code = codeOf(
+        'lib/ui/features/billing_shared/edit/billing_doc_edit_layout.dart',
+      );
+      expect(
+        code,
+        contains('openLineItemPicker('),
+        reason: 'the shared layout no longer opens the picker — update this',
+      );
+      expect(code, contains('isCreate: vm.isCreate,'));
+    });
   });
 }

@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/invoice_api_model.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/document.dart';
@@ -28,7 +29,7 @@ part 'invoice.freezed.dart';
 /// can be displayed on the detail screen); they're empty on standalone
 /// invoices and reused verbatim by `RecurringInvoice` later.
 @freezed
-abstract class Invoice with _$Invoice {
+abstract class Invoice with _$Invoice implements BillingDocPartialFields {
   const factory Invoice({
     required String id,
     required String number,

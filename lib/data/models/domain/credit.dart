@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/credit_api_model.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/credit_status.dart';
@@ -17,7 +18,7 @@ part 'credit.freezed.dart';
 /// tracking (credits can be partially applied to multiple invoices) and
 /// no convert-to-X actions.
 @freezed
-abstract class Credit with _$Credit {
+abstract class Credit with _$Credit implements BillingDocPartialFields {
   const factory Credit({
     required String id,
     required String number,

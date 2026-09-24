@@ -1,11 +1,17 @@
 import 'package:decimal/decimal.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/contact.dart';
+import 'package:admin/data/models/value/date.dart';
+import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/domain/billing/billing_doc_totals.dart';
 import 'package:admin/domain/billing/totals_calculator.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// Shared base for every billing-doc edit ViewModel (Invoice / Quote /
 /// Credit / PurchaseOrder / RecurringInvoice). Layers four behaviors
@@ -691,4 +697,263 @@ abstract class GenericBillingDocEditViewModel<T>
       }
     }
   }
+}
+
+/// Writes the shared fields onto one entity's freezed draft. The five
+/// billing documents share their getters ([BillingDocFields]) but no
+/// `copyWith`, so each edit view model supplies these one-line closures once
+/// and [BillingDocEditViewModel] builds every shared setter and bridge on
+/// them — instead of each of five view models spelling out the same ~40
+/// setters, which is how their parsing and defaults could drift apart.
+final class BillingDocWriter<T> {
+  const BillingDocWriter({
+    required this.lineItems,
+    required this.invitations,
+    required this.clientId,
+    required this.eInvoice,
+    required this.number,
+    required this.poNumber,
+    required this.date,
+    required this.dueDate,
+    required this.vendorId,
+    required this.projectId,
+    required this.assignedUserId,
+    required this.designId,
+    required this.tagIds,
+    required this.exchangeRate,
+    required this.discount,
+    required this.usesInclusiveTaxes,
+    required this.taxName1,
+    required this.taxName2,
+    required this.taxName3,
+    required this.taxRate1,
+    required this.taxRate2,
+    required this.taxRate3,
+    required this.customSurcharge1,
+    required this.customSurcharge2,
+    required this.customSurcharge3,
+    required this.customSurcharge4,
+    required this.customTaxes1,
+    required this.customTaxes2,
+    required this.customTaxes3,
+    required this.customTaxes4,
+    required this.customValue1,
+    required this.customValue2,
+    required this.customValue3,
+    required this.customValue4,
+    required this.publicNotes,
+    required this.privateNotes,
+    required this.terms,
+    required this.footer,
+  });
+
+  final T Function(T, List<LineItem>) lineItems;
+  final T Function(T, List<Invitation>) invitations;
+  final T Function(T, String) clientId;
+  final T Function(T, Map<String, dynamic>?) eInvoice;
+  final T Function(T, String) number;
+  final T Function(T, String) poNumber;
+  final T Function(T, Date?) date;
+  final T Function(T, Date?) dueDate;
+  final T Function(T, String) vendorId;
+  final T Function(T, String) projectId;
+  final T Function(T, String) assignedUserId;
+  final T Function(T, String) designId;
+  final T Function(T, List<String>) tagIds;
+  final T Function(T, Decimal) exchangeRate;
+
+  /// The discount and whether it is an amount or a percentage: one input.
+  final T Function(T, Decimal discount, bool isAmount) discount;
+  final T Function(T, bool) usesInclusiveTaxes;
+  final T Function(T, String) taxName1;
+  final T Function(T, String) taxName2;
+  final T Function(T, String) taxName3;
+  final T Function(T, Decimal) taxRate1;
+  final T Function(T, Decimal) taxRate2;
+  final T Function(T, Decimal) taxRate3;
+  final T Function(T, Decimal) customSurcharge1;
+  final T Function(T, Decimal) customSurcharge2;
+  final T Function(T, Decimal) customSurcharge3;
+  final T Function(T, Decimal) customSurcharge4;
+  final T Function(T, bool) customTaxes1;
+  final T Function(T, bool) customTaxes2;
+  final T Function(T, bool) customTaxes3;
+  final T Function(T, bool) customTaxes4;
+  final T Function(T, String) customValue1;
+  final T Function(T, String) customValue2;
+  final T Function(T, String) customValue3;
+  final T Function(T, String) customValue4;
+  final T Function(T, String) publicNotes;
+  final T Function(T, String) privateNotes;
+  final T Function(T, String) terms;
+  final T Function(T, String) footer;
+}
+
+/// The edit view model of one billing document: [GenericBillingDocEditViewModel]
+/// with its bridges and every shared setter written once, over the fields
+/// the five documents share ([BillingDocFields]) and the entity's
+/// [BillingDocWriter]. A subclass supplies what genuinely differs — its
+/// repository calls ([createDocument] / [saveDocument]), [validate], the
+/// balance rule in [copyWithStampedTotals], and its own extra fields.
+abstract class BillingDocEditViewModel<T extends BillingDocFields>
+    extends GenericBillingDocEditViewModel<T> {
+  BillingDocEditViewModel({
+    required this.writer,
+    required super.initialDraft,
+    super.original,
+    super.sync,
+    super.connectivity,
+    super.companyId,
+    super.useCommaAsDecimalPlace,
+    super.currencyPrecision,
+  });
+
+  final BillingDocWriter<T> writer;
+
+  /// The company the document belongs to.
+  String get companyId;
+
+  /// Create [draft] as a new document — the entity repository's `create`.
+  @protected
+  Future<SaveResult<T>> createDocument(
+    T draft, {
+    Map<String, String>? extraQuery,
+    String? existingTempId,
+  });
+
+  /// Save changes to the existing document [draft] — the repository's
+  /// `save`.
+  @protected
+  Future<SaveResult<T>> saveDocument(
+    T draft, {
+    Map<String, String>? extraQuery,
+  });
+
+  @override
+  Future<SaveResult<T>> performSave() async {
+    // One-shot SAVE-PARAM query (mark_sent / paid / approve / …) set by the
+    // edit screen's action bar; null on a plain Save.
+    final extraQuery = consumeSaveQuery();
+    if (isCreate) {
+      final result = await createDocument(
+        draft,
+        extraQuery: extraQuery,
+        existingTempId: recoveryTempId,
+      );
+      rememberCreateTempId(result.entity.id);
+      return result;
+    }
+    return saveDocument(draft, extraQuery: extraQuery);
+  }
+
+  // ── Bridge ─────────────────────────────────────────────────────────
+
+  @override
+  List<LineItem> lineItemsOf(T draft) => draft.lineItems;
+
+  @override
+  T copyWithLineItems(T draft, List<LineItem> items) =>
+      writer.lineItems(draft, items);
+
+  @override
+  List<Invitation> invitationsOf(T draft) => draft.invitations;
+
+  @override
+  T copyWithInvitations(T draft, List<Invitation> invitations) =>
+      writer.invitations(draft, invitations);
+
+  @override
+  String clientIdOf(T draft) => draft.clientId;
+
+  @override
+  T copyWithClientId(T draft, String clientId) =>
+      writer.clientId(draft, clientId);
+
+  @override
+  Map<String, dynamic>? eInvoiceOf(T draft) => draft.eInvoice;
+
+  @override
+  T copyWithEInvoice(T draft, Map<String, dynamic>? eInvoice) =>
+      writer.eInvoice(draft, eInvoice);
+
+  @override
+  BillingTotalsInput totalsInputOf(T draft) => draft.totalsInput;
+
+  // ── Setters ────────────────────────────────────────────────────────
+
+  void setClientId(String v) => setStr(writer.clientId, v);
+  void setTagIds(List<String> ids) => updateDraft(writer.tagIds(draft, ids));
+  void setVendorId(String v) => setStr(writer.vendorId, v);
+  void setProjectId(String v) => setStr(writer.projectId, v);
+  void setAssignedUserId(String v) => setStr(writer.assignedUserId, v);
+  void setNumber(String v) => setStr(writer.number, v);
+  void setPoNumber(String v) => setStr(writer.poNumber, v);
+  void setDate(Date? d) => updateDraft(writer.date(draft, d));
+  void setDueDate(Date? d) => updateDraft(writer.dueDate(draft, d));
+  void setDesignId(String v) => setStr(writer.designId, v);
+
+  /// Blank or zero means "no conversion": the rate is 1.
+  void setExchangeRate(String input) => updateDraft(
+    writer.exchangeRate(
+      draft,
+      parseDecimal(
+            input,
+            zeroIsNull: true,
+            useCommaAsDecimalPlace: useCommaAsDecimalPlace,
+          ) ??
+          Decimal.one,
+    ),
+  );
+
+  void setDiscount(String input, {required bool isAmount}) => updateDraft(
+    writer.discount(
+      draft,
+      parseDecimal(input, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
+          Decimal.zero,
+      isAmount,
+    ),
+  );
+
+  void setUsesInclusiveTaxes(bool v) => setBool(writer.usesInclusiveTaxes, v);
+  void setTaxName1(String v) => setStr(writer.taxName1, v);
+  void setTaxName2(String v) => setStr(writer.taxName2, v);
+  void setTaxName3(String v) => setStr(writer.taxName3, v);
+  void setTaxRate1(String input) => setDec(writer.taxRate1, input);
+  void setTaxRate2(String input) => setDec(writer.taxRate2, input);
+  void setTaxRate3(String input) => setDec(writer.taxRate3, input);
+
+  void setCustomSurcharge1(String input) =>
+      setDec(writer.customSurcharge1, input);
+  void setCustomSurcharge2(String input) =>
+      setDec(writer.customSurcharge2, input);
+  void setCustomSurcharge3(String input) =>
+      setDec(writer.customSurcharge3, input);
+  void setCustomSurcharge4(String input) =>
+      setDec(writer.customSurcharge4, input);
+  void setCustomTaxes1(bool v) => setBool(writer.customTaxes1, v);
+  void setCustomTaxes2(bool v) => setBool(writer.customTaxes2, v);
+  void setCustomTaxes3(bool v) => setBool(writer.customTaxes3, v);
+  void setCustomTaxes4(bool v) => setBool(writer.customTaxes4, v);
+
+  void setCustomValue1(String v) => setStr(writer.customValue1, v);
+  void setCustomValue2(String v) => setStr(writer.customValue2, v);
+  void setCustomValue3(String v) => setStr(writer.customValue3, v);
+  void setCustomValue4(String v) => setStr(writer.customValue4, v);
+
+  void setPublicNotes(String v) => setStr(writer.publicNotes, v);
+  void setPrivateNotes(String v) => setStr(writer.privateNotes, v);
+  void setTerms(String v) => setStr(writer.terms, v);
+  void setFooter(String v) => setStr(writer.footer, v);
+}
+
+/// The partial-payment (deposit) setters, for the documents whose edit
+/// screens offer one — invoice, quote and credit.
+mixin BillingDocPartialSetters<T extends BillingDocPartialFields>
+    on BillingDocEditViewModel<T> {
+  T Function(T, Decimal) get partialWriter;
+  T Function(T, Date?) get partialDueDateWriter;
+
+  void setPartial(String input) => setDec(partialWriter, input);
+  void setPartialDueDate(Date? d) =>
+      updateDraft(partialDueDateWriter(draft, d));
 }

@@ -64,7 +64,7 @@ Plus two non-negotiables carried from admin-portal:
 | Collapsing a filter bar to an icon, or the removable-chip strip that replaces it | `docs/pane-width-and-overflow.md` § A filter surface too tall for its pane becomes an icon · `lib/ui/core/widgets/filter_icon_button.dart` |
 | Changing a Tasks view header (day / week / month nav), or its narrow branch | `docs/pane-width-and-overflow.md` § The three time-oriented Tasks headers · `lib/ui/features/tasks/widgets/calendar/task_calendar_header.dart` |
 | Viewing an older version of an invoice / quote / credit / PO / recurring invoice, or its History tab | § Document version history · `docs/document-version-history.md` · `lib/data/services/document_versions_api.dart` |
-| Adding a tab to a billing-doc edit screen, the PDF preview button, or a scrollable strip that runs off the edge | `docs/pane-width-and-overflow.md` § A tab strip is a width budget · `lib/ui/core/widgets/scroll_edge_fades.dart` |
+| Changing an invoice / quote / credit / PO / recurring-invoice edit screen — a tab, the PDF preview button, a strip running off the edge | `lib/ui/features/billing_shared/edit/billing_doc_edit_layout.dart` · `BillingDocType` (the spec) · `docs/pane-width-and-overflow.md` § A tab strip is a width budget · `lib/ui/core/widgets/scroll_edge_fades.dart` |
 | Changing the Items tab's add affordances or empty state on a billing-doc edit screen, or a FAB there | `docs/pane-width-and-overflow.md` § A `Stack` mounted for a FAB · `test/lint/billing_items_affordance_test.dart` |
 | A create `+` covering the last row of a list, or adding a FAB over any scrollable | `docs/pane-width-and-overflow.md` § A floating button is a bottom inset · `lib/ui/core/utils/fab_clearance.dart` · `test/lint/fab_clearance_wiring_test.dart` |
 | Making a name in a list row or table cell tappable (or a link visible on touch) | `docs/row-actions-and-values.md` § A narrow list row has exactly one destination · `test/lint/no_list_tile_name_link_test.dart` |
@@ -158,6 +158,8 @@ View (StatelessWidget)
 - **Persistence**: Drift. Native (iOS/macOS): SQLCipher, encrypted-at-rest with a per-install key in `flutter_secure_storage` (`invoiceninja.db.key.v1`). Web: unencrypted IndexedDB/OPFS via drift WASM (no SQLCipher/`PRAGMA key` — the browser origin sandbox is the trust boundary). The platform split lives behind `lib/data/db/database_opener.dart`; `openAppDatabase()` is platform-agnostic. Tests use `NativeDatabase.memory()`. See § Web.
 
 See `docs/architecture.md` for the offline-first write pipeline (Drift→outbox→drain→apply, with `tmp_<uuid>` + `id_remap` for offline creates), the on-disk project layout, and the full coding-conventions checklist.
+
+- **The five billing documents share one edit layout (`BillingDocEditLayout`) and one view-model base (`BillingDocEditViewModel`); a difference between them is a `BillingDocType` value or a `BillingDocEditSlots` entry, never a copy.** → `docs/architecture.md` § Why the billing documents share one edit layout
 
 ## Design system (v2)
 

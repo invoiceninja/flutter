@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/recurring_invoice_api_model.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/document.dart';
@@ -16,7 +17,9 @@ part 'recurring_invoice.freezed.dart';
 /// the recurring lifecycle (`start` / `stop` mutations, `frequencyId`,
 /// `nextSendDate`, `remainingCycles`).
 @freezed
-abstract class RecurringInvoice with _$RecurringInvoice {
+abstract class RecurringInvoice
+    with _$RecurringInvoice
+    implements BillingDocPartialFields {
   const factory RecurringInvoice({
     required String id,
     required String number,

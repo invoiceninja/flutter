@@ -49,58 +49,62 @@ void main() {
 
   /// The `_ItemsTab` class body, which is what these rules are about — the
   /// layouts use `Stack` / `SingleChildScrollView` freely in their other tabs.
+  /// The one edit layout the five documents share — where their Items tab,
+  /// FAB and picker shortcut now live, written once.
+  const shared =
+      'lib/ui/features/billing_shared/edit/billing_doc_edit_layout.dart';
+
   String itemsTabOf(String path) {
     final code = codeOf(path);
-    final start = code.indexOf('class _ItemsTab extends StatelessWidget');
+    final start = code.indexOf('class _ItemsTab<');
     expect(start, isNonNegative, reason: '_ItemsTab has been renamed in $path');
     final end = code.indexOf('\nclass ', start + 1);
     return code.substring(start, end < 0 ? code.length : end);
   }
 
-  layouts.forEach((name, path) {
-    group(name, () {
-      test('renders its narrow Items tab through the shared body', () {
-        final tab = itemsTabOf(path);
+  group('the shared layout', () {
+    test('renders its narrow Items tab through the shared body', () {
+      final tab = itemsTabOf(shared);
+      expect(
+        tab,
+        contains('BillingDocEditItemsBody('),
+        reason:
+            'the scroll host, the min-height and the FAB gate all live in '
+            'one widget — a local copy opts out of all three at once',
+      );
+      for (final local in const [
+        'Stack(',
+        'SingleChildScrollView(',
+        'Positioned(',
+      ]) {
         expect(
           tab,
-          contains('BillingDocEditItemsBody('),
-          reason:
-              'the scroll host, the min-height and the FAB gate all live in '
-              'one widget — a local copy opts out of all three at once',
+          isNot(contains(local)),
+          reason: '_ItemsTab is re-rolling the shared body\'s $local',
         );
-        // Each of these is a piece of the host written back by hand, and the
-        // Stack is the one that caused #141: `StackFit.loose` is the default,
-        // and it hands the scroll view `constraints.loosen()`, which
-        // shrink-wraps it and parks the empty state at the top-left corner.
-        for (final local in const [
-          'Stack(',
-          'SingleChildScrollView(',
-          'Positioned(',
-        ]) {
-          expect(
-            tab,
-            isNot(contains(local)),
-            reason: '_ItemsTab is re-rolling the shared body\'s $local',
-          );
-        }
-      });
+      }
+    });
 
-      test('keeps exactly one FAB, on the desktop page', () {
-        final code = codeOf(path);
-        expect(
-          'BillingDocEditFab('.allMatches(code),
-          hasLength(1),
-          reason:
-              'the >= 1024 page keeps its FAB; a second one here is the narrow '
-              'tab mounting its own again',
-        );
-      });
+    test('keeps exactly one FAB, on the desktop page', () {
+      expect(
+        'BillingDocEditFab('.allMatches(codeOf(shared)),
+        hasLength(1),
+        reason:
+            'the >= 1024 page keeps its FAB; a second one here is the narrow '
+            'tab mounting its own again',
+      );
+    });
 
-      test('still wraps the desktop page in the picker shortcut scope', () {
-        // The FAB and the scope share a file but are separate widgets, so
-        // moving the narrow one must not take Cmd/Ctrl-N with it.
-        expect(codeOf(path), contains('BillingDocEditPickerShortcuts('));
-      });
+    test('still wraps the desktop page in the picker shortcut scope', () {
+      expect(codeOf(shared), contains('BillingDocEditPickerShortcuts('));
+    });
+  });
+
+  layouts.forEach((name, path) {
+    test('$name adds no Items tab or FAB of its own', () {
+      final code = codeOf(path);
+      expect(code, isNot(contains('BillingDocEditFab(')));
+      expect(code, isNot(contains('BillingDocEditItemsBody(')));
     });
   });
 

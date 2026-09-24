@@ -1,55 +1,35 @@
-import 'dart:async';
-
-import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/models/domain/billing/billing_contact.dart';
-import 'package:admin/data/models/domain/billing/line_item.dart';
-import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/domain/recurring_frequency.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
-import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
-import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
-import 'package:admin/ui/features/billing_shared/edit/billing_doc_client_picker.dart';
-import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_desktop_shell.dart';
-import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
-import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_fab.dart';
-import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_items_body.dart';
-import 'package:admin/ui/features/billing_shared/edit/billing_doc_settings_tab.dart';
-import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
-import 'package:admin/ui/features/billing_shared/edit/e_invoice_tab_gate.dart';
+import 'package:admin/ui/features/billing_shared/edit/billing_doc_edit_layout.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
-import 'package:admin/ui/features/billing_shared/items/billing_doc_items_tabs.dart';
-import 'package:admin/ui/features/billing_shared/line_item_picker/line_item_picker_invoke.dart';
-import 'package:admin/ui/features/billing_shared/markdown_notes_section.dart';
+import 'package:admin/ui/features/billing_shared/edit/e_invoice_fields_tab.dart';
 import 'package:admin/ui/features/billing_shared/pdf/billing_doc_draft_preview.dart';
-import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
-import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
-import 'package:admin/ui/features/billing_shared/edit/billing_tax_surcharge_section.dart';
 import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoice_edit_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 
-/// Tabbed body for the recurring-invoice edit screen. Adds a Schedule
-/// tab to the Quote/Credit/PO layout for frequency + next_send_date +
-/// remaining_cycles + auto_bill, plus PDF while
-/// [RecurringInvoiceEditLayout.showPdfTab] and E-Invoice while the company
-/// files them (`eInvoiceTabVisible`).
+/// The recurring-invoice edit body: [BillingDocEditLayout] as a recurring
+/// invoice. What makes it one is [BillingDocType.recurringInvoice] — no
+/// document or due date (its schedule decides them), no partial payment, no
+/// "Save as default" (occurrences inherit the invoice's terms) — plus its
+/// schedule (a desktop card in the dates card's place, a narrow tab after
+/// Details), its auto-bill mode, its PDF fetcher and an E-Invoice tab.
 ///
 /// Note this is the one strip that still scrolls on a phone after
 /// invoiceninja/flutter#140: six sections plus Schedule is ~472 px of a
 /// ~411 px viewport. Hence the edge fades — the residue is meant to look
 /// scrollable, which is what it never did before.
-class RecurringInvoiceEditLayout extends StatefulWidget {
+class RecurringInvoiceEditLayout extends StatelessWidget {
   const RecurringInvoiceEditLayout({
     super.key,
     required this.vm,
@@ -58,315 +38,75 @@ class RecurringInvoiceEditLayout extends StatefulWidget {
 
   final RecurringInvoiceEditViewModel vm;
 
-  /// Whether the narrow strip carries a `PDF` tab. The screen computes this
-  /// once and threads it to both the strip and the header's preview button.
+  /// Whether the narrow strip carries a `PDF` tab — see
+  /// [BillingDocEditLayout.showPdfTab] (invoiceninja/flutter#140).
   final bool showPdfTab;
 
   @override
-  State<RecurringInvoiceEditLayout> createState() =>
-      _RecurringInvoiceEditLayoutState();
-}
-
-/// The narrow strip's tabs, in order. Private per layout so every arm of the
-/// `switch` in [_RecurringInvoiceEditLayoutState._tabFor] is reachable.
-enum _Tab { details, schedule, contacts, items, notes, settings, pdf, eInvoice }
-
-class _RecurringInvoiceEditLayoutState
-    extends State<RecurringInvoiceEditLayout> {
-  /// Hidden until the settings cascade answers — see
-  /// [resolveEInvoiceTabVisible].
-  bool _showEInvoice = false;
-
-  /// The narrow strip's tabs, in order — the only place a tab's presence is
-  /// decided. [BillingDocEditTabStrip] sizes its own controller from the
-  /// list [_buildMobile] hands it, and [_tabFor] pairs each key's label
-  /// with its body so the two cannot fall out of step.
-  List<_Tab> get _tabKeys => [
-    _Tab.details,
-    _Tab.schedule,
-    _Tab.contacts,
-    _Tab.items,
-    _Tab.notes,
-    _Tab.settings,
-    if (widget.showPdfTab) _Tab.pdf,
-    if (_showEInvoice) _Tab.eInvoice,
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_resolveEInvoiceGate());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final services = context.read<Services>();
-      widget.vm.hydrateSourceClientIds(
-        services: services,
-        companyId: widget.vm.companyId,
-      );
-    });
-  }
-
-  /// Reveal the E-Invoice tab if this company files them. The strip resizes
-  /// its own controller when the list grows.
-  Future<void> _resolveEInvoiceGate() async {
-    final visible = await resolveEInvoiceTabVisible(
-      context,
-      widget.vm.companyId,
-    );
-    if (!mounted || visible == _showEInvoice) return;
-    setState(() => _showEInvoice = visible);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.vm,
-      builder: (context, _) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 1024;
-            return wide
-                ? _buildDesktop(context)
-                : CenteredFormColumn(child: _buildMobile(context));
-          },
-        );
-      },
-    );
-  }
-
-  Widget _stickyTotals(BuildContext context) => Padding(
-    padding: EdgeInsets.all(InSpacing.md(context)),
-    child: BillingEditTotals(
-      totalsAt: widget.vm.totalsAt,
-      clientId: widget.vm.draft.clientId,
-      discount: widget.vm.draft.discount,
-      discountIsAmount: widget.vm.draft.isAmountDiscount,
-      surchargeAmounts: [
-        widget.vm.draft.customSurcharge1,
-        widget.vm.draft.customSurcharge2,
-        widget.vm.draft.customSurcharge3,
-        widget.vm.draft.customSurcharge4,
-      ],
-      dense: true,
-    ),
-  );
-
-  Widget _totalsCard(BuildContext context) => BillingEditTotals(
-    totalsAt: widget.vm.totalsAt,
-    clientId: widget.vm.draft.clientId,
-    discount: widget.vm.draft.discount,
-    discountIsAmount: widget.vm.draft.isAmountDiscount,
-    surchargeAmounts: [
-      widget.vm.draft.customSurcharge1,
-      widget.vm.draft.customSurcharge2,
-      widget.vm.draft.customSurcharge3,
-      widget.vm.draft.customSurcharge4,
-    ],
-    bordered: false,
-  );
-
-  Widget _slimTotals(BuildContext context) => BillingEditTotals(
-    totalsAt: widget.vm.totalsAt,
-    clientId: widget.vm.draft.clientId,
-    discount: widget.vm.draft.discount,
-    discountIsAmount: widget.vm.draft.isAmountDiscount,
-    surchargeAmounts: [
-      widget.vm.draft.customSurcharge1,
-      widget.vm.draft.customSurcharge2,
-      widget.vm.draft.customSurcharge3,
-      widget.vm.draft.customSurcharge4,
-    ],
-    dense: true,
-    slim: true,
-  );
-
-  void _openPicker(BuildContext context) {
-    final vm = widget.vm;
-    openLineItemPicker(
-      context,
-      companyId: vm.companyId,
-      clientId: vm.draft.clientId,
-      showTasksAndExpenses: true,
-      invoiceInclusive: vm.draft.usesInclusiveTaxes,
-      currentLineItems: vm.draft.lineItems,
-      currentProjectId: vm.draft.projectId,
-      currentClientId: vm.draft.clientId,
-      isCreate: vm.isCreate,
-      replaceLineItems: vm.replaceLineItems,
-      setProjectId: vm.setProjectId,
-      setClientId: vm.setClientId,
-      registerSourceClientIds: (tasks, expenses) =>
-          vm.registerSourceClientIds(tasks: tasks, expenses: expenses),
-    );
-  }
-
-  /// Label + body for one tab, in a single `switch` so a key can never carry
-  /// one and not the other.
-  ({String label, Widget body}) _tabFor(
-    BuildContext context,
-    _Tab key,
-  ) => switch (key) {
-    _Tab.details => (
-      label: context.tr('details'),
-      body: _DetailsTab(vm: widget.vm),
-    ),
-    _Tab.schedule => (
-      label: context.tr('schedule'),
-      body: _ScheduleTab(vm: widget.vm),
-    ),
-    _Tab.contacts => (
-      label: context.tr('contacts'),
-      body: _ContactsTab(vm: widget.vm),
-    ),
-    _Tab.items => (
-      label: context.tr('items'),
-      body: _ItemsTab(vm: widget.vm, onPickItems: () => _openPicker(context)),
-    ),
-    _Tab.notes => (label: context.tr('notes'), body: _NotesTab(vm: widget.vm)),
-    _Tab.settings => (
-      label: context.tr('settings'),
-      body: _SettingsTab(vm: widget.vm),
-    ),
-    _Tab.pdf => (label: context.tr('pdf'), body: _PdfTab(vm: widget.vm)),
-    _Tab.eInvoice => (
-      label: context.tr('e_invoice'),
-      body: EInvoiceFieldsTab<RecurringInvoice>(
-        vm: widget.vm,
+  Widget build(BuildContext context) => BillingDocEditLayout<RecurringInvoice>(
+    type: BillingDocType.recurringInvoice,
+    vm: vm,
+    showPdfTab: showPdfTab,
+    slots: BillingDocEditSlots(
+      pdfFetcher: (context) => _draftPdfFetcher(context, vm),
+      scheduleCard: (context) => _ScheduleCardDesktop(vm: vm),
+      scheduleTab: (context) => _ScheduleTab(vm: vm),
+      autoBillMode: (context, {required desktop}) =>
+          _AutoBillModeField(vm: vm, desktop: desktop),
+      eInvoiceTab: (context) => EInvoiceFieldsTab<RecurringInvoice>(
+        vm: vm,
         entityKind: EInvoiceEntityKind.recurringInvoice,
-        formatter: context.read<Services>().formatterIfReady(
-          widget.vm.companyId,
-        ),
+        formatter: context.read<Services>().formatterIfReady(vm.companyId),
       ),
     ),
-  };
-
-  Widget _buildMobile(BuildContext context) {
-    final tokens = context.inTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: BillingDocEditTabStrip(
-            tabs: [for (final key in _tabKeys) _tabFor(context, key)],
-            excludeInactiveFocus: true,
-          ),
-        ),
-        Divider(height: 1, color: tokens.border),
-        _stickyTotals(context),
-      ],
-    );
-  }
-
-  Widget _buildDesktop(BuildContext context) {
-    final shell = BillingDocEditDesktopShell(
-      topRow: (ctx, slot) => switch (slot) {
-        0 => _ClientCardDesktop(vm: widget.vm),
-        1 => _ScheduleCardDesktop(vm: widget.vm),
-        2 => _NumberCardDesktop(vm: widget.vm),
-        _ => const SizedBox.shrink(),
-      },
-      itemsSection: _ItemsSectionDesktop(
-        vm: widget.vm,
-        onPickItems: () => _openPicker(context),
-      ),
-      notesTabsCard: _NotesTabsCardDesktop(
-        vm: widget.vm,
-        showEInvoice: _showEInvoice,
-      ),
-      totalsCard: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _TaxSurchargeSection(vm: widget.vm),
-          _totalsCard(context),
-        ],
-      ),
-      pdfPane: _PdfPaneDesktop(vm: widget.vm),
-      stickyTotals: _slimTotals(context),
-    );
-    return BillingDocEditPickerShortcuts(
-      onPickItems: () => _openPicker(context),
-      child: Stack(
-        children: [
-          shell,
-          Positioned(
-            bottom: 72,
-            right: 24,
-            child: BillingDocEditFab(
-              heroTag: 'recurring_invoice_picker_fab',
-              onPressed: () => _openPicker(context),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  );
 }
 
-// ── Desktop multi-column cards ───────────────────────────────────────
+/// The one `live_preview` fetcher for a recurring-invoice draft — shared by
+/// the PDF tab, the desktop pane and the header's preview button.
+BillingDocPdfFetcher _draftPdfFetcher(
+  BuildContext context,
+  RecurringInvoiceEditViewModel vm,
+) {
+  final services = context.read<Services>();
+  return ({String? designId, required bool deliveryNote}) =>
+      services.recurringInvoices.api.downloadPdf(
+        entityJson: vm.draft.toApiJson(),
+        designId:
+            designId ?? (vm.draft.designId.isEmpty ? null : vm.draft.designId),
+      );
+}
 
-class _ClientCardDesktop extends StatelessWidget {
-  const _ClientCardDesktop({required this.vm});
+/// The narrow edit header's draft-PDF button — see
+/// [billingDocDraftPreviewButton].
+Widget recurringInvoiceDraftPreviewButton(
+  BuildContext context,
+  RecurringInvoiceEditViewModel vm,
+) => billingDocDraftPreviewButton(
+  BillingDocType.recurringInvoice,
+  vm,
+  _draftPdfFetcher(context, vm),
+);
+
+/// The auto-bill mode (`off` / `always` / `optout` / `optin`), after Discount
+/// on the desktop number card and the narrow Details tab. There is no
+/// separate `auto_bill_enabled` toggle: the server derives it from this
+/// field (`always` / `optout` → true) and overwrites it on save — see
+/// `RecurringInvoiceEditViewModel.setAutoBill`. Matches React.
+class _AutoBillModeField extends StatelessWidget {
+  const _AutoBillModeField({required this.vm, required this.desktop});
   final RecurringInvoiceEditViewModel vm;
+  final bool desktop;
 
   @override
   Widget build(BuildContext context) {
-    return FormSection(
-      title: null,
-      spacing: 0,
-      elevated: false,
-      children: [
-        BillingDocClientPicker(vm: vm, companyId: vm.companyId),
-        SizedBox(height: InSpacing.md(context)),
-        _ContactsForClient(vm: vm),
-      ],
-    );
-  }
-}
-
-class _ContactsForClient extends StatelessWidget {
-  const _ContactsForClient({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    if (vm.draft.clientId.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final services = context.read<Services>();
-    return StreamBuilder<Client?>(
-      stream: services.clients.watch(
-        companyId: vm.companyId,
-        id: vm.draft.clientId,
-      ),
-      builder: (context, snapshot) {
-        final client = snapshot.data;
-        if (client == null) {
-          return const LinearProgressIndicator(minHeight: 2);
-        }
-        final selected = vm.draft.invitations
-            .map((i) => i.clientContactId)
-            .where((id) => id.isNotEmpty)
-            .toSet();
-        return ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 240),
-          child: SingleChildScrollView(
-            child: BillingDocContactsSection(
-              contacts: client.contacts.map((c) => c.toBilling()).toList(),
-              selectedContactIds: selected,
-              onChanged: (next) {
-                final added = next.difference(selected);
-                final removed = selected.difference(next);
-                for (final id in added) {
-                  vm.setContactInvitation(id, true);
-                }
-                for (final id in removed) {
-                  vm.setContactInvitation(id, false);
-                }
-              },
-            ),
-          ),
-        );
-      },
+    return DropdownButtonFormField<String>(
+      initialValue: vm.draft.autoBill.isEmpty ? 'off' : vm.draft.autoBill,
+      decoration: desktop
+          ? billingFieldDecoration(context, label: context.tr('auto_bill'))
+          : InputDecoration(labelText: context.tr('auto_bill')),
+      items: _autoBillItems(context),
+      onChanged: (v) => vm.setAutoBill(v ?? 'off'),
     );
   }
 }
@@ -440,328 +180,47 @@ class _ScheduleCardDesktop extends StatelessWidget {
   }
 }
 
-class _NumberCardDesktop extends StatefulWidget {
-  const _NumberCardDesktop({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  State<_NumberCardDesktop> createState() => _NumberCardDesktopState();
-}
-
-class _NumberCardDesktopState extends State<_NumberCardDesktop> {
-  late final TextEditingController _number;
-  late final TextEditingController _poNumber;
-  late final TextEditingController _discount;
-
-  @override
-  void initState() {
-    super.initState();
-    _number = TextEditingController(text: widget.vm.draft.number);
-    _poNumber = TextEditingController(text: widget.vm.draft.poNumber);
-    _discount = TextEditingController(
-      text: widget.vm.draft.discount == Decimal.zero
-          ? ''
-          : widget.vm.draft.discount.toString(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _number.dispose();
-    _poNumber.dispose();
-    _discount.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final vm = widget.vm;
-    return FormSection(
-      title: null,
-      spacing: 0,
-      elevated: false,
-      children: [
-        TextField(
-          controller: _number,
-          decoration: billingFieldDecoration(
-            context,
-            label: context.tr('invoice_number'),
-            hint: vm.isCreate ? context.tr('auto_generated') : null,
-            errorText: vm.fieldErrorFor('number'),
-          ),
-          onChanged: vm.setNumber,
-          autocorrect: false,
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        TextField(
-          controller: _poNumber,
-          decoration: billingFieldDecoration(
-            context,
-            label: context.tr('po_number'),
-          ),
-          onChanged: vm.setPoNumber,
-          autocorrect: false,
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _discount,
-                decoration: billingFieldDecoration(
-                  context,
-                  label: context.tr('discount'),
-                ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                onChanged: (v) =>
-                    vm.setDiscount(v, isAmount: vm.draft.isAmountDiscount),
-              ),
-            ),
-            SizedBox(width: InSpacing.md(context)),
-            SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(value: false, label: Text(context.tr('percent'))),
-                ButtonSegment(value: true, label: Text(context.tr('amount'))),
-              ],
-              selected: {vm.draft.isAmountDiscount},
-              onSelectionChanged: (s) =>
-                  vm.setDiscount(_discount.text, isAmount: s.first),
-            ),
-          ],
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        DropdownButtonFormField<String>(
-          initialValue: vm.draft.autoBill.isEmpty ? 'off' : vm.draft.autoBill,
-          decoration: billingFieldDecoration(
-            context,
-            label: context.tr('auto_bill'),
-          ),
-          items: _autoBillItems(context),
-          onChanged: (v) => vm.setAutoBill(v ?? 'off'),
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        EntityCustomFieldsSection(
-          keyPrefix: 'invoice',
-          companyStream: context.read<Services>().company.watchCompany(
-            vm.companyId,
-          ),
-          formatter: context.read<Services>().formatterIfReady(vm.companyId),
-          values: [
-            vm.draft.customValue1,
-            vm.draft.customValue2,
-            vm.draft.customValue3,
-            vm.draft.customValue4,
-          ],
-          onChanged: [
-            vm.setCustomValue1,
-            vm.setCustomValue2,
-            vm.setCustomValue3,
-            vm.setCustomValue4,
-          ],
-          wrapInCard: false,
-          slots: const [2, 4],
-        ),
-      ],
-    );
-  }
-}
-
-class _ItemsSectionDesktop extends StatelessWidget {
-  const _ItemsSectionDesktop({required this.vm, required this.onPickItems});
-  final RecurringInvoiceEditViewModel vm;
-  final VoidCallback onPickItems;
-
-  @override
-  Widget build(BuildContext context) {
-    return BillingDocItemsTabs(
-      vm: vm,
-      companyId: vm.companyId,
-      lineItems: vm.draft.lineItems,
-      onChanged: vm.replaceLineItems,
-      newItemFactory: emptyLineItem,
-      rowErrors: vm.lineItemRowErrors,
-      onPickItems: onPickItems,
-    );
-  }
-}
-
-class _NotesTabsCardDesktop extends StatefulWidget {
-  const _NotesTabsCardDesktop({required this.vm, required this.showEInvoice});
-  final RecurringInvoiceEditViewModel vm;
-
-  /// Threaded down from the layout's own gate rather than resolved again
-  /// here: the narrow strip and this card must agree, and one cascade read
-  /// per screen is enough.
-  final bool showEInvoice;
-
-  @override
-  State<_NotesTabsCardDesktop> createState() => _NotesTabsCardDesktopState();
-}
-
-class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
-        // PLURAL `TickerProviderStateMixin` — the sub-tab count changes when the
-        // parent's E-Invoice gate resolves, and the single-ticker mixin asserts
-        // on the second controller.
-        with
-        TickerProviderStateMixin {
-  late TabController _ctl;
-
-  int get _length => widget.showEInvoice ? 6 : 5;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctl = TabController(length: _length, vsync: this);
-  }
-
-  @override
-  void didUpdateWidget(_NotesTabsCardDesktop oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.showEInvoice == widget.showEInvoice) return;
-    final previousIndex = _ctl.index;
-    _ctl.dispose();
-    _ctl = TabController(
-      length: _length,
-      vsync: this,
-      initialIndex: previousIndex.clamp(0, _length - 1),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final vm = widget.vm;
-    final tokens = context.inTheme;
-    return FormSection(
-      title: null,
-      spacing: 0,
-      elevated: false,
-      children: [
-        TabBar(
-          controller: _ctl,
-          isScrollable: true,
-          labelColor: tokens.ink,
-          unselectedLabelColor: tokens.ink3,
-          tabs: [
-            Tab(text: context.tr('terms')),
-            Tab(text: context.tr('footer')),
-            Tab(text: context.tr('public_notes')),
-            Tab(text: context.tr('private_notes')),
-            Tab(text: context.tr('settings')),
-            if (widget.showEInvoice) Tab(text: context.tr('e_invoice')),
-          ],
-        ),
-        Divider(height: 1, color: context.inTheme.border),
-        SizedBox(
-          height: BillingDocEditDesktopShell.notesPaneHeight(context),
-          // Widget-order Tab traversal: TabBarView leaves non-current notes
-          // sub-tabs built-but-unlaid; reading-order traversal would call
-          // `FocusNode.rect` on their host nodes → `hasSize` assertion.
-          child: FocusTraversalGroup(
-            policy: WidgetOrderTraversalPolicy(),
-            child: TabBarView(
-              controller: _ctl,
-              children: [
-                // Intentionally no "Save as default": recurring invoices
-                // have no separate settings key — they inherit
-                // invoice_terms / invoice_footer when each occurrence is
-                // generated. Matches legacy admin-portal behavior.
-                MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
-                  label: context.tr('terms'),
-                  showLabel: false,
-                  expand: true,
-                  value: vm.draft.terms,
-                  onChanged: vm.setTerms,
-                ),
-                MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
-                  label: context.tr('footer'),
-                  showLabel: false,
-                  expand: true,
-                  value: vm.draft.footer,
-                  onChanged: vm.setFooter,
-                ),
-                MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
-                  label: context.tr('public_notes'),
-                  showLabel: false,
-                  expand: true,
-                  value: vm.draft.publicNotes,
-                  onChanged: vm.setPublicNotes,
-                ),
-                MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
-                  label: context.tr('private_notes'),
-                  showLabel: false,
-                  expand: true,
-                  value: vm.draft.privateNotes,
-                  onChanged: vm.setPrivateNotes,
-                ),
-                SingleChildScrollView(
-                  child: BillingDocSettingsTab(
-                    companyId: vm.companyId,
-                    entityType: 'recurring_invoice',
-                    tagIds: vm.draft.tagIds,
-                    onTagIdsChanged: vm.setTagIds,
-                    designId: vm.draft.designId,
-                    onDesignChanged: vm.setDesignId,
-                    userId: vm.draft.assignedUserId,
-                    onUserChanged: vm.setAssignedUserId,
-                    projectId: vm.draft.projectId,
-                    onProjectChanged: vm.setProjectId,
-                    vendorId: vm.draft.vendorId,
-                    onVendorChanged: vm.setVendorId,
-                    exchangeRate: vm.draft.exchangeRate.toString(),
-                    onExchangeRateChanged: vm.setExchangeRate,
-                    // No auto_bill_enabled toggle: for recurring invoices the
-                    // server derives it from `auto_bill` (always/optout → true)
-                    // and overwrites it on save, so an editable toggle here does
-                    // nothing. The `auto_bill` field (Schedule tab) is the real
-                    // control. Matches React, which omits the toggle entirely.
-                  ),
-                ),
-                if (widget.showEInvoice)
-                  EInvoiceFieldsTab<RecurringInvoice>(
-                    vm: vm,
-                    entityKind: EInvoiceEntityKind.recurringInvoice,
-                    formatter: context.read<Services>().formatterIfReady(
-                      vm.companyId,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PdfPaneDesktop extends StatelessWidget {
-  const _PdfPaneDesktop({required this.vm});
+class _ScheduleTab extends StatelessWidget {
+  const _ScheduleTab({required this.vm});
   final RecurringInvoiceEditViewModel vm;
 
   @override
   Widget build(BuildContext context) {
-    return FormSection(
-      title: null,
-      spacing: 0,
-      elevated: false,
-      children: [
-        SizedBox(
-          height: BillingDocEditDesktopShell.fullWidthPdfHeight(context),
-          child: _PdfTab(vm: vm),
-        ),
-      ],
+    final fmt = context.read<Services>().formatterIfReady(vm.companyId);
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(InSpacing.lg(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: vm.draft.frequencyId.isEmpty
+                ? null
+                : vm.draft.frequencyId,
+            decoration: InputDecoration(labelText: context.tr('frequency')),
+            items: _frequencyItems(context),
+            onChanged: (v) => vm.setFrequencyId(v ?? ''),
+          ),
+          SizedBox(height: InSpacing.md(context)),
+          InDateField(
+            value: vm.draft.nextSendDate?.toDateTime(),
+            formatter: fmt,
+            onChanged: (d) {
+              if (d == null) {
+                vm.setNextSendDate(null);
+              } else {
+                vm.setNextSendDate(Date(d.year, d.month, d.day));
+              }
+            },
+            labelText: context.tr('next_send_date'),
+            clearable: true,
+          ),
+          if (vm.draft.nextSendDate != null) _NextSendPreview(vm: vm),
+          SizedBox(height: InSpacing.md(context)),
+          _RemainingCyclesField(vm: vm),
+          SizedBox(height: InSpacing.md(context)),
+          _DueDateDaysField(vm: vm),
+        ],
+      ),
     );
   }
 }
@@ -887,476 +346,6 @@ class _NextSendPreview extends StatelessWidget {
         '${context.tr('next')}: ${previews.join(', ')}',
         style: TextStyle(color: context.inTheme.ink3, fontSize: 12),
       ),
-    );
-  }
-}
-
-/// Document-level tax tiers + custom surcharges + inclusive-tax toggle.
-/// Self-collapses when the company has no enabled tax rates and no surcharge
-/// labels configured (so it adds no chrome when unused).
-class _TaxSurchargeSection extends StatelessWidget {
-  const _TaxSurchargeSection({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = vm.draft;
-    return BillingTaxSurchargeSection(
-      companyId: vm.companyId,
-      useCommaAsDecimalPlace: vm.useCommaAsDecimalPlace,
-      taxRows: [
-        (
-          name: d.taxName1,
-          rate: d.taxRate1,
-          onName: vm.setTaxName1,
-          onRate: vm.setTaxRate1,
-        ),
-        (
-          name: d.taxName2,
-          rate: d.taxRate2,
-          onName: vm.setTaxName2,
-          onRate: vm.setTaxRate2,
-        ),
-        (
-          name: d.taxName3,
-          rate: d.taxRate3,
-          onName: vm.setTaxName3,
-          onRate: vm.setTaxRate3,
-        ),
-      ],
-      usesInclusiveTaxes: d.usesInclusiveTaxes,
-      onInclusiveChanged: vm.setUsesInclusiveTaxes,
-      surcharges: [
-        (amount: d.customSurcharge1, onAmount: vm.setCustomSurcharge1),
-        (amount: d.customSurcharge2, onAmount: vm.setCustomSurcharge2),
-        (amount: d.customSurcharge3, onAmount: vm.setCustomSurcharge3),
-        (amount: d.customSurcharge4, onAmount: vm.setCustomSurcharge4),
-      ],
-    );
-  }
-}
-
-class _DetailsTab extends StatefulWidget {
-  const _DetailsTab({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-  @override
-  State<_DetailsTab> createState() => _DetailsTabState();
-}
-
-class _DetailsTabState extends State<_DetailsTab> {
-  late final TextEditingController _number;
-  late final TextEditingController _poNumber;
-  late final TextEditingController _discount;
-
-  @override
-  void initState() {
-    super.initState();
-    _number = TextEditingController(text: widget.vm.draft.number);
-    _poNumber = TextEditingController(text: widget.vm.draft.poNumber);
-    _discount = TextEditingController(
-      text: widget.vm.draft.discount == Decimal.zero
-          ? ''
-          : widget.vm.draft.discount.toString(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _number.dispose();
-    _poNumber.dispose();
-    _discount.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final vm = widget.vm;
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          BillingDocClientPicker(vm: vm, companyId: vm.companyId),
-          SizedBox(height: InSpacing.lg(context)),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _number,
-                  decoration: InputDecoration(
-                    labelText: context.tr('recurring_invoice_number'),
-                    hintText: vm.isCreate ? context.tr('auto_generated') : null,
-                    errorText: vm.fieldErrorFor('number'),
-                  ),
-                  onChanged: vm.setNumber,
-                  autocorrect: false,
-                ),
-              ),
-              SizedBox(width: InSpacing.md(context)),
-              Expanded(
-                child: TextField(
-                  controller: _poNumber,
-                  decoration: InputDecoration(
-                    labelText: context.tr('po_number'),
-                  ),
-                  onChanged: vm.setPoNumber,
-                  autocorrect: false,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: InSpacing.md(context)),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _discount,
-                  decoration: InputDecoration(
-                    labelText: context.tr('discount'),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  onChanged: (v) =>
-                      vm.setDiscount(v, isAmount: vm.draft.isAmountDiscount),
-                ),
-              ),
-              SizedBox(width: InSpacing.md(context)),
-              SegmentedButton<bool>(
-                segments: [
-                  ButtonSegment(
-                    value: false,
-                    label: Text(context.tr('percent')),
-                  ),
-                  ButtonSegment(value: true, label: Text(context.tr('amount'))),
-                ],
-                selected: {vm.draft.isAmountDiscount},
-                onSelectionChanged: (s) =>
-                    vm.setDiscount(_discount.text, isAmount: s.first),
-              ),
-            ],
-          ),
-          SizedBox(height: InSpacing.md(context)),
-          DropdownButtonFormField<String>(
-            initialValue: vm.draft.autoBill.isEmpty ? 'off' : vm.draft.autoBill,
-            decoration: InputDecoration(labelText: context.tr('auto_bill')),
-            items: _autoBillItems(context),
-            onChanged: (v) => vm.setAutoBill(v ?? 'off'),
-          ),
-          _TaxSurchargeSection(vm: vm),
-          SizedBox(height: InSpacing.lg(context)),
-          _DesignPicker(vm: vm),
-          SizedBox(height: InSpacing.lg(context)),
-          EntityCustomFieldsSection(
-            keyPrefix: 'invoice',
-            companyStream: context.read<Services>().company.watchCompany(
-              vm.companyId,
-            ),
-            formatter: context.read<Services>().formatterIfReady(vm.companyId),
-            values: [
-              vm.draft.customValue1,
-              vm.draft.customValue2,
-              vm.draft.customValue3,
-              vm.draft.customValue4,
-            ],
-            onChanged: [
-              vm.setCustomValue1,
-              vm.setCustomValue2,
-              vm.setCustomValue3,
-              vm.setCustomValue4,
-            ],
-            cardTitle: context.tr('custom_fields'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DesignPicker extends StatelessWidget {
-  const _DesignPicker({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    return StreamBuilder<List<Design>>(
-      stream: services.designs.watchAll(companyId: vm.companyId),
-      builder: (context, snapshot) {
-        final designs = snapshot.data ?? const <Design>[];
-        Design? selected;
-        for (final d in designs) {
-          if (d.id == vm.draft.designId) {
-            selected = d;
-            break;
-          }
-        }
-        return SearchableDropdownField<Design>(
-          label: context.tr('design'),
-          items: designs,
-          initialValue: selected,
-          displayString: (d) => d.name,
-          idOf: (d) => d.id,
-          onChanged: (d) => vm.setDesignId(d?.id ?? ''),
-        );
-      },
-    );
-  }
-}
-
-/// Mobile "Settings" tab — Project / Vendor / User / Exchange-Rate / Auto-Bill
-/// (+ Design). Desktop renders these in a sub-tab of the notes card; mobile
-/// previously had no tab for them, so those fields were uneditable on a phone.
-class _SettingsTab extends StatelessWidget {
-  const _SettingsTab({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: BillingDocSettingsTab(
-        companyId: vm.companyId,
-        entityType: 'recurring_invoice',
-        tagIds: vm.draft.tagIds,
-        onTagIdsChanged: vm.setTagIds,
-        designId: vm.draft.designId,
-        onDesignChanged: vm.setDesignId,
-        userId: vm.draft.assignedUserId,
-        onUserChanged: vm.setAssignedUserId,
-        projectId: vm.draft.projectId,
-        onProjectChanged: vm.setProjectId,
-        vendorId: vm.draft.vendorId,
-        onVendorChanged: vm.setVendorId,
-        exchangeRate: vm.draft.exchangeRate.toString(),
-        onExchangeRateChanged: vm.setExchangeRate,
-        // No auto_bill_enabled toggle for recurring — server-derived from
-        // `auto_bill` and overwritten on save (see the desktop layout note).
-      ),
-    );
-  }
-}
-
-class _ScheduleTab extends StatelessWidget {
-  const _ScheduleTab({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    final fmt = context.read<Services>().formatterIfReady(vm.companyId);
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DropdownButtonFormField<String>(
-            initialValue: vm.draft.frequencyId.isEmpty
-                ? null
-                : vm.draft.frequencyId,
-            decoration: InputDecoration(labelText: context.tr('frequency')),
-            items: _frequencyItems(context),
-            onChanged: (v) => vm.setFrequencyId(v ?? ''),
-          ),
-          SizedBox(height: InSpacing.md(context)),
-          InDateField(
-            value: vm.draft.nextSendDate?.toDateTime(),
-            formatter: fmt,
-            onChanged: (d) {
-              if (d == null) {
-                vm.setNextSendDate(null);
-              } else {
-                vm.setNextSendDate(Date(d.year, d.month, d.day));
-              }
-            },
-            labelText: context.tr('next_send_date'),
-            clearable: true,
-          ),
-          if (vm.draft.nextSendDate != null) _NextSendPreview(vm: vm),
-          SizedBox(height: InSpacing.md(context)),
-          _RemainingCyclesField(vm: vm),
-          SizedBox(height: InSpacing.md(context)),
-          _DueDateDaysField(vm: vm),
-        ],
-      ),
-    );
-  }
-}
-
-class _ContactsTab extends StatelessWidget {
-  const _ContactsTab({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    if (vm.draft.clientId.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(InSpacing.lg(context)),
-          child: Text(
-            context.tr('select_a_client_first'),
-            style: TextStyle(color: context.inTheme.ink3),
-          ),
-        ),
-      );
-    }
-    final services = context.read<Services>();
-    return StreamBuilder<Client?>(
-      stream: services.clients.watch(
-        companyId: vm.companyId,
-        id: vm.draft.clientId,
-      ),
-      builder: (context, snapshot) {
-        final client = snapshot.data;
-        if (client == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final selected = vm.draft.invitations
-            .map((i) => i.clientContactId)
-            .where((id) => id.isNotEmpty)
-            .toSet();
-        return ListView(
-          padding: EdgeInsets.symmetric(vertical: InSpacing.lg(context)),
-          children: [
-            BillingDocContactsSection(
-              contacts: client.contacts.map((c) => c.toBilling()).toList(),
-              selectedContactIds: selected,
-              onChanged: (next) {
-                final added = next.difference(selected);
-                final removed = selected.difference(next);
-                for (final id in added) {
-                  vm.setContactInvitation(id, true);
-                }
-                for (final id in removed) {
-                  vm.setContactInvitation(id, false);
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ItemsTab extends StatelessWidget {
-  const _ItemsTab({required this.vm, required this.onPickItems});
-  final RecurringInvoiceEditViewModel vm;
-  final VoidCallback onPickItems;
-
-  @override
-  Widget build(BuildContext context) {
-    return BillingDocEditItemsBody(
-      heroTag: 'recurring_invoice_picker_fab_mobile',
-      onPickItems: onPickItems,
-      child: BillingDocItemsTabs(
-        vm: vm,
-        companyId: vm.companyId,
-        lineItems: vm.draft.lineItems,
-        onChanged: vm.replaceLineItems,
-        newItemFactory: emptyLineItem,
-        rowErrors: vm.lineItemRowErrors,
-        onPickItems: onPickItems,
-      ),
-    );
-  }
-}
-
-class _NotesTab extends StatelessWidget {
-  const _NotesTab({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    // Widget-order Tab traversal: off-screen markdown fields in this
-    // ListView are built-but-unlaid; reading-order traversal would call
-    // `FocusNode.rect` on their host nodes → `hasSize` assertion.
-    return FocusTraversalGroup(
-      policy: WidgetOrderTraversalPolicy(),
-      child: ListView(
-        padding: EdgeInsets.all(InSpacing.lg(context)),
-        children: [
-          MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
-            label: context.tr('public_notes'),
-            value: vm.draft.publicNotes,
-            onChanged: vm.setPublicNotes,
-          ),
-          SizedBox(height: InSpacing.lg(context)),
-          MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
-            label: context.tr('private_notes'),
-            value: vm.draft.privateNotes,
-            onChanged: vm.setPrivateNotes,
-          ),
-          SizedBox(height: InSpacing.lg(context)),
-          MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
-            label: context.tr('terms'),
-            value: vm.draft.terms,
-            onChanged: vm.setTerms,
-          ),
-          SizedBox(height: InSpacing.lg(context)),
-          MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
-            label: context.tr('footer'),
-            value: vm.draft.footer,
-            onChanged: vm.setFooter,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The one `live_preview` fetcher for a recurring-invoice draft — shared by
-/// the PDF tab, the desktop pane and the header's preview button.
-BillingDocPdfFetcher _draftPdfFetcher(
-  BuildContext context,
-  RecurringInvoiceEditViewModel vm,
-) {
-  final services = context.read<Services>();
-  return ({String? designId, required bool deliveryNote}) =>
-      services.recurringInvoices.api.downloadPdf(
-        entityJson: vm.draft.toApiJson(),
-        designId:
-            designId ?? (vm.draft.designId.isEmpty ? null : vm.draft.designId),
-      );
-}
-
-/// The narrow edit header's draft-PDF button (invoiceninja/flutter#140).
-Widget recurringInvoiceDraftPreviewButton(
-  BuildContext context,
-  RecurringInvoiceEditViewModel vm,
-) => BillingDocPreviewButton(
-  entity: BillingDocType.recurringInvoice,
-  entityNumber: vm.draft.number,
-  enabled: vm.draft.clientId.isNotEmpty,
-  fetcher: _draftPdfFetcher(context, vm),
-);
-
-class _PdfTab extends StatelessWidget {
-  const _PdfTab({required this.vm});
-  final RecurringInvoiceEditViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    if (vm.draft.clientId.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(InSpacing.lg(context)),
-          child: Text(
-            context.tr('please_select_a_client'),
-            style: TextStyle(color: context.inTheme.ink3),
-          ),
-        ),
-      );
-    }
-    return BillingDocPdfView(
-      entity: BillingDocType.recurringInvoice,
-      entityNumber: vm.draft.number,
-      revision: vm.draft,
-      fetcher: _draftPdfFetcher(context, vm),
     );
   }
 }

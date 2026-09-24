@@ -37,7 +37,7 @@ import 'package:admin/ui/features/credits/widgets/credit_actions.dart';
 import 'package:admin/ui/features/billing_shared/viewed_status_pill_link.dart';
 import 'package:admin/ui/features/credits/widgets/credit_status_pill.dart';
 import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/domain/billing/totals_calculator.dart';
+import 'package:admin/domain/billing/billing_doc_totals.dart';
 import 'package:admin/ui/core/widgets/formatter_scope.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_kpi_strip.dart';
 import 'package:admin/ui/core/detail/custom_fields_detail_card.dart';
@@ -510,7 +510,7 @@ class _Overview extends StatelessWidget {
         final precision =
             formatter?.precisionFor(clientCurrencyId: currencyId) ?? 2;
         return BillingDocOverview(
-          totalsInput: _creditTotalsInput(credit),
+          totalsInput: credit.totalsInput,
           surchargeAmounts: [
             credit.customSurcharge1,
             credit.customSurcharge2,
@@ -548,27 +548,6 @@ class _Overview extends StatelessWidget {
     );
   }
 }
-
-BillingTotalsInput _creditTotalsInput(Credit d) => BillingTotalsInput(
-  lineItems: d.lineItems,
-  discount: d.discount,
-  isAmountDiscount: d.isAmountDiscount,
-  usesInclusiveTaxes: d.usesInclusiveTaxes,
-  taxName1: d.taxName1,
-  taxRate1: d.taxRate1,
-  taxName2: d.taxName2,
-  taxRate2: d.taxRate2,
-  taxName3: d.taxName3,
-  taxRate3: d.taxRate3,
-  customSurcharge1: d.customSurcharge1,
-  customSurcharge2: d.customSurcharge2,
-  customSurcharge3: d.customSurcharge3,
-  customSurcharge4: d.customSurcharge4,
-  customTaxes1: d.customTaxes1,
-  customTaxes2: d.customTaxes2,
-  customTaxes3: d.customTaxes3,
-  customTaxes4: d.customTaxes4,
-);
 
 class _PdfPane extends StatelessWidget {
   const _PdfPane({required this.credit, required this.selectedVersion});

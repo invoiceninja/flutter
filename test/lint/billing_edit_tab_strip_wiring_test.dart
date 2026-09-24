@@ -76,6 +76,11 @@ void main() {
   const strip =
       'lib/ui/features/billing_shared/edit/billing_doc_edit_tab_strip.dart';
 
+  /// The one edit layout the five documents share. Its wiring is asserted
+  /// once; each document's own file is a wrapper that supplies its slots.
+  const layout =
+      'lib/ui/features/billing_shared/edit/billing_doc_edit_layout.dart';
+
   /// layout file -> (screen file, the layout's widget, its button).
   const docs = {
     'invoices': (
@@ -152,30 +157,61 @@ void main() {
     });
   });
 
+  group('the shared layout', () {
+    test('renders its narrow tabs through the shared strip', () {
+      final code = codeOf(layout);
+      expect(code, contains('BillingDocEditTabStrip('));
+      // A local TabBar would silently opt out of the alignment, the fades
+      // and the controller resize all at once.
+      expect(code, isNot(contains('isScrollable: true,\n              tabs')));
+      expect(code, isNot(contains('late TabController _tab')));
+    });
+
+    test('the PDF tab is gated, never unconditional', () {
+      final code = codeOf(layout);
+      expect(
+        code,
+        contains('if (widget.showPdfTab) _Tab.pdf'),
+        reason: 'the narrow strip has no room for it below 600 px',
+      );
+      // The parallel `tabs:` / `children:` lists this replaced could drop a
+      // tab from one and not the other; the keyed switch cannot.
+      expect(code, isNot(contains("Tab(text: context.tr('pdf'))")));
+    });
+
+    test('the E-Invoice tab is gated on the company, on BOTH widths', () {
+      final code = codeOf(layout);
+      // Ungated since M3, against the file's own class doc. The narrow
+      // strip and the desktop notes card must agree or a company sees the
+      // form at one width and not the other.
+      expect(code, contains('if (_showEInvoice) _Tab.eInvoice'));
+      expect(
+        code,
+        contains('showEInvoice: _showEInvoice'),
+        reason:
+            'the desktop notes card takes the gate from the layout — '
+            'resolving it twice lets the two widths disagree',
+      );
+      expectTabGated(layout, 'e_invoice');
+
+      // The seed mirror is refreshed only as a side effect of a
+      // `resolved()` call, so a company that switches e-invoicing on
+      // would keep the stale answer for the rest of the session.
+      // `peek_is_seed_only_test.dart` fails the build on the attempt;
+      // this says the same thing where the temptation lives.
+      expect(code, contains('resolveEInvoiceTabVisible('));
+      expect(code, isNot(contains('resolvedIfReady(')));
+    });
+  });
+
   docs.forEach((name, doc) {
     group(name, () {
-      test('renders its narrow tabs through the shared strip', () {
+      test('is the shared layout, not a copy of it', () {
         final code = codeOf(doc.layout);
-        expect(code, contains('BillingDocEditTabStrip('));
-        // A local TabBar would silently opt out of the alignment, the fades
-        // and the controller resize all at once.
-        expect(
-          code,
-          isNot(contains('isScrollable: true,\n              tabs')),
-        );
-        expect(code, isNot(contains('late TabController _tab')));
-      });
-
-      test('the PDF tab is gated, never unconditional', () {
-        final code = codeOf(doc.layout);
-        expect(
-          code,
-          contains('if (widget.showPdfTab) _Tab.pdf'),
-          reason: 'the narrow strip has no room for it below 600 px',
-        );
-        // The parallel `tabs:` / `children:` lists this replaced could drop a
-        // tab from one and not the other; the keyed switch cannot.
-        expect(code, isNot(contains("Tab(text: context.tr('pdf'))")));
+        expect(code, contains('BillingDocEditLayout<'));
+        // A tab strip or a TabBar here is a copy of the layout growing back.
+        expect(code, isNot(contains('BillingDocEditTabStrip(')));
+        expect(code, isNot(contains('TabBar(')));
       });
 
       test('the screen computes ONE width and threads it to both halves', () {
@@ -198,32 +234,14 @@ void main() {
       });
 
       if (doc.eInvoice) {
-        test('the E-Invoice tab is gated on the company, on BOTH widths', () {
-          final code = codeOf(doc.layout);
-          // Ungated since M3, against the file's own class doc. The narrow
-          // strip and the desktop notes card must agree or a company sees the
-          // form at one width and not the other.
-          expect(code, contains('if (_showEInvoice) _Tab.eInvoice'));
-          expect(
-            code,
-            contains('showEInvoice: _showEInvoice'),
-            reason:
-                'the desktop notes card takes the gate from the layout — '
-                'resolving it twice lets the two widths disagree',
-          );
-          expectTabGated(doc.layout, 'e_invoice');
-
-          // The seed mirror is refreshed only as a side effect of a
-          // `resolved()` call, so a company that switches e-invoicing on
-          // would keep the stale answer for the rest of the session.
-          // `peek_is_seed_only_test.dart` fails the build on the attempt;
-          // this says the same thing where the temptation lives.
-          expect(code, contains('resolveEInvoiceTabVisible('));
-          expect(code, isNot(contains('resolvedIfReady(')));
+        test('supplies its E-Invoice tab for the shared gate to show', () {
+          expect(codeOf(doc.layout), contains('eInvoiceTab: (context)'));
         });
       } else {
         test('has no E-Invoice tab to gate', () {
-          expect(codeOf(doc.layout), isNot(contains("tr('e_invoice')")));
+          final code = codeOf(doc.layout);
+          expect(code, isNot(contains('eInvoiceTab:')));
+          expect(code, isNot(contains("tr('e_invoice')")));
         });
       }
     });

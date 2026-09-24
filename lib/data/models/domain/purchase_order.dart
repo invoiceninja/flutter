@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'package:admin/data/models/api/purchase_order_api_model.dart';
+import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/invitation.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/document.dart';
@@ -16,7 +17,7 @@ part 'purchase_order.freezed.dart';
 /// vendor-centric instead of client-centric, and carries `expenseId`
 /// for the receipt → expense conversion linkage.
 @freezed
-abstract class PurchaseOrder with _$PurchaseOrder {
+abstract class PurchaseOrder with _$PurchaseOrder implements BillingDocFields {
   const factory PurchaseOrder({
     required String id,
     required String number,

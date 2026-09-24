@@ -3,14 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/sidebar_menu_controller.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/sidebar_menu.dart';
 
 /// Tests target the SidebarMenuController persistence contract
 /// (invoiceninja/flutter#125):
 ///   * defaults to the list layout in the app's own order, everything shown
-///   * writes land in nav_state.sidebar_menu_json and nowhere else
-///   * restore() round-trips on the next launch, and survives a corrupt blob
-///   * the "nothing customised" state writes null, so Reset really resets
+///   * writes land in `DevicePrefKeys.sidebarMenu`
+///   * a relaunch reads them back, and survives a corrupt blob
+///   * the "nothing customised" state removes the row, so Reset really resets
+///   * a data wipe forgets the menu, in memory too
 ///
 /// They don't re-test Drift, ChangeNotifier, or resolveMenuEntries (which has
 /// its own test in test/domain/sidebar_menu_test.dart).
@@ -24,82 +27,80 @@ void main() {
     await db.close();
   });
 
+  /// A relaunch: a new store, loaded from the same database.
+  Future<SidebarMenuController> relaunch() async {
+    final prefs = DevicePrefsStore(db);
+    await prefs.load();
+    return SidebarMenuController(prefs: prefs);
+  }
+
+  Future<String?> storedRow() async =>
+      (await db.devicePrefsDao.readAll())[DevicePrefKeys.sidebarMenu.name];
+
   const defaults = ['dashboard', 'client', 'invoice'];
 
   test('defaults to the list layout in the app order, nothing hidden', () {
-    final controller = SidebarMenuController(db: db);
+    final controller = SidebarMenuController(prefs: DevicePrefsStore(db));
     expect(controller.layout, SidebarMenuLayout.list);
     expect(controller.hasCustomEntries, isFalse);
     expect([for (final e in controller.entriesFor(defaults)) e.id], defaults);
   });
 
-  test('restore() keeps the defaults when nothing was ever written', () async {
-    final controller = SidebarMenuController(db: db);
-    await controller.restore();
+  test('a relaunch keeps the defaults when nothing was ever written', () async {
+    final controller = await relaunch();
     expect(controller.layout, SidebarMenuLayout.list);
     expect(controller.hasCustomEntries, isFalse);
   });
 
   test('layout persists and restores on the next launch', () async {
-    await SidebarMenuController(db: db).setLayout(SidebarMenuLayout.grid);
+    await SidebarMenuController(
+      prefs: DevicePrefsStore(db),
+    ).setLayout(SidebarMenuLayout.grid);
 
-    final restored = SidebarMenuController(db: db);
-    await restored.restore();
+    final restored = await relaunch();
     expect(restored.layout, SidebarMenuLayout.grid);
   });
 
   test('order + visibility persist and restore on the next launch', () async {
-    await SidebarMenuController(db: db).setEntries(const [
+    await SidebarMenuController(prefs: DevicePrefsStore(db)).setEntries(const [
       SidebarMenuEntryPref(id: 'invoice'),
       SidebarMenuEntryPref(id: 'client', visible: false),
       SidebarMenuEntryPref(id: 'dashboard'),
     ]);
 
-    final restored = SidebarMenuController(db: db);
-    await restored.restore();
+    final restored = await relaunch();
     expect(restored.hasCustomEntries, isTrue);
     final entries = restored.entriesFor(defaults);
     expect([for (final e in entries) e.id], ['invoice', 'client', 'dashboard']);
     expect(entries[1].visible, isFalse);
   });
 
-  test('the write leaves the other nav_state fields alone', () async {
-    // The partial write is the whole reason saveSidebarMenu exists instead of
-    // widening save().
-    await db.navStateDao.saveRoute(route: '/clients', now: 1);
-    await SidebarMenuController(db: db).setLayout(SidebarMenuLayout.grid);
-
-    final row = await db.navStateDao.current();
-    expect(row?.currentRoute, '/clients');
-    expect(row?.sidebarMenuJson, isNotNull);
-  });
-
   test('resetEntries() returns the row to its never-touched state', () async {
     // Null, not an empty envelope: "never customised" and "customised back to
     // the default" have to be the same stored state, or a later release that
     // adds a destination would treat the second as an explicit exclusion.
-    final controller = SidebarMenuController(db: db);
+    final controller = SidebarMenuController(prefs: DevicePrefsStore(db));
     await controller.setEntries(const [SidebarMenuEntryPref(id: 'invoice')]);
-    expect((await db.navStateDao.current())?.sidebarMenuJson, isNotNull);
+    expect(await storedRow(), isNotNull);
 
     await controller.resetEntries();
     expect(controller.hasCustomEntries, isFalse);
-    expect((await db.navStateDao.current())?.sidebarMenuJson, isNull);
+    expect(await storedRow(), isNull);
   });
 
   test('resetEntries() leaves the layout alone', () async {
     // The layout control sits right beside Reset; flipping it from under the
     // user would read as a bug.
-    final controller = SidebarMenuController(db: db);
+    final controller = SidebarMenuController(prefs: DevicePrefsStore(db));
     await controller.setLayout(SidebarMenuLayout.grid);
     await controller.setEntries(const [SidebarMenuEntryPref(id: 'invoice')]);
     await controller.resetEntries();
     expect(controller.layout, SidebarMenuLayout.grid);
-    expect((await db.navStateDao.current())?.sidebarMenuJson, isNotNull);
+    expect(await storedRow(), isNotNull);
   });
 
   test('does not notify when nothing changed', () async {
-    final controller = SidebarMenuController(db: db);
+    final controller = SidebarMenuController(prefs: DevicePrefsStore(db));
     var notifications = 0;
     controller.addListener(() => notifications++);
 
@@ -115,35 +116,24 @@ void main() {
     expect(notifications, 2);
   });
 
-  test('resetInMemory() drops the preference without writing', () async {
-    // The logout fan-out calls this *before* the Drift wipe. It must not
-    // persist (that row is about to be deleted) and it must actually clear, or
-    // a second user signing in without restarting the app inherits the first
-    // one's menu — and their first menu interaction writes that array into
-    // their own fresh row.
-    final controller = SidebarMenuController(db: db);
+  test('a data wipe forgets the menu, in memory too', () async {
+    // An account preference. Without the in-memory half a second user signing
+    // in without restarting the app inherits the first one's menu — and their
+    // first menu interaction writes that array as their own.
+    final prefs = DevicePrefsStore(db);
+    final controller = SidebarMenuController(prefs: prefs);
     await controller.setLayout(SidebarMenuLayout.grid);
     await controller.setEntries(const [
       SidebarMenuEntryPref(id: 'invoice', visible: false),
     ]);
-    final before = await db.navStateDao.current();
 
     var notifications = 0;
     controller.addListener(() => notifications++);
-    controller.resetInMemory();
+    prefs.forgetWiped();
 
     expect(controller.layout, SidebarMenuLayout.list);
     expect(controller.hasCustomEntries, isFalse);
-    expect(notifications, 1);
-    // Untouched — the wipe, not this, is what clears the row.
-    expect(
-      (await db.navStateDao.current())?.sidebarMenuJson,
-      before?.sidebarMenuJson,
-    );
-
-    // Idempotent: a second logout in the same process must not notify again.
-    controller.resetInMemory();
-    expect(notifications, 1);
+    expect(notifications, 1, reason: 'the sidebar is still mounted');
   });
 
   group('restoreFromJson', () {

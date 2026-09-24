@@ -48,7 +48,7 @@ Plus two non-negotiables carried from admin-portal:
 | Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules (all 34 rules) · `docs/sync.md` (the evidence) |
 | Bundled vs per-entity data loading | § Data loading — bundled vs per-entity |
 | Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
-| Changing the Drift schema (forward migration) | `docs/migrations.md` |
+| Changing the Drift schema (forward migration), or adding a device preference (which needs none) | `docs/migrations.md` · `docs/device-preferences.md` · `lib/data/prefs/device_pref_keys.dart` |
 | Adding / changing a sidebar count badge | § Sidebar counters · `docs/entity-lists.md` § Sidebar counters · `lib/domain/sidebar_badge_modes.dart` |
 | Changing the main menu's layout, order, or which rows it can hide | `docs/sidebar-and-shell.md` § The main menu is a preference · `lib/domain/sidebar_menu.dart` |
 | Moving the pinned Settings / Outbox rows, or changing a nav row's selected treatment | `docs/sidebar-and-shell.md` § Settings and Outbox are chrome · `test/lint/sidebar_menu_wiring_test.dart` |
@@ -117,6 +117,7 @@ Rules that turn into bugs or CI failures if forgotten. Read this block first.
 - **Date-only is the custom `Date` type; `DateTime` is for timestamps only.** Mixing them silently breaks invoice math.
 - **Drift is the only thing the UI reads from.** The network writes to Drift; the UI watches Drift. Never read API responses straight into UI state.
 - **Schema changes need a forward Drift migration now (post-beta).** The app is shipped — installed databases hold real user data and unsynced outbox edits. Any schema change (table / column / index) must bump `AppDatabase.schemaVersion`, add an `onUpgrade` step, re-dump (`drift_dev schema dump`) + re-generate (`schema generate`), and extend the matrix test. **Never re-squash to v1 or overwrite a shipped `drift_schemas/drift_schema_v*.json`** — a frozen-checksum CI test (`test/data/db/migration_test.dart`) fails the build if you do. Skipping the migration silently wipes the user's local DB (and pending offline edits) via the `isSchemaIntact()` reset backstop. Full workflow: `docs/migrations.md`.
+- **A device preference is a `DevicePrefKeys` entry, never a `nav_state` column or a schema change — its `PrefScope` decides whether a sign-out forgets it, and its controller follows `DevicePrefsStore`, so there is no reset hook to wire.** → `docs/device-preferences.md` § A device preference is a DevicePrefKeys entry, never a nav_state column
 - **Every `onUpgrade` step runs inside its one `transaction()` and must be safe to run twice — `_addColumnIfMissing`, never a bare `m.addColumn`.** → `docs/migrations.md` § Every upgrade step is idempotent and transactional
 - **A failed database open destroys the store only when a fresh store fixes it** (corrupt, or drift / a failed upgrade that `repairSchema` can't fix); a lock — on web, just a second tab — a full disk or an unrecognised error leaves it untouched. → `docs/migrations.md` § A failed open destroys the store only when a fresh store fixes it
 - **Every new table is classified durable / anchor / cache in `kTableRetention`** — repair may drop only cache tables. → `docs/migrations.md` § Drift is repaired in place, and only the cache may be dropped
@@ -407,7 +408,7 @@ Full step-by-step shapes, "Standard action helpers" factories, the "Non-standard
 
 ### Action confirmations
 
-A risky new action sets `confirm: true` on its `EntityActionItem` (plus `confirmSubject: _confirmSubject(x)` so the prompt names the record, `isDestructive: true` if it destroys data, and `confirmMessageKey:` when Transifex already has more precise copy than `are_you_sure`). The user-facing switch is Settings → Device Settings → Security → **Confirm actions**, device-local in `nav_state.confirm_actions` and **on by default** (invoiceninja/flutter#49).
+A risky new action sets `confirm: true` on its `EntityActionItem` (plus `confirmSubject: _confirmSubject(x)` so the prompt names the record, `isDestructive: true` if it destroys data, and `confirmMessageKey:` when Transifex already has more precise copy than `are_you_sure`). The user-facing switch is Settings → Device Settings → Security → **Confirm actions**, device-local in `DevicePrefKeys.confirmActions` and **on by default** (invoiceninja/flutter#49) — an account preference, so a sign-out puts the next user back on the guard.
 
 Tag a verb iff it (a) fires a mutation immediately with no further UI step and (b) is outward-facing, financially significant, or hard to reverse — `approve`, `markSent`, `cancel`, `sendNow`, `autoBill`, and the shared `archive` / `delete` / `purge` factories. **Don't** tag one that already opens its own dialog (invoice `markPaid`, client `merge`/`purge`) or navigates to a screen with its own action button (`sendEmail` → the Send Email screen, `refund` → the refund screen) — a second prompt in front of those is worse than none. Bulk-toolbar items are `EntityActionItem`s too but stay untagged: `EntityListScreenScaffold._onBulk` owns that gate via `BulkAction.confirm`, and only for verbs that don't already stop for a password sheet or a prep dialog.
 
@@ -530,7 +531,7 @@ A one-tap status strip above every entity list — `All / Draft / Unpaid / Overd
 - **No strip on an embedded list** (`widget.embedded`): the counts are company-wide, so "Draft 47" on one client's Invoices tab would be a flat lie.
 - **The strip renders whenever a tab is active, even with the device setting off** — a `badge_mode` restored from `nav_state` or applied by a saved view is a live filter, and hiding its only control would leave the list narrowed with nothing but "Clear filters" to escape. `_hydrate` drops a `badge_mode` naming a mode this build no longer offers, for the same reason `_migrateLegacyUpdatedBetween` exists.
 - Counts are **active-only**, so the badges stand down (tabs keep filtering) when the list is showing archived / deleted rows, and they carry the same local-cache under-reporting caveat as the rail. A zero renders in the neutral palette whatever the bucket's tone — a red `0` would claim urgency about the one outcome that means there's nothing to do.
-- Device-toggleable, default **on**: Settings → Device Settings → Status tabs (`nav_state.status_tabs`, schema v6, `StatusTabsController`).
+- Device-toggleable, default **on**: Settings → Device Settings → Status tabs (`DevicePrefKeys.statusTabs`, `StatusTabsController`).
 - **The strip's edge fades are gated on the scroll position, like `EntityDetailTabs`'.** → `docs/entity-lists.md` § The strip's edge fades are gated on scroll position
 - **The strip has a second, wrapped layout, used only by the dashboard's Invoices & Quotes panel — and selection there is a fill, not the underline.** → `docs/dashboard-panels.md` § A strip of counts is payload, so it wraps
 - **Quote `rejected` is a tab but not a chip, and the difference is what reaches the wire.** → `docs/entity-lists.md` § Quote `rejected` is a tab but not a chip
@@ -547,7 +548,7 @@ The lifecycle dimension (`is:` / `state:` — active / archived / deleted) is a 
 
 ## Tasks layout view
 
-The Tasks screen has five layouts (list / daily / weekly / calendar / kanban). The layout is **`?view=` on the URL as the override, `nav_state.tasks_view` as the fallback** — `tasksViewModeFromQuery` + `resolveTasksViewMode` (`lib/domain/tasks/tasks_view_mode.dart`, a leaf that imports nothing so `lib/app/tasks_view_controller.dart` need not import a UI screen; `task_list_screen.dart` re-exports the enum). Before invoiceninja/flutter#133 the URL was the only carrier, and since every structural "up" navigation drops the query string by construction, the mode was lost the moment the user tapped the FAB: `goToCreateRoute` `go`s a bare `/tasks/new`, `MasterDetailLayout` auto-promotes that to `?view=full`, and `entityCloseTargetPath` returns the bare `basePath` — so cancelling a new task landed on the plain list. Three sibling paths lost it too (closing a card's detail pane, re-tapping the already-active Tasks sidebar row, a company switch made from `/tasks/<id>`); Android back and the sidebar `←` never did, because `NavHistoryController` records the full URL. Five things are load-bearing.
+The Tasks screen has five layouts (list / daily / weekly / calendar / kanban). The layout is **`?view=` on the URL as the override, `DevicePrefKeys.tasksView` as the fallback** — `tasksViewModeFromQuery` + `resolveTasksViewMode` (`lib/domain/tasks/tasks_view_mode.dart`, a leaf that imports nothing so `lib/app/tasks_view_controller.dart` need not import a UI screen; `task_list_screen.dart` re-exports the enum). Before invoiceninja/flutter#133 the URL was the only carrier, and since every structural "up" navigation drops the query string by construction, the mode was lost the moment the user tapped the FAB: `goToCreateRoute` `go`s a bare `/tasks/new`, `MasterDetailLayout` auto-promotes that to `?view=full`, and `entityCloseTargetPath` returns the bare `basePath` — so cancelling a new task landed on the plain list. Three sibling paths lost it too (closing a card's detail pane, re-tapping the already-active Tasks sidebar row, a company switch made from `/tasks/<id>`); Android back and the sidebar `←` never did, because `NavHistoryController` records the full URL. Five things are load-bearing.
 
 - **The `view` key is overloaded, so `'full'` must parse to null.** → `docs/tasks-views.md` § The `view` key is overloaded, so `full` must parse to null
 - **The fallback is suppressed whenever the screen can only be the plain list** → `docs/tasks-views.md` § The fallback is suppressed when the screen can only be the list
@@ -577,7 +578,7 @@ The bottom grid's panels are ordered and hidden per device — `DashboardKind.pa
 
 Tapping a phone number on a detail screen or contact card opens the platform dialer
 (invoiceninja/flutter#109). Device-local preference, five fields in one blob
-(`nav_state.phone_actions_json`, schema v7); full rationale in `docs/tap-to-call.md`. Four things
+(`DevicePrefKeys.phoneActions`); full rationale in `docs/tap-to-call.md`. Four things
 here are not obvious:
 
 - **The `tapToCall` default is `Env.isTouchPrimary`, not `true`** → `docs/tap-to-call.md` § The `tapToCall` default is the platform, not `true`

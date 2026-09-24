@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/nav_state_prefs_carry.dart';
 import 'package:admin/data/db/table_retention.dart';
 
 final _log = Logger('Salvage');
@@ -147,6 +148,15 @@ importSalvaged(AppDatabase db, QuarantinedStore store) async {
     await db
         .update(db.companies)
         .write(const CompaniesCompanion(lastSyncAt: Value(0)));
+    // A store older than v12 kept its preferences in `nav_state` columns,
+    // which came across above; copy them into `device_prefs`. Once per store
+    // (a v12 store's marker came across with its rows), and best-effort —
+    // preferences are not worth failing the import of the outbox.
+    try {
+      await carryNavStatePrefs(db);
+    } catch (e, st) {
+      _log.warning('Copying the salvaged nav_state preferences failed', e, st);
+    }
   });
   return (rowsByTable: imported, incompleteTables: incomplete);
 }

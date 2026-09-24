@@ -1118,6 +1118,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Phone numbers — tap to call / Message, an optional confirm, and an outside-business-hours warning in the contact's timezone (local; tap-to-call defaults on for touch, off on desktop). Also gates the billing-doc header and list-row call buttons | — | — | ✅ | | |
 | Hide unverified users — keep people with no sign-in evidence out of Assigned User fields, with a live count of who is affected (local, off by default) | — | — | ✅ | | |
 | Dashboard — hide empty panels (local; on by default on phones, off on tablets / desktop; also in the dashboard's Customize → Panels) | — | — | ✅ | | |
+| Signing out keeps this device's look and feel (theme, colours, language, font size, keyboard shortcuts, sidebar, status tabs, phone numbers) and forgets the account's own choices (menu, counters, Tasks layout, dashboard, users, contacts sync, confirm actions) | — | — | ✅ | | |
 
 ---
 

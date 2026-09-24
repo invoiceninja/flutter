@@ -123,7 +123,7 @@ wipe the other's.
 So `ContactsSyncService._resolveGroupId` keys on the **company id**:
 
 - `ContactsSyncGroupStore` (implemented by `ContactsSyncController`, persisted in the device-local
-  `nav_state.contacts_sync_json` blob alongside `enabled` / `scope` / `lastRun`) remembers
+  `DevicePrefKeys.contactsSync` blob alongside `enabled` / `scope` / `lastRun`) remembers
   `companyId -> groupId`.
 - `ensureGroup(label, knownId:)` tries that id first. Finding it under a *different* name means the
   company was renamed, so the label is renamed to match rather than orphaned.
@@ -134,7 +134,7 @@ So `ContactsSyncService._resolveGroupId` keys on the **company id**:
   *with the same name*. Groups are identified by id, so two same-named companies honestly get two
   same-named labels — better than one of them carrying a suffix built from a raw company id.
 
-The blob is free-form JSON and `restore()` tolerates missing keys, so this needed no schema bump.
+The blob is free-form JSON and the controller's parse tolerates missing keys, so this needed no schema bump.
 
 ## Traps
 

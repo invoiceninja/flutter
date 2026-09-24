@@ -13,7 +13,7 @@ enum ContactsSyncScope {
 
   const ContactsSyncScope(this.id);
 
-  /// Stable id persisted in `nav_state.contacts_sync_json`. Never rename these
+  /// Stable id persisted in `DevicePrefKeys.contactsSync`. Never rename these
   /// — a stored preference would silently fall back to [all], which on a large
   /// account means an unexpected flood of cards.
   final String id;
@@ -161,7 +161,7 @@ abstract class ContactsSyncEngine {
 /// shared group means each pass wipes the other company's cards off the phone.
 ///
 /// Implemented by [ContactsSyncController], which already owns the device-local
-/// `nav_state.contacts_sync_json` blob these ids live in. A narrow interface so
+/// `DevicePrefKeys.contactsSync` blob these ids live in. A narrow interface so
 /// the service can be tested without one — same seam rationale as
 /// [ContactsSyncEngine], in the other direction.
 abstract class ContactsSyncGroupStore {

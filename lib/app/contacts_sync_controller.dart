@@ -4,7 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/contacts_sync/contacts_sync_types.dart';
 
 final _log = Logger('ContactsSyncController');
@@ -32,8 +33,8 @@ class ContactsSyncProgress {
 /// Owns the device-local "sync contacts to this device" preference and the
 /// single-flight guard around a pass.
 ///
-/// Persists to `nav_state.contacts_sync_json` — same single-row device-local
-/// pattern as [ConfirmActionsController] — and copies [ResyncController]'s
+/// Persists to one JSON blob (`DevicePrefKeys.contactsSync`) — an account
+/// preference, so a sign-out forgets it — and copies [ResyncController]'s
 /// single-flight discipline, because the same pass is reachable from three
 /// places (the settings button, the Sync pass hook, and the first-enable
 /// flow) and two concurrent reconciles would fight over the same address book.
@@ -44,14 +45,17 @@ class ContactsSyncProgress {
 class ContactsSyncController extends ChangeNotifier
     implements ContactsSyncGroupStore {
   ContactsSyncController({
-    required AppDatabase db,
+    required DevicePrefsStore prefs,
     required ContactsSyncEngine engine,
     DateTime Function()? now,
-  }) : _db = db,
+  }) : _prefs = prefs,
        _engine = engine,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now {
+    _apply(prefs.read(DevicePrefKeys.contactsSync));
+    prefs.addListener(_sync);
+  }
 
-  final AppDatabase _db;
+  final DevicePrefsStore _prefs;
   final ContactsSyncEngine _engine;
   final DateTime Function() _now;
 
@@ -87,31 +91,42 @@ class ContactsSyncController extends ChangeNotifier
 
   bool hasRunFor(String companyId) => _lastRunAt.containsKey(companyId);
 
-  Future<void> restore() async {
-    final row = await _db.navStateDao.current();
-    final raw = row?.contactsSyncJson;
-    if (raw == null || raw.isEmpty) return;
+  /// Follow the store — the boot load, or a data wipe forgetting the
+  /// preference, which turns the feature back off for whoever signs in next.
+  void _sync() {
+    _apply(_prefs.read(DevicePrefKeys.contactsSync));
+    notifyListeners();
+  }
+
+  void _apply(String? raw) {
+    _enabled = false;
+    _scope = ContactsSyncScope.all;
+    _lastRunAt.clear();
+    _groupIds.clear();
+    if (raw == null || raw.isEmpty) {
+      _lastSummary.clear();
+      return;
+    }
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       _enabled = json['enabled'] == true;
       _scope = ContactsSyncScope.fromId(json['scope'] as String?);
-      _lastRunAt
-        ..clear()
-        ..addAll({
-          for (final e in (json['lastRun'] as Map? ?? const {}).entries)
-            if (e.value is int) e.key as String: e.value as int,
-        });
-      _groupIds
-        ..clear()
-        ..addAll({
-          for (final e in (json['groupIds'] as Map? ?? const {}).entries)
-            if (e.value is String && (e.value as String).isNotEmpty)
-              e.key as String: e.value as String,
-        });
-      notifyListeners();
+      _lastRunAt.addAll({
+        for (final e in (json['lastRun'] as Map? ?? const {}).entries)
+          if (e.value is int) e.key as String: e.value as int,
+      });
+      _groupIds.addAll({
+        for (final e in (json['groupIds'] as Map? ?? const {}).entries)
+          if (e.value is String && (e.value as String).isNotEmpty)
+            e.key as String: e.value as String,
+      });
     } catch (e, st) {
       // A corrupt blob must not wedge the app at boot; the feature simply
       // starts from off and the user can switch it back on.
+      _enabled = false;
+      _scope = ContactsSyncScope.all;
+      _lastRunAt.clear();
+      _groupIds.clear();
       _log.warning('could not restore the contacts-sync preference', e, st);
     }
   }
@@ -268,7 +283,7 @@ class ContactsSyncController extends ChangeNotifier
   Future<void> removeAllCompanies() async {
     // Cancel *and wait*. `cancel()` is cooperative and returns immediately, so
     // without the await a pass mid-flight would keep creating device contacts
-    // after the removal below had already deleted them — and `_db.wipe()`, a
+    // after the removal below had already deleted them — and the data wipe, a
     // moment later, destroys the link table that recorded them. Those cards
     // would sit in a signed-out user's address book with nothing left that
     // knows they exist, which is the exact leak this method exists to close.
@@ -288,12 +303,12 @@ class ContactsSyncController extends ChangeNotifier
     _lastRunAt.clear();
     _lastSummary.clear();
     _groupIds.clear();
-    // Deliberately not persisted: this runs immediately before `_db.wipe()`,
-    // which empties `nav_state` along with everything else, so the write would
-    // be thrown away anyway. (Each `removeAll` above does persist, via the
-    // group store — same fate, and not worth a special case to avoid.)
-    // In-memory state is cleared so a re-login on the same process starts
-    // clean.
+    // Deliberately not persisted: this runs immediately before the data wipe,
+    // which forgets this account preference, so the write would be thrown
+    // away anyway. (Each `removeAll` above does persist, via the group store —
+    // same fate, and not worth a special case to avoid.) The wipe then puts
+    // the rest of the state — the toggle, the scope — back to off through the
+    // store.
   }
 
   // --- ContactsSyncGroupStore ---------------------------------------------
@@ -328,22 +343,22 @@ class ContactsSyncController extends ChangeNotifier
     await _persist();
   }
 
-  Future<void> _persist() async {
-    // Optimistic, like every other device-local controller: a failed write
-    // never rolls back the in-memory value — the user keeps the state they
-    // chose until the next launch.
-    try {
-      await _db.navStateDao.saveContactsSync(
-        json: jsonEncode({
-          'enabled': _enabled,
-          'scope': _scope.id,
-          'lastRun': _lastRunAt,
-          'groupIds': _groupIds,
-        }),
-        now: _now().millisecondsSinceEpoch,
-      );
-    } catch (e, st) {
-      _log.warning('could not persist the contacts-sync preference', e, st);
-    }
+  /// Optimistic, like every other device preference: a failed write never
+  /// rolls back the in-memory value — the user keeps the state they chose
+  /// until the next launch.
+  Future<void> _persist() => _prefs.write(
+    DevicePrefKeys.contactsSync,
+    jsonEncode({
+      'enabled': _enabled,
+      'scope': _scope.id,
+      'lastRun': _lastRunAt,
+      'groupIds': _groupIds,
+    }),
+  );
+
+  @override
+  void dispose() {
+    _prefs.removeListener(_sync);
+    super.dispose();
   }
 }

@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
@@ -14,21 +15,21 @@ final _log = Logger('SidebarBadgeModeController');
 /// counters card in Device Settings; written by the row's right-click menu and
 /// that card's dropdowns.
 ///
-/// Device-local persistence to `nav_state.sidebar_badge_modes_json`, same
-/// pattern as [KeyboardShortcutsController] / [ThemeController] — and, like
-/// them, **not preserved across logout**: `logout()` wipes every Drift table,
-/// `nav_state` included, and nothing re-seeds the row.
+/// Device-local, one JSON blob (`DevicePrefKeys.sidebarBadgeModes`) — an
+/// account preference, so a sign-out forgets it: the counters describe the
+/// signed-in account's modules.
 ///
 /// Only non-default choices are stored, so a mode added in a later release
-/// needs no backfill. [db] is optional so unit tests can exercise the
-/// resolution logic without a database.
+/// needs no backfill. [prefs] is optional so unit tests can exercise the
+/// resolution logic without a store.
 class SidebarBadgeModeController extends ChangeNotifier {
-  SidebarBadgeModeController({AppDatabase? db, DateTime Function()? now})
-    : _db = db,
-      _now = now ?? DateTime.now;
+  SidebarBadgeModeController({DevicePrefsStore? prefs}) : _prefs = prefs {
+    if (prefs == null) return;
+    restoreFromJson(prefs.read(DevicePrefKeys.sidebarBadgeModes));
+    prefs.addListener(_sync);
+  }
 
-  final AppDatabase? _db;
-  final DateTime Function() _now;
+  final DevicePrefsStore? _prefs;
 
   /// `EntityType.name` → chosen [SidebarBadgeMode.id]. An absent key means the
   /// row is on [kBadgeModeTotal].
@@ -72,19 +73,17 @@ class SidebarBadgeModeController extends ChangeNotifier {
     await _persist();
   }
 
-  /// Load persisted choices from the `nav_state` row. No-op without a [db].
-  Future<void> restore() async {
-    final db = _db;
-    if (db == null) return;
-    final row = await db.navStateDao.current();
-    restoreFromJson(row?.sidebarBadgeModesJson);
+  /// Follow the store: the boot load, or a data wipe forgetting the choices.
+  void _sync() {
+    final before = modesToJson();
+    restoreFromJson(_prefs?.read(DevicePrefKeys.sidebarBadgeModes));
+    if (!mapEquals(before, _modes)) notifyListeners();
   }
 
   /// Parse a stored blob into memory. Anything unrecognizable is dropped
   /// rather than thrown: an unknown entity name (a module that went away) or
   /// an unknown mode id (one renamed between releases) leaves that row on its
-  /// default instead of breaking boot. Does not notify — called once at boot
-  /// before the UI builds.
+  /// default instead of breaking boot. Does not notify.
   @visibleForTesting
   void restoreFromJson(String? jsonStr) {
     _modes.clear();
@@ -110,17 +109,15 @@ class SidebarBadgeModeController extends ChangeNotifier {
   Map<String, String> modesToJson() => Map<String, String>.from(_modes);
 
   Future<void> _persist() async {
-    final db = _db;
-    if (db == null) return;
-    try {
-      await db.navStateDao.saveSidebarBadgeModes(
-        sidebarBadgeModesJson: jsonEncode(modesToJson()),
-        now: _now().millisecondsSinceEpoch,
-      );
-    } catch (e, st) {
-      // A failed write keeps the in-memory choice for this session — same
-      // trade-off as theme / text-scale persistence.
-      _log.warning('Failed to persist sidebar badge modes', e, st);
-    }
+    await _prefs?.write(
+      DevicePrefKeys.sidebarBadgeModes,
+      jsonEncode(modesToJson()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _prefs?.removeListener(_sync);
+    super.dispose();
   }
 }

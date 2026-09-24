@@ -555,7 +555,7 @@ void main() {
         throwsA(
           isA<DatabaseMigrationException>()
               .having((e) => e.from, 'from', 10)
-              .having((e) => e.to, 'to', 11),
+              .having((e) => e.to, 'to', direct.schemaVersion),
         ),
       );
       await direct.close();

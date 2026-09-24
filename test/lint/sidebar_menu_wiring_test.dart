@@ -185,13 +185,14 @@ void main() {
     });
   });
 
-  test('the preference is restored at boot', () {
-    // Forgetting this line is the classic form of this bug: the choice
-    // persists and simply never comes back on the next launch.
+  test('the preference comes back on the next launch', () {
+    // The classic form of this bug: the choice persists and simply never comes
+    // back. The controller follows the one store `main` loads at boot
+    // (`test/lint/device_prefs_wiring_test.dart` pins the load).
     expect(
-      File('lib/main.dart').readAsStringSync(),
-      contains('services.sidebarMenu.restore()'),
-      reason: 'add it to the boot Future.wait beside the other device prefs.',
+      File('lib/app/services.dart').readAsStringSync(),
+      contains('SidebarMenuController(prefs: devicePrefs)'),
+      reason: 'build it on the shared DevicePrefsStore, which main loads',
     );
   });
 }

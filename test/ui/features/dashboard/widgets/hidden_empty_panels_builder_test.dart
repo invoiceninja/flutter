@@ -9,6 +9,7 @@ import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/hidden_empty_panels_builder.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../_fake_dashboard_repo.dart';
 
@@ -45,7 +46,7 @@ void main() {
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     repo = FakeDashboardRepo(db);
-    pref = HideEmptyPanelsController(db: db);
+    pref = HideEmptyPanelsController(prefs: DevicePrefsStore(db));
     // Built here, outside the widget test's fake-async zone, and allowed to
     // settle — the constructor starts Drift reads.
     vm = newVm();

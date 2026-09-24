@@ -1,41 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:logging/logging.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
-final _log = Logger('ThemeController');
-
-/// Owns the user's theme preferences and persists them to `nav_state`:
-/// the [ThemeMode] choice (System / Light / Dark) plus the two palette
-/// sub-variants. The variant choices persist independently — System honors
-/// both so the OS can flip brightness without losing either selection.
+/// Owns the user's theme preferences — the [ThemeMode] choice (System / Light
+/// / Dark), the two palette sub-variants and the custom colour overrides —
+/// each its own device preference (`DevicePrefKeys.themeMode`,
+/// `.lightVariant`, `.darkVariant`, `.customTheme`). The variant choices
+/// persist independently — System honors both so the OS can flip brightness
+/// without losing either selection.
 ///
 /// The app's [MaterialApp.router] binds to this controller via
 /// [ListenableBuilder]. A change to any of the three fields rebuilds
 /// `MaterialApp.router`'s `themeMode` / `theme` / `darkTheme`.
 class ThemeController extends ChangeNotifier {
-  ThemeController({
-    required AppDatabase db,
-    DateTime Function()? now,
-    ThemeMode initialMode = ThemeMode.system,
-    LightVariant initialLightVariant = LightVariant.sand,
-    DarkVariant initialDarkVariant = DarkVariant.espresso,
-    CustomTheme initialCustomTheme = defaultCustomTheme,
-  }) : _db = db,
-       _now = now ?? DateTime.now,
-       _themeMode = initialMode,
-       _lightVariant = initialLightVariant,
-       _darkVariant = initialDarkVariant,
-       _customTheme = initialCustomTheme;
+  ThemeController({required DevicePrefsStore prefs}) : _prefs = prefs {
+    _apply();
+    prefs.addListener(_sync);
+  }
 
-  final AppDatabase _db;
-  final DateTime Function() _now;
+  static const _defaultMode = ThemeMode.system;
+  static const _defaultLight = LightVariant.sand;
+  static const _defaultDark = DarkVariant.espresso;
 
-  ThemeMode _themeMode;
-  LightVariant _lightVariant;
-  DarkVariant _darkVariant;
-  CustomTheme _customTheme;
+  final DevicePrefsStore _prefs;
+
+  ThemeMode _themeMode = _defaultMode;
+  LightVariant _lightVariant = _defaultLight;
+  DarkVariant _darkVariant = _defaultDark;
+  CustomTheme _customTheme = defaultCustomTheme;
 
   // Memoised resolved palettes (selected preset + the side's overrides).
   // Recomputed lazily and cleared whenever the variant OR [_customTheme]
@@ -82,44 +76,53 @@ class ThemeController extends ChangeNotifier {
     _invalidateCache();
   }
 
-  /// Read every persisted theme field from Drift. Unknown / missing values
-  /// fall through to the constructor defaults — the same behavior a fresh
-  /// install gets.
-  Future<void> restore() async {
-    final row = await _db.navStateDao.current();
-    if (row == null) return;
-    final mode = _parseMode(row.themeMode);
-    final light = _parseLightVariant(row.lightVariant);
-    final dark = _parseDarkVariant(row.darkVariant);
-    final customJson = row.customThemeJson;
+  /// Take every theme field from the store. Unknown / missing values fall
+  /// back to the defaults — the same behavior a fresh install gets. Returns
+  /// whether anything changed.
+  bool _apply() {
+    final mode =
+        _parseMode(_prefs.read(DevicePrefKeys.themeMode)) ?? _defaultMode;
+    final light =
+        _parseLightVariant(_prefs.read(DevicePrefKeys.lightVariant)) ??
+        _defaultLight;
+    final dark =
+        _parseDarkVariant(_prefs.read(DevicePrefKeys.darkVariant)) ??
+        _defaultDark;
+    final customJson = _prefs.read(DevicePrefKeys.customTheme);
+    final custom = customJson == null
+        ? defaultCustomTheme
+        : CustomTheme.fromJson(customJson);
     var changed = false;
-    if (customJson != null) {
-      final parsed = CustomTheme.fromJson(customJson);
-      if (parsed != _customTheme) {
-        _setCustomTheme(parsed);
-        changed = true;
-      }
+    if (custom != _customTheme) {
+      _setCustomTheme(custom);
+      changed = true;
     }
-    if (mode != null && mode != _themeMode) {
+    if (mode != _themeMode) {
       _themeMode = mode;
       changed = true;
     }
-    if (light != null && light != _lightVariant) {
+    if (light != _lightVariant) {
       _lightVariant = light;
+      _invalidateCache();
       changed = true;
     }
-    if (dark != null && dark != _darkVariant) {
+    if (dark != _darkVariant) {
       _darkVariant = dark;
+      _invalidateCache();
       changed = true;
     }
-    if (changed) notifyListeners();
+    return changed;
+  }
+
+  void _sync() {
+    if (_apply()) notifyListeners();
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
     if (_themeMode == mode) return;
     _themeMode = mode;
     notifyListeners();
-    await _persist();
+    await _prefs.write(DevicePrefKeys.themeMode, _serializeMode(mode));
   }
 
   Future<void> setLightVariant(LightVariant variant) async {
@@ -133,7 +136,8 @@ class ThemeController extends ChangeNotifier {
       _customTheme = _customTheme.copyWith(lightOverrides: const {});
     }
     notifyListeners();
-    await _persist();
+    await _prefs.write(DevicePrefKeys.lightVariant, variant.name);
+    await _persistCustomTheme();
   }
 
   Future<void> setDarkVariant(DarkVariant variant) async {
@@ -144,7 +148,8 @@ class ThemeController extends ChangeNotifier {
       _customTheme = _customTheme.copyWith(darkOverrides: const {});
     }
     notifyListeners();
-    await _persist();
+    await _prefs.write(DevicePrefKeys.darkVariant, variant.name);
+    await _persistCustomTheme();
   }
 
   Future<void> setCustomOverride(
@@ -156,7 +161,7 @@ class ThemeController extends ChangeNotifier {
     if (next == _customTheme) return;
     _setCustomTheme(next);
     notifyListeners();
-    await _persist();
+    await _persistCustomTheme();
   }
 
   Future<void> clearCustomOverride(Brightness side, CustomToken token) async {
@@ -164,7 +169,7 @@ class ThemeController extends ChangeNotifier {
     if (next == _customTheme) return;
     _setCustomTheme(next);
     notifyListeners();
-    await _persist();
+    await _persistCustomTheme();
   }
 
   /// Drop every override on [side] — reverts that side to its base preset.
@@ -175,31 +180,16 @@ class ThemeController extends ChangeNotifier {
     if (next == _customTheme) return;
     _setCustomTheme(next);
     notifyListeners();
-    await _persist();
+    await _persistCustomTheme();
   }
 
-  Future<void> _persist() async {
-    try {
-      // Read the existing row first so we don't blow away the other nav-state
-      // fields (route, company, locale, filters, sidebar) — single-row table.
-      final existing = await _db.navStateDao.current();
-      await _db.navStateDao.save(
-        currentRoute: existing?.currentRoute,
-        selectedCompanyId: existing?.selectedCompanyId,
-        locale: existing?.locale,
-        themeMode: _serializeMode(_themeMode),
-        lightVariant: _lightVariant.name,
-        darkVariant: _darkVariant.name,
-        filtersJson: existing?.filtersJson,
-        sidebarCollapsed: existing?.sidebarCollapsed,
-        customThemeJson: _customTheme.toJson(),
-        now: _now().millisecondsSinceEpoch,
-      );
-    } catch (e, st) {
-      // A failed write doesn't roll back the in-memory toggle — the user
-      // still sees their chosen theme until next launch.
-      _log.warning('Failed to persist theme', e, st);
-    }
+  Future<void> _persistCustomTheme() =>
+      _prefs.write(DevicePrefKeys.customTheme, _customTheme.toJson());
+
+  @override
+  void dispose() {
+    _prefs.removeListener(_sync);
+    super.dispose();
   }
 
   static String _serializeMode(ThemeMode mode) => switch (mode) {

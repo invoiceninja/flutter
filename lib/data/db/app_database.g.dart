@@ -5460,139 +5460,57 @@ class $NavStateTable extends NavState
 class NavStateData extends DataClass implements Insertable<NavStateData> {
   final int id;
   final String? currentRoute;
+
+  /// Unused — the active company lives in the auth session.
   final String? selectedCompanyId;
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.locale`.
   final String? locale;
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.themeMode`.
   final String? themeMode;
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.lightVariant`.
   final String? lightVariant;
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.darkVariant`.
   final String? darkVariant;
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.customTheme`.
   final String? customThemeJson;
 
-  /// Device-local UI text-scale factor (Small 0.8 / Normal 1.0 / Large 1.2 /
-  /// Extra Large 1.4). Null = follow the default (1.0). Applied app-wide via a
-  /// `MediaQuery` `textScaler` override in `main.dart`.
+  /// Legacy (≤ v11) — `DevicePrefKeys.textScale`.
   final double? textScale;
   final String? filtersJson;
 
-  /// Device-local keyboard-shortcut overrides (Settings → Keyboard Shortcuts),
-  /// as a JSON object keyed by catalog action id (value = binding JSON, or
-  /// `null` for an explicitly-cleared shortcut). Null column = no overrides
-  /// (everything at its catalog default). Only overrides are stored, never the
-  /// full resolved set. Added in schema v2.
+  /// Legacy (v2 – v11) — `DevicePrefKeys.keyboardShortcuts`.
   final String? keyboardShortcutsJson;
 
-  /// Device-local sidebar counter choices (Settings → Device Settings →
-  /// Sidebar counters, or a right-click on the row), as a JSON object keyed by
-  /// `EntityType.name` → `SidebarBadgeMode.id`. Null column = every row on its
-  /// default (`total`). Only non-default choices are stored, so a mode added
-  /// later doesn't need a backfill. Added in schema v3.
+  /// Legacy (v3 – v11) — `DevicePrefKeys.sidebarBadgeModes`.
   final String? sidebarBadgeModesJson;
 
-  /// Device-local "prompt before running a risky action" preference (Settings
-  /// → Device Settings → Security). When true, outward-facing / irreversible
-  /// actions (Approve, Mark Sent, Cancel, Archive, Delete, …) open an "Are you
-  /// sure?" dialog first. Defaults to **on** — see invoiceninja/flutter#49,
-  /// where users reported fat-fingering Approve / Archive on a phone in the
-  /// field. Added in schema v4.
+  /// Legacy (v4 – v11) — `DevicePrefKeys.confirmActions`.
   final bool confirmActions;
 
-  /// Device-local "show the status tab strip above lists" preference (Settings
-  /// → Device Settings). The strip turns each entity's sidebar-counter buckets
-  /// into one-tap filters with live counts — see `lib/domain/list_status_tabs.dart`
-  /// and invoiceninja/flutter#98, which asked for exactly this because reaching
-  /// a draft through the search field's filter menu costs three or four taps.
-  ///
-  /// Defaults to **on**: the issue's premise is that fewer taps should be the
-  /// default, and the switch exists for people who would rather have the
-  /// vertical space back. Added in schema v6.
+  /// Legacy (v6 – v11) — `DevicePrefKeys.statusTabs`.
   final bool statusTabs;
 
-  /// Device-local contacts-sync preference (Settings → Device Settings →
-  /// Contacts), as a JSON object:
-  /// `{"enabled":bool,"scope":"all"|"mine",
-  ///   "lastRun":{"&lt;companyId&gt;":1750000000000},
-  ///   "groupIds":{"&lt;companyId&gt;":"12"}}`.
-  /// Null column = the feature has never been switched on. One blob rather than
-  /// four columns, same reasoning as [filtersJson] — both per-company maps are
-  /// open-ended and none of it is ever queried by SQL. `groupIds` is the
-  /// ownership record: the device address-book label is keyed on the company
-  /// id, not its name, so two identically-named companies can't reconcile away
-  /// each other's cards (see `docs/contacts-sync.md`). Added in schema v5.
+  /// Legacy (v5 – v11) — `DevicePrefKeys.contactsSync`.
   final String? contactsSyncJson;
 
-  /// Device-local tap-to-call preference (Settings → Device Settings → Phone
-  /// numbers), as a JSON object:
-  /// `{"tapToCall":bool,"confirmBeforeCall":bool,
-  ///   "warnOutsideBusinessHours":bool,"startMinutes":480,"endMinutes":1200}`.
-  /// Null column = the user has never opened the card, and the defaults are
-  /// then resolved *per device* (`PhoneActionsSettings.deviceDefaults()` reads
-  /// `Env.isTouchPrimary`) — which is the reason this is a blob and not five
-  /// columns: a SQL `withDefault` would have to pick one answer for a phone
-  /// and a Linux desktop alike. Same one-blob reasoning as [contactsSyncJson]
-  /// otherwise; none of it is ever queried by SQL. Added in schema v7.
-  /// See `docs/tap-to-call.md`.
+  /// Legacy (v7 – v11) — `DevicePrefKeys.phoneActions`.
   final String? phoneActionsJson;
 
-  /// Device-local main-menu preference (Settings → Device Settings → Menu), as
-  /// a JSON object:
-  /// `{"layout":"list"|"grid","entries":["&lt;id&gt;|&lt;1|0&gt;", …]}`.
-  /// Null column = never customised, i.e. the list layout in the app's own
-  /// order with everything shown. Added in schema v8 for
-  /// invoiceninja/flutter#125.
-  ///
-  /// One blob rather than a bool plus a table, for the same reason as
-  /// [contactsSyncJson]: the array is open-ended, none of it is ever queried by
-  /// SQL, and the two halves are one card in Settings. Unlike [statusTabs] a
-  /// SQL `withDefault` could not express the interesting part of it at all —
-  /// the default *order* is computed from the entity registry at runtime, so
-  /// there is no literal to put in the column.
-  ///
-  /// Entries are stored sparsely in the sense that matters: the column stays
-  /// null until the user changes something, and `resolveMenuEntries` splices in
-  /// any destination a later release adds. See `lib/domain/sidebar_menu.dart`.
+  /// Legacy (v8 – v11) — `DevicePrefKeys.sidebarMenu`.
   final String? sidebarMenuJson;
 
-  /// Device-local Tasks layout — the `TasksViewMode.name` the user last chose
-  /// from the Tasks AppBar toggle (`list` / `daily` / `weekly` / `calendar` /
-  /// `kanban`). Null column = never chosen, which resolves to `list`. Added in
-  /// schema v9 for invoiceninja/flutter#133.
-  ///
-  /// The mode used to live only in the URL (`/tasks?view=kanban`), and every
-  /// structural "up" navigation drops the query — so tapping "New task" from
-  /// the kanban board and cancelling landed the user back on the plain list.
-  /// The URL stays the override (deep links, `?view=daily&date=…`, a restored
-  /// route); this column is the fallback for a bare `/tasks`.
-  ///
-  /// Not the [statusTabs] bool shape — there are five modes and the default is
-  /// an enum value, so there is no literal a SQL `withDefault` could hold; and
-  /// not a JSON blob like [sidebarMenuJson], because this preference is one
-  /// scalar with a single writer. An unrecognised string (written by a newer
-  /// build, then downgraded) parses back to null rather than throwing.
+  /// Legacy (v9 – v11) — `DevicePrefKeys.tasksView`.
   final String? tasksView;
 
-  /// Device-local "keep people who have never confirmed their email address
-  /// out of Assigned User fields" preference (Settings → Device Settings →
-  /// Users), invoiceninja/flutter#150.
-  ///
-  /// Defaults to **off**, unlike the two bool columns above — `confirm_actions`
-  /// and `status_tabs` default on because they only add chrome, whereas this
-  /// one *removes people from a form*. `email_verified_at` conflates four
-  /// states (BACKEND.md § F4), so shipping it on would silently delete
-  /// colleagues from everyone's pickers; `lib/domain/assignable_users.dart`
-  /// narrows the rule and this default is the other half of that trade.
-  /// `sidebar_collapsed` is the existing `false` precedent for the shape.
-  /// Added in schema v10.
+  /// Legacy (v10 – v11) — `DevicePrefKeys.hideUnverifiedUsers`.
   final bool hideUnverifiedUsers;
 
-  /// Device-local "leave dashboard panels with nothing to show off the
-  /// dashboard" preference (Settings → Device Settings → Dashboard, and the
-  /// dashboard's Customize → Panels tab), invoiceninja/flutter#161.
-  ///
-  /// Null column = **automatic**, which resolves to on for a phone and off
-  /// everywhere else (`HideEmptyPanelsController.effectiveFor`, fed by
-  /// `Breakpoints.isPhone`). Nullable for the reason [phoneActionsJson] is: a
-  /// SQL `withDefault` would have to pick one answer for a phone and a desktop
-  /// alike. Not a blob, because this is one scalar with a single writer — the
-  /// [tasksView] shape. Added in schema v11.
+  /// Legacy (v11) — `DevicePrefKeys.hideEmptyPanels`.
   final bool? hideEmptyPanels;
 
   /// JSON array of the most-recently-viewed entity records for the active
@@ -5600,6 +5518,8 @@ class NavStateData extends DataClass implements Insertable<NavStateData> {
   /// "Recent" group. Company-scoped: cleared on company switch / logout,
   /// same as the in-memory [NavHistoryController] history.
   final String? recentEntitiesJson;
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.sidebarCollapsed`.
   final bool sidebarCollapsed;
   final int updatedAt;
   const NavStateData({
@@ -45270,6 +45190,270 @@ class DeviceContactLinksCompanion
   }
 }
 
+class $DevicePrefsTable extends DevicePrefs
+    with TableInfo<$DevicePrefsTable, DevicePrefRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DevicePrefsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'device_prefs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DevicePrefRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  DevicePrefRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DevicePrefRow(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DevicePrefsTable createAlias(String alias) {
+    return $DevicePrefsTable(attachedDatabase, alias);
+  }
+}
+
+class DevicePrefRow extends DataClass implements Insertable<DevicePrefRow> {
+  final String key;
+
+  /// Encoded by the key's `PrefCodec`.
+  final String value;
+  final int updatedAt;
+  const DevicePrefRow({
+    required this.key,
+    required this.value,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  DevicePrefsCompanion toCompanion(bool nullToAbsent) {
+    return DevicePrefsCompanion(
+      key: Value(key),
+      value: Value(value),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DevicePrefRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DevicePrefRow(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  DevicePrefRow copyWith({String? key, String? value, int? updatedAt}) =>
+      DevicePrefRow(
+        key: key ?? this.key,
+        value: value ?? this.value,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  DevicePrefRow copyWithCompanion(DevicePrefsCompanion data) {
+    return DevicePrefRow(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevicePrefRow(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DevicePrefRow &&
+          other.key == this.key &&
+          other.value == this.value &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DevicePrefsCompanion extends UpdateCompanion<DevicePrefRow> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const DevicePrefsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DevicePrefsCompanion.insert({
+    required String key,
+    required String value,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value),
+       updatedAt = Value(updatedAt);
+  static Insertable<DevicePrefRow> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DevicePrefsCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DevicePrefsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DevicePrefsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -45326,6 +45510,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TokensTable tokens = $TokensTable(this);
   late final $DeviceContactLinksTable deviceContactLinks =
       $DeviceContactLinksTable(this);
+  late final $DevicePrefsTable devicePrefs = $DevicePrefsTable(this);
   late final ClientDao clientDao = ClientDao(this as AppDatabase);
   late final ProductDao productDao = ProductDao(this as AppDatabase);
   late final CompanyGatewayDao companyGatewayDao = CompanyGatewayDao(
@@ -45395,6 +45580,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final DeviceContactLinkDao deviceContactLinkDao = DeviceContactLinkDao(
     this as AppDatabase,
   );
+  late final DevicePrefsDao devicePrefsDao = DevicePrefsDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -45443,6 +45631,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     webhooks,
     tokens,
     deviceContactLinks,
+    devicePrefs,
   ];
 }
 
@@ -65752,6 +65941,168 @@ typedef $$DeviceContactLinksTableProcessedTableManager =
       DeviceContactLinkRow,
       PrefetchHooks Function()
     >;
+typedef $$DevicePrefsTableCreateCompanionBuilder =
+    DevicePrefsCompanion Function({
+      required String key,
+      required String value,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DevicePrefsTableUpdateCompanionBuilder =
+    DevicePrefsCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DevicePrefsTableFilterComposer
+    extends Composer<_$AppDatabase, $DevicePrefsTable> {
+  $$DevicePrefsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DevicePrefsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DevicePrefsTable> {
+  $$DevicePrefsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DevicePrefsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DevicePrefsTable> {
+  $$DevicePrefsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DevicePrefsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DevicePrefsTable,
+          DevicePrefRow,
+          $$DevicePrefsTableFilterComposer,
+          $$DevicePrefsTableOrderingComposer,
+          $$DevicePrefsTableAnnotationComposer,
+          $$DevicePrefsTableCreateCompanionBuilder,
+          $$DevicePrefsTableUpdateCompanionBuilder,
+          (
+            DevicePrefRow,
+            BaseReferences<_$AppDatabase, $DevicePrefsTable, DevicePrefRow>,
+          ),
+          DevicePrefRow,
+          PrefetchHooks Function()
+        > {
+  $$DevicePrefsTableTableManager(_$AppDatabase db, $DevicePrefsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DevicePrefsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DevicePrefsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DevicePrefsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DevicePrefsCompanion(
+                key: key,
+                value: value,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DevicePrefsCompanion.insert(
+                key: key,
+                value: value,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DevicePrefsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DevicePrefsTable,
+      DevicePrefRow,
+      $$DevicePrefsTableFilterComposer,
+      $$DevicePrefsTableOrderingComposer,
+      $$DevicePrefsTableAnnotationComposer,
+      $$DevicePrefsTableCreateCompanionBuilder,
+      $$DevicePrefsTableUpdateCompanionBuilder,
+      (
+        DevicePrefRow,
+        BaseReferences<_$AppDatabase, $DevicePrefsTable, DevicePrefRow>,
+      ),
+      DevicePrefRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -65841,4 +66192,6 @@ class $AppDatabaseManager {
       $$TokensTableTableManager(_db, _db.tokens);
   $$DeviceContactLinksTableTableManager get deviceContactLinks =>
       $$DeviceContactLinksTableTableManager(_db, _db.deviceContactLinks);
+  $$DevicePrefsTableTableManager get devicePrefs =>
+      $$DevicePrefsTableTableManager(_db, _db.devicePrefs);
 }

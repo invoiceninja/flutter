@@ -32,7 +32,7 @@ const kKeyboardShortcutsSearchKeys = <String>[
 /// `/settings/keyboard_shortcuts` — device-local keyboard-shortcut
 /// customization. Rebind or clear the general shortcuts and assign the
 /// otherwise-unbound "create X" actions. No save bar — every change writes
-/// straight to [KeyboardShortcutsController] (persisted to `nav_state`), same
+/// straight to [KeyboardShortcutsController] (a device preference), same
 /// device-local pattern as Device Settings.
 class KeyboardShortcutsScreen extends StatelessWidget {
   const KeyboardShortcutsScreen({super.key});

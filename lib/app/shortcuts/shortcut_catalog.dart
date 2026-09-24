@@ -28,7 +28,8 @@ class ShortcutDef {
     this.entityType,
   });
 
-  /// Stable persistence key — stored verbatim in `nav_state`. **Never rename**
+  /// Stable persistence key — stored verbatim in the keyboard-shortcuts
+  /// device preference (`DevicePrefKeys.keyboardShortcuts`). **Never rename**
   /// (a rename orphans a user's saved override).
   final String id;
 

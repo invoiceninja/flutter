@@ -5,7 +5,7 @@ import 'package:admin/app/env.dart';
 /// Device-local preferences for the tap-to-call / tap-to-message affordances
 /// on phone numbers (invoiceninja/flutter#109).
 ///
-/// Persisted as one JSON blob in `nav_state.phone_actions_json` — six related
+/// Persisted as one JSON blob (`DevicePrefKeys.phoneActions`) — six related
 /// fields, same reasoning as `contacts_sync_json`: none of it is ever queried
 /// by SQL, and one column is one migration instead of six. That is also what
 /// made [offerToLogCalls] free to add after the schema shipped

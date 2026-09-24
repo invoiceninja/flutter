@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/sidebar_menu.dart';
 
 final _log = Logger('SidebarMenuController');
@@ -13,30 +14,27 @@ final _log = Logger('SidebarMenuController');
 /// Settings, written by that card and its Customize sheet
 /// (invoiceninja/flutter#125).
 ///
-/// Device-local persistence to `nav_state.sidebar_menu_json`, same pattern as
-/// [SidebarBadgeModeController]. **Not preserved across a deliberate logout**:
-/// `logout()` wipes every Drift table, `nav_state` included, and nothing
-/// re-seeds the row — and [resetInMemory] runs from
-/// `AuthRepository.onBeforeDataWipe` so that is true *immediately*, not merely
-/// after the next app launch. Without it a second user signing in on the same
-/// install inherits the first one's order and hidden rows, and the first
-/// control they touch persists that array into their own fresh row. An
-/// involuntary 401 or an idle re-lock preserves local data, and — because the
-/// wipe hook doesn't fire there — the in-memory menu too; resetting on those
-/// paths (it once sat in `onBeforeLogout`) showed the same user the default
-/// menu and let their next edit save it over their real order.
+/// Device-local, one JSON blob (`DevicePrefKeys.sidebarMenu`) — an account
+/// preference, so a deliberate sign-out forgets it, in memory as well as on
+/// disk, the moment the data is wiped: without that a second user signing in
+/// on the same install inherits the first one's order and hidden rows, and the
+/// first control they touch persists that array as their own. An involuntary
+/// 401 or an idle re-lock keeps local data, and the menu with it; resetting on
+/// those paths (it once did) showed the same user the default menu and let
+/// their next edit save it over their real order.
 ///
 /// Nothing is stored until the user changes something, so a destination added
 /// in a later release needs no backfill — [resolveMenuEntries] splices it in at
-/// its default position. [db] is optional so unit tests can exercise the
-/// resolution logic without a database.
+/// its default position. [prefs] is optional so unit tests can exercise the
+/// resolution logic without a store.
 class SidebarMenuController extends ChangeNotifier {
-  SidebarMenuController({AppDatabase? db, DateTime Function()? now})
-    : _db = db,
-      _now = now ?? DateTime.now;
+  SidebarMenuController({DevicePrefsStore? prefs}) : _prefs = prefs {
+    if (prefs == null) return;
+    restoreFromJson(prefs.read(DevicePrefKeys.sidebarMenu));
+    prefs.addListener(_sync);
+  }
 
-  final AppDatabase? _db;
-  final DateTime Function() _now;
+  final DevicePrefsStore? _prefs;
 
   SidebarMenuLayout _layout = SidebarMenuLayout.list;
 
@@ -91,32 +89,22 @@ class SidebarMenuController extends ChangeNotifier {
     await _persist();
   }
 
-  /// Drop the in-memory preference without writing anything.
-  ///
-  /// For `AuthRepository.onBeforeDataWipe` only, which runs *before* the
-  /// Drift wipe — so persisting here would write a row that is about to be
-  /// deleted. Notifies, because the sidebar is still mounted behind the
+  /// Follow the store: the boot load, or a data wipe forgetting the menu.
+  /// Notifies on a change, because the sidebar is still mounted behind a
   /// sign-out.
-  void resetInMemory() {
-    if (_layout == SidebarMenuLayout.list && _entries.isEmpty) return;
-    _layout = SidebarMenuLayout.list;
-    _entries = const [];
-    notifyListeners();
-  }
-
-  /// Load the persisted preference from the `nav_state` row. No-op without a
-  /// [db].
-  Future<void> restore() async {
-    final db = _db;
-    if (db == null) return;
-    final row = await db.navStateDao.current();
-    restoreFromJson(row?.sidebarMenuJson);
+  void _sync() {
+    final layout = _layout;
+    final entries = _entries;
+    restoreFromJson(_prefs?.read(DevicePrefKeys.sidebarMenu));
+    if (layout != _layout || !listEquals(entries, _entries)) {
+      notifyListeners();
+    }
   }
 
   /// Parse a stored blob into memory. Anything unrecognizable is dropped rather
   /// than thrown: an unknown layout name, a truncated entry, or a whole corrupt
   /// blob leaves the menu on its default instead of breaking boot. Does not
-  /// notify — called once at boot before the UI builds.
+  /// notify.
   @visibleForTesting
   void restoreFromJson(String? jsonStr) {
     _layout = SidebarMenuLayout.list;
@@ -150,20 +138,18 @@ class SidebarMenuController extends ChangeNotifier {
   };
 
   Future<void> _persist() async {
-    final db = _db;
-    if (db == null) return;
-    try {
-      // Nothing customised at all writes null rather than an empty envelope, so
-      // Reset genuinely returns the row to its never-touched state.
-      final isDefault = _layout == SidebarMenuLayout.list && _entries.isEmpty;
-      await db.navStateDao.saveSidebarMenu(
-        json: isDefault ? null : jsonEncode(toJson()),
-        now: _now().millisecondsSinceEpoch,
-      );
-    } catch (e, st) {
-      // A failed write keeps the in-memory choice for this session — same
-      // trade-off as theme / text-scale persistence.
-      _log.warning('Failed to persist the sidebar menu preference', e, st);
-    }
+    // Nothing customised at all removes the row rather than storing an empty
+    // envelope, so Reset genuinely returns it to its never-touched state.
+    final isDefault = _layout == SidebarMenuLayout.list && _entries.isEmpty;
+    await _prefs?.write(
+      DevicePrefKeys.sidebarMenu,
+      isDefault ? null : jsonEncode(toJson()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _prefs?.removeListener(_sync);
+    super.dispose();
   }
 }

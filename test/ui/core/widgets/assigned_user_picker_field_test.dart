@@ -18,6 +18,7 @@ import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../_localization_helper.dart';
 
@@ -131,7 +132,7 @@ void main() {
   late ValueNotifier<AuthSession?> sessionNotifier;
 
   setUp(() {
-    hideUnverified = HideUnverifiedUsersController(db: db);
+    hideUnverified = HideUnverifiedUsersController(prefs: DevicePrefsStore(db));
     sessionNotifier = ValueNotifier<AuthSession?>(null);
   });
 

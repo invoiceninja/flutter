@@ -23,6 +23,7 @@ import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/ui/features/settings/widgets/assigned_users_section.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../../_localization_helper.dart';
 
@@ -88,7 +89,10 @@ void main() {
 
   setUpAll(() => db = AppDatabase(NativeDatabase.memory()));
   tearDownAll(() => db.close());
-  setUp(() => controller = HideUnverifiedUsersController(db: db));
+  setUp(
+    () =>
+        controller = HideUnverifiedUsersController(prefs: DevicePrefsStore(db)),
+  );
 
   Future<void> pump(
     WidgetTester tester, {

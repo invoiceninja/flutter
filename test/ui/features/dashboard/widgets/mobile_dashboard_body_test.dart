@@ -40,6 +40,7 @@ import 'package:admin/ui/features/dashboard/widgets/list_card_skeleton.dart';
 import 'package:admin/ui/features/dashboard/widgets/mobile_dashboard_body.dart';
 import 'package:admin/ui/features/dashboard/widgets/task_calendar_card.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../../_localization_helper.dart';
 import '../../../../_responsive_helper.dart';
@@ -239,7 +240,7 @@ void main() {
     db = AppDatabase(NativeDatabase.memory());
     repo = FakeDashboardRepo(db);
     // Automatic — the state every device starts in.
-    pref = HideEmptyPanelsController(db: db);
+    pref = HideEmptyPanelsController(prefs: DevicePrefsStore(db));
     vm = DashboardViewModel(
       repo: repo,
       companyId: 'co',

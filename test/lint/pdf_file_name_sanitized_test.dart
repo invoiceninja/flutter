@@ -34,7 +34,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// one extension.
 void main() {
   /// `//` tails stripped, so a comment that merely *names* the helper cannot
-  /// satisfy the scan — the same precaution `nav_state_reset_wiring_test.dart`
+  /// satisfy the scan — the same precaution `device_prefs_wiring_test.dart`
   /// takes, and one the first version of this file was missing.
   String stripComments(String source) => source
       .split('\n')

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/domain/sidebar_menu.dart';
 import 'package:admin/ui/features/settings/widgets/sidebar_menu_section.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
 
 import '../../shell/_shell_test_helpers.dart';
 
@@ -48,7 +49,7 @@ void main() {
     await _disposeTree(tester);
   });
 
-  testWidgets('picking Grid writes through to the controller and nav_state', (
+  testWidgets('picking Grid writes through to the controller and its row', (
     tester,
   ) async {
     await setUpFixture();
@@ -58,8 +59,8 @@ void main() {
     await _pumpFrames(tester);
 
     expect(fixture.services.sidebarMenu.layout, SidebarMenuLayout.grid);
-    final row = await fixture.db.navStateDao.current();
-    expect(row?.sidebarMenuJson, contains('grid'));
+    final rows = await fixture.db.devicePrefsDao.readAll();
+    expect(rows[DevicePrefKeys.sidebarMenu.name], contains('grid'));
     // The subtitle follows, so the card shows its own effect.
     expect(find.text('Grid'), findsNWidgets(2));
     await _disposeTree(tester);
@@ -80,11 +81,15 @@ void main() {
   testWidgets('the card reflects a preference restored from the database', (
     tester,
   ) async {
-    // The sidebar and this card read one controller, so a value restored at
+    // The sidebar and this card read one controller, so a value loaded at
     // boot has to reach both. Nothing else proves the restore path is wired.
     await setUpFixture();
-    await fixture.services.sidebarMenu.setLayout(SidebarMenuLayout.grid);
-    await fixture.services.sidebarMenu.restore();
+    await fixture.db.devicePrefsDao.put(
+      DevicePrefKeys.sidebarMenu.name,
+      '{"layout":"grid","entries":[]}',
+      now: 1,
+    );
+    await fixture.services.devicePrefs.load();
     await pumpCard(tester);
 
     expect(find.text('Grid'), findsNWidgets(2));

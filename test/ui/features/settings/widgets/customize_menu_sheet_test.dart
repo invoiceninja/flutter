@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/ui/features/settings/widgets/customize_menu_sheet.dart';
 
 import '../../shell/_shell_test_helpers.dart';
@@ -100,6 +101,10 @@ void main() {
     for (final e in fixture.services.sidebarMenu.entriesFor(allMenuIds())) e.id,
   ];
 
+  /// The menu's `device_prefs` row, as the next launch would read it.
+  Future<String?> storedRow() async => (await fixture.db.devicePrefsDao
+      .readAll())[DevicePrefKeys.sidebarMenu.name];
+
   List<String> storedIds() => [
     for (final e in fixture.services.sidebarMenu.entriesFor(const [
       'dashboard',
@@ -158,8 +163,7 @@ void main() {
     expect(after.first, isNot(before.first));
     expect(after.toSet(), before.toSet());
     expect(fixture.services.sidebarMenu.hasCustomEntries, isTrue);
-    final row = await fixture.db.navStateDao.current();
-    expect(row?.sidebarMenuJson, isNotNull);
+    expect(await storedRow(), isNotNull);
     await _disposeTree(tester);
   });
 
@@ -246,9 +250,9 @@ void main() {
     await _pumpFrames(tester);
     expect(fixture.services.sidebarMenu.hasCustomEntries, isFalse);
     expect(storedIds(), const ['dashboard', 'client', 'invoice', 'task']);
-    // Reset writes null, so "never customised" and "reset" are the same state.
-    final row = await fixture.db.navStateDao.current();
-    expect(row?.sidebarMenuJson, isNull);
+    // Reset removes the row, so "never customised" and "reset" are the same
+    // state.
+    expect(await storedRow(), isNull);
     await _disposeTree(tester);
   });
   testWidgets('on a phone the editor opens as a bottom sheet whose actions '
@@ -325,7 +329,7 @@ void main() {
     await tester.tap(clientsSwitch);
     await _pumpFrames(tester);
     expect(fixture.services.sidebarMenu.hasCustomEntries, isFalse);
-    expect((await fixture.db.navStateDao.current())?.sidebarMenuJson, isNull);
+    expect(await storedRow(), isNull);
     await _disposeTree(tester);
   });
 }

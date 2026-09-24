@@ -22,46 +22,9 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
   Stream<NavStateData?> watchCurrent() =>
       (select(navState)..where((n) => n.id.equals(0))).watchSingleOrNull();
 
-  Future<void> save({
-    required String? currentRoute,
-    required String? selectedCompanyId,
-    required String? locale,
-    required String? themeMode,
-    required String? lightVariant,
-    required String? darkVariant,
-    required String? filtersJson,
-    required bool? sidebarCollapsed,
-    required int now,
-    // Optional with default so the sidebar / locale partial-write callers
-    // compile unchanged — only ThemeController persists the custom palette and
-    // only TextScaleController persists the text scale.
-    String? customThemeJson,
-    double? textScale,
-  }) => into(navState).insertOnConflictUpdate(
-    NavStateCompanion.insert(
-      // Single-row table: pin the primary key so insertOnConflictUpdate
-      // actually detects the conflict against the prior row.
-      id: const Value(0),
-      currentRoute: Value(currentRoute),
-      selectedCompanyId: Value(selectedCompanyId),
-      locale: Value(locale),
-      themeMode: Value(themeMode),
-      lightVariant: Value(lightVariant),
-      darkVariant: Value(darkVariant),
-      filtersJson: Value(filtersJson),
-      sidebarCollapsed: sidebarCollapsed == null
-          ? const Value.absent()
-          : Value(sidebarCollapsed),
-      customThemeJson: customThemeJson == null
-          ? const Value.absent()
-          : Value(customThemeJson),
-      textScale: textScale == null ? const Value.absent() : Value(textScale),
-      updatedAt: now,
-    ),
-  );
-
   /// Route-only update — used by the router observer on every navigation.
-  /// Cheaper than [save] when only the route changed.
+  /// Every write here touches only its own columns: device preferences live
+  /// in `device_prefs` (`DevicePrefsStore`), never in this row.
   Future<void> saveRoute({required String route, required int now}) async {
     await into(navState).insertOnConflictUpdate(
       NavStateCompanion.insert(
@@ -74,7 +37,7 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
 
   /// Filters-only update — list ViewModels call this whenever their search /
   /// state / sort / custom filters change. Leaves the other fields
-  /// (`currentRoute`, `selectedCompanyId`, etc.) untouched.
+  /// (`currentRoute`, `recentEntitiesJson`) untouched.
   Future<void> saveFilters({
     required String filtersJson,
     required int now,
@@ -99,172 +62,6 @@ class NavStateDao extends DatabaseAccessor<AppDatabase>
       NavStateCompanion.insert(
         id: const Value(0),
         recentEntitiesJson: Value(recentEntitiesJson),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Keyboard-shortcut-overrides-only update — [KeyboardShortcutsController]
-  /// calls this when the user rebinds / clears / resets a shortcut. Leaves the
-  /// other fields untouched, same partial-write pattern as [saveFilters].
-  Future<void> saveKeyboardShortcuts({
-    required String? keyboardShortcutsJson,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        keyboardShortcutsJson: Value(keyboardShortcutsJson),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Sidebar-counter-choices-only update — [SidebarBadgeModeController] calls
-  /// this when the user picks a different counter for a sidebar row. Leaves
-  /// the other fields untouched, same partial-write pattern as [saveFilters].
-  Future<void> saveSidebarBadgeModes({
-    required String? sidebarBadgeModesJson,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        sidebarBadgeModesJson: Value(sidebarBadgeModesJson),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Confirm-actions-only update — [ConfirmActionsController] calls this when
-  /// the user flips the "Confirm actions" switch. Leaves the other fields
-  /// untouched, same partial-write pattern as [saveFilters].
-  Future<void> saveConfirmActions({
-    required bool enabled,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        confirmActions: Value(enabled),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Status-tabs-only update — [StatusTabsController] calls this when the user
-  /// flips the switch. Same partial-write pattern as [saveConfirmActions].
-  Future<void> saveStatusTabs({required bool enabled, required int now}) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        statusTabs: Value(enabled),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Hide-unverified-users-only update — [HideUnverifiedUsersController] calls
-  /// this when the user flips the switch. Same partial-write pattern as
-  /// [saveStatusTabs]: never widen `save()` to carry it, or an unrelated route
-  /// write would clobber the preference.
-  Future<void> saveHideUnverifiedUsers({
-    required bool enabled,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        hideUnverifiedUsers: Value(enabled),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Hide-empty-panels-only update — [HideEmptyPanelsController] calls this
-  /// when the user flips the switch in Device Settings or the dashboard's
-  /// Customize sheet. Same partial-write pattern as [saveHideUnverifiedUsers].
-  /// [enabled] is nullable because null is a real value here — "automatic",
-  /// resolved per device — and the controller writes it whenever the user picks
-  /// what the device would have picked anyway.
-  Future<void> saveHideEmptyPanels({
-    required bool? enabled,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        hideEmptyPanels: Value(enabled),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Phone-actions-only update — [PhoneActionsController] calls this when the
-  /// user changes anything on the "Phone numbers" card. Same partial-write
-  /// pattern as [saveContactsSync]; the whole preference is one blob, so there
-  /// is a single writer.
-  Future<void> savePhoneActions({
-    required String? json,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        phoneActionsJson: Value(json),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Contacts-sync-only update — [ContactsSyncController] calls this when the
-  /// user flips the toggle, changes scope, or a reconcile finishes. Leaves the
-  /// other fields untouched, same partial-write pattern as [saveFilters].
-  ///
-  /// Pass `null` for [json] to clear the preference entirely (the feature has
-  /// never been used, or the last company's state was removed).
-  Future<void> saveContactsSync({
-    required String? json,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        contactsSyncJson: Value(json),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Sidebar-menu-only update — [SidebarMenuController] calls this when the
-  /// user switches the layout, reorders the menu, or hides a row. The layout
-  /// and the ordered entries are one blob with a single writer, same
-  /// partial-write pattern as [savePhoneActions].
-  ///
-  /// Pass `null` for [json] to clear the preference entirely (Reset to
-  /// defaults), which puts the menu back on the app's own order.
-  Future<void> saveSidebarMenu({
-    required String? json,
-    required int now,
-  }) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        sidebarMenuJson: Value(json),
-        updatedAt: now,
-      ),
-    );
-  }
-
-  /// Tasks-layout-only update — [TasksViewController] calls this when the user
-  /// picks a view from the Tasks AppBar toggle. Same partial-write pattern as
-  /// [saveSidebarMenu]; [name] is a `TasksViewMode.name`, or null to forget the
-  /// choice (back to the list default).
-  Future<void> saveTasksView({required String? name, required int now}) async {
-    await into(navState).insertOnConflictUpdate(
-      NavStateCompanion.insert(
-        id: const Value(0),
-        tasksView: Value(name),
         updatedAt: now,
       ),
     );

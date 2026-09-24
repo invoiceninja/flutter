@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
 import 'package:drift_dev/api/migrations_native.dart';
@@ -10,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../generated/schema.dart';
 import '../../generated/schema_v1.dart' as v1;
 import '../../generated/schema_v8.dart' as v8;
+import '../../generated/schema_v11.dart' as v11;
 
 /// Drift schema guard tests — the CI enforcement behind the post-beta
 /// forward-migration policy (see `docs/migrations.md`).
@@ -47,6 +50,7 @@ void main() {
     9: 'ad33ee319136e8eca6f5cf450f4d9031c304a02e711a75565c5221deac952d83',
     10: '603ef90e495e502e8526107a50d57baf58286e2e05b1ff9e026bb05b2b3cdf4f',
     11: '40ff0b42ef0fdd14988a566af67df71c5e14d0b109184e3c1227489fb82ea573',
+    12: '6d0bcacd8770299886fc9ce93390b0ad9998c699a8d965ba1c65c935a041afc8',
   };
 
   // The live schema version the Dart code declares. (Building one throwaway DB
@@ -149,12 +153,11 @@ void main() {
     );
 
     test('device preferences seeded at v8 survive the upgrade', () async {
-      // Shape is what `migrateAndValidate` proves; this proves the *rows*
-      // survive. `nav_state` is a single row carrying every device preference —
-      // the restored route, the theme, the keyboard-shortcut overrides — so a
-      // migration that recreated the table instead of `ALTER TABLE ADD COLUMN`
-      // would silently reset all of them, pass every other test in this file,
-      // and surface only as "the app forgot my settings" after an update.
+      // Shape is what `migrateAndValidate` proves; this proves the *values*
+      // survive. Through v11 every device preference was a `nav_state` column,
+      // and v12 moved them into `device_prefs` rows — so a migration that lost
+      // them on either leg would pass every other test in this file and
+      // surface only as "the app forgot my settings" after an update.
       // `schemaAt` (not `startAt`) so the seeding database and the migrating
       // one get separate connections over the same store — `newConnection()`
       // wraps it with `closeUnderlyingOnClose: false`, so closing the v8 handle
@@ -172,25 +175,124 @@ void main() {
 
       final db = AppDatabase(schema.newConnection());
       // `schemaVersion`, never a literal: `migrateAndValidate` opens the real
-      // AppDatabase, which migrates to its OWN version — pinning 9 here would
-      // fail with a schema diff the day someone lands v10, inside a test about
-      // a migration they never touched.
+      // AppDatabase, which migrates to its OWN version — pinning a number here
+      // would fail with a schema diff the day someone lands the next one,
+      // inside a test about a migration they never touched.
       await verifier.migrateAndValidate(db, schemaVersion);
       final row = await db.navStateDao.current();
       expect(row?.currentRoute, '/tasks?view=kanban');
-      expect(row?.statusTabs, isFalse);
-      expect(row?.sidebarCollapsed, isTrue);
-      // The v9 column has no backfill: an upgraded install is on the list until
-      // the user picks a view, exactly like a fresh one.
-      expect(row?.tasksView, isNull);
-      // The v10 column's `ADD COLUMN ... DEFAULT 0` backfills an upgraded
+      final prefs = DevicePrefsStore(db);
+      await prefs.load();
+      expect(prefs.read(DevicePrefKeys.statusTabs), isFalse);
+      expect(prefs.read(DevicePrefKeys.sidebarCollapsed), isTrue);
+      // The v9 column had no backfill: an upgraded install is on the list
+      // until the user picks a view, exactly like a fresh one.
+      expect(prefs.read(DevicePrefKeys.tasksView), isNull);
+      // The v10 column's `ADD COLUMN ... DEFAULT 0` backfilled an upgraded
       // install to off — the same state a fresh one gets, so the feature never
       // switches itself on under an existing user (invoiceninja/flutter#150).
-      expect(row?.hideUnverifiedUsers, isFalse);
-      // The v11 column has no backfill either: null is "automatic" (on for a
+      expect(prefs.read(DevicePrefKeys.hideUnverifiedUsers), isFalse);
+      // The v11 column had no backfill either: absent is "automatic" (on for a
       // phone, off elsewhere), so an upgraded install resolves exactly as a
       // fresh one on the same device (invoiceninja/flutter#161).
-      expect(row?.hideEmptyPanels, isNull);
+      expect(prefs.read(DevicePrefKeys.hideEmptyPanels), isNull);
+      await db.close();
+    });
+
+    test('v12 carries every nav_state preference column into device_prefs, '
+        'decodable by its key', () async {
+      final schema = await verifier.schemaAt(11);
+      final old = v11.DatabaseAtV11(schema.newConnection());
+      // Every column away from its default, in the storage class SQLite gave
+      // it — BOOLEAN as INTEGER, `text_scale` as REAL — so the TEXT
+      // conversion on the way into `device_prefs` is what is under test.
+      await old.customStatement(
+        'INSERT INTO nav_state (id, current_route, locale, theme_mode, '
+        'light_variant, dark_variant, custom_theme_json, text_scale, '
+        'filters_json, keyboard_shortcuts_json, sidebar_badge_modes_json, '
+        'confirm_actions, status_tabs, contacts_sync_json, '
+        'phone_actions_json, sidebar_menu_json, tasks_view, '
+        'hide_unverified_users, hide_empty_panels, recent_entities_json, '
+        'sidebar_collapsed, updated_at) VALUES (0, '
+        "'/clients', 'de', 'dark', 'paper', 'midnight', '{\"l\":{}}', 1.2, "
+        "'{\"client\":{}}', '{\"save\":null}', '{\"invoice\":\"overdue\"}', "
+        "0, 0, '{\"enabled\":true}', '{\"tapToCall\":false}', "
+        "'{\"layout\":\"grid\"}', 'kanban', 1, 0, '[]', 1, 1234)",
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, schemaVersion);
+      final prefs = DevicePrefsStore(db);
+      await prefs.load();
+      expect(prefs.read(DevicePrefKeys.locale), 'de');
+      expect(prefs.read(DevicePrefKeys.themeMode), 'dark');
+      expect(prefs.read(DevicePrefKeys.lightVariant), 'paper');
+      expect(prefs.read(DevicePrefKeys.darkVariant), 'midnight');
+      expect(prefs.read(DevicePrefKeys.customTheme), '{"l":{}}');
+      expect(prefs.read(DevicePrefKeys.textScale), 1.2);
+      expect(prefs.read(DevicePrefKeys.keyboardShortcuts), '{"save":null}');
+      expect(
+        prefs.read(DevicePrefKeys.sidebarBadgeModes),
+        '{"invoice":"overdue"}',
+      );
+      expect(prefs.read(DevicePrefKeys.confirmActions), isFalse);
+      expect(prefs.read(DevicePrefKeys.statusTabs), isFalse);
+      expect(prefs.read(DevicePrefKeys.contactsSync), '{"enabled":true}');
+      expect(prefs.read(DevicePrefKeys.phoneActions), '{"tapToCall":false}');
+      expect(prefs.read(DevicePrefKeys.sidebarMenu), '{"layout":"grid"}');
+      expect(prefs.read(DevicePrefKeys.tasksView), 'kanban');
+      expect(prefs.read(DevicePrefKeys.hideUnverifiedUsers), isTrue);
+      expect(prefs.read(DevicePrefKeys.hideEmptyPanels), isFalse);
+      expect(prefs.read(DevicePrefKeys.sidebarCollapsed), isTrue);
+      for (final key in DevicePrefKeys.all) {
+        expect(
+          prefs.read(key),
+          isNotNull,
+          reason:
+              '${key.name} was not carried — a key added to the list '
+              'without a legacy column needs no carry, but then this seed '
+              'must stop expecting it',
+        );
+      }
+      // What stays in `nav_state` stays.
+      final row = await db.navStateDao.current();
+      expect(row?.currentRoute, '/clients');
+      expect(row?.filtersJson, '{"client":{}}');
+      await db.close();
+    });
+
+    test('re-running the v12 step never overwrites a preference changed or '
+        'reset since', () async {
+      // The upgrade re-runs whenever `user_version` did not land: the app
+      // killed between the step's commit and drift's version write, or a build
+      // rolled back past v12 and then upgraded again. By then the user may
+      // have changed a preference, or reset one (its row removed) — and the
+      // stale `nav_state` column must not come back over either.
+      final schema = await verifier.schemaAt(11);
+      final old = v11.DatabaseAtV11(schema.newConnection());
+      await old.customStatement(
+        'INSERT INTO nav_state (id, theme_mode, tasks_view, updated_at) '
+        "VALUES (0, 'dark', 'kanban', 1)",
+      );
+      await old.close();
+
+      var db = AppDatabase(schema.newConnection());
+      await db.customSelect('SELECT 1').getSingle();
+      final prefs = DevicePrefsStore(db);
+      await prefs.load();
+      await prefs.write(DevicePrefKeys.themeMode, 'light');
+      await prefs.write(DevicePrefKeys.tasksView, null);
+      await db.customStatement('PRAGMA user_version = 11');
+      await db.close();
+
+      db = AppDatabase(schema.newConnection());
+      await db.customSelect('SELECT 1').getSingle();
+      final again = DevicePrefsStore(db);
+      await again.load();
+      expect(again.read(DevicePrefKeys.themeMode), 'light');
+      expect(again.read(DevicePrefKeys.tasksView), isNull);
+      expect(await isSchemaIntact(db), isTrue);
       await db.close();
     });
 

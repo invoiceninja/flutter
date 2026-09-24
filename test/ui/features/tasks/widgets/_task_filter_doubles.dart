@@ -10,11 +10,8 @@
 
 import 'package:flutter/foundation.dart';
 
-import 'package:drift/native.dart';
-
 import 'package:admin/app/hide_unverified_users_controller.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/calendar_connection_api_model.dart';
 import 'package:admin/data/models/api/client_api_model.dart';
 import 'package:admin/data/models/api/project_api_model.dart';
@@ -27,6 +24,7 @@ import 'package:admin/data/repositories/client_repository.dart';
 import 'package:admin/data/repositories/project_repository.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/ui/features/tasks/view_models/task_filters_mixin.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 /// The whole filter state, with no view model, no Drift and no repositories.
 class TaskFiltersDouble extends ChangeNotifier with TaskFiltersMixin {}
@@ -136,13 +134,14 @@ class FakeCalendarConnectionRepo implements CalendarConnectionRepository {
 ///
 /// [hideUnverifiedUsers] is the one non-repository member, because
 /// `AssignedUserPickerField` reads it directly (invoiceninja/flutter#150) and
-/// the create-task sheet mounts that picker. Callers may flip its value; the
-/// controller only touches [AppDatabase] from `restore()` / `set()`, neither of
-/// which any of these surfaces calls.
+/// the create-task sheet mounts that picker. Callers may flip its value; its
+/// store is memory-only.
 class FakeServices implements Services {
   FakeServices({bool isHosted = false})
     : auth = FakeAuthRepo(isHosted: isHosted),
-      hideUnverifiedUsers = HideUnverifiedUsersController(db: throwawayDb());
+      hideUnverifiedUsers = HideUnverifiedUsersController(
+        prefs: DevicePrefsStore(null),
+      );
 
   @override
   final AuthRepository auth;
@@ -158,11 +157,3 @@ class FakeServices implements Services {
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
-
-/// One lazily-opened in-memory database shared by every fake in a run — the
-/// tasks doubles and `create_task_from_line_item_sheet_test.dart`, which borrows
-/// it rather than opening one per test. It exists only to satisfy [HideUnverifiedUsersController]'s
-/// constructor — nothing here ever reads or writes it, and no Drift stream is
-/// opened on it (`pumpAndSettle` over a real one hangs).
-AppDatabase? _db;
-AppDatabase throwawayDb() => _db ??= AppDatabase(NativeDatabase.memory());

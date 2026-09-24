@@ -19,6 +19,7 @@ import 'package:admin/ui/core/utils/phone_actions.dart';
 import 'package:admin/ui/core/widgets/link_text.dart';
 import 'package:admin/ui/core/widgets/phone_number_value.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../_localization_helper.dart';
 import '../../../_support/fake_url_launcher.dart';
@@ -105,7 +106,7 @@ void main() {
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
-    phoneActions = PhoneActionsController(db: db);
+    phoneActions = PhoneActionsController(prefs: DevicePrefsStore(db));
     services = _FakeServices(
       phoneActions: phoneActions,
       settings: _FakeSettings(const {'timezone_id': '1'}),

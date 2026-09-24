@@ -1,6 +1,6 @@
 # Tasks layout views
 
-Companion to CLAUDE.md § Tasks layout view. The main file carries the `?view=` / `nav_state` precedence rule and the rule for each behaviour; this doc carries the evidence — why the URL is an override rather than the carrier, what the lock exists for, and why the kanban board has no create FAB.
+Companion to CLAUDE.md § Tasks layout view. The main file carries the `?view=` / device-preference precedence rule and the rule for each behaviour; this doc carries the evidence — why the URL is an override rather than the carrier, what the lock exists for, and why the kanban board has no create FAB.
 
 ## The `view` key is overloaded, so `full` must parse to null
 

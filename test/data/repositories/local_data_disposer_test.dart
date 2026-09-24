@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/data/repositories/local_data_disposer.dart';
 
 /// Every wipe of local data goes through [LocalDataDisposer], which says why
@@ -63,13 +65,30 @@ void main() {
     expect(warning.message, contains('dead: 1'));
   });
 
-  test('wipeAll takes everything', () async {
+  test('wipeAll takes everything but the device\'s own preferences', () async {
     await queue('co1', 'unconfirmed');
     await queue('co2', 'pending');
+    final prefs = DevicePrefsStore(db);
+    await prefs.write(DevicePrefKeys.themeMode, 'dark');
+    await prefs.write(DevicePrefKeys.tasksView, 'kanban');
+    // Written by a newer build: its scope is unknown here, so it goes — the
+    // safe answer when the next person to sign in may be someone else.
+    await db.devicePrefsDao.put('from_a_newer_build', 'x', now: 1);
+    await db.devicePrefsDao.put(kPrefsCarriedFromNavState, '1', now: 1);
+    await prefs.load();
 
-    await disposer.wipeAll(DisposalReason.identityChanged);
+    await LocalDataDisposer(
+      db,
+      prefs: prefs,
+    ).wipeAll(DisposalReason.identityChanged);
 
     expect(await db.select(db.outbox).get(), isEmpty);
+    expect((await db.devicePrefsDao.readAll()).keys, {
+      DevicePrefKeys.themeMode.name,
+      kPrefsCarriedFromNavState,
+    });
+    expect(prefs.read(DevicePrefKeys.themeMode), 'dark');
+    expect(prefs.read(DevicePrefKeys.tasksView), isNull);
     expect(
       logged.last.message,
       allOf(contains('identityChanged'), contains('unconfirmed: 1')),

@@ -1,158 +1,85 @@
 import 'package:drift/drift.dart';
 
 /// Single-row table that persists "where the user was" so app restart lands
-/// them right back where they left off.
+/// them right back where they left off: the route, each list's filters, the
+/// recently viewed records.
 ///
 /// `filtersJson` is keyed by entity type — each entity's list VM serializes
 /// its filter/sort/search state into the same blob to keep the schema small.
+///
+/// **Not for device preferences.** Through schema v11 every preference was a
+/// column here, and every one of them cost a schema bump; v12 moved them to
+/// `device_prefs` (`DevicePrefKeys`), where a new one needs no migration. The
+/// seventeen columns marked *legacy* below stay declared so a build rolled
+/// back past v12 can still open the store, but nothing reads or writes them —
+/// and this table's column list is frozen
+/// (`test/lint/nav_state_columns_frozen_test.dart`).
 class NavState extends Table {
   IntColumn get id => integer().withDefault(const Constant(0))();
   TextColumn get currentRoute => text().named('current_route').nullable()();
+
+  /// Unused — the active company lives in the auth session.
   TextColumn get selectedCompanyId =>
       text().named('selected_company_id').nullable()();
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.locale`.
   TextColumn get locale => text().nullable()();
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.themeMode`.
   TextColumn get themeMode => text().named('theme_mode').nullable()();
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.lightVariant`.
   TextColumn get lightVariant => text().named('light_variant').nullable()();
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.darkVariant`.
   TextColumn get darkVariant => text().named('dark_variant').nullable()();
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.customTheme`.
   TextColumn get customThemeJson =>
       text().named('custom_theme_json').nullable()();
 
-  /// Device-local UI text-scale factor (Small 0.8 / Normal 1.0 / Large 1.2 /
-  /// Extra Large 1.4). Null = follow the default (1.0). Applied app-wide via a
-  /// `MediaQuery` `textScaler` override in `main.dart`.
+  /// Legacy (≤ v11) — `DevicePrefKeys.textScale`.
   RealColumn get textScale => real().named('text_scale').nullable()();
 
   TextColumn get filtersJson => text().named('filters_json').nullable()();
 
-  /// Device-local keyboard-shortcut overrides (Settings → Keyboard Shortcuts),
-  /// as a JSON object keyed by catalog action id (value = binding JSON, or
-  /// `null` for an explicitly-cleared shortcut). Null column = no overrides
-  /// (everything at its catalog default). Only overrides are stored, never the
-  /// full resolved set. Added in schema v2.
+  /// Legacy (v2 – v11) — `DevicePrefKeys.keyboardShortcuts`.
   TextColumn get keyboardShortcutsJson =>
       text().named('keyboard_shortcuts_json').nullable()();
 
-  /// Device-local sidebar counter choices (Settings → Device Settings →
-  /// Sidebar counters, or a right-click on the row), as a JSON object keyed by
-  /// `EntityType.name` → `SidebarBadgeMode.id`. Null column = every row on its
-  /// default (`total`). Only non-default choices are stored, so a mode added
-  /// later doesn't need a backfill. Added in schema v3.
+  /// Legacy (v3 – v11) — `DevicePrefKeys.sidebarBadgeModes`.
   TextColumn get sidebarBadgeModesJson =>
       text().named('sidebar_badge_modes_json').nullable()();
 
-  /// Device-local "prompt before running a risky action" preference (Settings
-  /// → Device Settings → Security). When true, outward-facing / irreversible
-  /// actions (Approve, Mark Sent, Cancel, Archive, Delete, …) open an "Are you
-  /// sure?" dialog first. Defaults to **on** — see invoiceninja/flutter#49,
-  /// where users reported fat-fingering Approve / Archive on a phone in the
-  /// field. Added in schema v4.
+  /// Legacy (v4 – v11) — `DevicePrefKeys.confirmActions`.
   BoolColumn get confirmActions =>
       boolean().named('confirm_actions').withDefault(const Constant(true))();
 
-  /// Device-local "show the status tab strip above lists" preference (Settings
-  /// → Device Settings). The strip turns each entity's sidebar-counter buckets
-  /// into one-tap filters with live counts — see `lib/domain/list_status_tabs.dart`
-  /// and invoiceninja/flutter#98, which asked for exactly this because reaching
-  /// a draft through the search field's filter menu costs three or four taps.
-  ///
-  /// Defaults to **on**: the issue's premise is that fewer taps should be the
-  /// default, and the switch exists for people who would rather have the
-  /// vertical space back. Added in schema v6.
+  /// Legacy (v6 – v11) — `DevicePrefKeys.statusTabs`.
   BoolColumn get statusTabs =>
       boolean().named('status_tabs').withDefault(const Constant(true))();
 
-  /// Device-local contacts-sync preference (Settings → Device Settings →
-  /// Contacts), as a JSON object:
-  /// `{"enabled":bool,"scope":"all"|"mine",
-  ///   "lastRun":{"&lt;companyId&gt;":1750000000000},
-  ///   "groupIds":{"&lt;companyId&gt;":"12"}}`.
-  /// Null column = the feature has never been switched on. One blob rather than
-  /// four columns, same reasoning as [filtersJson] — both per-company maps are
-  /// open-ended and none of it is ever queried by SQL. `groupIds` is the
-  /// ownership record: the device address-book label is keyed on the company
-  /// id, not its name, so two identically-named companies can't reconcile away
-  /// each other's cards (see `docs/contacts-sync.md`). Added in schema v5.
+  /// Legacy (v5 – v11) — `DevicePrefKeys.contactsSync`.
   TextColumn get contactsSyncJson =>
       text().named('contacts_sync_json').nullable()();
 
-  /// Device-local tap-to-call preference (Settings → Device Settings → Phone
-  /// numbers), as a JSON object:
-  /// `{"tapToCall":bool,"confirmBeforeCall":bool,
-  ///   "warnOutsideBusinessHours":bool,"startMinutes":480,"endMinutes":1200}`.
-  /// Null column = the user has never opened the card, and the defaults are
-  /// then resolved *per device* (`PhoneActionsSettings.deviceDefaults()` reads
-  /// `Env.isTouchPrimary`) — which is the reason this is a blob and not five
-  /// columns: a SQL `withDefault` would have to pick one answer for a phone
-  /// and a Linux desktop alike. Same one-blob reasoning as [contactsSyncJson]
-  /// otherwise; none of it is ever queried by SQL. Added in schema v7.
-  /// See `docs/tap-to-call.md`.
+  /// Legacy (v7 – v11) — `DevicePrefKeys.phoneActions`.
   TextColumn get phoneActionsJson =>
       text().named('phone_actions_json').nullable()();
 
-  /// Device-local main-menu preference (Settings → Device Settings → Menu), as
-  /// a JSON object:
-  /// `{"layout":"list"|"grid","entries":["&lt;id&gt;|&lt;1|0&gt;", …]}`.
-  /// Null column = never customised, i.e. the list layout in the app's own
-  /// order with everything shown. Added in schema v8 for
-  /// invoiceninja/flutter#125.
-  ///
-  /// One blob rather than a bool plus a table, for the same reason as
-  /// [contactsSyncJson]: the array is open-ended, none of it is ever queried by
-  /// SQL, and the two halves are one card in Settings. Unlike [statusTabs] a
-  /// SQL `withDefault` could not express the interesting part of it at all —
-  /// the default *order* is computed from the entity registry at runtime, so
-  /// there is no literal to put in the column.
-  ///
-  /// Entries are stored sparsely in the sense that matters: the column stays
-  /// null until the user changes something, and `resolveMenuEntries` splices in
-  /// any destination a later release adds. See `lib/domain/sidebar_menu.dart`.
+  /// Legacy (v8 – v11) — `DevicePrefKeys.sidebarMenu`.
   TextColumn get sidebarMenuJson =>
       text().named('sidebar_menu_json').nullable()();
 
-  /// Device-local Tasks layout — the `TasksViewMode.name` the user last chose
-  /// from the Tasks AppBar toggle (`list` / `daily` / `weekly` / `calendar` /
-  /// `kanban`). Null column = never chosen, which resolves to `list`. Added in
-  /// schema v9 for invoiceninja/flutter#133.
-  ///
-  /// The mode used to live only in the URL (`/tasks?view=kanban`), and every
-  /// structural "up" navigation drops the query — so tapping "New task" from
-  /// the kanban board and cancelling landed the user back on the plain list.
-  /// The URL stays the override (deep links, `?view=daily&date=…`, a restored
-  /// route); this column is the fallback for a bare `/tasks`.
-  ///
-  /// Not the [statusTabs] bool shape — there are five modes and the default is
-  /// an enum value, so there is no literal a SQL `withDefault` could hold; and
-  /// not a JSON blob like [sidebarMenuJson], because this preference is one
-  /// scalar with a single writer. An unrecognised string (written by a newer
-  /// build, then downgraded) parses back to null rather than throwing.
+  /// Legacy (v9 – v11) — `DevicePrefKeys.tasksView`.
   TextColumn get tasksView => text().named('tasks_view').nullable()();
 
-  /// Device-local "keep people who have never confirmed their email address
-  /// out of Assigned User fields" preference (Settings → Device Settings →
-  /// Users), invoiceninja/flutter#150.
-  ///
-  /// Defaults to **off**, unlike the two bool columns above — `confirm_actions`
-  /// and `status_tabs` default on because they only add chrome, whereas this
-  /// one *removes people from a form*. `email_verified_at` conflates four
-  /// states (BACKEND.md § F4), so shipping it on would silently delete
-  /// colleagues from everyone's pickers; `lib/domain/assignable_users.dart`
-  /// narrows the rule and this default is the other half of that trade.
-  /// `sidebar_collapsed` is the existing `false` precedent for the shape.
-  /// Added in schema v10.
+  /// Legacy (v10 – v11) — `DevicePrefKeys.hideUnverifiedUsers`.
   BoolColumn get hideUnverifiedUsers => boolean()
       .named('hide_unverified_users')
       .withDefault(const Constant(false))();
 
-  /// Device-local "leave dashboard panels with nothing to show off the
-  /// dashboard" preference (Settings → Device Settings → Dashboard, and the
-  /// dashboard's Customize → Panels tab), invoiceninja/flutter#161.
-  ///
-  /// Null column = **automatic**, which resolves to on for a phone and off
-  /// everywhere else (`HideEmptyPanelsController.effectiveFor`, fed by
-  /// `Breakpoints.isPhone`). Nullable for the reason [phoneActionsJson] is: a
-  /// SQL `withDefault` would have to pick one answer for a phone and a desktop
-  /// alike. Not a blob, because this is one scalar with a single writer — the
-  /// [tasksView] shape. Added in schema v11.
+  /// Legacy (v11) — `DevicePrefKeys.hideEmptyPanels`.
   BoolColumn get hideEmptyPanels =>
       boolean().named('hide_empty_panels').nullable()();
 
@@ -162,6 +89,8 @@ class NavState extends Table {
   /// same as the in-memory [NavHistoryController] history.
   TextColumn get recentEntitiesJson =>
       text().named('recent_entities_json').nullable()();
+
+  /// Legacy (≤ v11) — `DevicePrefKeys.sidebarCollapsed`.
   BoolColumn get sidebarCollapsed =>
       boolean().named('sidebar_collapsed').withDefault(const Constant(false))();
   IntColumn get updatedAt => integer().named('updated_at')();

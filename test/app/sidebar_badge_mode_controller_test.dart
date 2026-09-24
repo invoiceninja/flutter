@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/sidebar_badge_mode_controller.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 
@@ -12,13 +13,21 @@ void main() {
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() => db.close());
 
+  /// A relaunch: a new store, loaded from the same database.
+  Future<SidebarBadgeModeController> relaunch() async {
+    final prefs = DevicePrefsStore(db);
+    await prefs.load();
+    return SidebarBadgeModeController(prefs: prefs);
+  }
+
   group('persistence', () {
-    test('a chosen mode survives a restore', () async {
-      final controller = SidebarBadgeModeController(db: db);
+    test('a chosen mode survives a relaunch', () async {
+      final controller = SidebarBadgeModeController(
+        prefs: DevicePrefsStore(db),
+      );
       await controller.set(EntityType.invoice, 'overdue');
 
-      final reloaded = SidebarBadgeModeController(db: db);
-      await reloaded.restore();
+      final reloaded = await relaunch();
       expect(reloaded.modeFor(EntityType.invoice), 'overdue');
     });
 
@@ -26,7 +35,9 @@ void main() {
       'choosing total clears the stored entry rather than persisting it — '
       'defaults stay implicit so a mode added later needs no backfill',
       () async {
-        final controller = SidebarBadgeModeController(db: db);
+        final controller = SidebarBadgeModeController(
+          prefs: DevicePrefsStore(db),
+        );
         await controller.set(EntityType.invoice, 'overdue');
         await controller.set(EntityType.invoice, kBadgeModeTotal);
         expect(controller.modesToJson(), isEmpty);
@@ -35,13 +46,14 @@ void main() {
     );
 
     test('resetAll puts every row back on total', () async {
-      final controller = SidebarBadgeModeController(db: db);
+      final controller = SidebarBadgeModeController(
+        prefs: DevicePrefsStore(db),
+      );
       await controller.set(EntityType.invoice, 'overdue');
       await controller.set(EntityType.quote, 'draft');
       await controller.resetAll();
 
-      final reloaded = SidebarBadgeModeController(db: db);
-      await reloaded.restore();
+      final reloaded = await relaunch();
       expect(reloaded.modeFor(EntityType.invoice), kBadgeModeTotal);
       expect(reloaded.modeFor(EntityType.quote), kBadgeModeTotal);
     });
@@ -49,7 +61,9 @@ void main() {
 
   group('notification', () {
     test('re-selecting the current mode does not notify', () async {
-      final controller = SidebarBadgeModeController(db: db);
+      final controller = SidebarBadgeModeController(
+        prefs: DevicePrefsStore(db),
+      );
       var notifications = 0;
       controller.addListener(() => notifications++);
 
@@ -60,7 +74,9 @@ void main() {
     });
 
     test('resetAll with nothing to reset does not notify', () async {
-      final controller = SidebarBadgeModeController(db: db);
+      final controller = SidebarBadgeModeController(
+        prefs: DevicePrefsStore(db),
+      );
       var notifications = 0;
       controller.addListener(() => notifications++);
       await controller.resetAll();

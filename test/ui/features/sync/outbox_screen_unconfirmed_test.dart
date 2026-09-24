@@ -21,8 +21,10 @@ import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/domain/sync/sync_dispatcher.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/sync/views/outbox_screen.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
 
 import '../../../_localization_helper.dart';
+import '../../../_support/device_prefs_test_support.dart';
 
 /// An `unconfirmed` row is a change that may already have reached the server.
 /// Retry — a silent re-send — is exactly what could do it twice, so the
@@ -81,7 +83,9 @@ class _NoopDispatcher implements SyncDispatcher {
 
 class _FakeServices implements Services {
   _FakeServices({required this.auth, required this.db, required this.sync})
-    : confirmActions = ConfirmActionsController(db: db, initial: false);
+    : confirmActions = ConfirmActionsController(
+        prefs: prefsWith({DevicePrefKeys.confirmActions: false}),
+      );
 
   @override
   final AuthRepository auth;

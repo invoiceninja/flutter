@@ -7,7 +7,7 @@
 /// see the class doc on `InSidebar` for why.
 ///
 /// Persisted device-locally by `SidebarMenuController` into
-/// `nav_state.sidebar_menu_json`. This file holds only the parts that need no
+/// `DevicePrefKeys.sidebarMenu`. This file holds only the parts that need no
 /// database, no registry and no widget tree, so they can be unit-tested
 /// directly; like [SidebarBadgeMode] it stays free of a UI import.
 library;

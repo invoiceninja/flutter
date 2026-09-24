@@ -1,14 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:logging/logging.dart';
 
-import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/tasks/tasks_view_mode.dart';
 
-final _log = Logger('TasksViewController');
-
-/// Owns the Tasks layout the user last picked from the AppBar toggle and
-/// persists it to `nav_state.tasks_view` — the same single-row, device-local
-/// pattern as [StatusTabsController] / [SidebarMenuController].
+/// Owns the Tasks layout the user last picked from the AppBar toggle
+/// (`DevicePrefKeys.tasksView`, device-local).
 ///
 /// The layout used to live **only** in the URL (`/tasks?view=kanban`), and every
 /// structural "up" navigation drops the query string by construction — so
@@ -21,56 +18,35 @@ final _log = Logger('TasksViewController');
 ///
 /// Null means **never chosen** rather than "list", so [resolveTasksViewMode]
 /// owns that default in one place and a fresh install, a cleared preference and
-/// an unparsable stored value all behave identically.
+/// an unparsable stored value (written by a newer build, then downgraded) all
+/// behave identically.
+///
+/// An account preference: a sign-out forgets it, so a second user signing in
+/// without relaunching never opens Tasks on the first user's board. An
+/// involuntary 401 or an idle re-lock keeps local data, and the board with it.
 class TasksViewController extends ValueNotifier<TasksViewMode?> {
-  TasksViewController({
-    required AppDatabase db,
-    DateTime Function()? now,
-    TasksViewMode? initial,
-  }) : _db = db,
-       _now = now ?? DateTime.now,
-       super(initial);
-
-  final AppDatabase _db;
-  final DateTime Function() _now;
-
-  /// No stored row (fresh install) or an unrecognised name (written by a newer
-  /// build, then downgraded) both leave the value null — never a throw, because
-  /// this runs inside `main`'s boot `Future.wait`.
-  Future<void> restore() async {
-    final row = await _db.navStateDao.current();
-    final stored = tasksViewModeFromQuery(row?.tasksView);
-    if (stored == null) return;
-    value = stored;
+  TasksViewController({required DevicePrefsStore prefs})
+    : _prefs = prefs,
+      super(_read(prefs)) {
+    prefs.addListener(_sync);
   }
 
-  /// Drop the choice without touching the database — runs from
-  /// `AuthRepository.onBeforeDataWipe` beside
-  /// [SidebarMenuController.resetInMemory], for the same reason. A deliberate
-  /// sign-out wipes `nav_state`, but this controller is built once in
-  /// `Services.build` and outlives the logout, and [restore] early-returns on a
-  /// null stored value so it can never clear itself — so a second user signing
-  /// in without relaunching would open Tasks on the first user's board, and the
-  /// state would differ depending on whether the app had been restarted. An
-  /// involuntary 401 or an idle re-lock preserves local data and doesn't fire
-  /// the wipe hook, so the same user keeps their board in memory too.
-  void resetInMemory() {
-    if (value == null) return;
-    value = null;
-  }
+  final DevicePrefsStore _prefs;
+
+  static TasksViewMode? _read(DevicePrefsStore prefs) =>
+      tasksViewModeFromQuery(prefs.read(DevicePrefKeys.tasksView));
+
+  void _sync() => value = _read(_prefs);
 
   Future<void> set(TasksViewMode mode) async {
     if (value == mode) return;
     value = mode;
-    try {
-      await _db.navStateDao.saveTasksView(
-        name: mode.name,
-        now: _now().millisecondsSinceEpoch,
-      );
-    } catch (e, st) {
-      // A failed write doesn't roll back the in-memory value — the user still
-      // sees the view they picked until next launch.
-      _log.warning('Failed to persist tasks view', e, st);
-    }
+    await _prefs.write(DevicePrefKeys.tasksView, mode.name);
+  }
+
+  @override
+  void dispose() {
+    _prefs.removeListener(_sync);
+    super.dispose();
   }
 }

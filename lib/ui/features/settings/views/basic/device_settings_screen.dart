@@ -56,8 +56,8 @@ const kDeviceSettingsSearchKeys = <String>[
 /// theme (mode + palette), the per-preset colour overrides, the action-confirm
 /// + biometric guards, and the Sync action. Unlike most settings screens this has no
 /// cascade and no save bar — every control writes immediately to a
-/// device-local store (`nav_state`). Only the accent colour is server-synced;
-/// it lives on User Details → Preferences with the save bar.
+/// device-local store (`DevicePrefsStore`). Only the accent colour is
+/// server-synced; it lives on User Details → Preferences with the save bar.
 class DeviceSettingsScreen extends StatefulWidget {
   const DeviceSettingsScreen({super.key});
 

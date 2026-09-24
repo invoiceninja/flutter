@@ -6,7 +6,8 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/app/shortcuts/key_binding.dart';
 import 'package:admin/app/shortcuts/shortcut_catalog.dart';
-import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 final _log = Logger('KeyboardShortcutsController');
 
@@ -17,16 +18,17 @@ final _log = Logger('KeyboardShortcutsController');
 ///
 /// Three-state per action: **default** (no override), **custom** (an override
 /// binding), **cleared** (an explicit `null` override that removes even the
-/// default). Device-local persistence to `nav_state.keyboard_shortcuts_json`,
-/// same pattern as [TextScaleController] / [ThemeController]; [db] is optional
-/// so unit tests exercise the pure resolution logic without a database.
+/// default). Device-local, one JSON blob (`DevicePrefKeys.keyboardShortcuts`);
+/// [prefs] is optional so unit tests exercise the pure resolution logic
+/// without a store.
 class KeyboardShortcutsController extends ChangeNotifier {
-  KeyboardShortcutsController({AppDatabase? db, DateTime Function()? now})
-    : _db = db,
-      _now = now ?? DateTime.now;
+  KeyboardShortcutsController({DevicePrefsStore? prefs}) : _prefs = prefs {
+    if (prefs == null) return;
+    restoreFromJson(prefs.read(DevicePrefKeys.keyboardShortcuts));
+    prefs.addListener(_sync);
+  }
 
-  final AppDatabase? _db;
-  final DateTime Function() _now;
+  final DevicePrefsStore? _prefs;
 
   /// action id → override. A present key means "overridden"; its value may be a
   /// [KeyBinding] (custom) or `null` (explicitly cleared). Absent key = use the
@@ -132,17 +134,16 @@ class KeyboardShortcutsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load persisted overrides from the `nav_state` row. No-op without a [db].
-  Future<void> restore() async {
-    final db = _db;
-    if (db == null) return;
-    final row = await db.navStateDao.current();
-    restoreFromJson(row?.keyboardShortcutsJson);
+  /// Follow the store — the boot load (the overrides are a device preference,
+  /// so a data wipe keeps them).
+  void _sync() {
+    restoreFromJson(_prefs?.read(DevicePrefKeys.keyboardShortcuts));
+    notifyListeners();
   }
 
   /// Parse a stored overrides blob into memory (unknown ids ignored, so a
-  /// removed catalog action doesn't strand a dead override). Does not notify —
-  /// called once at boot before the UI builds.
+  /// removed catalog action doesn't strand a dead override). Does not
+  /// notify.
   @visibleForTesting
   void restoreFromJson(String? jsonStr) {
     _overrides.clear();
@@ -171,17 +172,15 @@ class KeyboardShortcutsController extends ChangeNotifier {
   };
 
   Future<void> _persist() async {
-    final db = _db;
-    if (db == null) return;
-    try {
-      await db.navStateDao.saveKeyboardShortcuts(
-        keyboardShortcutsJson: jsonEncode(overridesToJson()),
-        now: _now().millisecondsSinceEpoch,
-      );
-    } catch (e, st) {
-      // A failed write keeps the in-memory overrides for this session — same
-      // trade-off as theme / text-scale persistence.
-      _log.warning('Failed to persist keyboard shortcut overrides', e, st);
-    }
+    await _prefs?.write(
+      DevicePrefKeys.keyboardShortcuts,
+      jsonEncode(overridesToJson()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _prefs?.removeListener(_sync);
+    super.dispose();
   }
 }

@@ -4,7 +4,7 @@
 /// The database mixes the user's own unsynced and local-only data with a
 /// re-downloadable copy of the server, and a recovery that treats them alike
 /// either keeps a broken cache or throws the user's work away. Every table is
-/// classified in [kTableRetention]; `test/data/db/table_retention_test.dart`
+/// classified in [kTableRetention]; `test/data/db/schema_repair_test.dart`
 /// fails the build on one that is not.
 enum TableRetention {
   /// The user's own data, which exists nowhere else: queued and failed
@@ -29,6 +29,7 @@ const Map<String, TableRetention> kTableRetention = {
   'id_remap': TableRetention.durable,
   'saved_views': TableRetention.durable,
   'nav_state': TableRetention.durable,
+  'device_prefs': TableRetention.durable,
   'drafts': TableRetention.durable,
   // What `restore()` resumes a session from.
   'accounts': TableRetention.anchor,
@@ -43,7 +44,7 @@ const Map<String, TableRetention> kTableRetention = {
   'dashboard_cache': TableRetention.cache,
   'designs': TableRetention.cache,
   // Rebuildable only because the address-book group ids it hangs off live in
-  // `nav_state.contacts_sync_json`, which is durable.
+  // the `contacts_sync_json` device preference, which is durable.
   'device_contact_links': TableRetention.cache,
   'documents': TableRetention.cache,
   'expense_categories': TableRetention.cache,

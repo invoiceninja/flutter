@@ -1,6 +1,7 @@
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 final _log = Logger('LocalDataDisposer');
 
@@ -49,13 +50,21 @@ enum DisposalReason {
 /// destructive outbox delete — anywhere this file and the sync engine don't
 /// own.
 class LocalDataDisposer {
-  LocalDataDisposer(this._db);
+  /// [prefs] is the in-memory mirror of `device_prefs`; without it (tests of
+  /// the wipe alone) only the rows are forgotten.
+  LocalDataDisposer(this._db, {DevicePrefsStore? prefs}) : _prefs = prefs;
 
   final AppDatabase _db;
+  final DevicePrefsStore? _prefs;
 
+  /// Everything but the device's own preferences: `AppDatabase.wipe` keeps
+  /// the device keys (theme, language, …) and forgets the account ones, and
+  /// the store follows — so every preference controller is back on its
+  /// default the moment the data it described is gone.
   Future<void> wipeAll(DisposalReason reason) async {
     await _logWhatGoes(reason);
     await _db.wipe();
+    _prefs?.forgetWiped();
   }
 
   Future<void> wipeCompany(String companyId, DisposalReason reason) async {

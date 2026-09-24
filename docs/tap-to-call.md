@@ -231,7 +231,7 @@ edit. Two consequences were weighed and accepted:
 
 ## The preference
 
-Six fields in one JSON blob, `nav_state.phone_actions_json` (schema v7).
+Six fields in one JSON blob, the device preference `DevicePrefKeys.phoneActions` (a `nav_state` column from schema v7 to v11).
 
 | Field | Default | Why |
 |---|---|---|

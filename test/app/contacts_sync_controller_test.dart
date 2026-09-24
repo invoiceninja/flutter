@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/app/contacts_sync_controller.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/domain/contacts_sync/contacts_sync_types.dart';
 
 class _FakeEngine implements ContactsSyncEngine {
@@ -80,11 +82,19 @@ void main() {
   late AppDatabase db;
   late _FakeEngine engine;
 
-  ContactsSyncController build() => ContactsSyncController(
-    db: db,
-    engine: engine,
-    now: () => DateTime.utc(2026, 5, 11, 12),
-  );
+  ContactsSyncController build({DevicePrefsStore? prefs}) =>
+      ContactsSyncController(
+        prefs: prefs ?? DevicePrefsStore(db),
+        engine: engine,
+        now: () => DateTime.utc(2026, 5, 11, 12),
+      );
+
+  /// A relaunch: a new store, loaded from the same database.
+  Future<ContactsSyncController> relaunch() async {
+    final prefs = DevicePrefsStore(db);
+    await prefs.load();
+    return build(prefs: prefs);
+  }
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
@@ -100,9 +110,8 @@ void main() {
       expect(c.scope, ContactsSyncScope.all);
     });
 
-    test('restore() with nothing written leaves the defaults', () async {
-      final c = build();
-      await c.restore();
+    test('a relaunch with nothing written leaves the defaults', () async {
+      final c = await relaunch();
       expect(c.enabled, isFalse);
       expect(c.scope, ContactsSyncScope.all);
     });
@@ -112,8 +121,7 @@ void main() {
       await a.setEnabled(true);
       await a.setScope(ContactsSyncScope.assignedToMe);
 
-      final b = build();
-      await b.restore();
+      final b = await relaunch();
 
       expect(b.enabled, isTrue);
       expect(b.scope, ContactsSyncScope.assignedToMe);
@@ -125,8 +133,7 @@ void main() {
       await a.setSyncedGroupId('co', 'group-1');
       await a.setSyncedGroupId('co2', 'group-2');
 
-      final b = build();
-      await b.restore();
+      final b = await relaunch();
 
       expect(b.syncedGroupId('co'), 'group-1');
       expect(b.syncedGroupId('co2'), 'group-2');
@@ -159,20 +166,19 @@ void main() {
         await a.setSyncedGroupId('co', 'group-1');
         await a.setSyncedGroupId('co', null);
 
-        final b = build();
-        await b.restore();
+        final b = await relaunch();
         expect(b.syncedGroupId('co'), isNull);
       },
     );
 
     test('a blob written before group ids existed restores without them, '
         'rather than throwing and losing the toggle too', () async {
-      await db.navStateDao.saveContactsSync(
-        json: '{"enabled":true,"scope":"mine","lastRun":{"co":5}}',
+      await db.devicePrefsDao.put(
+        DevicePrefKeys.contactsSync.name,
+        '{"enabled":true,"scope":"mine","lastRun":{"co":5}}',
         now: 0,
       );
-      final c = build();
-      await c.restore();
+      final c = await relaunch();
 
       expect(c.enabled, isTrue);
       expect(c.scope, ContactsSyncScope.assignedToMe);
@@ -181,21 +187,32 @@ void main() {
     });
 
     test('a corrupt blob falls back to off instead of wedging boot', () async {
-      await db.navStateDao.saveContactsSync(json: 'not json', now: 0);
-      final c = build();
-      await c.restore();
+      await db.devicePrefsDao.put(
+        DevicePrefKeys.contactsSync.name,
+        'not json',
+        now: 0,
+      );
+      final c = await relaunch();
       expect(c.enabled, isFalse);
     });
 
-    test('leaves the other nav_state fields alone', () async {
-      await db.navStateDao.saveRoute(route: '/clients', now: 1);
-      final c = build();
-      await c.setEnabled(true);
+    test(
+      'a data wipe turns the feature off for whoever signs in next',
+      () async {
+        // An account preference: the toggle, the scope and each company's
+        // bookkeeping describe the signed-out user's address book.
+        final prefs = DevicePrefsStore(db);
+        final c = build(prefs: prefs);
+        await c.setEnabled(true);
+        await c.setScope(ContactsSyncScope.assignedToMe);
+        await c.setSyncedGroupId('co', 'group-1');
 
-      final row = await db.navStateDao.current();
-      expect(row?.currentRoute, '/clients');
-      expect(row?.contactsSyncJson, isNotNull);
-    });
+        prefs.forgetWiped();
+        expect(c.enabled, isFalse);
+        expect(c.scope, ContactsSyncScope.all);
+        expect(c.syncedGroupId('co'), isNull);
+      },
+    );
 
     test('does not notify when the same value is chosen twice', () async {
       final c = build();
@@ -264,8 +281,7 @@ void main() {
       final a = build();
       await a.run('co');
 
-      final b = build();
-      await b.restore();
+      final b = await relaunch();
       expect(b.hasRunFor('co'), isTrue);
     });
 

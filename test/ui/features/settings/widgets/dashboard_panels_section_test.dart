@@ -19,6 +19,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/ui/features/settings/widgets/dashboard_panels_section.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../../_localization_helper.dart';
 
@@ -37,7 +38,7 @@ void main() {
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
-    pref = HideEmptyPanelsController(db: db);
+    pref = HideEmptyPanelsController(prefs: DevicePrefsStore(db));
   });
   tearDown(() async {
     pref.dispose();

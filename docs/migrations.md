@@ -120,6 +120,16 @@ always ship the `onUpgrade`. Which failures may reach it at all: § A failed ope
 the store only when a fresh store fixes it. What it keeps: § A reset carries the user's own
 tables across.
 
+## A device preference is not a schema change
+
+Through v11 every device preference was a `nav_state` column, and all ten
+schema bumps after release existed only to add one — each an `onUpgrade` run on
+every installed database. Since v12 a preference is a `DevicePrefKeys` entry
+(one `device_prefs` row) and needs no bump at all; `nav_state`'s column list is
+frozen (`test/lint/nav_state_columns_frozen_test.dart`). How to add one, and how
+v12 carried the old columns across exactly once — including after a repair and a
+salvage — is in `docs/device-preferences.md`.
+
 ## Every upgrade step is idempotent and transactional
 
 drift calls `onUpgrade` outside any transaction (from `beforeOpen`, drift 2.33
@@ -193,7 +203,7 @@ without a reset: a missing table is created; missing columns are added in place 
 nullable or has a SQL default (rows kept); a table missing a column that can't be added
 (NOT NULL, no default) is dropped and recreated — **only** if it is a cache table.
 `lib/data/db/table_retention.dart` classifies every table: *durable* (the outbox, `id_remap`,
-saved views, `nav_state`, `drafts` — data that exists nowhere else), *anchor* (`accounts`,
+saved views, `nav_state`, `device_prefs`, `drafts` — data that exists nowhere else), *anchor* (`accounts`,
 `companies`, `users` — `restore()` signs the user out without them) and *cache* (everything
 the server can send again). A durable or anchor table in that state throws
 `SchemaUnrepairableException` and the opener falls back to the reset. Any change to a cache

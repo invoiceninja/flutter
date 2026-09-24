@@ -18,6 +18,8 @@ import 'package:admin/data/db/database_opener_io.dart'
         retainQuarantinedStore;
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/db/salvage.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 /// A reset used to destroy the store whole, the outbox with it: the user's
 /// queued and failed edits, the temp-id map they rewrite through, local-only
@@ -195,6 +197,61 @@ void main() {
       expect(result.incompleteTables, ['outbox']);
       expect((await fresh.outboxDao.byId(1))?.idempotencyKey, 'k1');
       expect((await fresh.outboxDao.byId(7))?.idempotencyKey, 'k7');
+    });
+
+    test('a store older than v12 has its nav_state preferences carried into '
+        'device_prefs', () async {
+      // Before v12 the preferences were `nav_state` columns, and a store that
+      // old has no `device_prefs` table for the reader to find.
+      final store = QuarantinedStore(
+        source: 's',
+        tables: {
+          'nav_state': [
+            {
+              'id': 0,
+              'theme_mode': 'dark',
+              'status_tabs': 0,
+              'tasks_view': 'kanban',
+              'updated_at': 1,
+            },
+          ],
+        },
+      );
+
+      await importSalvaged(fresh, store);
+
+      final prefs = DevicePrefsStore(fresh);
+      await prefs.load();
+      expect(prefs.read(DevicePrefKeys.themeMode), 'dark');
+      expect(prefs.read(DevicePrefKeys.statusTabs), isFalse);
+      expect(prefs.read(DevicePrefKeys.tasksView), 'kanban');
+    });
+
+    test('a v12 store\'s preferences come across as they were — the stale '
+        'nav_state column never brings back one the user reset', () async {
+      final store = QuarantinedStore(
+        source: 's',
+        tables: {
+          'nav_state': [
+            {'id': 0, 'tasks_view': 'kanban', 'updated_at': 1},
+          ],
+          'device_prefs': [
+            {'key': kPrefsCarriedFromNavState, 'value': '1', 'updated_at': 1},
+            {'key': 'theme_mode', 'value': 'light', 'updated_at': 2},
+          ],
+        },
+      );
+
+      await importSalvaged(fresh, store);
+
+      final prefs = DevicePrefsStore(fresh);
+      await prefs.load();
+      expect(prefs.read(DevicePrefKeys.themeMode), 'light');
+      expect(
+        prefs.read(DevicePrefKeys.tasksView),
+        isNull,
+        reason: 'the user put the Tasks layout back on the list after v12',
+      );
     });
   });
 

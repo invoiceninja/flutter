@@ -34,7 +34,7 @@ class SidebarBadgeMode {
   });
 
   /// Persisted token. **Never rename a shipped id** — it's what lands in
-  /// `nav_state.sidebar_badge_modes_json`. Renaming orphans the user's choice
+  /// `DevicePrefKeys.sidebarBadgeModes`. Renaming orphans the user's choice
   /// (the controller drops unknown ids back to [kBadgeModeTotal], so it
   /// degrades quietly rather than crashing, but the setting is still lost).
   final String id;

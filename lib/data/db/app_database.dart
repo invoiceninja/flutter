@@ -4,9 +4,11 @@ import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/database_opener.dart';
 import 'package:admin/data/db/db_open_exception.dart';
+import 'package:admin/data/db/nav_state_prefs_carry.dart';
 import 'package:admin/data/db/open_failure.dart';
 import 'package:admin/data/db/salvage.dart';
 import 'package:admin/data/db/schema_repair.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
 
 import 'package:admin/data/db/dao/bank_account_dao.dart';
 import 'package:admin/data/db/dao/bank_transaction_dao.dart';
@@ -47,6 +49,7 @@ import 'package:admin/data/db/dao/user_dao.dart';
 import 'package:admin/data/db/dao/webhook_dao.dart';
 import 'package:admin/data/db/dao/user_settings_dao.dart';
 import 'package:admin/data/db/dao/design_dao.dart';
+import 'package:admin/data/db/dao/device_prefs_dao.dart';
 import 'package:admin/data/db/dao/device_contact_link_dao.dart';
 import 'package:admin/data/db/dao/vendor_dao.dart';
 import 'package:admin/data/db/tables/bank_accounts_table.dart';
@@ -57,6 +60,7 @@ import 'package:admin/data/db/tables/company_gateways_table.dart';
 import 'package:admin/data/db/tables/dashboard_cache_table.dart';
 import 'package:admin/data/db/tables/designs_table.dart';
 import 'package:admin/data/db/tables/device_contact_links_table.dart';
+import 'package:admin/data/db/tables/device_prefs_table.dart';
 import 'package:admin/data/db/tables/documents_table.dart';
 import 'package:admin/data/db/tables/drafts_table.dart';
 import 'package:admin/data/db/tables/expense_categories_table.dart';
@@ -141,6 +145,7 @@ final _log = Logger('AppDatabase');
     Webhooks,
     Tokens,
     DeviceContactLinks,
+    DevicePrefs,
   ],
   daos: [
     ClientDao,
@@ -184,13 +189,14 @@ final _log = Logger('AppDatabase');
     WebhookDao,
     TokenDao,
     DeviceContactLinkDao,
+    DevicePrefsDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -276,6 +282,13 @@ class AppDatabase extends _$AppDatabase {
     // "automatic" — on for a phone, off everywhere else — which a SQL default
     // could not express (the `phone_actions_json` reasoning), so an upgraded
     // install lands on exactly the answer a fresh one gets on the same device.
+    //
+    // v11 → v12: the `device_prefs` key/value table, and the seventeen
+    // preference columns above copied into it (`carryNavStatePrefs`). The last
+    // preference migration: every step since v1 added a `nav_state`
+    // preference column, and a new preference is now a `DevicePrefKeys` entry
+    // with no schema change at all. The old columns stay (rollback-safe) and
+    // frozen — `test/lint/nav_state_columns_frozen_test.dart`.
     onUpgrade: (m, from, to) async {
       // One transaction, and every step safe to run twice. drift calls
       // `onUpgrade` outside any transaction and bumps `user_version` only after
@@ -335,6 +348,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 11) {
             await _addColumnIfMissing(m, navState, navState.hideEmptyPanels);
           }
+          if (from < 12) {
+            await m.createTable(devicePrefs);
+            await carryNavStatePrefs(this);
+          }
           // Create any declared table this database is missing, before the
           // index pass below touches it.
           //
@@ -392,6 +409,20 @@ class AppDatabase extends _$AppDatabase {
               e,
               st,
             );
+            // The repair restores shape, not data: it created `device_prefs`
+            // empty. The carry runs once per store, so it is safe here — and
+            // best-effort, since preferences are not worth a reset.
+            if (from < 12) {
+              try {
+                await carryNavStatePrefs(this);
+              } catch (carryError, carrySt) {
+                _log.warning(
+                  'Copying the nav_state preferences after the repair failed',
+                  carryError,
+                  carrySt,
+                );
+              }
+            }
             return;
           }
         } catch (repairError, repairSt) {
@@ -423,17 +454,24 @@ class AppDatabase extends _$AppDatabase {
     await m.addColumn(table, column);
   }
 
-  /// Wipe every table. Used by `logout()` and "Reset local data".
+  /// Wipe every table — except the device's own preferences. Called only by
+  /// `LocalDataDisposer.wipeAll`.
   ///
   /// Loops over [allTables] — Drift's generated list of every `@DriftTable`
   /// declared on the database — so a new entity added to the
   /// `@DriftDatabase(tables: …)` list is cleared automatically without
-  /// touching this method.
+  /// touching this method. `device_prefs` keeps [DevicePrefKeys.keptOnWipe]
+  /// (the theme, the language, …) and loses the rest: what describes the
+  /// signed-in account goes with the account.
   Future<void> wipe() async {
     await transaction(() async {
       for (final table in allTables) {
+        if (table == devicePrefs) continue;
         await delete(table).go();
       }
+      await (delete(
+        devicePrefs,
+      )..where((p) => p.key.isNotIn(DevicePrefKeys.keptOnWipe))).go();
     });
   }
 

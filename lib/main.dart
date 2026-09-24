@@ -223,30 +223,18 @@ Future<void> _bootstrap() async {
   _debugCaptureStoreRef = services.debugCaptureStore;
   _authForSentry = services.auth;
   _installCaptureHandlers(services.debugCaptureStore);
-  // Bounded and guarded: all sixteen reads hit the same single `nav_state`
-  // row over one database connection, so a wedged store stalls the lot — and
-  // an unbounded, uncaught `Future.wait` here meant `runApp` was never
-  // reached. Every one of these controllers has a working default, so a
-  // failure or timeout costs the user their *preferences* for this launch,
-  // never the app itself.
+  // Bounded and guarded: these reads share one database connection, so a
+  // wedged store stalls the lot — and an unbounded, uncaught `Future.wait`
+  // here meant `runApp` was never reached. Every preference controller has a
+  // working default, so a failure or timeout costs the user their
+  // *preferences* for this launch, never the app itself. One load serves them
+  // all: each controller follows `devicePrefs`, so a preference added later
+  // needs no line here.
   try {
     await Future.wait([
       services.auth.restore(),
-      services.theme.restore(),
-      services.locale.restore(),
-      services.textScale.restore(),
-      services.keyboardShortcuts.restore(),
-      services.sidebar.restore(),
-      services.confirmActions.restore(),
-      services.statusTabs.restore(),
-      services.hideUnverifiedUsers.restore(),
-      services.tasksView.restore(),
-      services.hideEmptyPanels.restore(),
-      services.phoneActions.restore(),
-      services.sidebarBadgeModes.restore(),
-      services.sidebarMenu.restore(),
+      services.devicePrefs.load(),
       services.recentlyViewed.restore(),
-      services.contactsSync.restore(),
     ]).timeout(_kRestoreBudget);
   } catch (e, st) {
     diag?.recordError(e, st, context: 'boot restore');

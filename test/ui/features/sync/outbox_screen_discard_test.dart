@@ -18,8 +18,10 @@ import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/ui/features/sync/views/outbox_screen.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
 
 import '../../../_localization_helper.dart';
+import '../../../_support/device_prefs_test_support.dart';
 
 /// invoiceninja/flutter#44: "Discard doesn't immediately remove the item from
 /// view; requires re-entering Outbox."
@@ -178,8 +180,9 @@ void main() {
                 db: db,
                 sync: sync,
                 confirmActions: ConfirmActionsController(
-                  db: db,
-                  initial: confirmActions,
+                  prefs: prefsWith({
+                    DevicePrefKeys.confirmActions: confirmActions,
+                  }),
                 ),
               ),
             ),

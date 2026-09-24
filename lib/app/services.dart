@@ -37,7 +37,9 @@ import 'package:admin/app/theme_controller.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/models/value/company_format_settings.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/data/repositories/bank_account_repository.dart';
 import 'package:admin/data/repositories/bank_transaction_repository.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
@@ -297,6 +299,7 @@ class Services implements SidebarBadgeContext {
     required this.apiClient,
     required this.biometric,
     required this.deviceContacts,
+    required this.devicePrefs,
     required this.theme,
     required this.accentColor,
     required this.locale,
@@ -588,6 +591,12 @@ class Services implements SidebarBadgeContext {
   /// Reads a single contact from the device address book (iOS); a no-op stub on
   /// web / non-iOS so the client-edit "Add from contacts" button hides itself.
   final DeviceContactsService deviceContacts;
+
+  /// This device's preferences (`device_prefs`), mirrored in memory. Loaded
+  /// once at boot by `main`; every preference controller below reads and
+  /// writes through it, and follows it when a data wipe forgets the account
+  /// preferences.
+  final DevicePrefsStore devicePrefs;
   final ThemeController theme;
 
   /// Per-(company, user) accent color resolver. Emits the current user's
@@ -608,11 +617,8 @@ class Services implements SidebarBadgeContext {
   /// Device-local keyboard-shortcut overrides (Settings → Keyboard Shortcuts).
   /// Resolves user overrides over the catalog defaults and feeds all three
   /// consumers at once: the shell's live `Shortcuts` map, the hold-modifier
-  /// hint bar, and the `?` help dialog. Persists to `nav_state`, like [theme] /
-  /// [textScale] — and, like them, **does not survive logout**: `logout()`
-  /// wipes every Drift table, `nav_state` included, and nothing re-seeds the
-  /// row. (The in-memory map outlives the wipe, so the UI keeps showing the
-  /// custom bindings until the next launch — don't read that as persistence.)
+  /// hint bar, and the `?` help dialog. A device preference, like [theme] /
+  /// [textScale] — and, like them, it survives a sign-out.
   final KeyboardShortcutsController keyboardShortcuts;
 
   /// The locale `MaterialApp.locale` actually binds to — resolves the device
@@ -685,9 +691,9 @@ class Services implements SidebarBadgeContext {
   final SidebarController sidebar;
 
   /// What each sidebar row's count badge counts (Settings → Device Settings →
-  /// Sidebar counters, or a right-click on the row). Persists to `nav_state`
-  /// like [theme] / [keyboardShortcuts] — and, like them, does not survive
-  /// logout, which wipes every Drift table.
+  /// Sidebar counters, or a right-click on the row). An account preference:
+  /// a sign-out forgets it, in memory too, since the counters describe the
+  /// signed-in account's modules.
   final SidebarBadgeModeController sidebarBadgeModes;
 
   /// Device-local main-menu preference — layout (list / grid), order, and which
@@ -1254,11 +1260,15 @@ class Services implements SidebarBadgeContext {
     final passwordCache = PasswordCache();
     final authService = AuthService(httpClient: httpClient);
     final tokenStore = tokenStorage ?? defaultTokenStorage();
+    // Built before everything that reads a preference, and handed to the
+    // disposer so a data wipe forgets the account preferences in memory too.
+    final devicePrefs = DevicePrefsStore(db);
     final auth = AuthRepository(
       db: db,
       authService: authService,
       tokenStorage: tokenStore,
       passwordCache: passwordCache,
+      disposer: LocalDataDisposer(db, prefs: devicePrefs),
     );
     final serverVersion = ValueNotifier<String?>(null);
     final clientTooOld = ValueNotifier<({String minRequired, String current})?>(
@@ -1288,8 +1298,8 @@ class Services implements SidebarBadgeContext {
       // `clearPeekCache` / `invalidateAllFormatters` fan-out below) both run
       // on the preserve path too. Only `onBeforeDataWipe` is
       // destructive-path-only — contacts sync, which should survive a
-      // re-lock, and the in-memory `nav_state` preferences (menu, Tasks
-      // layout, hide-empty-panels), which the preserved row still holds.
+      // re-lock — and so is forgetting the account preferences (menu, Tasks
+      // layout, hide-empty-panels), which only the wipe does.
       // `logout()` still writes the re-lock gate, so re-entry requires
       // re-auth.
       onUnauthorized: () async => auth.logout(data: LocalDataPolicy.keep),
@@ -1591,11 +1601,11 @@ class Services implements SidebarBadgeContext {
       if (companyId == null || companyId.isEmpty) return;
       sync.drainOnce(companyId: companyId);
     });
-    final theme = ThemeController(db: db);
+    final theme = ThemeController(prefs: devicePrefs);
     final accentColor = AccentColorController(auth: auth, users: userRepo);
-    final locale = LocaleController(db: db);
-    final textScale = TextScaleController(db: db);
-    final keyboardShortcuts = KeyboardShortcutsController(db: db);
+    final locale = LocaleController(prefs: devicePrefs);
+    final textScale = TextScaleController(prefs: devicePrefs);
+    final keyboardShortcuts = KeyboardShortcutsController(prefs: devicePrefs);
     // Resolves the UI locale: device override → active company's
     // settings.language_id → English. Listens to the override + auth.session,
     // and is recomputed on settings save via the onSettingsWritten hook above.
@@ -1605,12 +1615,14 @@ class Services implements SidebarBadgeContext {
       statics: statics,
       db: db,
     );
-    final confirmActions = ConfirmActionsController(db: db);
-    final statusTabs = StatusTabsController(db: db);
-    final hideUnverifiedUsers = HideUnverifiedUsersController(db: db);
-    final tasksView = TasksViewController(db: db);
-    final hideEmptyPanels = HideEmptyPanelsController(db: db);
-    final phoneActions = PhoneActionsController(db: db);
+    final confirmActions = ConfirmActionsController(prefs: devicePrefs);
+    final statusTabs = StatusTabsController(prefs: devicePrefs);
+    final hideUnverifiedUsers = HideUnverifiedUsersController(
+      prefs: devicePrefs,
+    );
+    final tasksView = TasksViewController(prefs: devicePrefs);
+    final hideEmptyPanels = HideEmptyPanelsController(prefs: devicePrefs);
+    final phoneActions = PhoneActionsController(prefs: devicePrefs);
     final pendingCall = PendingCallController();
     // One instance, shared by the picker (`services.deviceContacts`) and the
     // sync engine below — the native impl caches the device's contacts account,
@@ -1624,7 +1636,7 @@ class Services implements SidebarBadgeContext {
     // getter only runs during a sync pass, long after this assignment.
     late final ContactsSyncController contactsSync;
     contactsSync = ContactsSyncController(
-      db: db,
+      prefs: devicePrefs,
       engine: ContactsSyncService(
         device: deviceContacts,
         clients: entities.clients,
@@ -1637,9 +1649,9 @@ class Services implements SidebarBadgeContext {
         groupStore: () => contactsSync,
       ),
     );
-    final sidebar = SidebarController(db: db);
-    final sidebarBadgeModes = SidebarBadgeModeController(db: db);
-    final sidebarMenu = SidebarMenuController(db: db);
+    final sidebar = SidebarController(prefs: devicePrefs);
+    final sidebarBadgeModes = SidebarBadgeModeController(prefs: devicePrefs);
+    final sidebarMenu = SidebarMenuController(prefs: devicePrefs);
     // Captures the deferred `late final Services services` declared above —
     // same pattern as `companyRepo.onSettingsWritten`. The runner only fires on
     // a user action, long after the assignment below.
@@ -1731,10 +1743,11 @@ class Services implements SidebarBadgeContext {
       // outgoing user's company, and offering to log it after a different user
       // signs in would file a note against ids they never saw.
       services.pendingCall.clear();
-      // The in-memory mirrors of `nav_state` preferences (the main menu, the
-      // Tasks layout, "Hide empty panels") are NOT reset here: this hook also
-      // runs on the idle re-lock / 401 path, which keeps `nav_state`. They
-      // reset in `onBeforeDataWipe` below, when the row really goes.
+      // Device preferences are NOT reset here: this hook also runs on the idle
+      // re-lock / 401 path, which keeps local data. The account ones (the main
+      // menu, the Tasks layout, "Hide empty panels", …) are forgotten by the
+      // data wipe itself — `LocalDataDisposer.wipeAll` → `devicePrefs` — and
+      // every controller follows the store back to its default.
       // Drop every repo's first-frame seed cache. Those hold display names —
       // user data — and a second user signing in on the same install must not
       // inherit the previous one's. Also `invalidateAllFormatters`, whose doc
@@ -1754,22 +1767,9 @@ class Services implements SidebarBadgeContext {
     // database (and therefore the link table), so the user's synced cards
     // should survive it rather than being deleted and rebuilt on re-entry.
     auth.onBeforeDataWipe = () async {
-      // `nav_state` is about to go, but these controllers hold its values in
-      // memory and outlive the wipe — so a second user signing in without
-      // relaunching would open Tasks on the first one's board, see their menu
-      // (and persist that array into their own fresh row on the first menu
-      // tap), and inherit their "Hide empty panels" choice.
-      //
-      // Here, not in `onBeforeLogout`: that also runs on the idle re-lock / 401
-      // path, which KEEPS `nav_state`. Resetting there showed the same user the
-      // default menu after a re-lock, and their next menu edit then saved that
-      // default over their real order.
-      //
-      // First, and synchronous, so a failing contacts pass can't skip them.
-      sidebarMenu.resetInMemory();
-      tasksView.resetInMemory();
-      hideEmptyPanels.resetInMemory();
-      hideUnverifiedUsers.resetInMemory();
+      // Needs the link table, which the wipe is about to destroy. (The account
+      // preferences — the main menu, the Tasks layout, … — need no hook: the
+      // wipe forgets them in the store, and each controller follows it.)
       await contactsSync.removeAllCompanies();
     };
     final priorOnActiveCompanyChanged = auth.onActiveCompanyChanged;
@@ -1898,6 +1898,7 @@ class Services implements SidebarBadgeContext {
           biometricService ??
           (kIsWeb ? const WebBiometricService() : LocalAuthBiometricService()),
       deviceContacts: deviceContacts,
+      devicePrefs: devicePrefs,
       theme: theme,
       accentColor: accentColor,
       locale: locale,

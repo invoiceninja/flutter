@@ -121,10 +121,8 @@ class AuthRepository {
   /// swallowed; logout must complete regardless.
   void Function()? onSessionReset;
 
-  /// Wired by DI to `ContactsSyncController.removeAllCompanies` and to the
-  /// `resetInMemory()` of every controller that mirrors a `nav_state` value it
-  /// can't re-read (the main menu, the Tasks layout, "Hide empty panels").
-  /// Invoked immediately before
+  /// Wired by DI to `ContactsSyncController.removeAllCompanies`. Invoked
+  /// immediately before
   /// the database is wiped — by [logout], and by the different-identity wipe
   /// at sign-in — and **only on those destructive paths**: deliberately not
   /// on the [LocalDataPolicy.keep] idle-timeout re-lock, where the session is
@@ -134,9 +132,9 @@ class AuthRepository {
   /// express "we are about to destroy local state". The contacts sync needs
   /// exactly that: its link table lives in the database, so anything not
   /// cleaned up here is stranded on the device forever — a signed-out user's
-  /// whole client list left sitting in the address book. So does an in-memory
-  /// mirror of a `nav_state` column, which must forget its value when (and
-  /// only when) the row it mirrors is destroyed. Failures are logged and
+  /// whole client list left sitting in the address book. (The account
+  /// preferences need no hook: the wipe itself forgets them, and their
+  /// controllers follow `DevicePrefsStore`.) Failures are logged and
   /// swallowed; logout must complete regardless.
   Future<void> Function()? onBeforeDataWipe;
 
@@ -376,7 +374,7 @@ class AuthRepository {
     // logout having cleared them, survive the Drift wipe below (they are not
     // in Drift), and the incoming user's first `record()` re-persists them
     // into the freshly-wiped `nav_state`. Everything else the hook drops
-    // (deep links, the activity cache, the sidebar menu, peek caches) is
+    // (deep links, the activity cache, peek caches) is
     // already empty on a cold start; running the whole fan-out rather than
     // cherry-picking recents is what keeps this correct as that list grows.
     //

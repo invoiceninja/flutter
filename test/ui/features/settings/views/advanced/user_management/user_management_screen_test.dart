@@ -24,11 +24,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
-import 'package:drift/native.dart';
 
 import 'package:admin/app/hide_unverified_users_controller.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/db/app_database.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/models/domain/user.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -36,6 +34,7 @@ import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/views/advanced/user_management_screen.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../../../../_localization_helper.dart';
 
@@ -95,25 +94,18 @@ class _FakeAuth implements AuthRepository {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
-/// One lazily-opened in-memory database for the whole file. It exists only to
-/// satisfy [HideUnverifiedUsersController]'s constructor — the screen only ever
-/// reads `.value` and listens, so `restore()` / `set()` are never called and no
-/// Drift stream is opened on it. Per-instance would mean one full `onCreate`
-/// per test for nothing.
-AppDatabase? _prefDb;
-AppDatabase _throwawayDb() => _prefDb ??= AppDatabase(NativeDatabase.memory());
-
 class _FakeServices implements Services {
   _FakeServices({required this.auth, required this.user})
-    : hideUnverifiedUsers = HideUnverifiedUsersController(db: _throwawayDb());
+    : hideUnverifiedUsers = HideUnverifiedUsersController(
+        prefs: DevicePrefsStore(null),
+      );
   @override
   final AuthRepository auth;
   @override
   final UserRepository user;
 
   /// Read by the roster to decide whether to badge a row "Hidden from
-  /// assignment" (invoiceninja/flutter#150). The database is only touched by
-  /// `restore()` / `set()`, neither of which the screen calls.
+  /// assignment" (invoiceninja/flutter#150). Memory-only.
   @override
   final HideUnverifiedUsersController hideUnverifiedUsers;
 

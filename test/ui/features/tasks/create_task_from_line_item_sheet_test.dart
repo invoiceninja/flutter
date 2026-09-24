@@ -26,6 +26,7 @@ import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/ui/features/tasks/view_models/task_edit_view_model.dart'
     show emptyTask;
 import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../_localization_helper.dart';
 import '../shell/_shell_test_helpers.dart';
@@ -128,7 +129,7 @@ class _FakeServices implements Services {
 
   @override
   final HideUnverifiedUsersController hideUnverifiedUsers =
-      HideUnverifiedUsersController(db: throwawayDb());
+      HideUnverifiedUsersController(prefs: DevicePrefsStore(null));
 
   @override
   dynamic noSuchMethod(Invocation i) =>

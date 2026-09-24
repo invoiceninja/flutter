@@ -16,6 +16,7 @@ import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 import 'package:admin/ui/features/dashboard/widgets/manage_dashboard_cards_sheet.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 import '../../../../_localization_helper.dart';
 import '../_fake_dashboard_repo.dart';
@@ -92,7 +93,7 @@ void main() {
     repo = FakeDashboardRepo(db);
     // Automatic. This harness's window is not a phone (see `openPanels`), so
     // automatic resolves to off here.
-    pref = HideEmptyPanelsController(db: db);
+    pref = HideEmptyPanelsController(prefs: DevicePrefsStore(db));
     vm = DashboardViewModel(
       repo: repo,
       companyId: 'co',

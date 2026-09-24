@@ -154,7 +154,7 @@ class RecentlyViewedController extends ChangeNotifier {
   }
 
   /// Drop every company's recents from memory. Called from the logout fan-out
-  /// in `Services.build`, beside `sidebarMenu.resetInMemory()`.
+  /// in `Services.build` (`onBeforeLogout`).
   ///
   /// Storage being keyed by company makes cross-*company* isolation structural,
   /// which is why [_onSession] deliberately doesn't clear — but the cross-*user*

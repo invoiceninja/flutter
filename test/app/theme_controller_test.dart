@@ -1,16 +1,20 @@
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/theme_controller.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../_support/device_prefs_test_support.dart';
+
 /// Tests target ThemeController's persistence contract:
 ///   * setting any of mode / lightVariant / darkVariant writes the matching
-///     `nav_state` column and round-trips through `restore()` on next launch
+///     device preference and survives a relaunch
 ///   * no notification fires when the same value is set twice
-///   * `restore()` ignores unrecognized stored strings (forwards-compat for
-///     a future palette rename)
+///   * an unrecognized stored string reads as the default (forwards-compat
+///     for a future palette rename)
 /// They don't re-test Drift or ChangeNotifier itself.
 
 void main() {
@@ -23,71 +27,67 @@ void main() {
     await db.close();
   });
 
-  test(
-    'setThemeMode writes nav_state.theme_mode and round-trips on restore()',
-    () async {
-      final controller = ThemeController(db: db);
-      await controller.setThemeMode(ThemeMode.dark);
+  ThemeController newController() =>
+      ThemeController(prefs: DevicePrefsStore(db));
 
-      final row = await db.navStateDao.current();
-      expect(row?.themeMode, 'dark');
+  /// A relaunch: a new store, loaded from the same database.
+  Future<ThemeController> relaunch() async {
+    final prefs = DevicePrefsStore(db);
+    await prefs.load();
+    return ThemeController(prefs: prefs);
+  }
 
-      final fresh = ThemeController(db: db);
-      expect(fresh.themeMode, ThemeMode.system, reason: 'before restore');
-      await fresh.restore();
-      expect(fresh.themeMode, ThemeMode.dark);
-    },
-  );
+  Future<Map<String, String>> rows() => db.devicePrefsDao.readAll();
+
+  test('setThemeMode writes its preference and survives a relaunch', () async {
+    await newController().setThemeMode(ThemeMode.dark);
+    expect((await rows())[DevicePrefKeys.themeMode.name], 'dark');
+
+    final prefs = DevicePrefsStore(db);
+    final fresh = ThemeController(prefs: prefs);
+    expect(fresh.themeMode, ThemeMode.system, reason: 'before the boot load');
+    var notified = false;
+    fresh.addListener(() => notified = true);
+    await prefs.load();
+    expect(fresh.themeMode, ThemeMode.dark);
+    expect(notified, isTrue, reason: 'MaterialApp rebuilds on the load');
+  });
 
   test(
     'setLightVariant + setDarkVariant write their columns and round-trip',
     () async {
-      final controller = ThemeController(db: db);
+      final controller = newController();
       await controller.setLightVariant(LightVariant.mist);
       await controller.setDarkVariant(DarkVariant.carbon);
 
-      final row = await db.navStateDao.current();
-      expect(row?.lightVariant, 'mist');
-      expect(row?.darkVariant, 'carbon');
+      expect((await rows())[DevicePrefKeys.lightVariant.name], 'mist');
+      expect((await rows())[DevicePrefKeys.darkVariant.name], 'carbon');
 
-      final fresh = ThemeController(db: db);
-      expect(fresh.lightVariant, LightVariant.sand, reason: 'before restore');
-      expect(fresh.darkVariant, DarkVariant.espresso, reason: 'before restore');
-      await fresh.restore();
+      final fresh = await relaunch();
       expect(fresh.lightVariant, LightVariant.mist);
       expect(fresh.darkVariant, DarkVariant.carbon);
     },
   );
 
-  test(
-    'restore() ignores unrecognized variant strings and keeps defaults',
-    () async {
-      // Seed a row with bogus variant names — a future rename would land
-      // legacy installs in this state; the controller must not crash.
-      await db.navStateDao.save(
-        currentRoute: null,
-        selectedCompanyId: null,
-        locale: null,
-        themeMode: 'light',
-        lightVariant: 'no_such_variant',
-        darkVariant: 'also_unknown',
-        filtersJson: null,
-        sidebarCollapsed: null,
-        now: 1,
-      );
-
-      final controller = ThemeController(db: db);
-      await controller.restore();
-      expect(controller.themeMode, ThemeMode.light);
-      expect(controller.lightVariant, LightVariant.sand);
-      expect(controller.darkVariant, DarkVariant.espresso);
-    },
-  );
+  test('unrecognized variant strings read as the defaults', () async {
+    // Bogus variant names — a future rename would land legacy installs in
+    // this state; the controller must not crash.
+    final controller = ThemeController(
+      prefs: prefsWith({
+        DevicePrefKeys.themeMode: 'light',
+        DevicePrefKeys.lightVariant: 'no_such_variant',
+        DevicePrefKeys.darkVariant: 'also_unknown',
+      }),
+    );
+    expect(controller.themeMode, ThemeMode.light);
+    expect(controller.lightVariant, LightVariant.sand);
+    expect(controller.darkVariant, DarkVariant.espresso);
+  });
 
   test(
     'override layers on the preset, then a preset change clears that side',
     () async {
-      final controller = ThemeController(db: db);
+      final controller = newController();
       await controller.setLightVariant(LightVariant.mist);
       await controller.setCustomOverride(
         Brightness.light,
@@ -114,12 +114,10 @@ void main() {
         const Color(0xFFAABBCC),
       );
 
-      final row = await db.navStateDao.current();
-      expect(row?.lightVariant, 'paper');
-      expect(row?.customThemeJson, isNotNull);
+      expect((await rows())[DevicePrefKeys.lightVariant.name], 'paper');
+      expect((await rows())[DevicePrefKeys.customTheme.name], isNotNull);
 
-      final fresh = ThemeController(db: db);
-      await fresh.restore();
+      final fresh = await relaunch();
       expect(fresh.lightVariant, LightVariant.paper);
       expect(fresh.customTheme.lightOverrides, isEmpty);
       expect(
@@ -130,7 +128,7 @@ void main() {
   );
 
   test('lightTokens identity: bare preset is the const singleton', () {
-    final controller = ThemeController(db: db);
+    final controller = newController();
     expect(controller.lightTokens, same(InTheme.lightSand));
     expect(identical(controller.lightTokens, controller.lightTokens), isTrue);
 
@@ -151,7 +149,7 @@ void main() {
   test(
     'clearCustomSide reverts the side to the bare preset singleton',
     () async {
-      final controller = ThemeController(db: db);
+      final controller = newController();
       await controller.setLightVariant(LightVariant.mist);
       await controller.setCustomOverride(
         Brightness.light,
@@ -165,17 +163,17 @@ void main() {
       expect(controller.customTheme.lightOverrides, isEmpty);
       expect(controller.lightTokens, same(InTheme.lightMist));
 
-      final fresh = ThemeController(db: db);
-      await fresh.restore();
+      final fresh = await relaunch();
       expect(fresh.customTheme.lightOverrides, isEmpty);
     },
   );
 
   test('setters are no-ops when the value is unchanged', () async {
     final controller = ThemeController(
-      db: db,
-      initialMode: ThemeMode.light,
-      initialLightVariant: LightVariant.paper,
+      prefs: prefsWith({
+        DevicePrefKeys.themeMode: 'light',
+        DevicePrefKeys.lightVariant: 'paper',
+      }),
     );
     var notifications = 0;
     controller.addListener(() => notifications++);
@@ -188,4 +186,30 @@ void main() {
     await controller.setLightVariant(LightVariant.mist);
     expect(notifications, 2);
   });
+
+  test(
+    'a variant loaded at boot drops the tokens resolved for the old one',
+    () async {
+      // The memoised light palette must be cleared whenever the preset under
+      // the overrides changes — including a change that arrives from the store
+      // rather than a setter.
+      final prefs = DevicePrefsStore(db);
+      final controller = ThemeController(prefs: prefs);
+      await controller.setCustomOverride(
+        Brightness.light,
+        CustomToken.ink,
+        const Color(0xFF445566),
+      );
+      expect(controller.lightTokens.surface, InTheme.lightSand.surface);
+
+      await db.devicePrefsDao.put(
+        DevicePrefKeys.lightVariant.name,
+        'mist',
+        now: 1,
+      );
+      await prefs.load();
+      expect(controller.lightVariant, LightVariant.mist);
+      expect(controller.lightTokens.surface, InTheme.lightMist.surface);
+    },
+  );
 }

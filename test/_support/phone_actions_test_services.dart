@@ -20,6 +20,7 @@ import 'package:admin/data/repositories/settings_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 import 'package:admin/utils/formatting.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 
 /// UTC+13:45 — not an offset any real machine runs at, so the
 /// "same offset as this device ⇒ render nothing" branch of `ContactLocalTime`
@@ -79,7 +80,7 @@ class PhoneActionsTestServices implements Services {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
     return PhoneActionsTestServices._(
-      PhoneActionsController(db: db),
+      PhoneActionsController(prefs: DevicePrefsStore(db)),
       timezone,
       client == null
           ? null

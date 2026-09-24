@@ -174,7 +174,8 @@ carefully bounded (demo `loginWithToken` 15s, `statics.ensureLoaded()` 10s, both
 - `Future.wait([...16 restore() calls])` — all sixteen read the same single
   `nav_state` row over one connection, so a wedged store stalls the lot. Now
   `.timeout(_kRestoreBudget)` + `catch`; every controller has a working default, so
-  a failure costs the launch's *preferences*, never the app.
+  a failure costs the launch's *preferences*, never the app. (Since v12 the
+  preferences are one `devicePrefs.load()` — `docs/device-preferences.md`.)
 - `navStateDao.current()` — the last await before `runApp()`, so a stall there is
   indistinguishable from a hung app. Now `.timeout(_kNavStateBudget)` + `catch`,
   falling back to the default route.

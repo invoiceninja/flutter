@@ -297,9 +297,17 @@ QuarantinedStore readQuarantinedStoreFrom(File snapshot, {String? key}) {
       db.execute("PRAGMA key = \"x'$key'\"");
     }
     // The key is only checked on the first read; fail here, not per table.
-    db.select('SELECT count(*) FROM sqlite_master');
+    final present = {
+      for (final row in db.select(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      ))
+        row['name'] as String,
+    };
     final tables = <String, List<Map<String, Object?>>>{};
     for (final name in kSalvagedTables) {
+      // A table the store predates (`device_prefs` in one older than v12)
+      // has nothing to carry — not a failure worth a warning.
+      if (!present.contains(name)) continue;
       try {
         final result = db.select('SELECT * FROM "$name"');
         tables[name] = [

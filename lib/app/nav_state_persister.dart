@@ -37,7 +37,7 @@ import 'package:admin/data/db/app_database.dart';
 /// NOTE: only `view=full` is transient. The Tasks screen reuses the same
 /// `view=` key for its LAYOUT mode (`calendar`/`daily`/`weekly`/`kanban`), so a
 /// non-`full` `view` value is preserved. That mode is now also remembered
-/// device-locally (`nav_state.tasks_view`, invoiceninja/flutter#133) and the
+/// device-locally (`DevicePrefKeys.tasksView`, invoiceninja/flutter#133) and the
 /// view toggle emits no `?view=` at all, so the URL is no longer its main
 /// carrier — but the carve-out must stay for the two paths that still produce
 /// one: the calendar day-cell's `?view=daily&date=…` and the post-OAuth

@@ -1,56 +1,43 @@
 import 'package:flutter/widgets.dart';
-import 'package:logging/logging.dart';
 
-import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
+import 'package:admin/data/prefs/device_prefs_store.dart';
 import 'package:admin/l10n/supported_locales.dart';
 
-final _log = Logger('LocaleController');
-
-/// Owns the user's locale preference and persists it to `nav_state.locale`.
-/// `null` means "follow the device locale" — Flutter's
-/// [MaterialApp.locale] parameter treats null the same way.
+/// Owns the user's locale preference (`DevicePrefKeys.locale`, device-local).
+/// `null` means "follow the device locale" — Flutter's [MaterialApp.locale]
+/// parameter treats null the same way — and is stored as no row at all.
 class LocaleController extends ValueNotifier<Locale?> {
-  LocaleController({required AppDatabase db, DateTime Function()? now})
-    : _db = db,
-      _now = now ?? DateTime.now,
-      super(null);
-
-  final AppDatabase _db;
-  final DateTime Function() _now;
-
-  Future<void> restore() async {
-    final row = await _db.navStateDao.current();
-    final raw = row?.locale;
-    if (raw == null || raw.isEmpty) return;
-    final restored = _parse(raw);
-    if (restored != null) value = restored;
+  LocaleController({required DevicePrefsStore prefs})
+    : _prefs = prefs,
+      super(_parse(prefs.read(DevicePrefKeys.locale))) {
+    prefs.addListener(_sync);
   }
+
+  final DevicePrefsStore _prefs;
+
+  void _sync() => value = _parse(_prefs.read(DevicePrefKeys.locale));
 
   Future<void> set(Locale? locale) async {
     if (value == locale) return;
     value = locale;
-    try {
-      final existing = await _db.navStateDao.current();
-      await _db.navStateDao.save(
-        currentRoute: existing?.currentRoute,
-        selectedCompanyId: existing?.selectedCompanyId,
-        locale: locale == null ? '' : localeKey(locale),
-        themeMode: existing?.themeMode,
-        lightVariant: existing?.lightVariant,
-        darkVariant: existing?.darkVariant,
-        filtersJson: existing?.filtersJson,
-        sidebarCollapsed: existing?.sidebarCollapsed,
-        now: _now().millisecondsSinceEpoch,
-      );
-    } catch (e, st) {
-      _log.warning('Failed to persist locale', e, st);
-    }
+    await _prefs.write(
+      DevicePrefKeys.locale,
+      locale == null ? null : localeKey(locale),
+    );
   }
 
-  static Locale? _parse(String raw) {
-    if (raw.isEmpty) return null;
+  /// An empty string is what builds before v12 stored for "follow the device".
+  static Locale? _parse(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
     final parts = raw.split('_');
     if (parts.length == 1) return Locale(parts[0]);
     return Locale(parts[0], parts[1]);
+  }
+
+  @override
+  void dispose() {
+    _prefs.removeListener(_sync);
+    super.dispose();
   }
 }

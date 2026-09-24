@@ -553,7 +553,7 @@ extension InThemeContext on BuildContext {
 
 /// User-selectable light palette. Each value maps to a named [InTheme]
 /// preset; the user's [CustomTheme] overrides (if any) layer on top via
-/// [ThemeController.lightTokens]. Persisted to `nav_state.light_variant`.
+/// [ThemeController.lightTokens]. Persisted as `DevicePrefKeys.lightVariant`.
 enum LightVariant { sand, mist, paper }
 
 /// User-selectable dark palette. See [LightVariant].
@@ -592,7 +592,7 @@ T? _byName<T extends Enum>(List<T> values, Object? name) {
 /// The user's per-brightness colour overrides. Each side holds a sparse map
 /// of [CustomToken] → colour that layers on whatever preset is selected for
 /// that side. Immutable app-config (not a freezed API/domain model);
-/// persisted device-local as JSON in `nav_state.custom_theme_json`.
+/// persisted device-local as JSON (`DevicePrefKeys.customTheme`).
 @immutable
 class CustomTheme {
   const CustomTheme({

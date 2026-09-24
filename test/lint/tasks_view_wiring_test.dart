@@ -195,10 +195,15 @@ void main() {
     );
   });
 
-  test('the preference is restored at boot', () {
-    // Drop this line and the fix silently degrades to session-only: the mode
-    // survives a cancel, but a relaunch is back on the plain list.
-    expect(read('lib/main.dart'), contains('services.tasksView.restore()'));
+  test('the preference comes back on the next launch', () {
+    // Build it off the shared store and the fix silently degrades to
+    // session-only: the mode survives a cancel, but a relaunch is back on the
+    // plain list. The store is what `main` loads at boot
+    // (`test/lint/device_prefs_wiring_test.dart` pins the load).
+    expect(
+      read('lib/app/services.dart'),
+      contains('TasksViewController(prefs: devicePrefs)'),
+    );
   });
 
   /// Each custom view must derive **one** bool and feed it to both consumers.

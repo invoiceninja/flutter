@@ -17,6 +17,7 @@ import 'package:admin/ui/features/settings/widgets/contacts_sync_section.dart';
 import 'package:admin/ui/features/settings/widgets/customize_colors_section.dart';
 import 'package:admin/ui/features/settings/widgets/dashboard_panels_section.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
+import 'package:admin/ui/features/settings/widgets/local_data_copies.dart';
 import 'package:admin/ui/features/settings/widgets/phone_actions_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 import 'package:admin/ui/features/settings/widgets/sidebar_menu_section.dart';
@@ -50,6 +51,7 @@ const kDeviceSettingsSearchKeys = <String>[
   ...kSidebarMenuSearchKeys,
   ...kSidebarCountersSearchKeys,
   ...kSidebarBadgeModeSearchKeys,
+  ...kLocalDataCopiesSearchKeys,
 ];
 
 /// Top-level "Device Settings" page. Holds the device-local, no-save controls:
@@ -291,40 +293,51 @@ class _DataSectionState extends State<_DataSection> {
             ],
           ],
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: ValueListenableBuilder<ResyncProgress>(
-            valueListenable: _resync,
-            builder: (context, p, _) {
-              // Shared with the sidebar Sync button, so a pass started there
-              // shows here too — and tapping can't start a competing one.
-              final running = p.isRunningFor(companyId);
-              return FilledButton.icon(
-                // Compact, content-sized button. Without this the themed
-                // `Size.fromHeight(44)` default (= infinite min-width) would
-                // make the button fill the stretched FormSection column,
-                // defeating the centerRight alignment and rendering
-                // edge-to-edge.
-                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-                onPressed: running ? null : _run,
-                icon: running
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sync),
-                label: Text(
-                  running && p.total > 0
-                      ? context.tr('syncing_progress', {
-                          'count': '${p.completed}',
-                          'total': '${p.total}',
-                        })
-                      : context.tr('sync'),
-                ),
-              );
-            },
-          ),
+        // One child, not two: the kept copies render nothing when there are
+        // none, and as a child of their own they would still cost the card a
+        // gap (§ A card that hides itself still costs a gap).
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: ValueListenableBuilder<ResyncProgress>(
+                valueListenable: _resync,
+                builder: (context, p, _) {
+                  // Shared with the sidebar Sync button, so a pass started there
+                  // shows here too — and tapping can't start a competing one.
+                  final running = p.isRunningFor(companyId);
+                  return FilledButton.icon(
+                    // Compact, content-sized button. Without this the themed
+                    // `Size.fromHeight(44)` default (= infinite min-width) would
+                    // make the button fill the stretched FormSection column,
+                    // defeating the centerRight alignment and rendering
+                    // edge-to-edge.
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(64, 44),
+                    ),
+                    onPressed: running ? null : _run,
+                    icon: running
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync),
+                    label: Text(
+                      running && p.total > 0
+                          ? context.tr('syncing_progress', {
+                              'count': '${p.completed}',
+                              'total': '${p.total}',
+                            })
+                          : context.tr('sync'),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const LocalDataCopies(),
+          ],
         ),
       ],
     );

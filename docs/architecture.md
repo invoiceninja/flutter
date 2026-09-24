@@ -170,7 +170,7 @@ carefully bounded (demo `loginWithToken` 15s, `statics.ensureLoaded()` 10s, both
   `resetAndReopen()` can itself throw — on web a second `WasmDatabase.open` timing
   out against a store still locked by a stale browser context. `main()` caught only
   `KeyringUnavailableException`, so that `TimeoutException` escaped and `runApp()`
-  never ran. There is now a catch-all that renders `_LocalDataUnavailableApp`.
+  never ran. There is now a catch-all that renders `LocalDataUnavailableApp`.
 - `Future.wait([...16 restore() calls])` — all sixteen read the same single
   `nav_state` row over one connection, so a wedged store stalls the lot. Now
   `.timeout(_kRestoreBudget)` + `catch`; every controller has a working default, so
@@ -201,7 +201,7 @@ is why this took a reproduction attempt rather than a glance at the console:
 The rule that falls out: **treat `runApp()` as unconditional.** Anything between
 `WidgetsFlutterBinding.ensureInitialized()` and `runApp()` either has a timeout and a
 `catch` that degrades to a working default, or it renders an actionable screen — the
-`_SecureStorageUnavailableApp` / `_LocalDataUnavailableApp` pattern. A boot path that
+`_SecureStorageUnavailableApp` / `LocalDataUnavailableApp` pattern. A boot path that
 can only either succeed or hang is a bug even when it always succeeds in testing.
 
 
@@ -238,7 +238,7 @@ Three rules came out of it:
 `destroyDatabaseStore()` returns `bool`, and `resetAndReopen()` re-runs
 `isSchemaIntact()` on the reopened database. If the store was not cleared, or
 the reopened one is still drifted, it throws `DatabaseResetFailedException`
-instead of returning `wasReset: true`. `main` renders `_LocalDataUnavailableApp`
+instead of returning `wasReset: true`. `main` renders `LocalDataUnavailableApp`
 for it. An error screen the user can act on beats a silently unusable app.
 
 **2. A store that cannot be deleted is abandoned instead.** The live store name

@@ -1226,5 +1226,20 @@
   "old_failed_changes_singular": ":count failed change is more than 90 days old.",
   "old_failed_changes_plural": ":count failed changes are more than 90 days old.",
   "discard_old_failures_body_singular": "The server never took it, and it can't be recovered once discarded.",
-  "discard_old_failures_body_plural": "The server never took them, and they can't be recovered once discarded."
+  "discard_old_failures_body_plural": "The server never took them, and they can't be recovered once discarded.",
+  "local_data_rebuilt": "Local data was rebuilt",
+  "local_data_rebuilt_nothing_pending": "This device's copy of your data couldn't be opened, so it was rebuilt. Everything is downloading again.",
+  "local_data_rebuilt_kept_singular": "This device's copy of your data couldn't be opened, so it was rebuilt. The change that hadn't synced yet was kept; everything else is downloading again.",
+  "local_data_rebuilt_kept_plural": "This device's copy of your data couldn't be opened, so it was rebuilt. The :count changes that hadn't synced yet were kept; everything else is downloading again.",
+  "local_data_partly_recovered": "Some local data couldn't be recovered",
+  "local_data_partly_recovered_body": "This device's copy of your data couldn't be opened, so it was rebuilt \u2014 but not everything in it could be carried over, and changes that hadn't synced yet may be among what was lost. The old copy is kept on this device: Settings \u2192 Device Settings \u2192 Data.",
+  "local_data_not_recovered": "Local data couldn't be recovered",
+  "local_data_not_recovered_body": "This device's copy of your data couldn't be read, so it was rebuilt. Everything already synced is downloading again, but changes made on this device that hadn't synced yet couldn't be recovered. The old copy is kept on this device: Settings \u2192 Device Settings \u2192 Data.",
+  "local_data_reset": "Local data was reset",
+  "local_data_reset_body": "This browser's copy of your data couldn't be opened, so it was reset. Everything already synced is downloading again; any changes made here that hadn't synced yet were lost.",
+  "local_data_copies": "Old copies of local data",
+  "local_data_copies_help": "Kept after this device's data had to be rebuilt, in case support needs them. Deleting one frees its space.",
+  "local_data_copy_kept": "Kept :time \u00b7 :size",
+  "local_data_copy_not_recovered": "Not fully recovered",
+  "local_data_copy_delete_body": "This copy can't be recovered once it's deleted."
 }

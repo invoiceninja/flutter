@@ -39,6 +39,29 @@ class QuarantinedStore {
   bool get readable => error == null;
 }
 
+/// An old copy of the local database still on this device: a `.broken`
+/// snapshot a reset quarantined (the two most recent are kept), or an
+/// `.unrecovered` one, which is never pruned. Listed in Device Settings →
+/// Data so the user can see it and delete it.
+class RetainedStore {
+  const RetainedStore({
+    required this.path,
+    required this.keptAt,
+    required this.bytes,
+    required this.unrecovered,
+  });
+
+  final String path;
+  final DateTime keptAt;
+
+  /// With its sidecars.
+  final int bytes;
+
+  /// An `.unrecovered` copy: nothing could be read from it, or not all of its
+  /// rows came across — the copy support would want.
+  final bool unrecovered;
+}
+
 /// What happened to the user's local data when the store had to be reset —
 /// for the log now, and for the post-boot notice.
 sealed class LocalDataRecovery {

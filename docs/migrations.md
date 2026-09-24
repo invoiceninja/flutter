@@ -258,7 +258,7 @@ change that had not reached the server.
   `first_unlock_this_device` keychain items), reported as `DatabaseKeyLostException`.
 - **The outcome is `OpenedDatabase.recovery`** — sealed `LocalDataRecovery`:
   `LocalDataSalvaged` or `LocalDataUnrecoverable`. `main` logs it at WARNING, so it lands in
-  the diagnostics log; nothing shows it to the user yet.
+  the diagnostics log, and the user is told once — § What the user is told about a reset.
 
 Pinned by `test/data/db/salvage_test.dart`, including a round trip through an encrypted
 file — `flutter test` builds sqlite3mc, so the wrong-key case genuinely fails to read.
@@ -266,6 +266,42 @@ file — `flutter test` builds sqlite3mc, so the wrong-key case genuinely fails 
 **Web has no reader yet.** `readQuarantinedStore` returns null there, so a web reset still
 loses the durable tables. Closing it means reading the abandoned store's bytes
 (`IndexedDbFileSystem` / OPFS) into an in-memory wasm sqlite before it is deleted.
+
+## What the user is told about a reset
+
+A reset's outcome used to reach only the diagnostics log: a user whose unsynced changes could
+not be recovered was never told, and one whose changes all came across watched their lists
+empty and refill with no explanation. `LocalDataRecoveryNotice`
+(`lib/ui/features/boot/local_data_recovery_notice.dart`), mounted in `MaterialApp.router`'s
+builder beside `CallLogPrompter`, now says it once, after the first frame:
+
+- **Everything carried across** (`LocalDataSalvaged` with no `incompleteTables`) is a toast
+  that counts the unsynced changes kept: nothing was lost, so nothing blocks the user.
+- **Something left behind** (`incompleteTables`), **nothing readable**
+  (`LocalDataUnrecoverable`), and **a reset with nothing carried** (`wasReset` with no
+  recovery — web, which has no reader yet) are dialogs, because the user may have lost work a
+  toast could scroll past. The two native ones point at Settings → Device Settings → Data.
+- It needs a context **inside** the router's `Navigator` (its own sits above it), which exists
+  only after the first frame, so it waits up to ten frames for one — `localDataNoticeFor`
+  holds the mapping, pinned by `test/ui/features/boot/local_data_recovery_notice_test.dart`.
+
+**The copies a reset keeps leave the device only through the user.** Device Settings → Data
+lists every kept copy — the recent `.broken.<ts>` snapshots and every `.unrecovered.<ts>` one —
+with its age, its size and a Delete that always asks (`LocalDataCopies`,
+`lib/ui/features/settings/widgets/local_data_copies.dart`, over `listRetainedStores` /
+`deleteRetainedStore` in `database_opener_io.dart`; web keeps no copies). Nothing else ever
+deletes an `.unrecovered` copy, so without this one repair failure after another would pile up
+encrypted databases for good. `deleteRetainedStore` refuses any file that isn't a kept copy —
+the live store above all. There is no export and no restore: a copy is encrypted with this
+device's key, so it means nothing anywhere else, and re-importing it would fail exactly as the
+import that kept it did.
+
+The boot screen that renders when the store can't be opened at all is
+`LocalDataUnavailableApp` (`lib/ui/features/boot/local_data_unavailable_app.dart`): plain
+English, because it paints before `Services` and localization exist, with per-kind and
+per-platform copy, and injectable seams so both platforms are widget-tested
+(`local_data_unavailable_app_test.dart`). It scrolls, and its buttons wrap rather than
+overflow — a landscape phone, or a large text size, is smaller than the screen assumed.
 
 ## Appendix — historical: the pre-launch squash (do NOT run)
 

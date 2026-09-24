@@ -218,3 +218,10 @@ Future<QuarantinedStore?> readQuarantinedStore() async => null;
 
 /// Web half of [readQuarantinedStore]'s retention: nothing to rename.
 Future<String> retainQuarantinedStore(String source) async => source;
+
+/// Web keeps no old copies: an abandoned store is swept on a later load, and
+/// nothing reads it before then.
+Future<List<RetainedStore>> listRetainedStores() async => const [];
+
+/// Web half of [listRetainedStores]: there is nothing to delete.
+Future<void> deleteRetainedStore(String path) async {}

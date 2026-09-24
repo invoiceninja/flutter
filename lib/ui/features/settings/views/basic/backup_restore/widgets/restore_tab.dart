@@ -15,6 +15,7 @@ import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
+import 'package:admin/utils/formatting.dart';
 
 /// Search keys rendered by this tab.
 const kRestoreTabSearchKeys = <String>[
@@ -236,7 +237,7 @@ class _RestoreTabBodyState extends State<RestoreTabBody> {
                 ),
                 child: _PickedFileRow(
                   name: _fileName,
-                  sizeText: _formatBytes(_fileLength),
+                  sizeText: formatByteSize(_fileLength),
                   onClear: _busy
                       ? null
                       : () => setState(() {
@@ -303,12 +304,6 @@ class _RestoreTabBodyState extends State<RestoreTabBody> {
       ],
     );
   }
-}
-
-String _formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
 }
 
 class _PickedFileRow extends StatelessWidget {

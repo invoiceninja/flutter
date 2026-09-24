@@ -11,7 +11,6 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'package:admin/app/app_deep_links.dart';
 import 'package:admin/app/debug_capture_store.dart';
-import 'package:admin/app/app_reload.dart';
 import 'package:admin/app/boot_log.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:timezone/data/latest_10y.dart' as tz;
@@ -31,7 +30,6 @@ import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/db/app_database.dart';
-import 'package:admin/data/db/database_opener.dart';
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/password_cache.dart';
@@ -43,6 +41,9 @@ import 'package:admin/ui/core/widgets/call_log_prompter.dart';
 import 'package:admin/ui/core/widgets/shortcut_hint_overlay.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
+import 'package:admin/ui/features/boot/local_data_unavailable_app.dart';
+import 'package:admin/ui/features/boot/local_data_recovery_notice.dart';
+import 'package:admin/data/db/salvage.dart';
 
 /// Bootstrap entry point.
 ///
@@ -191,7 +192,7 @@ Future<void> _bootstrap() async {
     // web, usually the app being open in another tab). It was left untouched,
     // so the user's unsynced work is still there for the next attempt.
     diag?.recordError(e, st, context: 'openAppDatabase: ${e.kind.name}');
-    runApp(_LocalDataUnavailableApp(detail: '${e.cause}', kind: e.kind));
+    runApp(LocalDataUnavailableApp(detail: '${e.cause}', kind: e.kind));
     return;
   } catch (e, st) {
     // `openAppDatabase` recovers from a bad store by destroying and reopening
@@ -203,14 +204,14 @@ Future<void> _bootstrap() async {
     // was never called, and the user sat on the HTML boot loader forever with
     // no route out but clearing site data. Boot must always paint.
     diag?.recordError(e, st, context: 'openAppDatabase');
-    runApp(_LocalDataUnavailableApp(detail: '$e'));
+    runApp(LocalDataUnavailableApp(detail: '$e'));
     return;
   }
   mark('db-open (incl. secure-storage key)');
   if (opened.recovery case final recovery?) {
-    // Not yet surfaced in the UI — the diagnostics log is where a reset's
-    // outcome (what was carried over, or where the old store was kept) lands.
-    // `wasReset` is false when an earlier launch's salvage finished here.
+    // For the diagnostics log; the user is told by `LocalDataRecoveryNotice`
+    // once the app is up. `wasReset` is false when an earlier launch's
+    // salvage finished here.
     Logger('main.boot').warning(
       'Local data recovery (reset this launch: ${opened.wasReset}): $recovery',
     );
@@ -348,6 +349,7 @@ Future<void> _bootstrap() async {
     InvoiceNinjaApp(
       services: services,
       dbWasReset: opened.wasReset,
+      localDataRecovery: opened.recovery,
       initialLocation: initialLocation,
     ),
   );
@@ -393,169 +395,6 @@ class _SecureStorageUnavailableApp extends StatelessWidget {
                   SelectableText(
                     'snap connect invoiceninja:password-manager-service',
                     style: TextStyle(fontFamily: kMonoFontFamily),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Minimal full-screen error shown when the local database could not be
-/// opened *and* `openAppDatabase`'s own destroy-and-reopen recovery failed
-/// too. `Services` and localization aren't available this early, so the copy
-/// is plain English.
-///
-/// This exists because the alternative is worse than an error screen: before
-/// it, that failure escaped `_bootstrap` uncaught, `runApp` was never called,
-/// and the user was left on the HTML boot loader (`web/index.html`) — a dead
-/// end whose only escape was clearing site data. The overwhelmingly common
-/// cause on web is a store still locked by a stale browser context, which
-/// clears on its own within seconds, so "Try again" is a real fix and is
-/// offered first.
-class _LocalDataUnavailableApp extends StatefulWidget {
-  const _LocalDataUnavailableApp({required this.detail, this.kind});
-
-  /// The underlying error, shown small — enough for a bug report without
-  /// making the screen look like a crash dump.
-  final String detail;
-
-  /// Why the open failed, when `openAppDatabase` classified it and left the
-  /// store untouched ([DatabaseUnavailableException]); null when recovery
-  /// itself failed. Picks the explanation — "close your other tab" is the
-  /// right advice for a lock and useless for a full disk.
-  final DbOpenFailureKind? kind;
-
-  @override
-  State<_LocalDataUnavailableApp> createState() =>
-      _LocalDataUnavailableAppState();
-}
-
-class _LocalDataUnavailableAppState extends State<_LocalDataUnavailableApp> {
-  bool _busy = false;
-
-  Future<void> _resetAndReload() async {
-    setState(() => _busy = true);
-    try {
-      await destroyDatabaseStore();
-    } catch (e, st) {
-      Logger('main').warning('Resetting local data failed', e, st);
-    }
-    if (kIsWeb) {
-      reloadApp();
-    } else if (mounted) {
-      setState(() => _busy = false);
-    }
-  }
-
-  static String _explanation(DbOpenFailureKind? kind) => switch (kind) {
-    DbOpenFailureKind.storageFull =>
-      kIsWeb
-          ? 'Your browser has run out of storage for Invoice Ninja\'s local '
-                'data. Free up some space, then try again.'
-          : 'Your device has run out of storage for Invoice Ninja\'s local '
-                'data. Free up some space, then relaunch the app.',
-    DbOpenFailureKind.transient || DbOpenFailureKind.unknown =>
-      kIsWeb
-          ? 'Invoice Ninja is probably open in another tab, or a tab that '
-                'just closed is still holding its local data. Close any other '
-                'Invoice Ninja tabs, then try again.'
-          : 'The local database is busy or temporarily unavailable. Quit '
-                'Invoice Ninja and open it again to retry.',
-    // Recovery itself failed, or a reset-worthy failure we could not repair.
-    DbOpenFailureKind.corrupt ||
-    DbOpenFailureKind.migrationFailed ||
-    null => 'Invoice Ninja could not open its local database.',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    // Nothing here is localized on purpose: this screen renders before
-    // `Services` exists, so there is no `Localization` to read from.
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.storage_outlined, size: 48),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Could not open local data',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(_explanation(widget.kind), textAlign: TextAlign.center),
-                  const SizedBox(height: 12),
-                  // Honest about what a reset costs. This used to promise that
-                  // "everything is re-downloaded from the server", which is
-                  // true of the cache and false of the outbox: changes made on
-                  // this device that never reached the server exist nowhere
-                  // else. Native keeps the old store and carries those tables
-                  // into the new one on relaunch (`readQuarantinedStore`) when
-                  // it can still be read; web has no salvage yet.
-                  Text(
-                    kIsWeb
-                        ? 'Resetting deletes this device\'s copy of your data. '
-                              'Everything already synced downloads again, but '
-                              'changes made on this device that haven\'t '
-                              'synced yet are lost.'
-                        : 'Resetting starts this device\'s copy of your data '
-                              'over, and everything already synced downloads '
-                              'again. Changes that haven\'t synced yet are '
-                              'carried over if the old copy can still be read, '
-                              'and lost if it can\'t.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 20),
-                  // Paired side-by-side, never stacked (§ Design system).
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (kIsWeb) ...[
-                        FilledButton(
-                          onPressed: _busy ? null : reloadApp,
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(64, 44),
-                          ),
-                          child: const Text('Try again'),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      OutlinedButton(
-                        onPressed: _busy ? null : _resetAndReload,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(64, 40),
-                        ),
-                        child: Text(_busy ? 'Resetting…' : 'Reset local data'),
-                      ),
-                    ],
-                  ),
-                  if (!kIsWeb) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Then relaunch the app.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SelectableText(
-                    widget.detail,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontFamily: kMonoFontFamily,
-                    ),
                   ),
                 ],
               ),
@@ -665,12 +504,17 @@ class InvoiceNinjaApp extends StatefulWidget {
     required this.services,
     required this.dbWasReset,
     required this.initialLocation,
+    this.localDataRecovery,
     super.key,
   });
 
   final Services services;
   final bool dbWasReset;
   final String initialLocation;
+
+  /// What opening the database carried across from a reset store, or failed
+  /// to — told to the user once by [LocalDataRecoveryNotice].
+  final LocalDataRecovery? localDataRecovery;
 
   @override
   State<InvoiceNinjaApp> createState() => _InvoiceNinjaAppState();
@@ -771,9 +615,6 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
         (_) => NativeSplash.dismiss(),
       );
     });
-    if (widget.dbWasReset) {
-      debugPrint('Drift was reset on open — user should re-login and re-sync.');
-    }
   }
 
   @override
@@ -960,6 +801,20 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                           // widget's own sits above it, so a sheet pushed from
                           // there would find no Navigator at all. Same supplier
                           // `deepLinks.attach` takes, for the same reason.
+                          contextOf: () => _router
+                              .routerDelegate
+                              .navigatorKey
+                              .currentContext,
+                        ),
+                        // Paints nothing — once the app is up, it tells the
+                        // user what a reset of their local data did: a toast
+                        // when everything came across, a dialog when their
+                        // unsynced work may not have. Needs a context inside
+                        // the router's Navigator, like the prompter above.
+                        LocalDataRecoveryNotice(
+                          wasReset: widget.dbWasReset,
+                          recovery: widget.localDataRecovery,
+                          toasts: widget.services.toasts,
                           contextOf: () => _router
                               .routerDelegate
                               .navigatorKey

@@ -189,6 +189,7 @@ final List<_TabUnderTest> _tabsUnderTest = [
       'lib/ui/features/settings/widgets/list_status_tabs_section.dart',
       'lib/ui/features/settings/widgets/sidebar_menu_section.dart',
       'lib/ui/features/settings/widgets/sidebar_counters_section.dart',
+      'lib/ui/features/settings/widgets/local_data_copies.dart',
       'lib/domain/sidebar_badge_modes.dart',
     ],
     keys: kDeviceSettingsSearchKeys,

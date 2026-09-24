@@ -327,6 +327,56 @@ QuarantinedStore readQuarantinedStoreFrom(File snapshot, {String? key}) {
   }
 }
 
+/// `invoiceninja.sqlite.broken.<ts>` / `.unrecovered.<ts>` — a kept copy's
+/// main file, never one of its sidecars and never the live store.
+final _retainedStoreName = RegExp(
+  '^${RegExp.escape(_kDbFileName)}\\.(broken|unrecovered)\\.(\\d+)\$',
+);
+
+/// The old copies of the database this device still holds, newest first:
+/// the `.broken` snapshots a reset kept and every `.unrecovered` one. Nothing
+/// else ever deletes an `.unrecovered` copy, so Device Settings → Data lists
+/// them for the user to delete.
+Future<List<RetainedStore>> listRetainedStores() async =>
+    listRetainedStoresIn((await _dbFile()).parent);
+
+/// [listRetainedStores] with its directory explicit — exposed for tests.
+Future<List<RetainedStore>> listRetainedStoresIn(Directory dir) async {
+  if (!await dir.exists()) return const [];
+  final copies = <RetainedStore>[];
+  await for (final entity in dir.list()) {
+    if (entity is! File) continue;
+    final match = _retainedStoreName.firstMatch(p.basename(entity.path));
+    if (match == null) continue;
+    var bytes = await entity.length();
+    for (final suffix in _kSidecarSuffixes) {
+      final sidecar = File('${entity.path}$suffix');
+      if (await sidecar.exists()) bytes += await sidecar.length();
+    }
+    copies.add(
+      RetainedStore(
+        path: entity.path,
+        keptAt: DateTime.fromMillisecondsSinceEpoch(int.parse(match.group(2)!)),
+        bytes: bytes,
+        unrecovered: match.group(1) == 'unrecovered',
+      ),
+    );
+  }
+  return copies..sort((a, b) => b.keptAt.compareTo(a.keptAt));
+}
+
+/// Delete one copy [listRetainedStores] returned, with its sidecars. Refuses
+/// any other file — the live store above all.
+Future<void> deleteRetainedStore(String path) async {
+  if (_retainedStoreName.firstMatch(p.basename(path)) == null) {
+    throw ArgumentError.value(path, 'path', 'not a kept copy of the database');
+  }
+  for (final suffix in ['', ..._kSidecarSuffixes]) {
+    final file = File('$path$suffix');
+    if (await file.exists()) await file.delete();
+  }
+}
+
 /// Rename a quarantined snapshot (and its sidecars) to `.unrecovered.<ts>`,
 /// out of reach of [pruneBrokenDbFiles]. Returns the new path — or the old
 /// one if the rename failed.

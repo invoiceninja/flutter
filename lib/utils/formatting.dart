@@ -359,6 +359,13 @@ String dateFormatSample(String pattern, {String? locale}) {
 String timeFormatSample({required bool military}) =>
     formatTimeOfDay(13, 45, military: military);
 
+/// A file size for display: `512 B`, `12.4 KB`, `3.1 MB`.
+String formatByteSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+}
+
 /// "2m ago" / "3h ago" / "5d ago" / "2w ago" style label for a positive
 /// [Duration] elapsed since a past event. Wraps the same five translation
 /// keys the dashboard activity feed and System Logs both consume

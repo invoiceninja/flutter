@@ -45,7 +45,8 @@ const _wideItemsTable = [
   '<unlabelled>',
 ];
 
-/// Phone layout (390 px): tab label → field labels on that tab.
+/// Phone layout (390 px): tab label → field labels on that tab. No PDF tab —
+/// below `Breakpoints.wide` the PDF is the header's preview button.
 const _phone = <BillingDoc, Map<String, List<String>>>{
   BillingDoc.invoice: {
     'Details': [
@@ -59,15 +60,14 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
       'Partial/Deposit',
       'Partial Due Date',
       'Discount',
-      // Design is on the Details tab AND the Settings tab on mobile.
-      'Design',
+      // Design lives on the Settings tab only; the Details tab used to carry
+      // a second copy of it on phones and tablets.
       ..._cf,
     ],
     'Contacts': [],
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
-    'PDF': [],
   },
   BillingDoc.quote: {
     'Details': [
@@ -78,14 +78,12 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
       'Valid Until',
       'Discount',
       'Partial/Deposit',
-      'Design',
       ..._cf,
     ],
     'Contacts': [],
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
-    'PDF': [],
   },
   BillingDoc.credit: {
     'Details': [
@@ -96,14 +94,12 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
       'Due Date',
       'Partial/Deposit',
       'Discount',
-      'Design',
       ..._cf,
     ],
     'Contacts': [],
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
-    'PDF': [],
   },
   BillingDoc.purchaseOrder: {
     'Details': [
@@ -112,14 +108,12 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
       'Purchase Order Date',
       'Due Date',
       'Discount',
-      'Design',
       ..._cf,
     ],
     'Contacts': [],
     'Items': [],
     'Notes': [],
     'Settings': ['Design', 'Project', 'Exchange Rate', 'User', 'Add tag'],
-    'PDF': [],
   },
   BillingDoc.recurringInvoice: {
     'Details': [
@@ -128,7 +122,6 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
       'PO Number',
       'Discount',
       'Auto Bill',
-      'Design',
       ..._cf,
     ],
     'Schedule': ['Frequency', 'Next Send Date', 'Remaining Cycles', 'Due Date'],
@@ -136,16 +129,16 @@ const _phone = <BillingDoc, Map<String, List<String>>>{
     'Items': [],
     'Notes': [],
     'Settings': _settingsTab,
-    'PDF': [],
   },
 };
 
-/// Tablet (900 px): the same tabbed layout without the PDF tab (the edit
-/// screen shows its PDF button from 600 px up), and the Items tab switches to
-/// the wide line-item table.
+/// Tablet (900 px): the same tabbed layout plus a PDF tab (the header's
+/// preview button is phone-only), and the Items tab switches to the wide
+/// line-item table.
 Map<String, List<String>> _tablet(BillingDoc doc) => {
   for (final MapEntry(key: tab, value: fields) in _phone[doc]!.entries)
-    if (tab != 'PDF') tab: tab == 'Items' ? _wideItemsTable : fields,
+    tab: tab == 'Items' ? _wideItemsTable : fields,
+  'PDF': [],
 };
 
 /// Desktop (1440 px): every field on the card layout, in paint order.
@@ -270,7 +263,13 @@ void main() {
     );
     addTearDown(fixture.dispose);
     // The edit screens pass `showPdfTab: !narrow`, narrow meaning < 600 px.
-    final mounted = buildLayout(doc, fixture.services, showPdfTab: width < 600);
+    // (This used to pass `width < 600` — the inverse — so the phone and
+    // tablet expectations described each other's PDF tab.)
+    final mounted = buildLayout(
+      doc,
+      fixture.services,
+      showPdfTab: width >= 600,
+    );
     addTearDown(mounted.vm.dispose);
     seed?.call(mounted.vm);
     await tester.pumpWidget(wrapWithShell(fixture.services, mounted.layout));

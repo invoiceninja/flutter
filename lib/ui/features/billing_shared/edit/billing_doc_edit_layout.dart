@@ -10,14 +10,12 @@ import 'package:admin/data/models/domain/billing/billing_contact.dart';
 import 'package:admin/data/models/domain/billing/billing_doc_fields.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/domain/client.dart';
-import 'package:admin/data/models/domain/design.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
-import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
 import 'package:admin/ui/features/billing_shared/contacts/billing_doc_contacts_section.dart';
@@ -1346,42 +1344,11 @@ class _DetailsTabState<T extends BillingDocFields>
           ],
           _TaxSurchargeSection<T>(vm: vm),
           SizedBox(height: InSpacing.lg(context)),
-          _DesignPicker<T>(vm: vm),
-          SizedBox(height: InSpacing.lg(context)),
+          // No Design picker here: it is the Settings tab's first field, and
+          // a second copy on this tab showed it twice on phones and tablets.
           _customFields(context, vm),
         ],
       ),
-    );
-  }
-}
-
-class _DesignPicker<T extends BillingDocFields> extends StatelessWidget {
-  const _DesignPicker({required this.vm});
-  final BillingDocEditViewModel<T> vm;
-
-  @override
-  Widget build(BuildContext context) {
-    final services = context.read<Services>();
-    return StreamBuilder<List<Design>>(
-      stream: services.designs.watchAll(companyId: vm.companyId),
-      builder: (context, snapshot) {
-        final designs = snapshot.data ?? const <Design>[];
-        Design? selected;
-        for (final d in designs) {
-          if (d.id == vm.draft.designId) {
-            selected = d;
-            break;
-          }
-        }
-        return SearchableDropdownField<Design>(
-          label: context.tr('design'),
-          items: designs,
-          initialValue: selected,
-          displayString: (d) => d.name,
-          idOf: (d) => d.id,
-          onChanged: (d) => vm.setDesignId(d?.id ?? ''),
-        );
-      },
     );
   }
 }

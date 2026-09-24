@@ -15,8 +15,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// Scanned rather than exercised, for the same reason
 /// `billing_edit_tab_strip_wiring_test.dart` and
 /// `assigned_user_picker_wiring_test.dart` are: pumping one of these layouts
-/// for real needs a live `Services` plus a Drift-backed repository per picker,
-/// and **there is no widget test for any of them anywhere in `test/`**. The
+/// for real needs a live `Services` plus a Drift-backed repository per picker.
+/// The five billing layouts now have that harness
+/// (`test/ui/features/billing_shared/edit/_billing_edit_harness.dart`, used by
+/// `billing_doc_edit_layout_characterization_test.dart`), but only in create
+/// mode — the frozen row appears in EDIT mode, so it is still scanned here. The
 /// shared row's own mechanism is covered by
 /// `test/ui/core/widgets/locked_entity_field_row_test.dart`; what is left to
 /// protect is the wiring, and every failure here is silent — delete a branch

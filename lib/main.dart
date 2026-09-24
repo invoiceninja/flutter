@@ -187,6 +187,13 @@ Future<void> _bootstrap() async {
     diag?.recordError(e, st, context: 'openAppDatabase: keyring unavailable');
     runApp(const _SecureStorageUnavailableApp());
     return;
+  } on DatabaseUnavailableException catch (e, st) {
+    // The store could not be opened for a reason a reset would not fix (on
+    // web, usually the app being open in another tab). It was left untouched,
+    // so the user's unsynced work is still there for the next attempt.
+    diag?.recordError(e, st, context: 'openAppDatabase: ${e.kind.name}');
+    runApp(_LocalDataUnavailableApp(detail: '${e.cause}', kind: e.kind));
+    return;
   } catch (e, st) {
     // `openAppDatabase` recovers from a bad store by destroying and reopening
     // it, but that recovery can itself throw — on web a second
@@ -420,11 +427,17 @@ class _SecureStorageUnavailableApp extends StatelessWidget {
 /// clears on its own within seconds, so "Try again" is a real fix and is
 /// offered first.
 class _LocalDataUnavailableApp extends StatefulWidget {
-  const _LocalDataUnavailableApp({required this.detail});
+  const _LocalDataUnavailableApp({required this.detail, this.kind});
 
   /// The underlying error, shown small — enough for a bug report without
   /// making the screen look like a crash dump.
   final String detail;
+
+  /// Why the open failed, when `openAppDatabase` classified it and left the
+  /// store untouched ([DatabaseUnavailableException]); null when recovery
+  /// itself failed. Picks the explanation — "close your other tab" is the
+  /// right advice for a lock and useless for a full disk.
+  final DbOpenFailureKind? kind;
 
   @override
   State<_LocalDataUnavailableApp> createState() =>
@@ -447,6 +460,26 @@ class _LocalDataUnavailableAppState extends State<_LocalDataUnavailableApp> {
       setState(() => _busy = false);
     }
   }
+
+  static String _explanation(DbOpenFailureKind? kind) => switch (kind) {
+    DbOpenFailureKind.storageFull =>
+      kIsWeb
+          ? 'Your browser has run out of storage for Invoice Ninja\'s local '
+                'data. Free up some space, then try again.'
+          : 'Your device has run out of storage for Invoice Ninja\'s local '
+                'data. Free up some space, then relaunch the app.',
+    DbOpenFailureKind.transient || DbOpenFailureKind.unknown =>
+      kIsWeb
+          ? 'Invoice Ninja is probably open in another tab, or a tab that '
+                'just closed is still holding its local data. Close any other '
+                'Invoice Ninja tabs, then try again.'
+          : 'The local database is busy or temporarily unavailable. Quit '
+                'Invoice Ninja and open it again to retry.',
+    // Recovery itself failed, or a reset-worthy failure we could not repair.
+    DbOpenFailureKind.corrupt ||
+    DbOpenFailureKind.migrationFailed ||
+    null => 'Invoice Ninja could not open its local database.',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -471,17 +504,19 @@ class _LocalDataUnavailableAppState extends State<_LocalDataUnavailableApp> {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    kIsWeb
-                        ? 'This is usually another tab or a just-closed one '
-                              'still holding the local database. Trying again '
-                              'normally clears it.\n\n'
-                              'If it keeps happening, reset the local data — '
-                              'everything is re-downloaded from the server.'
-                        : 'Invoice Ninja could not open its local database.\n\n'
-                              'Resetting clears the local copy; everything is '
-                              're-downloaded from the server.',
+                  Text(_explanation(widget.kind), textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  // Honest about what a reset costs. This used to promise that
+                  // "everything is re-downloaded from the server", which is
+                  // true of the cache and false of the outbox: changes made on
+                  // this device that never reached the server exist nowhere
+                  // else, and resetting deletes them.
+                  const Text(
+                    'Resetting deletes this device\'s copy of your data. '
+                    'Everything already synced downloads again, but changes '
+                    'made on this device that haven\'t synced yet are lost.',
                     textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13),
                   ),
                   const SizedBox(height: 20),
                   // Paired side-by-side, never stacked (§ Design system).

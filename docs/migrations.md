@@ -14,9 +14,12 @@ The schema lives in the Dart table classes under `lib/data/db/`; `AppDatabase`
 
 1. **Edit the table(s)** under `lib/data/db/` (add a column, a table, etc.).
 2. **Bump the version** — `int get schemaVersion => N;` in `app_database.dart`.
-3. **Add an `onUpgrade` step** to the `MigrationStrategy`. Use drift's `stepByStep` (or a
-   manual `onUpgrade` body with `m.addColumn` / `m.createTable`); each step transforms the
-   previous version's shape into the next. Leave `onCreate` as the fresh-install path.
+3. **Add an `onUpgrade` step** inside the existing `transaction(() async { … })` block in
+   `app_database.dart`, and **make it idempotent**: add a column with
+   `_addColumnIfMissing(m, table, table.column)` — never a bare `m.addColumn` — and a table
+   with `m.createTable` (drift emits `IF NOT EXISTS`). Each step transforms the previous
+   version's shape into the next. Leave `onCreate` as the fresh-install path. See
+   § Every upgrade step is idempotent and transactional.
 4. **Re-create new indexes inside `onUpgrade` too.** The performance and Client-filter
    indexes are created in `onCreate` via `createPerformanceIndexes(this)` /
    `createClientFilterIndexes(this)`, which **existing users never re-run**. Both use
@@ -108,10 +111,77 @@ squash**; the matrix test will not cover it.
 ## The reset backstop is a last resort, not a migration path
 
 `openAppDatabase()` + `isSchemaIntact()` (`app_database.dart`) self-heal a genuinely corrupt
-or unreadable store by destroying it and re-syncing from the server (`wasReset: true` →
-`/login`). That is a recovery net for corruption, **not** a way to "migrate" — it discards
-the local DB, including any unsynced outbox edits. Never lean on it to absorb a schema
-change; always ship the `onUpgrade`.
+or unreadable store by destroying it; the cache refills from the server (`wasReset: true`,
+which today reaches only a `debugPrint` — it does not route to `/login`). That is a recovery
+net for corruption, **not** a way to "migrate" — it discards the local DB, including any
+unsynced outbox edits. Never lean on it to absorb a schema change; always ship the
+`onUpgrade`. Which failures may reach it at all: § A failed open destroys the store only
+when a fresh store fixes it.
+
+## Every upgrade step is idempotent and transactional
+
+drift calls `onUpgrade` outside any transaction (from `beforeOpen`, drift 2.33
+`db_base.dart:131`), writes the new `user_version` only after it returns, and latches a
+migration error so every later query on that connection rethrows it (`engines.dart:505`).
+The steps used to be bare `m.addColumn` calls, so an upgrade interrupted halfway (the app
+killed, the tab closed) committed its first `ALTER TABLE`s under the old version number. The
+next launch re-ran them into `duplicate column name`, and the opener's catch-all answered
+that by wiping the database — pending outbox edits included.
+
+Two things close it, and both are needed:
+
+- **One `transaction()` around the whole body** (drift's own `alterTable` opens one during
+  migrations; its docs wrap `runMigrationSteps` the same way), so a failing step rolls back
+  its siblings instead of leaving a half-applied version.
+- **Every step safe to run twice** — `_addColumnIfMissing` checks `PRAGMA table_info` first.
+  The transaction commits *before* drift's separate `user_version` write, so a kill between
+  the two re-runs the entire upgrade on the next launch.
+
+Any exception out of the body is rethrown as `DatabaseMigrationException(from, to, cause)`
+(`db_open_exception.dart`), so the opener can tell a failed upgrade from an unrelated error
+that merely surfaced during the open. Pinned by `test/data/db/migration_test.dart` › "an
+upgrade interrupted after its first steps re-runs cleanly, keeping the outbox": a v1 store
+with the v2/v3 columns already added under `user_version = 1` (with the exact `TEXT NULL`
+DDL drift emits) plus a queued outbox row.
+
+## A failed open destroys the store only when a fresh store fixes it
+
+The store is the only home of unsynced work (outbox, `id_remap`, dirty and `tmp_` rows), so
+`openAppDatabase` classifies a failure — `classifyDbOpenFailure`,
+`lib/data/db/open_failure.dart` — before choosing what to do:
+
+| Kind | Examples | Result |
+|---|---|---|
+| `corrupt` | SQLITE_CORRUPT (11), SQLITE_NOTADB (26 — also a wrong key) | reset |
+| `migrationFailed` | `DatabaseMigrationException` out of `onUpgrade` | reset |
+| schema drift | the open succeeds but `isSchemaIntact()` is false | reset |
+| `transient` | BUSY / LOCKED / READONLY / IOERR / CANTOPEN, `TimeoutException` | store untouched |
+| `storageFull` | SQLITE_FULL, `QuotaExceededError` | store untouched |
+| `unknown` | anything else | store untouched |
+
+"Store untouched" means native retries once after 2 s, then `DatabaseUnavailableException`
+reaches `main`, which renders the boot screen with advice for that kind. It used to reset on
+*every* exception. On web the open is bounded at 5 s (`database_opener_web.dart`) and times
+out whenever another tab — or one that just closed — holds the store's lock, so merely
+having the app open twice abandoned the store, and the next load swept it.
+
+- **Errors arrive wrapped.** From the native background isolate a failure is a
+  `DriftRemoteException` around the `SqliteException`; from the web worker it is that
+  exception's *text* (drift's `protocol.dart` sends `error.toString()`). The classifier
+  unwraps the first and parses `SqliteException(<code>)` out of the second;
+  `test/data/db/open_failure_test.dart` pins the unwrap against a real background isolate.
+- **No in-process retry on web.** A timed-out `WasmDatabase.open` can still complete later
+  and hold the lock in the same page, so a second open would queue behind our own abandoned
+  attempt. The boot screen's Try again (a page reload) is the clean retry.
+- **A native reset moves the sidecars too.** `quarantineDatabaseFile`
+  (`database_opener_io.dart`) renames `-journal` / `-wal` / `-shm` with the main file,
+  keeping SQLite's `<db>-journal` pairing on the `.broken.<ts>` snapshot. Renaming only the
+  main file left a hot journal under the live name, and SQLite rolls a hot journal into
+  whatever file is next opened under that name — the fresh store. `pruneBrokenDbFiles` keeps
+  or deletes a snapshot and its sidecars together.
+
+A reset still loses unsynced work until salvage-before-reset lands; the boot screen now says
+so instead of promising that everything is re-downloaded.
 
 ## Appendix — historical: the pre-launch squash (do NOT run)
 

@@ -1,8 +1,10 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/database_opener.dart';
 import 'package:admin/data/db/db_open_exception.dart';
+import 'package:admin/data/db/open_failure.dart';
 
 import 'package:admin/data/db/dao/bank_account_dao.dart';
 import 'package:admin/data/db/dao/bank_transaction_dao.dart';
@@ -273,76 +275,127 @@ class AppDatabase extends _$AppDatabase {
     // could not express (the `phone_actions_json` reasoning), so an upgraded
     // install lands on exactly the answer a fresh one gets on the same device.
     onUpgrade: (m, from, to) async {
-      if (from < 2) {
-        await m.addColumn(navState, navState.keyboardShortcutsJson);
-      }
-      if (from < 3) {
-        await m.addColumn(navState, navState.sidebarBadgeModesJson);
-      }
-      if (from < 4) {
-        await m.addColumn(navState, navState.confirmActions);
-      }
-      if (from < 5) {
-        await m.addColumn(navState, navState.contactsSyncJson);
-        await m.createTable(deviceContactLinks);
-      }
-      if (from < 6) {
-        await m.addColumn(navState, navState.statusTabs);
-      }
-      if (from < 7) {
-        await m.addColumn(navState, navState.phoneActionsJson);
-      }
-      if (from < 8) {
-        await m.addColumn(navState, navState.sidebarMenuJson);
-      }
-      if (from < 9) {
-        await m.addColumn(navState, navState.tasksView);
-      }
-      if (from < 10) {
-        await m.addColumn(navState, navState.hideUnverifiedUsers);
-      }
-      if (from < 11) {
-        await m.addColumn(navState, navState.hideEmptyPanels);
-      }
-      // Create any declared table this database is missing, before the index
-      // pass below touches it.
+      // One transaction, and every step safe to run twice. drift calls
+      // `onUpgrade` outside any transaction and bumps `user_version` only after
+      // it returns, so an upgrade interrupted halfway (the app killed, the tab
+      // closed) used to leave the early columns added under the OLD version —
+      // and the next launch re-ran `ADD COLUMN` into "duplicate column name",
+      // which the opener answered by wiping the database, outbox included. The
+      // transaction rolls a failed step's siblings back with it;
+      // [_addColumnIfMissing] turns a re-run after commit-then-kill (the
+      // version bump is a separate write) into a no-op instead of an error.
       //
-      // `user_version = 1` is not one schema. v1 was squashed repeatedly while
-      // the app was pre-beta, so tables were folded into the baseline without a
-      // version bump — `tags` arrived in `8c4d8b7e` (2026-06-11) with
-      // `schemaVersion` still 1. A database written by a build from *before*
-      // that therefore reports v1, takes none of the steps above (they only add
-      // `nav_state` columns), and then `createPerformanceIndexes` runs
-      // `CREATE INDEX … ON tags` against a table that does not exist.
-      //
-      // That threw `no such table: main.tags` out of `onUpgrade`, so the open
-      // failed and the catch in `openAppDatabase` wiped the whole database —
-      // pending offline edits included — on every such upgrade. It is what the
-      // 2026-09-22 web demo did to every returning visitor.
-      //
-      // Explicitly diffing against `sqlite_master` rather than leaning on
-      // `createAll()`: only the genuinely missing tables are touched, and it
-      // does not depend on whether drift's generated DDL carries
-      // `IF NOT EXISTS`. A table that exists but is missing a *column* is a
-      // different failure, and `isSchemaIntact()` already catches it.
-      final existingTables = (await customSelect(
-        "SELECT name FROM sqlite_master WHERE type = 'table'",
-      ).get()).map((row) => row.data['name'] as String).toSet();
-      for (final table in allTables) {
-        if (!existingTables.contains(table.actualTableName)) {
-          _log.warning(
-            'Upgrade from v$from: creating missing table '
-            '${table.actualTableName}',
-          );
-          await m.createTable(table);
-        }
+      // Failures are rethrown as [DatabaseMigrationException] so the opener
+      // can tell "this upgrade failed" apart from an unrelated error that
+      // merely surfaced during the open — see `classifyDbOpenFailure`.
+      try {
+        await transaction(() async {
+          if (from < 2) {
+            await _addColumnIfMissing(
+              m,
+              navState,
+              navState.keyboardShortcutsJson,
+            );
+          }
+          if (from < 3) {
+            await _addColumnIfMissing(
+              m,
+              navState,
+              navState.sidebarBadgeModesJson,
+            );
+          }
+          if (from < 4) {
+            await _addColumnIfMissing(m, navState, navState.confirmActions);
+          }
+          if (from < 5) {
+            await _addColumnIfMissing(m, navState, navState.contactsSyncJson);
+            await m.createTable(deviceContactLinks);
+          }
+          if (from < 6) {
+            await _addColumnIfMissing(m, navState, navState.statusTabs);
+          }
+          if (from < 7) {
+            await _addColumnIfMissing(m, navState, navState.phoneActionsJson);
+          }
+          if (from < 8) {
+            await _addColumnIfMissing(m, navState, navState.sidebarMenuJson);
+          }
+          if (from < 9) {
+            await _addColumnIfMissing(m, navState, navState.tasksView);
+          }
+          if (from < 10) {
+            await _addColumnIfMissing(
+              m,
+              navState,
+              navState.hideUnverifiedUsers,
+            );
+          }
+          if (from < 11) {
+            await _addColumnIfMissing(m, navState, navState.hideEmptyPanels);
+          }
+          // Create any declared table this database is missing, before the
+          // index pass below touches it.
+          //
+          // `user_version = 1` is not one schema. v1 was squashed repeatedly
+          // while the app was pre-beta, so tables were folded into the
+          // baseline without a version bump — `tags` arrived in `8c4d8b7e`
+          // (2026-06-11) with `schemaVersion` still 1. A database written by
+          // a build from *before* that therefore reports v1, takes none of the
+          // steps above (they only add `nav_state` columns), and then
+          // `createPerformanceIndexes` runs `CREATE INDEX … ON tags` against
+          // a table that does not exist.
+          //
+          // That threw `no such table: main.tags` out of `onUpgrade`, so the
+          // open failed and the catch in `openAppDatabase` wiped the whole
+          // database — pending offline edits included — on every such
+          // upgrade. It is what the 2026-09-22 web demo did to every
+          // returning visitor.
+          //
+          // Explicitly diffing against `sqlite_master` rather than leaning on
+          // `createAll()`: only the genuinely missing tables are touched, and
+          // it does not depend on whether drift's generated DDL carries
+          // `IF NOT EXISTS`. A table that exists but is missing a *column* is
+          // a different failure, and `isSchemaIntact()` already catches it.
+          final existingTables = (await customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table'",
+          ).get()).map((row) => row.data['name'] as String).toSet();
+          for (final table in allTables) {
+            if (!existingTables.contains(table.actualTableName)) {
+              _log.warning(
+                'Upgrade from v$from: creating missing table '
+                '${table.actualTableName}',
+              );
+              await m.createTable(table);
+            }
+          }
+          // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a
+          // future step adds reaches installed DBs. Cheap no-op for the
+          // current indexes.
+          await createPerformanceIndexes(this);
+          await createClientFilterIndexes(this);
+        });
+      } catch (e, st) {
+        Error.throwWithStackTrace(
+          DatabaseMigrationException(from: from, to: to, cause: e),
+          st,
+        );
       }
-      // Idempotent (CREATE INDEX IF NOT EXISTS) — re-run so any index a future
-      // step adds reaches installed DBs. Cheap no-op for the current indexes.
-      await createPerformanceIndexes(this);
-      await createClientFilterIndexes(this);
     },
   );
+
+  /// `ALTER TABLE … ADD COLUMN` unless the column is already there. Every
+  /// upgrade step must be idempotent — see the note at the top of `onUpgrade`.
+  Future<void> _addColumnIfMissing(
+    Migrator m,
+    TableInfo<Table, dynamic> table,
+    GeneratedColumn<Object> column,
+  ) async {
+    final existing = await customSelect(
+      'PRAGMA table_info(${table.actualTableName})',
+    ).get();
+    if (existing.any((row) => row.data['name'] == column.name)) return;
+    await m.addColumn(table, column);
+  }
 
   /// Wipe every table. Used by `logout()` and "Reset local data".
   ///
@@ -386,24 +439,31 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
-/// Open the app database with recovery if the underlying store is corrupt
-/// or its schema has drifted from what the generated code expects.
+/// Open the app database, recovering only from failures a fresh store fixes.
 ///
 /// Platform specifics live behind [openDatabaseExecutor] /
 /// [destroyDatabaseStore] in `database_opener.dart`: an encrypted SQLCipher
 /// file (keyed from the OS keychain) on native, an unencrypted IndexedDB /
 /// OPFS store via drift WASM on web. This orchestrator — the `SELECT 1`
-/// probe, the [isSchemaIntact] check, and the catch→reset flow — is
+/// probe, the [isSchemaIntact] check, and the failure handling — is
 /// platform-agnostic and identical on every target.
 ///
-/// Two failure modes trigger recovery (destroy the store + open fresh +
-/// return `wasReset: true`):
-///   1. Open / probe fails (corrupt store, irreconcilable downgrade).
-///   2. Open succeeds but a table is missing a column the code expects —
-///      i.e. a prior schema migration didn't fully apply on this device.
-///      Without this backstop a missing column surfaces as a fatal
-///      `SqliteException` deep inside login (`_persistAndActivate` INSERT)
-///      with no path forward for the user.
+/// The store is the only home of the user's unsynced work (the outbox,
+/// `id_remap`, dirty and `tmp_` rows), so a failure is first classified
+/// ([classifyDbOpenFailure]) and the store is destroyed only when that can
+/// actually help:
+///   1. The file is corrupt / not a database, or one of our `onUpgrade`
+///      steps failed → destroy, open fresh, return `wasReset: true`.
+///   2. The open succeeds but a table is missing a column the code expects
+///      (a prior migration didn't fully apply) → same. Without this backstop
+///      a missing column surfaces as a fatal `SqliteException` deep inside
+///      login (`_persistAndActivate` INSERT) with no path forward.
+///   3. Anything else — a lock another tab or process holds (on web that is
+///      just the app being open twice), a full disk, an error nobody has
+///      classified — leaves the store untouched. Native retries once after
+///      [transientRetryDelay]; then [DatabaseUnavailableException] is thrown
+///      and `main` renders a retry screen. This path used to reset too, which
+///      threw the outbox away over a condition a reload cures.
 ///
 /// Recovery that does not work throws [DatabaseResetFailedException] rather
 /// than reporting a reset it did not achieve; `main` renders an actionable
@@ -420,13 +480,19 @@ class AppDatabase extends _$AppDatabase {
 /// so tests can drive the recovery contract: the real ones need
 /// `path_provider` + the OS keychain on native and a browser on web, so the
 /// branch that matters most — recovery that *fails* — is otherwise unreachable
-/// under `flutter test`.
+/// under `flutter test`. [transientRetries] defaults to one retry on native
+/// and none on web, where a timed-out open can still complete later and hold
+/// the store's lock in this very page, so an in-process retry would queue
+/// behind our own abandoned attempt — reloading the page is the clean retry.
 Future<({AppDatabase db, bool wasReset})> openAppDatabase({
   Future<QueryExecutor> Function()? openExecutor,
   Future<bool> Function()? destroyStore,
+  int? transientRetries,
+  Duration transientRetryDelay = const Duration(seconds: 2),
 }) async {
   final openStore = openExecutor ?? openDatabaseExecutor;
   final destroy = destroyStore ?? destroyDatabaseStore;
+  final retries = transientRetries ?? (kIsWeb ? 0 : 1);
   Future<AppDatabase> openFresh() async => AppDatabase(await openStore());
 
   Future<({AppDatabase db, bool wasReset})> resetAndReopen() async {
@@ -452,42 +518,71 @@ Future<({AppDatabase db, bool wasReset})> openAppDatabase({
     return (db: db, wasReset: true);
   }
 
-  AppDatabase? opened;
-  try {
-    final db = opened = await openFresh();
-    // Force a trivial query so a corrupt store (or wrong key — `PRAGMA key`
-    // doesn't fail eagerly, the first read does) surfaces here, not later.
-    // This also drives the lazy connection open + runs any pending
-    // migrations.
-    await db.customSelect('SELECT 1').getSingleOrNull();
-    if (!await isSchemaIntact(db)) {
-      _log.severe('Drift schema drift detected; resetting local data');
-      await db.close();
-      return resetAndReopen();
-    }
-    return (db: db, wasReset: false);
-  } on KeyringUnavailableException {
-    // The OS secret store is unreachable, so we couldn't get the encryption
-    // key. Resetting can't help (destroying the DB file then reopening
-    // re-throws here on the next key fetch — the Linux snap crash-loop), and
-    // it would needlessly wipe the user's data over a transient/permission
-    // issue. Propagate so main() can show an actionable error screen.
-    rethrow;
-  } catch (e, st) {
-    _log.severe('Drift open failed; recovering by resetting local data', e, st);
-    // Close first: `resetAndReopen` renames the database file, and on Windows
-    // SQLite's VFS opens without FILE_SHARE_DELETE, so renaming a file the
-    // background isolate still holds fails with a sharing violation — which
-    // then escapes `main()` (it only catches `KeyringUnavailableException`) as
-    // a blank window on every launch. On POSIX the rename succeeds but leaks
-    // the isolate and file handle for the process lifetime. `db` used to be
-    // scoped inside the `try`, so this branch could neither reach nor close it.
+  for (var attempt = 0; ; attempt++) {
+    AppDatabase? opened;
     try {
-      await opened?.close();
-    } catch (closeError, closeSt) {
-      _log.warning('closing the broken database failed', closeError, closeSt);
+      final db = opened = await openFresh();
+      // Force a trivial query so a corrupt store (or wrong key — `PRAGMA key`
+      // doesn't fail eagerly, the first read does) surfaces here, not later.
+      // This also drives the lazy connection open + runs any pending
+      // migrations.
+      await db.customSelect('SELECT 1').getSingleOrNull();
+      if (await isSchemaIntact(db)) return (db: db, wasReset: false);
+      _log.severe('Drift schema drift detected; resetting local data');
+      await _closeQuietly(db);
+      break;
+    } on KeyringUnavailableException {
+      // The OS secret store is unreachable, so we couldn't get the encryption
+      // key. Resetting can't help (destroying the DB file then reopening
+      // re-throws here on the next key fetch — the Linux snap crash-loop), and
+      // it would needlessly wipe the user's data over a transient/permission
+      // issue. Propagate so main() can show an actionable error screen.
+      rethrow;
+    } catch (e, st) {
+      // Close first, whatever happens next: `resetAndReopen` renames the
+      // database file, and on Windows SQLite's VFS opens without
+      // FILE_SHARE_DELETE, so renaming a file the background isolate still
+      // holds fails with a sharing violation. On POSIX the rename succeeds
+      // but leaks the isolate and file handle for the process lifetime. A
+      // retry needs the handle released just the same.
+      await _closeQuietly(opened);
+      final kind = classifyDbOpenFailure(e);
+      if (kind.resetRecovers) {
+        _log.severe(
+          'Drift open failed (${kind.name}); recovering by resetting local '
+          'data',
+          e,
+          st,
+        );
+        break;
+      }
+      if (attempt < retries) {
+        _log.warning(
+          'Drift open failed (${kind.name}); retrying with the store '
+          'untouched',
+          e,
+          st,
+        );
+        await Future<void>.delayed(transientRetryDelay);
+        continue;
+      }
+      _log.severe(
+        'Drift open failed (${kind.name}); leaving the store untouched',
+        e,
+        st,
+      );
+      throw DatabaseUnavailableException(kind, e);
     }
-    return resetAndReopen();
+  }
+  return resetAndReopen();
+}
+
+Future<void> _closeQuietly(AppDatabase? db) async {
+  if (db == null) return;
+  try {
+    await db.close();
+  } catch (e, st) {
+    _log.warning('closing the broken database failed', e, st);
   }
 }
 

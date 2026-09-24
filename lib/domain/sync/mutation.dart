@@ -447,4 +447,146 @@ enum MutationKind {
   bool get isCreate => this == MutationKind.create;
   bool get isMutating =>
       this == MutationKind.create || this == MutationKind.update;
+
+  /// What sending this kind a second time can do to the server — the
+  /// question every retry of an attempt with an unknown outcome has to
+  /// answer (see [DeliverySafety]). The server does not honour
+  /// `Idempotency-Key` (BACKEND.md), so the answer comes from what each
+  /// endpoint does, not from the header we send.
+  ///
+  /// A wildcard-free switch on purpose: a new kind does not compile until
+  /// someone decides. When unsure, choose [DeliverySafety.nonIdempotent] —
+  /// asking the user about a change that did go through costs a tap;
+  /// silently doing it twice can cost money or a customer's inbox. For a
+  /// payload that can make a single row stricter than its kind, see
+  /// [deliverySafetyFor].
+  DeliverySafety get deliverySafety => switch (this) {
+    MutationKind.create ||
+    MutationKind.addComment ||
+    MutationKind.documentUpload ||
+    MutationKind.emailEntity ||
+    MutationKind.scheduleEmail ||
+    MutationKind.cloneToInvoice ||
+    MutationKind.cloneToQuote ||
+    MutationKind.cloneToCredit ||
+    MutationKind.cloneToRecurring ||
+    MutationKind.cloneToPurchaseOrder ||
+    MutationKind.autoBill ||
+    MutationKind.increasePrices ||
+    MutationKind.convertToProject ||
+    MutationKind.sendNow ||
+    MutationKind.inviteUser ||
+    MutationKind.refundPayment ||
+    MutationKind.applyPayment ||
+    MutationKind.locationCreate ||
+    MutationKind.paymentScheduleCreate ||
+    MutationKind.markPaid ||
+    MutationKind.sendEInvoice => DeliverySafety.nonIdempotent,
+    MutationKind.cancelEntity ||
+    MutationKind.peppolSetup ||
+    MutationKind.peppolDisconnect ||
+    MutationKind.peppolAddTaxIdentifier ||
+    MutationKind.peppolRemoveTaxIdentifier ||
+    MutationKind.detachFromCompany ||
+    MutationKind.merge ||
+    MutationKind.paymentScheduleCreateCustom => DeliverySafety.serverGuarded,
+    MutationKind.update ||
+    MutationKind.delete ||
+    MutationKind.archive ||
+    MutationKind.restore ||
+    MutationKind.purge ||
+    MutationKind.reactivateEmail ||
+    MutationKind.documentDelete ||
+    MutationKind.documentVisibility ||
+    MutationKind.reorder ||
+    MutationKind.start ||
+    MutationKind.stop ||
+    MutationKind.markSent ||
+    MutationKind.approve ||
+    MutationKind.convertToInvoice ||
+    MutationKind.convertToExpense ||
+    MutationKind.addToInventory ||
+    MutationKind.acceptOrder ||
+    MutationKind.runTemplate ||
+    MutationKind.updatePrices ||
+    MutationKind.bulkUpdate ||
+    MutationKind.setDefaultDesign ||
+    MutationKind.uploadEInvoiceCertificate ||
+    MutationKind.peppolUpdate ||
+    MutationKind.eInvoicePaymentMeans ||
+    MutationKind.regenerateEInvoiceToken ||
+    MutationKind.refreshAccounts ||
+    MutationKind.matchToPayment ||
+    MutationKind.linkToPayment ||
+    MutationKind.matchToExpense ||
+    MutationKind.linkToExpense ||
+    MutationKind.convertMatched ||
+    MutationKind.unlinkTransaction ||
+    MutationKind.locationUpdate ||
+    MutationKind.locationDelete ||
+    MutationKind.paymentScheduleDelete => DeliverySafety.idempotent,
+  };
+}
+
+/// What re-sending a mutation can do when the first attempt's outcome is
+/// unknown — a timeout after the request left, a connection dropped
+/// mid-response, the app killed while a row was `in_flight`.
+///
+/// The outbox used to treat all of those as "never sent" and retry,
+/// relying on `Idempotency-Key` to make a re-send harmless. The server
+/// ignores that header, so a lost response re-created the entity, re-sent
+/// the customer's email, re-applied a percentage price increase.
+enum DeliverySafety {
+  /// A replay leaves the server exactly as one send would: a PUT of the full
+  /// record, a state flag, an absolute value, a delete.
+  idempotent,
+
+  /// A replay would be a duplicate, but the server refuses it (a 4xx because
+  /// the first one already happened) or ignores it — never a double effect.
+  /// Safe to re-send; the worst case is a confusing rejection.
+  serverGuarded,
+
+  /// A replay does the thing again: a new record, another email, another
+  /// charge or refund, a compounding change. Never re-send one whose first
+  /// attempt may have landed without asking the user.
+  nonIdempotent;
+
+  /// Whether a row of this safety may be re-sent automatically after an
+  /// attempt whose outcome is unknown.
+  bool get autoResendable => this != DeliverySafety.nonIdempotent;
+}
+
+/// Save-query params (`kSaveQueryPayloadKey`) that make a `create` /
+/// `update` perform a non-idempotent action as part of the save — a
+/// payment, a charge, a send. The others the edit screens use (`mark_sent`,
+/// `approve`, `cancel`, `convert`, `start`, `stop`) set a state or are
+/// refused on replay.
+const Set<String> kNonIdempotentSaveParams = {
+  'paid',
+  'mark_paid',
+  'auto_bill',
+  'send_now',
+  'send_email',
+};
+
+/// Company `update` rows whose `_action` adds rather than replaces
+/// (`CompanySyncDispatcher`): another document each time.
+const Set<String> kNonIdempotentCompanyActions = {'upload_document'};
+
+/// [MutationKind.deliverySafety], made stricter by what this row's decoded
+/// [payload] actually asks for. Only ever escalates: a payload can turn a
+/// plain save into a payment, never a create into something harmless.
+DeliverySafety deliverySafetyFor(MutationKind kind, Object? payload) {
+  final base = kind.deliverySafety;
+  if (base == DeliverySafety.nonIdempotent || payload is! Map) return base;
+  final query = payload[kSaveQueryPayloadKey];
+  if (query is Map &&
+      query.keys.any((k) => kNonIdempotentSaveParams.contains(k))) {
+    return DeliverySafety.nonIdempotent;
+  }
+  final action = payload['_action'];
+  if (action is String && kNonIdempotentCompanyActions.contains(action)) {
+    return DeliverySafety.nonIdempotent;
+  }
+  return base;
 }

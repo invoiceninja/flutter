@@ -100,9 +100,20 @@ Future<QueryExecutor> openDatabaseExecutor() async {
   );
 }
 
+/// SQLite's companion files. This app runs in the default rollback-journal
+/// mode (no `journal_mode` pragma is set), so `-journal` is the one that
+/// matters; `-wal` / `-shm` are handled too in case that ever changes.
+const _kSidecarSuffixes = ['-journal', '-wal', '-shm'];
+
 /// Native recovery: rename the corrupt file to `<name>.broken.<ts>` (so
 /// support can inspect it) and prune old snapshots. The next
 /// [openDatabaseExecutor] opens a fresh file at the same path.
+///
+/// Sidecars move with it, first, keeping SQLite's `<db>-journal` pairing on
+/// the snapshot. Renaming only the main file used to leave a hot journal
+/// under the live name — and SQLite rolls a hot journal back into whatever
+/// file is next opened under that name, i.e. the fresh store, writing the
+/// old database's pages into it.
 ///
 /// Returns whether the next open is guaranteed clean — always `true` here,
 /// because a failed rename *throws* (a Windows sharing violation, say) rather
@@ -110,52 +121,68 @@ Future<QueryExecutor> openDatabaseExecutor() async {
 /// refuse a delete without any error the caller would otherwise see; the
 /// shared signature lets `openAppDatabase()` stop inferring success.
 Future<bool> destroyDatabaseStore() async {
-  final file = await _dbFile();
+  await quarantineDatabaseFile(await _dbFile());
+  return true;
+}
+
+/// Move [file] and its sidecars aside as one `.broken.<ts>` snapshot, then
+/// prune old snapshots — the body of [destroyDatabaseStore], taking the file
+/// directly so tests can drive it without `path_provider`.
+Future<void> quarantineDatabaseFile(File file) async {
   final dir = file.parent;
-  if (await file.exists()) {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    await file.rename(p.join(dir.path, '$_kDbFileName.broken.$ts'));
+  final snapshot = p.join(
+    dir.path,
+    '$_kDbFileName.broken.${DateTime.now().millisecondsSinceEpoch}',
+  );
+  for (final suffix in _kSidecarSuffixes) {
+    final sidecar = File('${file.path}$suffix');
+    if (await sidecar.exists()) await sidecar.rename('$snapshot$suffix');
   }
+  if (await file.exists()) await file.rename(snapshot);
   // Keep at most the two most-recent `.broken.*` snapshots so a device that
   // hits repeated corruption doesn't accumulate encrypted PII forever. Two
   // is enough for support to compare "this failure" against "the previous
   // one"; older snapshots are unrecoverable anyway.
   await pruneBrokenDbFiles(dir);
-  return true;
 }
 
-/// Delete `invoiceninja.sqlite.broken.<ts>` files in [dir], keeping the
-/// [keep] most-recent ones (by filename timestamp suffix, ties broken by
-/// modification time). Errors are logged but swallowed — sweep failure
-/// must never block startup.
+/// `invoiceninja.sqlite.broken.<ts>`, optionally with the sidecar suffix it
+/// was renamed alongside ([destroyDatabaseStore]).
+final _brokenSnapshotName = RegExp(
+  '^${RegExp.escape(_kDbFileName)}\\.broken\\.(\\d+)(?:-journal|-wal|-shm)?\$',
+);
+
+/// Delete `invoiceninja.sqlite.broken.<ts>` snapshots in [dir], keeping the
+/// [keep] most-recent ones (by filename timestamp suffix, falling back to
+/// modification time). A snapshot's sidecars (`…broken.<ts>-journal` etc.)
+/// share its timestamp and are kept or deleted with it. Errors are logged but
+/// swallowed — sweep failure must never block startup.
 ///
 /// Exposed for tests (re-exported via `app_database.dart`); production calls
 /// it from [destroyDatabaseStore] whenever a new broken snapshot is created.
 Future<void> pruneBrokenDbFiles(Directory dir, {int keep = 2}) async {
   try {
     if (!await dir.exists()) return;
-    final candidates = <File>[];
+    final snapshots = <int, List<File>>{};
     await for (final entity in dir.list()) {
-      if (entity is File &&
-          p.basename(entity.path).startsWith('$_kDbFileName.broken.')) {
-        candidates.add(entity);
-      }
+      if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      if (!name.startsWith('$_kDbFileName.broken.')) continue;
+      // Defensive fallback to mtime — we always write a numeric ts.
+      final ts =
+          int.tryParse(_brokenSnapshotName.firstMatch(name)?.group(1) ?? '') ??
+          entity.statSync().modified.millisecondsSinceEpoch;
+      (snapshots[ts] ??= []).add(entity);
     }
-    if (candidates.length <= keep) return;
-    // Sort newest first by the ts suffix; fall back to mtime when the
-    // suffix can't be parsed (defensive — we always write a numeric ts).
-    int tsOf(File f) {
-      final suffix = p.basename(f.path).split('.').last;
-      return int.tryParse(suffix) ??
-          f.statSync().modified.millisecondsSinceEpoch;
-    }
-
-    candidates.sort((a, b) => tsOf(b).compareTo(tsOf(a)));
-    for (final stale in candidates.skip(keep)) {
-      try {
-        await stale.delete();
-      } catch (e) {
-        _log.warning('Failed to delete stale broken DB ${stale.path}: $e');
+    if (snapshots.length <= keep) return;
+    final newestFirst = snapshots.keys.toList()..sort((a, b) => b - a);
+    for (final ts in newestFirst.skip(keep)) {
+      for (final stale in snapshots[ts]!) {
+        try {
+          await stale.delete();
+        } catch (e) {
+          _log.warning('Failed to delete stale broken DB ${stale.path}: $e');
+        }
       }
     }
   } catch (e, st) {

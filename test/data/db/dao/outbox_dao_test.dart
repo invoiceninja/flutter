@@ -103,6 +103,33 @@ void main() {
     });
   });
 
+  group('unsynced-work probes (what a destructive logout must consult)', () {
+    test('companiesWithUnsyncedRows counts dead rows — a rejected edit is '
+        'still the user\'s unsynced work', () async {
+      await enqueue(companyId: 'co_pending', idempotencyKey: 'k1');
+      await enqueue(companyId: 'co_dead', state: 'dead', idempotencyKey: 'k2');
+      expect(
+        await db.outboxDao.companiesWithUnsyncedRows(),
+        unorderedEquals(['co_pending', 'co_dead']),
+      );
+      // The prompt's "can Sync first help" query stays dead-free.
+      expect(await db.outboxDao.companiesWithActiveRows(), ['co_pending']);
+    });
+
+    test('deadCountAll counts failed rows across every company', () async {
+      await enqueue(companyId: 'a', state: 'dead', idempotencyKey: 'k1');
+      await enqueue(companyId: 'b', state: 'dead', idempotencyKey: 'k2');
+      await enqueue(companyId: 'b', idempotencyKey: 'k3');
+      expect(await db.outboxDao.deadCountAll(), 2);
+    });
+
+    test('hasAnyRows sees any state and nothing else', () async {
+      expect(await db.outboxDao.hasAnyRows(), isFalse);
+      await enqueue(state: 'dead');
+      expect(await db.outboxDao.hasAnyRows(), isTrue);
+    });
+  });
+
   group('findDeadForEntity', () {
     test('returns the newest dead row for the (type, id) tuple', () async {
       await enqueue(entityId: 'c1', state: 'dead', idempotencyKey: 'k1');

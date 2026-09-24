@@ -494,7 +494,15 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
         Notify.success(context, deleteSuccessMsg, messenger: messenger);
         context.go('/dashboard');
       } else {
-        await services.auth.logout();
+        // Only this company's data was meant to go, and `wipeForCompany`
+        // already took it. A plain `logout()` wipes the WHOLE store — every
+        // other company's unsynced work with it, with no prompt — so keep the
+        // store when anything is queued; the next sign-in drains it.
+        final keepLocalData = await services.sync.hasUnsyncedWork();
+        await services.auth.logout(
+          preserveLocalData: keepLocalData,
+          setReLockGate: false,
+        );
         if (!mounted) return;
         Navigator.of(context).pop();
         context.go('/login');

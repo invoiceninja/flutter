@@ -662,77 +662,83 @@ class _NotesTabsCardDesktopState extends State<_NotesTabsCardDesktop>
         Divider(height: 1, color: context.inTheme.border),
         SizedBox(
           height: BillingDocEditDesktopShell.notesPaneHeight(context),
-          child: TabBarView(
-            controller: _ctl,
-            children: [
-              // Intentionally no "Save as default": recurring invoices
-              // have no separate settings key — they inherit
-              // invoice_terms / invoice_footer when each occurrence is
-              // generated. Matches legacy admin-portal behavior.
-              MarkdownNotesField(
-                registerBeforeSaveHook: vm.addBeforeSaveHook,
-                label: context.tr('terms'),
-                showLabel: false,
-                expand: true,
-                value: vm.draft.terms,
-                onChanged: vm.setTerms,
-              ),
-              MarkdownNotesField(
-                registerBeforeSaveHook: vm.addBeforeSaveHook,
-                label: context.tr('footer'),
-                showLabel: false,
-                expand: true,
-                value: vm.draft.footer,
-                onChanged: vm.setFooter,
-              ),
-              MarkdownNotesField(
-                registerBeforeSaveHook: vm.addBeforeSaveHook,
-                label: context.tr('public_notes'),
-                showLabel: false,
-                expand: true,
-                value: vm.draft.publicNotes,
-                onChanged: vm.setPublicNotes,
-              ),
-              MarkdownNotesField(
-                registerBeforeSaveHook: vm.addBeforeSaveHook,
-                label: context.tr('private_notes'),
-                showLabel: false,
-                expand: true,
-                value: vm.draft.privateNotes,
-                onChanged: vm.setPrivateNotes,
-              ),
-              SingleChildScrollView(
-                child: BillingDocSettingsTab(
-                  companyId: vm.companyId,
-                  entityType: 'recurring_invoice',
-                  tagIds: vm.draft.tagIds,
-                  onTagIdsChanged: vm.setTagIds,
-                  designId: vm.draft.designId,
-                  onDesignChanged: vm.setDesignId,
-                  userId: vm.draft.assignedUserId,
-                  onUserChanged: vm.setAssignedUserId,
-                  projectId: vm.draft.projectId,
-                  onProjectChanged: vm.setProjectId,
-                  vendorId: vm.draft.vendorId,
-                  onVendorChanged: vm.setVendorId,
-                  exchangeRate: vm.draft.exchangeRate.toString(),
-                  onExchangeRateChanged: vm.setExchangeRate,
-                  // No auto_bill_enabled toggle: for recurring invoices the
-                  // server derives it from `auto_bill` (always/optout → true)
-                  // and overwrites it on save, so an editable toggle here does
-                  // nothing. The `auto_bill` field (Schedule tab) is the real
-                  // control. Matches React, which omits the toggle entirely.
+          // Widget-order Tab traversal: TabBarView leaves non-current notes
+          // sub-tabs built-but-unlaid; reading-order traversal would call
+          // `FocusNode.rect` on their host nodes → `hasSize` assertion.
+          child: FocusTraversalGroup(
+            policy: WidgetOrderTraversalPolicy(),
+            child: TabBarView(
+              controller: _ctl,
+              children: [
+                // Intentionally no "Save as default": recurring invoices
+                // have no separate settings key — they inherit
+                // invoice_terms / invoice_footer when each occurrence is
+                // generated. Matches legacy admin-portal behavior.
+                MarkdownNotesField(
+                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  label: context.tr('terms'),
+                  showLabel: false,
+                  expand: true,
+                  value: vm.draft.terms,
+                  onChanged: vm.setTerms,
                 ),
-              ),
-              if (widget.showEInvoice)
-                EInvoiceFieldsTab<RecurringInvoice>(
-                  vm: vm,
-                  entityKind: EInvoiceEntityKind.recurringInvoice,
-                  formatter: context.read<Services>().formatterIfReady(
-                    vm.companyId,
+                MarkdownNotesField(
+                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  label: context.tr('footer'),
+                  showLabel: false,
+                  expand: true,
+                  value: vm.draft.footer,
+                  onChanged: vm.setFooter,
+                ),
+                MarkdownNotesField(
+                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  label: context.tr('public_notes'),
+                  showLabel: false,
+                  expand: true,
+                  value: vm.draft.publicNotes,
+                  onChanged: vm.setPublicNotes,
+                ),
+                MarkdownNotesField(
+                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  label: context.tr('private_notes'),
+                  showLabel: false,
+                  expand: true,
+                  value: vm.draft.privateNotes,
+                  onChanged: vm.setPrivateNotes,
+                ),
+                SingleChildScrollView(
+                  child: BillingDocSettingsTab(
+                    companyId: vm.companyId,
+                    entityType: 'recurring_invoice',
+                    tagIds: vm.draft.tagIds,
+                    onTagIdsChanged: vm.setTagIds,
+                    designId: vm.draft.designId,
+                    onDesignChanged: vm.setDesignId,
+                    userId: vm.draft.assignedUserId,
+                    onUserChanged: vm.setAssignedUserId,
+                    projectId: vm.draft.projectId,
+                    onProjectChanged: vm.setProjectId,
+                    vendorId: vm.draft.vendorId,
+                    onVendorChanged: vm.setVendorId,
+                    exchangeRate: vm.draft.exchangeRate.toString(),
+                    onExchangeRateChanged: vm.setExchangeRate,
+                    // No auto_bill_enabled toggle: for recurring invoices the
+                    // server derives it from `auto_bill` (always/optout → true)
+                    // and overwrites it on save, so an editable toggle here does
+                    // nothing. The `auto_bill` field (Schedule tab) is the real
+                    // control. Matches React, which omits the toggle entirely.
                   ),
                 ),
-            ],
+                if (widget.showEInvoice)
+                  EInvoiceFieldsTab<RecurringInvoice>(
+                    vm: vm,
+                    entityKind: EInvoiceEntityKind.recurringInvoice,
+                    formatter: context.read<Services>().formatterIfReady(
+                      vm.companyId,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1262,37 +1268,43 @@ class _NotesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: EdgeInsets.all(InSpacing.lg(context)),
-      children: [
-        MarkdownNotesField(
-          registerBeforeSaveHook: vm.addBeforeSaveHook,
-          label: context.tr('public_notes'),
-          value: vm.draft.publicNotes,
-          onChanged: vm.setPublicNotes,
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        MarkdownNotesField(
-          registerBeforeSaveHook: vm.addBeforeSaveHook,
-          label: context.tr('private_notes'),
-          value: vm.draft.privateNotes,
-          onChanged: vm.setPrivateNotes,
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        MarkdownNotesField(
-          registerBeforeSaveHook: vm.addBeforeSaveHook,
-          label: context.tr('terms'),
-          value: vm.draft.terms,
-          onChanged: vm.setTerms,
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        MarkdownNotesField(
-          registerBeforeSaveHook: vm.addBeforeSaveHook,
-          label: context.tr('footer'),
-          value: vm.draft.footer,
-          onChanged: vm.setFooter,
-        ),
-      ],
+    // Widget-order Tab traversal: off-screen markdown fields in this
+    // ListView are built-but-unlaid; reading-order traversal would call
+    // `FocusNode.rect` on their host nodes → `hasSize` assertion.
+    return FocusTraversalGroup(
+      policy: WidgetOrderTraversalPolicy(),
+      child: ListView(
+        padding: EdgeInsets.all(InSpacing.lg(context)),
+        children: [
+          MarkdownNotesField(
+            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            label: context.tr('public_notes'),
+            value: vm.draft.publicNotes,
+            onChanged: vm.setPublicNotes,
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+          MarkdownNotesField(
+            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            label: context.tr('private_notes'),
+            value: vm.draft.privateNotes,
+            onChanged: vm.setPrivateNotes,
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+          MarkdownNotesField(
+            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            label: context.tr('terms'),
+            value: vm.draft.terms,
+            onChanged: vm.setTerms,
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+          MarkdownNotesField(
+            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            label: context.tr('footer'),
+            value: vm.draft.footer,
+            onChanged: vm.setFooter,
+          ),
+        ],
+      ),
     );
   }
 }

@@ -59,6 +59,45 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     ];
   }
 
+  /// Distinct company ids holding outbox rows in ANY state — `dead` included.
+  ///
+  /// The question a destructive logout has to ask. [companiesWithActiveRows]
+  /// leaves `dead` out because the sign-out prompt's "Sync first" can't send
+  /// them, but a full logout wipes them all the same — together with the
+  /// dirty local rows that hold the user's rejected edit, which the edit form
+  /// reopens onto for a fix-and-retry. A failed change is still the user's
+  /// unsynced work.
+  Future<List<String>> companiesWithUnsyncedRows() async {
+    final q = selectOnly(outbox, distinct: true)
+      ..addColumns([outbox.companyId]);
+    final rows = await q.get();
+    return [
+      for (final row in rows)
+        if (row.read(outbox.companyId) case final String id) id,
+    ];
+  }
+
+  /// One-shot count of `dead` rows across every company — what a full logout
+  /// would delete that the sign-out prompt's pending count doesn't show.
+  Future<int> deadCountAll() async {
+    final count = outbox.id.count();
+    final q = selectOnly(outbox)
+      ..addColumns([count])
+      ..where(outbox.state.equals('dead'));
+    final row = await q.getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  /// True when the outbox holds any row at all, in any state, for any
+  /// company. The cheapest "is there unsynced work anywhere" probe, for
+  /// callers that hold only the database (`AuthRepository.restore`).
+  Future<bool> hasAnyRows() async {
+    final q = selectOnly(outbox)
+      ..addColumns([outbox.id])
+      ..limit(1);
+    return (await q.getSingleOrNull()) != null;
+  }
+
   /// True when a `create` outbox row for [entityId] exists in ANY state —
   /// pending, in_flight, or dead. The tmp-ref defer branch uses this to
   /// distinguish "parent create still around (recoverable — keep deferring)"
@@ -231,6 +270,25 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// each drain pass; safe because `drainOnce` is single-flight per company, so
   /// at drain-start no `in_flight` row for [companyId] is a live request.
   /// Returns the number of rows recovered.
+  /// Rows left `in_flight` for [companyId] — at drain start these are
+  /// orphans of an interrupted pass (`SyncRepository._recoverOrphanedInFlight`).
+  Future<List<OutboxRow>> inFlightRowsForCompany(String companyId) =>
+      (select(outbox)..where(
+            (o) => o.companyId.equals(companyId) & o.state.equals('in_flight'),
+          ))
+          .get();
+
+  /// Re-arm exactly [ids] (those still `in_flight`) back to `pending`. The
+  /// drain settles the orphans it READ at pass start rather than every
+  /// `in_flight` row at the moment of the write — see
+  /// `SyncRepository._recoverOrphanedInFlight`.
+  Future<int> resetInFlightRows(List<int> ids) {
+    if (ids.isEmpty) return Future.value(0);
+    return (update(outbox)
+          ..where((o) => o.id.isIn(ids) & o.state.equals('in_flight')))
+        .write(const OutboxCompanion(state: Value('pending')));
+  }
+
   Future<int> resetInFlightForCompany(String companyId) =>
       (update(outbox)..where(
             (o) => o.companyId.equals(companyId) & o.state.equals('in_flight'),

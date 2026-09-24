@@ -181,6 +181,75 @@ void main() {
     );
   }
 
+  group('hasUnsyncedWork', () {
+    // Every involuntary session end (idle timeout, client-too-old, restore
+    // with missing rows, a failed Danger Zone switch) consults this before
+    // choosing a destructive logout. It used to ignore `dead` rows, so a
+    // rejected edit — and the dirty local row holding it for a fix-and-retry
+    // — was wiped by the next idle timeout with no prompt.
+    test('a dead row alone is unsynced work', () async {
+      final engine = makeEngine(_ProgrammableDispatcher());
+      expect(await engine.hasUnsyncedWork(), isFalse);
+      final id = await enqueueClient(entityId: 'c1');
+      await db.outboxDao.markDead(id: id, error: '422', statusCode: 422);
+      expect(await engine.hasUnsyncedWork(), isTrue);
+      expect(await engine.failedCountEverywhere(), 1);
+    });
+  });
+
+  group('rows orphaned in flight (the app died mid-attempt)', () {
+    // `in_flight` at drain start means a prior pass was interrupted. They
+    // used to be re-armed unconditionally "because the idempotency key makes
+    // a re-send harmless" — but the server ignores that header.
+    Future<int> orphan({
+      required String entityId,
+      required MutationKind kind,
+    }) async {
+      final id = await enqueueClient(entityId: entityId, kind: kind);
+      await db.outboxDao.markInFlight(id);
+      return id;
+    }
+
+    test('a create whose response was already applied is retired, not '
+        're-sent as a duplicate', () async {
+      // The id_remap entry is written in the same transaction that applies
+      // the server's response; the row delete is a separate statement after
+      // it. A remap with the row still in flight means the app died in that
+      // gap: the record exists on the server already.
+      final id = await orphan(entityId: 'tmp_c1', kind: MutationKind.create);
+      await db.idRemapDao.remember(
+        entityType: 'client',
+        tempId: 'tmp_c1',
+        realId: 'real_c1',
+        now: 0,
+      );
+      final disp = _ProgrammableDispatcher();
+
+      await makeEngine(disp).drainOnce(companyId: 'co');
+
+      expect(disp.dispatches, 0, reason: 'a re-send would duplicate it');
+      expect(await db.outboxDao.byId(id), isNull);
+    });
+
+    test('a create with no remap is still re-sent', () async {
+      await orphan(entityId: 'tmp_c2', kind: MutationKind.create);
+      final disp = _ProgrammableDispatcher()..queueSuccess();
+
+      await makeEngine(disp).drainOnce(companyId: 'co');
+
+      expect(disp.dispatches, 1);
+    });
+
+    test('other kinds are re-armed as before', () async {
+      await orphan(entityId: 'c3', kind: MutationKind.update);
+      final disp = _ProgrammableDispatcher()..queueSuccess();
+
+      await makeEngine(disp).drainOnce(companyId: 'co');
+
+      expect(disp.dispatches, 1);
+    });
+  });
+
   group('success path', () {
     test('200-class result removes the outbox row', () async {
       final disp = _ProgrammableDispatcher()..queueSuccess();

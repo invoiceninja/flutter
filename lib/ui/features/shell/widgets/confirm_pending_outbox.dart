@@ -37,6 +37,83 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
   required String companyId,
   bool checkAllCompanies = false,
 }) async {
+  final pending = await _confirmPendingRows(
+    context,
+    companyId: companyId,
+    checkAllCompanies: checkAllCompanies,
+  );
+  // A company switch keeps the database, so only a full logout can destroy
+  // failed rows — and only it needs to ask about them.
+  if (pending != OutboxConfirmResult.proceed || !checkAllCompanies) {
+    return pending;
+  }
+  if (!context.mounted) return OutboxConfirmResult.cancelled;
+  return _confirmFailedRows(context);
+}
+
+/// A full logout wipes `dead` rows too: the changes the server rejected,
+/// waiting in the Outbox (and in their dirty local rows, which the edit form
+/// reopens onto) for the user to fix and retry. The pending prompt can't
+/// cover them — "Sync first" does nothing for a row the server refused — so
+/// they used to go with no warning at all. Ask separately, with the safe
+/// action focused: this dialog exists to catch an accidental sign-out.
+Future<OutboxConfirmResult> _confirmFailedRows(BuildContext context) async {
+  final services = context.read<Services>();
+  final int failed;
+  try {
+    failed = await services.sync.failedCountEverywhere();
+  } catch (e) {
+    // Unknowable is not the same as none — refuse rather than wipe blind.
+    if (context.mounted) {
+      Notify.error(context, context.tr('an_error_occurred'), error: e);
+    }
+    return OutboxConfirmResult.cancelled;
+  }
+  if (failed == 0) return OutboxConfirmResult.proceed;
+  if (!context.mounted) return OutboxConfirmResult.cancelled;
+
+  final discard = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(ctx.tr('unsynced_changes')),
+      content: Text(
+        ctx.tr(
+          failed == 1
+              ? 'failed_changes_sign_out_body_singular'
+              : 'failed_changes_sign_out_body_plural',
+          {'count': failed.toString()},
+        ),
+      ),
+      actions: [
+        OutlinedButton(
+          autofocus: true,
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(ctx.tr('cancel')),
+        ),
+        PrimaryDialogAction(
+          variant: DialogActionVariant.destructive,
+          label: ctx.tr('discard'),
+          // Never focused, never advertised — see `showConfirmActionDialog`.
+          autofocus: false,
+          showEnterHint: false,
+          onPressed: () => Navigator.of(ctx).pop(true),
+        ),
+      ],
+    ),
+  );
+  return discard == true
+      ? OutboxConfirmResult.proceed
+      : OutboxConfirmResult.cancelled;
+}
+
+/// The pending (non-`dead`) half of [confirmPendingOutboxIfAny] — sync first,
+/// discard, or cancel.
+Future<OutboxConfirmResult> _confirmPendingRows(
+  BuildContext context, {
+  required String companyId,
+  required bool checkAllCompanies,
+}) async {
   final services = context.read<Services>();
   final others = !checkAllCompanies
       ? const <String>[]

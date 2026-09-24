@@ -194,6 +194,42 @@ void main() {
       await db.close();
     });
 
+    test('an upgrade interrupted after its first steps re-runs cleanly, '
+        'keeping the outbox', () async {
+      // drift runs `onUpgrade` outside any transaction and bumps
+      // `user_version` only after it returns, so an app killed mid-upgrade
+      // left the early columns added under the OLD version. The next launch
+      // re-ran `ADD COLUMN` into "duplicate column name", and the opener
+      // answered that by wiping the database — outbox included.
+      final schema = await verifier.schemaAt(1);
+      final old = v1.DatabaseAtV1(schema.newConnection());
+      // The v2 and v3 steps landed; the kill came before the version bump.
+      // Exactly the DDL drift's `addColumn` emits (`TEXT NULL`), so the result
+      // is byte-for-byte the state a real interrupted upgrade leaves.
+      await old.customStatement(
+        'ALTER TABLE "nav_state" ADD COLUMN "keyboard_shortcuts_json" '
+        'TEXT NULL',
+      );
+      await old.customStatement(
+        'ALTER TABLE "nav_state" ADD COLUMN "sidebar_badge_modes_json" '
+        'TEXT NULL',
+      );
+      // A queued offline edit — the thing a wipe would have destroyed.
+      await old.customStatement(
+        'INSERT INTO outbox (company_id, entity_type, entity_id, '
+        'mutation_kind, payload, idempotency_key, next_attempt_at, '
+        "created_at) VALUES ('co', 'client', 'tmp_1', 'create', '{}', "
+        "'k1', 0, 0)",
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, schemaVersion);
+      final queued = await db.outboxDao.nextReady(companyId: 'co', now: 1);
+      expect(queued.single.idempotencyKey, 'k1');
+      await db.close();
+    });
+
     test('a pre-squash v1 database missing a table still migrates', () async {
       // `user_version = 1` is not one schema. v1 was re-squashed repeatedly
       // while the app was pre-beta, so tables joined the baseline with no

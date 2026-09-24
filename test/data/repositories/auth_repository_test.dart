@@ -2088,6 +2088,91 @@ void main() {
       );
     });
 
+    test('a stale token with queued outbox work ends the session but keeps '
+        'the store', () async {
+      // The account/company rows can be missing while outbox rows are not. A
+      // plain `logout()` here wiped them with no prompt at all.
+      await storage.write(
+        'invoiceninja.tokens.v1',
+        jsonEncode({'co_a': 'tok_a'}),
+      );
+      await storage.write('invoiceninja.base_url.v1', 'https://test');
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co_a',
+          entityType: 'client',
+          entityId: 'tmp_1',
+          mutationKind: 'create',
+          payload: '{}',
+          idempotencyKey: 'k1',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+
+      await repo.restore();
+
+      expect(repo.session.value, isNull, reason: 'the user signs in again');
+      expect(await db.outboxDao.hasAnyRows(), isTrue, reason: 'not wiped');
+      expect(
+        await storage.read('invoiceninja.session_locked.v1'),
+        isNull,
+        reason: 'nothing was unlocked, so no re-lock gate',
+      );
+    });
+
+    test(
+      'a persisted company id that no longer exists falls back to one we hold',
+      () async {
+        // Danger Zone can delete the active company and then keep the store
+        // (other companies' unsynced work), leaving the persisted id pointing
+        // at a row that is gone. Restoring into it stranded the user.
+        authService.queueLogin(
+          _envelope(
+            companies: [
+              (
+                id: 'co_a',
+                name: 'Acme',
+                token: 'tok_a',
+                isAdmin: false,
+                isOwner: false,
+              ),
+              (
+                id: 'co_b',
+                name: 'Beta',
+                token: 'tok_b',
+                isAdmin: false,
+                isOwner: false,
+              ),
+            ],
+            defaultCompanyId: 'co_b',
+          ),
+        );
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        await storage.write('invoiceninja.current_company.v1', 'co_gone');
+
+        final fresh = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: storage,
+          passwordCache: passwordCache,
+        );
+        await fresh.restore();
+
+        expect(fresh.session.value, isNotNull);
+        expect(fresh.session.value!.currentCompanyId, isNot('co_gone'));
+        expect([
+          'co_a',
+          'co_b',
+        ], contains(fresh.session.value!.currentCompanyId));
+      },
+    );
+
     test(
       'preserves displayName (from settings.name) and logo across restart',
       () async {

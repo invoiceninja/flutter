@@ -204,17 +204,25 @@ class SyncRepository {
   /// "never silently drops user data").
   ///
   /// A non-active company's pending rows count just as much as the active
-  /// one's — the wipe is global. Fast local read only (no network drain), so
-  /// it's safe on the security-lock and 401 paths. **Errs toward preserving**
-  /// on any error: keeping data that could have been dropped is recoverable,
-  /// dropping data that should have been kept is not.
+  /// one's — the wipe is global. So do `dead` rows: a rejected edit waits in
+  /// the Outbox (and in its dirty local row) for the user to fix and retry,
+  /// and a wipe destroys it just as surely as a pending one. Fast local read
+  /// only (no network drain), so it's safe on the security-lock and 401
+  /// paths. **Errs toward preserving** on any error: keeping data that could
+  /// have been dropped is recoverable, dropping data that should have been
+  /// kept is not.
   Future<bool> hasUnsyncedWork() async {
     try {
-      return (await companiesWithActiveRows()).isNotEmpty;
+      return (await db.outboxDao.companiesWithUnsyncedRows()).isNotEmpty;
     } catch (_) {
       return true;
     }
   }
+
+  /// Count of `dead` rows across every company — the failed changes a full
+  /// logout would delete. Surfaced by the sign-out prompt, whose pending
+  /// count deliberately leaves them out (they can't be synced).
+  Future<int> failedCountEverywhere() => db.outboxDao.deadCountAll();
 
   /// Discard one outbox row. If it's a never-synced offline `create`
   /// (`tmp_` id, no `id_remap` entry yet) the orphaned local Drift record
@@ -723,15 +731,47 @@ class SyncRepository {
     await drainOnce(companyId: companyId);
   }
 
+  /// Settle rows orphaned `in_flight` by a prior interrupted pass (app killed /
+  /// process death between `markInFlight` and the catch handler). `nextReady`
+  /// only selects `pending`, so without this an orphaned row is invisible
+  /// forever. Safe at drain start: `drainOnce` is single-flight per company
+  /// and rows are processed sequentially, so no `in_flight` row for this
+  /// company is a live request.
+  ///
+  /// Re-arming is not harmless for everything — the server ignores
+  /// `Idempotency-Key`, so re-sending an attempt that landed does it twice.
+  /// A `create` is the one kind that leaves durable proof: the `id_remap`
+  /// entry is written in the same transaction that applies the server's
+  /// response (`recordCreateSuccess`), and the outbox row is deleted in a
+  /// separate statement after it. A create whose tmp id already maps died in
+  /// that gap — it is delivered, and re-sending it re-created the record.
+  /// Everything else is re-armed as before.
+  ///
+  /// Only the rows read here are settled — the set is fixed at pass start,
+  /// where the blanket reset this replaced used to run.
+  Future<void> _recoverOrphanedInFlight(String companyId) async {
+    final orphans = await db.outboxDao.inFlightRowsForCompany(companyId);
+    if (orphans.isEmpty) return;
+    final rearm = <int>[];
+    for (final row in orphans) {
+      if (row.mutationKind == MutationKind.create.wireName &&
+          row.entityId.startsWith('tmp_') &&
+          await db.idRemapDao.resolveAnyType(row.entityId) != null) {
+        _log.warning(
+          'Outbox row ${row.id} (${row.entityType} create ${row.entityId}) '
+          'was left in flight after its response was applied; retiring it '
+          'instead of re-sending a duplicate',
+        );
+        await db.outboxDao.deleteRow(row.id);
+        continue;
+      }
+      rearm.add(row.id);
+    }
+    await db.outboxDao.resetInFlightRows(rearm);
+  }
+
   Future<int> _drainOnceImpl(String companyId) async {
-    // Re-arm rows orphaned in `in_flight` by a prior interrupted pass (app
-    // killed / process death between `markInFlight` and the catch handler).
-    // `nextReady` only selects `pending`, so without this an orphaned row is
-    // invisible forever. Safe here: `drainOnce` is single-flight per company
-    // and rows are processed sequentially, so at drain-start no `in_flight`
-    // row for this company is a live request — and the idempotency key makes a
-    // re-send harmless regardless.
-    await db.outboxDao.resetInFlightForCompany(companyId);
+    await _recoverOrphanedInFlight(companyId);
     final nowMs = _now().millisecondsSinceEpoch;
     final rows = await db.outboxDao.nextReady(companyId: companyId, now: nowMs);
     var successes = 0;

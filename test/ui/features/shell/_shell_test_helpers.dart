@@ -16,7 +16,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/l10n/supported_locales.dart';
 import 'package:admin/ui/core/detail/entity_detail_actions_row.dart';
 import 'package:admin/ui/core/widgets/toast_host.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show DatabaseConnection, Value;
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +65,7 @@ class FakeCompany {
     this.enabledModules = 32767,
     this.permissions = '',
     this.settings = const <String, dynamic>{},
+    this.customFields = const <String, String>{},
   });
   final String id;
   final String name;
@@ -100,6 +101,11 @@ class FakeCompany {
   /// e.g. `{'translations': {'unit_cost': 'Unit Price'}}` for the Custom
   /// Labels path. [logoUrl] still wins on `company_logo`.
   final Map<String, dynamic> settings;
+
+  /// The company's `custom_fields` map (`{'invoice1': 'Label|type', …}`),
+  /// written to the `companies.custom_fields` column the custom-field
+  /// sections read.
+  final Map<String, String> customFields;
 }
 
 class ShellFixture {
@@ -139,8 +145,21 @@ Future<ShellFixture> buildFixture({
   // that pumps the lock screen hangs on `busy` forever unless it passes a
   // fake.
   BiometricService? biometricService,
+  // Drift keeps an unsubscribed watch stream cached until a zero-duration
+  // timer fires, and `db.close()` waits for that timer. A test whose widgets
+  // watch many streams can leave one due after its last pump, and tear-down
+  // (fake async, nothing advancing the clock) then waits forever. Drift's own
+  // advice for widget tests is to close streams synchronously instead.
+  bool closeStreamsSynchronously = false,
 }) async {
-  final db = AppDatabase(NativeDatabase.memory());
+  final db = AppDatabase(
+    closeStreamsSynchronously
+        ? DatabaseConnection(
+            NativeDatabase.memory(),
+            closeStreamsSynchronously: true,
+          )
+        : NativeDatabase.memory(),
+  );
 
   await db.companiesDao.upsertAccount(
     AccountsCompanion.insert(
@@ -174,6 +193,7 @@ Future<ShellFixture> buildFixture({
         isOwner: Value(c.isOwner),
         isAdmin: Value(c.isAdmin),
         enabledModules: Value(c.enabledModules),
+        customFields: Value(jsonEncode(c.customFields)),
         updatedAt: 0,
       ),
   ]);

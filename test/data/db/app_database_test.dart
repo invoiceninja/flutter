@@ -1,12 +1,14 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:admin/data/db/app_database.dart';
 // `pruneBrokenDbFiles` is native-only (takes a `dart:io` Directory); it lives
 // in the io variant of the database-opener seam. This test is `@TestOn('vm')`.
-import 'package:admin/data/db/database_opener_io.dart' show pruneBrokenDbFiles;
+import 'package:admin/data/db/database_opener_io.dart'
+    show pruneBrokenDbFiles, quarantineDatabaseFile;
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/db_open_exception.dart';
@@ -434,13 +436,19 @@ void main() {
     // The real seam needs `path_provider` + the keychain (native) or a browser
     // (web), so these drive it through the test-only overrides.
 
-    Future<QueryExecutor> Function() failingFirstOpen() {
+    /// SQLITE_NOTADB — what a corrupt file (or the wrong key) raises on the
+    /// first read. One of the two failures a fresh store genuinely fixes.
+    SqliteException notADatabase() => SqliteException(
+      extendedResultCode: 26,
+      message: 'file is not a database',
+    );
+
+    /// First open throws [firstError]; every later open succeeds.
+    Future<QueryExecutor> Function() failingFirstOpen(Object firstError) {
       var calls = 0;
       return () async {
         calls++;
-        // First open fails the way a corrupt store does, to enter the catch
-        // that triggers recovery; the reopen then succeeds.
-        if (calls == 1) throw StateError('corrupt store');
+        if (calls == 1) throw firstError;
         return NativeDatabase.memory();
       };
     }
@@ -448,7 +456,7 @@ void main() {
     test('a store that could not be cleared throws, never wasReset', () async {
       await expectLater(
         openAppDatabase(
-          openExecutor: failingFirstOpen(),
+          openExecutor: failingFirstOpen(notADatabase()),
           destroyStore: () async => false,
         ),
         throwsA(isA<DatabaseResetFailedException>()),
@@ -456,13 +464,114 @@ void main() {
       );
     });
 
-    test('a cleared store reopens clean and reports wasReset', () async {
+    test(
+      'a corrupt store is cleared, reopens clean, reports wasReset',
+      () async {
+        final opened = await openAppDatabase(
+          openExecutor: failingFirstOpen(notADatabase()),
+          destroyStore: () async => true,
+        );
+        expect(opened.wasReset, isTrue);
+        expect(await isSchemaIntact(opened.db), isTrue);
+        await opened.db.close();
+      },
+    );
+
+    // The store is the only home of the user's unsynced work. These failures
+    // are not ones a reset fixes — it used to reset on every one of them, and
+    // on web "the app is open in another tab" alone was enough.
+    for (final (label, error, kind) in [
+      (
+        'a lock held elsewhere (web open timeout)',
+        TimeoutException('WasmDatabase.open'),
+        DbOpenFailureKind.transient,
+      ),
+      (
+        'a busy database',
+        SqliteException(extendedResultCode: 5, message: 'database is locked'),
+        DbOpenFailureKind.transient,
+      ),
+      (
+        'a full disk',
+        SqliteException(extendedResultCode: 13, message: 'disk is full'),
+        DbOpenFailureKind.storageFull,
+      ),
+      ('an unrecognised error', StateError('?'), DbOpenFailureKind.unknown),
+    ]) {
+      test('$label leaves the store untouched', () async {
+        var destroyed = 0;
+        await expectLater(
+          openAppDatabase(
+            openExecutor: () async => throw error,
+            destroyStore: () async {
+              destroyed++;
+              return true;
+            },
+            transientRetries: 0,
+          ),
+          throwsA(
+            isA<DatabaseUnavailableException>().having(
+              (e) => e.kind,
+              'kind',
+              kind,
+            ),
+          ),
+        );
+        expect(destroyed, 0, reason: 'destroying the store loses the outbox');
+      });
+    }
+
+    test('a transient failure is retried in place before giving up', () async {
+      var destroyed = 0;
       final opened = await openAppDatabase(
-        openExecutor: failingFirstOpen(),
-        destroyStore: () async => true,
+        openExecutor: failingFirstOpen(TimeoutException('locked')),
+        destroyStore: () async {
+          destroyed++;
+          return true;
+        },
+        transientRetries: 1,
+        transientRetryDelay: Duration.zero,
       );
+      expect(opened.wasReset, isFalse);
+      expect(destroyed, 0);
+      await opened.db.close();
+    });
+
+    test('a failing onUpgrade step surfaces as DatabaseMigrationException, '
+        'which the opener resets', () async {
+      // A v10 database whose `nav_state` is a VIEW: the v11 step's
+      // `ALTER TABLE nav_state ADD COLUMN` cannot apply, so the upgrade
+      // genuinely fails — inside our transaction, tagged by our wrapper.
+      QueryExecutor brokenV10() => NativeDatabase.memory(
+        setup: (raw) {
+          raw.execute('CREATE VIEW nav_state AS SELECT 0 AS id');
+          raw.execute('PRAGMA user_version = 10');
+        },
+      );
+
+      final direct = AppDatabase(brokenV10());
+      await expectLater(
+        direct.customSelect('SELECT 1').get(),
+        throwsA(
+          isA<DatabaseMigrationException>()
+              .having((e) => e.from, 'from', 10)
+              .having((e) => e.to, 'to', 11),
+        ),
+      );
+      await direct.close();
+
+      var opens = 0;
+      var destroyed = 0;
+      final opened = await openAppDatabase(
+        openExecutor: () async =>
+            ++opens == 1 ? brokenV10() : NativeDatabase.memory(),
+        destroyStore: () async {
+          destroyed++;
+          return true;
+        },
+      );
+      expect(destroyed, 1);
       expect(opened.wasReset, isTrue);
-      expect(await isSchemaIntact(opened.db), isTrue);
       await opened.db.close();
     });
   });
@@ -553,6 +662,47 @@ void main() {
       final only = seedBroken(100);
       await pruneBrokenDbFiles(tmp);
       expect(only.existsSync(), isTrue);
+    });
+
+    test('a snapshot and its sidecars are kept or pruned together', () async {
+      final oldDb = seedBroken(100);
+      final oldJournal = seedOther('invoiceninja.sqlite.broken.100-journal');
+      final mid = seedBroken(200);
+      final newDb = seedBroken(300);
+      final newJournal = seedOther('invoiceninja.sqlite.broken.300-journal');
+
+      await pruneBrokenDbFiles(tmp);
+
+      expect(oldDb.existsSync(), isFalse);
+      expect(oldJournal.existsSync(), isFalse, reason: 'goes with its db');
+      expect(mid.existsSync(), isTrue);
+      expect(newDb.existsSync(), isTrue);
+      expect(
+        newJournal.existsSync(),
+        isTrue,
+        reason: 'a sidecar is part of its snapshot, not a snapshot of its own',
+      );
+    });
+
+    test('quarantine moves the hot journal with the database', () async {
+      // Renaming only the main file left `invoiceninja.sqlite-journal` under
+      // the live name, and SQLite rolls a hot journal into whatever file is
+      // next opened under that name — the fresh store.
+      final live = seedOther('invoiceninja.sqlite');
+      final journal = seedOther('invoiceninja.sqlite-journal');
+
+      await quarantineDatabaseFile(live);
+
+      expect(live.existsSync(), isFalse);
+      expect(journal.existsSync(), isFalse, reason: 'must not stay live');
+      final names = tmp.listSync().map((f) => p.basename(f.path)).toList();
+      final snapshot = names.singleWhere((n) => !n.endsWith('-journal'));
+      expect(snapshot, startsWith('invoiceninja.sqlite.broken.'));
+      expect(
+        names,
+        contains('$snapshot-journal'),
+        reason: 'keeps the <db>-journal pairing on the snapshot',
+      );
     });
 
     test('respects a custom keep count', () async {

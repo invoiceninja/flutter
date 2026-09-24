@@ -1214,5 +1214,7 @@
   "wrote_stale_rows": "Wrote :count stale row(s) to the diagnostics log",
   "invoices_and_quotes": "Invoices & Quotes",
   "none_synced_yet": "None synced yet",
-  "counted_from_local_data": "Counted from data on this device"
+  "counted_from_local_data": "Counted from data on this device",
+  "failed_changes_sign_out_body_plural": ":count changes couldn't be saved to the server and are waiting in the Outbox for you to fix and retry. Signing out deletes them.",
+  "failed_changes_sign_out_body_singular": ":count change couldn't be saved to the server and is waiting in the Outbox for you to fix and retry. Signing out deletes it."
 }

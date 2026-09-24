@@ -593,6 +593,9 @@ class _NumberCardDesktopState extends State<_NumberCardDesktop> {
             vm.setCustomValue4,
           ],
           wrapInCard: false,
+          // The dates card renders slots 1 and 3; without this the number
+          // card rendered all four and 1 / 3 appeared twice.
+          slots: const [2, 4],
         ),
       ],
     );

@@ -219,7 +219,7 @@ class _PurchaseOrderEditLayoutState extends State<PurchaseOrderEditLayout> {
         2 => _NumberCardDesktop(vm: widget.vm),
         _ => const SizedBox.shrink(),
       },
-      itemsSection: _ItemsSectionDesktop(
+      itemsSection: _ItemsEditor(
         vm: widget.vm,
         onPickItems: () => _openPicker(context),
       ),
@@ -493,16 +493,25 @@ class _NumberCardDesktopState extends State<_NumberCardDesktop> {
   }
 }
 
-class _ItemsSectionDesktop extends StatefulWidget {
-  const _ItemsSectionDesktop({required this.vm, required this.onPickItems});
+/// The purchase order's line-item editor, for BOTH layouts: it owns the
+/// table controller and registers the before-save hooks that commit a
+/// debounced cell edit and strip empty rows, and passes the row errors.
+///
+/// The other four documents get this from `BillingDocItemsTabs`, which is
+/// client-only. The narrow layout used to host a bare `LineItemEditor`
+/// instead — no hooks — so on a tablet, where the wide table renders inside
+/// the tabbed layout, typing into a cell and saving within the debounce
+/// dropped the edit.
+class _ItemsEditor extends StatefulWidget {
+  const _ItemsEditor({required this.vm, required this.onPickItems});
   final PurchaseOrderEditViewModel vm;
   final VoidCallback onPickItems;
 
   @override
-  State<_ItemsSectionDesktop> createState() => _ItemsSectionDesktopState();
+  State<_ItemsEditor> createState() => _ItemsEditorState();
 }
 
-class _ItemsSectionDesktopState extends State<_ItemsSectionDesktop> {
+class _ItemsEditorState extends State<_ItemsEditor> {
   final _tableController = LineItemTableDesktopController();
   VoidCallback? _unregisterFlush;
   VoidCallback? _unregisterStrip;
@@ -781,14 +790,12 @@ class _DetailsTab extends StatefulWidget {
 
 class _DetailsTabState extends State<_DetailsTab> {
   late final TextEditingController _number;
-  late final TextEditingController _poNumber;
   late final TextEditingController _discount;
 
   @override
   void initState() {
     super.initState();
     _number = TextEditingController(text: widget.vm.draft.number);
-    _poNumber = TextEditingController(text: widget.vm.draft.poNumber);
     _discount = TextEditingController(
       text: widget.vm.draft.discount == Decimal.zero
           ? ''
@@ -799,7 +806,6 @@ class _DetailsTabState extends State<_DetailsTab> {
   @override
   void dispose() {
     _number.dispose();
-    _poNumber.dispose();
     _discount.dispose();
     super.dispose();
   }
@@ -815,32 +821,20 @@ class _DetailsTabState extends State<_DetailsTab> {
         children: [
           _VendorPicker(vm: vm),
           SizedBox(height: InSpacing.lg(context)),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _number,
-                  decoration: InputDecoration(
-                    labelText: context.tr('purchase_order_number'),
-                    hintText: vm.isCreate ? context.tr('auto_generated') : null,
-                    errorText: vm.fieldErrorFor('number'),
-                  ),
-                  onChanged: vm.setNumber,
-                  autocorrect: false,
-                ),
-              ),
-              SizedBox(width: InSpacing.md(context)),
-              Expanded(
-                child: TextField(
-                  controller: _poNumber,
-                  decoration: InputDecoration(
-                    labelText: context.tr('po_number'),
-                  ),
-                  onChanged: vm.setPoNumber,
-                  autocorrect: false,
-                ),
-              ),
-            ],
+          // One number field, labelled "PO Number" — the purchase order's own
+          // number, exactly as the desktop card, React and v1 present it. This
+          // layout used to add a second field writing the separate `po_number`
+          // column under the same label, so "PO Number" meant different data
+          // on a phone and on a desktop.
+          TextField(
+            controller: _number,
+            decoration: InputDecoration(
+              labelText: context.tr('po_number'),
+              hintText: vm.isCreate ? context.tr('auto_generated') : null,
+              errorText: vm.fieldErrorFor('number'),
+            ),
+            onChanged: vm.setNumber,
+            autocorrect: false,
           ),
           SizedBox(height: InSpacing.md(context)),
           Row(
@@ -856,7 +850,7 @@ class _DetailsTabState extends State<_DetailsTab> {
                       vm.setDate(Date(d.year, d.month, d.day));
                     }
                   },
-                  labelText: context.tr('date'),
+                  labelText: context.tr('purchase_order_date'),
                 ),
               ),
               SizedBox(width: InSpacing.md(context)),
@@ -1082,14 +1076,7 @@ class _ItemsTab extends StatelessWidget {
     return BillingDocEditItemsBody(
       heroTag: 'purchase_order_picker_fab_mobile',
       onPickItems: onPickItems,
-      child: LineItemEditor(
-        companyId: vm.companyId,
-        vendorId: vm.draft.vendorId,
-        items: vm.draft.lineItems,
-        onChanged: vm.replaceLineItems,
-        newItemFactory: emptyLineItem,
-        onPickItems: onPickItems,
-      ),
+      child: _ItemsEditor(vm: vm, onPickItems: onPickItems),
     );
   }
 }

@@ -1193,6 +1193,19 @@ class AuthRepository {
     await _refreshSession(fullSync: fullSync);
   }
 
+  /// Whether the outbox holds any row (pending, in flight or failed) — i.e.
+  /// whether a destructive logout would delete unsynced work. Errs toward
+  /// `true`: keeping data that could have gone is recoverable, the reverse
+  /// is not.
+  Future<bool> _outboxHasRows() async {
+    try {
+      return await _db.outboxDao.hasAnyRows();
+    } catch (e, st) {
+      _log.warning('outbox probe failed; keeping local data', e, st);
+      return true;
+    }
+  }
+
   /// Read on app start: if we have a token cached, rebuild the session from
   /// Drift + secure storage so the user lands inside the shell immediately.
   Future<void> restore() async {
@@ -1235,8 +1248,16 @@ class AuthRepository {
     final account = await _db.companiesDao.account();
     final companies = await _db.companiesDao.all();
     if (account == null || companies.isEmpty) {
-      // Drift was reset (or never populated). Discard the stale token.
-      await logout();
+      // Drift was reset (or never populated), so the stored token describes
+      // nothing. End the session — but never by wiping queued work: the
+      // account/company rows can be missing while outbox rows are not, and a
+      // destructive logout here deleted them with no prompt at all. With an
+      // empty outbox this is the full logout it always was; otherwise the
+      // store is kept for the next sign-in to drain (a different identity
+      // still gets `_wipeIfIdentityChanged`). No re-lock gate: nothing was
+      // unlocked, the user simply lands on sign-in.
+      final keepLocalData = await _outboxHasRows();
+      await logout(preserveLocalData: keepLocalData, setReLockGate: false);
       return;
     }
     _tokensByCompany = tokensMap;
@@ -1294,7 +1315,13 @@ class AuthRepository {
     // further down force-logs-out on a missing token — wiping local data even
     // though a sibling company would have restored fine. Same "present AND
     // non-empty" rule as `_persistAndActivate`.
-    final restoredCompanyId = currentId.isNotEmpty
+    // The persisted id must also still name a company we hold: a company
+    // deleted from Danger Zone can leave it pointing at a row that is gone
+    // (that path now keeps the store when other companies have unsynced
+    // work), and activating a missing company strands the user in a dead
+    // shell.
+    final restoredCompanyId =
+        currentId.isNotEmpty && companies.any((c) => c.id == currentId)
         ? currentId
         : companies
               .map((c) => c.id)

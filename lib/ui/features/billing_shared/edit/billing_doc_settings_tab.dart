@@ -9,6 +9,7 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
+import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/billing_shared/edit/billing_edit_field_decoration.dart';
 
@@ -152,6 +153,8 @@ class BillingDocSettingsTab extends StatelessWidget {
     // TextFormField (not TextField + a build-created controller): its
     // State retains the controller across the parent's frequent
     // AnimatedBuilder rebuilds, so typing doesn't reset the cursor.
+    // Enter saves the document (§ Forms — Enter to save).
+    final saveScope = FormSaveScope.maybeOf(context);
     final exchangeRate = TextFormField(
       initialValue: this.exchangeRate,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -160,6 +163,8 @@ class BillingDocSettingsTab extends StatelessWidget {
         label: context.tr('exchange_rate'),
       ),
       onChanged: onExchangeRateChanged,
+      textInputAction: TextInputAction.done,
+      onFieldSubmitted: (_) => saveScope?.trySubmit(),
     );
 
     final autoBill = onAutoBillEnabledChanged == null

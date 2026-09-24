@@ -15,6 +15,7 @@ import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_custom_fields_section.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
+import 'package:admin/ui/core/widgets/form_save_scope.dart';
 import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 import 'package:admin/ui/features/billing_shared/billing_edit_totals.dart';
@@ -40,6 +41,15 @@ import 'package:admin/ui/features/billing_shared/pdf/billing_doc_pdf_view.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
 import 'package:admin/ui/features/tasks/widgets/create_task_from_line_item_sheet.dart';
+
+/// Enter in a single-line field saves the document (§ Forms — Enter to
+/// save), through the `FormSaveScope` the edit scaffold wraps the form in.
+/// Read in `build`, which is where the dependency on the scope belongs; the
+/// line-item editor keeps its own Enter handling and does not use this.
+ValueChanged<String> _saveOnEnter(BuildContext context) {
+  final scope = FormSaveScope.maybeOf(context);
+  return (_) => scope?.trySubmit();
+}
 
 /// What one document adds to [BillingDocEditLayout] that the layout cannot
 /// build itself. Every entry is a builder or a getter, called while the
@@ -648,6 +658,8 @@ class _DatesCardDesktopState<T extends BillingDocFields>
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: partialVm.setPartial,
+            textInputAction: TextInputAction.done,
+            onSubmitted: _saveOnEnter(context),
           ),
           if (_partialOf(type, vm.draft) > Decimal.zero) ...[
             SizedBox(height: InSpacing.md(context)),
@@ -721,6 +733,8 @@ class _NumberCardDesktopState<T extends BillingDocFields>
           ),
           onChanged: vm.setNumber,
           autocorrect: false,
+          textInputAction: TextInputAction.done,
+          onSubmitted: _saveOnEnter(context),
         ),
         SizedBox(height: InSpacing.md(context)),
         if (type.hasPoNumberField) ...[
@@ -733,6 +747,8 @@ class _NumberCardDesktopState<T extends BillingDocFields>
             ),
             onChanged: vm.setPoNumber,
             autocorrect: false,
+            textInputAction: TextInputAction.done,
+            onSubmitted: _saveOnEnter(context),
           ),
           SizedBox(height: InSpacing.md(context)),
         ],
@@ -775,6 +791,8 @@ class _DiscountRow<T extends BillingDocFields> extends StatelessWidget {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (v) =>
                 vm.setDiscount(v, isAmount: vm.draft.isAmountDiscount),
+            textInputAction: TextInputAction.done,
+            onSubmitted: _saveOnEnter(context),
           ),
         ),
         SizedBox(width: InSpacing.md(context)),
@@ -1229,6 +1247,8 @@ class _DetailsTabState<T extends BillingDocFields>
       ),
       onChanged: vm.setNumber,
       autocorrect: false,
+      textInputAction: TextInputAction.done,
+      onSubmitted: _saveOnEnter(context),
     );
     Widget partialField() => TextField(
       controller: _partial,
@@ -1238,6 +1258,8 @@ class _DetailsTabState<T extends BillingDocFields>
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: partialVm!.setPartial,
+      textInputAction: TextInputAction.done,
+      onSubmitted: _saveOnEnter(context),
     );
     Widget partialDueDate() => InDateField(
       value: _partialDueDateOf(vm.draft)?.toDateTime(),
@@ -1284,6 +1306,8 @@ class _DetailsTabState<T extends BillingDocFields>
                     ),
                     onChanged: vm.setPoNumber,
                     autocorrect: false,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: _saveOnEnter(context),
                   ),
                 ),
               ],

@@ -468,6 +468,53 @@ void main() {
       expect(row.attempts, 1, reason: 'the ordinary 5xx backoff');
     });
 
+    test('a 500 that also says the app is too old is still an unknown '
+        'outcome', () async {
+      // The header throws before the 500 is read, and this arm re-parked
+      // every row an hour out — so a create that may have landed was sent
+      // again every hour, for as long as the app stayed out of date.
+      final id = await enqueue('tmp_c1', MutationKind.create);
+      final row = await drained(
+        engineFor(
+          sentThen(
+            const ClientTooOldException(
+              minRequiredVersion: '9.9.9',
+              currentVersion: '1.0.0',
+              statusCode: 500,
+            ),
+          ),
+        ),
+        id,
+      );
+      expect(row.state, 'unconfirmed');
+      expect(row.lastStatusCode, 500);
+    });
+
+    test(
+      'any other client-too-old rejection waits an hour for the update',
+      () async {
+        final id = await enqueue('c1', MutationKind.update);
+        final row = await drained(
+          engineFor(
+            sentThen(
+              const ClientTooOldException(
+                minRequiredVersion: '9.9.9',
+                currentVersion: '1.0.0',
+                statusCode: 500,
+              ),
+            ),
+          ),
+          id,
+        );
+        expect(row.state, 'pending', reason: 'an update replays harmlessly');
+        expect(row.attempts, 0);
+        expect(
+          row.nextAttemptAt,
+          1000 + const Duration(hours: 1).inMilliseconds,
+        );
+      },
+    );
+
     test('an unclassified throw after the write went out', () async {
       final id = await enqueue('tmp_c1', MutationKind.create);
       final row = await drained(engineFor(sentThen(StateError('?'))), id);

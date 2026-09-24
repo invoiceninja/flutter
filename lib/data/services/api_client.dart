@@ -70,6 +70,13 @@ class ApiClient {
     // anyway (BACKEND.md). Re-enable once the server allows AND honours it.
     // Injectable so the header's presence can be tested off the web.
     bool? sendIdempotencyKey,
+    // Whether the drain seeing the device offline just before an attempt
+    // ([RequestScope.offlineBeforeSend]) proves a failed request unsent. Only
+    // where the body probe is blind — web, whose `BrowserClient` reads every
+    // body before `fetch`. Natively a body that was read went out, and
+    // `connectivity_plus` misreports "none" on some setups, so the probe
+    // decides there. Injectable so both can be tested off the web.
+    bool? offlineMeansUnsent,
   }) : _credentialsListenable = credentials,
        _passwordCache = passwordCache,
        _onUnauthorized = onUnauthorized,
@@ -82,7 +89,8 @@ class ApiClient {
        _decodeTimeout = decodeTimeout,
        _requestTimeout = requestTimeout,
        _debugCaptureStore = debugCaptureStore,
-       _sendIdempotencyKey = sendIdempotencyKey ?? !kIsWeb;
+       _sendIdempotencyKey = sendIdempotencyKey ?? !kIsWeb,
+       _offlineMeansUnsent = offlineMeansUnsent ?? kIsWeb;
 
   final ValueListenable<ApiCredentials?> _credentialsListenable;
   final PasswordCache _passwordCache;
@@ -97,6 +105,7 @@ class ApiClient {
   final Duration _requestTimeout;
   final DebugCaptureStore? _debugCaptureStore;
   final bool _sendIdempotencyKey;
+  final bool _offlineMeansUnsent;
 
   /// Coalesces concurrent 401s — every parallel caller that 401s while a
   /// logout is in flight `await`s the same future.
@@ -695,13 +704,16 @@ class ApiClient {
 
   /// Classify a transport failure. [RequestNotSentException] only when the
   /// request provably never went out — its body was never read (the
-  /// connection failed first; see [_BodyProbe]) or the drain saw the device
-  /// offline right before sending ([RequestScope.offlineBeforeSend]).
-  /// Anything else may have been applied by the server, so it stays a plain
+  /// connection failed first; see [_BodyProbe]) or, on web, where that probe
+  /// is blind, the drain saw the device offline right before sending
+  /// ([RequestScope.offlineBeforeSend], `offlineMeansUnsent`). Anything else
+  /// may have been applied by the server, so it stays a plain
   /// [NetworkException]: outcome unknown.
   NetworkException _transportFailure(_BodyProbe request, String message) {
     final notSent =
-        !request.bodyRead || (RequestScope.current?.offlineBeforeSend ?? false);
+        !request.bodyRead ||
+        (_offlineMeansUnsent &&
+            (RequestScope.current?.offlineBeforeSend ?? false));
     return notSent
         ? RequestNotSentException(message)
         : NetworkException(message);
@@ -743,6 +755,7 @@ class ApiClient {
       throw ClientTooOldException(
         minRequiredVersion: minClient,
         currentVersion: AppVersion.kClientVersion,
+        statusCode: response.statusCode,
       );
     }
     if (response.statusCode == 401) {
@@ -815,7 +828,11 @@ class ApiClient {
           'liveToken=${_tokenFingerprint(current?.token)} '
           'body=${body.length > 200 ? '${body.substring(0, 200)}…' : body}',
         );
-        unawaited(_handleUnauthorized(creds));
+        // Outside this request's scope: the handling is not part of an
+        // outbox row's attempt, and the rollback's heal makes requests under
+        // the previous company's token that the row's scope would refuse as
+        // a company switch.
+        unawaited(RequestScope.outside(() => _handleUnauthorized(creds)));
       }
       throw isStaleCredential
           ? const UnauthorizedException.staleCredential()

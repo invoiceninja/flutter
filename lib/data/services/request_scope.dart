@@ -51,10 +51,12 @@ class RequestScope {
   void markWriteSent() => _writeSent = true;
 
   /// Set by the drain when the device reported no connectivity just before
-  /// this attempt. A transport failure then counts as "never sent" even
-  /// where the transport itself can't prove it (web, where the body is read
-  /// before `fetch`). Classification only — the attempt still goes ahead, so
-  /// a platform that misreports "offline" costs nothing.
+  /// this attempt. On web, where the transport can't prove a request unsent
+  /// (the body is read before `fetch`), a transport failure then counts as
+  /// "never sent". Natively the body probe proves it or doesn't, and this is
+  /// ignored: `connectivity_plus` misreports "none" on some setups, and there
+  /// that turned a sent, lost-response write into "never sent" — re-sent.
+  /// Classification only — the attempt still goes ahead.
   bool offlineBeforeSend = false;
 
   static final Object _zoneKey = Object();
@@ -65,4 +67,11 @@ class RequestScope {
   /// Run [body] with this scope current for everything it awaits.
   Future<T> run<T>(Future<T> Function() body) =>
       runZoned(body, zoneValues: {_zoneKey: this});
+
+  /// Run [body] — and everything it starts — with no scope current, from
+  /// inside a dispatch. For work a request sets off that is not part of the
+  /// row's attempt: the 401 handling, whose rollback makes requests under
+  /// another company's token that the row's scope would refuse as a switch.
+  static T outside<T>(T Function() body) =>
+      runZoned(body, zoneValues: {_zoneKey: null});
 }

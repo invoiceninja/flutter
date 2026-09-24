@@ -124,12 +124,13 @@ class SyncRepository {
   /// forward option hard-deletes a local record that is alive on the server.
   String? Function()? activeCompanyId;
 
-  /// The device's connectivity, wired by DI (`ConnectivityWatcher.isOnline`);
-  /// null (tests) means "assume online". Read just before each attempt so a
-  /// transport failure after the device reported no connectivity is filed
-  /// as "never sent" ([RequestScope.offlineBeforeSend]). It classifies — it
-  /// never skips the attempt, so a platform that misreports "offline" can't
-  /// stall the outbox.
+  /// The device's connectivity, wired by DI (`ConnectivityWatcher.isOnline`)
+  /// on web only; null means "assume online". Read just before each attempt
+  /// so a transport failure after the device reported no connectivity is
+  /// filed as "never sent" ([RequestScope.offlineBeforeSend]) — which only
+  /// web's `ApiClient` consults, its body probe being blind. It classifies —
+  /// it never skips the attempt, so a platform that misreports "offline"
+  /// can't stall the outbox.
   Future<bool> Function()? isOnline;
 
   /// Re-fetches one record from the server into Drift, dirty-preserving —
@@ -1599,6 +1600,21 @@ class SyncRepository {
       }
       return false;
     } on ClientTooOldException catch (e) {
+      // The header is read before the status, so the status is judged here:
+      // a 500 that also carries it is still a write whose outcome is unknown
+      // (the ServerException arm's rule), which a blind hourly retry would
+      // repeat for as long as the app stayed out of date.
+      final code = e.statusCode;
+      if (code != null &&
+          kOutcomeUnknownStatuses.contains(code) &&
+          _unknownOutcome(row, kind, scope)) {
+        await _markUnconfirmed(
+          row,
+          'Client too old: needs ${e.minRequiredVersion}',
+          code,
+        );
+        return false;
+      }
       // The UI surfaces a "please update" screen elsewhere; sync stops.
       await db.outboxDao.scheduleRetry(
         id: row.id,

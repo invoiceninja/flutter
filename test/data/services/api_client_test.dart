@@ -72,12 +72,14 @@ void main() {
     ApiClient clientWith(
       http.Client http_, {
       Duration requestTimeout = const Duration(seconds: 60),
+      bool? offlineMeansUnsent,
     }) => ApiClient(
       credentials: _creds(),
       passwordCache: PasswordCache(),
       onUnauthorized: () async {},
       httpClient: http_,
       requestTimeout: requestTimeout,
+      offlineMeansUnsent: offlineMeansUnsent,
     );
 
     test(
@@ -99,13 +101,40 @@ void main() {
       );
     });
 
+    test('...unless the drain saw the device offline just before sending — '
+        'on web, where the body is always read before `fetch`', () async {
+      final scope = RequestScope('')..offlineBeforeSend = true;
+      await expectLater(
+        scope.run(
+          () => clientWith(
+            _FailsAfterBody(),
+            offlineMeansUnsent: true,
+          ).postJson('/x'),
+        ),
+        throwsA(isA<RequestNotSentException>()),
+      );
+    });
+
     test(
-      '...unless the drain saw the device offline just before sending',
+      'natively the body probe decides, whatever connectivity said',
       () async {
+        // `connectivity_plus` misreports "none" on some setups. Natively a body
+        // that was read went out, so an "offline" reading there turned a sent,
+        // lost-response write into "never sent" — and the drain re-sent it.
         final scope = RequestScope('')..offlineBeforeSend = true;
         await expectLater(
-          scope.run(() => clientWith(_FailsAfterBody()).postJson('/x')),
-          throwsA(isA<RequestNotSentException>()),
+          scope.run(
+            () => clientWith(
+              _FailsAfterBody(),
+              offlineMeansUnsent: false,
+            ).postJson('/x'),
+          ),
+          throwsA(
+            allOf(
+              isA<NetworkException>(),
+              isNot(isA<RequestNotSentException>()),
+            ),
+          ),
         );
       },
     );
@@ -410,6 +439,65 @@ void main() {
       await client.getOne('/api/v1/x').catchError((_) => null);
       expect(unauthorizedCalls, 1);
     });
+
+    test(
+      'runs outside the request scope of the call that got the 401',
+      () async {
+        // An outbox row is sent inside its company's `RequestScope`. The veto's
+        // rollback re-activates the previous company, and its heal makes a
+        // request of its own — which, run inside the row's scope, was checked
+        // against the row's company and refused as a switch
+        // (`CompanySwitchedException`): the heal after a drain's 401 never ran.
+        final creds = ValueNotifier<ApiCredentials?>(
+          const ApiCredentials(
+            baseUrl: 'https://test',
+            token: 'b',
+            companyId: 'B',
+          ),
+        );
+        RequestScope? scopeInVeto;
+        Object? healError;
+        final healed = Completer<void>();
+        late final ApiClient client;
+        client = ApiClient(
+          credentials: creds,
+          passwordCache: PasswordCache(),
+          onUnauthorized: () async {},
+          onUnauthorizedCandidate: (_) async {
+            scopeInVeto = RequestScope.current;
+            creds.value = const ApiCredentials(
+              baseUrl: 'https://test',
+              token: 'a',
+              companyId: 'A',
+            );
+            unawaited(
+              Future(() async {
+                try {
+                  await client.getOne('/api/v1/refresh');
+                } catch (e) {
+                  healError = e;
+                }
+                healed.complete();
+              }),
+            );
+            return false;
+          },
+          httpClient: MockClient(
+            (request) async => request.headers['X-API-Token'] == 'b'
+                ? http.Response('nope', 401)
+                : http.Response('{"data":{}}', 200),
+          ),
+        );
+
+        await RequestScope(
+          'B',
+        ).run(() => client.getOne('/api/v1/clients/1')).catchError((_) => null);
+        await healed.future;
+
+        expect(scopeInVeto, isNull);
+        expect(healError, isNull);
+      },
+    );
 
     test('parallel 401s consult the veto exactly once', () async {
       // Load-bearing, not an optimization: a rejected company token is

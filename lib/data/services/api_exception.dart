@@ -116,9 +116,15 @@ class ClientTooOldException extends ApiException {
   const ClientTooOldException({
     required this.minRequiredVersion,
     required this.currentVersion,
+    this.statusCode,
   }) : super('Client too old');
   final String minRequiredVersion;
   final String currentVersion;
+
+  /// The status of the response that carried the header. The header is
+  /// checked before the status is, so this is all that is left of it — a 500
+  /// here is still a write whose outcome is unknown.
+  final int? statusCode;
 }
 
 class RateLimitedException extends ApiException {

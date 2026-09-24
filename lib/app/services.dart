@@ -1595,7 +1595,11 @@ class Services implements SidebarBadgeContext {
     // Auto-drain on connectivity transitions to online — the offline edits
     // that piled up will all flush as soon as the radio comes back.
     final connectivity = connectivityWatcher ?? ConnectivityWatcher.live();
-    sync.isOnline = () => connectivity.isOnline;
+    // Web only: that is the one place `ApiClient` reads the answer (its body
+    // probe is blind there — see `offlineMeansUnsent`). Natively the probe
+    // cost every drained row a platform call, up to 5 s each when the D-Bus
+    // call stalls under Snap, for an answer nothing uses.
+    if (kIsWeb) sync.isOnline = () => connectivity.isOnline;
     connectivity.onOnline.listen((_) {
       final companyId = auth.session.value?.currentCompanyId;
       if (companyId == null || companyId.isEmpty) return;

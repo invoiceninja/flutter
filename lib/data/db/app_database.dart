@@ -540,12 +540,11 @@ class AppDatabase extends _$AppDatabase {
 /// than reporting a reset it did not achieve; `main` renders an actionable
 /// screen for it.
 ///
-/// **`wasReset` is currently near-inert** — it reaches one `debugPrint` in
-/// `_InvoiceNinjaAppState.initState` and nothing else. It does *not* route to
-/// `/login` (an earlier version of this comment claimed it did) and it does
-/// not force a re-sync; the user finds the cache empty and it refills from the
-/// server. `recovery` says what became of their own data on a reset — `main`
-/// logs it; nothing shows it yet. Anything that needs to react to a wipe has
+/// `wasReset` and `recovery` reach the user once, through
+/// `LocalDataRecoveryNotice` (a toast when everything came across, a dialog
+/// when unsynced work may not have), and `main` logs `recovery`. Neither
+/// routes to `/login` or forces a re-sync: the cache refills from the server
+/// as the user moves around. Anything else that needs to react to a wipe has
 /// to be wired up first — don't assume these fields already did it.
 ///
 /// [openExecutor] / [destroyStore] / [readQuarantined] override the platform
@@ -616,19 +615,22 @@ Future<OpenedDatabase> openAppDatabase({
       // This also drives the lazy connection open + runs any pending
       // migrations.
       await db.customSelect('SELECT 1').getSingleOrNull();
-      if (await isSchemaIntact(db)) return finish(db, wasReset: false);
+      // A check or a repair that *errors* — a lock, an I/O error, a full disk
+      // — is not drift: it propagates to the catch below and is classified
+      // like any other open failure. Only drift the repair cannot fix resets.
+      if (await _schemaIntact(db)) return finish(db, wasReset: false);
       // Drifted — a prior migration didn't fully land on this device. Bring
       // it to the declared shape in place when that costs nothing but cache;
       // reset only when it can't (a durable table missing a column that
       // can't be added).
       try {
         final report = await repairSchema(db);
-        if (await isSchemaIntact(db)) {
+        if (await _schemaIntact(db)) {
           _log.warning('Local schema had drifted; repaired in place: $report');
           return finish(db, wasReset: false);
         }
-      } catch (e, st) {
-        _log.severe('Repairing the drifted schema failed', e, st);
+      } on SchemaUnrepairableException catch (e, st) {
+        _log.severe('The drifted schema cannot be repaired in place', e, st);
       }
       _log.severe('Drift schema drift detected; resetting local data');
       await _closeQuietly(db);
@@ -759,29 +761,38 @@ Future<void> _closeQuietly(AppDatabase? db) async {
 /// Exposed (not private) so integration tests can verify the drift-detection
 /// path without needing the platform-specific path_provider glue around the
 /// real [openAppDatabase].
+///
+/// Any error reads as "not intact". [openAppDatabase] uses [_schemaIntact]
+/// instead, so that a lock or an I/O error during the check is classified like
+/// any other open failure rather than taken for drift — which resets.
 Future<bool> isSchemaIntact(AppDatabase db) async {
   try {
-    for (final table in db.allTables) {
-      final rows = await db
-          .customSelect('PRAGMA table_info(${table.actualTableName})')
-          .get();
-      if (rows.isEmpty) {
-        _log.severe('Table missing: ${table.actualTableName}');
-        return false;
-      }
-      final actual = rows.map((r) => r.data['name'] as String).toSet();
-      for (final expected in table.columnsByName.keys) {
-        if (!actual.contains(expected)) {
-          _log.severe('Column missing: ${table.actualTableName}.$expected');
-          return false;
-        }
-      }
-    }
-    return true;
+    return await _schemaIntact(db);
   } catch (e, st) {
     _log.severe('Drift schema validation failed', e, st);
     return false;
   }
+}
+
+/// [isSchemaIntact], letting a failed query throw.
+Future<bool> _schemaIntact(AppDatabase db) async {
+  for (final table in db.allTables) {
+    final rows = await db
+        .customSelect('PRAGMA table_info(${table.actualTableName})')
+        .get();
+    if (rows.isEmpty) {
+      _log.severe('Table missing: ${table.actualTableName}');
+      return false;
+    }
+    final actual = rows.map((r) => r.data['name'] as String).toSet();
+    for (final expected in table.columnsByName.keys) {
+      if (!actual.contains(expected)) {
+        _log.severe('Column missing: ${table.actualTableName}.$expected');
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 /// Create the company-scoped list/sort/count indexes. Auto-discovers the

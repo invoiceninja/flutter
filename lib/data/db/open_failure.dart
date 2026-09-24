@@ -35,7 +35,15 @@ DbOpenFailureKind classifyDbOpenFailure(Object error) {
   for (var i = 0; i < 4 && e is DriftRemoteException; i++) {
     e = e.remoteCause;
   }
-  if (e is DatabaseMigrationException) return DbOpenFailureKind.migrationFailed;
+  if (e is DatabaseMigrationException) {
+    // Judged by what failed the step: a full disk or a lock mid-upgrade is
+    // the same failure it is anywhere else, and a fresh store fixes neither.
+    final cause = classifyDbOpenFailure(e.cause);
+    return cause == DbOpenFailureKind.transient ||
+            cause == DbOpenFailureKind.storageFull
+        ? cause
+        : DbOpenFailureKind.migrationFailed;
+  }
   if (e is TimeoutException) return DbOpenFailureKind.transient;
 
   final code = switch (e) {
@@ -58,6 +66,12 @@ DbOpenFailureKind classifyDbOpenFailure(Object error) {
   // Browser storage errors carry no SQLite code at all.
   final text = e.toString();
   if (text.contains('QuotaExceededError')) return DbOpenFailureKind.storageFull;
+  // A failed upgrade that crossed the web worker as text. A code the switch
+  // above knows has already decided, as the cause does natively; anything
+  // else failed the step itself.
+  if (text.contains('DatabaseMigrationException(')) {
+    return DbOpenFailureKind.migrationFailed;
+  }
   return DbOpenFailureKind.unknown;
 }
 

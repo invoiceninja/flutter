@@ -86,8 +86,11 @@ counters' next change saved the inherited choices as that user's own, and an
 inherited contacts-sync toggle ran the next Sync pass into the device address
 book for an account that never switched it on. And because the wipe deleted
 the whole `nav_state` row, the theme and language went back to their defaults
-on the next launch. An involuntary end — a 401 or an idle timeout,
-`LocalDataPolicy.keep` — wipes nothing, so every preference stays.
+on the next launch. An end that keeps local data wipes nothing, so every
+preference stays: a 401 (`LocalDataPolicy.keep`), and an idle timeout while any
+company has unsynced work. An idle timeout with nothing unsynced is a sign-out
+(`LocalDataPolicy.destroy`, `IdleTimeoutController._expire`), and the account
+preferences go with it.
 
 A key's scope is pinned in `device_pref_keys_test.dart`, because changing it
 changes what a sign-out does.

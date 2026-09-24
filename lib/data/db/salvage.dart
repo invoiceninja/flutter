@@ -21,6 +21,7 @@ class QuarantinedStore {
   const QuarantinedStore({
     required this.source,
     this.tables = const {},
+    this.unreadableTables = const [],
     this.error,
   });
 
@@ -31,6 +32,12 @@ class QuarantinedStore {
   /// Rows by table name, each row a column → value map. Only the tables in
   /// [kSalvagedTables] that could be read.
   final Map<String, List<Map<String, Object?>>> tables;
+
+  /// Tables in [kSalvagedTables] that the store has but that failed to read.
+  /// Their rows are still in the store, so [importSalvaged] reports them as
+  /// left behind — never as empty, which told the user an unreadable outbox
+  /// had come across whole and left its copy to the pruning.
+  final List<String> unreadableTables;
 
   /// Set when the store could not be read at all (still encrypted with a key
   /// this install no longer has, or damaged past reading).
@@ -117,11 +124,12 @@ final class LocalDataUnrecoverable extends LocalDataRecovery {
 /// is reset afterwards: the cache it described is gone.
 ///
 /// Returns the rows now present per imported table, and the tables that came
-/// across short — skipped, or with fewer rows than the store held.
+/// across short — unreadable in the store, skipped, or with fewer rows than
+/// the store held.
 Future<({Map<String, int> rowsByTable, List<String> incompleteTables})>
 importSalvaged(AppDatabase db, QuarantinedStore store) async {
   final imported = <String, int>{};
-  final incomplete = <String>[];
+  final incomplete = [...store.unreadableTables];
   await db.transaction(() async {
     for (final table in db.allTables) {
       final name = table.actualTableName;

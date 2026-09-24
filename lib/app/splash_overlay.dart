@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -51,7 +49,11 @@ class _SplashOverlayState extends State<SplashOverlay>
   );
 
   _Phase _phase = _Phase.idle;
-  bool get _enabled => !kIsWeb && Platform.isIOS;
+
+  /// Fixed for the State's life, so `dispose` undoes exactly what `initState`
+  /// set up.
+  late final bool _enabled =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void initState() {
@@ -108,7 +110,15 @@ class _SplashOverlayState extends State<SplashOverlay>
 
   @override
   Widget build(BuildContext context) {
-    if (!_enabled || _phase == _Phase.done) return widget.child;
+    if (!_enabled) return widget.child;
+    // The same `Stack` for the whole life of the overlay, with the overlay
+    // dropped from it once done. Returning [widget.child] in its place — the
+    // app's own `Stack` — let Flutter match the two by type and remount every
+    // unkeyed sibling inside the app's: the notice of a local-data reset told
+    // the user a second time.
+    if (_phase == _Phase.done) {
+      return Stack(fit: StackFit.expand, children: [widget.child]);
+    }
 
     final tokens = Theme.of(context).extension<InTheme>();
     final bg = tokens?.bg ?? const Color(0xFFF6F4EF);

@@ -12,7 +12,8 @@ import 'package:admin/data/db/database_opener_io.dart'
 import 'package:admin/domain/columns/ids/client_column_ids.dart';
 import 'package:admin/domain/entity_state.dart';
 import 'package:admin/data/db/db_open_exception.dart';
-import 'package:drift/drift.dart' show QueryExecutor, Value;
+import 'package:drift/drift.dart'
+    show ApplyInterceptor, QueryExecutor, QueryInterceptor, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -574,6 +575,86 @@ void main() {
       expect(opened.wasReset, isTrue);
       await opened.db.close();
     });
+
+    // `isSchemaIntact` answered false for ANY error, and the repair's catch
+    // fell through to the reset — so a lock or an I/O error while the opener
+    // checked the schema, or while it repaired a genuine drift, destroyed the
+    // store: the outcome the classifier exists to prevent for those failures.
+    test('a busy database during the schema check leaves the store '
+        'untouched', () async {
+      var destroyed = 0;
+      await expectLater(
+        openAppDatabase(
+          openExecutor: () async => NativeDatabase.memory().interceptWith(
+            _SchemaProbeInterceptor(
+              busyWhen: (sql) => sql.startsWith('PRAGMA table_info'),
+            ),
+          ),
+          destroyStore: () async {
+            destroyed++;
+            return true;
+          },
+          transientRetries: 0,
+        ),
+        throwsA(
+          isA<DatabaseUnavailableException>().having(
+            (e) => e.kind,
+            'kind',
+            DbOpenFailureKind.transient,
+          ),
+        ),
+      );
+      expect(destroyed, 0, reason: 'destroying the store loses the outbox');
+    });
+
+    test('a busy database while repairing a drift leaves the store '
+        'untouched', () async {
+      var destroyed = 0;
+      await expectLater(
+        openAppDatabase(
+          openExecutor: () async => NativeDatabase.memory().interceptWith(
+            _SchemaProbeInterceptor(
+              hideColumn: ('companies', 'logo_url'),
+              busyWhen: (sql) => sql.contains('FROM sqlite_master'),
+            ),
+          ),
+          destroyStore: () async {
+            destroyed++;
+            return true;
+          },
+          transientRetries: 0,
+        ),
+        throwsA(
+          isA<DatabaseUnavailableException>().having(
+            (e) => e.kind,
+            'kind',
+            DbOpenFailureKind.transient,
+          ),
+        ),
+      );
+      expect(destroyed, 0, reason: 'destroying the store loses the outbox');
+    });
+
+    test('a drift the repair cannot fix still resets', () async {
+      // `outbox.payload` is NOT NULL with no default, and the outbox is the
+      // user's data: the repair refuses rather than drop it.
+      var opens = 0;
+      var destroyed = 0;
+      final opened = await openAppDatabase(
+        openExecutor: () async => ++opens == 1
+            ? NativeDatabase.memory().interceptWith(
+                _SchemaProbeInterceptor(hideColumn: ('outbox', 'payload')),
+              )
+            : NativeDatabase.memory(),
+        destroyStore: () async {
+          destroyed++;
+          return true;
+        },
+      );
+      expect(destroyed, 1);
+      expect(opened.wasReset, isTrue);
+      await opened.db.close();
+    });
   });
 
   group('isSchemaIntact', () {
@@ -724,4 +805,38 @@ void main() {
       expect(tmp.listSync().length, 1);
     });
   });
+}
+
+/// Fails the opener's schema check and repair on purpose while `SELECT 1`
+/// still succeeds: [busyWhen] picks the selects that answer `SQLITE_BUSY`,
+/// and [hideColumn] drops one column from that table's `PRAGMA table_info` —
+/// a drift the repair then has to deal with.
+class _SchemaProbeInterceptor extends QueryInterceptor {
+  _SchemaProbeInterceptor({this.busyWhen, this.hideColumn});
+
+  final bool Function(String sql)? busyWhen;
+  final (String table, String column)? hideColumn;
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    if (busyWhen?.call(statement) ?? false) {
+      throw SqliteException(
+        extendedResultCode: 5,
+        message: 'database is locked',
+      );
+    }
+    final rows = await executor.runSelect(statement, args);
+    final hide = hideColumn;
+    if (hide == null || statement != 'PRAGMA table_info(${hide.$1})') {
+      return rows;
+    }
+    return [
+      for (final row in rows)
+        if (row['name'] != hide.$2) row,
+    ];
+  }
 }

@@ -147,27 +147,55 @@ Future<bool> destroyDatabaseStore() async {
 /// Names the one snapshot whose durable tables have not been carried into the
 /// live store yet. A file rather than process state, so the salvage survives
 /// the process: the app killed between the quarantine and the import, or the
-/// boot screen's Reset followed by a relaunch. Only ever the snapshot the
-/// latest quarantine made — an older one was imported by the reset that made
-/// it, and reading it again would resurrect outbox rows delivered since.
+/// boot screen's Reset followed by a relaunch. Only ever the first snapshot
+/// quarantined since the last successful open — an older one was imported by
+/// that open, and reading it again would resurrect outbox rows delivered
+/// since; a later one never held work ([quarantineDatabaseFile]).
 const _kSalvageMarkerName = '$_kDbFileName.salvage';
+
+/// The file name of the snapshot the salvage marker in [dir] names, when that
+/// snapshot is still on disk — or null: no marker, a marker naming a snapshot
+/// that never appeared, or one that can't be read.
+Future<String?> _pendingSalvageSnapshot(Directory dir) async {
+  try {
+    final marker = File(p.join(dir.path, _kSalvageMarkerName));
+    if (!await marker.exists()) return null;
+    final name = (await marker.readAsString()).trim();
+    if (name.isEmpty) return null;
+    return await File(p.join(dir.path, name)).exists() ? name : null;
+  } catch (e) {
+    _log.warning('Could not read the salvage marker in ${dir.path}: $e');
+    return null;
+  }
+}
 
 /// Move [file] and its sidecars aside as one `.broken.<ts>` snapshot, mark it
 /// for salvage, then prune old snapshots — the body of
 /// [destroyDatabaseStore], taking the file directly so tests can drive it
 /// without `path_provider`. Returns the snapshot's path, or null when there
 /// was no store to move.
+///
+/// Unless a snapshot is still awaiting its salvage. Every successful open
+/// consumes the marker ([readPendingSalvage]), so a marker naming a snapshot
+/// that still exists means no open has finished since that quarantine — and
+/// the store being moved now is the fresh one that failed after it, or the
+/// one the boot screen's Reset is clearing. Re-marking that store orphaned the
+/// snapshot holding the user's unsynced work. The marker stays where it is,
+/// and this store is kept as `.unrecovered.<ts>` — never pruned, listed in
+/// Device Settings — rather than trusted to be empty.
 Future<String?> quarantineDatabaseFile(File file) async {
   final dir = file.parent;
+  final pending = await _pendingSalvageSnapshot(dir);
   final snapshot = p.join(
     dir.path,
-    '$_kDbFileName.broken.${DateTime.now().millisecondsSinceEpoch}',
+    '$_kDbFileName.${pending == null ? 'broken' : 'unrecovered'}'
+    '.${DateTime.now().millisecondsSinceEpoch}',
   );
   final moved = await file.exists();
   // Marked before the move: a crash in between leaves a marker naming a
   // snapshot that never appeared, which the reader drops — the other order
   // could leave a moved store nobody salvages.
-  if (moved) {
+  if (moved && pending == null) {
     await File(
       p.join(dir.path, _kSalvageMarkerName),
     ).writeAsString(p.basename(snapshot), flush: true);
@@ -197,16 +225,24 @@ final _brokenSnapshotName = RegExp(
 /// share its timestamp and are kept or deleted with it. Errors are logged but
 /// swallowed — sweep failure must never block startup.
 ///
+/// The snapshot awaiting its salvage is never deleted, however old: it holds
+/// the unsynced work the next open carries across.
+///
 /// Exposed for tests (re-exported via `app_database.dart`); production calls
 /// it from [destroyDatabaseStore] whenever a new broken snapshot is created.
 Future<void> pruneBrokenDbFiles(Directory dir, {int keep = 2}) async {
   try {
     if (!await dir.exists()) return;
+    final pending = await _pendingSalvageSnapshot(dir);
     final snapshots = <int, List<File>>{};
     await for (final entity in dir.list()) {
       if (entity is! File) continue;
       final name = p.basename(entity.path);
       if (!name.startsWith('$_kDbFileName.broken.')) continue;
+      if (pending != null &&
+          (name == pending || name.startsWith('$pending-'))) {
+        continue;
+      }
       // Defensive fallback to mtime — we always write a numeric ts.
       final ts =
           int.tryParse(_brokenSnapshotName.firstMatch(name)?.group(1) ?? '') ??
@@ -304,6 +340,7 @@ QuarantinedStore readQuarantinedStoreFrom(File snapshot, {String? key}) {
         row['name'] as String,
     };
     final tables = <String, List<Map<String, Object?>>>{};
+    final unreadable = <String>[];
     for (final name in kSalvagedTables) {
       // A table the store predates (`device_prefs` in one older than v12)
       // has nothing to carry — not a failure worth a warning.
@@ -315,11 +352,17 @@ QuarantinedStore readQuarantinedStoreFrom(File snapshot, {String? key}) {
             {for (final column in result.columnNames) column: row[column]},
         ];
       } catch (e) {
-        // One unreadable table must not cost the others.
+        // One unreadable table must not cost the others — but it is reported,
+        // so the import says its rows were left behind and keeps the copy.
         _log.warning('Salvage could not read $name from ${snapshot.path}: $e');
+        unreadable.add(name);
       }
     }
-    return QuarantinedStore(source: snapshot.path, tables: tables);
+    return QuarantinedStore(
+      source: snapshot.path,
+      tables: tables,
+      unreadableTables: unreadable,
+    );
   } catch (e) {
     return QuarantinedStore(source: snapshot.path, error: e);
   } finally {

@@ -21,8 +21,9 @@ import '../ui/features/shell/_shell_test_helpers.dart';
 /// owns it, then the session ends. A deliberate sign-out must leave the
 /// device preferences alone and put every account preference back on its
 /// default — in memory, where the UI reads it, and on disk, where the next
-/// launch does; an involuntary end (a 401, an idle timeout) must leave both
-/// alone.
+/// launch does; an end that keeps local data (a 401, or an idle timeout while
+/// there is unsynced work) must leave both alone. An idle timeout with nothing
+/// unsynced is a sign-out, `LocalDataPolicy.destroy`, like the first case.
 ///
 /// This replaces a source scan that could only check that each controller's
 /// `resetInMemory()` was *called* from the wipe hook, and that missed the
@@ -172,7 +173,7 @@ void main() {
     }
   });
 
-  test('an involuntary end (401, idle) keeps every preference', () async {
+  test('an end that keeps local data keeps every preference', () async {
     final fixture = await changedEverything();
     addTearDown(fixture.dispose);
 

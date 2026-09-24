@@ -7,6 +7,7 @@ import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart' as raw;
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/database_opener_io.dart'
@@ -577,6 +578,77 @@ void main() {
       expect(store?.error, isA<DatabaseKeyLostException>());
       expect(p.basename(store!.source), contains('.unrecovered.'));
       expect(File(store.source).existsSync(), isTrue);
+    });
+
+    test('a second quarantine before the salvage keeps the first one '
+        'marked', () async {
+      // The reset's fresh store failed too, and the boot screen's Reset moved
+      // that one aside as well. Re-marking it orphaned the snapshot holding
+      // the unsynced work: the next launch imported an empty store, said
+      // everything was rebuilt, and pruning later deleted the real one.
+      await seedEncryptedStore();
+      final first = await quarantineDatabaseFile(file);
+      final fresh = AppDatabase(encrypted(file, key));
+      await fresh.customSelect('SELECT 1').get();
+      await fresh.close();
+      // Distinct timestamps, so the second snapshot can't land on the first.
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      final second = await quarantineDatabaseFile(file);
+
+      expect(marker().readAsStringSync(), p.basename(first!));
+      // Never finished an open, so it holds no work — but kept out of the
+      // pruning rather than trusted to be empty.
+      expect(
+        p.basename(second!),
+        startsWith('invoiceninja.sqlite.unrecovered.'),
+      );
+      final store = await readPendingSalvage(dir, key: () async => key);
+      expect(store?.tables['outbox'], hasLength(1));
+    });
+
+    test('pruning never deletes the snapshot awaiting its salvage', () async {
+      await seedEncryptedStore();
+      final marked = await quarantineDatabaseFile(file);
+      final newer = File(
+        p.join(
+          dir.path,
+          'invoiceninja.sqlite.broken.'
+          '${DateTime.now().millisecondsSinceEpoch + 60000}',
+        ),
+      )..writeAsStringSync('x');
+
+      await pruneBrokenDbFiles(dir, keep: 0);
+
+      expect(File(marked!).existsSync(), isTrue);
+      expect(newer.existsSync(), isFalse);
+    });
+
+    test('a table that fails to read is left behind, not taken for an empty '
+        'one', () async {
+      // The reader logged the failure and skipped the table, and the import
+      // then had no outbox rows to carry: the user was told everything came
+      // across, and the copy still holding their unsynced work stayed
+      // prunable. A virtual column that overflows on read stands in for a
+      // damaged table: the store opens, the other tables read.
+      final db = AppDatabase(NativeDatabase(file));
+      await seedDurableAndCache(db);
+      await db.close();
+      raw.sqlite3.open(file.path)
+        ..execute(
+          'ALTER TABLE outbox ADD COLUMN boom INTEGER GENERATED ALWAYS AS '
+          '(abs(-9223372036854775807 - 1)) VIRTUAL',
+        )
+        ..close();
+
+      final store = readQuarantinedStoreFrom(file);
+      final fresh = await freshDb();
+      addTearDown(fresh.close);
+      final result = await importSalvaged(fresh, store);
+
+      expect(store.readable, isTrue);
+      expect(result.incompleteTables, ['outbox']);
+      expect(result.rowsByTable['id_remap'], 1, reason: 'the rest still come');
     });
 
     test('a retained store survives snapshot pruning', () async {

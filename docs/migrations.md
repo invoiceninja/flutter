@@ -112,7 +112,8 @@ squash**; the matrix test will not cover it.
 
 `openAppDatabase()` + `isSchemaIntact()` (`app_database.dart`) self-heal a genuinely corrupt
 or unreadable store by quarantining it and starting fresh; the cache refills from the server
-(`wasReset: true`, which today reaches only a `debugPrint` — it does not route to `/login`).
+(`wasReset: true`, which the user is told about once — § What the user is told about a
+reset — and which does not route to `/login`).
 That is a recovery net for corruption, **not** a way to "migrate" — natively it carries the
 durable and anchor tables across only when the old store can still be read, and on web it
 carries nothing, unsynced outbox edits included. Never lean on it to absorb a schema change;
@@ -165,8 +166,8 @@ The store is the only home of unsynced work (outbox, `id_remap`, dirty and `tmp_
 | Kind | Examples | Result |
 |---|---|---|
 | `corrupt` | SQLITE_CORRUPT (11), SQLITE_NOTADB (26 — also a wrong key) | reset |
-| `migrationFailed` | `DatabaseMigrationException` out of `onUpgrade` (the in-upgrade repair below also failed) | reset |
-| schema drift | the open succeeds but `isSchemaIntact()` is false | `repairSchema`; reset only if that fails |
+| `migrationFailed` | `DatabaseMigrationException` out of `onUpgrade` (the in-upgrade repair below also failed), unless its `cause` is transient or storageFull — then it is that kind | reset |
+| schema drift | the open succeeds but the schema check is false | `repairSchema`; reset only on drift it refuses (`SchemaUnrepairableException`) |
 | `transient` | BUSY / LOCKED / READONLY / IOERR / CANTOPEN, `TimeoutException` | store untouched |
 | `storageFull` | SQLITE_FULL, `QuotaExceededError` | store untouched |
 | `unknown` | anything else | store untouched |
@@ -182,6 +183,18 @@ having the app open twice abandoned the store, and the next load swept it.
   exception's *text* (drift's `protocol.dart` sends `error.toString()`). The classifier
   unwraps the first and parses `SqliteException(<code>)` out of the second;
   `test/data/db/open_failure_test.dart` pins the unwrap against a real background isolate.
+  A failed upgrade crosses the worker as text too, so text naming
+  `DatabaseMigrationException(` with no code in it is `migrationFailed` — it used to be
+  `unknown`, whose advice ("close your other tab") the boot screen then gave on every reload.
+- **A failed upgrade is judged by what failed it.** `DatabaseMigrationException.cause` is
+  classified first: SQLITE_FULL or a lock mid-upgrade is `storageFull` / `transient`, store
+  untouched, exactly as it would be anywhere else in the open. Filing every migration
+  failure under `migrationFailed` reset the store over a full disk.
+- **An error during the schema check or the repair is not drift.** The open loop uses a
+  check that throws (`_schemaIntact`) and catches only `SchemaUnrepairableException` around
+  `repairSchema`, so a BUSY or IOERR there reaches the classifier. `isSchemaIntact` — which
+  answers false for any error — stays for its other two callers, and used to be the open
+  loop's too: a lock while the opener checked the schema reset the store.
 - **No in-process retry on web.** A timed-out `WasmDatabase.open` can still complete later
   and hold the lock in the same page, so a second open would queue behind our own abandoned
   attempt. The boot screen's Try again (a page reload) is the clean retry.
@@ -232,10 +245,19 @@ change that had not reached the server.
 - **Read raw, never through `AppDatabase`.** `readQuarantinedStoreFrom`
   (`database_opener_io.dart`) opens the snapshot with `package:sqlite3` and the same cipher
   pragmas as the live open; going through drift would run the very migrations that may have
-  broken it. One unreadable table does not cost the others.
-- **Only the latest quarantine's snapshot, and only once.** `quarantineDatabaseFile` writes
-  `invoiceninja.sqlite.salvage`, naming its snapshot, *before* it moves the store (a crash in
-  between leaves a marker for a snapshot that never appeared, which is dropped).
+  broken it. One unreadable table does not cost the others — but it is listed in
+  `QuarantinedStore.unreadableTables`, and `importSalvaged` reports it as left behind. It
+  used to be skipped silently, so an unreadable outbox imported as an empty one: "rebuilt",
+  and the snapshot still holding the work stayed prunable.
+- **Only the first snapshot since the last open, and only once.** `quarantineDatabaseFile`
+  writes `invoiceninja.sqlite.salvage`, naming its snapshot, *before* it moves the store (a
+  crash in between leaves a marker for a snapshot that never appeared, which is dropped).
+  A marker naming a snapshot that still exists is left alone: every successful open consumes
+  the marker, so the store being moved now never finished an open — the reset's fresh store
+  that failed too, or the one the boot screen's Reset clears. Re-marking it orphaned the
+  snapshot that held the outbox, and the next launch reported a clean rebuild. That later
+  store is kept as `.unrecovered.<ts>` rather than trusted to be empty, and
+  `pruneBrokenDbFiles` never deletes the marked snapshot.
   `readPendingSalvage` deletes the marker *before* importing. An older snapshot was imported
   by the reset that made it, and its outbox rows may have been delivered since — importing it
   again would resurrect them and send them twice. Deleting after the commit risks exactly
@@ -247,10 +269,10 @@ change that had not reached the server.
   is imported on relaunch.
 - **Forgiving on shape, strict on count.** `importSalvaged` copies only the columns both
   schemas have, skips a table whose rows lack a column the current schema requires, and
-  inserts `OR IGNORE`. A table that comes across short — skipped, or fewer rows than the
-  store held — is listed in `LocalDataSalvaged.incompleteTables`, and the snapshot is then
-  kept as `.unrecovered.<ts>`. `companies.last_sync_at` is reset: the cache it described is
-  gone.
+  inserts `OR IGNORE`. A table that comes across short — unreadable, skipped, or fewer rows
+  than the store held — is listed in `LocalDataSalvaged.incompleteTables`, and the snapshot
+  is then kept as `.unrecovered.<ts>`. `companies.last_sync_at` is reset: the cache it
+  described is gone.
 - **Unreadable is kept, never pruned.** A store damaged past reading, or one whose key is
   gone, is renamed `.unrecovered.<ts>`, out of `pruneBrokenDbFiles`' reach. A lost key is
   told apart: `_getOrCreateDbKey` minting a key while a store already exists means the item

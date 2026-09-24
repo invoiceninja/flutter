@@ -74,6 +74,37 @@ void main() {
       expect(kind.resetRecovers, isTrue);
     });
 
+    test('a failed onUpgrade step is judged by what failed it', () {
+      // Filing every migration failure under `migrationFailed` reset the
+      // store over a full disk or a lock mid-upgrade — the failures a fresh
+      // store does not fix. Only a step that genuinely cannot apply resets.
+      DbOpenFailureKind of(Object cause) => classifyDbOpenFailure(
+        DatabaseMigrationException(from: 11, to: 12, cause: cause),
+      );
+      expect(of(_sqlite(13)), DbOpenFailureKind.storageFull);
+      expect(of(_sqlite(5)), DbOpenFailureKind.transient);
+      expect(of(_sqlite(266)), DbOpenFailureKind.transient);
+      expect(of(TimeoutException('upgrade')), DbOpenFailureKind.transient);
+      expect(of(_sqlite(1)), DbOpenFailureKind.migrationFailed);
+      expect(of(StateError('step')), DbOpenFailureKind.migrationFailed);
+    });
+
+    test('a failed onUpgrade step that crossed the web worker as text', () {
+      // From the worker the error is its `toString()`. A SQLite code in it
+      // decides, as it does natively; without one it is still a failed
+      // upgrade — not `unknown`, whose advice is "close your other tab", on
+      // every reload.
+      DbOpenFailureKind of(Object cause) => classifyDbOpenFailure(
+        _Serialized(
+          DatabaseMigrationException(from: 11, to: 12, cause: cause).toString(),
+        ),
+      );
+      expect(of(StateError('step')), DbOpenFailureKind.migrationFailed);
+      expect(of(_sqlite(1)), DbOpenFailureKind.migrationFailed);
+      expect(of(_sqlite(13)), DbOpenFailureKind.storageFull);
+      expect(of(_sqlite(5)), DbOpenFailureKind.transient);
+    });
+
     test('reads the code back out of a serialized (web worker) error', () {
       expect(
         classifyDbOpenFailure(

@@ -80,6 +80,13 @@ class SaveFailedBanner extends StatelessWidget {
         // discard handler does the fallback dao lookup.
         final localOnly = vm.localValidationOnly;
         final recordDeleted = vm.failedSaveIsRecordDeleted;
+        // A create the server already made — an earlier attempt landed, under
+        // an id this form never learned. Retry is refused the same way, and
+        // Discard would drop the temp id that makes every later Save be
+        // refused, so the next one would make the record twice. Neither is
+        // offered; the reason says where the changes can go instead. An edit
+        // form re-sending the create saves an update next, so it keeps both.
+        final alreadyCreated = vm.failedSaveAlreadyCreated && vm.isCreate;
         return Material(
           color: tokens.overdueSoft,
           child: Padding(
@@ -112,6 +119,8 @@ class SaveFailedBanner extends StatelessWidget {
                           context.tr(
                             localOnly
                                 ? 'please_fix_highlighted_fields'
+                                : alreadyCreated
+                                ? 'could_not_save'
                                 : 'save_rejected_banner',
                           ),
                           style: TextStyle(color: tokens.ink2, fontSize: 13),
@@ -125,7 +134,7 @@ class SaveFailedBanner extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (!localOnly) ...[
+                if (!localOnly && !alreadyCreated) ...[
                   const SizedBox(width: InSpacing.sm),
                   if (onRetry != null && !recordDeleted)
                     _action(context, tokens, 'retry', onRetry!),

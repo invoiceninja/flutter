@@ -8,6 +8,7 @@ import 'package:admin/data/models/api/location_api_model.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/client_repository.dart';
+import 'package:admin/data/repositories/create_already_landed_exception.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/clients_api.dart';
 import 'package:admin/data/services/request_scope.dart';
@@ -995,6 +996,153 @@ void main() {
 
       expect(await db.outboxDao.byId(newer.outboxRowId), isNotNull);
     });
+  });
+
+  group('re-sending the create of a record whose create failed', () {
+    test('replaces the updates queued for the record — left behind it, they '
+        'held it back forever', () async {
+      // An update of a record whose create failed waits for a create to
+      // land; a re-create queued after it waited behind the update. Neither
+      // ever sent. The re-create carries the whole record anyway.
+      final (:repo, :api) = makeRepo();
+      final first = await repo.create(
+        companyId: 'co',
+        draft: Client.fromApi(apiClient('', name: 'Acme')),
+      );
+      final tmpId = first.entity.id;
+      await db.outboxDao.markDead(id: first.outboxRowId, error: 'bad');
+      final edit = await repo.save(
+        companyId: 'co',
+        client: first.entity.copyWith(name: 'Acme Ltd'),
+      );
+
+      final again = await repo.create(
+        companyId: 'co',
+        draft: first.entity.copyWith(name: 'Acme Ltd'),
+        existingTempId: tmpId,
+      );
+
+      expect(await db.outboxDao.byId(edit.outboxRowId), isNull);
+      expect(
+        await db.outboxDao.hasEarlierActiveRowForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: tmpId,
+          beforeId: again.outboxRowId,
+          now: 0,
+        ),
+        isFalse,
+      );
+    });
+
+    test('keeps the record\'s other queued changes', () async {
+      final (:repo, :api) = makeRepo();
+      final first = await repo.create(
+        companyId: 'co',
+        draft: Client.fromApi(apiClient('', name: 'Acme')),
+      );
+      final tmpId = first.entity.id;
+      await db.outboxDao.markDead(id: first.outboxRowId, error: 'bad');
+      await repo.archive(companyId: 'co', id: tmpId);
+
+      await repo.create(
+        companyId: 'co',
+        draft: first.entity,
+        existingTempId: tmpId,
+      );
+
+      final kinds = [
+        for (final r in await db.select(db.outbox).get()) r.mutationKind,
+      ];
+      expect(kinds, contains(MutationKind.archive.wireName));
+    });
+
+    test(
+      'is refused once an earlier attempt landed, and writes nothing',
+      () async {
+        // The record exists under a real id the form never learned: another
+        // create would make it twice, and its local copy would be a phantom.
+        final (:repo, :api) = makeRepo();
+        final first = await repo.create(
+          companyId: 'co',
+          draft: Client.fromApi(apiClient('', name: 'Acme')),
+        );
+        final tmpId = first.entity.id;
+        await asDrainFor(
+          tmpId,
+          () => repo.applyCreateResponse(
+            companyId: 'co',
+            tempId: tmpId,
+            serverResponse: apiClient('c_real', name: 'Acme'),
+          ),
+        );
+        final before = await db.select(db.outbox).get();
+
+        await expectLater(
+          repo.create(
+            companyId: 'co',
+            draft: first.entity,
+            existingTempId: tmpId,
+          ),
+          throwsA(
+            isA<CreateAlreadyLandedException>().having(
+              (e) => e.realId,
+              'realId',
+              'c_real',
+            ),
+          ),
+        );
+
+        expect(await db.select(db.outbox).get(), hasLength(before.length));
+        expect(
+          await db.clientDao.watchById(companyId: 'co', id: tmpId).first,
+          isNull,
+          reason: 'no phantom local record',
+        );
+      },
+    );
+
+    test(
+      'landing drops the record\'s failed edits older than it too',
+      () async {
+        // The failed create took the record's queued edit down with it. Kept,
+        // that dead edit was re-keyed to the real id — a failure on a record
+        // that is fine, whose Retry would PUT older content over the create.
+        final (:repo, :api) = makeRepo();
+        final first = await repo.create(
+          companyId: 'co',
+          draft: Client.fromApi(apiClient('', name: 'Acme')),
+        );
+        final tmpId = first.entity.id;
+        final edit = await repo.save(
+          companyId: 'co',
+          client: first.entity.copyWith(name: 'Acme Ltd'),
+        );
+        await db.outboxDao.markDead(id: first.outboxRowId, error: 'bad');
+        await db.outboxDao.markDead(
+          id: edit.outboxRowId,
+          error: 'References a record that could not be saved',
+        );
+        final again = await repo.create(
+          companyId: 'co',
+          draft: first.entity.copyWith(name: 'Acme Ltd'),
+          existingTempId: tmpId,
+        );
+
+        await asDrainFor(
+          tmpId,
+          () => repo.applyCreateResponse(
+            companyId: 'co',
+            tempId: tmpId,
+            serverResponse: apiClient('c_real', name: 'Acme Ltd'),
+          ),
+        );
+
+        expect(await db.outboxDao.byId(first.outboxRowId), isNull);
+        expect(await db.outboxDao.byId(edit.outboxRowId), isNull);
+        expect(await db.outboxDao.byId(again.outboxRowId), isNotNull);
+      },
+    );
   });
 
   group('stale tmp-id save after create drained (#1 ghost duplicate)', () {

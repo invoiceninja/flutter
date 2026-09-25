@@ -45,7 +45,7 @@ Plus two non-negotiables carried from admin-portal:
 | Adding a sign-out / session-ending surface | § Action confirmations · `docs/adding-an-entity.md` § Action confirmations — the sign-out case |
 | A shortcut that stops working until you click, a macOS beep, or a bare key served by the wrong screen | `docs/keyboard.md` § The whole keyboard layer hangs off one focus node · `test/lint/focus_owner_wiring_test.dart` |
 | Adding or changing a `G`-leader jump (`G` then a letter) | `docs/keyboard.md` § The `G`-leader table has one copy · `lib/domain/leader_shortcuts.dart` |
-| Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules (all 35 rules) · `docs/sync.md` (the evidence) |
+| Sync / outbox / 400-401-403-404-409-412-422 behavior | § Sync — non-obvious rules (all 36 rules) · `docs/sync.md` (the evidence) |
 | Bundled vs per-entity data loading | § Data loading — bundled vs per-entity |
 | Architecture, write pipeline, project layout | § Architecture — at a glance + `docs/architecture.md` |
 | Changing the Drift schema (forward migration), or adding a device preference (which needs none) | `docs/migrations.md` · `docs/device-preferences.md` · `lib/data/prefs/device_pref_keys.dart` |
@@ -453,6 +453,7 @@ Every render surface must wire `guardedOnTap(context, item)` rather than `item.o
 - **A Sync pass re-downloads the fourteen entity tables and nothing else — every cache that hangs off them is re-seeded by hand.** → `docs/sync.md` § A Sync pass re-downloads the entity tables and nothing else
 - **A `/refresh` delta carries the fourteen browsable entity tables too, and they are applied as an upsert-only top-up — never on a full sync, and never over a newer local row.** → `docs/sync.md` § The refresh delta tops up the browsable tables
 - **Anything that must fetch once a Sync pass is over listens to `ResyncController.lastCompletion` — the idle falling edge also fires for a cancelled pass.** → `docs/sync.md` § A screen that refetches after a Sync pass listens to `lastCompletion`
+- **An edit of a record whose create failed saves as a create — `performSave` branches on `savesAsCreate`, never `isCreate`.** → `docs/sync.md` § An edit of a record whose create failed saves as a create
 - The local `is_dirty` flag is **layered onto the domain model** in `<Repository>._fromRow` (e.g. `ClientRepository._fromRow`) — `<Entity>.fromApi` defaults it to `false`, the repo overlays the value from the Drift row. Without the overlay, an unsaved edit shows up as clean after app restart.
 
 ## Document version history

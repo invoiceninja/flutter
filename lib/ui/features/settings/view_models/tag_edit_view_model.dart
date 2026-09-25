@@ -32,7 +32,7 @@ class TagEditViewModel extends GenericEditViewModel<Tag> {
 
   @override
   Future<SaveResult<Tag>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

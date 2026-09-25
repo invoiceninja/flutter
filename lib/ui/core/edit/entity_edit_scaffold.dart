@@ -48,6 +48,7 @@ class EntityEditScaffold<T> extends StatelessWidget {
     required this.resetToEmpty,
     required this.onSaved,
     this.onSaveRejected,
+    this.onSaveFailed,
     this.topBanner,
     this.embedded = false,
     this.actionsBuilder,
@@ -75,6 +76,10 @@ class EntityEditScaffold<T> extends StatelessWidget {
   /// SaveFailedBanner's Discard button can act on the *fresh* failure,
   /// not a stale link from the prior load. Awaited.
   final FutureOr<void> Function()? onSaveRejected;
+
+  /// Called after a save failed with no per-field errors (network, 5xx, a
+  /// permanent 4xx), once its toast is up. Awaited.
+  final FutureOr<void> Function()? onSaveFailed;
 
   /// Optional banner pinned between the AppBar and the form body. Used by
   /// `SaveFailedBanner` to surface a prior 422 across the whole form.
@@ -205,6 +210,7 @@ class EntityEditScaffold<T> extends StatelessWidget {
           context.tr('could_not_save'),
           detail: vm.submitError,
         );
+        await onSaveFailed?.call();
       }
       return null;
     }

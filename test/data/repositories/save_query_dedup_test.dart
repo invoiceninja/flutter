@@ -74,6 +74,35 @@ void main() {
   Invoice draftInvoice() =>
       Invoice.fromApi(const InvoiceApi(id: 'inv1', statusId: '1'));
 
+  group('re-sending a failed create', () {
+    test('carries the action of an update queued behind it', () async {
+      // The update waited for the create to land; the re-create replaces it,
+      // so its Mark Sent rides on the create instead of being lost.
+      await seedCompany();
+      final repo = invoices();
+      final first = await repo.create(
+        companyId: 'co',
+        draft: Invoice.fromApi(const InvoiceApi(id: '', statusId: '1')),
+      );
+      await db.outboxDao.markDead(id: first.outboxRowId, error: 'bad');
+      await repo.save(
+        companyId: 'co',
+        invoice: first.entity,
+        extraQuery: const {'mark_sent': 'true'},
+      );
+
+      await repo.create(
+        companyId: 'co',
+        draft: first.entity,
+        existingTempId: first.entity.id,
+      );
+
+      final rows = await outbox();
+      expect(rows.single.mutationKind, MutationKind.create.wireName);
+      expect(await savedQuery(), {'mark_sent': 'true'});
+    });
+  });
+
   group('a superseding save carries the earlier action forward', () {
     test('offline Mark Sent then a plain Save keeps mark_sent', () async {
       await seedCompany();

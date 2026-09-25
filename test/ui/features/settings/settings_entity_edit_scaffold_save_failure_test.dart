@@ -25,25 +25,31 @@
 //      vanished, and the outbox row survived to apply the write they had just
 //      discarded.
 
+import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/theme.dart';
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
+import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_edit_scaffold.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../_localization_helper.dart';
+import '../../../_support/device_prefs_test_support.dart';
 
 class _FakeAuth implements AuthRepository {
   _FakeAuth(String companyId)
@@ -68,10 +74,26 @@ class _FakeAuth implements AuthRepository {
 
 class _FakeSync implements SyncRepository {
   final List<int> discarded = [];
+  final List<int> superseded = [];
+
+  /// What a discard reports: true when the ghost path took the local record
+  /// with a never-synced create. False by default — a discarded update never
+  /// takes it — so the forms mounted without a router never navigate.
+  bool removesRecord = false;
 
   @override
-  Future<bool> discardOutboxRow(int id) async {
+  Future<bool> discardFailedSave(int id) async {
     discarded.add(id);
+    return removesRecord;
+  }
+
+  @override
+  Future<bool> discardDeletesUnsyncedRecord(OutboxRow row) async =>
+      removesRecord && row.state != 'unconfirmed';
+
+  @override
+  Future<bool> supersedeDeadSave(int id) async {
+    superseded.add(id);
     return true;
   }
 
@@ -83,7 +105,16 @@ class _FakeSync implements SyncRepository {
 /// `Notify.*` falls back to `Services.toasts`, which `noSuchMethod` throws for
 /// (caught → silent no-op, no ToastHost needed).
 class _FakeServices implements Services {
-  _FakeServices({required this.db, required this.auth, required this.sync});
+  _FakeServices({
+    required this.db,
+    required this.auth,
+    required this.sync,
+    bool confirm = false,
+  }) : confirmActions = ConfirmActionsController(
+         prefs: prefsWith({DevicePrefKeys.confirmActions: confirm}),
+       );
+  @override
+  final ConfirmActionsController confirmActions;
   @override
   final AppDatabase db;
   @override
@@ -107,6 +138,31 @@ class _Vm extends GenericEditViewModel<String> {
       throw Exception('Connection failed');
 }
 
+/// An existing record whose save goes through: it queues its update the way
+/// the repositories do.
+class _SavingVm extends GenericEditViewModel<String> {
+  _SavingVm({required this.db}) : super(initialDraft: 'seed', original: 'seed');
+
+  final AppDatabase db;
+
+  @override
+  Future<SaveResult<String>> performSave() async {
+    final rowId = await db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'tax_rates',
+        entityId: 'tr1',
+        mutationKind: 'update',
+        payload: '{}',
+        idempotencyKey: 'idem-save',
+        createdAt: 0,
+        nextAttemptAt: 0,
+      ),
+    );
+    return SaveResult(entity: draft, outboxRowId: rowId);
+  }
+}
+
 /// A new record. Its save queues the create row the way the repositories do —
 /// under a `tmp_` id the view model remembers, while the draft carries no id
 /// at all — and then fails with [failure].
@@ -115,13 +171,17 @@ class _CreateVm extends GenericEditViewModel<String> {
     required this.db,
     required this.tmpId,
     required this.dead,
-    required this.failure,
+    this.failure,
+    this.failureFor,
+    this.rowState,
   }) : super(initialDraft: '');
 
   final AppDatabase db;
   final String tmpId;
   final bool dead;
-  final Object failure;
+  final Object? failure;
+  final Object Function(int rowId)? failureFor;
+  final String? rowState;
   int? rowId;
 
   @override
@@ -136,7 +196,7 @@ class _CreateVm extends GenericEditViewModel<String> {
         idempotencyKey: 'idem-create',
         createdAt: 0,
         nextAttemptAt: 0,
-        state: Value(dead ? 'dead' : 'pending'),
+        state: Value(rowState ?? (dead ? 'dead' : 'pending')),
         lastError: Value(dead ? 'The rate field must be a number.' : 'Down'),
         lastStatusCode: Value(dead ? 422 : 503),
         fieldErrorsJson: Value(
@@ -145,7 +205,7 @@ class _CreateVm extends GenericEditViewModel<String> {
       ),
     );
     rememberCreateTempId(tmpId);
-    throw failure;
+    throw failureFor?.call(rowId!) ?? failure!;
   }
 }
 
@@ -504,6 +564,283 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(sync.discarded, [vm.rowId]);
+    });
+  });
+
+  group('leaving the form', () {
+    // A discard that took a never-synced record with its create leaves the
+    // form — a settings form stayed open on a record that no longer exists,
+    // or on a create's draft that, saved again, could make it twice.
+    const tmpId = 'tmp_00000000-0000-4000-8000-0000000000ab';
+
+    Future<GoRouter> pumpRouted(
+      WidgetTester tester,
+      GenericEditViewModel<String> vm, {
+      String? existingId,
+    }) async {
+      Widget scaffold(String? id) =>
+          SettingsEntityEditScaffold<String, GenericEditViewModel<String>>(
+            existingId: id,
+            backRoute: '/settings/tax_rates',
+            createTitleKey: 'new_tax_rate',
+            editTitleKey: 'edit_tax_rate',
+            wireName: wireName,
+            watchById: (_) => Stream<String?>.value('seed'),
+            refreshAll: () async {},
+            onArchive: (_) async {},
+            onRestore: (_) async {},
+            onDelete: (_) async {},
+            vmFactory: ({String? existing}) => vm,
+            canSave: (_) => true,
+            isArchivedOf: (_) => false,
+            isDeletedOf: (_) => false,
+            bodyBuilder: (context, _) => const [SizedBox.shrink()],
+          );
+      final router = GoRouter(
+        initialLocation: existingId == null
+            ? '/settings/tax_rates/new'
+            : '/settings/tax_rates/$existingId',
+        routes: [
+          GoRoute(
+            path: '/settings/tax_rates',
+            builder: (_, _) => const Scaffold(body: Text('tax rates list')),
+            routes: [
+              GoRoute(path: 'new', builder: (_, _) => scaffold(null)),
+              GoRoute(
+                path: ':id',
+                builder: (_, state) => scaffold(state.pathParameters['id']),
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<Services>.value(value: services),
+            ChangeNotifierProvider<SettingsLevelController>.value(
+              value: levelController,
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: buildInTheme(InTheme.light),
+            localizationsDelegates: kTestLocalizationsDelegates,
+            supportedLocales: kTestSupportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    String uriOf(GoRouter router) =>
+        router.routerDelegate.currentConfiguration.uri.toString();
+
+    testWidgets('discarding a create that may already have gone through leaves '
+        'a settings create form for its list', (tester) async {
+      sync.removesRecord = true;
+      final vm = _CreateVm(
+        db: db,
+        tmpId: tmpId,
+        dead: false,
+        rowState: 'unconfirmed',
+        failureFor: UnconfirmedPriorMutationException.new,
+      );
+      final router = await pumpRouted(tester, vm);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+
+      expect(sync.discarded, [vm.rowId]);
+      expect(uriOf(router), '/settings/tax_rates');
+    });
+
+    testWidgets('discarding the failed create of a record the server has never '
+        'seen leaves its settings form', (tester) async {
+      sync.removesRecord = true;
+      final dead = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: companyId,
+          entityType: wireName,
+          entityId: tmpId,
+          mutationKind: 'create',
+          payload: '{}',
+          idempotencyKey: 'idem-dead',
+          createdAt: 0,
+          nextAttemptAt: 0,
+          state: const Value('dead'),
+          lastError: const Value('The rate field must be a number.'),
+          lastStatusCode: const Value(422),
+        ),
+      );
+      final router = await pumpRouted(tester, _Vm('seed'), existingId: tmpId);
+      await tester.tap(find.text('Discard failed save'));
+      await tester.pumpAndSettle();
+
+      expect(sync.discarded, [dead]);
+      expect(uriOf(router), '/settings/tax_rates');
+    });
+
+    testWidgets('with Confirm actions on, discarding that create asks first — '
+        'it takes the record, and whatever needs it', (tester) async {
+      services = _FakeServices(
+        db: db,
+        auth: _FakeAuth(companyId),
+        sync: sync,
+        confirm: true,
+      );
+      sync.removesRecord = true;
+      final dead = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: companyId,
+          entityType: wireName,
+          entityId: tmpId,
+          mutationKind: 'create',
+          payload: '{}',
+          idempotencyKey: 'idem-dead',
+          createdAt: 0,
+          nextAttemptAt: 0,
+          state: const Value('dead'),
+          lastError: const Value('The rate field must be a number.'),
+          lastStatusCode: const Value(422),
+        ),
+      );
+      final router = await pumpRouted(tester, _Vm('seed'), existingId: tmpId);
+
+      await tester.tap(find.text('Discard failed save'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('never saved to the server'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(sync.discarded, isEmpty);
+
+      await tester.tap(find.text('Discard failed save'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PrimaryDialogAction),
+          matching: find.text('Discard'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(sync.discarded, [dead]);
+      expect(uriOf(router), '/settings/tax_rates');
+    });
+
+    testWidgets('a create that fails after the form opened turns the next '
+        'save into a re-send of it', (tester) async {
+      final create = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: companyId,
+          entityType: wireName,
+          entityId: tmpId,
+          mutationKind: 'create',
+          payload: '{}',
+          idempotencyKey: 'idem-create',
+          createdAt: 0,
+          nextAttemptAt: 0,
+        ),
+      );
+      final vm = _Vm('seed');
+      await pumpRouted(tester, vm, existingId: tmpId);
+      expect(vm.savesAsCreate, isFalse, reason: 'its create was still queued');
+      await db.outboxDao.markDead(
+        id: create,
+        error: 'The rate field must be a number.',
+        statusCode: 422,
+      );
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(vm.savesAsCreate, isTrue);
+      expect(vm.deadOutboxRowId, create);
+    });
+
+    testWidgets('a create form that drops a create the server never saw keeps '
+        'its draft', (tester) async {
+      sync.removesRecord = true;
+      final vm = _CreateVm(
+        db: db,
+        tmpId: tmpId,
+        dead: false,
+        failure: const ServerException(503, 'Down'),
+      );
+      final router = await pumpRouted(tester, vm);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard failed save'));
+      await tester.pumpAndSettle();
+
+      expect(sync.discarded, [vm.rowId]);
+      expect(uriOf(router), '/settings/tax_rates/new');
+    });
+
+    testWidgets('an edit of a record whose create failed links that create '
+        'and saves by re-sending it', (tester) async {
+      // Its save queued an update that waited forever behind the failed
+      // create; and the form opened on the cascade's error on the edit that
+      // died with it, not on the create's own rejection.
+      Future<int> dead(String kind, String key, String error) =>
+          db.outboxDao.enqueue(
+            OutboxCompanion.insert(
+              companyId: companyId,
+              entityType: wireName,
+              entityId: tmpId,
+              mutationKind: kind,
+              payload: '{}',
+              idempotencyKey: key,
+              createdAt: 0,
+              nextAttemptAt: 0,
+              state: const Value('dead'),
+              lastError: Value(error),
+              lastStatusCode: const Value(422),
+            ),
+          );
+      final create = await dead(
+        'create',
+        'idem-create',
+        'The rate field must be a number.',
+      );
+      await dead(
+        'update',
+        'idem-update',
+        'References a record that could not be saved',
+      );
+      final vm = _Vm('seed');
+
+      await pumpRouted(tester, vm, existingId: tmpId);
+
+      expect(vm.deadOutboxRowId, create);
+      expect(vm.savesAsCreate, isTrue);
+      expect(vm.isCreate, isFalse);
+    });
+
+    testWidgets('a successful re-save drops the failed save it replaced', (
+      tester,
+    ) async {
+      // Settings forms never did: the failed save re-showed its stale error
+      // on every open, and an Outbox Retry would PUT its old payload over the
+      // newer one.
+      final dead = await enqueueRow(
+        dead: true,
+        error: 'The rate field must be a number.',
+        statusCode: 422,
+        fieldErrorsJson: '{"rate":["The rate field must be a number."]}',
+      );
+      final router = await pumpRouted(
+        tester,
+        _SavingVm(db: db),
+        existingId: entityId,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(sync.superseded, [dead]);
+      expect(uriOf(router), '/settings/tax_rates');
     });
   });
 }

@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/create_already_landed_exception.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -160,6 +161,15 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   bool get failedSaveIsRecordDeleted => _recordDeleted;
   bool _recordDeleted = false;
 
+  /// True when the save was refused because the record already exists on the
+  /// server — an earlier attempt at its create landed ([kAlreadyCreatedError]).
+  /// A create form must not offer a way to a second record: no Retry, no
+  /// Discard (which would drop the temp id that makes every later Save be
+  /// refused too). An edit form re-sending the create drops back to saving
+  /// an update of the real record, so its Retry stays.
+  bool get failedSaveAlreadyCreated => _alreadyCreated;
+  bool _alreadyCreated = false;
+
   Map<String, List<String>> _fieldErrors = const {};
 
   /// Map of `api_field_key` → list of error messages, populated when the
@@ -283,6 +293,18 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// attempt is a clean start.
   String? get recoveryTempId => _recoveryTempId;
 
+  bool _recreate = false;
+
+  /// Whether [performSave] saves as a create: in create mode, or on an edit
+  /// form of a record whose own create failed and never landed — linked by
+  /// [applyFailedSync] with `recreate`. Saved as an update, that edit waited
+  /// forever behind the failed create; as a create under the record's
+  /// [recoveryTempId] it re-sends the record, and the failed attempt goes when
+  /// it lands. [isCreate] is unchanged: titles, layout and actions stay those
+  /// of an edit. Every `performSave` branches on this, never on [isCreate]
+  /// (`test/lint/saves_as_create_wiring_test.dart`).
+  bool get savesAsCreate => isCreate || (_recreate && _recoveryTempId != null);
+
   /// Remember the tmp id from a CREATE attempt's [SaveResult] so subsequent
   /// retries can reuse it. Subclasses call this from their `performSave`
   /// override right after a `repo.create(...)` call.
@@ -308,12 +330,17 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// field errors at all (a permanent 4xx), which previously left the reopened
   /// form looking clean while the outbox row sat dead. Pass null to leave the
   /// current values alone (the fresh-failure path already set them in [save]).
+  ///
+  /// [recreate] — the dead row is the record's own failed `create`, and this
+  /// form edits that record: its next Save re-sends the create
+  /// ([savesAsCreate]).
   void applyFailedSync({
     required int rowId,
     required Map<String, List<String>> errors,
     String? entityId,
     String? message,
     int? statusCode,
+    bool recreate = false,
   }) {
     _deadOutboxRowId = rowId;
     _fieldErrors = Map.unmodifiable(errors);
@@ -322,8 +349,10 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       _failedStatusCode = statusCode;
       _recordDeleted = isRecordDeletedRejection(statusCode, _submitError);
     }
+    _alreadyCreated = isAlreadyCreatedRejection(_submitError);
     if (entityId != null && entityId.startsWith('tmp_')) {
       _recoveryTempId = entityId;
+      _recreate = recreate;
     }
     notifyListeners();
   }
@@ -341,6 +370,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
         !_localValidationOnly &&
         _submitError == null &&
         _recoveryTempId == null &&
+        !_recreate &&
         _unconfirmedRowId == null) {
       return;
     }
@@ -351,7 +381,9 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     _submitError = null;
     _failedStatusCode = null;
     _recordDeleted = false;
+    _alreadyCreated = false;
     _recoveryTempId = null;
+    _recreate = false;
     notifyListeners();
   }
 
@@ -387,7 +419,9 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     _submitError = null;
     _fieldErrors = const {};
     _localValidationOnly = false;
+    _alreadyCreated = false;
     _recoveryTempId = null;
+    _recreate = false;
     notifyListeners();
   }
 
@@ -508,6 +542,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     _submitError = null;
     _failedStatusCode = null;
     _recordDeleted = false;
+    _alreadyCreated = false;
     _fieldErrors = const {};
     _localValidationOnly = false;
     _lastSaveWasOptimistic = false;
@@ -519,6 +554,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     // pick up the *fresh* dead row id, and on any other failure so Discard
     // reaches the newer row rather than the stale one.
     notifyListeners();
+    int? awaitedRowId;
     try {
       // Client-side validation runs *inside* the try so the `finally` below
       // still fires on an early return — that's what clears _pendingSaveQuery
@@ -532,6 +568,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
         return null;
       }
       final result = await performSave();
+      awaitedRowId = result.outboxRowId;
       // If the production wiring is in place AND the device is online, wait
       // for the just-enqueued row to settle so 422 / 5xx errors land on this
       // form instead of via the dead-row banner after pop. When wiring is
@@ -589,7 +626,18 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       // (background drain handles its own remap).
       _savedClean = true;
       _recoveryTempId = null;
+      _recreate = false;
       return result.entity;
+    } on CreateAlreadyLandedException {
+      // An earlier attempt at this record's create landed: another would make
+      // it twice. A create form keeps its temp id, so every later Save is
+      // refused the same way; an edit form re-sending the create drops back to
+      // saving an update of the record, which now exists.
+      _submitError = kAlreadyCreatedError;
+      _alreadyCreated = true;
+      _deadOutboxRowId = null;
+      _recreate = false;
+      return null;
     } on UnconfirmedPriorMutationException catch (e) {
       // The earlier create of this record may already have made it on the
       // server; nothing was queued this time.
@@ -622,6 +670,18 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       _recordDeleted =
           e is RecordDeletedException ||
           isRecordDeletedRejection(_failedStatusCode, _submitError);
+      // The drain refused an awaited create whose record already exists.
+      _alreadyCreated = isAlreadyCreatedRejection(_submitError);
+      if (_alreadyCreated) {
+        // Saved again, the form sends an update of the record that exists,
+        // and links the refused row, which that save then supersedes. Left in
+        // re-create mode, Retry was refused once more; unlinked, the refused
+        // row stayed in the Outbox and the sign-out count, and came back as
+        // this banner whenever the record was opened.
+        _recreate = false;
+        _deadOutboxRowId = awaitedRowId;
+        return null;
+      }
       // As in the 422 arm: this failure superseded the one the form opened
       // with. A 5xx or a lost connection leaves the NEW row pending, so a
       // cached link to the old dead row sent Discard there — and the write the

@@ -158,7 +158,7 @@ class PaymentEditViewModel extends GenericEditViewModel<Payment> {
       // message and the scaffold surfaces it via Notify.error.
       throw ValidationException(_translate(errorKey), const {});
     }
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

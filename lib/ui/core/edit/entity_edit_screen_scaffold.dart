@@ -7,8 +7,8 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
-import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/dialogs/confirm_action_dialog.dart';
 import 'package:admin/ui/core/edit/entity_edit_scaffold.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
@@ -246,11 +246,37 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     String companyId,
     String entityId,
   ) async {
+    if (await _linkFailedCreate(services, companyId, entityId)) return;
     final row = await services.db.outboxDao.findDeadSaveForEntity(
       companyId: companyId,
       entityType: widget.entityTypeName,
       entityId: entityId,
     );
+    _applyFailedRow(row, recreate: false);
+  }
+
+  /// A record whose own create failed and never landed: link that create —
+  /// its own rejection, not the one on the edits that died with it — and let
+  /// an edit form re-send it (`GenericEditViewModel.savesAsCreate`). Saved as
+  /// an update, the edit waited forever behind the failed create. Whether it
+  /// linked one.
+  Future<bool> _linkFailedCreate(
+    Services services,
+    String companyId,
+    String entityId,
+  ) async {
+    if (!entityId.startsWith('tmp_')) return false;
+    final newestCreate = await services.db.outboxDao.findNewestCreateForEntity(
+      companyId: companyId,
+      entityType: widget.entityTypeName,
+      entityId: entityId,
+    );
+    if (newestCreate?.state != 'dead') return false;
+    _applyFailedRow(newestCreate, recreate: widget.existingId != null);
+    return true;
+  }
+
+  void _applyFailedRow(OutboxRow? row, {required bool recreate}) {
     if (row == null || _vm == null || !mounted) return;
     var errors = const <String, List<String>>{};
     final raw = row.fieldErrorsJson;
@@ -279,6 +305,7 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
       entityId: row.entityId,
       message: message,
       statusCode: row.lastStatusCode,
+      recreate: recreate,
     );
   }
 
@@ -326,23 +353,13 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// payload is now stale) and clear the VM's failed-sync link. Shared by the
   /// plain-Save `onSaved` path and the edit-mode after-save `onSaveCleanup`
   /// path so both consume the dead row.
+  ///
+  /// Which rows a save supersedes is the repository's rule
+  /// ([SyncRepository.supersedeDeadSave]) — a failed create that has not
+  /// landed stays unless a newer create replaced it.
   Future<void> _cleanupPriorDeadRow(Services services, VM vm) async {
     final priorDeadId = await _resolveDeadRowId(services, vm);
     if (priorDeadId == null) return;
-    // Only a create supersedes a failed create that has not landed. An edit
-    // of a record whose create was rejected queues an UPDATE, which waits
-    // behind that create and cannot send before it: deleting the create
-    // stranded the record — the update then died as referencing a discarded
-    // one. A dead create under a real id is stale — the record exists — and
-    // goes as before.
-    if (!vm.isCreate) {
-      final row = await services.db.outboxDao.byId(priorDeadId);
-      if (row != null &&
-          row.mutationKind == MutationKind.create.wireName &&
-          row.entityId.startsWith('tmp_')) {
-        return;
-      }
-    }
     await services.sync.supersedeDeadSave(priorDeadId);
     vm.clearFailedSync();
   }
@@ -378,20 +395,44 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
       vm.clearFailedSync();
       return;
     }
-    final removedLocal = await services.sync.discardOutboxRow(rowId);
+    // Read before it goes: where to leave for, if the record goes with it.
+    final row = await services.db.outboxDao.byId(rowId);
+    if (!mounted) return;
+    // On a form opened on a record the server never saw, the failed save is
+    // its create, and discarding that removes the record — with anything
+    // queued that needs it, an invoice made for a new client say. More than
+    // dropping a save, so it asks first, as the Outbox's Discard does.
+    if (row != null &&
+        widget.existingId != null &&
+        services.confirmActions.value &&
+        await services.sync.discardDeletesUnsyncedRecord(row)) {
+      if (!mounted) return;
+      final ok = await showConfirmActionDialog(
+        context,
+        title: context.tr('discard'),
+        message: context.tr('discard_unsaved_record_body'),
+        destructive: true,
+      );
+      if (!ok || !mounted) return;
+    }
+    final removedLocal = await services.sync.discardFailedSave(rowId);
     vm.clearFailedSync();
-    // A never-synced offline create just had its local record hard-deleted —
-    // this screen now points at an entity that no longer exists. Leave it.
-    // Embedded mode has no route of its own to pop. A create form points at
-    // no record and keeps its draft — unless what was discarded may already
-    // have made the record: then it leaves too, as a resent create does, so
-    // that draft can't be saved into a second one.
+    // A never-synced record just went with its create (the ghost path): on a
+    // form opened on it, or a create that may already have made it — whose
+    // draft, saved again, could make it twice. Leave for its list, as a
+    // resent create does, marked clean first so the route's exit guard
+    // doesn't ask to discard what is already gone. Not `pop`: `/x/new` is a
+    // sibling route in the entity shell, with nothing to pop, and
+    // `/x/:id/edit` would pop onto the deleted record's detail. A create form
+    // that dropped a create the server never saw keeps its draft; embedded
+    // mode has no route of its own to leave.
     if (removedLocal &&
+        row != null &&
         (widget.existingId != null || rowId == heldRowId) &&
         !widget.embedded &&
-        mounted &&
-        context.canPop()) {
-      context.pop();
+        mounted) {
+      vm.markSaved();
+      context.go(unconfirmedRowDestination(services, row));
     }
   }
 
@@ -488,6 +529,19 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
           services,
           _companyId,
           draftId.isNotEmpty ? draftId : (vm.recoveryTempId ?? ''),
+        );
+      },
+      onSaveFailed: () async {
+        // The record's create can fail after the form opened: its edits then
+        // die waiting on it, and saving another only queues one more that
+        // can't go. From then on the form sends the create again, as one
+        // opened after the create failed does.
+        final existingId = widget.existingId;
+        if (existingId == null || vm.savesAsCreate) return;
+        await _linkFailedCreate(
+          context.read<Services>(),
+          _companyId,
+          existingId,
         );
       },
       onSaved: (ctx, saved) async {

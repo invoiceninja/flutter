@@ -48,7 +48,7 @@ class TransactionEditViewModel extends GenericEditViewModel<BankTransaction> {
 
   @override
   Future<SaveResult<BankTransaction>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

@@ -6,6 +6,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/widgets/save_failed_banner.dart';
 
@@ -22,7 +23,8 @@ import '../../../_responsive_helper.dart';
 /// that stop it being a dead end: the reason is always stated, Retry exists,
 /// and Retry is suppressed exactly when it would be a lie.
 class _FakeVm extends GenericEditViewModel<String> {
-  _FakeVm({this.localErrors = const {}}) : super(initialDraft: 'draft');
+  _FakeVm({this.localErrors = const {}, super.original})
+    : super(initialDraft: 'draft');
 
   /// Returned from [validate] so `save()` takes its client-side block path,
   /// which is the only way to set `localValidationOnly`.
@@ -254,6 +256,33 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.text('Resend'), findsOneWidget);
+    });
+  });
+
+  group('a create the server already made', () {
+    // An earlier attempt at the create landed, under an id the form never
+    // learned. Retry is refused the same way, and Discard would drop the temp
+    // id that makes every later Save be refused — so the next one would make
+    // the record twice. The form offers neither; leaving it is the way out.
+    testWidgets('a create form offers neither Retry nor Discard', (
+      tester,
+    ) async {
+      final vm = _FakeVm()..rejectWith(message: kAlreadyCreatedError);
+      await pumpBanner(tester, vm, onRetry: () async {});
+
+      expect(find.textContaining('Already created on the server'), findsOne);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Discard failed save'), findsNothing);
+    });
+
+    testWidgets('an edit form keeps Retry — it saves an update of the record', (
+      tester,
+    ) async {
+      final vm = _FakeVm(original: 'draft')
+        ..rejectWith(message: kAlreadyCreatedError);
+      await pumpBanner(tester, vm, onRetry: () async {});
+
+      expect(find.text('Retry'), findsOneWidget);
     });
   });
 }

@@ -20,6 +20,7 @@ import 'package:admin/data/models/api/document_api_model.dart';
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/data/services/company_switched_exception.dart';
 import 'package:admin/data/services/request_scope.dart';
+import 'package:admin/data/repositories/create_already_landed_exception.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 
 export 'package:admin/data/services/company_switched_exception.dart';
@@ -291,7 +292,15 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// A `create` whose earlier create of the same record is `unconfirmed`
   /// throws [UnconfirmedPriorMutationException] instead: the server may
   /// already have made the record, so a second create would make it twice.
-  /// Callers run this inside their save transaction, which then rolls back.
+  /// One whose temp id has already landed throws
+  /// [CreateAlreadyLandedException]: the server made it. Callers run this
+  /// inside their save transaction, which then rolls back — the local copy
+  /// the save wrote with it too.
+  ///
+  /// A `create` also replaces the record's queued `update` rows: the record
+  /// was never created, so they wait for a create to land, while a create
+  /// queued after them waited behind them — neither ever sent. The create
+  /// carries the whole record, and their save queries come with it.
   @protected
   Future<Map<String, String>> dedupPendingMutations({
     required String companyId,
@@ -299,6 +308,11 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     required MutationKind kind,
   }) async {
     if (kind == MutationKind.create) {
+      final landed = await _idRemap.resolve(
+        entityType: entityTypeName,
+        tempId: entityId,
+      );
+      if (landed != null) throw CreateAlreadyLandedException(landed);
       final unconfirmed = await _outbox.findUnconfirmedForEntity(
         companyId: companyId,
         entityType: entityTypeName,
@@ -309,18 +323,32 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         throw UnconfirmedPriorMutationException(unconfirmed.id);
       }
     }
-    final superseded = await _outbox.pendingRowsForEntity(
-      companyId: companyId,
-      entityType: entityTypeName,
-      entityId: entityId,
-      mutationKind: kind.wireName,
-    );
+    final superseded = [
+      for (final k in [
+        kind,
+        if (kind == MutationKind.create) MutationKind.update,
+      ])
+        ...await _outbox.pendingRowsForEntity(
+          companyId: companyId,
+          entityType: entityTypeName,
+          entityId: entityId,
+          mutationKind: k.wireName,
+        ),
+    ]..sort((a, b) => a.id.compareTo(b.id));
     await _outbox.deletePendingForEntity(
       companyId: companyId,
       entityType: entityTypeName,
       entityId: entityId,
       mutationKind: kind.wireName,
     );
+    if (kind == MutationKind.create) {
+      await _outbox.deletePendingForEntity(
+        companyId: companyId,
+        entityType: entityTypeName,
+        entityId: entityId,
+        mutationKind: MutationKind.update.wireName,
+      );
+    }
     final carried = <String, String>{};
     for (final row in superseded) {
       carried.addAll(saveQueryOf(row.payload));
@@ -452,10 +480,12 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// payloads that referenced the temp id.
   ///
   /// While the drain dispatches the create that landed, the record's earlier
-  /// attempts that died (a 422 the user fixed and re-saved past) are deleted
-  /// first: re-keyed to the real id they would be failed creates of a record
-  /// that now exists, and a Retry would make it twice. Only attempts OLDER
-  /// than the one that landed — a newer one holds newer content.
+  /// failed saves are deleted first — the attempts at the create that died (a
+  /// 422 the user fixed and re-saved past), and the edits that died with them.
+  /// Re-keyed to the real id they would be failures of a record that now
+  /// exists: a Retry of a create would make it twice, of an edit PUT older
+  /// content over the new record. Only rows OLDER than the one that landed —
+  /// a newer one holds newer content.
   Future<void> recordCreateSuccess({
     required String companyId,
     required String tempId,
@@ -475,11 +505,12 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         now: nowMs,
       );
       if (landedRowId != null) {
-        await _outbox.deleteDeadCreates(
+        await _outbox.deleteOlderDeadSaves(
           companyId: companyId,
           entityType: entityTypeName,
           entityId: tempId,
           beforeId: landedRowId,
+          includeCreates: true,
         );
       }
       await _outbox.rewriteTempIdInPayloads(

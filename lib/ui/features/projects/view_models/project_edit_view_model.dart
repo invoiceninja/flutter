@@ -67,7 +67,7 @@ class ProjectEditViewModel extends GenericEditViewModel<Project> {
 
   @override
   Future<SaveResult<Project>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

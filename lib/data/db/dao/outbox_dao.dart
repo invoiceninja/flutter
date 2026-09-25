@@ -284,6 +284,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   ///
   /// A document upload never blocks ([isDocumentUploadRow]): it writes no
   /// field of the record, so it can cause no lost update.
+  ///
+  /// [onlyCreates] counts earlier creates alone — for the create of a record
+  /// that has never reached the server, whose every other earlier change
+  /// waits for a create of it to land and so can never go first.
   Future<bool> hasEarlierActiveRowForEntity({
     required String companyId,
     required String entityType,
@@ -291,6 +295,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     required int beforeId,
     required int now,
     Duration parkedHorizon = const Duration(days: 1),
+    bool onlyCreates = false,
   }) async {
     final horizon = now + parkedHorizon.inMilliseconds;
     final q = select(outbox)
@@ -301,6 +306,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.entityId.equals(entityId) &
             o.id.isSmallerThanValue(beforeId) &
             _isDocumentUpload(o).not() &
+            (onlyCreates
+                ? o.mutationKind.equals(MutationKind.create.wireName)
+                : const Constant(true)) &
             (o.state.isIn(const ['in_flight', 'unconfirmed']) |
                 (o.state.equals('pending') &
                     o.nextAttemptAt.isSmallerOrEqualValue(horizon))),
@@ -874,6 +882,27 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.getSingleOrNull();
   }
 
+  /// Newest `create` row of the given record, in any state, if any.
+  Future<OutboxRow?> findNewestCreateForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityType.equals(entityType) &
+            o.entityId.equals(entityId) &
+            o.mutationKind.equals(MutationKind.create.wireName),
+      )
+      ..orderBy([
+        (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
+      ])
+      ..limit(1);
+    return q.getSingleOrNull();
+  }
+
   /// Newest row for the given entity that a "Discard failed save" tap may
   /// legitimately abandon: the entity's own `create` / `update`, in state
   /// `dead`, `unconfirmed` **or** `pending`.
@@ -1003,24 +1032,27 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.get();
   }
 
-  /// Delete the `dead` `create` rows of record [entityId] older than
-  /// [beforeId] — earlier attempts at the create that has just landed as row
-  /// [beforeId]. [rewriteTempIdInPayloads] would otherwise re-key them to the
-  /// real id: failed "creates" of a record that exists, which a Retry would
-  /// POST again as a duplicate. A newer dead create is left alone: it holds
-  /// content newer than what landed.
-  Future<int> deleteDeadCreates({
+  /// Delete the record's failed saves older than [beforeId]: its `dead`
+  /// `update` rows, and its `dead` `create` rows too when [includeCreates] —
+  /// never a document upload, which writes no field. A save that replaced
+  /// them, or a discard of that save, leaves them stale.
+  Future<int> deleteOlderDeadSaves({
     required String companyId,
     required String entityType,
     required String entityId,
     required int beforeId,
+    required bool includeCreates,
   }) =>
       (delete(outbox)..where(
             (o) =>
                 o.companyId.equals(companyId) &
                 o.entityType.equals(entityType) &
                 o.entityId.equals(entityId) &
-                o.mutationKind.equals(MutationKind.create.wireName) &
+                o.mutationKind.isIn([
+                  MutationKind.update.wireName,
+                  if (includeCreates) MutationKind.create.wireName,
+                ]) &
+                _isDocumentUpload(o).not() &
                 o.state.equals('dead') &
                 o.id.isSmallerThanValue(beforeId),
           ))

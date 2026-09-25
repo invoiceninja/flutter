@@ -31,7 +31,8 @@ void main() {
       what: 'a destructive outbox delete',
       pattern: RegExp(
         r'(outboxDao|_outbox)\s*\.\s*(deleteRow|deleteAllForEntity|'
-        r'deletePendingForCompany|deletePendingForEntity|pruneDead)\s*\(',
+        r'deletePendingForCompany|deletePendingForEntity|pruneDead|'
+        r'deleteOlderDeadSaves)\s*\(',
       ),
       owners: {
         'lib/data/repositories/sync_repository.dart',
@@ -85,6 +86,7 @@ void main() {
       'await _db.wipe();': 0,
       'await services.db.outboxDao.deleteRow(priorDeadId);': 1,
       'await _outbox.deletePendingForEntity(': 1,
+      'await db.outboxDao.deleteOlderDeadSaves(': 1,
       '(delete(outbox)..where((o) => o.id.equals(id))).go();': 2,
     };
     samples.forEach((line, rule) {

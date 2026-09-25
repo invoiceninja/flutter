@@ -280,66 +280,62 @@ void main() {
     });
   });
 
-  group('deleteDeadCreates', () {
-    test('drops only the record\'s own dead creates older than the one that '
-        'landed', () async {
-      const tmp = 'tmp_00000000-0000-4000-8000-0000000000d1';
-      final deadCreate = await enqueue(
-        entityId: tmp,
+  group('deleteOlderDeadSaves', () {
+    test('drops the record\'s failed saves older than the given row, and '
+        'nothing else', () async {
+      final olderUpdate = await enqueue(state: 'dead', idempotencyKey: 'k1');
+      final olderCreate = await enqueue(
+        kind: 'create',
+        state: 'dead',
+        idempotencyKey: 'k2',
+      );
+      final email = await enqueue(
+        kind: 'email_entity',
+        state: 'dead',
+        idempotencyKey: 'k3',
+      );
+      final pending = await enqueue(idempotencyKey: 'k4');
+      final otherRecord = await enqueue(
+        entityId: 'c2',
+        state: 'dead',
+        idempotencyKey: 'k5',
+      );
+      final discarded = await enqueue(idempotencyKey: 'k6');
+      final newer = await enqueue(state: 'dead', idempotencyKey: 'k7');
+
+      final deleted = await db.outboxDao.deleteOlderDeadSaves(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: 'c1',
+        beforeId: discarded,
+        includeCreates: true,
+      );
+
+      expect(deleted, 2);
+      expect(await db.outboxDao.byId(olderUpdate), isNull);
+      expect(await db.outboxDao.byId(olderCreate), isNull);
+      for (final kept in [email, pending, otherRecord, discarded, newer]) {
+        expect(await db.outboxDao.byId(kept), isNotNull, reason: 'row $kept');
+      }
+    });
+
+    test('spares a failed create unless told to take it', () async {
+      final create = await enqueue(
         kind: 'create',
         state: 'dead',
         idempotencyKey: 'k1',
       );
-      final landing = await enqueue(
-        entityId: tmp,
-        kind: 'create',
-        state: 'in_flight',
-        idempotencyKey: 'k2',
-      );
-      // Newer than what landed, so it holds newer content.
-      final newerDeadCreate = await enqueue(
-        entityId: tmp,
-        kind: 'create',
-        state: 'dead',
-        idempotencyKey: 'k6',
-      );
-      final deadUpdate = await enqueue(
-        entityId: tmp,
-        state: 'dead',
-        idempotencyKey: 'k3',
-      );
-      final otherRecord = await enqueue(
-        entityId: 'tmp_00000000-0000-4000-8000-0000000000d2',
-        kind: 'create',
-        state: 'dead',
-        idempotencyKey: 'k4',
-      );
-      final otherType = await enqueue(
-        entityType: 'vendor',
-        entityId: tmp,
-        kind: 'create',
-        state: 'dead',
-        idempotencyKey: 'k5',
-      );
+      final later = await enqueue(idempotencyKey: 'k2');
 
-      final deleted = await db.outboxDao.deleteDeadCreates(
+      await db.outboxDao.deleteOlderDeadSaves(
         companyId: 'co',
         entityType: 'client',
-        entityId: tmp,
-        beforeId: landing,
+        entityId: 'c1',
+        beforeId: later,
+        includeCreates: false,
       );
 
-      expect(deleted, 1);
-      expect(await db.outboxDao.byId(deadCreate), isNull);
-      for (final kept in [
-        landing,
-        newerDeadCreate,
-        deadUpdate,
-        otherRecord,
-        otherType,
-      ]) {
-        expect(await db.outboxDao.byId(kept), isNotNull, reason: 'row $kept');
-      }
+      expect(await db.outboxDao.byId(create), isNotNull);
     });
   });
 

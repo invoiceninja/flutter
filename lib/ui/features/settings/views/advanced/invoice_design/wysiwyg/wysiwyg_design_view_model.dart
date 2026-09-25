@@ -122,7 +122,7 @@ class WysiwygDesignViewModel extends GenericEditViewModel<Design> {
 
   @override
   Future<SaveResult<Design>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

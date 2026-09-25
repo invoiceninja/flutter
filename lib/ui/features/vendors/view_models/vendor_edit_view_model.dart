@@ -63,7 +63,7 @@ class VendorEditViewModel extends GenericEditViewModel<Vendor> {
 
   @override
   Future<SaveResult<Vendor>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

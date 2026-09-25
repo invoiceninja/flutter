@@ -832,7 +832,7 @@ abstract class BillingDocEditViewModel<T extends BillingDocFields>
     // One-shot SAVE-PARAM query (mark_sent / paid / approve / …) set by the
     // edit screen's action bar; null on a plain Save.
     final extraQuery = consumeSaveQuery();
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await createDocument(
         draft,
         extraQuery: extraQuery,

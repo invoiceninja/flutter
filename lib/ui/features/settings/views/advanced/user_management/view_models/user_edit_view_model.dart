@@ -244,7 +244,7 @@ class UserEditViewModel extends GenericEditViewModel<User> {
 
   @override
   Future<SaveResult<User>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

@@ -43,7 +43,7 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
 
   @override
   Future<SaveResult<Expense>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

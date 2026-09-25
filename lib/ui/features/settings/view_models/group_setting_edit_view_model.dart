@@ -89,7 +89,7 @@ class GroupSettingEditViewModel extends GenericEditViewModel<GroupSetting> {
 
   @override
   Future<SaveResult<GroupSetting>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

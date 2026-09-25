@@ -30,7 +30,7 @@ class TaxRateEditViewModel extends GenericEditViewModel<TaxRate> {
 
   @override
   Future<SaveResult<TaxRate>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

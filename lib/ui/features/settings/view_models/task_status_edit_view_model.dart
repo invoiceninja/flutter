@@ -36,7 +36,7 @@ class TaskStatusEditViewModel extends GenericEditViewModel<TaskStatus> {
 
   @override
   Future<SaveResult<TaskStatus>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

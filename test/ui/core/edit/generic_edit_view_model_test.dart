@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
+import 'package:admin/data/repositories/create_already_landed_exception.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -255,6 +256,40 @@ void main() {
     tearDown(() async {
       await db.close();
     });
+
+    test(
+      'a re-sent create the drain refused as already created drops back to '
+      'saving an update, linking the refused row for that save to drop',
+      () async {
+        // It stayed in re-create mode, so Retry was refused once more; and the
+        // refused row, unlinked, sat in the Outbox and the sign-out count, and
+        // came back as this banner whenever the record was opened.
+        const tmp = 'tmp_00000000-0000-4000-8000-00000000a003';
+        final vm =
+            _FakeEditVM(
+              initialDraft: 'x',
+              original: 'x',
+              sync: sync,
+              connectivity: ConnectivityWatcher.fixed(online: true),
+              companyId: 'co',
+            )..applyFailedSync(
+              rowId: 7,
+              errors: const {},
+              entityId: tmp,
+              recreate: true,
+            );
+        sync.handler = (_) => const SyncRowResult(
+          outcome: SyncRowOutcome.serverError,
+          message: kAlreadyCreatedError,
+        );
+
+        await vm.save();
+
+        expect(vm.failedSaveAlreadyCreated, isTrue);
+        expect(vm.savesAsCreate, isFalse);
+        expect(vm.deadOutboxRowId, 1, reason: 'the awaited row');
+      },
+    );
 
     test('online + success → returns entity, lastSaveWasOptimistic=false, '
         'recoveryTempId cleared', () async {
@@ -613,6 +648,118 @@ void main() {
       expect(result, 'tmp_AAA');
     });
   });
+
+  group('savesAsCreate — an edit of a record whose create failed', () {
+    // Its save used to queue an update, stuck forever behind the failed
+    // create: the user's fix could not be sent from the form.
+    const tmp = 'tmp_00000000-0000-4000-8000-00000000a001';
+
+    _FakeEditVM editForm({Object? throwOnSave}) =>
+        _FakeEditVM(initialDraft: 'x', original: 'x', throwOnSave: throwOnSave)
+          ..applyFailedSync(
+            rowId: 7,
+            errors: const {},
+            entityId: tmp,
+            recreate: true,
+          );
+
+    test('saves as a create under the record\'s temp id — isCreate is '
+        'unchanged', () {
+      final vm = editForm();
+      expect(vm.savesAsCreate, isTrue);
+      expect(vm.isCreate, isFalse, reason: 'titles, layout, actions');
+      expect(vm.recoveryTempId, tmp);
+    });
+
+    test('never without a temp id', () {
+      final vm = _FakeEditVM(initialDraft: 'x', original: 'x')
+        ..applyFailedSync(
+          rowId: 7,
+          errors: const {},
+          entityId: 'c_real',
+          recreate: true,
+        );
+      expect(vm.savesAsCreate, isFalse);
+    });
+
+    test('a failed re-save keeps it', () async {
+      final vm = editForm(throwOnSave: const ServerException(503, 'Down'));
+      await vm.save();
+      expect(vm.savesAsCreate, isTrue);
+    });
+
+    test('a successful save ends it', () async {
+      final vm = editForm();
+      await vm.save();
+      expect(vm.savesAsCreate, isFalse);
+    });
+
+    test('Discard and reset end it', () {
+      expect((editForm()..clearFailedSync()).savesAsCreate, isFalse);
+      expect((editForm()..reset(emptyDraft: '')).savesAsCreate, isFalse);
+    });
+
+    test('Resend keeps it', () {
+      final vm = editForm()
+        ..applyUnconfirmed(rowId: 8, isSave: true)
+        ..clearUnconfirmed();
+      expect(vm.savesAsCreate, isTrue);
+    });
+  });
+
+  group('a create that already landed', () {
+    const tmp = 'tmp_00000000-0000-4000-8000-00000000a002';
+
+    test('a create form keeps refusing, and offers no way to a second '
+        'record', () async {
+      // The record exists under a real id the form never learned: a Save that
+      // minted a fresh temp id would create it a second time.
+      final vm = _FakeEditVM(
+        initialDraft: 'x',
+        throwOnSave: const CreateAlreadyLandedException('c_real'),
+      )..applyFailedSync(rowId: 1, errors: const {}, entityId: tmp);
+
+      await vm.save();
+
+      expect(vm.failedSaveAlreadyCreated, isTrue);
+      expect(vm.submitError, kAlreadyCreatedError);
+      expect(vm.recoveryTempId, tmp, reason: 'so every later Save is refused');
+    });
+
+    test(
+      'an edit form drops back to saving an update of the real record',
+      () async {
+        final vm =
+            _FakeEditVM(
+              initialDraft: 'x',
+              original: 'x',
+              throwOnSave: const CreateAlreadyLandedException('c_real'),
+            )..applyFailedSync(
+              rowId: 1,
+              errors: const {},
+              entityId: tmp,
+              recreate: true,
+            );
+
+        await vm.save();
+
+        expect(vm.failedSaveAlreadyCreated, isTrue);
+        expect(vm.savesAsCreate, isFalse);
+      },
+    );
+
+    test('an awaited row the drain refused as already created sets the same '
+        'flag', () async {
+      final vm = _FakeEditVM(
+        initialDraft: 'x',
+        throwOnSave: const ServerException(0, kAlreadyCreatedError),
+      );
+
+      await vm.save();
+
+      expect(vm.failedSaveAlreadyCreated, isTrue);
+    });
+  });
 }
 
 /// A save whose change may already have gone through ([SyncRowOutcome.
@@ -738,6 +885,7 @@ class _UseAsyncHandler implements Exception {}
 class _FakeEditVM extends GenericEditViewModel<String> {
   _FakeEditVM({
     required super.initialDraft,
+    super.original,
     this.throwOnSave,
     Map<String, List<String>> validateErrors = const {},
     super.sync,

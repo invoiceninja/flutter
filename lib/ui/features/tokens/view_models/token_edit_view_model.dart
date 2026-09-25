@@ -26,7 +26,7 @@ class TokenEditViewModel extends GenericEditViewModel<Token> {
 
   @override
   Future<SaveResult<Token>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

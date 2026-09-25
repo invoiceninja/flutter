@@ -261,6 +261,91 @@ void main() {
     });
   });
 
+  group('a re-sent create is not held behind the changes waiting for it', () {
+    // A record whose create failed, then archived (or commented on, or marked
+    // sent) before the user fixed it and saved it again: the archive waits for
+    // a create to land, and the per-record barrier held the new create behind
+    // the archive. Neither was ever sent, while the form said it was saving.
+    const tmp = 'tmp_00000000-0000-4000-8000-0000000000e1';
+
+    test(
+      'the create goes, then the archive, re-keyed to the new record',
+      () async {
+        final dispatched = <String>[];
+        final engine = makeEngine(
+          _CallbackDispatcher((row) async {
+            dispatched.add('${row.mutationKind}:${row.entityId}');
+            if (row.mutationKind == MutationKind.create.wireName) {
+              await db.idRemapDao.remember(
+                entityType: 'client',
+                tempId: row.entityId,
+                realId: 'real_e1',
+                now: 0,
+              );
+              await db.outboxDao.rewriteTempIdInPayloads(
+                companyId: 'co',
+                entityType: 'client',
+                tempId: row.entityId,
+                realId: 'real_e1',
+              );
+            }
+          }),
+        );
+        final failed = await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.create,
+          idempotencyKey: 'c1',
+        );
+        await db.outboxDao.markDead(
+          id: failed,
+          error: 'The given data was invalid.',
+          statusCode: 422,
+        );
+        await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.archive,
+          idempotencyKey: 'a1',
+        );
+        await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.create,
+          idempotencyKey: 'c2',
+        );
+
+        await engine.drainOnce(companyId: 'co');
+        await engine.drainOnce(companyId: 'co');
+
+        expect(dispatched, ['create:$tmp', 'archive:real_e1']);
+      },
+    );
+
+    test('an earlier create of the record still holds it back', () async {
+      // The one earlier change that does come first: a create that may have
+      // gone through waits on the user, and this one behind it.
+      final disp = _ProgrammableDispatcher();
+      final engine = makeEngine(disp);
+      final first = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'c1',
+      );
+      await db.outboxDao.markUnconfirmed(id: first, error: 'timed out');
+      final second = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'c2',
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.dispatches, 0);
+      expect(
+        (await db.outboxDao.byId(second))?.lastError,
+        kHeldBehindUnconfirmedError,
+      );
+    });
+  });
+
   group('a create for a record that already exists is never sent again', () {
     // The server ignores Idempotency-Key, so a create sent for a record it
     // already holds makes that record twice. A create's id stops being a
@@ -519,6 +604,31 @@ void main() {
       expect(await db.outboxDao.byId(save), isNull);
       expect(await db.outboxDao.byId(email), isNotNull);
       expect(await db.outboxDao.byId(pending), isNotNull);
+    });
+
+    test('keeps a failed create of a record the server has never seen until '
+        'a newer create replaces it', () async {
+      // An edit of that record saves an update, which waits behind the create
+      // and can't send before it: dropping the create stranded the record.
+      final engine = makeEngine(_ProgrammableDispatcher());
+      const tmp = 'tmp_00000000-0000-4000-8000-0000000000f2';
+      final create = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'k1',
+      );
+      await db.outboxDao.markDead(id: create, error: '422');
+      await enqueueClient(entityId: tmp, idempotencyKey: 'k2');
+
+      expect(await engine.supersedeDeadSave(create), isFalse);
+      expect(await db.outboxDao.byId(create), isNotNull);
+
+      await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'k3',
+      );
+      expect(await engine.supersedeDeadSave(create), isTrue);
     });
   });
 
@@ -2059,6 +2169,77 @@ void main() {
     Future<OutboxRow?> rawRow(int id) =>
         (db.select(db.outbox)..where((o) => o.id.equals(id))).getSingleOrNull();
 
+    group('discardDeletesUnsyncedRecord — what a form asks before', () {
+      const tmp = 'tmp_00000000-0000-4000-8000-0000000000f2';
+
+      Future<OutboxRow> createIn(String state, {String entityId = tmp}) async {
+        final id = await enqueueClient(
+          entityId: entityId,
+          kind: MutationKind.create,
+          idempotencyKey: 'k-$state-$entityId',
+        );
+        switch (state) {
+          case 'dead':
+            await db.outboxDao.markDead(id: id, error: 'bad', statusCode: 422);
+          case 'unconfirmed':
+            await db.outboxDao.markUnconfirmed(id: id, error: 'timed out');
+        }
+        return (await rawRow(id))!;
+      }
+
+      test(
+        'the failed or queued create of a record the server never saw',
+        () async {
+          final engine = makeEngine(_ProgrammableDispatcher());
+          expect(
+            await engine.discardDeletesUnsyncedRecord(await createIn('dead')),
+            isTrue,
+          );
+        },
+      );
+
+      test('not one that may already have reached the server — what was made '
+          'for it is kept, and "never saved" would be untrue', () async {
+        final engine = makeEngine(_ProgrammableDispatcher());
+        expect(
+          await engine.discardDeletesUnsyncedRecord(
+            await createIn('unconfirmed'),
+          ),
+          isFalse,
+        );
+      });
+
+      test('not while another attempt at it is on the wire — the discard then '
+          'drops the one row', () async {
+        final engine = makeEngine(_ProgrammableDispatcher());
+        final onTheWire = await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.create,
+          idempotencyKey: 'k-wire',
+        );
+        await db.outboxDao.markInFlight(onTheWire);
+        expect(
+          await engine.discardDeletesUnsyncedRecord(await createIn('dead')),
+          isFalse,
+        );
+      });
+
+      test('not an edit, nor a create of a record that exists', () async {
+        final engine = makeEngine(_ProgrammableDispatcher());
+        final edit = await enqueueClient(entityId: tmp, idempotencyKey: 'k-e');
+        expect(
+          await engine.discardDeletesUnsyncedRecord((await rawRow(edit))!),
+          isFalse,
+        );
+        expect(
+          await engine.discardDeletesUnsyncedRecord(
+            await createIn('dead', entityId: 'c_real'),
+          ),
+          isFalse,
+        );
+      });
+    });
+
     /// A never-synced client's create, and an edit of another record that
     /// refers to it — which the discard fails.
     Future<({int parent, int dependent})> parentAndDependent() async {
@@ -2143,6 +2324,79 @@ void main() {
         isNull,
         reason: 'follow-up rows for the gone entity go too',
       );
+    });
+
+    test('discardFailedSave drops the failed save the discarded one '
+        'replaced, first — so the record is released', () async {
+      // The form opened on dead D; the re-save queued P, which failed again.
+      // Discarding P alone left D holding the record's dirty flag: it went on
+      // showing the discarded content, shielded from refresh.
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      final dead = await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+      await db.outboxDao.markDead(id: dead, error: 'bad', statusCode: 422);
+      final retry = await enqueueClient(entityId: 'c1', idempotencyKey: 'k2');
+
+      expect(await engine.discardFailedSave(retry), isFalse);
+
+      expect(await rawRow(dead), isNull);
+      expect(await rawRow(retry), isNull);
+      expect(repo.dirtyCleared, [('co', 'c1')]);
+    });
+
+    test(
+      'discardFailedSave keeps the failed create of a record the server has '
+      'never seen when a later edit is discarded — it is the record',
+      () async {
+        final repo = _TestRepo(db: db);
+        final engine = engineWith(repo);
+        const tmp = 'tmp_00000000-0000-4000-8000-0000000000f1';
+        final create = await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.create,
+          idempotencyKey: 'k1',
+        );
+        await db.outboxDao.markDead(id: create, error: 'bad', statusCode: 422);
+        final edit = await enqueueClient(entityId: tmp, idempotencyKey: 'k2');
+
+        await engine.discardFailedSave(edit);
+
+        expect(await rawRow(create), isNotNull);
+        expect(repo.localDeletes, isEmpty);
+      },
+    );
+
+    test(
+      'discardFailedSave leaves a failed email on the same record',
+      () async {
+        final repo = _TestRepo(db: db);
+        final engine = engineWith(repo);
+        final email = await enqueueClient(
+          entityId: 'c1',
+          kind: MutationKind.emailEntity,
+          idempotencyKey: 'k1',
+        );
+        await db.outboxDao.markDead(id: email, error: 'bad', statusCode: 422);
+        final save = await enqueueClient(entityId: 'c1', idempotencyKey: 'k2');
+
+        await engine.discardFailedSave(save);
+
+        expect(await rawRow(email), isNotNull);
+      },
+    );
+
+    test('discardFailedSave on a never-synced create still takes the record '
+        'and every row, as a ghost discard does', () async {
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      final create = await enqueueClient(
+        entityId: 'tmp_g',
+        kind: MutationKind.create,
+        idempotencyKey: 'k1',
+      );
+
+      expect(await engine.discardFailedSave(create), isTrue);
+      expect(repo.localDeletes, [('co', 'tmp_g')]);
     });
 
     test('a ghost create is not deleted while another attempt at it is on '

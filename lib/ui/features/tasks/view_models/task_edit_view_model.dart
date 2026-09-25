@@ -52,7 +52,7 @@ class TaskEditViewModel extends GenericEditViewModel<Task> {
 
   @override
   Future<SaveResult<Task>> performSave() async {
-    if (isCreate) {
+    if (savesAsCreate) {
       final result = await repo.create(
         companyId: companyId,
         draft: draft,

@@ -339,10 +339,41 @@ class SyncRepository {
   Future<List<String>> companiesWithAttentionRows() =>
       db.outboxDao.companiesWithAttentionRows();
 
+  /// Discard [id] as an edit form's "Discard failed save" means it: that save
+  /// and the older failed saves of the same record it replaced. Those go
+  /// FIRST, so [discardOutboxRow]'s dirty reconcile can release the record —
+  /// kept, one of them held its dirty flag, and the record went on showing
+  /// the discarded content, shielded from refresh. A never-synced record's
+  /// own failed create stays when a later edit is discarded: it is the
+  /// record. The Outbox's Discard still takes one row, via
+  /// [discardOutboxRow].
+  Future<bool> discardFailedSave(int id) async {
+    final row = await db.outboxDao.byId(id);
+    if (row == null) return false;
+    final kind = MutationKind.tryParse(row.mutationKind);
+    if ((kind == MutationKind.create || kind == MutationKind.update) &&
+        row.state != 'in_flight') {
+      await db.outboxDao.deleteOlderDeadSaves(
+        companyId: row.companyId,
+        entityType: row.entityType,
+        entityId: row.entityId,
+        beforeId: row.id,
+        includeCreates: !row.entityId.startsWith('tmp_'),
+      );
+    }
+    return discardOutboxRow(id);
+  }
+
   /// Drop the failed save [id] once a newer save of the same record has gone
   /// through: its payload is stale. Only a `dead` create / update is
   /// superseded by a save — anything else on the record (a rejected email,
   /// a payment) is separate work the save did not replace, and stays.
+  ///
+  /// And only a create supersedes a failed create that has not landed (still
+  /// under its `tmp_` id): an edit of that record saves an update, which waits
+  /// behind the create and can't send before it — dropping the create
+  /// stranded the record, the update then dying as referencing a discarded
+  /// one. A failed create under a real id is stale like any failed save.
   /// Returns whether a row was dropped.
   Future<bool> supersedeDeadSave(int id) async {
     final row = await db.outboxDao.byId(id);
@@ -350,6 +381,14 @@ class SyncRepository {
     final kind = MutationKind.tryParse(row.mutationKind);
     if (kind != MutationKind.create && kind != MutationKind.update) {
       return false;
+    }
+    if (kind == MutationKind.create && row.entityId.startsWith('tmp_')) {
+      final newest = await db.outboxDao.findNewestCreateForEntity(
+        companyId: row.companyId,
+        entityType: row.entityType,
+        entityId: row.entityId,
+      );
+      if (newest == null || newest.id <= row.id) return false;
     }
     await db.outboxDao.deleteRow(id);
     return true;
@@ -437,27 +476,7 @@ class SyncRepository {
       }
       return false;
     }
-    final isGhostCreate =
-        MutationKind.tryParse(row.mutationKind) == MutationKind.create &&
-        row.entityId.startsWith('tmp_') &&
-        await db.idRemapDao.resolve(
-              entityType: row.entityType,
-              tempId: row.entityId,
-            ) ==
-            null;
-    // Another attempt at the same create already on the wire — a re-save
-    // queued while it was in flight — may still make the record. So this row
-    // goes alone: the in-flight one, the local record and what was made
-    // against it stay for that attempt's landing, or failure, to settle.
-    final attemptOnTheWire =
-        isGhostCreate &&
-        (await db.outboxDao.inFlightRowsForCompany(row.companyId)).any(
-          (r) =>
-              r.id != row.id &&
-              r.entityType == row.entityType &&
-              r.entityId == row.entityId,
-        );
-    if (!isGhostCreate || attemptOnTheWire) {
+    if (!await _discardTakesRecord(row)) {
       await db.outboxDao.deleteRow(id);
       await _reconcileDiscardedDirty(row);
       if (row.state == 'unconfirmed') {
@@ -503,6 +522,38 @@ class SyncRepository {
           : _ParentGone.discarded,
     );
     return localDeleted;
+  }
+
+  /// Whether discarding [row] deletes a record the server never saw from this
+  /// device, with the unsynced records made for it — so a form asks first,
+  /// as the Outbox's Discard does. Not for a create that may already have
+  /// reached the server: it goes too, but what was made for it is kept for
+  /// the user to re-point, and "never saved" would be untrue.
+  Future<bool> discardDeletesUnsyncedRecord(OutboxRow row) async =>
+      row.state != 'unconfirmed' && await _discardTakesRecord(row);
+
+  /// Whether [discardOutboxRow] takes [row]'s record with it — the create of
+  /// a record the server never saw (the ghost path). Not while another
+  /// attempt at the same create is on the wire — a re-save queued while it
+  /// was in flight — which may still make the record: then the row goes
+  /// alone, and the in-flight one, the local record and what was made
+  /// against it stay for that attempt's landing, or failure, to settle.
+  Future<bool> _discardTakesRecord(OutboxRow row) async {
+    if (MutationKind.tryParse(row.mutationKind) != MutationKind.create ||
+        !row.entityId.startsWith('tmp_') ||
+        await db.idRemapDao.resolve(
+              entityType: row.entityType,
+              tempId: row.entityId,
+            ) !=
+            null) {
+      return false;
+    }
+    return !(await db.outboxDao.inFlightRowsForCompany(row.companyId)).any(
+      (r) =>
+          r.id != row.id &&
+          r.entityType == row.entityType &&
+          r.entityId == row.entityId,
+    );
   }
 
   /// Hard-delete a never-synced ghost's local record, best effort.
@@ -1094,14 +1145,25 @@ class SyncRepository {
       // An earlier row for this same record didn't land in this pass — see
       // [blockedEntities]. Dispatching this one now would apply mutations out
       // of order.
+      //
+      // Except for the create of a record that has never reached the server:
+      // every other change to it references its temp id, so it waits for a
+      // create to land and can never go first. Held behind one — an archive
+      // queued after the first create failed, then the fixed record saved
+      // again — the create never went, and neither did the archive. Only an
+      // earlier create of the record holds it back.
       final entityKey = (row.entityType, row.entityId);
-      if (blockedEntities.contains(entityKey)) continue;
+      final createsNewRecord =
+          MutationKind.tryParse(row.mutationKind) == MutationKind.create &&
+          row.entityId.startsWith('tmp_');
+      if (!createsNewRecord && blockedEntities.contains(entityKey)) continue;
       if (await db.outboxDao.hasEarlierActiveRowForEntity(
         companyId: companyId,
         entityType: row.entityType,
         entityId: row.entityId,
         beforeId: row.id,
         now: _now().millisecondsSinceEpoch,
+        onlyCreates: createsNewRecord,
       )) {
         // An older mutation for this record is still going to be sent. Held
         // behind an `unconfirmed` one, this row waits on the user for as long

@@ -1,0 +1,19 @@
+# Deliberately the SAME package name as ../store_services: the F-Droid build
+# points `store_services` here through `pubspec_overrides.yaml`
+# (tools/foss/pubspec_overrides.yaml), so no import in the app changes.
+name: store_services
+description: >-
+  FOSS twin of packages/store_services for the F-Droid build — the same API
+  with no Google Sign-In, no store billing and no crash reporting. See
+  docs/fdroid.md.
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.11.5
+
+# Nothing but the Flutter SDK, and it must stay that way: every dependency
+# added here ships in the F-Droid APK.
+dependencies:
+  flutter:
+    sdk: flutter

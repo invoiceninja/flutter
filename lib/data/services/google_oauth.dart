@@ -1,7 +1,4 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/env.dart';
 
@@ -22,35 +19,17 @@ import 'package:admin/app/env.dart';
 /// `id_token` from the request body so Laravel's
 /// `request()->has('id_token')` returns false and execution falls into the
 /// access-token branch.
+///
+/// The SDK calls live in `package:store_services` ([GoogleSignInClient]) so
+/// the F-Droid build can drop Play Services — there [isEnabled] is always
+/// false and the Google buttons hide themselves (docs/fdroid.md).
 class GoogleOAuth {
   GoogleOAuth._();
 
-  static bool _initialized = false;
+  static const _clientId = Env.googleServerClientId;
 
-  /// Android needs a configured server client ID (Credential Manager can't
-  /// resolve it from `google-services.json`); iOS resolves its own from
-  /// `Info.plist`/`GoogleService-Info.plist`, so it's enabled there
-  /// regardless. Web/desktop are out of scope (login is hosted-only).
-  static bool get isEnabled {
-    if (kIsWeb) return false;
-    if (Platform.isIOS) return true;
-    if (Platform.isAndroid) return Env.googleServerClientId.isNotEmpty;
-    return false;
-  }
-
-  static Future<void> init() async {
-    if (_initialized) {
-      return;
-    }
-    if (!kIsWeb && Platform.isAndroid) {
-      await GoogleSignIn.instance.initialize(
-        serverClientId: Env.googleServerClientId,
-      );
-    } else {
-      await GoogleSignIn.instance.initialize();
-    }
-    _initialized = true;
-  }
+  static bool get isEnabled =>
+      GoogleSignInClient.isSupported(androidServerClientId: _clientId);
 
   /// Interactive sign-in. Invokes [callback] with `(idToken, accessToken)`;
   /// `idToken` is always empty (see class doc — we ride the access-token
@@ -58,60 +37,16 @@ class GoogleOAuth {
   static Future<bool> signIn(
     void Function(String idToken, String accessToken) callback,
   ) async {
-    await init();
-
-    final account = await _interactiveAuthenticate();
-    if (account == null) {
-      callback('', '');
-      return false;
-    }
-
-    final accessToken = await _resolveAccessToken(account);
+    final accessToken = await GoogleSignInClient.signIn(
+      androidServerClientId: _clientId,
+    );
     callback('', accessToken);
     return accessToken.isNotEmpty;
   }
 
-  static Future<void> signOut() async {
-    await init();
-    await GoogleSignIn.instance.signOut();
-  }
+  static Future<void> signOut() =>
+      GoogleSignInClient.signOut(androidServerClientId: _clientId);
 
-  static Future<void> disconnect() async {
-    await init();
-    await GoogleSignIn.instance.disconnect();
-  }
-
-  static const _scopes = ['email', 'profile'];
-
-  static Future<GoogleSignInAccount?> _interactiveAuthenticate() async {
-    if (!GoogleSignIn.instance.supportsAuthenticate()) {
-      debugPrint('## authenticate() not supported on this platform');
-      return null;
-    }
-    try {
-      return await GoogleSignIn.instance.authenticate();
-    } on GoogleSignInException catch (e) {
-      debugPrint('## authenticate failed: ${e.code}');
-      return null;
-    }
-  }
-
-  static Future<String> _resolveAccessToken(GoogleSignInAccount account) async {
-    final silent = await account.authorizationClient.authorizationForScopes(
-      _scopes,
-    );
-    if (silent != null) {
-      return silent.accessToken;
-    }
-
-    try {
-      final interactive = await account.authorizationClient.authorizeScopes(
-        _scopes,
-      );
-      return interactive.accessToken;
-    } on GoogleSignInException catch (e) {
-      debugPrint('## authorizeScopes failed: ${e.code}');
-      return '';
-    }
-  }
+  static Future<void> disconnect() =>
+      GoogleSignInClient.disconnect(androidServerClientId: _clientId);
 }

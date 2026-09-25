@@ -1,0 +1,18 @@
+name: store_services
+description: >-
+  The store builds' non-free SDKs (Google Sign-In, Play Billing / StoreKit,
+  Sentry) behind a narrow API. The F-Droid build swaps this package for its
+  FOSS twin in ../store_services_foss — see docs/fdroid.md.
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_sign_in: ^7.2.0
+  in_app_purchase: ^3.3.0
+  in_app_purchase_storekit: ^0.4.9
+  sentry_flutter: ^9.21.0

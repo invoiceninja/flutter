@@ -2,9 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 import 'package:logging/logging.dart';
+import 'package:store_services/store_services.dart';
 
 import 'package:admin/data/models/api/json_coercion.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -46,21 +45,29 @@ const Set<String> kProductPlans = {
 /// `/api/admin/subscription`, then `auth.refresh()` so the new plan lands in
 /// the session (and every `PlanGateBanner` auto-clears).
 ///
+/// The SDK itself sits behind [StoreBilling] (`package:store_services`), so
+/// the F-Droid build can drop Play Billing — there it reports unavailable and
+/// [showUpgradeSheet] falls back to the portal (docs/fdroid.md).
+///
 /// NOTE: requires App Store Connect / Play Console product configuration
 /// (the `kProductPlans` IDs) and sandbox testing — that store-side setup is
 /// outside the Flutter codebase and cannot be exercised in CI.
 class PurchaseService {
-  PurchaseService({required ApiClient apiClient, required AuthRepository auth})
-    : _apiClient = apiClient,
-      _auth = auth;
+  PurchaseService({
+    required ApiClient apiClient,
+    required AuthRepository auth,
+    StoreBilling? billing,
+  }) : _apiClient = apiClient,
+       _auth = auth,
+       _iap = billing ?? StoreBilling();
 
   final ApiClient _apiClient;
   final AuthRepository _auth;
-  final InAppPurchase _iap = InAppPurchase.instance;
+  final StoreBilling _iap;
   final _log = Logger('PurchaseService');
 
-  StreamSubscription<List<PurchaseDetails>>? _sub;
-  final ValueNotifier<List<ProductDetails>> products = ValueNotifier(const []);
+  StreamSubscription<List<StorePurchase>>? _sub;
+  final ValueNotifier<List<StoreProduct>> products = ValueNotifier(const []);
   final ValueNotifier<bool> busy = ValueNotifier(false);
 
   /// True only on store platforms with a reachable billing backend.
@@ -77,35 +84,34 @@ class PurchaseService {
   Future<void> _queryProducts() async {
     busy.value = true;
     try {
-      final resp = await _iap.queryProductDetails(kProductPlans);
+      final resp = await _iap.queryProducts(kProductPlans);
       if (resp.error != null) {
         _log.warning('queryProductDetails: ${resp.error}');
       }
-      products.value = resp.productDetails;
+      products.value = resp.products;
     } finally {
       busy.value = false;
     }
   }
 
-  Future<void> buy(ProductDetails product) async {
+  Future<void> buy(StoreProduct product) async {
     busy.value = true;
-    final param = PurchaseParam(productDetails: product);
-    await _iap.buyNonConsumable(purchaseParam: param);
+    await _iap.buyNonConsumable(product);
   }
 
   Future<void> restore() => _iap.restorePurchases();
 
-  Future<void> _onPurchases(List<PurchaseDetails> list) async {
+  Future<void> _onPurchases(List<StorePurchase> list) async {
     for (final p in list) {
-      if (p.status == PurchaseStatus.pending) {
+      if (p.status == StorePurchaseStatus.pending) {
         busy.value = true;
         continue;
       }
-      if (p.status == PurchaseStatus.error) {
+      if (p.status == StorePurchaseStatus.error) {
         busy.value = false;
         _log.warning('purchase error: ${p.error}');
-      } else if (p.status == PurchaseStatus.purchased ||
-          p.status == PurchaseStatus.restored) {
+      } else if (p.status == StorePurchaseStatus.purchased ||
+          p.status == StorePurchaseStatus.restored) {
         await _deliver(p);
       }
       if (p.pendingCompletePurchase) {
@@ -116,13 +122,13 @@ class PurchaseService {
 
   /// POST the receipt to the hosted admin endpoint, then refresh the session
   /// so the upgraded plan (and the cleared gates) take effect.
-  Future<void> _deliver(PurchaseDetails p) async {
+  Future<void> _deliver(StorePurchase p) async {
     busy.value = true;
     try {
       final purchaseId = _inAppTransactionId(p);
       if (purchaseId == null || purchaseId.isEmpty) {
         // The server requires a non-empty string; posting null just 422s.
-        _log.warning('no transaction id for ${p.productID} — skipping deliver');
+        _log.warning('no transaction id for ${p.productId} — skipping deliver');
         return;
       }
       await _apiClient.postJson(
@@ -130,7 +136,7 @@ class PurchaseService {
         body: {
           'inapp_transaction_id': purchaseId,
           'key': _auth.session.value?.accountId ?? '',
-          'plan': p.productID.replaceAll('-', '_'),
+          'plan': p.productId.replaceAll('-', '_'),
         },
       );
       // Full session snapshot — flips the plan slug everywhere.
@@ -152,26 +158,24 @@ class PurchaseService {
   /// renewals, which both reach here.
   ///
   /// Google is the opposite: its notifications resolve to the `orderId` that
-  /// already arrives as [PurchaseDetails.purchaseID], so Android falls through
+  /// already arrives as [StorePurchase.purchaseId], so Android falls through
   /// unchanged.
-  String? _inAppTransactionId(PurchaseDetails p) {
-    if (p is AppStorePurchaseDetails) {
+  String? _inAppTransactionId(StorePurchase p) {
+    if (p.isStoreKit1) {
       // StoreKit 1 — only reached if `enableStoreKit1()` is ever called.
-      // `originalTransaction` is populated for restored transactions only.
-      final original = p.skPaymentTransaction.originalTransaction;
-      if (original != null) return original.transactionIdentifier;
+      // The original transaction is populated for restored transactions only.
+      final original = p.storeKit1OriginalTransactionId;
+      if (original != null) return original;
     } else {
       // StoreKit 2 (the plugin default) drops `originalId` when it builds
       // SK2PurchaseDetails, but Apple's own transaction JSON is passed through
       // as `localVerificationData` and still carries it. Google's equivalent
       // JSON has no such key, so Android returns null here and falls back to
       // `purchaseID`.
-      final original = appleOriginalTransactionId(
-        p.verificationData.localVerificationData,
-      );
+      final original = appleOriginalTransactionId(p.localVerificationData);
       if (original != null) return original;
     }
-    return p.purchaseID;
+    return p.purchaseId;
   }
 
   Future<void> dispose() async {

@@ -66,3 +66,8 @@ claude-diagnostics.log.*
 
 key.properties
 key.jks
+# F-Droid (FOSS) build — both written by tools/prepare_foss.sh, never committed
+# (docs/fdroid.md). A root pubspec_overrides.yaml silently swaps
+# store_services for its FOSS twin in the store build too.
+/pubspec_overrides.yaml
+/native/sqlite3mc/

@@ -170,6 +170,70 @@ jobs:
       - name: Build Android APK (compile gate, --release)
         run: flutter build apk --release
 
+  # F-Droid (FOSS) compile gate — docs/fdroid.md. Builds exactly what F-Droid
+  # builds (tools/prepare_foss.sh swaps store_services for its FOSS twin and
+  # compiles SQLite from source), then proves the APK carries no non-free code.
+  # Without this job the FOSS variant goes unbuilt until release day, which is
+  # how admin-portal's `.foss` copies drifted.
+  build-android-foss:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned — keep in lockstep with the analyze job.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.1
+          cache: true
+
+      - name: Prepare the FOSS build
+        run: tools/prepare_foss.sh
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Not the whole repo: packages/store_services is (correctly) unresolved
+      # here, since the non-free SDKs it imports are no longer in the graph.
+      - name: Analyze (FOSS)
+        run: flutter analyze lib test packages/store_services_foss
+
+      - name: Build Android APK (FOSS, --release)
+        run: flutter build apk --release
+
+      - name: No non-free artifacts on the release runtime classpath
+        working-directory: android
+        run: |
+          ./gradlew -q :app:dependencies --configuration releaseRuntimeClasspath > deps.txt
+          grep -q 'project :' deps.txt || { echo "no dependency tree parsed"; exit 1; }
+          if grep -nE 'com\.google\.android\.gms|com\.android\.billingclient|com\.google\.firebase|io\.sentry|com\.google\.android\.play' deps.txt; then
+            echo "::error::Non-free artifacts on the FOSS classpath (above)."
+            exit 1
+          fi
+
+      # Every libsqlite3.so must hash to something OTHER than the prebuilt
+      # binaries the sqlite3 hook would download — a match means the hook
+      # silently fell back to the download F-Droid forbids.
+      - name: SQLite compiled from source, not downloaded
+        run: |
+          root="$(jq -r '.packages[] | select(.name == "sqlite3") | .rootUri' .dart_tool/package_config.json | sed 's|^file://||')"
+          prebuilt="$root/lib/src/hook/asset_hashes.dart"
+          test -f "$prebuilt"
+          libs="$(mktemp -d)"
+          unzip -q build/app/outputs/flutter-apk/app-release.apk 'lib/*/libsqlite3.so' -d "$libs"
+          found=0
+          for so in "$libs"/lib/*/libsqlite3.so; do
+            found=1
+            hash="$(sha256sum "$so" | cut -d' ' -f1)"
+            if grep -q "$hash" "$prebuilt"; then
+              echo "::error::$so is the prebuilt download ($hash)."
+              exit 1
+            fi
+            echo "compiled: ${so#"$libs"/}"
+          done
+          test "$found" = 1
+
   # Linux desktop compile gate. Pinned to ubuntu-22.04 to match the snap's core22
   # base (glibc 2.35), so the gate compiles against the same runtime the snap
   # ships on (and a 24.04-only glibc symbol can't sneak in). Validates (a) the

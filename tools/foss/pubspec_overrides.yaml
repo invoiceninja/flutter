@@ -1,0 +1,20 @@
+# F-Droid (FOSS) build only — tools/prepare_foss.sh copies this to the repo
+# root, where pub reads it natively. Never commit a root pubspec_overrides.yaml
+# (it is gitignored). See docs/fdroid.md.
+#
+# This file REPLACES pubspec.yaml's `dependency_overrides` rather than merging
+# with them, so every override listed there has to be repeated here, verbatim.
+# test/lint/store_sdk_boundary_test.dart fails the build if the two drift.
+dependency_overrides:
+  # The FOSS twin: same package name and API, no Google Sign-In, no store
+  # billing, no Sentry.
+  store_services:
+    path: packages/store_services_foss
+
+  # --- Copied from pubspec.yaml's dependency_overrides (see there for why) ---
+  isolate_manager: ^6.3.2
+  super_editor:
+    git:
+      url: https://github.com/Flutter-Bounty-Hunters/super_editor
+      path: super_editor
+      ref: 2408aa52579a6d13479b38da980dc3093c2982a8

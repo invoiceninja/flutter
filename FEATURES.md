@@ -1640,6 +1640,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Native window-state persistence (macOS + Windows) | — | ❌ | ✅ | ✅ | |
 | Frameless app-painted title bar (macOS + Windows + Linux) | — | ❌ | ✅ | | nav arrows share the window caption band; band follows the light/dark theme |
 | OAuth deep-link handler (callback URL) | — | ✅ | ✅ | ✅ | |
+| F-Droid (FOSS) Android build — no Google Sign-In / Play Billing / Sentry, SQLite compiled from source | — | ✅ | 🟡 | | v1: whole-file `.foss` copies; v2: `tools/prepare_foss.sh` swaps `packages/store_services` for its FOSS twin, gated by CI's `build-android-foss` — 🟡 until the fdroiddata recipe is submitted (`docs/fdroid.md`) |
 | Web platform support (`flutter build web`) | ✅ | — | ✅ | | |
 | Web persistence (drift WASM / IndexedDB, unencrypted) | — | — | ✅ | | |
 | Web auth token storage (localStorage) | — | — | ✅ | | |

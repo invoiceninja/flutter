@@ -7,7 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:store_services/store_services.dart';
 
 import 'package:admin/app/app_deep_links.dart';
 import 'package:admin/app/debug_capture_store.dart';
@@ -72,18 +72,18 @@ Future<void> main() async {
   // takes the unchanged direct `runZonedGuarded` path → zero web behavior
   // change. Native behavior is byte-identical (the added `!kIsWeb` is a
   // const true on every native target).
+  // The SDK sits behind `package:store_services` so the F-Droid build can
+  // leave it out; there `runWithCrashReporting` just runs the app
+  // (docs/fdroid.md).
   if (!kIsWeb && !kDebugMode && Env.sentryDsn.isNotEmpty) {
-    await SentryFlutter.init((o) {
-      o.dsn = Env.sentryDsn;
-      o.release = AppVersion.kClientVersion;
-      o.dist = AppVersion.kClientVersion;
-      o.beforeSend = (event, hint) =>
-          sentryShouldSend(
-            reportErrors: _authForSentry?.session.value?.reportErrors ?? false,
-          )
-          ? event
-          : null;
-    }, appRunner: () => runZonedGuarded(_bootstrap, _zoneOnError));
+    await runWithCrashReporting(
+      dsn: Env.sentryDsn,
+      release: AppVersion.kClientVersion,
+      shouldSend: () => sentryShouldSend(
+        reportErrors: _authForSentry?.session.value?.reportErrors ?? false,
+      ),
+      appRunner: () => runZonedGuarded(_bootstrap, _zoneOnError),
+    );
   } else {
     await runZonedGuarded(_bootstrap, _zoneOnError);
   }

@@ -42,11 +42,8 @@ dependencies:
   freezed_annotation: ^3.1.0
   go_router: ^17.2.3
   google_fonts: ^8.1.0
-  google_sign_in: ^7.2.0
   http: ^1.5.0
   image_picker: ^1.0.0
-  in_app_purchase: ^3.3.0
-  in_app_purchase_storekit: ^0.4.9
   # integration_test lives here (not dev_dependencies) as a workaround for
   # flutter/flutter#186800 + #169336: on Flutter 3.44.x the dev-dependency
   # plugin is dropped from the release native classpath but still emitted into
@@ -68,13 +65,17 @@ dependencies:
   qr_flutter: ^4.1.0
   re_editor: ^0.9.0
   re_highlight: ^0.0.3
-  sentry_flutter: ^9.21.0
   # Record links go out through the system share sheet on touch, where
   # "copy, leave the app, paste" is three steps for what the platform
   # does in one (invoiceninja/flutter#144). Desktop still copies.
   share_plus: ^13.3.0
   sign_in_with_apple: ^8.1.0
   sqlite3: ^3.3.2
+  # Google Sign-In, store billing and Sentry live behind this local package so
+  # the F-Droid build can swap it for its FOSS twin without touching lib/
+  # (tools/prepare_foss.sh, docs/fdroid.md). Never add those SDKs here.
+  store_services:
+    path: packages/store_services
   super_editor: any
   # IANA tzdb, for the callee's real local time on a phone number
   # (docs/tap-to-call.md). The server's `timezones.utc_offset` is STANDARD-time

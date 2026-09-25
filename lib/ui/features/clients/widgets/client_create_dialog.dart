@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
-import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/domain/client.dart';
 import 'package:admin/data/models/domain/group_setting.dart';
 import 'package:admin/data/models/value/currency.dart';
@@ -198,6 +197,9 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
     // start a fresh create (with `recoveryTempId` cleared) and write a
     // SECOND client.
     if (_vm.isSaving || _closing) return;
+    // Read before the save: a successful one clears it, and the superseded
+    // row below is found by it.
+    final priorTmpId = _vm.recoveryTempId;
     // `save()` runs the VM's `validate()` first: the name-or-contact-name
     // guard populates `fieldErrors` and returns null without ever writing an
     // outbox row, so the errors below cover both it and a server 422.
@@ -251,7 +253,7 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
     _closing = true;
     // This save superseded any earlier 422, whose dead row now holds a stale
     // payload. Mirrors `_cleanupPriorDeadRow` on the full edit scaffold.
-    await _deletePriorDeadRow();
+    await _deletePriorDeadRow(priorTmpId);
     if (!mounted) return;
 
     // The create may have drained inside the await window, in which case Drift
@@ -273,22 +275,20 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
     Navigator.of(context).pop(fresh ?? saved);
   }
 
-  /// The dead outbox row for this dialog's failed attempt, if any.
-  Future<OutboxRow?> _failedAttemptRow() async {
-    final tmpId = _vm.recoveryTempId;
-    if (tmpId == null) return null;
-    return _services.db.outboxDao.findDeadSaveForEntity(
+  /// Drop a superseded 422's row after a successful re-save. Deletes the row
+  /// only — unlike [_discardFailedAttempt] the local client record is the one
+  /// we just saved and must survive.
+  ///
+  /// [tmpId] is the attempt's temp id as it stood before the save: a
+  /// successful save clears `recoveryTempId`, so reading it afterwards found
+  /// nothing to drop.
+  Future<void> _deletePriorDeadRow(String? tmpId) async {
+    if (tmpId == null) return;
+    final row = await _services.db.outboxDao.findDeadSaveForEntity(
       companyId: widget.companyId,
       entityType: 'client',
       entityId: tmpId,
     );
-  }
-
-  /// Drop a superseded 422's row after a successful re-save. Deletes the row
-  /// only — unlike [_discardFailedAttempt] the local client record is the one
-  /// we just saved and must survive.
-  Future<void> _deletePriorDeadRow() async {
-    final row = await _failedAttemptRow();
     if (row == null) return;
     await _services.sync.supersedeDeadSave(row.id);
     _vm.clearFailedSync();
@@ -296,9 +296,21 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
 
   /// Bin a failed attempt entirely — outbox row *and* the never-synced local
   /// client `discardOutboxRow` ghost-deletes with it.
+  ///
+  /// Dead or still queued: a 422 kills the row, but a 5xx or a lost
+  /// connection leaves it `pending` with backoff, and a dead-only lookup let
+  /// the client the user had just cancelled go out anyway. Not one that went
+  /// `unconfirmed` behind the dialog's back: it may have made the client, so
+  /// it waits in the Outbox for the user to Check.
   Future<void> _discardFailedAttempt() async {
-    final row = await _failedAttemptRow();
-    if (row == null) return;
+    final tmpId = _vm.recoveryTempId;
+    if (tmpId == null) return;
+    final row = await _services.db.outboxDao.findDiscardableForEntity(
+      companyId: widget.companyId,
+      entityType: 'client',
+      entityId: tmpId,
+    );
+    if (row == null || row.state == 'unconfirmed') return;
     await _services.sync.discardOutboxRow(row.id);
     _vm.clearFailedSync();
   }

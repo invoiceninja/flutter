@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
+import 'package:admin/app/services.dart';
+import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/core/widgets/save_failed_banner.dart';
@@ -43,6 +47,48 @@ class _FakeVm extends GenericEditViewModel<String> {
       statusCode: statusCode,
     );
   }
+}
+
+/// Discard, like Check and Resend, re-reads the row the banner names before it
+/// acts. This one is still waiting on the user.
+class _FakeOutboxDao implements OutboxDao {
+  @override
+  Future<OutboxRow?> byId(int id) async => OutboxRow(
+    id: id,
+    companyId: 'co',
+    entityType: 'client',
+    entityId: 'c1',
+    mutationKind: 'update',
+    payload: '{}',
+    idempotencyKey: 'k',
+    attempts: 1,
+    nextAttemptAt: 0,
+    state: 'unconfirmed',
+    requiresPassword: false,
+    createdAt: 0,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _FakeDb implements AppDatabase {
+  @override
+  final OutboxDao outboxDao = _FakeOutboxDao();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _FakeServices implements Services {
+  @override
+  final AppDatabase db = _FakeDb();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
 }
 
 void main() {
@@ -160,10 +206,13 @@ void main() {
       await pumpAt(
         tester,
         800,
-        SaveFailedBanner(
-          vm: vm,
-          onDiscard: () async => discarded++,
-          onRetry: () async {},
+        Provider<Services>.value(
+          value: _FakeServices(),
+          child: SaveFailedBanner(
+            vm: vm,
+            onDiscard: () async => discarded++,
+            onRetry: () async {},
+          ),
         ),
       );
 

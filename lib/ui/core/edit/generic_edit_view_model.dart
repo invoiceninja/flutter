@@ -514,9 +514,10 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     _clearUnconfirmedState();
     // Note: `_deadOutboxRowId` deliberately survives `save()` entry — the
     // screen's `onSaved` callback reads it to delete the prior dead row
-    // after a successful re-save. If `performSave` itself throws a 422
-    // synchronously, the catch block below resets it so the late-arriving
-    // `onSaveRejected` hook can pick up the *fresh* dead row id.
+    // after a successful re-save. A save that fails resets it in the catch
+    // blocks below: on a 422 so the late-arriving `onSaveRejected` hook can
+    // pick up the *fresh* dead row id, and on any other failure so Discard
+    // reaches the newer row rather than the stale one.
     notifyListeners();
     try {
       // Client-side validation runs *inside* the try so the `finally` below
@@ -616,7 +617,17 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       // and inline submit-error UI.
       _submitError = e is ApiException ? e.message : e.toString();
       _failedStatusCode = e is ServerException ? e.statusCode : null;
-      _recordDeleted = e is RecordDeletedException;
+      // An awaited row reports the rejection as a plain ServerException, so
+      // re-classify from the status and message, as a reopened form does.
+      _recordDeleted =
+          e is RecordDeletedException ||
+          isRecordDeletedRejection(_failedStatusCode, _submitError);
+      // As in the 422 arm: this failure superseded the one the form opened
+      // with. A 5xx or a lost connection leaves the NEW row pending, so a
+      // cached link to the old dead row sent Discard there — and the write the
+      // user had just discarded went out anyway. With no link, the screen's
+      // discard falls back to the newest row for the record.
+      _deadOutboxRowId = null;
       return null;
     } finally {
       // Defensively drop any pending save-query that performSave did not

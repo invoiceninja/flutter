@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/db/app_database.dart';
+import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/edit/entity_edit_scaffold.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
@@ -297,33 +299,27 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     return row?.id;
   }
 
-  /// The row a "Discard failed save" tap should abandon. Wider than
-  /// [_resolveDeadRowId] — which stays dead-only because [_cleanupPriorDeadRow]
-  /// must delete a SUPERSEDED row after a successful re-save and has no
-  /// business touching one that is still queued.
+  /// The row a "Discard failed save" tap should abandon when the VM holds no
+  /// link to one. Wider than [_resolveDeadRowId] — which stays dead-only
+  /// because [_cleanupPriorDeadRow] must delete a SUPERSEDED row after a
+  /// successful re-save and has no business touching one that is still queued.
   ///
   /// Discard is the other case: only a 422 kills the row, so a 5xx or a lost
   /// connection leaves the banner up over a `pending` row and the dead-only
   /// lookup found nothing — the tap cleared the banner and left the write to
   /// apply anyway. `findDiscardableForEntity` documents why `in_flight` and
   /// the non-save mutation kinds are excluded.
-  Future<int?> _resolveDiscardableRowId(Services services, VM vm) async {
-    // A save held on an `unconfirmed` row discards THAT row — the newest
-    // discardable one may be a later save queued behind it. It comes first:
-    // it is what the banner shows, and a dead row cached when the form opened
-    // may be stale (a later save replaced it) or simply not the one in view.
-    final cached =
-        (vm.unconfirmedIsSave ? vm.unconfirmedRowId : null) ??
-        vm.deadOutboxRowId;
-    if (cached != null) return cached;
-    final entityId = widget.existingId;
+  Future<OutboxRow?> _findDiscardableRow(Services services, VM vm) async {
+    // A create form has no record id: its rows are keyed on the temp id the
+    // view model remembers from the attempt. Keyed on nothing, the lookup
+    // never ran and a create the user discarded still went out.
+    final entityId = widget.existingId ?? vm.recoveryTempId;
     if (entityId == null) return null;
-    final row = await services.db.outboxDao.findDiscardableForEntity(
+    return services.db.outboxDao.findDiscardableForEntity(
       companyId: _companyId,
       entityType: widget.entityTypeName,
       entityId: entityId,
     );
-    return row?.id;
   }
 
   /// Delete a prior 422's `dead` outbox row after a successful re-save (its
@@ -332,15 +328,52 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// path so both consume the dead row.
   Future<void> _cleanupPriorDeadRow(Services services, VM vm) async {
     final priorDeadId = await _resolveDeadRowId(services, vm);
-    if (priorDeadId != null) {
-      await services.sync.supersedeDeadSave(priorDeadId);
-      vm.clearFailedSync();
+    if (priorDeadId == null) return;
+    // Only a create supersedes a failed create that has not landed. An edit
+    // of a record whose create was rejected queues an UPDATE, which waits
+    // behind that create and cannot send before it: deleting the create
+    // stranded the record — the update then died as referencing a discarded
+    // one. A dead create under a real id is stale — the record exists — and
+    // goes as before.
+    if (!vm.isCreate) {
+      final row = await services.db.outboxDao.byId(priorDeadId);
+      if (row != null &&
+          row.mutationKind == MutationKind.create.wireName &&
+          row.entityId.startsWith('tmp_')) {
+        return;
+      }
     }
+    await services.sync.supersedeDeadSave(priorDeadId);
+    vm.clearFailedSync();
   }
 
   Future<void> _discardFailedSync(VM vm) async {
     final services = context.read<Services>();
-    final rowId = await _resolveDiscardableRowId(services, vm);
+    // A save held on an `unconfirmed` row discards THAT row — the newest
+    // discardable one may be a later save queued behind it. It comes first:
+    // it is what the banner shows, and a dead row cached when the form opened
+    // may be stale (a later save replaced it) or simply not the one in view.
+    final heldRowId = vm.unconfirmedIsSave ? vm.unconfirmedRowId : null;
+    var rowId = heldRowId ?? vm.deadOutboxRowId;
+    if (rowId == null) {
+      final row = await _findDiscardableRow(services, vm);
+      if (row != null &&
+          row.state == 'unconfirmed' &&
+          widget.existingId == null) {
+        // A new record's create went `unconfirmed` out of the form's sight — a
+        // background retry after the failure on screen — so it may have made
+        // the record. Show that instead of dropping it unseen: the banner turns
+        // to Check / Resend / Discard, and the form keeps its temp id, so a
+        // Save is refused rather than making the record twice.
+        vm.applyUnconfirmed(
+          rowId: row.id,
+          isSave: true,
+          message: row.lastError,
+        );
+        return;
+      }
+      rowId = row?.id;
+    }
     if (rowId == null) {
       vm.clearFailedSync();
       return;
@@ -349,8 +382,15 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     vm.clearFailedSync();
     // A never-synced offline create just had its local record hard-deleted —
     // this screen now points at an entity that no longer exists. Leave it.
-    // Embedded mode has no route of its own to pop.
-    if (removedLocal && !widget.embedded && mounted && context.canPop()) {
+    // Embedded mode has no route of its own to pop. A create form points at
+    // no record and keeps its draft — unless what was discarded may already
+    // have made the record: then it leaves too, as a resent create does, so
+    // that draft can't be saved into a second one.
+    if (removedLocal &&
+        (widget.existingId != null || rowId == heldRowId) &&
+        !widget.embedded &&
+        mounted &&
+        context.canPop()) {
       context.pop();
     }
   }
@@ -440,12 +480,14 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
       resetToEmpty: () => widget.resetToEmpty(vm),
       onSaveRejected: () async {
         // Fresh 422 landed — re-link to the new dead row so a subsequent
-        // Discard tap targets *this* failure, not the prior cached id.
+        // Discard tap targets *this* failure, not the prior cached id. A new
+        // record's draft has no id; its row is under the attempt's temp id.
         final services = context.read<Services>();
+        final draftId = widget.entityIdOf(vm.draft);
         await _hydrateFailedSync(
           services,
           _companyId,
-          widget.entityIdOf(vm.draft),
+          draftId.isNotEmpty ? draftId : (vm.recoveryTempId ?? ''),
         );
       },
       onSaved: (ctx, saved) async {

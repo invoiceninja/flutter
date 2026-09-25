@@ -450,6 +450,12 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// Called by the sync engine after a successful `create` round-trip:
   /// remember the temp → real id remap and rewrite any pending outbox
   /// payloads that referenced the temp id.
+  ///
+  /// While the drain dispatches the create that landed, the record's earlier
+  /// attempts that died (a 422 the user fixed and re-saved past) are deleted
+  /// first: re-keyed to the real id they would be failed creates of a record
+  /// that now exists, and a Retry would make it twice. Only attempts OLDER
+  /// than the one that landed — a newer one holds newer content.
   Future<void> recordCreateSuccess({
     required String companyId,
     required String tempId,
@@ -457,6 +463,10 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   }) async {
     if (tempId == realId) return;
     final nowMs = _now().millisecondsSinceEpoch;
+    final scope = RequestScope.current;
+    final landedRowId = scope != null && scope.isFor(entityTypeName, tempId)
+        ? scope.sourceRowId
+        : null;
     await db.transaction(() async {
       await _idRemap.remember(
         entityType: entityTypeName,
@@ -464,6 +474,14 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         realId: realId,
         now: nowMs,
       );
+      if (landedRowId != null) {
+        await _outbox.deleteDeadCreates(
+          companyId: companyId,
+          entityType: entityTypeName,
+          entityId: tempId,
+          beforeId: landedRowId,
+        );
+      }
       await _outbox.rewriteTempIdInPayloads(
         companyId: companyId,
         entityType: entityTypeName,

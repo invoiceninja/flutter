@@ -944,6 +944,29 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.get();
   }
 
+  /// Delete the `dead` `create` rows of record [entityId] older than
+  /// [beforeId] — earlier attempts at the create that has just landed as row
+  /// [beforeId]. [rewriteTempIdInPayloads] would otherwise re-key them to the
+  /// real id: failed "creates" of a record that exists, which a Retry would
+  /// POST again as a duplicate. A newer dead create is left alone: it holds
+  /// content newer than what landed.
+  Future<int> deleteDeadCreates({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+    required int beforeId,
+  }) =>
+      (delete(outbox)..where(
+            (o) =>
+                o.companyId.equals(companyId) &
+                o.entityType.equals(entityType) &
+                o.entityId.equals(entityId) &
+                o.mutationKind.equals(MutationKind.create.wireName) &
+                o.state.equals('dead') &
+                o.id.isSmallerThanValue(beforeId),
+          ))
+          .go();
+
   /// Rewrite tmp ids inside payloads of pending, unconfirmed AND dead rows
   /// once a `create` lands and produces a real id. The repository / sync engine
   /// calls this in the same transaction as inserting into `id_remap`.

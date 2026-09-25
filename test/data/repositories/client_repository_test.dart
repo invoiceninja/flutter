@@ -915,6 +915,88 @@ void main() {
     });
   });
 
+  group('a create that finally succeeds', () {
+    test('drops the attempts at it that died, instead of turning them into '
+        'creates of the real record', () async {
+      // A rejected attempt left its dead create row under the temp id. The
+      // remap rewrote it to the real id — a dead "create" of a record that now
+      // exists, sitting in the Outbox, which a Retry would POST again.
+      final (:repo, :api) = makeRepo();
+      final first = await repo.create(
+        companyId: 'co',
+        draft: Client.fromApi(apiClient('', name: 'Acme')),
+      );
+      final tmpId = first.entity.id;
+      await db.outboxDao.markDead(
+        id: first.outboxRowId,
+        error: 'The name field is required.',
+        statusCode: 422,
+      );
+      final retry = await repo.create(
+        companyId: 'co',
+        draft: first.entity,
+        existingTempId: tmpId,
+      );
+
+      await asDrainFor(
+        tmpId,
+        () => repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: tmpId,
+          serverResponse: apiClient('c_real', name: 'Acme'),
+        ),
+      );
+
+      expect(await db.outboxDao.byId(first.outboxRowId), isNull);
+      expect(
+        await db.outboxDao.byId(retry.outboxRowId),
+        isNotNull,
+        reason: 'the attempt that landed is the drain\'s to retire',
+      );
+    });
+
+    test('keeps an attempt newer than the one that landed — it holds newer '
+        'content', () async {
+      // Both attempts died; the user retried the OLDER one from the Outbox.
+      // The newer one is not a superseded attempt: deleting it left the
+      // record showing content the server never got, with nothing queued.
+      final (:repo, :api) = makeRepo();
+      final older = await repo.create(
+        companyId: 'co',
+        draft: Client.fromApi(apiClient('', name: 'Acme')),
+      );
+      final tmpId = older.entity.id;
+      await db.outboxDao.markDead(
+        id: older.outboxRowId,
+        error: 'Payment required',
+      );
+      final newer = await repo.create(
+        companyId: 'co',
+        draft: older.entity.copyWith(name: 'Acme Ltd'),
+        existingTempId: tmpId,
+      );
+      await db.outboxDao.markDead(
+        id: newer.outboxRowId,
+        error: 'Payment required',
+      );
+
+      await RequestScope(
+        'co',
+        sourceRowId: older.outboxRowId,
+        sourceEntityType: 'client',
+        sourceEntityId: tmpId,
+      ).run(
+        () => repo.applyCreateResponse(
+          companyId: 'co',
+          tempId: tmpId,
+          serverResponse: apiClient('c_real', name: 'Acme'),
+        ),
+      );
+
+      expect(await db.outboxDao.byId(newer.outboxRowId), isNotNull);
+    });
+  });
+
   group('stale tmp-id save after create drained (#1 ghost duplicate)', () {
     test('saving a draft still keyed to a remapped tmp id updates the REAL row '
         'instead of resurrecting the deleted tmp row as a ghost', () async {

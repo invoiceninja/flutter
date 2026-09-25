@@ -220,16 +220,20 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// Replay a prior rejection onto the VM so a reopened form states why the
   /// last save failed, and so Discard has a dead row to target. Mirrors
   /// `EntityEditScreenScaffold._hydrateFailedSync`.
+  ///
+  /// A create form has no record id; its rows are keyed on the temp id the
+  /// view model remembers from the attempt ([GenericEditViewModel.
+  /// recoveryTempId]).
   Future<void> _relinkFailedSync(VM vm) async {
-    final existingId = widget.existingId;
-    if (existingId == null) return;
+    final entityId = widget.existingId ?? vm.recoveryTempId;
+    if (entityId == null) return;
     final services = context.read<Services>();
     final companyId = services.auth.session.value?.currentCompanyId;
     if (companyId == null) return;
     final row = await services.db.outboxDao.findDeadSaveForEntity(
       companyId: companyId,
       entityType: widget.wireName,
-      entityId: existingId,
+      entityId: entityId,
     );
     if (row == null || !mounted) return;
     var errors = const <String, List<String>>{};
@@ -261,6 +265,9 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// A change to this record that may already have reached the server holds
   /// the next save back; say so on open (`hydrateUnconfirmed`).
   Future<void> _relinkUnconfirmed(VM vm) async {
+    // Runs after [_relinkFailedSync]'s await: the screen may be gone, and
+    // reading the context then throws into the caller's WARNING.
+    if (!mounted) return;
     final existingId = widget.existingId;
     if (existingId == null) return;
     final services = context.read<Services>();
@@ -295,15 +302,34 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     // banner gone, row still queued to apply the write the user just
     // discarded. See that query for why `in_flight` and the non-save kinds
     // stay out of it.
-    final existingId = widget.existingId;
-    if (rowId == null && existingId != null) {
+    //
+    // A create form looks under the attempt's temp id: it has no record id,
+    // and keyed on nothing the lookup never ran — the create went out anyway.
+    final entityId = widget.existingId ?? vm.recoveryTempId;
+    if (rowId == null && entityId != null) {
       final companyId = services.auth.session.value?.currentCompanyId;
       if (companyId != null) {
-        rowId = (await services.db.outboxDao.findDiscardableForEntity(
+        final row = await services.db.outboxDao.findDiscardableForEntity(
           companyId: companyId,
           entityType: widget.wireName,
-          entityId: existingId,
-        ))?.id;
+          entityId: entityId,
+        );
+        if (row != null &&
+            row.state == 'unconfirmed' &&
+            widget.existingId == null) {
+          // A new record's create went `unconfirmed` out of the form's sight —
+          // a background retry after the failure on screen — so it may have
+          // made the record. Show that instead of dropping it unseen: the
+          // banner turns to Check / Resend / Discard, and the form keeps its
+          // temp id, so a Save is refused rather than making the record twice.
+          vm.applyUnconfirmed(
+            rowId: row.id,
+            isSave: true,
+            message: row.lastError,
+          );
+          return;
+        }
+        rowId = row?.id;
       }
     }
     if (rowId != null) {
@@ -338,7 +364,16 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
           detail: vm.submitError,
         );
       }
-      await _relinkFailedSync(vm);
+      // Re-link only a fresh server rejection, as `EntityEditScreenScaffold`'s
+      // `onSaveRejected` does. Any other failure already carries its message
+      // and status, and Discard's fallback finds the newest row — while a
+      // re-link could take the wrong one: after a 5xx the newest DEAD row is
+      // the old one, so Discard went there instead of to the newer row still
+      // queued, and the fresh error was swapped for the old one; after a
+      // local-validation block it replaced the errors to fix with that row's.
+      if (vm.fieldErrors.isNotEmpty && !vm.localValidationOnly) {
+        await _relinkFailedSync(vm);
+      }
       return;
     }
     if (context.canPop()) {

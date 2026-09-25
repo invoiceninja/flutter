@@ -231,11 +231,20 @@ class SaveFailedBanner extends StatelessWidget {
                     () => _withRow(context, (row) => _resend(context, row)),
                     color: tokens.warning,
                   ),
+                  // Re-checked like the two above, but a row resent meanwhile
+                  // is still dropped while it is only queued or has died since
+                  // — the user asked for that. Not once it is `in_flight`: the
+                  // screen's handler discards by id, which would leave its
+                  // request on the wire.
                   _action(
                     context,
                     tokens,
                     'discard',
-                    onDiscard,
+                    () => _withRow(
+                      context,
+                      (_) => onDiscard(),
+                      stillApplies: (row) => row.state != 'in_flight',
+                    ),
                     color: tokens.warning,
                   ),
                 ] else
@@ -256,21 +265,25 @@ class SaveFailedBanner extends StatelessWidget {
 
   /// Run [action] on the row the banner names — or, when it has been dealt
   /// with elsewhere meanwhile (the Outbox screen, a drain), just drop the
-  /// banner.
+  /// banner. [stillApplies] says which states still take [action]; by
+  /// default only `unconfirmed`.
   Future<void> _withRow(
     BuildContext context,
-    Future<void> Function(OutboxRow row) action,
-  ) async {
+    Future<void> Function(OutboxRow row) action, {
+    bool Function(OutboxRow row) stillApplies = _isUnconfirmed,
+  }) async {
     final id = vm.unconfirmedRowId;
     if (id == null) return;
     final row = await context.read<Services>().db.outboxDao.byId(id);
     if (!context.mounted) return;
-    if (row == null || row.state != 'unconfirmed') {
+    if (row == null || !stillApplies(row)) {
       vm.clearUnconfirmed();
       return;
     }
     await action(row);
   }
+
+  static bool _isUnconfirmed(OutboxRow row) => row.state == 'unconfirmed';
 
   /// A resent **create** leaves its form, for where Check would have gone.
   /// Left open, the form invites another Save — which queues a second

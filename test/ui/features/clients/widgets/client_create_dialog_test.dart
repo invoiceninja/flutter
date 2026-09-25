@@ -77,32 +77,42 @@ class _FakeStatics implements StaticsRepository {
 /// that is already `state='dead'` with `lastStatusCode == 422`, which is
 /// exactly `findDeadSaveForEntity`'s filter. Returning null here would skip the
 /// discard entirely and hide whatever it does to the form's state.
+///
+/// [rowState] is the state the failed attempt's row is in: `dead` after a
+/// 422, `pending` (backing off) after a 5xx or a lost connection.
 class _FakeOutboxDao implements OutboxDao {
-  int discardLookups = 0;
+  String rowState = 'dead';
+
+  OutboxRow _row(String companyId, String entityType, String entityId) =>
+      OutboxRow(
+        id: 99,
+        companyId: companyId,
+        entityType: entityType,
+        entityId: entityId,
+        mutationKind: 'create',
+        payload: '{}',
+        idempotencyKey: 'idem',
+        attempts: 1,
+        nextAttemptAt: 0,
+        state: rowState,
+        lastStatusCode: rowState == 'dead' ? 422 : 503,
+        requiresPassword: false,
+        createdAt: 0,
+      );
 
   @override
   Future<OutboxRow?> findDeadSaveForEntity({
     required String companyId,
     required String entityType,
     required String entityId,
-  }) async {
-    discardLookups++;
-    return OutboxRow(
-      id: 99,
-      companyId: companyId,
-      entityType: entityType,
-      entityId: entityId,
-      mutationKind: 'create',
-      payload: '{}',
-      idempotencyKey: 'idem',
-      attempts: 1,
-      nextAttemptAt: 0,
-      state: 'dead',
-      lastStatusCode: 422,
-      requiresPassword: false,
-      createdAt: 0,
-    );
-  }
+  }) async => rowState == 'dead' ? _row(companyId, entityType, entityId) : null;
+
+  @override
+  Future<OutboxRow?> findDiscardableForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) async => _row(companyId, entityType, entityId);
 
   final List<int> deletedRows = [];
 
@@ -133,7 +143,7 @@ class _FakeGroups implements GroupSettingRepository {
 
 class _FakeSync implements SyncRepository {
   _FakeSync(this.result);
-  final SyncRowResult result;
+  SyncRowResult result;
   final List<int> discarded = [];
 
   @override
@@ -555,6 +565,69 @@ void main() {
       final sync = services.sync as _FakeSync;
       expect(sync.discarded, isEmpty);
       expect(result?.id, 'tmp_x');
+    });
+
+    testWidgets('cancelling after a server error bins the queued create — it '
+        'would otherwise still go out', (tester) async {
+      // A 5xx leaves the create `pending` with backoff, not `dead`, so a
+      // dead-only lookup found nothing and the client the user cancelled was
+      // created anyway.
+      await open(
+        tester,
+        initialName: 'Acme Corp',
+        syncResult: const SyncRowResult(
+          outcome: SyncRowOutcome.serverError,
+          statusCode: 503,
+          message: 'Down',
+        ),
+      );
+      (services.db.outboxDao as _FakeOutboxDao).rowState = 'pending';
+      await save(tester);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      final sync = services.sync as _FakeSync;
+      expect(sync.discarded, [99]);
+      expect(closed, isTrue);
+    });
+
+    testWidgets('cancelling leaves a create that may already have gone '
+        'through for the user to check', (tester) async {
+      // A background retry of the failed create had an unknown outcome while
+      // the dialog stayed open: it may have made the client.
+      await open(
+        tester,
+        initialName: 'Acme Corp',
+        syncResult: const SyncRowResult(
+          outcome: SyncRowOutcome.serverError,
+          statusCode: 503,
+          message: 'Down',
+        ),
+      );
+      (services.db.outboxDao as _FakeOutboxDao).rowState = 'unconfirmed';
+      await save(tester);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      final sync = services.sync as _FakeSync;
+      expect(sync.discarded, isEmpty);
+      expect(closed, isTrue);
+    });
+
+    testWidgets('a re-save that lands drops the rejected attempt it replaced', (
+      tester,
+    ) async {
+      // The lookup ran after the save, which clears `recoveryTempId` on
+      // success — so it never found the row it was there to drop.
+      await open(tester, initialName: 'Acme Corp', syncResult: emailRejected());
+      await save(tester);
+      final sync = services.sync as _FakeSync;
+      sync.result = const SyncRowResult(outcome: SyncRowOutcome.success);
+      await save(tester);
+
+      expect(sync.superseded, [99]);
+      expect(sync.discarded, isEmpty);
+      expect(closed, isTrue);
     });
   });
 }

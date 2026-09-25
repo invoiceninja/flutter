@@ -32,6 +32,7 @@ import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/features/settings/widgets/settings_entity_edit_scaffold.dart';
@@ -104,6 +105,48 @@ class _Vm extends GenericEditViewModel<String> {
   @override
   Future<SaveResult<String>> performSave() async =>
       throw Exception('Connection failed');
+}
+
+/// A new record. Its save queues the create row the way the repositories do —
+/// under a `tmp_` id the view model remembers, while the draft carries no id
+/// at all — and then fails with [failure].
+class _CreateVm extends GenericEditViewModel<String> {
+  _CreateVm({
+    required this.db,
+    required this.tmpId,
+    required this.dead,
+    required this.failure,
+  }) : super(initialDraft: '');
+
+  final AppDatabase db;
+  final String tmpId;
+  final bool dead;
+  final Object failure;
+  int? rowId;
+
+  @override
+  Future<SaveResult<String>> performSave() async {
+    rowId = await db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'tax_rates',
+        entityId: tmpId,
+        mutationKind: 'create',
+        payload: '{}',
+        idempotencyKey: 'idem-create',
+        createdAt: 0,
+        nextAttemptAt: 0,
+        state: Value(dead ? 'dead' : 'pending'),
+        lastError: Value(dead ? 'The rate field must be a number.' : 'Down'),
+        lastStatusCode: Value(dead ? 422 : 503),
+        fieldErrorsJson: Value(
+          dead ? '{"rate":["The rate field must be a number."]}' : null,
+        ),
+      ),
+    );
+    rememberCreateTempId(tmpId);
+    throw failure;
+  }
 }
 
 void main() {
@@ -334,5 +377,133 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(sync.discarded, [unconfirmedRow]);
+  });
+
+  testWidgets('Discard after a failed re-save abandons the newer row, not the '
+      'dead one the form opened with', (tester) async {
+    // The form opened onto dead D, and the re-save's newer row is backing off
+    // after a failure. The relink after every failed save re-cached D, so
+    // Discard deleted D and the newer write — the one the user had just
+    // discarded — went out anyway.
+    await enqueueRow(
+      dead: true,
+      error: 'The rate field must be a number.',
+      statusCode: 422,
+    );
+    final retrying = await enqueueRow(
+      dead: false,
+      idempotencyKey: 'idem-retrying',
+    );
+
+    await pumpScaffold(tester);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard failed save'));
+    await tester.pumpAndSettle();
+
+    expect(sync.discarded, [retrying]);
+  });
+
+  group('a create form', () {
+    // A new record's draft has no id — its temp id lives on the view model —
+    // so every lookup of its failed row was keyed on nothing.
+    const tmpId = 'tmp_00000000-0000-4000-8000-0000000000aa';
+
+    Future<_CreateVm> pumpCreate(
+      WidgetTester tester, {
+      required bool dead,
+      required Object failure,
+    }) async {
+      final vm = _CreateVm(db: db, tmpId: tmpId, dead: dead, failure: failure);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildInTheme(InTheme.light),
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          home: MultiProvider(
+            providers: [
+              Provider<Services>.value(value: services),
+              ChangeNotifierProvider<SettingsLevelController>.value(
+                value: levelController,
+              ),
+            ],
+            child: SettingsEntityEditScaffold<String, _CreateVm>(
+              existingId: null,
+              backRoute: '/settings/tax_rates',
+              createTitleKey: 'new_tax_rate',
+              editTitleKey: 'edit_tax_rate',
+              wireName: wireName,
+              watchById: (_) => Stream<String?>.value(null),
+              refreshAll: () async {},
+              onArchive: (_) async {},
+              onRestore: (_) async {},
+              onDelete: (_) async {},
+              vmFactory: ({String? existing}) => vm,
+              canSave: (_) => true,
+              isArchivedOf: (_) => false,
+              isDeletedOf: (_) => false,
+              bodyBuilder: (context, _) => const [SizedBox.shrink()],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return vm;
+    }
+
+    testWidgets('Discard after a server error drops the queued create — '
+        'it would otherwise still go out', (tester) async {
+      final vm = await pumpCreate(
+        tester,
+        dead: false,
+        failure: const ServerException(503, 'Down'),
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard failed save'));
+      await tester.pumpAndSettle();
+
+      expect(sync.discarded, [vm.rowId]);
+    });
+
+    testWidgets('a create that went unconfirmed behind the form is shown, '
+        'not dropped unseen', (tester) async {
+      final vm = await pumpCreate(
+        tester,
+        dead: false,
+        failure: const ServerException(503, 'Down'),
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      // A background retry's outcome is unknown.
+      await db.outboxDao.markUnconfirmed(id: vm.rowId!, error: 'Reset');
+      await tester.tap(find.text('Discard failed save'));
+      await tester.pumpAndSettle();
+
+      expect(sync.discarded, isEmpty);
+      expect(vm.unconfirmedRowId, vm.rowId);
+      expect(vm.recoveryTempId, tmpId, reason: 'so a Save is refused');
+    });
+
+    testWidgets('a rejection links its dead row, so Discard drops it', (
+      tester,
+    ) async {
+      final vm = await pumpCreate(
+        tester,
+        dead: true,
+        failure: const ValidationException('The given data was invalid.', {
+          'rate': ['The rate field must be a number.'],
+        }),
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(vm.deadOutboxRowId, vm.rowId);
+
+      await tester.tap(find.text('Discard failed save'));
+      await tester.pumpAndSettle();
+
+      expect(sync.discarded, [vm.rowId]);
+    });
   });
 }

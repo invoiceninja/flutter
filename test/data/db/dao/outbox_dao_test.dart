@@ -187,6 +187,69 @@ void main() {
     });
   });
 
+  group('deleteDeadCreates', () {
+    test('drops only the record\'s own dead creates older than the one that '
+        'landed', () async {
+      const tmp = 'tmp_00000000-0000-4000-8000-0000000000d1';
+      final deadCreate = await enqueue(
+        entityId: tmp,
+        kind: 'create',
+        state: 'dead',
+        idempotencyKey: 'k1',
+      );
+      final landing = await enqueue(
+        entityId: tmp,
+        kind: 'create',
+        state: 'in_flight',
+        idempotencyKey: 'k2',
+      );
+      // Newer than what landed, so it holds newer content.
+      final newerDeadCreate = await enqueue(
+        entityId: tmp,
+        kind: 'create',
+        state: 'dead',
+        idempotencyKey: 'k6',
+      );
+      final deadUpdate = await enqueue(
+        entityId: tmp,
+        state: 'dead',
+        idempotencyKey: 'k3',
+      );
+      final otherRecord = await enqueue(
+        entityId: 'tmp_00000000-0000-4000-8000-0000000000d2',
+        kind: 'create',
+        state: 'dead',
+        idempotencyKey: 'k4',
+      );
+      final otherType = await enqueue(
+        entityType: 'vendor',
+        entityId: tmp,
+        kind: 'create',
+        state: 'dead',
+        idempotencyKey: 'k5',
+      );
+
+      final deleted = await db.outboxDao.deleteDeadCreates(
+        companyId: 'co',
+        entityType: 'client',
+        entityId: tmp,
+        beforeId: landing,
+      );
+
+      expect(deleted, 1);
+      expect(await db.outboxDao.byId(deadCreate), isNull);
+      for (final kept in [
+        landing,
+        newerDeadCreate,
+        deadUpdate,
+        otherRecord,
+        otherType,
+      ]) {
+        expect(await db.outboxDao.byId(kept), isNotNull, reason: 'row $kept');
+      }
+    });
+  });
+
   group('findDiscardableForEntity', () {
     // Backs "Discard failed save" on BOTH edit scaffolds. `findDeadSaveForEntity`
     // was the wrong query there: only a 422 kills a row, so a 5xx or a lost

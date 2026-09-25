@@ -500,6 +500,47 @@ void main() {
       expect(vm.fieldErrorFor('email'), 'bad');
     });
 
+    test(
+      'a save that fails again drops the dead-row link it opened with',
+      () async {
+        // The form opened onto dead row D; the re-save queued a newer row that
+        // hit a 5xx and backed off. Only the 422 arm dropped the link, so
+        // Discard still reached for D — the stale row went, and the newer write
+        // the user had just discarded was applied anyway.
+        final vm = _FakeEditVM(
+          initialDraft: 'x',
+          throwOnSave: const ServerException(503, 'Maintenance'),
+        );
+        vm.applyFailedSync(rowId: 42, errors: const {}, message: 'old failure');
+        expect(vm.deadOutboxRowId, 42, reason: 'precondition');
+
+        await vm.save();
+
+        expect(vm.deadOutboxRowId, isNull);
+        expect(vm.submitError, 'Maintenance');
+      },
+    );
+
+    test(
+      'a save refused because the record was deleted offers no Retry',
+      () async {
+        // The awaited row reports that rejection as a plain ServerException, so
+        // only a reopened form (which re-reads the row) knew Retry was futile.
+        final vm = _FakeEditVM(
+          initialDraft: 'x',
+          throwOnSave: const ServerException(
+            400,
+            'Record is deleted and cannot be edited. Restore the record to '
+            'enable editing',
+          ),
+        );
+
+        await vm.save();
+
+        expect(vm.failedSaveIsRecordDeleted, isTrue);
+      },
+    );
+
     test('applyFailedSync(entityId: real-id) leaves recoveryTempId null '
         '(only tmp_ ids are recoverable)', () async {
       final vm = _FakeEditVM(

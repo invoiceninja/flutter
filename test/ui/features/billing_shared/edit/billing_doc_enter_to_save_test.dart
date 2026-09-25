@@ -59,10 +59,12 @@ void main() {
       'Enter in a header field saves the document ($width px)',
       (tester) async {
         final (:fixture, :saves) = await mount(tester, width);
-        for (final label in headerFields) {
+        // Counted per field: a total alone passes when one field saves twice
+        // and another not at all.
+        for (final (i, label) in headerFields.indexed) {
           await enterIn(tester, label);
+          expect(saves(), i + 1, reason: label);
         }
-        expect(saves(), headerFields.length);
         await unmount(tester, fixture);
       },
       timeout: const Timeout(Duration(seconds: 60)),

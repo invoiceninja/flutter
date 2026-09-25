@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
 
 /// Guards the per-type capability flags the shared billing widgets branch on.
@@ -150,6 +151,33 @@ void main() {
         p: 'purchase_order_footer',
         r: null,
       });
+    });
+
+    test('"Save as default" writes the setting its key names, and nothing '
+        'else', () {
+      // Each arm is a hand-written `copyWith`, and the keys above are derived
+      // from the wire name — read the write back through the key, so an arm
+      // pointed at another document's setting fails here.
+      const blank = CompanySettings();
+      for (final t in BillingDocType.values) {
+        final terms = t.withDefaultTerms(blank, 'T');
+        final footer = t.withDefaultFooter(blank, 'F');
+        final termsKey = t.termsDefaultKey;
+        final footerKey = t.footerDefaultKey;
+        if (termsKey == null || footerKey == null) {
+          expect(terms, blank, reason: '$t inherits the invoice\'s');
+          expect(footer, blank, reason: '$t inherits the invoice\'s');
+          continue;
+        }
+        expect(terms.toJson(), {
+          ...blank.toJson(),
+          termsKey: 'T',
+        }, reason: '$t');
+        expect(footer.toJson(), {
+          ...blank.toJson(),
+          footerKey: 'F',
+        }, reason: '$t');
+      }
     });
 
     test('hero tags derive from the wire name', () {

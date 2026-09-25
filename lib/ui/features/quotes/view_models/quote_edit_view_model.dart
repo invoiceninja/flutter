@@ -113,10 +113,6 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
   @override
   Quote Function(Quote, Date?) get partialDueDateWriter =>
       (d, v) => d.copyWith(partialDueDate: v);
-
-  // Line-item collection ops, invitation toggle, and eInvoice field
-  // updates all live on [GenericBillingDocEditViewModel] — see the
-  // copyWith* / *Of bridge methods above.
 }
 
 /// The shared fields, written onto a [Quote] — see [BillingDocWriter].

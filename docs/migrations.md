@@ -190,6 +190,17 @@ having the app open twice abandoned the store, and the next load swept it.
   classified first: SQLITE_FULL or a lock mid-upgrade is `storageFull` / `transient`, store
   untouched, exactly as it would be anywhere else in the open. Filing every migration
   failure under `migrationFailed` reset the store over a full disk.
+- **A failed rollback is judged by every code it carries.** After SQLITE_FULL or IOERR,
+  SQLite has already rolled the transaction back, so drift's own `ROLLBACK` fails ("no
+  transaction is active") and it throws `CouldNotRollBackException` (drift 2.33,
+  `rollbackAfterException`). Its text *leads* with that SQLITE_ERROR and names the real
+  failure after it, so reading the first code only made a full disk mid-upgrade
+  `migrationFailed` — a reset. The classifier reads every `SqliteException(<code>)` in the
+  text: any code saying storage full, then any saying transient, wins. A later code never
+  makes a reset, though — corruption counts only from the first code, as it always did, so
+  no text resets a store the old reading kept. It deliberately does not unwrap to `cause`:
+  the rollback's own error can be the only sign of a failing disk (a step that threw a Dart
+  error, then a `ROLLBACK` that hit an I/O error), and drift's text carries both.
 - **An error during the schema check or the repair is not drift.** The open loop uses a
   check that throws (`_schemaIntact`) and catches only `SchemaUnrepairableException` around
   `repairSchema`, so a BUSY or IOERR there reaches the classifier. `isSchemaIntact` — which

@@ -1,11 +1,11 @@
-// The 35 setters every billing-document edit view model declares — five
-// hand-written copies of the same bodies (~145 identical lines per VM). This
-// pins what each one writes, in both decimal locales, for all five documents,
-// so moving them into one shared base cannot change a single field quietly.
+// The 35 setters every billing-document edit view model shares — once five
+// hand-written copies, now written once on `BillingDocEditViewModel` over each
+// entity's `BillingDocWriter`. This pins what each one writes, in both decimal
+// locales, for all five documents, so a writer closure pointed at the wrong
+// field cannot change one quietly.
 //
-// Driven dynamically on purpose: the five view models share no interface for
-// these setters today (that is the duplication), so a table over `dynamic` is
-// the only way to run one expectation against all five.
+// Driven dynamically: a table over `dynamic` runs one expectation against all
+// five.
 
 // ignore_for_file: avoid_dynamic_calls
 
@@ -155,6 +155,7 @@ void main() {
           expect(vm.draft.discount, d('2.5'));
           expect(vm.draft.isAmountDiscount, isTrue);
           vm.setDiscount('10', isAmount: false);
+          expect(vm.draft.discount, d('10'));
           expect(vm.draft.isAmountDiscount, isFalse);
 
           vm.setUsesInclusiveTaxes(true);
@@ -169,16 +170,19 @@ void main() {
           );
           vm.setTaxRate1(typed('19.5'));
           vm.setTaxRate2(typed('7.25'));
-          vm.setTaxRate3('not a number');
+          vm.setTaxRate3(typed('3.5'));
           expect(
             [vm.draft.taxRate1, vm.draft.taxRate2, vm.draft.taxRate3],
-            [d('19.5'), d('7.25'), Decimal.zero],
+            [d('19.5'), d('7.25'), d('3.5')],
           );
+          // From a value, so the fallback is seen to write.
+          vm.setTaxRate3('not a number');
+          expect(vm.draft.taxRate3, Decimal.zero, reason: 'garbage → 0');
 
           vm.setCustomSurcharge1(typed('1.25'));
           vm.setCustomSurcharge2(typed('2.5'));
           vm.setCustomSurcharge3('3');
-          vm.setCustomSurcharge4('');
+          vm.setCustomSurcharge4(typed('4.75'));
           expect(
             [
               vm.draft.customSurcharge1,
@@ -186,21 +190,30 @@ void main() {
               vm.draft.customSurcharge3,
               vm.draft.customSurcharge4,
             ],
-            [d('1.25'), d('2.5'), d('3'), Decimal.zero],
+            [d('1.25'), d('2.5'), d('3'), d('4.75')],
           );
+          vm.setCustomSurcharge4('');
+          expect(vm.draft.customSurcharge4, Decimal.zero, reason: 'blank → 0');
+
+          // One at a time from all-false, so a setter that writes a sibling's
+          // field fails here.
+          List<Object?> customTaxes() => [
+            vm.draft.customTaxes1,
+            vm.draft.customTaxes2,
+            vm.draft.customTaxes3,
+            vm.draft.customTaxes4,
+          ];
+          expect(customTaxes(), [false, false, false, false]);
           vm.setCustomTaxes1(true);
-          vm.setCustomTaxes2(false);
+          expect(customTaxes(), [true, false, false, false]);
+          vm.setCustomTaxes2(true);
+          expect(customTaxes(), [true, true, false, false]);
           vm.setCustomTaxes3(true);
-          vm.setCustomTaxes4(false);
-          expect(
-            [
-              vm.draft.customTaxes1,
-              vm.draft.customTaxes2,
-              vm.draft.customTaxes3,
-              vm.draft.customTaxes4,
-            ],
-            [true, false, true, false],
-          );
+          expect(customTaxes(), [true, true, true, false]);
+          vm.setCustomTaxes4(true);
+          expect(customTaxes(), [true, true, true, true]);
+          vm.setCustomTaxes2(false);
+          expect(customTaxes(), [true, false, true, true]);
 
           vm.setCustomValue1('a');
           vm.setCustomValue2('b');

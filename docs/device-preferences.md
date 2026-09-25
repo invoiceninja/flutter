@@ -136,6 +136,11 @@ Those are the forms the codecs read.
   `nav_state`. A v12 store's marker comes across with its rows, so its carry is
   a no-op. Both calls are best-effort, since preferences are not worth failing
   an open or an outbox import over.
+- **A lost `device_prefs` loses the marker too.** When a v12 store's
+  `device_prefs` can't be read, `importSalvaged` marks the carry done
+  (`markNavStatePrefsCarried`) instead of running it. Run, it copied the
+  columns as they stood at the upgrade over whatever the user chose since —
+  and without the marker, every later salvage of this store would do the same.
 - **The old columns stay declared.** A build rolled back past v12 still opens
   the store (drift runs no downgrade step, and `isSchemaIntact` only checks
   that the declared columns exist). It sees the preferences as they were at

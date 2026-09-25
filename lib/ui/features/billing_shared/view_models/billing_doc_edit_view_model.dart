@@ -27,14 +27,12 @@ import 'package:admin/utils/formatting.dart';
 /// 4. **eInvoice field update** — `setEInvoiceField(key, value)` writes
 ///    into the open-ended `e_invoice` map without typed accessors.
 ///
-/// Subclasses implement seven thin `protected` accessor/mutator methods
-/// against their concrete freezed type (`Invoice.copyWith(...)`, etc.) —
-/// Dart's generic system can't generate `copyWith` over arbitrary types,
-/// so the subclass provides the field bridge.
-///
-/// Per-entity simple setters (setClientId, setNumber, setDate, etc.)
-/// stay in the subclass since they're already one-liners via the
-/// `setStr` / `setBool` / `setDec` helpers on [GenericEditViewModel].
+/// Field access goes through the thin `protected` accessor/mutator methods
+/// below (`lineItemsOf` / `copyWithLineItems`, …) — Dart's generic system
+/// can't generate `copyWith` over arbitrary types. [BillingDocEditViewModel]
+/// implements them once, with every shared per-field setter (`setClientId`,
+/// `setNumber`, `setDate`, …), over the entity's [BillingDocWriter]; the five
+/// document view models extend that.
 abstract class GenericBillingDocEditViewModel<T>
     extends GenericEditViewModel<T> {
   GenericBillingDocEditViewModel({

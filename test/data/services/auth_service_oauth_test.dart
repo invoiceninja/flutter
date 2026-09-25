@@ -17,15 +17,19 @@ import 'package:admin/data/services/auth_service.dart';
 /// Imports only `auth_service` (no Drift / view-model graph) so it runs
 /// fast and independent of unrelated concurrent breakage.
 void main() {
+  Uri? url;
+
   Future<Map<String, dynamic>> capture({
     required String provider,
     String? idToken,
     String? accessToken,
     String? authCode,
     String? email,
+    String? firstName,
+    String? lastName,
+    bool create = false,
   }) async {
     Map<String, dynamic>? body;
-    Uri? url;
     final svc = AuthService(
       httpClient: MockClient((req) async {
         url = req.url;
@@ -45,6 +49,9 @@ void main() {
       accessToken: accessToken,
       authCode: authCode,
       email: email,
+      firstName: firstName,
+      lastName: lastName,
+      create: create,
     );
     expect(url!.path, '/api/v1/oauth_login');
     return body!;
@@ -84,6 +91,47 @@ void main() {
       expect(body['auth_code'], 'code123');
       expect(body['email'], 'a@b.test');
       expect(body.containsKey('access_token'), isFalse);
+    });
+  });
+
+  group('AuthService.oauthLogin sign-up', () {
+    test('create=true is the query flag the server creates a Google account '
+        'on, with the terms consent and token name signup() sends', () async {
+      final body = await capture(
+        provider: 'google',
+        accessToken: 'tok',
+        create: true,
+      );
+      expect(url!.queryParameters['create'], 'true');
+      expect(body['terms_of_service'], isTrue);
+      expect(body['privacy_policy'], isTrue);
+      expect(body['token_name'], endsWith('_client'));
+      expect(body['platform'], isNotEmpty);
+    });
+
+    test('a plain login carries neither the flag nor the consent', () async {
+      final body = await capture(provider: 'google', accessToken: 'tok');
+      expect(url!.queryParameters.containsKey('create'), isFalse);
+      expect(body.containsKey('terms_of_service'), isFalse);
+      expect(body.containsKey('token_name'), isFalse);
+    });
+
+    test('Apple\'s one-time name is sent; a blank one is left out', () async {
+      final named = await capture(
+        provider: 'apple',
+        idToken: 'jwt',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      );
+      expect(named['first_name'], 'Ada');
+      expect(named['last_name'], 'Lovelace');
+      final hidden = await capture(
+        provider: 'apple',
+        idToken: 'jwt',
+        firstName: '',
+      );
+      expect(hidden.containsKey('first_name'), isFalse);
+      expect(hidden.containsKey('last_name'), isFalse);
     });
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:admin/app/env.dart';
 import 'package:admin/data/models/domain/enabled_modules.dart';
+import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/permissions.dart'
     show kPermissionNegative, kPermissionSpecial;
@@ -44,6 +45,8 @@ class AuthSession {
     this.userPhone = '',
     this.userFirstName = '',
     this.userLastName = '',
+    this.userOauthProviderId = '',
+    this.userHasPassword = true,
     this.googleTwoFactorEnabled = false,
     this.verifiedPhoneNumber = false,
     this.biometricEnabled = false,
@@ -125,6 +128,17 @@ class AuthSession {
   final String userFirstName;
   final String userLastName;
 
+  /// `google` / `microsoft` / `apple` when the user signs in through OAuth,
+  /// `''` otherwise. With [userHasPassword] and the company's
+  /// `oauth_password_required`, decides how a password-protected action is
+  /// confirmed — see [passwordSubject].
+  final String userOauthProviderId;
+
+  /// False for an OAuth sign-up that never set a password. Defaults true: a
+  /// wrong `true` shows the ordinary password prompt, a wrong `false` would
+  /// tell a user with a password to go and set one.
+  final bool userHasPassword;
+
   /// True when the user has Google Authenticator–style 2FA enabled. Drives
   /// the enable-vs-disable branch of the 2FA settings screen.
   final bool googleTwoFactorEnabled;
@@ -174,6 +188,15 @@ class AuthSession {
     }
     return companies.isEmpty ? null : companies.first;
   }
+
+  /// How a password-protected action is confirmed for this user in the active
+  /// company. No company yet → `oauthPasswordRequired: true`, i.e. never
+  /// exempt: without the setting in hand, ask.
+  PasswordSubject get passwordSubject => PasswordSubject(
+    oauthProvider: userOauthProviderId,
+    hasPassword: userHasPassword,
+    oauthPasswordRequired: currentCompany?.oauthPasswordRequired ?? true,
+  );
 
   /// Convenience: self-hosted is everything-not-hosted. Self-hosted accounts
   /// always unlock pro + enterprise features (they paid via licensing); the
@@ -385,6 +408,8 @@ class AuthSession {
     String? userEmail,
     String? userFirstName,
     String? userLastName,
+    String? userOauthProviderId,
+    bool? userHasPassword,
     bool? biometricEnabled,
   }) => AuthSession(
     baseUrl: baseUrl,
@@ -407,6 +432,8 @@ class AuthSession {
     userPhone: userPhone ?? this.userPhone,
     userFirstName: userFirstName ?? this.userFirstName,
     userLastName: userLastName ?? this.userLastName,
+    userOauthProviderId: userOauthProviderId ?? this.userOauthProviderId,
+    userHasPassword: userHasPassword ?? this.userHasPassword,
     googleTwoFactorEnabled:
         googleTwoFactorEnabled ?? this.googleTwoFactorEnabled,
     verifiedPhoneNumber: verifiedPhoneNumber ?? this.verifiedPhoneNumber,
@@ -430,11 +457,17 @@ class AuthCompany {
     required this.isOwner,
     this.logoUrl,
     this.enabledModules = 0,
+    this.oauthPasswordRequired = false,
   });
 
   final String id;
   final String name;
   final String displayName;
+
+  /// `Company.oauth_password_required` (Settings → Security → "Require
+  /// password with social login"). Off, the server lets an OAuth user through
+  /// a password-protected route without one (`PasswordProtection`).
+  final bool oauthPasswordRequired;
 
   /// Absolute URL to the company's uploaded logo, or null when none is set.
   final String? logoUrl;

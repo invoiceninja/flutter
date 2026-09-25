@@ -23,7 +23,7 @@ Six workflows publish the app. Every one of them:
 | iOS | `appstore-ios.yml` | TestFlight | 6 |
 | macOS | `appstore-macos.yml` | TestFlight | 6 (3 shared with iOS) |
 
-All six additionally read `IN_SENTRY_DSN`, which is optional — 21 secret names in total. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
+All six additionally read `IN_SENTRY_DSN`, which is optional — 21 secret names in total, plus two optional Google Sign-In client IDs (Android and iOS, §2) that only switch "Sign in with Google" on. `ci.yaml` and `_test.yaml` use **no secrets at all**, so nothing in this guide affects them.
 
 ### First: find out what's already set
 
@@ -78,7 +78,7 @@ The Play, Partner Center, and Snap Store **listings already exist** — you are 
 
 ## 2. Master secret table
 
-All 21, grouped by what they unlock. `IN_SENTRY_DSN` is the only cross-cutting one.
+All 21, plus the two optional Google client IDs, grouped by what they unlock. `IN_SENTRY_DSN` is the only cross-cutting one.
 
 ### Shared
 
@@ -101,6 +101,7 @@ All 21, grouped by what they unlock. `IN_SENTRY_DSN` is the only cross-cutting o
 | `ANDROID_KEY_PASSWORD` | `keyPassword` | Read from local `android/key.properties` |
 | `ANDROID_KEY_ALIAS` | `keyAlias` | Read from local `android/key.properties` |
 | `PLAY_SERVICE_ACCOUNT_JSON` | GCP service-account JSON key | Full JSON text, verbatim (passed inline — never written to disk on the runner) |
+| `IN_GOOGLE_SERVER_CLIENT_ID` | *Optional.* Google OAuth **Web** client ID, passed as `serverClientId` | `docs/setup.md` § Google Sign-In client IDs. Unset hides "Sign in with Google" on Android. |
 
 ### Windows — `microsoft-store.yml`
 
@@ -127,6 +128,7 @@ All 21, grouped by what they unlock. `IN_SENTRY_DSN` is the only cross-cutting o
 | `APPLE_DISTRIBUTION_CERT_P12_BASE64` | Apple Distribution cert + private key | `base64 -i dist.p12` |
 | `APPLE_DISTRIBUTION_CERT_PASSWORD` | The `.p12` export password | Whatever you set on export |
 | `IOS_APPSTORE_PROVISIONING_PROFILE_BASE64` | iOS App Store profile | `base64 -i profile.mobileprovision` |
+| `IN_GOOGLE_IOS_CLIENT_ID` | *Optional.* Google OAuth **iOS** client ID for `com.invoiceninja.admin` | `docs/setup.md` § Google Sign-In client IDs — its reversed form must also be in `ios/Runner/Info.plist`. Unset hides "Sign in with Google" on iOS. |
 
 ### Apple — macOS only
 

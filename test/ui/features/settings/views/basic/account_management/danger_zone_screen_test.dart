@@ -9,6 +9,7 @@
 
 import 'dart:convert';
 
+import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/features/settings/views/basic/account_management/danger_zone_screen.dart';
 import 'package:flutter/material.dart';
@@ -156,4 +157,69 @@ void main() {
       expect(find.text('The current password is incorrect.'), findsOneWidget);
     },
   );
+
+  group('a user with no password to type', () {
+    Future<void> openPurge(WidgetTester tester, PasswordSubject subject) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final fixture = await buildFixture(
+        companies: const [FakeCompany(id: 'c1', name: 'Acme Co')],
+        currentCompanyId: 'c1',
+      );
+      addTearDown(fixture.dispose);
+      fixture.services.passwordCache.subject = () => subject;
+      await tester.pumpWidget(
+        wrapWithShell(
+          fixture.services,
+          const AccountManagementDangerZoneScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final purgeButton = find.widgetWithText(OutlinedButton, 'Purge Data');
+      await tester.ensureVisible(purgeButton);
+      await tester.pumpAndSettle();
+      await tester.tap(purgeButton);
+      await tester.pumpAndSettle();
+    }
+
+    bool submitEnabled(WidgetTester tester) =>
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue'))
+            .onPressed !=
+        null;
+
+    testWidgets('an OAuth sign-up the server lets through types only the '
+        'confirm word', (tester) async {
+      await openPurge(
+        tester,
+        const PasswordSubject(
+          oauthProvider: 'google',
+          hasPassword: false,
+          oauthPasswordRequired: false,
+        ),
+      );
+      // confirm + cancellation message; no password field.
+      expect(find.byType(TextField), findsNWidgets(2));
+      await tester.enterText(find.byType(TextField).at(0), 'purge');
+      await tester.pump();
+      expect(submitEnabled(tester), isTrue);
+    });
+
+    testWidgets('with nothing the server accepts, it says to set a password '
+        'and cannot submit', (tester) async {
+      await openPurge(
+        tester,
+        const PasswordSubject(
+          oauthProvider: 'google',
+          hasPassword: false,
+          oauthPasswordRequired: true,
+        ),
+      );
+      expect(find.text('Please set an account password'), findsOneWidget);
+      expect(find.byType(TextField), findsNWidgets(2));
+      await tester.enterText(find.byType(TextField).at(0), 'purge');
+      await tester.pump();
+      expect(submitEnabled(tester), isFalse);
+    });
+  });
 }

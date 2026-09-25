@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Xcode IDE pre-action: bake the Sentry DSN into a Product > Archive build.
+# Xcode IDE pre-action: bake the Sentry DSN (and, on iOS, the Google Sign-In
+# iOS client ID — IN_GOOGLE_IOS_CLIENT_ID, Env.googleIosClientId) into a
+# Product > Archive build. Both are lost the same way, described below for the
+# DSN; the name stays for the scheme files that invoke it.
 #
 # WHY: the Sentry DSN is a compile-time --dart-define (IN_SENTRY_DSN, read by
 # Env.sentryDsn in lib/app/env.dart). Flutter forwards dart-defines to the
@@ -56,24 +59,39 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dev_json="$repo_root/dev.json"
 
-# --- resolve the Sentry DSN (env > dev.json > empty) ---
-# Kept identical to tools/build_release.sh (lines 70-95) so IDE archives and CLI
-# builds behave the same. Keep the two in sync if either changes.
-dsn=""
+# --- resolve each managed define (env > dev.json > empty) ---
+# Kept identical to tools/build_release.sh's `resolve_define` so IDE archives
+# and CLI builds behave the same. Keep the two in sync if either changes.
+resolve_define() {
+  local key="$1" value=""
+  value="$(printenv "$key" || true)"
+  if [[ -z "$value" && -f "$dev_json" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      value="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2],""))' "$dev_json" "$key" 2>/dev/null || true)"
+    fi
+    if [[ -z "$value" ]]; then
+      value="$(grep -oE "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$dev_json" 2>/dev/null \
+                 | head -n1 \
+                 | sed -E "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"([^\"]*)\".*/\1/" || true)"
+    fi
+  fi
+  printf '%s' "$value"
+}
+
 dsn_source=""
 if [[ -n "${IN_SENTRY_DSN:-}" ]]; then
-  dsn="$IN_SENTRY_DSN"
   dsn_source="environment (IN_SENTRY_DSN)"
 elif [[ -f "$dev_json" ]]; then
-  if command -v python3 >/dev/null 2>&1; then
-    dsn="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("IN_SENTRY_DSN",""))' "$dev_json" 2>/dev/null || true)"
-  fi
-  if [[ -z "$dsn" ]]; then
-    dsn="$(grep -oE '"IN_SENTRY_DSN"[[:space:]]*:[[:space:]]*"[^"]*"' "$dev_json" 2>/dev/null \
-             | head -n1 \
-             | sed -E 's/.*"IN_SENTRY_DSN"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/' || true)"
-  fi
-  [[ -n "$dsn" ]] && dsn_source="dev.json"
+  dsn_source="dev.json"
+fi
+dsn="$(resolve_define IN_SENTRY_DSN)"
+# Google Sign-In's iOS client ID (Env.googleIosClientId) is lost the same way
+# the DSN is. macOS has no Google sign-in, so it is only managed on iOS.
+managed_keys=(IN_SENTRY_DSN)
+google_ios_client_id=""
+if [[ "$platform" == "ios" ]]; then
+  managed_keys+=(IN_GOOGLE_IOS_CLIENT_ID)
+  google_ios_client_id="$(resolve_define IN_GOOGLE_IOS_CLIENT_ID)"
 fi
 
 # --- locate the platform's generated xcconfig ---
@@ -90,8 +108,9 @@ if [[ ! -f "$xcconfig" ]] || ! /usr/bin/grep -q '^DART_DEFINES=' "$xcconfig"; th
 fi
 
 # DART_DEFINES is a comma-separated list of base64("KEY=VALUE") entries. Rebuild
-# it: keep every entry except a prior IN_SENTRY_DSN, then append a fresh one when
-# we have a DSN (an empty DSN drops it -> Sentry disabled, no blank entry baked).
+# it: keep every entry except a prior managed key, then append a fresh one for
+# each key that has a value (an empty value drops it -> the feature stays off,
+# no blank entry baked).
 current="$(/usr/bin/grep -E '^DART_DEFINES=' "$xcconfig" | head -n1 | sed 's/^DART_DEFINES=//')"
 rebuilt=""
 saved_ifs="$IFS"
@@ -100,7 +119,11 @@ for entry in $current; do
   IFS="$saved_ifs"
   if [[ -n "$entry" ]]; then
     decoded="$(printf '%s' "$entry" | /usr/bin/base64 -D 2>/dev/null || true)"
-    if [[ "$decoded" != IN_SENTRY_DSN=* ]]; then
+    keep=1
+    for key in "${managed_keys[@]}"; do
+      [[ "$decoded" == "$key="* ]] && keep=0
+    done
+    if [[ "$keep" -eq 1 ]]; then
       rebuilt="${rebuilt:+$rebuilt,}$entry"
     fi
   fi
@@ -109,6 +132,10 @@ done
 IFS="$saved_ifs"
 if [[ -n "$dsn" ]]; then
   enc="$(printf '%s' "IN_SENTRY_DSN=$dsn" | /usr/bin/base64 | tr -d '\n')"
+  rebuilt="${rebuilt:+$rebuilt,}$enc"
+fi
+if [[ -n "$google_ios_client_id" ]]; then
+  enc="$(printf '%s' "IN_GOOGLE_IOS_CLIENT_ID=$google_ios_client_id" | /usr/bin/base64 | tr -d '\n')"
   rebuilt="${rebuilt:+$rebuilt,}$enc"
 fi
 
@@ -127,4 +154,11 @@ else
   # makes Xcode surface it in the Issue navigator.
   echo "warning: [sentry-dsn] IN_SENTRY_DSN is empty (not in environment or dev.json)." >&2
   echo "warning: [sentry-dsn] This $platform build will ship with Sentry DISABLED." >&2
+fi
+if [[ "$platform" == "ios" ]]; then
+  if [[ -n "$google_ios_client_id" ]]; then
+    echo "==> [google] Baked the Google Sign-In iOS client ID into the build."
+  else
+    echo "warning: [google] IN_GOOGLE_IOS_CLIENT_ID is empty — Sign in with Google is hidden in this build." >&2
+  fi
 fi

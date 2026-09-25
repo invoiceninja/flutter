@@ -3,7 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/apple_sign_in.dart';
+import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
+import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 
 /// State machine for the in-app signup screen.
 ///
@@ -15,6 +18,11 @@ class SignupViewModel extends ChangeNotifier {
   SignupViewModel({required this.auth});
 
   final AuthRepository auth;
+
+  /// Offer "Sign up with Apple" / "Sign up with Google" — the login screen's
+  /// gates, so the two screens show the same providers.
+  bool get appleEnabled => AppleSignIn.isSupported;
+  bool get googleEnabled => GoogleOAuth.isEnabled;
 
   String email = '';
   String password = '';
@@ -117,6 +125,52 @@ class SignupViewModel extends ChangeNotifier {
       // See `LoginViewModel.submit` — without this, anything that isn't an
       // `ApiException` subtype leaves the button un-spun and silent.
       _setError(message: formatNotifyError(e));
+      return false;
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Create the account with Apple (`/oauth_login?create=true`). Needs the
+  /// terms accepted first, like [submit]; `false` with no error means the
+  /// Apple sheet was dismissed.
+  Future<bool> submitApple() => _submitSocial(
+    () => signInWithApple(
+      auth: auth,
+      baseUrl: Env.hostedApiUrl,
+      isHosted: true,
+      create: true,
+    ),
+  );
+
+  /// Create the account with Google. The server creates a Google account only
+  /// through this `create=true` path — the login screen's Google button signs
+  /// in an existing one.
+  Future<bool> submitGoogle() => _submitSocial(
+    () => signInWithGoogle(
+      auth: auth,
+      baseUrl: Env.hostedApiUrl,
+      isHosted: true,
+      create: true,
+    ),
+  );
+
+  Future<bool> _submitSocial(Future<bool> Function() signUp) async {
+    if (_busy) return false;
+    _clearError();
+    _fieldErrors = const {};
+    if (!acceptedTerms) {
+      _setError(key: 'accept_terms_to_continue');
+      notifyListeners();
+      return false;
+    }
+    _busy = true;
+    notifyListeners();
+    try {
+      return await signUp();
+    } on SocialSignInFailure catch (f) {
+      _setError(key: f.key, params: f.params, message: f.message);
       return false;
     } finally {
       _busy = false;

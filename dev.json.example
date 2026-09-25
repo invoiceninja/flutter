@@ -1,5 +1,7 @@
 {
   "IN_DEV_EMAIL": "you@example.com",
   "IN_DEV_PASSWORD": "your-dev-password",
-  "IN_SENTRY_DSN": ""
+  "IN_SENTRY_DSN": "",
+  "IN_GOOGLE_SERVER_CLIENT_ID": "",
+  "IN_GOOGLE_IOS_CLIENT_ID": ""
 }

@@ -15,6 +15,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - Web platform CORS — `Idempotency-Key` not allow-listed (**O** since 2026-09-24: the client stopped sending it on web, so web writes work; still needed before the key can be honoured on web).
 - Server-side `Idempotency-Key` dedupe — not implemented (**R**, retry-safety / duplicate creates); the server now has the machinery but keys it on a 1-second body hash, so the ask is smaller — see that section.
 - OIDC sign-in — the callback hardcodes the React SPA, so no Flutter client (native **or** web) can complete it (**O**, blocks self-hosted SSO; same shape as the calendar-connect fix).
+- OAuth re-authentication (`X-API-OAUTH-PASSWORD`) can never pass for a **Google** user — it wants an `id_token` the client can't produce, and its `Hash::check` arguments are swapped (**O**, § OAuth re-authentication; client offers Apple re-auth only).
 - Bulk `ids` are now existence-checked, so one stale id 422s the whole batch (**O**, shared-cache UX).
 - `POST /api/v1/tasks/bulk` with `action=bulk_update` always **500s** — `Collection::first()` returns a model, not a collection (**R**, server bug; not client-triggerable today).
 - Company write — partial login envelope + full-replace PUT force a client fetch-gate (**O**).
@@ -1027,7 +1028,9 @@ curl "$BASE/clients?per_page=100&bogus_param=1"           # 200 unchanged (the b
 
 ## OAuth — Microsoft / Azure (client-side gap, not a server gap)
 
-FEATURES.md line 65 stays ❌ deliberately. The `/api/v1/oauth_login` and
+FEATURES.md's Microsoft row stays ❌ deliberately. (admin-portal offered
+Microsoft sign-in on **web only**, via `msal_js`; this app's web build is
+email/password only by decision, 2026-09-25.) The `/api/v1/oauth_login` and
 `/api/v1/connected_account?provider=microsoft` exchanges already work
 (identical to the shipped Google/Apple path — `AuthService.oauthLogin`,
 `UsersApi.connectOauth`). The blocker is **client-side token acquisition**:
@@ -1036,6 +1039,35 @@ there is no maintained native Flutter MSAL SDK (admin-portal is web-only
 stable native Flutter MSAL option exists, Microsoft sign-in cannot be
 shipped to the verified standard Google/Apple were — so it is NOT flipped.
 No server change is required; this note exists only so the gap is traceable.
+
+---
+
+## OAuth re-authentication for Google users can never pass — **O (server bug; client works around it)**
+
+**Provenance** — 2026-09-25, reading `app/Http/Middleware/PasswordProtection.php`
+(official `v5-develop`) while porting admin-portal's OAuth options.
+
+When a company turns on `oauth_password_required`, a password-protected route
+accepts an OAuth user's re-authentication in `X-API-OAUTH-PASSWORD`. The Google
+branch cannot succeed, for two independent reasons:
+
+1. It takes the header as an **`id_token`** (`$google->getTokenResponse(...)`).
+   `google_sign_in` v7 on this client yields only an access token, and the
+   server's `id_token` route rejects v7-issued JWTs anyway (see
+   `lib/data/services/google_oauth.dart`), so the app has no value to send.
+2. Its password check has its arguments swapped:
+   `Hash::check(auth()->user()->password, $x_api_password)` hashes the stored
+   hash and compares it with the typed password, so it is false for every
+   password.
+
+Apple (`Socialite::driver('apple')->userFromToken`) and Microsoft work. The
+client therefore offers "Confirm with Apple" only; a Google user without a
+password on such a company is told to set one (`PasswordSubject`,
+`confirm_password_sheet.dart`). When the setting is off (the default) no
+credential is needed and the client now sends none.
+
+**Wanted:** accept a Google access token here (the `harvestUser` path
+`oauth_login` already uses), and swap the `Hash::check` arguments.
 
 ---
 

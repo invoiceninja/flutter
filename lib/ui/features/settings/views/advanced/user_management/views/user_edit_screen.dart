@@ -127,7 +127,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
 
     // Ensure password is cached for the password-gated GET + the eventual
     // save round-trip. Skip the prompt when the cache is already warm.
-    if (services.passwordCache.read() == null) {
+    if (!services.passwordCache.isPrimed) {
       final ok = await showConfirmPasswordSheet(
         context,
         cache: services.passwordCache,
@@ -282,7 +282,7 @@ class _UserEditBody extends StatelessWidget {
     // dead row in the outbox behind a "Successfully created user" toast
     // (invoiceninja/flutter#64). Edit mode primes at load, but the cache holds
     // for 5 minutes and a long edit can outlive it.
-    if (services.passwordCache.read() == null) {
+    if (!services.passwordCache.isPrimed) {
       final ok = await showConfirmPasswordSheet(
         context,
         cache: services.passwordCache,

@@ -218,19 +218,14 @@ class ApiClient {
     if (!readOnly && Env.demoMode) {
       throw const DemoModeException();
     }
-    String? password;
-    if (requiresPassword) {
-      password = _passwordCache.read();
-      if (password == null) {
-        throw const PasswordRequiredException();
-      }
-    }
+    final credential = requiresPassword ? _protectedCredential() : null;
     final raw = await _send(
       method: 'POST',
       path: path,
       query: query,
       body: body,
-      password: password,
+      password: credential?.password,
+      oauthToken: credential?.oauthToken,
     );
     if (raw.isEmpty) return null;
     return _decodeBody(raw);
@@ -382,20 +377,15 @@ class ApiClient {
     if (Env.demoMode && method.toUpperCase() != 'GET') {
       throw const DemoModeException();
     }
-    String? password;
-    if (requiresPassword) {
-      password = _passwordCache.read();
-      if (password == null) {
-        throw const PasswordRequiredException();
-      }
-    }
+    final credential = requiresPassword ? _protectedCredential() : null;
     final raw = await _send(
       method: method,
       path: path,
       query: query,
       idempotencyKey: idempotencyKey,
       body: body,
-      password: password,
+      password: credential?.password,
+      oauthToken: credential?.oauthToken,
     );
     if (raw.isEmpty) return null;
     return _decodeBody(raw);
@@ -586,6 +576,7 @@ class ApiClient {
     Map<String, dynamic>? body,
     String? idempotencyKey,
     String? password,
+    String? oauthToken,
   }) async {
     final creds = _requireCreds();
     var uri = Uri.parse(creds.baseUrl).resolve(path);
@@ -598,6 +589,7 @@ class ApiClient {
       passwordBase64: password == null
           ? null
           : base64Encode(utf8.encode(password)),
+      oauthPassword: oauthToken,
       contentTypeJson: body != null,
     );
     final encoded = body == null ? null : jsonEncode(body);
@@ -1039,6 +1031,7 @@ class ApiClient {
     required ApiCredentials creds,
     String? idempotencyKey,
     String? passwordBase64,
+    String? oauthPassword,
     bool contentTypeJson = false,
   }) {
     return {
@@ -1053,7 +1046,25 @@ class ApiClient {
       if (idempotencyKey != null && _sendIdempotencyKey)
         'Idempotency-Key': idempotencyKey,
       if (passwordBase64 != null) 'X-API-PASSWORD-BASE64': passwordBase64,
+      if (oauthPassword != null) 'X-API-OAUTH-PASSWORD': oauthPassword,
     };
+  }
+
+  /// The credential a password-protected request carries: the cached
+  /// password, or a cached OAuth token (Apple's identity token), or — for an
+  /// OAuth user the server lets through without one ([PasswordCache.isExempt])
+  /// — nothing at all. Throws [PasswordRequiredException] when none of those
+  /// holds, so the UI can prompt and retry. A 412 on an exempt send takes the
+  /// same prompt path, so the server stays the arbiter.
+  ({String? password, String? oauthToken}) _protectedCredential() {
+    final password = _passwordCache.read();
+    final oauthToken = password == null
+        ? _passwordCache.readOAuthToken()
+        : null;
+    if (password == null && oauthToken == null && !_passwordCache.isExempt) {
+      throw const PasswordRequiredException();
+    }
+    return (password: password, oauthToken: oauthToken);
   }
 
   ApiCredentials _requireCreds() {

@@ -76,7 +76,7 @@ Plus two non-negotiables carried from admin-portal:
 | Localization / Transifex import | § Localization |
 | Email-template `$variables` as chips (T&R subject/body, Send Email subject/body), which variables a template supports, the value probe, or linkify mangling a typed `$token` | `docs/template-variables.md` · `lib/domain/email_template_variables.dart` · `test/domain/email_template_variables_test.dart` |
 | Cross-checking against legacy admin-portal / React / API docs | § Reference points |
-| macOS entitlement, dev login pre-fill, platform targets | `docs/setup.md` |
+| macOS entitlement, dev login pre-fill, platform targets, "Sign in with Google" missing on iOS / Android | `docs/setup.md` (§ Google Sign-In client IDs) |
 | Building a release app / injecting the Sentry DSN, the F-Droid (FOSS) build, or a store-only SDK | `docs/fdroid.md` · `tools/prepare_foss.sh` · `tools/build_release.sh` (CLI) · `tools/xcode_inject_sentry_dsn.sh` + Runner scheme pre-actions (Xcode IDE archives) · `docs/setup.md` § Release builds with Sentry |
 | iOS Product → Archive failing on a plugin's minimum platform version | `tools/prepare_ios_archive.sh` (run it first) · `docs/setup.md` § Release builds with Sentry · `docs/upstream-workarounds.md` § 8 |
 | Writing release notes for a new version | § Release Notes |
@@ -430,7 +430,7 @@ Every render surface must wire `guardedOnTap(context, item)` rather than `item.o
 - **Local data is destroyed only by its owners** — wipes through `LocalDataDisposer`, outbox deletes through the sync engine (`test/lint/local_data_disposal_test.dart`) — and `logout` takes a required `LocalDataPolicy`. → `docs/sync.md` § Local data is destroyed only by its owners
 - **A server copy of one record goes through `applyEchoTemplate` / `applyCreateResponseTemplate` — never a bare upsert — so it can't overwrite a newer queued edit.** → `docs/sync.md` § A server copy never overwrites a newer queued edit
 - **A discard abandons the *row*, not the *entity*.** → `docs/sync.md` § A discard abandons the row, not the entity
-- Destructive ops (delete, purge, password change) require `X-API-PASSWORD-BASE64`. Password is captured by `ConfirmPasswordSheet`, held in a 5-min in-memory cache.
+- Destructive ops (delete, purge, password change) require `X-API-PASSWORD-BASE64`. Password is captured by `ConfirmPasswordSheet`, held in a 5-min in-memory cache. **An OAuth user is never asked when the company leaves `oauth_password_required` off** (the server lets them through) — `PasswordCache.isExempt`; an Apple user re-authenticates via `X-API-OAUTH-PASSWORD` instead.
 - **412 Precondition Failed = password-required.** → `docs/sync.md` § 412 Precondition Failed means password-required
 - 401 forces `AuthRepository.logout()` and a redirect to `/login`. **Single-flight**: parallel 401s wait on the same logout future. That logout **preserves local data** (`LocalDataPolicy.keep`) — an involuntary 401 is the same user, and wiping the Drift DB (outbox included) over a server-side token change is not a trade worth making; `logout()` still writes the re-lock gate, and `onSessionReset` / `onBeforeLogout` (the cross-user-leak fan-out) run on the preserve path anyway. Only a deliberate sign-out wipes.
 - **A rejected *company* token fails the switch, not the session.** → `docs/sync.md` § A rejected company token fails the switch, not the session

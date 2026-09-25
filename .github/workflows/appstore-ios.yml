@@ -82,9 +82,14 @@ jobs:
       # would do archive+export in one shot using the project's AUTOMATIC signing
       # for the archive — which fails on a headless runner with no Apple-account
       # session (the manual ExportOptions only governs the export re-sign, not the
-      # archive). Empty/unset DSN secret is a safe no-op (Sentry stays disabled).
+      # archive). Empty/unset DSN secret is a safe no-op (Sentry stays disabled),
+      # and an unset IN_GOOGLE_IOS_CLIENT_ID hides "Sign in with Google"
+      # (docs/setup.md § Google Sign-In client IDs).
       - name: Configure iOS release build
-        run: flutter build ios --release --config-only --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+        run: >-
+          flutter build ios --release --config-only
+          --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+          --dart-define=IN_GOOGLE_IOS_CLIENT_ID=${{ secrets.IN_GOOGLE_IOS_CLIENT_ID }}
 
       # Archive with MANUAL signing overrides on the command line so the tracked
       # pbxproj (Automatic / "Apple Development") is untouched. No

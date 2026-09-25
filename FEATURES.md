@@ -69,9 +69,10 @@ the honest default.
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
 | Email / password login | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Signup / account creation | ✅ | ❌ | ✅ | ✅ | |
-| OAuth — Google | ✅ | ❌ | ✅ | ✅ | |
-| OAuth — Microsoft / Azure | ✅ | ❌ | ❌ |  | |
+| Signup / account creation | ✅ | ✅ | ✅ | ✅ | |
+| Sign up with Google / Apple (`oauth_login?create=true` + terms) | ✅ | ✅ | ✅ | | |
+| OAuth — Google | ✅ | ✅ | 🟡 | ✅ | |
+| OAuth — Microsoft / Azure | ✅ | ✅ | ❌ |  | |
 | OAuth — Apple (Sign in with Apple) | ✅ | ✅ | ✅ | ✅ | |
 | Two-factor authentication (TOTP / Google Authenticator) | ✅ | ✅ | ✅ | ✅ | |
 | Login precheck (hide OTP / API-secret fields unless the server needs them) | ❌ | ❌ | ✅ | | |
@@ -87,6 +88,9 @@ the honest default.
 | Password confirmation modal for destructive actions | ✅ | ✅ | ✅ | ✅ | |
 | Password cache TTL (5 min) for chained destructive ops | ✅ | ✅ | ✅ | ✅ | |
 | GDPR data export / account closure flow | ✅ | ❌ | ✅ | ✅ | |
+| OAuth user confirms without a password (skipped when `oauth_password_required` is off; Apple re-auth; "set a password" otherwise) | ❌ | ✅ | ✅ | | |
+
+> Google sign-in / sign-up is 🟡 only for want of configuration: the code is complete on iOS and Android, but the buttons stay hidden until a build carries the client IDs for `com.invoiceninja.admin` (v1's are bound to `com.invoiceninja.app`) — `docs/setup.md` § Google Sign-In client IDs. Microsoft sign-in was web-only in v1 (MSAL popup); v2's web build is email/password only by decision.
 
 ---
 
@@ -766,11 +770,11 @@ Field-level breakdown of every option under each settings panel. Source of truth
 |---|---|---|---|---|---|
 | Connect Google (OAuth) | ✅ | ✅ | ✅ | ✅ | |
 | Connect Microsoft (OAuth) | ✅ | ✅ | ❌ | ✅ | |
-| Connect Gmail (OAuth) | ✅ | ✅ | ❌ | ✅ | |
-| Connect Email (OAuth) | ✅ | ✅ | ❌ | ✅ | |
+| Connect Gmail (OAuth) | ✅ | ✅ | ✅ | ✅ | |
+| Connect Email (OAuth) | ✅ | ✅ | ✅ | ✅ | |
 | Disconnect | ✅ | ✅ | ✅ | ✅ | |
 
-> v2 Connect tab supports **Google connect** (in-app) + **all disconnects** (OAuth + mailer) only. Connecting Microsoft OAuth and the email mailer (Gmail/Outlook send-on-behalf) are intentionally not implemented — no native MSAL and no in-app OAuth callback handler. Accepted pre-launch limitation.
+> v2 Connect tab: **Google connect** (in-app), **Gmail / Microsoft mailer connect** (the server's browser flow at `<base>/auth/{google|microsoft}`, as v1 did — native iOS/macOS show "use the web app"), and **all disconnects**. Connecting a Microsoft *sign-in* is not implemented: v1 offered it on web only (MSAL popup), and v2's web build is email/password only by decision.
 
 #### User Details — Two-Factor tab
 
@@ -1340,7 +1344,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Password / secret reveal toggle | — | — | ✅ | ✅ | |
 | Inline `$body` validation chip on custom style | — | — | ✅ | ✅ | |
 | Pro / Enterprise gating chip on SMTP option | — | — | ✅ | ✅ | |
-| OAuth Connect (in-app callback) | ✅ | 🟡 | ✅ | ✅ | |
+| OAuth Connect (browser flow, refresh on return) | ✅ | 🟡 | ✅ | ✅ | |
 
 ### Templates & Reminders
 

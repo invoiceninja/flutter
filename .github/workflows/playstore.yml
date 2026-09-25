@@ -87,7 +87,12 @@ jobs:
         # signed with the release keystore injected above. versionCode comes
         # from pubspec (5.1.3+6 -> 6); Play requires it to strictly increase, so
         # bump the `+N` in pubspec.yaml before each release dispatch.
-        run: flutter build appbundle --release --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+        # IN_GOOGLE_SERVER_CLIENT_ID works the same way: unset hides "Sign in
+        # with Google" (docs/setup.md § Google Sign-In client IDs).
+        run: >-
+          flutter build appbundle --release
+          --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+          --dart-define=IN_GOOGLE_SERVER_CLIENT_ID=${{ secrets.IN_GOOGLE_SERVER_CLIENT_ID }}
 
       # Upload to the Play Console via the de-facto community action
       # (r0adkll/upload-google-play, @v1 = latest v1.1.x, Play Developer API v3).

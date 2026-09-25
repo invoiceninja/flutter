@@ -7,6 +7,7 @@ import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/ui/features/auth/view_models/signup_view_model.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Local validation gates the network call: an obviously-bad signup must
@@ -145,6 +146,37 @@ void main() {
           isNotNull,
           reason: 'the user must be told something',
         );
+      },
+    );
+  });
+
+  group('SignupViewModel social sign-up', () {
+    test('Apple and Google sign-up need the terms accepted first', () async {
+      expect(await vm.submitApple(), isFalse);
+      expect(vm.errorKey, 'accept_terms_to_continue');
+      expect(await vm.submitGoogle(), isFalse);
+      expect(vm.errorKey, 'accept_terms_to_continue');
+      expect(vm.busy, isFalse);
+    });
+
+    test('Apple is offered only on iOS and macOS, like the login screen', () {
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      for (final p in TargetPlatform.values) {
+        debugDefaultTargetPlatformOverride = p;
+        expect(
+          vm.appleEnabled,
+          p == TargetPlatform.iOS || p == TargetPlatform.macOS,
+          reason: '$p',
+        );
+      }
+    });
+
+    test(
+      'Google stays hidden in a build with no client ID for the platform',
+      () {
+        // Tests pass no IN_GOOGLE_* dart-define, which is exactly the shipped
+        // state until the IDs are configured.
+        expect(vm.googleEnabled, isFalse);
       },
     );
   });

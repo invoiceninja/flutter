@@ -181,6 +181,82 @@ void main() {
     );
   });
 
+  group('password-protected credential', () {
+    Future<Map<String, String>> headersFor(PasswordCache cache) async {
+      late Map<String, String> headers;
+      final client = ApiClient(
+        credentials: _creds(),
+        passwordCache: cache,
+        onUnauthorized: () async {},
+        httpClient: MockClient((req) async {
+          headers = req.headers;
+          return http.Response('{"data":{}}', 200);
+        }),
+      );
+      await client.mutate(
+        method: 'DELETE',
+        path: '/api/v1/clients/1',
+        idempotencyKey: 'k',
+        requiresPassword: true,
+      );
+      return headers;
+    }
+
+    PasswordSubject oauthUser({bool required = false}) => PasswordSubject(
+      oauthProvider: 'google',
+      hasPassword: false,
+      oauthPasswordRequired: required,
+    );
+
+    test(
+      'a cached password goes out base64 in X-API-PASSWORD-BASE64',
+      () async {
+        final headers = await headersFor(PasswordCache()..set('pw'));
+        expect(
+          headers['X-API-PASSWORD-BASE64'],
+          base64Encode(utf8.encode('pw')),
+        );
+        expect(headers.containsKey('X-API-OAUTH-PASSWORD'), isFalse);
+      },
+    );
+
+    test('a cached OAuth token goes out raw in X-API-OAUTH-PASSWORD', () async {
+      final headers = await headersFor(PasswordCache()..setOAuthToken('jwt'));
+      expect(headers['X-API-OAUTH-PASSWORD'], 'jwt');
+      expect(headers.containsKey('X-API-PASSWORD-BASE64'), isFalse);
+    });
+
+    test('an exempt OAuth user is sent with no credential instead of being '
+        'asked for a password they may not have', () async {
+      final cache = PasswordCache()..subject = oauthUser;
+      final headers = await headersFor(cache);
+      expect(headers.containsKey('X-API-PASSWORD-BASE64'), isFalse);
+      expect(headers.containsKey('X-API-OAUTH-PASSWORD'), isFalse);
+    });
+
+    test(
+      'a non-exempt user with nothing cached still throws before sending',
+      () async {
+        var sent = false;
+        final client = ApiClient(
+          credentials: _creds(),
+          passwordCache: PasswordCache()
+            ..subject = () => oauthUser(required: true),
+          onUnauthorized: () async {},
+          httpClient: MockClient((req) async {
+            sent = true;
+            return http.Response('{}', 200);
+          }),
+        );
+        await expectLater(
+          client.postJson('/api/v1/x', requiresPassword: true),
+          throwsA(isA<PasswordRequiredException>()),
+        );
+        expect(sent, isFalse);
+      },
+    );
+  });
+
   group('Idempotency-Key', () {
     Future<Map<String, String>> headersSent({bool? sendIdempotencyKey}) async {
       late Map<String, String> headers;

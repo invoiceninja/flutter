@@ -73,13 +73,16 @@ class _SignupBody extends StatelessWidget {
     return vm.errorMessage;
   }
 
-  Future<void> _onSubmit(BuildContext context) async {
-    final ok = await vm.submit();
+  Future<void> _onSubmit(BuildContext context) => _finish(context, vm.submit());
+
+  Future<void> _finish(BuildContext context, Future<bool> attempt) async {
+    final ok = await attempt;
     if (!context.mounted) return;
     if (ok) {
       Notify.success(context, context.tr('account_created'));
       return; // router redirect lands the now-authenticated user
     }
+    // A social sheet dismissed returns false with no error — say nothing.
     final msg = _resolveError(context);
     if (msg != null) Notify.error(context, msg);
   }
@@ -170,6 +173,47 @@ class _SignupBody extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (vm.appleEnabled || vm.googleEnabled) ...[
+                    SizedBox(height: InSpacing.md(context)),
+                    const _OrDivider(),
+                    SizedBox(height: InSpacing.md(context)),
+                  ],
+                  if (vm.appleEnabled)
+                    FilledButton.icon(
+                      key: const ValueKey('signup_apple'),
+                      onPressed: vm.busy
+                          ? null
+                          : () => _finish(context, vm.submitApple()),
+                      icon: const Icon(Icons.apple, size: 18),
+                      label: Text(context.tr('sign_up_with_apple')),
+                      style: FilledButton.styleFrom(
+                        // Apple HIG: black-on-light, white-on-dark — `ink`
+                        // inverts with brightness (same as the login screen).
+                        backgroundColor: tokens.ink,
+                        foregroundColor: tokens.surface,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(InRadii.r2),
+                        ),
+                      ),
+                    ),
+                  if (vm.appleEnabled && vm.googleEnabled)
+                    SizedBox(height: InSpacing.md(context)),
+                  if (vm.googleEnabled)
+                    OutlinedButton.icon(
+                      key: const ValueKey('signup_google'),
+                      onPressed: vm.busy
+                          ? null
+                          : () => _finish(context, vm.submitGoogle()),
+                      icon: const Icon(Icons.account_circle_outlined, size: 18),
+                      label: Text(context.tr('sign_up_with_google')),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(InRadii.r2),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: InSpacing.sm),
                   TextButton(
                     onPressed: () => context.go('/login'),
@@ -180,6 +224,30 @@ class _SignupBody extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// "── or ──" between the email form and the social buttons. The terms
+/// checkbox above it gates both.
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Row(
+      children: [
+        Expanded(child: Divider(color: tokens.border)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: InSpacing.sm),
+          child: Text(
+            context.tr('or'),
+            style: TextStyle(fontSize: 13, color: tokens.ink3),
+          ),
+        ),
+        Expanded(child: Divider(color: tokens.border)),
       ],
     );
   }

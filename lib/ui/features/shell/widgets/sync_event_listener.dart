@@ -352,6 +352,9 @@ class _SyncEventListenerState extends State<SyncEventListener> {
       final ok = await showConfirmPasswordSheet(
         context,
         cache: services.passwordCache,
+        // The server just refused this row without a credential, so an
+        // "exempt" OAuth user's session copy of the setting is stale — ask.
+        afterRejection: true,
       );
       // Drop deferred password events on EVERY outcome, before the `ok` check
       // below — one prompt answers for all of them, either way:

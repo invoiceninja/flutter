@@ -1270,6 +1270,9 @@ class Services implements SidebarBadgeContext {
       passwordCache: passwordCache,
       disposer: LocalDataDisposer(db, prefs: devicePrefs),
     );
+    // Read at the moment a credential is needed, so a company switch or a
+    // flipped "Require password with social login" applies to the next ask.
+    passwordCache.subject = () => auth.session.value?.passwordSubject;
     final serverVersion = ValueNotifier<String?>(null);
     final clientTooOld = ValueNotifier<({String minRequired, String current})?>(
       null,

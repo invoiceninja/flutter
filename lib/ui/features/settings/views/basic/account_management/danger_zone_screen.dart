@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,9 @@ import 'package:admin/data/repositories/auth_repository.dart'
     show SwitchCompanyResult;
 import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/apple_sign_in.dart';
+import 'package:admin/data/services/google_oauth.dart';
+import 'package:admin/data/services/password_cache.dart' show PasswordSubject;
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/empty_state.dart';
 import 'package:admin/ui/core/widgets/form_save_scope.dart';
@@ -331,13 +335,33 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
   String get _expectedConfirm =>
       widget.kind == _DangerKind.purge ? 'purge' : 'delete';
 
+  /// How this user proves it's them. admin-portal's delete asked an Apple
+  /// user with no password to re-authenticate with Apple, and everyone else
+  /// for the password — which an OAuth sign-up doesn't have, so the server's
+  /// own leniency ([PasswordSubject.isExempt]) is the next resort and "set a
+  /// password" the last.
+  _DangerCredential get _credential {
+    final subject = widget.services.passwordCache.currentSubject;
+    if (subject == null || subject.hasPassword) {
+      return _DangerCredential.password;
+    }
+    if (subject.isApple && AppleSignIn.isSupported) {
+      return _DangerCredential.apple;
+    }
+    if (subject.isExempt) return _DangerCredential.none;
+    return _DangerCredential.setPassword;
+  }
+
   bool get _canSubmit {
     if (_busy || _submitting) return false;
     if (_confirmCtrl.text.trim().toLowerCase() != _expectedConfirm) {
       return false;
     }
-    if (_passwordCtrl.text.isEmpty) return false;
-    return true;
+    return switch (_credential) {
+      _DangerCredential.password => _passwordCtrl.text.isNotEmpty,
+      _DangerCredential.apple || _DangerCredential.none => true,
+      _DangerCredential.setPassword => false,
+    };
   }
 
   /// Prevent back-gesture / barrier dismiss while the user has typed
@@ -418,7 +442,33 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
       _topBannerError = null;
     });
 
-    services.passwordCache.set(_passwordCtrl.text);
+    switch (_credential) {
+      case _DangerCredential.password:
+        services.passwordCache.set(_passwordCtrl.text);
+      case _DangerCredential.apple:
+        final String? token;
+        try {
+          token = await AppleSignIn.identityToken();
+        } on Object catch (e) {
+          if (!mounted) return;
+          setState(() {
+            _busy = false;
+            _topBannerError = formatNotifyError(e);
+          });
+          return;
+        }
+        if (token == null) {
+          // Apple sheet dismissed — nothing happened, nothing to report.
+          if (mounted) setState(() => _busy = false);
+          return;
+        }
+        services.passwordCache.setOAuthToken(token);
+      case _DangerCredential.none:
+        break;
+      case _DangerCredential.setPassword:
+        if (mounted) setState(() => _busy = false);
+        return;
+    }
 
     try {
       if (!isDelete) {
@@ -484,6 +534,11 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
       // A failed switch leaves the session pointed at the company we just
       // deleted and wiped, with no way back — fall through to the sign-out
       // branch so the user lands somewhere coherent instead of a dead shell.
+      if (remaining.isEmpty) {
+        // The account is gone: revoke this app's Google grant as well, as
+        // admin-portal did on deleting the last company. Best effort.
+        unawaited(GoogleOAuth.disconnect());
+      }
       final switched =
           remaining.isNotEmpty &&
           (await services.auth.switchCompany(remaining.first.id)) ==
@@ -640,6 +695,15 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
 
   void _surface412(String msg) {
     widget.services.passwordCache.clear();
+    if (_credential != _DangerCredential.password) {
+      // No field to mark — the refusal goes in the banner.
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _topBannerError = msg;
+      });
+      return;
+    }
     // Detach the listener around the clear() so its `setState` doesn't race
     // with the one we're about to call — otherwise the error briefly clears
     // and re-asserts in the same frame.
@@ -737,30 +801,60 @@ class _DangerDialogBodyState extends State<_DangerDialogBody> {
                 ),
               ],
               SizedBox(height: InSpacing.md(context)),
-              TextField(
-                enabled: !_busy,
-                controller: _passwordCtrl,
-                focusNode: _passwordFocus,
-                obscureText: _obscure,
-                keyboardType: TextInputType.visiblePassword,
-                autocorrect: false,
-                enableSuggestions: false,
-                decoration: InputDecoration(
-                  labelText: context.tr('password'),
-                  errorText: _passwordError,
-                  suffixIcon: Focus(
-                    canRequestFocus: false,
-                    child: IconButton(
-                      icon: Icon(
-                        _obscure ? Icons.visibility : Icons.visibility_off,
+              if (_credential == _DangerCredential.apple)
+                Row(
+                  children: [
+                    const Icon(Icons.apple),
+                    SizedBox(width: InSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        context.tr('confirm_with_apple'),
+                        style: TextStyle(color: tokens.ink2),
                       ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
                     ),
+                  ],
+                )
+              else if (_credential == _DangerCredential.setPassword) ...[
+                Text(
+                  context.tr('please_set_a_password'),
+                  style: TextStyle(color: tokens.ink2),
+                ),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton(
+                    onPressed: () {
+                      final router = GoRouter.of(context);
+                      Navigator.of(context).pop();
+                      router.go('/settings/user_details/password');
+                    },
+                    child: Text(context.tr('set_password')),
                   ),
                 ),
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submit(),
-              ),
+              ] else if (_credential == _DangerCredential.password)
+                TextField(
+                  enabled: !_busy,
+                  controller: _passwordCtrl,
+                  focusNode: _passwordFocus,
+                  obscureText: _obscure,
+                  keyboardType: TextInputType.visiblePassword,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: InputDecoration(
+                    labelText: context.tr('password'),
+                    errorText: _passwordError,
+                    suffixIcon: Focus(
+                      canRequestFocus: false,
+                      child: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                ),
               SizedBox(height: InSpacing.lg(context)),
               Wrap(
                 alignment: WrapAlignment.end,
@@ -838,4 +932,18 @@ String _scopeText(
     return context.tr('purge_data_scope');
   }
   return '';
+}
+
+enum _DangerCredential {
+  /// The password field.
+  password,
+
+  /// "Confirm with Apple" on Continue — `X-API-OAUTH-PASSWORD`.
+  apple,
+
+  /// Nothing: the server lets this OAuth user through without one.
+  none,
+
+  /// No password and no route the server accepts — point at the Password tab.
+  setPassword,
 }

@@ -14,7 +14,12 @@ set -euo pipefail
 #   2. the IN_SENTRY_DSN key in dev.json (gitignored local config), else
 #   3. empty -> Sentry stays disabled (safe no-op; Env.sentryDsn defaults to '').
 #
-# Only IN_SENTRY_DSN is read from dev.json — IN_DEV_EMAIL / IN_DEV_PASSWORD are
+# The Google Sign-In client IDs resolve the same way (env > dev.json > empty):
+#   IN_GOOGLE_SERVER_CLIENT_ID (Android) and IN_GOOGLE_IOS_CLIENT_ID (iOS).
+# Empty hides "Sign in with Google" on that platform — see docs/setup.md
+# § Google Sign-In client IDs.
+#
+# Only those keys are read from dev.json — IN_DEV_EMAIL / IN_DEV_PASSWORD are
 # deliberately NOT passed, so dev credentials never land in a shipped binary.
 #
 # Usage:
@@ -94,6 +99,32 @@ else
   echo "==> Sentry DSN resolved from: $dsn_source"
 fi
 
+# --- resolve the Google Sign-In client IDs (env > dev.json > empty) ---
+# Kept identical to tools/xcode_inject_sentry_dsn.sh's `resolve_define`.
+resolve_define() {
+  local key="$1" value=""
+  value="$(printenv "$key" || true)"
+  if [[ -z "$value" && -f "$dev_json" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      value="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2],""))' "$dev_json" "$key" 2>/dev/null || true)"
+    fi
+    if [[ -z "$value" ]]; then
+      value="$(grep -oE "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$dev_json" 2>/dev/null \
+                 | head -n1 \
+                 | sed -E "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"([^\"]*)\".*/\1/" || true)"
+    fi
+  fi
+  printf '%s' "$value"
+}
+google_server_client_id="$(resolve_define IN_GOOGLE_SERVER_CLIENT_ID)"
+google_ios_client_id="$(resolve_define IN_GOOGLE_IOS_CLIENT_ID)"
+if [[ "$platform" == "appbundle" && -z "$google_server_client_id" ]]; then
+  echo "WARNING: IN_GOOGLE_SERVER_CLIENT_ID is empty — Sign in with Google is hidden on Android."
+fi
+if [[ "$platform" == "ios" && -z "$google_ios_client_id" ]]; then
+  echo "WARNING: IN_GOOGLE_IOS_CLIENT_ID is empty — Sign in with Google is hidden on iOS."
+fi
+
 # --- map the platform to `flutter build` args ---
 case "$platform" in
   macos)
@@ -132,4 +163,6 @@ echo "==> flutter build ${build_args[*]} (Sentry: $([[ -n "$dsn" ]] && echo enab
 set -x
 flutter build "${build_args[@]}" \
   --dart-define=IN_SENTRY_DSN="$dsn" \
+  --dart-define=IN_GOOGLE_SERVER_CLIENT_ID="$google_server_client_id" \
+  --dart-define=IN_GOOGLE_IOS_CLIENT_ID="$google_ios_client_id" \
   ${extra_args[@]+"${extra_args[@]}"}

@@ -35,6 +35,14 @@ class SetupWizardScreen extends StatefulWidget {
 
 class _SetupWizardScreenState extends State<SetupWizardScreen> {
   late final TextEditingController _nameController;
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+
+  /// Ask for the user's own name too when the account has none — an Apple
+  /// sign-up whose user hid their name, or an email sign-up (admin-portal's
+  /// wizard did the same). Decided once: typing a name must not hide the
+  /// fields being typed into.
+  late final bool _askUserName;
   String _currencyId = '';
   String _languageId = '';
   bool _isSaving = false;
@@ -45,6 +53,12 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController()..addListener(_onNameChanged);
+    final session = context.read<Services>().auth.session.value;
+    _askUserName =
+        session != null &&
+        session.userId.isNotEmpty &&
+        session.userFirstName.trim().isEmpty &&
+        session.userLastName.trim().isEmpty;
     // Statics may not be warm on a fresh first login. `ensureLoaded` reads
     // the Drift cache when present and only hits the network on a cold
     // launch; the callback's `setState` re-runs `didChangeDependencies` →
@@ -65,6 +79,8 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
     _nameController
       ..removeListener(_onNameChanged)
       ..dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     super.dispose();
   }
 
@@ -221,6 +237,7 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
           ),
         ),
       );
+      await _saveUserName(services, companyId, session?.userId ?? '');
       // Push the PUT through immediately so a follow-on `/refresh` (e.g.
       // restore() on next cold launch) gets the server-truth name and
       // doesn't bounce the user back into the wizard.
@@ -244,6 +261,33 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  /// Queue the user's own name through the same path User Details saves
+  /// with (`UserRepository.enqueueUpdate`, whole-record body). Optional — both
+  /// blank leaves the user untouched.
+  Future<void> _saveUserName(
+    Services services,
+    String companyId,
+    String userId,
+  ) async {
+    if (!_askUserName || userId.isEmpty) return;
+    final first = _firstNameController.text.trim();
+    final last = _lastNameController.text.trim();
+    if (first.isEmpty && last.isEmpty) return;
+    final user = await services.user.get(companyId: companyId, userId: userId);
+    if (user == null) return;
+    final draft = user.copyWith(firstName: first, lastName: last);
+    // Same body as `UserDetailsViewModel._buildBody`: the whole record, so
+    // untouched fields round-trip, minus a blank `language_id` (Laravel
+    // rejects "" for the foreign key).
+    final body = Map<String, dynamic>.from(draft.toApi().toJson());
+    if (draft.languageId.isEmpty) body.remove('language_id');
+    await services.user.enqueueUpdate(
+      companyId: companyId,
+      draft: draft,
+      body: body,
+    );
   }
 
   Future<void> _onSignOut() async {
@@ -343,6 +387,13 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
                               controller: _nameController,
                               errorText: _nameError,
                             ),
+                            if (_askUserName) ...[
+                              SizedBox(height: InSpacing.md(context)),
+                              _UserNameFields(
+                                first: _firstNameController,
+                                last: _lastNameController,
+                              ),
+                            ],
                             SizedBox(height: InSpacing.md(context)),
                             SearchableDropdownField<Currency>(
                               label: context.tr('currency'),
@@ -461,6 +512,58 @@ class _NameField extends StatelessWidget {
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(errorText: errorText),
           onSubmitted: (_) => scope?.trySubmit(),
+        ),
+      ],
+    );
+  }
+}
+
+class _UserNameFields extends StatelessWidget {
+  const _UserNameFields({required this.first, required this.last});
+
+  final TextEditingController first;
+  final TextEditingController last;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = FormSaveScope.maybeOf(context);
+    Widget field(
+      TextEditingController c,
+      String labelKey,
+      String hint,
+      String key,
+      TextInputAction action,
+    ) => TextField(
+      key: ValueKey(key),
+      controller: c,
+      textCapitalization: TextCapitalization.words,
+      autofillHints: [hint],
+      textInputAction: action,
+      decoration: InputDecoration(labelText: context.tr(labelKey)),
+      onSubmitted: action == TextInputAction.done
+          ? (_) => scope?.trySubmit()
+          : null,
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: field(
+            first,
+            'first_name',
+            AutofillHints.givenName,
+            'setup_first_name',
+            TextInputAction.next,
+          ),
+        ),
+        SizedBox(width: InSpacing.md(context)),
+        Expanded(
+          child: field(
+            last,
+            'last_name',
+            AutofillHints.familyName,
+            'setup_last_name',
+            TextInputAction.done,
+          ),
         ),
       ],
     );

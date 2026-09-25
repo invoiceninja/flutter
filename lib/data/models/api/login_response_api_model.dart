@@ -139,6 +139,17 @@ abstract class UserSummaryApi with _$UserSummaryApi {
     @JsonKey(name: 'verified_phone_number', fromJson: _boolFromJson)
     @Default(false)
     bool verifiedPhoneNumber,
+    // Whether the user has a password at all — an OAuth sign-up has none.
+    // Decides how a password-protected action is confirmed (see
+    // `PasswordSubject`). Defaults TRUE when absent: assuming a password keeps
+    // the ordinary password prompt, while a wrong `false` would tell a user
+    // who has one to go and set one.
+    @JsonKey(name: 'has_password', fromJson: _boolFromJson)
+    @Default(true)
+    bool hasPassword,
+    // `'***'` when a Gmail / Microsoft mailer token is stored, `''` when not
+    // — the server masks the value (`UserTransformer`), so it is a flag.
+    @JsonKey(name: 'oauth_user_token') @Default('') String oauthUserToken,
     // Referral program — surfaced on Settings → Account Management →
     // Referral Program (hosted only). `referral_meta` is a `{plan: count}`
     // map of how many sign-ups each plan tier brought in.

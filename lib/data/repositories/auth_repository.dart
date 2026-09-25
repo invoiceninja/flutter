@@ -19,6 +19,7 @@ import 'package:admin/data/repositories/user_settings_repository.dart'
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/data/services/auth_service.dart';
+import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/token_storage.dart';
 import 'package:admin/domain/sync/refresh_sync_constants.dart';
@@ -478,6 +479,9 @@ class AuthRepository {
     String? authCode,
     String? accessToken,
     String? email,
+    String? firstName,
+    String? lastName,
+    bool create = false,
   }) async {
     final response = await _auth.oauthLogin(
       baseUrl: baseUrl,
@@ -487,6 +491,9 @@ class AuthRepository {
       authCode: authCode,
       accessToken: accessToken,
       email: email,
+      firstName: firstName,
+      lastName: lastName,
+      create: create,
     );
     // A different user (or a brand-new signup) on this device must not inherit
     // the previous session's preserved database — see [_wipeIfIdentityChanged].
@@ -569,6 +576,8 @@ class AuthRepository {
       userPhone: user.phone,
       googleTwoFactorEnabled: user.google2faSecret,
       verifiedPhoneNumber: user.verifiedPhoneNumber,
+      userOauthProviderId: user.oauthProviderId,
+      userHasPassword: user.hasPassword,
     );
   }
 
@@ -1109,6 +1118,10 @@ class AuthRepository {
     _lastActivatedCompanyId = null;
     _unprovenActivation = null;
     _passwordCache.clear();
+    // End the Google SDK's session too (admin-portal's logout did), so the
+    // next Google sign-in on this device shows the account chooser instead of
+    // quietly reusing this user's account. Fire-and-forget and never throws.
+    unawaited(GoogleOAuth.signOut());
     // Reset app-lifetime per-session repo state (e.g. the calendar connection)
     // so the next user on this install starts unread. Synchronous + defensive.
     try {
@@ -1351,6 +1364,8 @@ class AuthRepository {
     var userFirstName = '';
     var userLastName = '';
     var userPhone = '';
+    var userOauthProviderId = '';
+    var userHasPassword = true;
     try {
       final settingsRow = await _db.userSettingsDao.get(restoredCompanyId);
       if (settingsRow != null && settingsRow.userId.isNotEmpty) {
@@ -1364,6 +1379,17 @@ class AuthRepository {
           userFirstName = userRow.firstName;
           userLastName = userRow.lastName;
           userPhone = userRow.phone;
+          try {
+            final payload = jsonDecode(userRow.payload);
+            if (payload is Map<String, dynamic>) {
+              userOauthProviderId =
+                  payload['oauth_provider_id']?.toString() ?? '';
+              // Absent in rows written before `has_password` was stored —
+              // keep the default (true) until the next /refresh says.
+              final hp = payload['has_password'];
+              if (hp is bool) userHasPassword = hp;
+            }
+          } catch (_) {}
         }
       }
     } catch (e, st) {
@@ -1388,6 +1414,8 @@ class AuthRepository {
       userFirstName: userFirstName,
       userLastName: userLastName,
       userPhone: userPhone,
+      userOauthProviderId: userOauthProviderId,
+      userHasPassword: userHasPassword,
       companies: companies
           .map((c) {
             Map<String, dynamic> settings = const {};
@@ -1417,6 +1445,7 @@ class AuthRepository {
               enabledModules: c.enabledModules,
               isAdmin: c.isAdmin,
               isOwner: c.isOwner,
+              oauthPasswordRequired: c.oauthPasswordRequired,
             );
           })
           .toList(growable: false),
@@ -1989,6 +2018,11 @@ class AuthRepository {
           'custom_value3': uc.user.customValue3,
           'custom_value4': uc.user.customValue4,
           'oauth_provider_id': uc.user.oauthProviderId,
+          // Both left out of this blob once, so the auth user always read
+          // `hasPassword: false` and no mailer token — Connect's "Disconnect
+          // mailer" could never show.
+          'oauth_user_token': uc.user.oauthUserToken,
+          'has_password': uc.user.hasPassword,
           'company_user': <String, dynamic>{
             'settings': uc.settings,
             'is_admin': uc.isAdmin,
@@ -2191,6 +2225,7 @@ class AuthRepository {
               enabledModules: uc.company.enabledModules,
               isAdmin: uc.isAdmin,
               isOwner: uc.isOwner,
+              oauthPasswordRequired: uc.company.oauthPasswordRequired,
             ),
           )
           .toList(growable: false);
@@ -2224,6 +2259,8 @@ class AuthRepository {
       userFirstName: firstUser.firstName,
       userLastName: firstUser.lastName,
       userPhone: firstUser.phone,
+      userOauthProviderId: firstUser.oauthProviderId,
+      userHasPassword: firstUser.hasPassword,
       googleTwoFactorEnabled: firstUser.google2faSecret,
       verifiedPhoneNumber: firstUser.verifiedPhoneNumber,
       biometricEnabled: biometricEnabled,
@@ -2290,6 +2327,7 @@ class AuthRepository {
       enabledModules: c.enabledModules,
       isAdmin: c.isAdmin,
       isOwner: c.isOwner,
+      oauthPasswordRequired: c.oauthPasswordRequired,
     );
   }
 
@@ -2335,7 +2373,8 @@ class AuthRepository {
           existing.permissions != row.permissions ||
           existing.enabledModules != row.enabledModules ||
           existing.isAdmin != row.isAdmin ||
-          existing.isOwner != row.isOwner) {
+          existing.isOwner != row.isOwner ||
+          existing.oauthPasswordRequired != row.oauthPasswordRequired) {
         changed = true;
       }
       rebuilt.add(
@@ -2348,6 +2387,7 @@ class AuthRepository {
           enabledModules: row.enabledModules,
           isAdmin: row.isAdmin,
           isOwner: row.isOwner,
+          oauthPasswordRequired: row.oauthPasswordRequired,
         ),
       );
     }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,6 +10,7 @@ import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/settings/view_models/user_details_view_model.dart';
 import 'package:admin/ui/features/settings/widgets/form_section.dart';
+import 'package:admin/ui/features/settings/widgets/oauth_mailer_connect.dart';
 import 'package:admin/ui/features/settings/widgets/settings_form_shell.dart';
 
 const kUserDetailsConnectSearchKeys = <String>[
@@ -119,7 +122,10 @@ class _ConnectedSection extends StatelessWidget {
             ),
           ],
         ),
-        if (user != null && user.oauthUserRefreshToken.isNotEmpty) ...[
+        // `oauth_user_token` is the server's "a mailer is connected" flag
+        // (`'***'` or `''`); the refresh token this row used to test is never
+        // sent at all, so Disconnect never showed.
+        if (user != null && user.oauthUserToken.isNotEmpty) ...[
           SizedBox(height: InSpacing.lg(context)),
           const Divider(height: 1),
           SizedBox(height: InSpacing.lg(context)),
@@ -140,6 +146,12 @@ class _ConnectedSection extends StatelessWidget {
               ),
             ],
           ),
+        ] else if (user != null &&
+            (provider == 'google' || provider == 'microsoft')) ...[
+          SizedBox(height: InSpacing.lg(context)),
+          const Divider(height: 1),
+          SizedBox(height: InSpacing.lg(context)),
+          _ConnectMailerRow(isGoogle: provider == 'google'),
         ],
       ],
     );
@@ -160,6 +172,11 @@ class _ConnectedSection extends StatelessWidget {
     final errorLabel = context.tr('error_refresh_page');
     try {
       await vm.enqueueDisconnect(action: action);
+      // Unlinking Google revokes this app's grant too, as admin-portal did,
+      // so a later "Connect Google" asks again. Best effort, never throws.
+      if (action == 'disconnect_oauth' && provider == 'google') {
+        unawaited(GoogleOAuth.disconnect());
+      }
       if (context.mounted) Notify.success(context, successLabel);
     } catch (e) {
       if (context.mounted) {
@@ -171,6 +188,53 @@ class _ConnectedSection extends StatelessWidget {
         );
       }
     }
+  }
+}
+
+/// A Google / Microsoft sign-in with no mailer yet: offer to connect Gmail /
+/// Microsoft for sending, as admin-portal's User Details did. The server runs
+/// that flow in the browser (`oauth_mailer_connect.dart`); native iOS / macOS
+/// get the "use the web app" hint instead.
+class _ConnectMailerRow extends StatelessWidget {
+  const _ConnectMailerRow({required this.isGoogle});
+
+  final bool isGoogle;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.read<Services>().auth;
+    final baseUrl = auth.session.value?.baseUrl ?? '';
+    if (!canLaunchMailerConnect(baseUrl)) {
+      return Text(
+        context.tr(
+          isGoogle
+              ? 'use_web_app_to_connect_gmail'
+              : 'use_web_app_to_connect_microsoft',
+        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: context.inTheme.ink3),
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            context.tr('send_and_receive_email'),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
+          icon: const Icon(Icons.open_in_new, size: 18),
+          label: Text(
+            context.tr(isGoogle ? 'connect_gmail' : 'connect_microsoft'),
+          ),
+          onPressed: () =>
+              launchMailerConnect(auth, baseUrl, isGoogle: isGoogle),
+        ),
+      ],
+    );
   }
 }
 
@@ -234,32 +298,38 @@ class _ConnectSectionState extends State<_ConnectSection> {
     return FormSection(
       title: context.tr('oauth_mail'),
       children: [
-        Text(
-          context.tr('connect_google_account'),
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: tokens.ink2),
-        ),
-        SizedBox(height: InSpacing.md(context)),
-        Row(
-          children: [
-            FilledButton.icon(
-              style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
-              onPressed: (!googleEnabled || _busy) ? null : _connectGoogle,
-              icon: _busy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.account_circle_outlined, size: 18),
-              label: Text(context.tr('connect_google')),
-            ),
-          ],
-        ),
-        SizedBox(height: InSpacing.lg(context)),
-        const Divider(height: 1),
-        SizedBox(height: InSpacing.lg(context)),
+        // Hidden, not disabled, where this build can't sign in with Google
+        // (no client ID for the platform, desktop, web, the F-Droid build):
+        // a dead button next to "Connect your Google account" only suggests
+        // something is broken.
+        if (googleEnabled) ...[
+          Text(
+            context.tr('connect_google_account'),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: tokens.ink2),
+          ),
+          SizedBox(height: InSpacing.md(context)),
+          Row(
+            children: [
+              FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
+                onPressed: _busy ? null : _connectGoogle,
+                icon: _busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.account_circle_outlined, size: 18),
+                label: Text(context.tr('connect_google')),
+              ),
+            ],
+          ),
+          SizedBox(height: InSpacing.lg(context)),
+          const Divider(height: 1),
+          SizedBox(height: InSpacing.lg(context)),
+        ],
         Text(
           context.tr('connect_microsoft_web_hint'),
           style: Theme.of(

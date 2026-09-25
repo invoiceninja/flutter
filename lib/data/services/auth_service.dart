@@ -151,15 +151,25 @@ class AuthService {
   /// extra plumbing.
   Future<LoginResponseApi> oauthLogin({
     required String baseUrl,
-    required bool isHosted,
     required String provider,
+    required bool isHosted,
     String? idToken,
     String? authCode,
     String? accessToken,
     String? email,
+    String? firstName,
+    String? lastName,
+    bool create = false,
   }) async {
+    // `?create=true` is the sign-up: the server's Google branch creates an
+    // account ONLY with it (unknown account otherwise → "User not found"),
+    // and the terms consent + token name ride along exactly as `signup()`
+    // sends them. Mirrors admin-portal's `AuthRepository.oauthSignUp`.
+    final path = create
+        ? '/api/v1/oauth_login?create=true'
+        : '/api/v1/oauth_login';
     final response = await _post(
-      Uri.parse(baseUrl).resolve('/api/v1/oauth_login'),
+      Uri.parse(baseUrl).resolve(path),
       headers: _headers(isHosted: isHosted, contentTypeJson: true),
       body: jsonEncode({
         'provider': provider,
@@ -172,6 +182,17 @@ class AuthService {
         // carries access_token, no id_token) through the access-token branch
         // instead of the JWT branch. Mirrors admin-portal's auth_repository.
         if (idToken != null && idToken.isNotEmpty) 'id_token': idToken,
+        // Read for Apple only (`LoginController::loginOrCreateFromSocialite`),
+        // which hands the name over on the first authorization and never
+        // again.
+        if (firstName != null && firstName.isNotEmpty) 'first_name': firstName,
+        if (lastName != null && lastName.isNotEmpty) 'last_name': lastName,
+        if (create) ...{
+          'terms_of_service': true,
+          'privacy_policy': true,
+          'token_name': '${Env.clientPlatform}_client',
+          'platform': Env.clientPlatform,
+        },
       }),
     );
     _raiseIfError(response);

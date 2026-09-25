@@ -62,14 +62,26 @@ class Env {
   /// Google OAuth Web/server client ID. Required on Android: the v7
   /// `google_sign_in` plugin routes through Credential Manager, which needs
   /// the Web OAuth client ID passed to `initialize(serverClientId:)` — it does
-  /// not auto-resolve it from `google-services.json`. iOS resolves its own
-  /// client ID from `Info.plist` / `GoogleService-Info.plist` and must NOT
-  /// receive `serverClientId`. Empty = Google sign-in unconfigured for this
-  /// build; deployments inject the real ID via
-  /// `--dart-define=IN_GOOGLE_SERVER_CLIENT_ID=…` (per-app OAuth project — do
-  /// not reuse another app's client ID, the bundle/package binding won't match).
+  /// not auto-resolve it from `google-services.json` — and an **Android**
+  /// client for this package (`com.invoiceninja.admin`) + signing SHA-1 must
+  /// exist in the same Google Cloud project. iOS must NOT receive it (see
+  /// [googleIosClientId]). Empty = Google sign-in hidden on Android; release
+  /// builds inject it via `--dart-define=IN_GOOGLE_SERVER_CLIENT_ID=…`. Kept
+  /// out of source so a fork or the F-Droid build never ships Invoice Ninja's
+  /// OAuth project. Setup: `docs/setup.md` § Google Sign-In client IDs.
   static const String googleServerClientId = String.fromEnvironment(
     'IN_GOOGLE_SERVER_CLIENT_ID',
+  );
+
+  /// Google OAuth **iOS** client ID for bundle `com.invoiceninja.admin`,
+  /// passed to `initialize(clientId:)`. Empty = Google sign-in hidden on iOS —
+  /// it used to show anyway and fail, because nothing configured it. Its
+  /// reversed form (`com.googleusercontent.apps.<id>`) must also be a
+  /// `CFBundleURLSchemes` entry in `ios/Runner/Info.plist`, or the SDK throws
+  /// before showing the chooser. Injected via
+  /// `--dart-define=IN_GOOGLE_IOS_CLIENT_ID=…`.
+  static const String googleIosClientId = String.fromEnvironment(
+    'IN_GOOGLE_IOS_CLIENT_ID',
   );
 
   /// Sentry DSN for remote error reporting. Empty (the default) disables

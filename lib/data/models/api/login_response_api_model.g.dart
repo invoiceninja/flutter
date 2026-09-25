@@ -72,6 +72,10 @@ _UserSummaryApi _$UserSummaryApiFromJson(Map<String, dynamic> json) =>
       verifiedPhoneNumber: json['verified_phone_number'] == null
           ? false
           : _boolFromJson(json['verified_phone_number']),
+      hasPassword: json['has_password'] == null
+          ? true
+          : _boolFromJson(json['has_password']),
+      oauthUserToken: json['oauth_user_token'] as String? ?? '',
       referralCode: json['referral_code'] as String? ?? '',
       referralMeta: json['referral_meta'] == null
           ? const <String, int>{}
@@ -94,6 +98,8 @@ Map<String, dynamic> _$UserSummaryApiToJson(_UserSummaryApi instance) =>
       'oauth_provider_id': instance.oauthProviderId,
       'google_2fa_secret': instance.google2faSecret,
       'verified_phone_number': instance.verifiedPhoneNumber,
+      'has_password': instance.hasPassword,
+      'oauth_user_token': instance.oauthUserToken,
       'referral_code': instance.referralCode,
       'referral_meta': instance.referralMeta,
     };

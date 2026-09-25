@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'package:admin/app/env.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/apple_sign_in.dart';
 import 'package:admin/data/services/auth_service.dart';
 import 'package:admin/data/services/google_oauth.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
+import 'package:admin/ui/features/auth/view_models/social_sign_in.dart';
 import 'package:admin/utils/local_network_host.dart';
 
 /// Which credential flow the user picked. The paths share most state
@@ -48,19 +49,8 @@ class LoginViewModel extends ChangeNotifier {
   /// false so we never show a button that can't complete.
   bool get googleEnabled => GoogleOAuth.isEnabled;
 
-  /// Whether to offer the Apple segment — iOS and macOS only, matching
-  /// admin-portal's `supportsAppleOAuth()`. Web: no in-app OAuth callback
-  /// handler (locked decision — web is email/password only; see plan).
-  /// Android: `sign_in_with_apple` requires `webAuthenticationOptions`
-  /// (an Apple Services ID + server return URL we don't ship); without it
-  /// the plugin throws a bare `Exception` that escapes every typed catch in
-  /// [submitApple]. Windows/Linux: the plugin is NotSupported — the button
-  /// always errored after a tap.
-  bool get appleEnabled {
-    if (kIsWeb) return false;
-    return defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS;
-  }
+  /// Whether to offer the Apple segment — see [AppleSignIn.isSupported].
+  bool get appleEnabled => AppleSignIn.isSupported;
 
   String urlOverride = '';
   String email = '';
@@ -332,96 +322,26 @@ class LoginViewModel extends ChangeNotifier {
 
   /// Sign in with Apple. Returns false on cancellation without setting an
   /// error message (the user just dismissed the sheet, nothing to surface).
-  Future<bool> submitApple() async {
-    // Defence in depth: the Apple segment is hidden where the native flow
-    // doesn't exist ([appleEnabled]) — never let a stray call reach the
-    // platform channel there (Android's would throw an untyped Exception).
-    if (!appleEnabled) return false;
-    if (_busy) return false;
-    _busy = true;
-    _clearError();
-    _fieldErrors = const {};
-    notifyListeners();
-    final baseUrl = _checkedBaseUrl();
-    if (baseUrl == null) {
-      _busy = false;
-      notifyListeners();
-      return false;
-    }
-    try {
-      // The nonce + state needed to bind the Apple response to this request
-      // are generated and validated inside the SignInWithApple SDK (iOS &
-      // macOS); we don't pass them explicitly. The server verifies the JWT
-      // signature on /api/v1/oauth_login — that's where replay protection
-      // actually lives.
-      final cred = await SignInWithApple.getAppleIDCredential(
-        scopes: const [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-      );
-      await auth.oauthLogin(
-        baseUrl: baseUrl,
-        isHosted: isHosted,
-        provider: 'apple',
-        idToken: cred.identityToken,
-        authCode: cred.authorizationCode,
-        email: cred.email,
-      );
-      return true;
-    } on SignInWithAppleAuthorizationException catch (e) {
-      if (e.code == AuthorizationErrorCode.canceled) {
-        return false; // sheet dismissed — no error to surface
-      }
-      _setError(
-        key: 'apple_sign_in_failed_with_message',
-        params: {'message': e.message},
-      );
-      return false;
-    } on SignInWithAppleException catch (e) {
-      _setError(
-        key: 'apple_sign_in_unavailable_with_error',
-        params: {'error': e.toString()},
-      );
-      return false;
-    } on UnauthorizedException catch (e) {
-      _setError(message: e.message);
-      return false;
-    } on NetworkException catch (e) {
-      _setError(
-        key: 'network_error_with_message',
-        params: {'message': e.message},
-      );
-      return false;
-    } on ApiException catch (e) {
-      _setError(message: e.message);
-      return false;
-    } on Object catch (e) {
-      // Login is the one screen a user cannot route around, and it was the one
-      // screen with no catch-all: anything that isn't an `ApiException` subtype
-      // escaped, `finally` cleared `_busy`, and the view (which has no
-      // try/catch either) turned it into an unhandled zone error. In release
-      // the button simply un-spun and said nothing, forever. Real throwers:
-      // `GoogleOAuth.signIn` is a platform channel (`PlatformException` code 10
-      // DEVELOPER_ERROR on a SHA-1 / client-id mismatch, or
-      // `MissingPluginException`), `_persistAndActivate` writes to the keychain
-      // and to Drift, and an unexpected response shape gives a `TypeError`.
-      // Every other mutation in the app gets this net from
-      // `runMutationWithNotify`.
-      _setError(message: formatNotifyError(e));
-      return false;
-    } finally {
-      _busy = false;
-      notifyListeners();
-    }
-  }
+  Future<bool> submitApple() => _submitSocial(
+    (baseUrl) =>
+        signInWithApple(auth: auth, baseUrl: baseUrl, isHosted: isHosted),
+  );
 
   /// Sign in with Google. Returns false on cancellation without setting an
   /// error (the user dismissed the chooser — nothing to surface), mirroring
   /// [submitApple]. Rides the access-token path: [GoogleOAuth.signIn] yields
   /// an access token (no id_token) which the server exchanges via
   /// `harvestUser` — see `google_oauth.dart` for why.
-  Future<bool> submitGoogle() async {
+  Future<bool> submitGoogle() => _submitSocial(
+    (baseUrl) =>
+        signInWithGoogle(auth: auth, baseUrl: baseUrl, isHosted: isHosted),
+  );
+
+  /// Busy / error bookkeeping around one social sign-in. `false` without an
+  /// error means the user dismissed the provider's sheet.
+  Future<bool> _submitSocial(
+    Future<bool> Function(String baseUrl) signIn,
+  ) async {
     if (_busy) return false;
     _busy = true;
     _clearError();
@@ -434,46 +354,9 @@ class LoginViewModel extends ChangeNotifier {
       return false;
     }
     try {
-      String accessToken = '';
-      final ok = await GoogleOAuth.signIn((_, token) {
-        accessToken = token;
-      });
-      if (!ok || accessToken.isEmpty) {
-        // Chooser dismissed / no token granted — no error to surface.
-        return false;
-      }
-      await auth.oauthLogin(
-        baseUrl: baseUrl,
-        isHosted: isHosted,
-        provider: 'google',
-        accessToken: accessToken,
-      );
-      return true;
-    } on UnauthorizedException catch (e) {
-      _setError(message: e.message);
-      return false;
-    } on NetworkException catch (e) {
-      _setError(
-        key: 'network_error_with_message',
-        params: {'message': e.message},
-      );
-      return false;
-    } on ApiException catch (e) {
-      _setError(message: e.message);
-      return false;
-    } on Object catch (e) {
-      // Login is the one screen a user cannot route around, and it was the one
-      // screen with no catch-all: anything that isn't an `ApiException` subtype
-      // escaped, `finally` cleared `_busy`, and the view (which has no
-      // try/catch either) turned it into an unhandled zone error. In release
-      // the button simply un-spun and said nothing, forever. Real throwers:
-      // `GoogleOAuth.signIn` is a platform channel (`PlatformException` code 10
-      // DEVELOPER_ERROR on a SHA-1 / client-id mismatch, or
-      // `MissingPluginException`), `_persistAndActivate` writes to the keychain
-      // and to Drift, and an unexpected response shape gives a `TypeError`.
-      // Every other mutation in the app gets this net from
-      // `runMutationWithNotify`.
-      _setError(message: formatNotifyError(e));
+      return await signIn(baseUrl);
+    } on SocialSignInFailure catch (f) {
+      _setError(key: f.key, params: f.params, message: f.message);
       return false;
     } finally {
       _busy = false;

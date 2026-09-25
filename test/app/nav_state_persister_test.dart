@@ -207,6 +207,21 @@ void main() {
     expect((await db.navStateDao.current())?.currentRoute, '/clients/abc');
   });
 
+  test('never persists the Outbox of another company either', () async {
+    final router = _FakeRouter();
+    final persister = NavStatePersister(
+      changes: router,
+      currentPath: () => router.path,
+      db: db,
+      debounce: const Duration(milliseconds: 10),
+    );
+    addTearDown(persister.dispose);
+
+    router.go('/sync/outbox?company=co2');
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+    expect((await db.navStateDao.current())?.currentRoute, '/sync/outbox');
+  });
+
   test(
     'a path that merely contains the word company is untouched — the removal, '
     'not the substring check, is what decides',

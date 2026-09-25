@@ -109,7 +109,10 @@ class _FakeServices implements Services {
       throw UnimplementedError(invocation.memberName.toString());
 }
 
-AuthSession _sessionFor(String companyId) => AuthSession(
+AuthSession _sessionFor(
+  String companyId, {
+  Map<String, String> names = const {},
+}) => AuthSession(
   baseUrl: 'https://example.test',
   isHosted: false,
   accountId: 'acct',
@@ -117,8 +120,8 @@ AuthSession _sessionFor(String companyId) => AuthSession(
     for (final id in const ['co', 'co2'])
       AuthCompany(
         id: id,
-        name: 'Test $id',
-        displayName: 'Test $id',
+        name: names[id] ?? 'Test $id',
+        displayName: names[id] ?? 'Test $id',
         permissions: '',
         isAdmin: true,
         isOwner: true,
@@ -167,30 +170,31 @@ void main() {
     ),
   );
 
-  Widget host(SyncRepository sync, {bool confirmActions = false}) =>
-      MaterialApp(
-        theme: buildInTheme(InTheme.light),
-        localizationsDelegates: kTestLocalizationsDelegates,
-        supportedLocales: kTestSupportedLocales,
-        home: MultiProvider(
-          providers: [
-            Provider<Services>.value(
-              value: _FakeServices(
-                auth: _FakeAuth(session),
-                db: db,
-                sync: sync,
-                confirmActions: ConfirmActionsController(
-                  prefs: prefsWith({
-                    DevicePrefKeys.confirmActions: confirmActions,
-                  }),
-                ),
-              ),
+  Widget host(
+    SyncRepository sync, {
+    bool confirmActions = false,
+    String? companyId,
+  }) => MaterialApp(
+    theme: buildInTheme(InTheme.light),
+    localizationsDelegates: kTestLocalizationsDelegates,
+    supportedLocales: kTestSupportedLocales,
+    home: MultiProvider(
+      providers: [
+        Provider<Services>.value(
+          value: _FakeServices(
+            auth: _FakeAuth(session),
+            db: db,
+            sync: sync,
+            confirmActions: ConfirmActionsController(
+              prefs: prefsWith({DevicePrefKeys.confirmActions: confirmActions}),
             ),
-            ChangeNotifierProvider<ToastController>.value(value: toasts),
-          ],
-          child: const OutboxScreen(),
+          ),
         ),
-      );
+        ChangeNotifierProvider<ToastController>.value(value: toasts),
+      ],
+      child: OutboxScreen(companyId: companyId),
+    ),
+  );
 
   /// Opens a row's menu and picks [label]. Deliberately explicit pumps rather
   /// than `pumpAndSettle`: `PopupMenuButton` only fires `onSelected` once the
@@ -433,5 +437,81 @@ void main() {
       expect(find.textContaining('more than 90 days old'), findsNothing);
       await teardownTree(tester);
     });
+  });
+
+  testWidgets('another company\'s Outbox says whose it is and offers only '
+      'what stays on the device', (tester) async {
+    // The sign-out review counts every company's failed changes, and its View
+    // opens the one that has them. Sending needs that company's token, so its
+    // rows can be discarded, copied or inspected here — not sent.
+    await seed(entityId: 'tmp_a', idempotencyKey: 'k1', companyId: 'co2');
+    // A change that may have gone through: here it would offer Check and
+    // Resend, and both send.
+    await db.outboxDao.markUnconfirmed(
+      id: await seed(
+        entityId: 'tmp_b',
+        idempotencyKey: 'k2',
+        companyId: 'co2',
+        createdAt: 1,
+      ),
+      error: 'timed out',
+    );
+    await tester.pumpWidget(host(_FakeSync(db), companyId: 'co2'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('tmp_a'), findsOneWidget);
+    expect(find.textContaining('Test co2'), findsWidgets);
+    for (final menu in [0, 1]) {
+      await tester.tap(find.byIcon(Icons.more_vert).at(menu));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Discard'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.text('Check'), findsNothing);
+      expect(find.text('Resend'), findsNothing);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+    }
+    await teardownTree(tester);
+  });
+
+  testWidgets('its notice fits a phone, whatever the companies are called', (
+    tester,
+  ) async {
+    // The way back named the active company beside the notice, in a row; a
+    // long name overflowed it on a phone.
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    session.value = _sessionFor(
+      'co',
+      names: {
+        'co': 'Northwind Traders International Holdings Limited',
+        'co2': 'Contoso Pharmaceuticals and Medical Supplies',
+      },
+    );
+    await seed(entityId: 'tmp_a', idempotencyKey: 'k1', companyId: 'co2');
+    await tester.pumpWidget(host(_FakeSync(db), companyId: 'co2'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Northwind Traders'), findsWidgets);
+    await teardownTree(tester);
+  });
+
+  testWidgets('a failed create of a record that already exists offers no '
+      'Retry — it could only make the record twice', (tester) async {
+    await seed(entityId: 'real_a', idempotencyKey: 'k1');
+    await tester.pumpWidget(host(_FakeSync(db)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text('Discard'), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+    await teardownTree(tester);
   });
 }

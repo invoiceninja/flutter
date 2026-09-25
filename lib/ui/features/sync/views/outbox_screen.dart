@@ -9,7 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart'
-    show kOldFailureAge;
+    show isCreateOfExistingRecord, kOldFailureAge;
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/l10n/localization.dart';
@@ -33,7 +33,12 @@ import 'package:admin/ui/features/sync/view_models/outbox_view_model.dart';
 /// retry count, the last server error, and — for 422s — the per-field
 /// validation messages the dead row carries in `field_errors_json`.
 class OutboxScreen extends StatelessWidget {
-  const OutboxScreen({super.key});
+  const OutboxScreen({this.companyId, super.key});
+
+  /// The company whose queue to show; null for the active company. Another
+  /// one when the sign-out review's View sends the user to the company whose
+  /// change failed (`outboxLocationNeedingAttention`).
+  final String? companyId;
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +47,17 @@ class OutboxScreen extends StatelessWidget {
       valueListenable: services.auth.session,
       builder: (context, session, _) {
         if (session == null) return const SizedBox.shrink();
-        final companyId = session.currentCompanyId;
+        final shown = companyId ?? session.currentCompanyId;
+        final isActive = shown == session.currentCompanyId;
         final globalNav = Breakpoints.isGlobalNavVisible(context);
+        String nameOf(String id) {
+          for (final c in session.companies) {
+            if (c.id != id) continue;
+            return c.displayName.isNotEmpty ? c.displayName : c.name;
+          }
+          return context.tr('another_company');
+        }
+
         return Scaffold(
           backgroundColor: context.inTheme.bg,
           drawer: globalNav ? null : const AppDrawer(),
@@ -51,9 +65,83 @@ class OutboxScreen extends StatelessWidget {
             leading: globalNav ? null : const DrawerHamburger(),
             title: Text(context.tr('outbox')),
           ),
-          body: _OutboxBody(companyId: companyId),
+          body: isActive
+              ? _OutboxBody(companyId: shown)
+              : Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        InSpacing.lg(context),
+                        InSpacing.md(context),
+                        InSpacing.lg(context),
+                        0,
+                      ),
+                      child: _OtherCompanyNotice(
+                        company: nameOf(shown),
+                        active: nameOf(session.currentCompanyId),
+                      ),
+                    ),
+                    Expanded(
+                      child: _OutboxBody(companyId: shown, canSend: false),
+                    ),
+                  ],
+                ),
         );
       },
+    );
+  }
+}
+
+/// Over another company's queue. Sending needs that company's token, so its
+/// changes can only be discarded, copied or inspected from here.
+class _OtherCompanyNotice extends StatelessWidget {
+  const _OtherCompanyNotice({required this.company, required this.active});
+
+  final String company;
+  final String active;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.inTheme;
+    return Material(
+      color: tokens.surfaceAlt,
+      borderRadius: BorderRadius.circular(InRadii.r2),
+      child: Padding(
+        padding: EdgeInsets.all(InSpacing.md(context)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.swap_horiz, size: 20, color: tokens.ink2),
+            SizedBox(width: InSpacing.md(context)),
+            // The way back goes under the notice, not beside it: both name a
+            // company, and a long name overflowed a phone-width row.
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('outbox_other_company_notice', {
+                      'company': company,
+                    }),
+                    style: TextStyle(color: tokens.ink2, fontSize: 13),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(64, 36),
+                    ),
+                    onPressed: () => context.go('/sync/outbox'),
+                    child: Text(
+                      context.tr('outbox_show_company', {'company': active}),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -65,9 +153,12 @@ class OutboxScreen extends StatelessWidget {
 /// `BuildContext` is already unmounted by the time the call fails and could
 /// never show the error toast.
 class _OutboxBody extends StatefulWidget {
-  const _OutboxBody({required this.companyId});
+  const _OutboxBody({required this.companyId, this.canSend = true});
 
   final String companyId;
+
+  /// False for a company other than the active one: nothing here may send.
+  final bool canSend;
 
   @override
   State<_OutboxBody> createState() => _OutboxBodyState();
@@ -199,6 +290,7 @@ class _OutboxBodyState extends State<_OutboxBody> {
               key: ValueKey(row.id),
               child: _OutboxTile(
                 row: row,
+                canSend: widget.canSend,
                 onDiscard: () => _discard(row),
                 onRetry: () => _retry(row),
                 onCheck: () => checkUnconfirmedRow(context, row),
@@ -215,6 +307,7 @@ class _OutboxBodyState extends State<_OutboxBody> {
 class _OutboxTile extends StatelessWidget {
   const _OutboxTile({
     required this.row,
+    required this.canSend,
     required this.onDiscard,
     required this.onRetry,
     required this.onCheck,
@@ -222,6 +315,7 @@ class _OutboxTile extends StatelessWidget {
   });
 
   final OutboxRow row;
+  final bool canSend;
   final Future<void> Function() onDiscard;
   final Future<void> Function() onRetry;
   final Future<void> Function() onCheck;
@@ -303,6 +397,7 @@ class _OutboxTile extends StatelessWidget {
                   _RowMenu(
                     row: row,
                     handlers: handlers,
+                    canSend: canSend,
                     onDiscard: onDiscard,
                     onRetry: onRetry,
                     onCheck: onCheck,
@@ -598,6 +693,7 @@ class _RowMenu extends StatelessWidget {
   const _RowMenu({
     required this.row,
     required this.handlers,
+    required this.canSend,
     required this.onDiscard,
     required this.onRetry,
     required this.onCheck,
@@ -605,6 +701,10 @@ class _RowMenu extends StatelessWidget {
   });
   final OutboxRow row;
   final EntityHandlers? handlers;
+
+  /// False over another company's queue: Check, Resend, Retry and Open act
+  /// on the active company, so only Copy and Discard are offered.
+  final bool canSend;
 
   // Retry / Discard are owned by `_OutboxBodyState`: a discarded tile is
   // pulled from the list as soon as the action starts, so this widget's
@@ -672,7 +772,11 @@ class _RowMenu extends StatelessWidget {
         //
         // Nor for an `unconfirmed` row: it may already have gone through, so
         // it gets Check and a Resend that asks first, never a silent Retry.
-        if (row.state == 'unconfirmed') ...[
+        //
+        // Nor for a create of a record that already exists (an earlier
+        // attempt landed): the drain would refuse it, since sending it could
+        // only make the record twice. Open goes to the real record instead.
+        if (canSend && row.state == 'unconfirmed') ...[
           PopupMenuItem<String>(
             value: 'check',
             child: Row(
@@ -694,9 +798,11 @@ class _RowMenu extends StatelessWidget {
             ),
           ),
         ],
-        if (row.state != 'in_flight' &&
+        if (canSend &&
+            row.state != 'in_flight' &&
             row.state != 'unconfirmed' &&
-            !isRecordDeletedRejection(row.lastStatusCode, row.lastError))
+            !isRecordDeletedRejection(row.lastStatusCode, row.lastError) &&
+            !isCreateOfExistingRecord(row))
           PopupMenuItem<String>(
             value: 'retry',
             child: Row(
@@ -707,7 +813,7 @@ class _RowMenu extends StatelessWidget {
               ],
             ),
           ),
-        if (handlers != null)
+        if (canSend && handlers != null)
           PopupMenuItem<String>(
             value: 'open',
             child: Row(

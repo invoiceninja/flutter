@@ -65,6 +65,99 @@ void main() {
     );
   });
 
+  group('companiesWithAttentionRows', () {
+    test('companies with a dead or unconfirmed row, in order', () async {
+      // The sign-out review counts these everywhere; its View opens the
+      // Outbox of a company that has one.
+      await enqueue(companyId: 'co_b', state: 'dead', idempotencyKey: 'k1');
+      await enqueue(
+        companyId: 'co_a',
+        state: 'unconfirmed',
+        idempotencyKey: 'k2',
+      );
+      await enqueue(companyId: 'co_pending', idempotencyKey: 'k3');
+
+      expect(await db.outboxDao.companiesWithAttentionRows(), ['co_a', 'co_b']);
+    });
+  });
+
+  group('countPendingParkedWith', () {
+    test(
+      'counts pending rows parked with one of the errors, in the company',
+      () async {
+        Future<void> parked(int id, String error) => db.outboxDao.scheduleRetry(
+          id: id,
+          attempts: 0,
+          nextAttemptAt: 60000,
+          error: error,
+        );
+        await parked(await enqueue(idempotencyKey: 'k1'), 'held');
+        await parked(await enqueue(idempotencyKey: 'k2'), 'waiting');
+        await parked(await enqueue(idempotencyKey: 'k3'), 'Down');
+        await parked(
+          await enqueue(companyId: 'other', idempotencyKey: 'k4'),
+          'held',
+        );
+        final dead = await enqueue(idempotencyKey: 'k5');
+        await db.outboxDao.markDead(id: dead, error: 'held', statusCode: 422);
+
+        expect(
+          await db.outboxDao.countPendingParkedWith(
+            companyId: 'co',
+            errors: const ['held', 'waiting'],
+          ),
+          2,
+        );
+      },
+    );
+  });
+
+  group('liveCreateRowFor', () {
+    test('a create on the wire wins over a newer one still queued — the '
+        'record lands with it', () async {
+      // Asked for the newest, it read the queued one: behind a change that
+      // waits on the user, a save that will land was reported as rejected.
+      final onTheWire = await enqueue(
+        entityId: 'tmp_1',
+        kind: 'create',
+        idempotencyKey: 'k1',
+      );
+      await db.outboxDao.markInFlight(onTheWire);
+      await enqueue(entityId: 'tmp_1', kind: 'create', idempotencyKey: 'k2');
+
+      final row = await db.outboxDao.liveCreateRowFor(
+        companyId: 'co',
+        entityId: 'tmp_1',
+      );
+      expect(row?.id, onTheWire);
+    });
+
+    test('otherwise the newest queued create, and never a dead one', () async {
+      final dead = await enqueue(
+        entityId: 'tmp_1',
+        kind: 'create',
+        idempotencyKey: 'k1',
+      );
+      await db.outboxDao.markDead(id: dead, error: 'bad', statusCode: 422);
+      expect(
+        await db.outboxDao.liveCreateRowFor(companyId: 'co', entityId: 'tmp_1'),
+        isNull,
+      );
+      final queued = await enqueue(
+        entityId: 'tmp_1',
+        kind: 'create',
+        idempotencyKey: 'k2',
+      );
+      expect(
+        (await db.outboxDao.liveCreateRowFor(
+          companyId: 'co',
+          entityId: 'tmp_1',
+        ))?.id,
+        queued,
+      );
+    });
+  });
+
   group('companiesWithActiveRows', () {
     test(
       'distinct companies with pending or in_flight rows; dead-only '

@@ -1,3 +1,5 @@
+import 'package:admin/domain/entity_registry.dart';
+
 /// Decides whether entering a shell branch must reset it to its initial
 /// location after a company switch.
 ///
@@ -48,3 +50,11 @@ class BranchCompanyGate {
         last != companyId;
   }
 }
+
+/// Whether [branch] is always entered at its first page rather than where it
+/// was left. The Outbox is: the page it was left on can be another company's
+/// queue (`/sync/outbox?company=`, where the sign-out review's View goes),
+/// which a later tap on Outbox reopened — beside a badge counting this
+/// company's changes.
+bool entersAtInitialLocation(BranchSpec? branch) =>
+    branch is FixedBranch && branch.kind == FixedBranchKind.outbox;

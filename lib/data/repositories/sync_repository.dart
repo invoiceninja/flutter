@@ -50,6 +50,31 @@ const Set<int> kOutcomeUnknownStatuses = {500, 502, 504, 520, 524};
 const String kHeldBehindUnconfirmedError =
     'Waiting for an earlier change that may already have been sent';
 
+/// The `last_error` of a row the drain parked because it references a `tmp_`
+/// record whose create has not landed yet.
+const String kWaitingForReferencedRecordError =
+    'Waiting for an unsynced referenced record to sync first';
+
+/// The `last_error` of a `create` the drain refused to send because its record
+/// already exists on the server: the server ignores `Idempotency-Key`, so
+/// sending it would make the record twice.
+const String kAlreadyCreatedError =
+    'Already created on the server without these changes — open the record '
+    'and save it again to apply them.';
+
+/// Whether [message] — a row's `last_error`, or a save's failure — is
+/// [kAlreadyCreatedError].
+bool isAlreadyCreatedRejection(String? message) =>
+    message == kAlreadyCreatedError;
+
+/// Whether [row] is a `create` of a record that already exists: re-keyed to
+/// its real id when an earlier attempt landed, or refused as such. Sending it
+/// again can only make the record twice.
+bool isCreateOfExistingRecord(OutboxRow row) =>
+    row.mutationKind == MutationKind.create.wireName &&
+    (!row.entityId.startsWith('tmp_') ||
+        isAlreadyCreatedRejection(row.lastError));
+
 /// Terminal state observed by [SyncRepository.awaitRow] for one outbox row.
 enum SyncRowOutcome {
   /// Row was successfully drained (server returned 2xx; the row was deleted).
@@ -238,10 +263,41 @@ class SyncRepository {
     _cancelled = false;
   }
 
+  /// Holds taken by [holdDrains] and not yet released.
+  int _holds = 0;
+
+  /// Start no pass until [releaseDrains], and stop a running one at its next
+  /// row — without waiting for it, unlike [cancel]: a prompt must not stall on
+  /// a request already on the wire. Holds nest, so one flow's release doesn't
+  /// lift another's. The sign-out review takes one, so a reconnect's drain
+  /// can't send the changes the user has just chosen to discard.
+  void holdDrains() {
+    _holds++;
+    _cancelRequested = true;
+  }
+
+  /// Release one [holdDrains].
+  void releaseDrains() {
+    if (_holds > 0) _holds--;
+  }
+
   /// Count of non-`dead` outbox rows for [companyId]. Wraps the DAO so the
   /// UI shell doesn't reach into the database layer directly.
   Future<int> pendingCountFor(String companyId) =>
       db.outboxDao.pendingCountForCompany(companyId);
+
+  /// How many of [companyId]'s pending rows wait on another change — held
+  /// behind one that may already have gone through, or parked until a record
+  /// they reference syncs — rather than on the network. No drain sends them
+  /// until the user deals with that change.
+  Future<int> pendingWaitingOnAnotherCount(String companyId) =>
+      db.outboxDao.countPendingParkedWith(
+        companyId: companyId,
+        errors: const [
+          kHeldBehindUnconfirmedError,
+          kWaitingForReferencedRecordError,
+        ],
+      );
 
   /// Distinct company ids with any non-`dead` outbox row — the ground truth
   /// the full-logout / idle-timeout guards check (see
@@ -278,6 +334,10 @@ class SyncRepository {
   /// can't send. Surfaced by the sign-out prompt, whose pending count
   /// deliberately leaves them out.
   Future<int> attentionCountEverywhere() => db.outboxDao.attentionCountAll();
+
+  /// The companies, in order, holding a change that waits on the user.
+  Future<List<String>> companiesWithAttentionRows() =>
+      db.outboxDao.companiesWithAttentionRows();
 
   /// Drop the failed save [id] once a newer save of the same record has gone
   /// through: its payload is stale. Only a `dead` create / update is
@@ -385,10 +445,30 @@ class SyncRepository {
               tempId: row.entityId,
             ) ==
             null;
-    if (!isGhostCreate) {
+    // Another attempt at the same create already on the wire — a re-save
+    // queued while it was in flight — may still make the record. So this row
+    // goes alone: the in-flight one, the local record and what was made
+    // against it stay for that attempt's landing, or failure, to settle.
+    final attemptOnTheWire =
+        isGhostCreate &&
+        (await db.outboxDao.inFlightRowsForCompany(row.companyId)).any(
+          (r) =>
+              r.id != row.id &&
+              r.entityType == row.entityType &&
+              r.entityId == row.entityId,
+        );
+    if (!isGhostCreate || attemptOnTheWire) {
       await db.outboxDao.deleteRow(id);
       await _reconcileDiscardedDirty(row);
-      if (row.state == 'unconfirmed') await _rearmHeldBehind(row);
+      if (row.state == 'unconfirmed') {
+        await _rearmHeldBehind(row);
+        // What it held goes now, as after a Resend — for the active company
+        // only: another one's drain can't send, and would surface its events
+        // here.
+        if (_isActive(row.companyId)) {
+          unawaited(drainOnce(companyId: row.companyId));
+        }
+      }
       return false;
     }
     // Never synced: drop the ghost local row, then every outbox row for
@@ -523,7 +603,9 @@ class SyncRepository {
         );
         await _failTmpDependents(companyId, dep.entityId, why);
       } else {
-        await _markDead(dep, why.message, null);
+        // Said only for the active company: another company's rows are in
+        // its own Outbox, and the shell's View opens this one's.
+        await _markDead(dep, why.message, null, announce: _isActive(companyId));
         // Recurse into a dead create's OWN tmp dependents (deeper levels).
         // The `!= parentTmpId` guard skips a same-entity update keyed to the
         // parent's tmp id (already handled above), so we never re-query the
@@ -588,10 +670,15 @@ class SyncRepository {
       ];
       if (cleaned.length == tags.length) continue; // nothing to strip
       payload['tags'] = cleaned;
-      await db.outboxDao.updatePayload(
-        id: dep.id,
-        payload: jsonEncode(payload),
-      );
+      final encoded = jsonEncode(payload);
+      // Parked on the tag, it waits on nothing now: due at once, as a row
+      // whose reference resolved is. Left parked, it sat out its minute while
+      // a form awaiting it reported "The server rejected this save".
+      if (dep.lastError == kWaitingForReferencedRecordError) {
+        await db.outboxDao.replacePayloadAndRearm(id: dep.id, payload: encoded);
+      } else {
+        await db.outboxDao.updatePayload(id: dep.id, payload: encoded);
+      }
     }
   }
 
@@ -859,7 +946,7 @@ class SyncRepository {
     // Cancelled (logout in progress, or completed and not yet re-activated) —
     // starting a pass here would dispatch under soon-to-be-revoked credentials
     // and race the Drift wipe. See [cancel] / [resume].
-    if (_cancelled) return Future<int>.value(0);
+    if (_cancelled || _holds > 0) return Future<int>.value(0);
     final existing = _inFlight[companyId];
     if (existing != null) {
       // A kick landed mid-pass. The row that triggered it isn't in the
@@ -1119,7 +1206,7 @@ class SyncRepository {
           nextAttemptAt:
               _now().millisecondsSinceEpoch +
               const Duration(minutes: 1).inMilliseconds,
-          error: 'Waiting for an unsynced referenced record to sync first',
+          error: kWaitingForReferencedRecordError,
         );
         blockedEntities.add(entityKey);
         continue;
@@ -1247,23 +1334,53 @@ class SyncRepository {
     return tokens;
   }
 
-  /// Whether [row] is parked only behind `tmp_` records whose creates are
-  /// still on their way ([OutboxDao.hasLiveCreateRowFor]) or have just landed,
-  /// so it sends once they do. False for a row with no such reference, and for
-  /// one whose parent create is dead or unconfirmed: that one waits on the
-  /// user.
+  /// Whether [row] is parked only behind `tmp_` records that will land
+  /// without the user ([_parentLands]), so it sends once they do. False for a
+  /// row with no such reference, and for one whose parent — or a record that
+  /// parent refers to — waits on the user.
   Future<bool> _waitsOnLandingParent(OutboxRow row) async {
     final tokens = _unresolvedTempRefTokens(row);
     if (tokens.isEmpty) return false;
+    final visited = <String>{};
     for (final token in tokens) {
-      final live = await db.outboxDao.hasLiveCreateRowFor(
-        companyId: row.companyId,
-        entityId: token,
-      );
-      // A parent that landed after [row] was read: its `id_remap` entry is
-      // written in the transaction that re-arms [row], before its own outbox
-      // row is deleted — so its row can already be gone.
-      if (!live && await db.idRemapDao.resolveAnyType(token) == null) {
+      if (!await _parentLands(row.companyId, token, visited, 0)) return false;
+    }
+    return true;
+  }
+
+  /// Whether `tmp_` record [token] lands without the user: it has landed
+  /// already, its create is in flight, or its create is queued with nothing
+  /// ahead of it that waits on the user and the records it refers to land
+  /// too. Bounded by [depth] and [visited]; what it can't tell reads as
+  /// landing, the answer from before it looked past the first level.
+  Future<bool> _parentLands(
+    String companyId,
+    String token,
+    Set<String> visited,
+    int depth,
+  ) async {
+    final create = await db.outboxDao.liveCreateRowFor(
+      companyId: companyId,
+      entityId: token,
+    );
+    if (create == null) {
+      // No create on its way: landed, or waiting on the user. A parent that
+      // landed after the child was read has its `id_remap` entry — written in
+      // the transaction that re-arms the child, before its own outbox row is
+      // deleted — so its row can already be gone.
+      return await db.idRemapDao.resolveAnyType(token) != null;
+    }
+    if (create.state == 'in_flight') return true;
+    if (depth >= 4 || !visited.add(token)) return true;
+    final ahead = await db.outboxDao.unconfirmedRowAhead(
+      companyId: companyId,
+      entityType: create.entityType,
+      entityId: create.entityId,
+      beforeId: create.id,
+    );
+    if (ahead != null) return false;
+    for (final next in _unresolvedTempRefTokens(create)) {
+      if (!await _parentLands(companyId, next, visited, depth + 1)) {
         return false;
       }
     }
@@ -1296,6 +1413,21 @@ class SyncRepository {
       // action handler. For now, fail closed.
       _log.warning('Unknown mutation kind ${row.mutationKind}; marking dead.');
       await _markDead(row, 'Unknown mutation kind', null);
+      return false;
+    }
+    // A create for a record that already exists would make it twice (the
+    // server ignores Idempotency-Key). Its id stops being a `tmp_` one only
+    // when an earlier attempt landed and re-keyed it, and a tmp id maps only
+    // once one did: a second create queued while the first was in flight, a
+    // Retry of a failed create re-keyed that way, a password revival.
+    if (kind == MutationKind.create &&
+        (!row.entityId.startsWith('tmp_') ||
+            await db.idRemapDao.resolveAnyType(row.entityId) != null)) {
+      _log.warning(
+        'Not sending ${row.entityType} create ${row.id}: '
+        '${row.entityId} already exists on the server',
+      );
+      await _markDead(row, kAlreadyCreatedError, null);
       return false;
     }
 
@@ -1968,14 +2100,24 @@ class SyncRepository {
         .clearLocalDirty(companyId: row.companyId, id: row.entityId);
   }
 
-  Future<void> _markDead(OutboxRow row, String error, int? code) async {
+  /// Whether [companyId] is the company in view — every company is, until
+  /// the app wires [activeCompanyId].
+  bool _isActive(String companyId) =>
+      (activeCompanyId?.call() ?? companyId) == companyId;
+
+  Future<void> _markDead(
+    OutboxRow row,
+    String error,
+    int? code, {
+    bool announce = true,
+  }) async {
     await db.outboxDao.markDead(id: row.id, error: error, statusCode: code);
     // A permanently-failed reorder must release its optimistic dirty flags so
     // future refreshes can restore the server's ordering (see below).
     await _clearReorderDirty(row);
     await _releaseDeadLifecycleDirty(row);
     final handlers = registry.byWireName(row.entityType);
-    if (handlers != null) {
+    if (announce && handlers != null) {
       _events.add(
         DeadEvent(
           entityType: handlers.type,

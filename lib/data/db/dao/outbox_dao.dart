@@ -55,6 +55,36 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return row.read(count) ?? 0;
   }
 
+  /// How many of [companyId]'s `pending` rows the drain parked with one of
+  /// [errors] as their `last_error` — rows that wait on another change rather
+  /// than on the network, so a drain can't send them.
+  Future<int> countPendingParkedWith({
+    required String companyId,
+    required List<String> errors,
+  }) async {
+    final count = outbox.id.count();
+    final q = selectOnly(outbox)
+      ..addColumns([count])
+      ..where(
+        outbox.companyId.equals(companyId) &
+            outbox.state.equals('pending') &
+            outbox.lastError.isIn(errors),
+      );
+    final row = await q.getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  /// Distinct company ids, in order, holding a row that waits on the user —
+  /// `dead` or `unconfirmed`: what the sign-out review counts everywhere.
+  Future<List<String>> companiesWithAttentionRows() async {
+    final q = selectOnly(outbox, distinct: true)
+      ..addColumns([outbox.companyId])
+      ..where(outbox.state.isIn(const ['dead', 'unconfirmed']))
+      ..orderBy([OrderingTerm(expression: outbox.companyId)]);
+    final rows = await q.get();
+    return [for (final r in rows) r.read(outbox.companyId)!];
+  }
+
   /// Distinct company ids holding any active (`pending` / `in_flight`)
   /// outbox row. The full-logout / idle-timeout guards read this instead of
   /// `session.companies`: the wipe destroys EVERY company's rows, and the
@@ -133,14 +163,17 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return (await q.get()).isNotEmpty;
   }
 
-  /// Whether record [entityId] has a `create` row still on its way — `pending`
-  /// or `in_flight` — rather than one that is `dead` or `unconfirmed`, which
-  /// waits for the user. `SyncRepository.awaitRow` uses it to tell a save that
-  /// sends once its parent lands from one that waits on the user first.
-  Future<bool> hasLiveCreateRowFor({
+  /// The `create` row of record [entityId] still on its way — the one on the
+  /// wire, else the newest `pending` — or null when its create is `dead` or
+  /// `unconfirmed` (waiting on the user), has landed, or never was.
+  /// `SyncRepository.awaitRow` uses it to tell a save that sends once its
+  /// parent lands from one that waits on the user first. The one on the wire
+  /// wins: the record lands with it, whatever a newer attempt queued behind
+  /// it refers to.
+  Future<OutboxRow?> liveCreateRowFor({
     required String companyId,
     required String entityId,
-  }) async {
+  }) {
     final q = select(outbox)
       ..where(
         (o) =>
@@ -149,8 +182,15 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.mutationKind.equals(MutationKind.create.wireName) &
             o.state.isIn(const ['pending', 'in_flight']),
       )
+      ..orderBy([
+        (o) => OrderingTerm(
+          expression: o.state.equals('in_flight'),
+          mode: OrderingMode.desc,
+        ),
+        (o) => OrderingTerm(expression: o.id, mode: OrderingMode.desc),
+      ])
       ..limit(1);
-    return (await q.get()).isNotEmpty;
+    return q.getSingleOrNull();
   }
 
   /// Delete every `pending` row for [companyId] in one statement. The
@@ -372,6 +412,25 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   Future<void> updatePayload({required int id, required String payload}) =>
       (update(outbox)..where((o) => o.id.equals(id))).write(
         OutboxCompanion(payload: Value(payload)),
+      );
+
+  /// Replace a `pending` row's payload and make it due now, its error and
+  /// status cleared — for a row whose wait has just ended with the reference
+  /// it was parked on stripped out. The same re-arm [rewriteTempIdInPayloads]
+  /// gives a row whose reference resolved.
+  Future<void> replacePayloadAndRearm({
+    required int id,
+    required String payload,
+  }) =>
+      (update(
+        outbox,
+      )..where((o) => o.id.equals(id) & o.state.equals('pending'))).write(
+        OutboxCompanion(
+          payload: Value(payload),
+          nextAttemptAt: const Value(0),
+          lastError: const Value(null),
+          lastStatusCode: const Value(null),
+        ),
       );
 
   Future<void> markInFlight(int id) =>

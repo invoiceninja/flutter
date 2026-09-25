@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/services.dart';
+import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -38,18 +41,68 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
   required String companyId,
   bool checkAllCompanies = false,
 }) async {
+  final services = context.read<Services>();
   final pending = await _confirmPendingRows(
     context,
     companyId: companyId,
     checkAllCompanies: checkAllCompanies,
   );
+  if (pending == _PendingChoice.cancelled) return OutboxConfirmResult.cancelled;
+  // Rows chosen for discard wait for the review below, and nothing drains
+  // meanwhile: a reconnect's drain sent what the user had just discarded.
+  // Always released — a caller may proceed and then fail to sign out.
+  final holdDrains = checkAllCompanies && pending == _PendingChoice.discard;
+  if (holdDrains) services.sync.holdDrains();
+  final OutboxConfirmResult result;
+  try {
+    result = context.mounted
+        ? await _reviewThenDiscard(
+            context,
+            services,
+            companyId: companyId,
+            pending: pending,
+            checkAllCompanies: checkAllCompanies,
+          )
+        : OutboxConfirmResult.cancelled;
+  } finally {
+    if (holdDrains) services.sync.releaseDrains();
+  }
+  // Kept after all: send them now, as the drains the review held would have.
+  if (holdDrains && result != OutboxConfirmResult.proceed) {
+    unawaited(services.sync.drainOnce(companyId: companyId));
+  }
+  return result;
+}
+
+Future<OutboxConfirmResult> _reviewThenDiscard(
+  BuildContext context,
+  Services services, {
+  required String companyId,
+  required _PendingChoice pending,
+  required bool checkAllCompanies,
+}) async {
   // A company switch keeps the database, so only a full logout can destroy
   // failed rows — and only it needs to ask about them.
-  if (pending != OutboxConfirmResult.proceed || !checkAllCompanies) {
-    return pending;
+  if (checkAllCompanies) {
+    final review = await _confirmFailedRows(context, companyId: companyId);
+    if (review != OutboxConfirmResult.proceed) return review;
   }
-  if (!context.mounted) return OutboxConfirmResult.cancelled;
-  return _confirmFailedRows(context);
+  // Nothing the user chose to discard goes until every question is answered:
+  // it used to go at once, so a Cancel in the review above cancelled the
+  // sign-out with those changes already gone.
+  if (pending == _PendingChoice.discard) {
+    await services.sync.discardPendingFor(companyId);
+    if (checkAllCompanies) {
+      // Local-only work (discardOutboxRow + dispatcher fan-outs touch Drift,
+      // never the network), so it is safe for non-active companies too.
+      for (final id in await services.sync.companiesWithActiveRows()) {
+        if (id.isNotEmpty && id != companyId) {
+          await services.sync.discardPendingFor(id);
+        }
+      }
+    }
+  }
+  return OutboxConfirmResult.proceed;
 }
 
 /// A full logout wipes the rows waiting on the user too: `dead` ones (the
@@ -61,7 +114,10 @@ Future<OutboxConfirmResult> confirmPendingOutboxIfAny(
 /// all. Ask separately, with the safe action focused: this dialog exists to
 /// catch an accidental sign-out. View cancels the sign-out and opens the
 /// Outbox, where each can be dealt with.
-Future<OutboxConfirmResult> _confirmFailedRows(BuildContext context) async {
+Future<OutboxConfirmResult> _confirmFailedRows(
+  BuildContext context, {
+  required String companyId,
+}) async {
   final services = context.read<Services>();
   final int failed;
   try {
@@ -112,23 +168,51 @@ Future<OutboxConfirmResult> _confirmFailedRows(BuildContext context) async {
     ),
   );
   if (choice == _ReviewChoice.view && context.mounted) {
-    context.go('/sync/outbox');
+    final location = await outboxLocationNeedingAttention(
+      services.sync,
+      activeCompanyId: companyId,
+    );
+    if (context.mounted) context.go(location);
   }
   return choice == _ReviewChoice.discard
       ? OutboxConfirmResult.proceed
       : OutboxConfirmResult.cancelled;
 }
 
+/// Where the sign-out review's View goes: the active company's Outbox when it
+/// holds a change that waits on the user, otherwise the Outbox of the first
+/// company that does. The review counts every company, and the Outbox shows
+/// one — so it used to open onto nothing to see.
+@visibleForTesting
+Future<String> outboxLocationNeedingAttention(
+  SyncRepository sync, {
+  required String activeCompanyId,
+}) async {
+  const here = '/sync/outbox';
+  try {
+    final ids = await sync.companiesWithAttentionRows();
+    if (ids.isEmpty || ids.contains(activeCompanyId)) return here;
+    return Uri(path: here, queryParameters: {'company': ids.first}).toString();
+  } catch (_) {
+    return here;
+  }
+}
+
 enum _ReviewChoice { cancel, view, discard }
+
+/// What the pending prompt settled on. Discard is the caller's to carry out,
+/// once every other question has been answered.
+enum _PendingChoice { proceed, cancelled, discard }
 
 /// The pending (non-`dead`) half of [confirmPendingOutboxIfAny] — sync first,
 /// discard, or cancel.
-Future<OutboxConfirmResult> _confirmPendingRows(
+Future<_PendingChoice> _confirmPendingRows(
   BuildContext context, {
   required String companyId,
   required bool checkAllCompanies,
 }) async {
   final services = context.read<Services>();
+  final router = GoRouter.maybeOf(context);
   final others = !checkAllCompanies
       ? const <String>[]
       : [
@@ -144,7 +228,7 @@ Future<OutboxConfirmResult> _confirmPendingRows(
   }
 
   var pending = await pendingEverywhere();
-  if (pending == 0) return OutboxConfirmResult.proceed;
+  if (pending == 0) return _PendingChoice.proceed;
 
   // Online happy path: try to drain silently. If everything goes through
   // we skip the dialog entirely — the warning was only useful when we had
@@ -160,10 +244,10 @@ Future<OutboxConfirmResult> _confirmPendingRows(
       // flush failed rather than have us silently swallow it.
     }
     pending = await pendingEverywhere();
-    if (pending == 0) return OutboxConfirmResult.proceed;
+    if (pending == 0) return _PendingChoice.proceed;
   }
 
-  if (!context.mounted) return OutboxConfirmResult.cancelled;
+  if (!context.mounted) return _PendingChoice.cancelled;
 
   final choice = await showDialog<_Choice>(
     context: context,
@@ -195,18 +279,9 @@ Future<OutboxConfirmResult> _confirmPendingRows(
   );
 
   if (choice == null || choice == _Choice.cancel) {
-    return OutboxConfirmResult.cancelled;
+    return _PendingChoice.cancelled;
   }
-
-  if (choice == _Choice.discard) {
-    await services.sync.discardPendingFor(companyId);
-    // Local-only work (discardOutboxRow + dispatcher fan-outs touch Drift,
-    // never the network), so it is safe for non-active companies too.
-    for (final id in others) {
-      await services.sync.discardPendingFor(id);
-    }
-    return OutboxConfirmResult.proceed;
-  }
+  if (choice == _Choice.discard) return _PendingChoice.discard;
 
   // Sync first. Drain in a bounded loop rather than a single pass: an
   // offline-created parent + its dependent sync over CONSECUTIVE passes
@@ -225,7 +300,7 @@ Future<OutboxConfirmResult> _confirmPendingRows(
       if (context.mounted) {
         Notify.error(context, context.tr('sync_failed'), error: e);
       }
-      return OutboxConfirmResult.cancelled;
+      return _PendingChoice.cancelled;
     }
     final next = await services.sync.pendingCountFor(companyId);
     if (next == 0) break; // current company drained
@@ -247,17 +322,36 @@ Future<OutboxConfirmResult> _confirmPendingRows(
     othersLeft += await services.sync.pendingCountFor(id);
   }
   if (currentLeft + othersLeft > 0) {
+    // What is left may be waiting on another change — held behind one that
+    // may already have gone through, or on a record that has not synced — and
+    // no drain sends it until the user deals with that change. Say so, and
+    // where, rather than a bare "Sync failed" every time.
+    final waiting = currentLeft == 0
+        ? 0
+        : await services.sync.pendingWaitingOnAnotherCount(companyId);
     if (context.mounted) {
-      Notify.error(
-        context,
-        context.tr(
-          currentLeft == 0 ? 'unsynced_changes_other_company' : 'sync_failed',
-        ),
-      );
+      final view = router == null || currentLeft == 0
+          ? null
+          : NotifyAction(context.tr('view'), () => router.go('/sync/outbox'));
+      if (waiting > 0 && waiting == currentLeft) {
+        Notify.warning(
+          context,
+          context.tr('sync_first_waiting_on_another_change'),
+          action: view,
+        );
+      } else {
+        Notify.error(
+          context,
+          context.tr(
+            currentLeft == 0 ? 'unsynced_changes_other_company' : 'sync_failed',
+          ),
+          action: view,
+        );
+      }
     }
-    return OutboxConfirmResult.cancelled;
+    return _PendingChoice.cancelled;
   }
-  return OutboxConfirmResult.proceed;
+  return _PendingChoice.proceed;
 }
 
 enum _Choice { cancel, discard, sync }

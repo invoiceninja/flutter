@@ -84,6 +84,19 @@ String companySafeLocation(
 ) {
   final uri = Uri.tryParse(currentLocation);
   if (uri == null || uri.path.isEmpty) return '/clients';
+  // Another company's view (`/sync/outbox?company=`) names the wrong company
+  // after a switch — or the one now active. Either way the switch lands on
+  // the plain page.
+  if (uri.queryParameters.containsKey('company')) {
+    final rest = Map.of(uri.queryParameters)..remove('company');
+    return companySafeLocation(
+      Uri(
+        path: uri.path,
+        queryParameters: rest.isEmpty ? null : rest,
+      ).toString(),
+      entityRoots,
+    );
+  }
   // Longest root first: `/settings/bank_accounts/transaction_rules` nests
   // under `/settings/bank_accounts`, and matching the shorter root first
   // would mis-strip the nested entity's own list (and its ids) to the
@@ -764,7 +777,8 @@ StatefulShellBranch _buildFixedBranch(FixedBranchKind kind) {
         routes: [
           GoRoute(
             path: '/sync/outbox',
-            builder: (context, state) => const OutboxScreen(),
+            builder: (context, state) =>
+                OutboxScreen(companyId: state.uri.queryParameters['company']),
           ),
         ],
       );

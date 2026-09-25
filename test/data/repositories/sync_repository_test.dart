@@ -221,6 +221,195 @@ void main() {
     });
   });
 
+  group('holdDrains', () {
+    // The sign-out review holds drains while the user decides: a reconnect's
+    // drain sent what they had just chosen to discard. Holds nest — a second
+    // flow's release doesn't lift the first's — and wait for nothing.
+    test('no pass starts until every hold is released', () async {
+      final disp = _ProgrammableDispatcher()..queueSuccess();
+      final engine = makeEngine(disp);
+      await enqueueClient(entityId: 'c1');
+
+      engine
+        ..holdDrains()
+        ..holdDrains();
+      await engine.drainOnce(companyId: 'co');
+      engine.releaseDrains();
+      await engine.drainOnce(companyId: 'co');
+      expect(disp.dispatches, 0, reason: 'one hold is still taken');
+
+      engine.releaseDrains();
+      await engine.drainOnce(companyId: 'co');
+      expect(disp.dispatches, 1);
+    });
+
+    test('a running pass stops at its next row', () async {
+      final sent = <String>[];
+      late SyncRepository engine;
+      engine = makeEngine(
+        _CallbackDispatcher((row) async {
+          sent.add(row.entityId);
+          engine.holdDrains(); // taken while the first row is on the wire
+        }),
+      );
+      await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+      await enqueueClient(entityId: 'c2', idempotencyKey: 'k2');
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(sent, ['c1']);
+    });
+  });
+
+  group('a create for a record that already exists is never sent again', () {
+    // The server ignores Idempotency-Key, so a create sent for a record it
+    // already holds makes that record twice. A create's id stops being a
+    // `tmp_` id only when an earlier attempt at it landed
+    // (`rewriteTempIdInPayloads`), and a tmp id maps only once one did.
+    const tmp = 'tmp_00000000-0000-4000-8000-0000000000d1';
+
+    Future<List<SyncEvent>> drainCollecting(SyncRepository engine) async {
+      final events = <SyncEvent>[];
+      final sub = engine.events.listen(events.add);
+      await engine.drainOnce(companyId: 'co');
+      await Future<void>.delayed(Duration.zero);
+      await sub.cancel();
+      return events;
+    }
+
+    Future<OutboxRow> rowOf(int id) async => (await db.outboxDao.byId(id))!;
+
+    test('a create under a real id is refused, not sent', () async {
+      final disp = _ProgrammableDispatcher();
+      final engine = makeEngine(disp);
+      final id = await enqueueClient(
+        entityId: 'c_real',
+        kind: MutationKind.create,
+      );
+
+      final events = await drainCollecting(engine);
+
+      expect(disp.dispatches, 0);
+      final row = await rowOf(id);
+      expect(row.state, 'dead');
+      expect(row.lastError, kAlreadyCreatedError);
+      expect(isCreateOfExistingRecord(row), isTrue);
+      expect(events.whereType<DeadEvent>(), hasLength(1));
+    });
+
+    test('a create whose temp id already landed is refused', () async {
+      final disp = _ProgrammableDispatcher();
+      await db.idRemapDao.remember(
+        entityType: 'client',
+        tempId: tmp,
+        realId: 'real_c1',
+        now: 0,
+      );
+      final id = await enqueueClient(entityId: tmp, kind: MutationKind.create);
+
+      await drainCollecting(makeEngine(disp));
+
+      expect(disp.dispatches, 0);
+      expect((await rowOf(id)).lastError, kAlreadyCreatedError);
+    });
+
+    test('a second create queued while the first was in flight dies instead '
+        'of making the record twice', () async {
+      // The first lands and re-keys the second to the real id; sent, it made a
+      // second record, and its landing then remapped the first record's real
+      // id onto the duplicate's.
+      var landed = 0;
+      final dispatched = <int>[];
+      final engine = makeEngine(
+        _CallbackDispatcher((row) async {
+          dispatched.add(row.id);
+          landed++;
+          final realId = 'real_$landed';
+          await db.idRemapDao.remember(
+            entityType: 'client',
+            tempId: row.entityId,
+            realId: realId,
+            now: 0,
+          );
+          await db.outboxDao.rewriteTempIdInPayloads(
+            companyId: 'co',
+            entityType: 'client',
+            tempId: row.entityId,
+            realId: realId,
+          );
+        }),
+      );
+      final first = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'k1',
+      );
+      final second = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'k2',
+      );
+
+      await engine.drainOnce(companyId: 'co');
+      await engine.drainOnce(companyId: 'co');
+
+      expect(dispatched, [first]);
+      final row = await rowOf(second);
+      expect(row.state, 'dead');
+      expect(row.entityId, 'real_1');
+      expect(
+        await db.idRemapDao.resolve(entityType: 'client', tempId: 'real_1'),
+        isNull,
+        reason: 'no real id is remapped onto a duplicate',
+      );
+    });
+
+    test('Retry of a failed create under a real id is refused again', () async {
+      final disp = _ProgrammableDispatcher();
+      final engine = makeEngine(disp);
+      final id = await enqueueClient(
+        entityId: 'c_real',
+        kind: MutationKind.create,
+      );
+      await db.outboxDao.markDead(id: id, error: 'Down', statusCode: 503);
+
+      expect(await db.outboxDao.retryDead(id: id, now: 0), isTrue);
+      await engine.drainOnce(companyId: 'co');
+
+      expect(disp.dispatches, 0);
+      expect((await rowOf(id)).state, 'dead');
+    });
+
+    test('a password supplied later does not revive it into a send', () async {
+      final disp = _ProgrammableDispatcher();
+      final engine = makeEngine(disp);
+      final id = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c_real',
+          mutationKind: MutationKind.create.wireName,
+          payload: '{}',
+          idempotencyKey: 'k',
+          nextAttemptAt: 0,
+          createdAt: 0,
+          requiresPassword: const Value(true),
+        ),
+      );
+      await db.outboxDao.markDead(
+        id: id,
+        error: 'Invalid Password',
+        statusCode: 412,
+      );
+
+      await engine.retryPasswordRows(companyId: 'co');
+      await engine.retryPasswordRows(companyId: 'co');
+
+      expect(disp.dispatches, 0);
+      expect((await rowOf(id)).state, 'dead');
+    });
+  });
+
   group('rows orphaned in flight (the app died mid-attempt)', () {
     // `in_flight` at drain start means a prior pass was interrupted. They
     // used to be re-armed unconditionally "because the idempotency key makes
@@ -644,18 +833,44 @@ void main() {
         expect(await db.outboxDao.byId(save), isNull);
       });
 
-      test('Discard makes the saves held behind it due again', () async {
+      test('Discard sends the saves held behind it', () async {
+        // Made due, they still waited for the next drain trigger — up to the
+        // periodic tick — where Resend sends them in the same pass.
         final ahead = await unconfirmedEmail();
         final save = await enqueue('c1', MutationKind.update);
-        final engine = engineFor(_ProgrammableDispatcher());
+        final disp = _ProgrammableDispatcher()..queueSuccess();
+        final engine = engineFor(disp);
         await engine.drainOnce(companyId: 'co');
+        expect(disp.dispatches, 0, reason: 'precondition: held and parked');
 
         await engine.discardOutboxRow(ahead);
+        // No explicit drain: the discard starts one.
+        for (var i = 0; i < 50 && disp.dispatches == 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
 
-        final row = (await db.outboxDao.byId(save))!;
-        expect(row.state, 'pending');
-        expect(row.nextAttemptAt, lessThanOrEqualTo(1000));
-        expect(row.lastError, isNull);
+        expect(disp.dispatches, 1);
+        expect(await db.outboxDao.byId(save), isNull);
+      });
+
+      test('…for the active company only: another company\'s drain can\'t '
+          'send, and would surface its events here', () async {
+        final ahead = await unconfirmedEmail();
+        final disp = _ProgrammableDispatcher();
+        final engine = engineFor(disp);
+        // A drain of this company would fail this change — its record was
+        // discarded before it synced — and say so, to a user looking at
+        // another company.
+        final orphan = await enqueue('tmp_orphan', MutationKind.update);
+        engine.activeCompanyId = () => 'co_other';
+
+        await engine.discardOutboxRow(ahead);
+        for (var i = 0; i < 20; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+
+        expect(events.whereType<DeadEvent>(), isEmpty);
+        expect((await db.outboxDao.byId(orphan))?.state, 'pending');
       });
 
       test('awaitRow reports a row that went unconfirmed itself', () async {
@@ -1844,6 +2059,60 @@ void main() {
     Future<OutboxRow?> rawRow(int id) =>
         (db.select(db.outbox)..where((o) => o.id.equals(id))).getSingleOrNull();
 
+    /// A never-synced client's create, and an edit of another record that
+    /// refers to it — which the discard fails.
+    Future<({int parent, int dependent})> parentAndDependent() async {
+      const tmp = 'tmp_00000000-0000-4000-8000-0000000000f1';
+      final parent = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'kp',
+      );
+      final dependent = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c_real',
+          mutationKind: MutationKind.update.wireName,
+          payload: jsonEncode({'id': 'c_real', 'parent_id': tmp}),
+          idempotencyKey: 'kd',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+      return (parent: parent, dependent: dependent);
+    }
+
+    test('discarding a change of another company fails what depends on it '
+        'without a word here — its Outbox shows them, and this one\'s View '
+        'would open the wrong queue', () async {
+      final events = <SyncEvent>[];
+      final engine = makeEngine(_ProgrammableDispatcher())
+        ..activeCompanyId = (() => 'co_active');
+      engine.events.listen(events.add);
+      final (:parent, :dependent) = await parentAndDependent();
+
+      await engine.discardOutboxRow(parent);
+      await Future<void>.delayed(Duration.zero);
+
+      expect((await rawRow(dependent))?.state, 'dead');
+      expect(events.whereType<DeadEvent>(), isEmpty);
+    });
+
+    test('…while in the active company\'s own Outbox it is said', () async {
+      final events = <SyncEvent>[];
+      final engine = makeEngine(_ProgrammableDispatcher())
+        ..activeCompanyId = (() => 'co');
+      engine.events.listen(events.add);
+      final (:parent, :dependent) = await parentAndDependent();
+
+      await engine.discardOutboxRow(parent);
+      await Future<void>.delayed(Duration.zero);
+
+      expect((await rawRow(dependent))?.state, 'dead');
+      expect(events.whereType<DeadEvent>(), hasLength(1));
+    });
+
     SyncRepository engineWith(_TestRepo repo) => SyncRepository(
       db: db,
       registry: _registryWith(_RepoDeleteDispatcher(repo)),
@@ -1874,6 +2143,48 @@ void main() {
         isNull,
         reason: 'follow-up rows for the gone entity go too',
       );
+    });
+
+    test('a ghost create is not deleted while another attempt at it is on '
+        'the wire — only the discarded row goes', () async {
+      // Two creates of one never-synced record: a re-save queued while the
+      // first was in flight. Deleting the record and every row for it left
+      // the in-flight request landing with nothing behind it — and what had
+      // been made against the record was already gone.
+      final repo = _TestRepo(db: db);
+      final engine = engineWith(repo);
+      const tmp = 'tmp_00000000-0000-4000-8000-0000000000d2';
+      final inFlight = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'k1',
+      );
+      await db.outboxDao.markInFlight(inFlight);
+      final second = await enqueueClient(
+        entityId: tmp,
+        kind: MutationKind.create,
+        idempotencyKey: 'k2',
+      );
+      final dependent = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'tmp_00000000-0000-4000-8000-0000000000d3',
+          mutationKind: 'create',
+          payload: jsonEncode({'parent': tmp}),
+          idempotencyKey: 'k3',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+
+      final removed = await engine.discardOutboxRow(second);
+
+      expect(removed, isFalse, reason: 'the record stays');
+      expect(await rawRow(second), isNull);
+      expect(await rawRow(inFlight), isNotNull);
+      expect(await rawRow(dependent), isNotNull);
+      expect(repo.localDeletes, isEmpty);
     });
 
     test('a ghost create whose local delete throws still drops its outbox '
@@ -2440,6 +2751,114 @@ void main() {
         expect(result.outcome, SyncRowOutcome.timeout);
       });
 
+      test('is reported when the parent waits on a grandparent that waits on '
+          'the user', () async {
+        // The parent's own create is queued, but it references a record whose
+        // create failed: it will never send by itself, and neither will this.
+        const grandparent = 'tmp_00000000-0000-4000-8000-0000000000c0';
+        await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: grandparent,
+            mutationKind: 'create',
+            payload: '{}',
+            idempotencyKey: 'k-grandparent',
+            nextAttemptAt: 0,
+            createdAt: 0,
+            state: const Value('dead'),
+          ),
+        );
+        await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: parent,
+            mutationKind: 'create',
+            payload: jsonEncode({'parent_id': grandparent}),
+            idempotencyKey: 'k-parent',
+            nextAttemptAt: 1 << 50,
+            createdAt: 0,
+          ),
+        );
+        final rowId = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: child,
+            mutationKind: 'create',
+            payload: jsonEncode({'parent_id': parent}),
+            idempotencyKey: 'k-child',
+            nextAttemptAt: 0,
+            createdAt: 0,
+          ),
+        );
+        final disp = _ProgrammableDispatcher();
+
+        final result = await makeEngine(disp).awaitRow(
+          rowId: rowId,
+          companyId: 'co',
+          timeout: const Duration(milliseconds: 150),
+          pollInterval: const Duration(milliseconds: 5),
+        );
+
+        expect(result.outcome, SyncRowOutcome.serverError);
+        expect(disp.dispatches, 0);
+      });
+
+      test('is reported when the parent\'s create is held behind one that may '
+          'already have gone through', () async {
+        await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: parent,
+            mutationKind: 'create',
+            payload: '{}',
+            idempotencyKey: 'k-first',
+            nextAttemptAt: 0,
+            createdAt: 0,
+            state: const Value('unconfirmed'),
+          ),
+        );
+        await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: parent,
+            mutationKind: 'create',
+            payload: '{}',
+            idempotencyKey: 'k-second',
+            nextAttemptAt: 1 << 50,
+            createdAt: 0,
+            lastError: const Value(kHeldBehindUnconfirmedError),
+          ),
+        );
+        final rowId = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: child,
+            mutationKind: 'create',
+            payload: jsonEncode({'parent_id': parent}),
+            idempotencyKey: 'k-child',
+            nextAttemptAt: 0,
+            createdAt: 0,
+          ),
+        );
+        final disp = _ProgrammableDispatcher();
+
+        final result = await makeEngine(disp).awaitRow(
+          rowId: rowId,
+          companyId: 'co',
+          timeout: const Duration(milliseconds: 150),
+          pollInterval: const Duration(milliseconds: 5),
+        );
+
+        expect(result.outcome, SyncRowOutcome.serverError);
+        expect(disp.dispatches, 0);
+      });
+
       test('is reported when the parent waits on the user', () async {
         // A dead parent, or one that may already have gone through, never
         // lands by itself: waiting it out would claim "saving in background"
@@ -2672,6 +3091,83 @@ void main() {
       expect(dispatched['tags'], ['keep']);
       final taskRow = await db.outboxDao.byId(taskId);
       expect(taskRow, isNull, reason: 'task drained successfully, not dead');
+    });
+
+    test('a dependent parked on the tag goes at once once the tag is '
+        'stripped — it no longer waits on anything', () async {
+      // An earlier pass parked the task behind the unsynced tag. Stripped of
+      // it, the task sat out the rest of its minute, and a form awaiting it
+      // reported "The server rejected this save" meanwhile.
+      const tag = 'tmp_00000000-0000-4000-8000-0000000000e1';
+      final disp = _ProgrammableDispatcher()
+        ..queueThrow(
+          const ValidationException('name has already been taken', {}),
+        )
+        ..queueSuccess();
+      final engine = SyncRepository(
+        db: db,
+        registry: EntityRegistry({
+          EntityType.tag: EntityHandlers(
+            type: EntityType.tag,
+            wireName: 'tag',
+            apiPath: '/api/v1/tags',
+            routePath: '/settings/tags',
+            icon: Icons.label,
+            dispatcher: disp,
+          ),
+          EntityType.task: EntityHandlers(
+            type: EntityType.task,
+            wireName: 'task',
+            apiPath: '/api/v1/tasks',
+            routePath: '/tasks',
+            icon: Icons.task,
+            dispatcher: disp,
+          ),
+        }),
+        now: () => DateTime.fromMillisecondsSinceEpoch(1000),
+      );
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'tag',
+          entityId: tag,
+          mutationKind: MutationKind.create.wireName,
+          payload: jsonEncode({'name': 'Urgent'}),
+          idempotencyKey: 'kt',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+      final taskId = await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'task',
+          entityId: 'task1',
+          mutationKind: MutationKind.update.wireName,
+          payload: jsonEncode({
+            'id': 'task1',
+            'tags': [tag, 'keep'],
+          }),
+          idempotencyKey: 'kk',
+          nextAttemptAt: 1000 + 60000,
+          createdAt: 1,
+          lastError: const Value(kWaitingForReferencedRecordError),
+        ),
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      final task = await db.outboxDao.byId(taskId);
+      final sent = disp.dispatches == 2;
+      expect(
+        sent || (task?.nextAttemptAt == 0 && task?.lastError == null),
+        isTrue,
+        reason: 'sent at once, or due at once',
+      );
+      if (task != null) {
+        final payload = jsonDecode(task.payload) as Map<String, dynamic>;
+        expect(payload['tags'], ['keep']);
+      }
     });
 
     test('marks the tag own follow-up rows dead (rename/archive) instead of '

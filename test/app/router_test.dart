@@ -98,6 +98,18 @@ void main() {
   });
 
   group('companySafeLocation', () {
+    test('drops another company\'s view — after a switch it names the wrong '
+        'company, or the one now active', () {
+      expect(
+        companySafeLocation('/sync/outbox?company=co2', _testRoots),
+        '/sync/outbox',
+      );
+      expect(
+        companySafeLocation('/sync/outbox?company=co2&x=1', _testRoots),
+        '/sync/outbox?x=1',
+      );
+    });
+
     test('passes /dashboard through unchanged', () {
       expect(companySafeLocation('/dashboard', _testRoots), '/dashboard');
     });

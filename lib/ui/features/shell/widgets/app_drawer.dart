@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:admin/app/entity_modules.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/shell/branch_company_gate.dart';
@@ -55,7 +56,10 @@ class AppDrawer extends StatelessWidget {
           );
           nav.goBranch(
             index,
-            initialLocation: staleCompanyStack || index == nav.currentIndex,
+            initialLocation:
+                staleCompanyStack ||
+                index == nav.currentIndex ||
+                entersAtInitialLocation(kBranchOrder.elementAtOrNull(index)),
           );
         },
       ),

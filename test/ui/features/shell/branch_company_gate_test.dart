@@ -1,7 +1,34 @@
+import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/shell/branch_company_gate.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('entersAtInitialLocation', () {
+    test('the Outbox is always entered at its first page — the page it was '
+        'left on can be another company\'s queue', () {
+      // The sign-out review's View leaves the Outbox branch on
+      // `/sync/outbox?company=<other>`, and a later tap on Outbox restored
+      // it: that company's queue, beside a badge counting this one's.
+      expect(
+        entersAtInitialLocation(const FixedBranch(FixedBranchKind.outbox)),
+        isTrue,
+      );
+    });
+
+    test('every other branch comes back where it was left', () {
+      for (final kind in FixedBranchKind.values) {
+        if (kind == FixedBranchKind.outbox) continue;
+        expect(entersAtInitialLocation(FixedBranch(kind)), isFalse);
+      }
+      expect(
+        entersAtInitialLocation(const EntityBranch(EntityType.client)),
+        isFalse,
+      );
+      expect(entersAtInitialLocation(null), isFalse);
+    });
+  });
+
   group('BranchCompanyGate', () {
     test('first entry into a branch never resets', () {
       final gate = BranchCompanyGate();

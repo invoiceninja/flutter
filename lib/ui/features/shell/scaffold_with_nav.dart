@@ -261,7 +261,9 @@ class _ScaffoldWithNavState extends State<ScaffoldWithNav> {
     widget.navigationShell.goBranch(
       index,
       initialLocation:
-          staleCompanyStack || index == widget.navigationShell.currentIndex,
+          staleCompanyStack ||
+          index == widget.navigationShell.currentIndex ||
+          entersAtInitialLocation(kBranchOrder.elementAtOrNull(index)),
     );
   }
 

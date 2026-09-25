@@ -133,6 +133,26 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return (await q.get()).isNotEmpty;
   }
 
+  /// Whether record [entityId] has a `create` row still on its way — `pending`
+  /// or `in_flight` — rather than one that is `dead` or `unconfirmed`, which
+  /// waits for the user. `SyncRepository.awaitRow` uses it to tell a save that
+  /// sends once its parent lands from one that waits on the user first.
+  Future<bool> hasLiveCreateRowFor({
+    required String companyId,
+    required String entityId,
+  }) async {
+    final q = select(outbox)
+      ..where(
+        (o) =>
+            o.companyId.equals(companyId) &
+            o.entityId.equals(entityId) &
+            o.mutationKind.equals(MutationKind.create.wireName) &
+            o.state.isIn(const ['pending', 'in_flight']),
+      )
+      ..limit(1);
+    return (await q.get()).isNotEmpty;
+  }
+
   /// Delete every `pending` row for [companyId] in one statement. The
   /// "Discard" flows now route through [pendingRowsForCompany] +
   /// `SyncRepository.discardOutboxRow` (so ghost creates also drop their
@@ -248,6 +268,34 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
       ..limit(1);
     return (await q.getSingleOrNull()) != null;
   }
+
+  /// Make due now — error cleared — the `pending` rows of one record newer than
+  /// [afterId] that the drain parked behind an `unconfirmed` row with
+  /// [heldError], once that row is resent or discarded: they wait on nothing
+  /// else. Matched by the error so a row in its own backoff keeps it.
+  Future<int> rearmHeldBehind({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+    required int afterId,
+    required String heldError,
+    required int now,
+  }) =>
+      (update(outbox)..where(
+            (o) =>
+                o.companyId.equals(companyId) &
+                o.entityType.equals(entityType) &
+                o.entityId.equals(entityId) &
+                o.id.isBiggerThanValue(afterId) &
+                o.state.equals('pending') &
+                o.lastError.equals(heldError),
+          ))
+          .write(
+            OutboxCompanion(
+              nextAttemptAt: Value(now),
+              lastError: const Value(null),
+            ),
+          );
 
   /// The newest `unconfirmed` row for the same record that is older than row
   /// [beforeId] — the one holding that row back
@@ -442,6 +490,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// [afterRowId] narrows it to rows NEWER than that one — what a server copy
   /// applied while dispatching row [afterRowId] must not overwrite
   /// (`BaseEntityRepository.hasNewerLocalEdit`).
+  ///
+  /// A document upload is no edit ([isDocumentUploadRow]): the company's is an
+  /// `update` row, and counting it kept every refresh of the company — Check's
+  /// included — from landing while an upload waited.
   Future<bool> hasEditRowForEntity({
     required String companyId,
     required String entityType,
@@ -458,6 +510,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
               MutationKind.create.wireName,
               MutationKind.update.wireName,
             ]) &
+            _isDocumentUpload(o).not() &
             (afterRowId == null
                 ? const Constant(true)
                 : o.id.isBiggerThanValue(afterRowId)),
@@ -499,7 +552,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// `is_dirty` is safe — only when NO other pending/in_flight outbox row
   /// for that exact record remains (else clearing would un-protect a still-
   /// queued edit from the next server refresh). An `unconfirmed` row counts:
-  /// the user may still send it again.
+  /// the user may still send it again. A document upload does not
+  /// ([isDocumentUploadRow]): it writes nothing locally and sets no flag, so it
+  /// has none to protect — and an unconfirmed one waits on the user, which
+  /// kept a discarded edit's flag, and its stale value, indefinitely.
   Future<bool> hasActiveRowsForEntity({
     required String companyId,
     required String entityType,
@@ -511,7 +567,8 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
             o.companyId.equals(companyId) &
             o.entityType.equals(entityType) &
             o.entityId.equals(entityId) &
-            o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']),
+            o.state.isIn(const ['pending', 'in_flight', 'unconfirmed']) &
+            _isDocumentUpload(o).not(),
       )
       ..limit(1);
     return (await q.getSingleOrNull()) != null;

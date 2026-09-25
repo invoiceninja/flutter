@@ -44,6 +44,12 @@ const Duration kOldFailureAge = Duration(days: 90);
 /// nothing ran.
 const Set<int> kOutcomeUnknownStatuses = {500, 502, 504, 520, 524};
 
+/// The `last_error` of a row the drain parked behind an `unconfirmed` row of
+/// the same record — shown in the Outbox, and how Resend and Discard of that
+/// row find the ones to re-arm (`OutboxDao.rearmHeldBehind`).
+const String kHeldBehindUnconfirmedError =
+    'Waiting for an earlier change that may already have been sent';
+
 /// Terminal state observed by [SyncRepository.awaitRow] for one outbox row.
 enum SyncRowOutcome {
   /// Row was successfully drained (server returned 2xx; the row was deleted).
@@ -318,9 +324,25 @@ class SyncRepository {
       id: id,
       now: _now().millisecondsSinceEpoch,
     );
-    if (moved) unawaited(drainOnce(companyId: row.companyId));
+    if (moved) {
+      // The saves held behind it go in the same pass, after it.
+      await _rearmHeldBehind(row);
+      unawaited(drainOnce(companyId: row.companyId));
+    }
     return moved;
   }
+
+  /// Make the rows the drain parked behind unconfirmed [row] due now, once it
+  /// is back in line or gone — they wait on nothing else. Only those rows:
+  /// matched by the error the drain parked them with.
+  Future<void> _rearmHeldBehind(OutboxRow row) => db.outboxDao.rearmHeldBehind(
+    companyId: row.companyId,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    afterId: row.id,
+    heldError: kHeldBehindUnconfirmedError,
+    now: _now().millisecondsSinceEpoch,
+  );
 
   /// Discard one outbox row. If it's a never-synced offline `create`
   /// (`tmp_` id, no `id_remap` entry yet) the orphaned local Drift record
@@ -366,6 +388,7 @@ class SyncRepository {
     if (!isGhostCreate) {
       await db.outboxDao.deleteRow(id);
       await _reconcileDiscardedDirty(row);
+      if (row.state == 'unconfirmed') await _rearmHeldBehind(row);
       return false;
     }
     // Never synced: drop the ghost local row, then every outbox row for
@@ -765,7 +788,18 @@ class SyncRepository {
           }
         }
         final nowMs = _now().millisecondsSinceEpoch;
-        if (row.state == 'pending' && row.nextAttemptAt > nowMs) {
+        // Not when the tmp_ guard parked it behind a parent create still on
+        // its way: nothing was sent, and it goes the moment the parent lands
+        // (rewriteTempIdInPayloads re-arms it) — so keep waiting, into the
+        // timeout's "saving in background" if need be. Reported as a failure,
+        // it read "The server rejected this save". A parent that is dead or may
+        // already have gone through waits for the user, and so does the save
+        // behind it, so that is still reported. A dispatched row never carries
+        // an unresolved token (the drain heals or defers first), so every real
+        // backoff still lands here.
+        if (row.state == 'pending' &&
+            row.nextAttemptAt > nowMs &&
+            !await _waitsOnLandingParent(row)) {
           // A retry has been scheduled into the future — this is a transient
           // server/network failure. Surface inline; the outbox will keep
           // retrying in the background per its backoff if the user navigates
@@ -1002,9 +1036,7 @@ class SyncRepository {
             nextAttemptAt:
                 _now().millisecondsSinceEpoch +
                 const Duration(minutes: 1).inMilliseconds,
-            error:
-                'Waiting for an earlier change that may already have been '
-                'sent',
+            error: kHeldBehindUnconfirmedError,
           );
         }
         continue;
@@ -1213,6 +1245,29 @@ class SyncRepository {
       tokens.add(t);
     }
     return tokens;
+  }
+
+  /// Whether [row] is parked only behind `tmp_` records whose creates are
+  /// still on their way ([OutboxDao.hasLiveCreateRowFor]) or have just landed,
+  /// so it sends once they do. False for a row with no such reference, and for
+  /// one whose parent create is dead or unconfirmed: that one waits on the
+  /// user.
+  Future<bool> _waitsOnLandingParent(OutboxRow row) async {
+    final tokens = _unresolvedTempRefTokens(row);
+    if (tokens.isEmpty) return false;
+    for (final token in tokens) {
+      final live = await db.outboxDao.hasLiveCreateRowFor(
+        companyId: row.companyId,
+        entityId: token,
+      );
+      // A parent that landed after [row] was read: its `id_remap` entry is
+      // written in the transaction that re-arms [row], before its own outbox
+      // row is deleted — so its row can already be gone.
+      if (!live && await db.idRemapDao.resolveAnyType(token) == null) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// [isOnline], degrading every failure to "online" — only a positive

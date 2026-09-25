@@ -449,9 +449,40 @@ void main() {
       expect(stillDirty.isDirty, isTrue);
     });
   });
+
+  test('refreshByIds re-fetches even a cached group setting — what Check on an '
+      'unconfirmed group setting change relies on', () async {
+    // The base default is a no-op, so Check's refresh of a group setting whose
+    // document upload may have gone through fetched nothing, and the user
+    // could not tell before choosing Resend.
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final api = _GetGroupSettingsApi()
+      ..byId['x1'] = const GroupSettingApi(id: 'x1', name: 'VIP');
+    final repo = GroupSettingRepository(db: db, api: api);
+    await repo.refreshByIds(companyId: 'co', ids: ['x1']);
+    api.byId['x1'] = const GroupSettingApi(id: 'x1', name: 'VIP Gold');
+
+    await repo.refreshByIds(companyId: 'co', ids: ['x1']);
+
+    final row = await repo.watch(companyId: 'co', id: 'x1').first;
+    expect(row?.name, 'VIP Gold');
+  });
 }
 
 class _FakeGroupSettingsApi implements GroupSettingsApi {
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Serves single-id GETs from a map the test can change between calls.
+class _GetGroupSettingsApi implements GroupSettingsApi {
+  final Map<String, GroupSettingApi> byId = {};
+
+  @override
+  Future<GroupSettingItemApi> get(String id) async =>
+      GroupSettingItemApi(data: byId[id]!);
+
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

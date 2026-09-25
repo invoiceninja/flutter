@@ -624,6 +624,40 @@ void main() {
         );
       });
 
+      test('Resend makes the saves held behind it due again', () async {
+        // A held save is parked a minute at a time. Left parked, it sat out
+        // that minute — and the next drain tick after it — once the change it
+        // waited on was resent, instead of going in the same pass.
+        final ahead = await unconfirmedEmail();
+        final save = await enqueue('c1', MutationKind.update);
+        final disp = _ProgrammableDispatcher()
+          ..queueSuccess()
+          ..queueSuccess();
+        final engine = engineFor(disp);
+        await engine.drainOnce(companyId: 'co');
+        expect(disp.dispatches, 0, reason: 'precondition: held and parked');
+
+        expect(await engine.resendUnconfirmed(ahead), isTrue);
+        await engine.drainOnce(companyId: 'co');
+
+        expect(disp.dispatches, 2, reason: 'the resent change, then the save');
+        expect(await db.outboxDao.byId(save), isNull);
+      });
+
+      test('Discard makes the saves held behind it due again', () async {
+        final ahead = await unconfirmedEmail();
+        final save = await enqueue('c1', MutationKind.update);
+        final engine = engineFor(_ProgrammableDispatcher());
+        await engine.drainOnce(companyId: 'co');
+
+        await engine.discardOutboxRow(ahead);
+
+        final row = (await db.outboxDao.byId(save))!;
+        expect(row.state, 'pending');
+        expect(row.nextAttemptAt, lessThanOrEqualTo(1000));
+        expect(row.lastError, isNull);
+      });
+
       test('awaitRow reports a row that went unconfirmed itself', () async {
         final id = await enqueue('tmp_c1', MutationKind.create);
         final engine = engineFor(sentThen(const NetworkException('reset')));
@@ -2312,6 +2346,112 @@ void main() {
 
       expect(result.outcome, SyncRowOutcome.serverError);
       expect(result.message, contains('Connection lost'));
+    });
+
+    group('a save parked behind an unsynced parent', () {
+      const parent = 'tmp_00000000-0000-4000-8000-0000000000c1';
+      const child = 'tmp_00000000-0000-4000-8000-0000000000c2';
+
+      /// Queue the parent create in [state] — `pending` parked far ahead, so
+      /// it stays on its way without sending — then await a save that
+      /// references it.
+      Future<(SyncRowResult, _ProgrammableDispatcher)> awaitChild(
+        String state,
+      ) async {
+        await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: parent,
+            mutationKind: 'create',
+            payload: jsonEncode({'id': parent}),
+            idempotencyKey: 'k-parent',
+            nextAttemptAt: state == 'pending' ? 1 << 50 : 0,
+            createdAt: 0,
+            state: Value(state),
+          ),
+        );
+        final rowId = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: child,
+            mutationKind: 'create',
+            payload: jsonEncode({'id': child, 'parent_id': parent}),
+            idempotencyKey: 'k-child',
+            nextAttemptAt: 0,
+            createdAt: 0,
+          ),
+        );
+        final disp = _ProgrammableDispatcher();
+        final result = await makeEngine(disp).awaitRow(
+          rowId: rowId,
+          companyId: 'co',
+          timeout: const Duration(milliseconds: 150),
+          pollInterval: const Duration(milliseconds: 5),
+        );
+        return (result, disp);
+      }
+
+      test(
+        'is not reported as failed while the parent is on its way',
+        () async {
+          // The tmp_ guard parks it until the parent create lands, and it goes
+          // the moment that happens (rewriteTempIdInPayloads re-arms it). It
+          // used to come back as serverError — "The server rejected this save"
+          // — though nothing had been sent.
+          final (result, disp) = await awaitChild('pending');
+
+          expect(result.outcome, SyncRowOutcome.timeout);
+          expect(disp.dispatches, 0, reason: 'nothing was sent');
+        },
+      );
+
+      test('is not reported once the parent has just landed', () async {
+        // Read before the landing, the save still carries the parent's temp
+        // id while the parent's own row is already gone: the landing wrote its
+        // id_remap entry in the transaction that re-armed the save.
+        await db.idRemapDao.remember(
+          entityType: 'client',
+          tempId: parent,
+          realId: 'c_real',
+          now: 0,
+        );
+        final rowId = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: child,
+            mutationKind: 'create',
+            payload: jsonEncode({'id': child, 'parent_id': parent}),
+            idempotencyKey: 'k-child',
+            nextAttemptAt: 1 << 50,
+            createdAt: 0,
+          ),
+        );
+
+        final result = await makeEngine(_ProgrammableDispatcher()).awaitRow(
+          rowId: rowId,
+          companyId: 'co',
+          timeout: const Duration(milliseconds: 150),
+          pollInterval: const Duration(milliseconds: 5),
+        );
+
+        expect(result.outcome, SyncRowOutcome.timeout);
+      });
+
+      test('is reported when the parent waits on the user', () async {
+        // A dead parent, or one that may already have gone through, never
+        // lands by itself: waiting it out would claim "saving in background"
+        // for a save that goes nowhere until the user acts.
+        for (final state in ['dead', 'unconfirmed']) {
+          await db.delete(db.outbox).go();
+          final (result, disp) = await awaitChild(state);
+
+          expect(result.outcome, SyncRowOutcome.serverError, reason: state);
+          expect(disp.dispatches, 0, reason: state);
+        }
+      });
     });
 
     test('returns timeout when the deadline elapses while the row is still '

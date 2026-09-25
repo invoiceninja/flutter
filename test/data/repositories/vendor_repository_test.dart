@@ -426,6 +426,28 @@ void main() {
       expect(api.getCalls, 1);
     });
 
+    test('refreshByIds re-fetches even a cached vendor — what Check on an '
+        'unconfirmed vendor change relies on', () async {
+      // The base default is a no-op, so Check's refresh of a vendor whose
+      // document upload may have gone through fetched nothing, and the user
+      // could not tell before choosing Resend.
+      final api = _GetVendorsApi({
+        'v1': VendorApi(id: 'v1', name: 'Acme', updatedAt: 1700000000),
+      });
+      final repo = VendorRepository(db: db, api: api);
+      await repo.ensureLoaded(companyId: 'co', id: 'v1');
+      api.byId['v1'] = VendorApi(
+        id: 'v1',
+        name: 'Acme Ltd',
+        updatedAt: 1700000001,
+      );
+
+      await repo.refreshByIds(companyId: 'co', ids: ['v1']);
+
+      final v = await repo.watch(companyId: 'co', id: 'v1').first;
+      expect(v?.name, 'Acme Ltd');
+    });
+
     test('already cached → no second network fetch', () async {
       final api = _GetVendorsApi({
         'v1': VendorApi(id: 'v1', name: 'Acme', updatedAt: 1700000000),
@@ -512,15 +534,15 @@ class _FakeVendorsApi implements VendorsApi {
 /// Fake that serves single-id GETs for the `ensureLoaded` tests and
 /// counts calls so dedupe / negative-cache behaviour is observable.
 class _GetVendorsApi implements VendorsApi {
-  _GetVendorsApi(this._byId);
+  _GetVendorsApi(Map<String, VendorApi> byId) : byId = {...byId};
 
-  final Map<String, VendorApi> _byId;
+  final Map<String, VendorApi> byId;
   int getCalls = 0;
 
   @override
   Future<VendorItemApi> get(String id) async {
     getCalls++;
-    final v = _byId[id];
+    final v = byId[id];
     if (v == null) throw const NotFoundException('404 — vendor not found');
     return VendorItemApi(data: v);
   }

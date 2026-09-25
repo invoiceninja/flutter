@@ -159,6 +159,28 @@ class GroupSettingRepository
         fetchPage: ensurePageLoaded,
       );
 
+  /// Force-refetch [ids], dirty-preserving — Check on a change that may have
+  /// reached the server, and the re-fetch after a write whose reply was lost
+  /// (`SyncRepository.refreshRecord`). The base default is a no-op, so both
+  /// fetched nothing here. See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.groupSettingDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   /// Create a new group offline. Returns the group with its tmp id.
   Future<SaveResult<GroupSetting>> create({
     required String companyId,

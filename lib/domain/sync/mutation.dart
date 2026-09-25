@@ -583,11 +583,13 @@ const String kUploadDocumentActionJson = '"_action":"upload_document"';
 /// `document_upload`, or the company's `update` carrying
 /// [kUploadDocumentActionJson]. It writes no field of the record, so it can't
 /// overwrite a later save — it holds none back
-/// (`OutboxDao.hasEarlierActiveRowForEntity`, and the drain's in-pass latch)
-/// and is no pending edit a refresh must defer to (`OutboxDao.hasActiveRowsFor`).
-/// Uploads are the likeliest rows to go `unconfirmed`, and one used to hold
-/// every later save of its record until the user dealt with it. The DAO's SQL
-/// twin is `OutboxDao._isDocumentUpload` — keep the two in step.
+/// (`OutboxDao.hasEarlierActiveRowForEntity`, and the drain's in-pass latch),
+/// is no pending edit a refresh must defer to (`OutboxDao.hasActiveRowsFor`,
+/// `hasEditRowForEntity`), and owns no dirty flag
+/// (`OutboxDao.hasActiveRowsForEntity`). Uploads are the likeliest rows to go
+/// `unconfirmed`, and one used to hold every later save of its record until
+/// the user dealt with it. The DAO's SQL twin is `OutboxDao._isDocumentUpload`
+/// — keep the two in step.
 bool isDocumentUploadRow({
   required String mutationKind,
   required String payload,

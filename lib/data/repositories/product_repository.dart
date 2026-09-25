@@ -593,6 +593,28 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
         ),
       );
 
+  /// Force-refetch [ids], dirty-preserving — Check on a change that may have
+  /// reached the server, and the re-fetch after a write whose reply was lost
+  /// (`SyncRepository.refreshRecord`). The base default is a no-op, so both
+  /// fetched nothing here. See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.productDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   /// The row's `documents` column decoded, or null when the row isn't cached
   /// locally, which skips the write. Write-avoidance, not correctness — see
   /// [applyDocumentChangedTemplate].

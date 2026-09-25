@@ -615,6 +615,72 @@ void main() {
       },
     );
 
+    test('a document upload is no edit of its record', () async {
+      // An upload writes no field of its record and sets no dirty flag, so it
+      // is neither a newer edit a server copy must yield to nor a reason to
+      // keep a discarded edit's flag. Counting the company's own upload kept
+      // Check's refresh of the company from ever landing: the Documents tab
+      // stayed stale, and the user was steered into uploading it again.
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'company',
+          entityId: 'co',
+          mutationKind: 'update',
+          payload: jsonEncode({
+            '_action': 'upload_document',
+            'file_name': 'contract.pdf',
+          }),
+          idempotencyKey: 'k-company-upload',
+          nextAttemptAt: 0,
+          createdAt: 0,
+          state: const Value('unconfirmed'),
+        ),
+      );
+      await unconfirmed(kind: 'document_upload', key: 'k-client-upload');
+
+      expect(
+        await db.outboxDao.hasEditRowForEntity(
+          companyId: 'co',
+          entityType: 'company',
+          entityId: 'co',
+        ),
+        isFalse,
+      );
+      expect(
+        await db.outboxDao.hasActiveRowsForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isFalse,
+      );
+
+      // A real edit of either still counts.
+      await enqueue(
+        entityType: 'company',
+        entityId: 'co',
+        idempotencyKey: 'k-settings',
+      );
+      await enqueue(idempotencyKey: 'k-client-edit');
+      expect(
+        await db.outboxDao.hasEditRowForEntity(
+          companyId: 'co',
+          entityType: 'company',
+          entityId: 'co',
+        ),
+        isTrue,
+      );
+      expect(
+        await db.outboxDao.hasActiveRowsForEntity(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+        ),
+        isTrue,
+      );
+    });
+
     test('markUnconfirmed parks a row; resendUnconfirmed puts only an '
         'unconfirmed one back in line, same key, fresh budget', () async {
       final id = await enqueue(idempotencyKey: 'same-key');

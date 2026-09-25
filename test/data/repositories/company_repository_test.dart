@@ -597,6 +597,53 @@ void main() {
       expect(row.industryId, '11');
     });
 
+    test(
+      'lands while the company has only a document upload waiting',
+      () async {
+        // The upload writes no company field, so it is no newer edit for the
+        // echo guard to protect. Counting it kept Check's refresh from ever
+        // landing on a company whose upload may have gone through.
+        const companyId = 'co';
+        await seedCompany(companyId);
+        await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: companyId,
+            entityType: kCompanyWireName,
+            entityId: companyId,
+            mutationKind: MutationKind.update.wireName,
+            payload: jsonEncode({
+              '_action': 'upload_document',
+              'file_name': 'contract.pdf',
+            }),
+            idempotencyKey: 'k-upload',
+            nextAttemptAt: 0,
+            createdAt: 0,
+            state: const Value('unconfirmed'),
+          ),
+        );
+        final repo = CompanyRepository(
+          db: db,
+          api: _StubCompaniesApi(
+            CompanyItemApi(
+              data: CompanyApi(
+                id: companyId,
+                name: 'Acme',
+                settings: const {'name': 'Acme Inc'},
+                updatedAt: 1900000000,
+              ),
+            ),
+          ),
+          uuid: const Uuid(),
+        );
+
+        await repo.refresh(companyId);
+
+        final row = await db.companiesDao.byId(companyId);
+        final settings = jsonDecode(row!.settings) as Map<String, dynamic>;
+        expect(settings['name'], 'Acme Inc');
+      },
+    );
+
     test('a successful refresh releases the Account-Management control gate '
         '(canonicalFetched) for that company (Finding 40)', () async {
       const companyId = 'co';

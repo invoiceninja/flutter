@@ -497,6 +497,25 @@ void main() {
       });
     });
   });
+
+  test('refreshByIds re-fetches even a cached product — what Check on an '
+      'unconfirmed product change relies on', () async {
+    // The base default is a no-op, so Check's refresh of a product whose
+    // document upload may have gone through fetched nothing, and the user
+    // could not tell before choosing Resend.
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final api = _GetProductsApi()
+      ..byId['x1'] = const ProductApi(id: 'x1', productKey: 'Widget');
+    final repo = ProductRepository(db: db, api: api);
+    await repo.refreshByIds(companyId: 'co', ids: ['x1']);
+    api.byId['x1'] = const ProductApi(id: 'x1', productKey: 'Widget Pro');
+
+    await repo.refreshByIds(companyId: 'co', ids: ['x1']);
+
+    final row = await repo.watch(companyId: 'co', id: 'x1').first;
+    expect(row?.productKey, 'Widget Pro');
+  });
 }
 
 Future<List<OutboxRow>> _pendingUpdates(AppDatabase db) async {
@@ -515,6 +534,18 @@ Future<Map<String, dynamic>> _latestUpdatePayload(AppDatabase db) async {
 }
 
 class _FakeProductsApi implements ProductsApi {
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Serves single-id GETs from a map the test can change between calls.
+class _GetProductsApi implements ProductsApi {
+  final Map<String, ProductApi> byId = {};
+
+  @override
+  Future<ProductItemApi> get(String id) async =>
+      ProductItemApi(data: byId[id]!);
+
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

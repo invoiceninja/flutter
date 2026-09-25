@@ -209,6 +209,28 @@ class VendorRepository extends BaseEntityRepository<Vendor, VendorApi>
         ),
       );
 
+  /// Force-refetch [ids], dirty-preserving — Check on a change that may have
+  /// reached the server, and the re-fetch after a write whose reply was lost
+  /// (`SyncRepository.refreshRecord`). The base default is a no-op, so both
+  /// fetched nothing here. See [refreshByIdsTemplate].
+  @override
+  Future<void> refreshByIds({
+    required String companyId,
+    required Iterable<String> ids,
+  }) async {
+    await refreshByIdsTemplate(
+      companyId: companyId,
+      ids: ids,
+      fetch: (id) async => (await api.get(id)).data,
+      idOf: (a) => a.id,
+      toCompanion: (a) => _apiToCompanion(a, companyId),
+      upsert: (byId) => db.vendorDao.upsertAllPreservingDirty(
+        companyId: companyId,
+        byId: byId,
+      ),
+    );
+  }
+
   /// After a vendor **merge**, the absorbed vendor's children (expenses,
   /// purchase orders, recurring expenses) were reassigned to the survivor
   /// server-side, but locally still carry the old vendor_id in their `payload`.

@@ -169,6 +169,7 @@ The store is the only home of unsynced work (outbox, `id_remap`, dirty and `tmp_
 | `migrationFailed` | `DatabaseMigrationException` out of `onUpgrade` (the in-upgrade repair below also failed), unless its `cause` is transient or storageFull — then it is that kind | reset |
 | schema drift | the open succeeds but the schema check is false | `repairSchema`; reset only on drift it refuses (`SchemaUnrepairableException`) |
 | `transient` | BUSY / LOCKED / READONLY / IOERR / CANTOPEN, `TimeoutException` | store untouched |
+| `inUse` | `DatabaseInUseException` — another copy of the app holds the store (§ A second copy of the app never opens the store) | store untouched, and the boot screen offers no Reset |
 | `storageFull` | SQLITE_FULL, `QuotaExceededError` | store untouched |
 | `unknown` | anything else | store untouched |
 
@@ -220,6 +221,68 @@ having the app open twice abandoned the store, and the next load swept it.
 boot screen's copy says what that keeps on each platform instead of promising that
 everything is re-downloaded.
 
+## A second copy of the app never opens the store
+
+Two processes on one store both drained its outbox, so every change went out twice. A second
+copy whose open hit a lock also showed the boot screen's Reset. That Reset moved the store out
+from under the first copy, and POSIX renames an open file without complaint. The first copy
+kept writing into the snapshot, and the next open salvaged it half-written.
+
+Three ways to get a second copy:
+- Linux: the GTK runner is `G_APPLICATION_NON_UNIQUE`. Calendar OAuth needs that; see
+  `calendar_connection_view_model.dart`.
+- macOS: `open -n`.
+- Windows: two launches racing the runner's `FindWindow` check.
+
+`holdStoreLock` (`lib/data/db/store_lock.dart`) is the first thing `openDatabaseExecutorAt`
+does and the first thing `destroyDatabaseStoreAt` does.
+
+- **A lock file, not the store.** The lock sits on `invoiceninja.instance.lock` beside the
+  store, not on the store itself: SQLite locks the store's own byte ranges, and Windows locks
+  are mandatory. The name is also outside `invoiceninja.sqlite*`, which snapshot pruning
+  deletes.
+- **Before the key is read.** A second copy that read the keychain and got nothing back
+  would mint a key and write it over the one that encrypts the first copy's store.
+- **Held for the life of the process: never closed, never reopened.** POSIX drops every lock
+  a process holds on a file the moment *any* descriptor for that file is closed, and an
+  unreachable `RandomAccessFile` is closed when it is collected. So:
+  - the handle lives in a top-level map, and a second call reuses it;
+  - the calls are serialised, so two can't race past the map;
+  - the process ending releases the lock, so a crash can't leave it stuck.
+- **Only a positive "held by another process" refuses** (`storeLockHeldElsewhere`):
+  - `fcntl(F_SETLK)` fails with EAGAIN or EACCES: 11 or 13 on Linux and Android, 35 or 13 on
+    Darwin;
+  - `LockFileEx` fails with ERROR_LOCK_VIOLATION (33) on Windows.
+
+  Any other failure, such as a file system without lock support, logs a warning and opens
+  without the lock, exactly as before. A disk that can't be locked is no reason to lock the
+  user out.
+- **A refusal is `DatabaseInUseException`, which maps to `DbOpenFailureKind.inUse`.** That is
+  not a reset kind, so the open retries once after 2 s. The retry covers Windows, which
+  releases a dead process's locks a moment late. After that, the boot screen says the app is
+  open in another window and offers no Reset.
+- **One byte past the holder's process id.** The holder writes its `pid` at the start of the
+  file and locks byte `kStoreLockedByte`. It seeks back to the start after truncating:
+  append mode opens at the end of the file, and truncating leaves the position there. The
+  first cut wrote the id after a run of zero bytes, so it never parsed once an earlier launch
+  had left a file. A refused open reads that id, and when it is its own
+  id it carries on. That is a hot restart on Windows: `main` runs again while the previous
+  isolate's handle is still open, and Windows locks belong to the handle. Windows locks are
+  mandatory, so a whole-file lock would leave the id unreadable. On POSIX a process can always
+  take its own lock again. Either way, collecting the old handle later can drop the lock, so
+  after a hot restart the check may be off until the next cold start. That only happens in
+  debug builds.
+- **Web is untouched.** It has no `dart:io`. The browser's own lock on the store is what makes
+  a second tab's open time out (§ A failed open destroys the store only when a fresh store
+  fixes it).
+
+`test/data/db/store_lock_test.dart` pins it. Its second copy is a real process:
+`_store_lock_holder.dart` under the Dart VM binary itself, never the SDK's `dart` wrapper and
+never through a shell. On Windows the wrapper is `dart.bat`, whose `dart.exe` child outlived
+a kill and kept holding the lock. The tests skip where no process can be started. They check that the second copy is refused before the key is read, that its Reset
+moves nothing, that the lock dies with its holder, and that it survives repeated calls in one
+process. CI runs them on Linux; run them on macOS and Windows by hand when this changes.
+
 ## Drift is repaired in place, and only the cache may be dropped
 
 `repairSchema` (`lib/data/db/schema_repair.dart`) brings a database to the declared shape
@@ -260,6 +323,15 @@ change that had not reached the server.
   `QuarantinedStore.unreadableTables`, and `importSalvaged` reports it as left behind. It
   used to be skipped silently, so an unreadable outbox imported as an empty one: "rebuilt",
   and the snapshot still holding the work stayed prunable.
+- **Read with the key the open used — never a second keychain read.**
+  `readQuarantinedStoreIn` takes the key `openDatabaseExecutorAt` fetched (`_liveStore`), and
+  so does the reset's own reopen of the store: the key is kept per store path for the life of
+  the process.
+  It used to fetch again through `_getOrCreateDbKey`. If that read came back empty, it
+  *minted* a key and wrote it over the one the live store had just been opened with, so the
+  snapshot read as unrecoverable and the live store as corrupt on the next launch. A salvage
+  that can't get a key keeps the snapshot as `.unrecovered.<ts>`. By then the marker is gone,
+  so the salvage is never retried into a store that has moved on.
 - **Only the first snapshot since the last open, and only once.** `quarantineDatabaseFile`
   writes `invoiceninja.sqlite.salvage`, naming its snapshot, *before* it moves the store (a
   crash in between leaves a marker for a snapshot that never appeared, which is dropped).
@@ -280,10 +352,14 @@ change that had not reached the server.
   is imported on relaunch.
 - **Forgiving on shape, strict on count.** `importSalvaged` copies only the columns both
   schemas have, skips a table whose rows lack a column the current schema requires, and
-  inserts `OR IGNORE`. A table that comes across short — unreadable, skipped, or fewer rows
-  than the store held — is listed in `LocalDataSalvaged.incompleteTables`, and the snapshot
-  is then kept as `.unrecovered.<ts>`. `companies.last_sync_at` is reset: the cache it
-  described is gone.
+  inserts `OR IGNORE`. A table comes across short when it was unreadable, when it was
+  skipped, or when any of its rows was not inserted. Such a table is listed in
+  `LocalDataSalvaged.incompleteTables`, and the snapshot is then kept as `.unrecovered.<ts>`.
+  `companies.last_sync_at` is reset, because the cache it described is gone.
+  - **Rows are counted as they go in.** The import inserts one row at a time and adds up what
+    SQLite reports as changed; an ignored row changes nothing. It used to compare a
+    `COUNT(*)` afterwards. A row dropped on an id the fresh store already held then went
+    unnoticed whenever the table ended up as full as the snapshot.
 - **Unreadable is kept, never pruned.** A store damaged past reading, or one whose key is
   gone, is renamed `.unrecovered.<ts>`, out of `pruneBrokenDbFiles`' reach. A lost key is
   told apart: `_getOrCreateDbKey` minting a key while a store already exists means the item
@@ -317,6 +393,23 @@ builder beside `CallLogPrompter`, now says it once, after the first frame:
 - It needs a context **inside** the router's `Navigator` (its own sits above it), which exists
   only after the first frame, so it waits up to ten frames for one — `localDataNoticeFor`
   holds the mapping, pinned by `test/ui/features/boot/local_data_recovery_notice_test.dart`.
+- **Never over the lock screen, and never about wiped data.** While the lock is up, or while no
+  one is signed in, the notice only listens (`LocalDataNoticeHold`). When both clear, it shows
+  after the next frame; by then the router has swapped `/lock` or `/login` out. A dialog
+  pushed onto `/lock` used to go with that page when unlocking replaced it, so the user was
+  never told, and a toast expired behind the unlock prompt.
+  - Held through a sign-out, it is told after the next sign-in.
+  - A wipe of the data before then drops the toast unseen
+    (`LocalDataNoticeSlot.forgetKeptChanges`, through `AuthRepository.onBeforeDataWipe`).
+    That covers a sign-out, or a sign-in whose different identity wipes the store. The toast
+    counts changes as kept, which the wipe made untrue.
+  - A dialog stays after a wipe: the work it says was lost stays lost, and the copy it
+    points to is kept.
+  - Released on the lock alone, the lock screen's Sign out let the toast show on `/login`,
+    saying changes were kept that the sign-out had just wiped.
+- **Once per launch, not once per widget.** `LocalDataNoticeSlot` is take-once, and it lives in
+  `_InvoiceNinjaAppState`, so a remounted notice finds it already taken. The guard used to
+  live in the notice's own State, and a remount replaced that State.
 
 **The copies a reset keeps leave the device only through the user.** Device Settings → Data
 lists every kept copy — the recent `.broken.<ts>` snapshots and every `.unrecovered.<ts>` one —
@@ -334,7 +427,10 @@ The boot screen that renders when the store can't be opened at all is
 English, because it paints before `Services` and localization exist, with per-kind and
 per-platform copy, and injectable seams so both platforms are widget-tested
 (`local_data_unavailable_app_test.dart`). It scrolls, and its buttons wrap rather than
-overflow — a landscape phone, or a large text size, is smaller than the screen assumed.
+overflow — a landscape phone, or a large text size, is smaller than the screen assumed. On a
+desktop it offers Quit. The app draws its own window buttons on Windows and Linux, and this
+screen isn't the app, so without Quit the "already open in another window" screen had no way
+out at all.
 
 ## Appendix — historical: the pre-launch squash (do NOT run)
 

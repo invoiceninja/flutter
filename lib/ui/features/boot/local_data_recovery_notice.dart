@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:admin/data/db/salvage.dart';
@@ -47,6 +48,66 @@ enum LocalDataNoticeKind {
   null => wasReset ? (kind: LocalDataNoticeKind.reset, unsynced: 0) : null,
 };
 
+/// What to tell the user about this launch's reset, taken at most once — the
+/// once-only guard, kept above the widget that shows it. Create it once, in
+/// the app's State, never in a build method: a remount of the notice then
+/// finds it taken and says nothing more. In the notice's own State, the guard
+/// went with a remount, and the user was told twice.
+class LocalDataNoticeSlot {
+  LocalDataNoticeSlot({
+    required bool wasReset,
+    required LocalDataRecovery? recovery,
+  }) : _notice = localDataNoticeFor(wasReset: wasReset, recovery: recovery);
+
+  ({LocalDataNoticeKind kind, int unsynced})? _notice;
+
+  /// Whether there is still something to tell.
+  bool get isPending => _notice != null;
+
+  /// The notice, once; null ever after.
+  ({LocalDataNoticeKind kind, int unsynced})? take() {
+    final notice = _notice;
+    _notice = null;
+    return notice;
+  }
+
+  /// A wipe of the local data — a sign-out, or a sign-in by someone else —
+  /// makes the toast untrue: it counts unsynced changes as kept. A dialog
+  /// stays true, wipe or not: the work it says was lost stays lost, and the
+  /// copy it points to is kept.
+  void forgetKeptChanges() {
+    if (_notice?.kind == LocalDataNoticeKind.rebuilt) _notice = null;
+  }
+}
+
+/// When the reset notice waits: behind the biometric lock, and while no one
+/// is signed in. Released on the lock alone, the lock screen's Sign out let it
+/// show on `/login`, saying changes were kept that the sign-out had just
+/// wiped. Held through a sign-out instead, it is told after the next sign-in —
+/// less a toast the wipe made untrue ([LocalDataNoticeSlot.forgetKeptChanges],
+/// through `AuthRepository.onBeforeDataWipe`).
+class LocalDataNoticeHold extends ValueNotifier<bool> {
+  LocalDataNoticeHold({
+    required Listenable triggers,
+    required bool Function() held,
+  }) : _triggers = triggers,
+       _held = held,
+       super(held()) {
+    _triggers.addListener(_update);
+  }
+
+  final Listenable _triggers;
+  final bool Function() _held;
+
+  void _update() => value = _held();
+
+  @override
+  void dispose() {
+    _triggers.removeListener(_update);
+    super.dispose();
+  }
+}
+
 /// Tells the user, once, what a reset of their local data did. Before this
 /// the outcome reached only the diagnostics log, so a user whose unsynced
 /// changes could not be recovered was never told — and one whose changes all
@@ -59,15 +120,20 @@ enum LocalDataNoticeKind {
 /// scroll past unread.
 class LocalDataRecoveryNotice extends StatefulWidget {
   const LocalDataRecoveryNotice({
-    required this.wasReset,
-    required this.recovery,
+    required this.slot,
+    required this.holdWhile,
     required this.toasts,
     this.contextOf,
     super.key,
   });
 
-  final bool wasReset;
-  final LocalDataRecovery? recovery;
+  final LocalDataNoticeSlot slot;
+
+  /// While true — the biometric lock screen is up, or no one is signed in
+  /// ([LocalDataNoticeHold]) — nothing is shown. A dialog pushed over `/lock`
+  /// went with its page when unlocking replaced it, and the user was never
+  /// told; a toast expired behind the unlock prompt.
+  final ValueListenable<bool> holdWhile;
   final ToastController toasts;
 
   /// Supplies a context inside the router's `Navigator`. Null falls back to
@@ -83,29 +149,58 @@ class LocalDataRecoveryNotice extends StatefulWidget {
 class _LocalDataRecoveryNoticeState extends State<LocalDataRecoveryNotice> {
   /// The router's `Navigator` exists only after the first frame; a few more
   /// frames covers the boot redirect chain without ever spinning forever.
+  /// Waiting out the lock is a listener instead: unlocking takes as long as
+  /// the user does, and an idle lock screen draws no frames.
   static const _kMaxFramesToWait = 10;
 
-  bool _shown = false;
+  bool _holding = false;
 
   @override
   void initState() {
     super.initState();
-    if (localDataNoticeFor(
-          wasReset: widget.wasReset,
-          recovery: widget.recovery,
-        ) !=
-        null) {
+    if (widget.slot.isPending) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _show(0));
     }
   }
 
+  @override
+  void didUpdateWidget(LocalDataRecoveryNotice old) {
+    super.didUpdateWidget(old);
+    if (_holding && old.holdWhile != widget.holdWhile) {
+      old.holdWhile.removeListener(_onHoldChanged);
+      widget.holdWhile.addListener(_onHoldChanged);
+      // One that has already let go says so to no listener.
+      _onHoldChanged();
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_holding) widget.holdWhile.removeListener(_onHoldChanged);
+    super.dispose();
+  }
+
+  void _onHoldChanged() {
+    if (widget.holdWhile.value) return;
+    widget.holdWhile.removeListener(_onHoldChanged);
+    _holding = false;
+    // The router swaps the lock screen's page out on the next frame: show
+    // above whatever replaces it. That swap is what asks for the frame in the
+    // app; ask here too, so the notice never depends on it.
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) => _show(0))
+      ..ensureVisualUpdate();
+  }
+
   void _show(int framesWaited) {
-    if (!mounted || _shown) return;
-    final notice = localDataNoticeFor(
-      wasReset: widget.wasReset,
-      recovery: widget.recovery,
-    );
-    if (notice == null) return;
+    if (!mounted || !widget.slot.isPending) return;
+    if (widget.holdWhile.value) {
+      if (!_holding) {
+        _holding = true;
+        widget.holdWhile.addListener(_onHoldChanged);
+      }
+      return;
+    }
     final target = widget.contextOf?.call() ?? context;
     if (!target.mounted || Navigator.maybeOf(target) == null) {
       if (framesWaited < _kMaxFramesToWait) {
@@ -115,7 +210,8 @@ class _LocalDataRecoveryNoticeState extends State<LocalDataRecoveryNotice> {
       }
       return;
     }
-    _shown = true;
+    final notice = widget.slot.take();
+    if (notice == null) return;
     final dialog = switch (notice.kind) {
       LocalDataNoticeKind.rebuilt => null,
       LocalDataNoticeKind.partlyRecovered => (

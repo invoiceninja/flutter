@@ -58,6 +58,13 @@ void main() {
       expect(DbOpenFailureKind.storageFull.resetRecovers, isFalse);
     });
 
+    test('another copy of the app holding the store is in use — never a '
+        'reset, which would move the store out from under that copy', () {
+      final kind = classifyDbOpenFailure(const DatabaseInUseException());
+      expect(kind, DbOpenFailureKind.inUse);
+      expect(kind.resetRecovers, isFalse);
+    });
+
     test('corrupt / not-a-database resets', () {
       for (final code in [11, 26]) {
         final kind = classifyDbOpenFailure(_sqlite(code));

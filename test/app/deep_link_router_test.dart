@@ -1,14 +1,20 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/deep_link_router.dart';
 import 'package:admin/app/entity_modules.dart' show DisabledEntityDispatcher;
+import 'package:admin/app/services.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/services/api_credentials.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
+import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/widgets/toast_controller.dart';
 
 import '../_localization_helper.dart';
@@ -36,22 +42,81 @@ EntityRegistry _registry() => EntityRegistry({
   EntityType.invoice: _handler(EntityType.invoice, 'invoice', '/invoices'),
 });
 
-AuthSession _session({String currentCompanyId = 'co1'}) => AuthSession(
+const _co1 = AuthCompany(
+  id: 'co1',
+  name: 'One',
+  displayName: 'One',
+  permissions: '',
+  isAdmin: true,
+  isOwner: true,
+);
+
+const _co2 = AuthCompany(
+  id: 'co2',
+  name: 'Two',
+  displayName: 'Two',
+  permissions: '',
+  isAdmin: true,
+  isOwner: true,
+);
+
+AuthSession _session({
+  String currentCompanyId = 'co1',
+  List<AuthCompany> companies = const [_co1],
+}) => AuthSession(
   baseUrl: 'https://example.test',
   isHosted: false,
   accountId: 'acc-1',
-  companies: const [
-    AuthCompany(
-      id: 'co1',
-      name: 'One',
-      displayName: 'One',
-      permissions: '',
-      isAdmin: true,
-      isOwner: true,
-    ),
-  ],
+  companies: companies,
   currentCompanyId: currentCompanyId,
 );
+
+/// The slices of `Services` a company switch reads: the unsaved-changes guard,
+/// the outbox count, and the switch itself.
+class _SwitchingAuth implements AuthRepository {
+  _SwitchingAuth(this.session);
+
+  @override
+  final ValueListenable<AuthSession?> session;
+
+  final switchedTo = <String>[];
+
+  @override
+  Future<SwitchCompanyResult> switchCompany(String companyId) async {
+    switchedTo.add(companyId);
+    return SwitchCompanyResult.ok;
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _NothingPendingSync implements SyncRepository {
+  @override
+  Future<int> pendingCountFor(String companyId) async => 0;
+
+  @override
+  Object? noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _SwitchServices implements Services {
+  _SwitchServices({required this.auth, required this.toasts});
+
+  @override
+  final AuthRepository auth;
+  @override
+  final ToastController toasts;
+  @override
+  final UnsavedChangesGuard unsavedChangesGuard = UnsavedChangesGuard();
+  @override
+  final SyncRepository sync = _NothingPendingSync();
+
+  @override
+  Object? noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
 
 const _credentials = ApiCredentials(
   baseUrl: 'https://example.test',
@@ -262,41 +327,49 @@ void main() {
     },
   );
 
-  test('signed out: held silently, then replayed on sign-in — in the order '
-      'AuthRepository actually assigns, session before credentials', () async {
-    final h = _Harness(authenticated: false)..attach();
-    addTearDown(h.dispose);
-    await h.router.open(Uri.parse('invoiceninja://app/clients/abc'));
-    expect(h.navigations, isEmpty);
-    expect(h.toasts.toasts, isEmpty, reason: 'nothing to report yet');
+  testWidgets(
+    'signed out: held silently, then replayed on sign-in — in the order '
+    'AuthRepository actually assigns, session before credentials',
+    (tester) async {
+      final h = _Harness(authenticated: false)..attach();
+      addTearDown(h.dispose);
+      await h.router.open(Uri.parse('invoiceninja://app/clients/abc'));
+      expect(h.navigations, isEmpty);
+      expect(h.toasts.toasts, isEmpty, reason: 'nothing to report yet');
 
-    // The session lands first and is NOT yet enough — `isAuthenticated` reads
-    // credentials. A gate that woke here and gave up would strand the link.
-    h.session.value = _session();
-    await pumpEventQueue();
-    expect(h.navigations, isEmpty, reason: 'session alone is not signed in');
+      // The session lands first and is NOT yet enough — `isAuthenticated` reads
+      // credentials. A gate that woke here and gave up would strand the link.
+      h.session.value = _session();
+      await tester.pump();
+      expect(h.navigations, isEmpty, reason: 'session alone is not signed in');
 
-    h.credentials.value = _credentials;
-    await pumpEventQueue();
-    expect(h.navigations, ['/clients/abc']);
-  });
+      h.credentials.value = _credentials;
+      await tester.pump();
+      expect(h.navigations, ['/clients/abc']);
+    },
+  );
 
-  test('a link held for one account is dropped on logout, never replayed '
-      'into the next one', () async {
-    final h = _Harness(authenticated: false)..attach();
-    addTearDown(h.dispose);
-    await h.router.open(
-      Uri.parse('invoiceninja://app/clients/abc?company=co1'),
-    );
-    expect(h.navigations, isEmpty);
+  testWidgets(
+    'a link held for one account is dropped on logout, never replayed '
+    'into the next one',
+    (tester) async {
+      final h = _Harness(authenticated: false)..attach();
+      addTearDown(h.dispose);
+      await h.router.open(
+        Uri.parse('invoiceninja://app/clients/abc?company=co1'),
+      );
+      expect(h.navigations, isEmpty);
 
-    h.router.reset(); // what `auth.onBeforeLogout` calls
-    h.signIn();
-    await pumpEventQueue();
-    expect(h.navigations, isEmpty);
-  });
+      h.router.reset(); // what `auth.onBeforeLogout` calls
+      h.signIn();
+      await tester.pump();
+      expect(h.navigations, isEmpty);
+    },
+  );
 
-  test('…including a link still QUEUED behind another one at logout', () async {
+  testWidgets('…including a link still QUEUED behind another one at logout', (
+    tester,
+  ) async {
     // `reset()` can clear the deferred slot and the pending set, but it cannot
     // cancel a `.then` already scheduled on the `_inFlight` chain. Such a link
     // used to run after the wipe, find the gate shut, re-defer itself and
@@ -313,12 +386,12 @@ void main() {
     h.router.reset();
     h.session.value = null;
     h.credentials.value = null;
-    await pumpEventQueue();
+    await tester.pump();
     expect(h.navigations, isEmpty);
 
     // A different user signs in on the same install.
     h.signIn();
-    await pumpEventQueue();
+    await tester.pump();
     expect(
       h.navigations,
       isEmpty,
@@ -326,20 +399,86 @@ void main() {
     );
   });
 
-  test(
+  testWidgets(
     'biometric-locked: held, and NOTHING happens until unlock — acting '
     'now would run the company-switch dialogs over the lock screen',
-    () async {
+    (tester) async {
       final h = _Harness(locked: true)..attach();
       addTearDown(h.dispose);
       await h.router.open(Uri.parse('invoiceninja://app/clients/abc'));
       expect(h.navigations, isEmpty);
 
       h.lockedNotifier.value = false;
-      await pumpEventQueue();
+      await tester.pump();
       expect(h.navigations, ['/clients/abc']);
     },
   );
+
+  testWidgets('a cross-company link held under the lock asks its question over '
+      'the page that replaces /lock — pushed onto /lock, it went with that '
+      'page', (tester) async {
+    // Replayed the moment the lock lifted, the switch's prompt landed on
+    // `/lock` before the router swapped that page out, went with it, and the
+    // switch read as cancelled: the link did nothing at all.
+    final h = _Harness(locked: true);
+    addTearDown(h.dispose);
+    h.session.value = _session(companies: const [_co1, _co2]);
+    final auth = _SwitchingAuth(h.session);
+    final services = _SwitchServices(auth: auth, toasts: h.toasts);
+    final edits = ValueNotifier<int>(0);
+    addTearDown(edits.dispose);
+    // A form with unsaved edits, so the switch has to ask first.
+    services.unsavedChangesGuard.register(isDirty: () => true, source: edits);
+    final router = GoRouter(
+      initialLocation: '/home',
+      refreshListenable: h.lockedNotifier,
+      redirect: (_, state) {
+        final atLock = state.matchedLocation == '/lock';
+        if (h.lockedNotifier.value) return atLock ? null : '/lock';
+        return atLock ? '/home' : null;
+      },
+      routes: [
+        GoRoute(path: '/lock', builder: (_, _) => const Text('locked')),
+        GoRoute(path: '/home', builder: (_, _) => const Text('home')),
+        GoRoute(
+          path: '/clients/:id',
+          builder: (_, state) => Text('client ${state.pathParameters['id']}'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      Provider<Services>.value(
+        value: services,
+        child: MaterialApp.router(
+          localizationsDelegates: kTestLocalizationsDelegates,
+          supportedLocales: kTestSupportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    h.router.attach(
+      go: router.go,
+      contextOf: () => router.routerDelegate.navigatorKey.currentContext,
+    );
+    await h.router.open(
+      Uri.parse('invoiceninja://app/clients/abc?company=co2'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('locked'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+
+    h.lockedNotifier.value = false;
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(auth.switchedTo, ['co2']);
+    expect(find.text('client abc'), findsOneWidget);
+    h.toasts.clearAll();
+  });
 
   testWidgets(
     'a link for a company this account does not have never navigates — '
@@ -435,7 +574,9 @@ void main() {
       expect(h.toasts.toasts, isEmpty);
     });
 
-    test('a page URL loaded while signed out is held, not dropped', () async {
+    testWidgets('a page URL loaded while signed out is held, not dropped', (
+      tester,
+    ) async {
       final h = _Harness(authenticated: false)..attach();
       addTearDown(h.dispose);
       await h.router.openWebInitialLocation(
@@ -444,7 +585,7 @@ void main() {
       expect(h.navigations, isEmpty);
 
       h.signIn();
-      await pumpEventQueue();
+      await tester.pump();
       expect(h.navigations, ['/clients/abc']);
     });
 

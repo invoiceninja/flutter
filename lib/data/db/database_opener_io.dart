@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/db/salvage.dart';
+import 'package:admin/data/db/store_lock.dart';
 import 'package:admin/data/services/token_storage.dart' show kSecureStorage;
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
@@ -90,13 +91,34 @@ Future<({String key, bool minted})> _getOrCreateDbKey() async {
 /// rather than as damage.
 bool _keyLost = false;
 
+/// The store this process opened, and the key it was opened with. A reopen of
+/// that file — a reset's, after the quarantine — and the salvage both use this
+/// key and never read the keychain again. The snapshot was encrypted with the
+/// same keychain item (unless [_keyLost], and then it can't be read at all),
+/// and a second read that came back empty minted a new key and wrote it over
+/// this one: the snapshot then read as unrecoverable, and the live store as
+/// corrupt on the next launch.
+({String path, String key})? _liveStore;
+
 /// Native executor: a background-isolate SQLCipher connection over the
-/// app-support file. Behavior is byte-identical to the pre-web-seam
-/// implementation — this code was moved here verbatim.
-Future<QueryExecutor> openDatabaseExecutor() async {
-  final file = await _dbFile();
+/// app-support file.
+Future<QueryExecutor> openDatabaseExecutor() async =>
+    openDatabaseExecutorAt(await _dbFile(), fetchKey: _getOrCreateDbKey);
+
+/// [openDatabaseExecutor] with its inputs explicit — exposed for tests.
+Future<QueryExecutor> openDatabaseExecutorAt(
+  File file, {
+  required Future<({String key, bool minted})> Function() fetchKey,
+}) async {
+  // First, before the key is read: a second copy of the app neither opens the
+  // store nor reads — or, on an empty read, mints over — the key encrypting it.
+  await holdStoreLock(file.parent);
   final hadStore = await file.exists();
-  final (:key, :minted) = await _getOrCreateDbKey();
+  final live = _liveStore;
+  final (:key, :minted) = live != null && p.equals(live.path, file.path)
+      ? (key: live.key, minted: false)
+      : await fetchKey();
+  _liveStore = (path: file.path, key: key);
   if (minted && hadStore) {
     _keyLost = true;
     _log.severe(
@@ -139,8 +161,16 @@ const _kSidecarSuffixes = ['-journal', '-wal', '-shm'];
 /// than returning. The bool exists for the web half, where the browser can
 /// refuse a delete without any error the caller would otherwise see; the
 /// shared signature lets `openAppDatabase()` stop inferring success.
-Future<bool> destroyDatabaseStore() async {
-  await quarantineDatabaseFile(await _dbFile());
+Future<bool> destroyDatabaseStore() async =>
+    destroyDatabaseStoreAt(await _dbFile());
+
+/// [destroyDatabaseStore] for the store [file] — exposed for tests. Takes the
+/// store's lock first ([holdStoreLock]), so no reset moves a store another
+/// copy of the app has open: that copy would go on writing into the snapshot,
+/// and this one's next open would salvage it half-written.
+Future<bool> destroyDatabaseStoreAt(File file) async {
+  await holdStoreLock(file.parent);
+  await quarantineDatabaseFile(file);
   return true;
 }
 
@@ -276,11 +306,27 @@ Future<void> pruneBrokenDbFiles(Directory dir, {int keep = 2}) async {
 /// restored from a backup does not bring `first_unlock_this_device` keychain
 /// items with it) — is renamed `.unrecovered.<ts>`, so snapshot pruning never
 /// deletes it.
-Future<QuarantinedStore?> readQuarantinedStore() async => readPendingSalvage(
-  (await _dbFile()).parent,
-  key: () async => (await _getOrCreateDbKey()).key,
-  keyLost: _keyLost,
-);
+Future<QuarantinedStore?> readQuarantinedStore() async =>
+    readQuarantinedStoreIn((await _dbFile()).parent);
+
+/// [readQuarantinedStore] for the store directory [dir] — exposed for tests.
+Future<QuarantinedStore?> readQuarantinedStoreIn(Directory dir) =>
+    readPendingSalvage(
+      dir,
+      // Never a second keychain read ([_liveStore]). A salvage only runs
+      // after this process opened the store, so the key is always set; were
+      // it not, the snapshot is kept as unrecovered rather than lost.
+      key: () async {
+        final live = _liveStore;
+        if (live == null || !p.equals(p.dirname(live.path), dir.path)) {
+          throw StateError(
+            'No store in ${dir.path} was opened in this process',
+          );
+        }
+        return live.key;
+      },
+      keyLost: _keyLost,
+    );
 
 /// [readQuarantinedStore] with its inputs explicit — exposed for tests. [key]
 /// returns null for an unencrypted store.

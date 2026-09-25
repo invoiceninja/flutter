@@ -48,6 +48,7 @@ DbOpenFailureKind classifyDbOpenFailure(Object error) {
         : DbOpenFailureKind.migrationFailed;
   }
   if (e is TimeoutException) return DbOpenFailureKind.transient;
+  if (e is DatabaseInUseException) return DbOpenFailureKind.inUse;
 
   final kind = switch (e) {
     SqliteException(:final resultCode) => _kindOfCode(resultCode),

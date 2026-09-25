@@ -339,7 +339,14 @@ class DeepLinkRouter {
   void _onGateChanged() {
     if (!_gateIsOpen) return;
     _stopListeningForGate();
-    _replayDeferred();
+    // After the frame, not now: the router swaps the page the gate kept up
+    // (`/lock`, `/login`) out on the next frame, and a company switch's prompt
+    // pushed before then landed on that page and went with it — the switch
+    // read as cancelled and the link did nothing. The swap asks for that frame
+    // in the app; ask here too, so the replay never depends on it.
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) => _replayDeferred())
+      ..ensureVisualUpdate();
   }
 
   void _replayDeferred() {

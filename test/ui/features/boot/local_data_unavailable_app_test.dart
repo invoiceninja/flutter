@@ -14,15 +14,19 @@ void main() {
     WidgetTester tester, {
     DbOpenFailureKind? kind,
     required bool isWeb,
+    bool isDesktop = false,
     Future<bool> Function()? resetStore,
     void Function()? reload,
+    void Function()? quit,
   }) => tester.pumpWidget(
     LocalDataUnavailableApp(
       detail: 'SqliteException(5): database is locked',
       kind: kind,
       isWeb: isWeb,
+      isDesktop: isDesktop,
       resetStore: resetStore ?? () async => true,
       reload: reload ?? () {},
+      quit: quit ?? () {},
     ),
   );
 
@@ -46,6 +50,34 @@ void main() {
     expect(find.text('Then relaunch the app.'), findsOneWidget);
     // Natively a reset carries unsynced work across when it can.
     expect(find.textContaining('carried over'), findsOneWidget);
+  });
+
+  testWidgets('another copy of the app says so, and offers no Reset — it '
+      'would move the store out from under that copy', (tester) async {
+    await pump(tester, kind: DbOpenFailureKind.inUse, isWeb: false);
+    expect(find.textContaining('already open in another window'), findsOne);
+    expect(find.text('Reset local data'), findsNothing);
+    expect(find.textContaining('Resetting'), findsNothing);
+    expect(find.text('Then relaunch the app.'), findsNothing);
+  });
+
+  testWidgets('a desktop window, which may have no close button of its own, '
+      'offers Quit — for another copy of the app the only way out', (
+    tester,
+  ) async {
+    var quits = 0;
+    await pump(
+      tester,
+      kind: DbOpenFailureKind.inUse,
+      isWeb: false,
+      isDesktop: true,
+      quit: () => quits++,
+    );
+    await tester.tap(find.text('Quit'));
+    expect(quits, 1);
+
+    await pump(tester, kind: DbOpenFailureKind.corrupt, isWeb: false);
+    expect(find.text('Quit'), findsNothing, reason: 'a phone closes it');
   });
 
   testWidgets('a full disk says so, per platform', (tester) async {

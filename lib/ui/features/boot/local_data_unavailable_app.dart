@@ -1,3 +1,5 @@
+import 'dart:io' show exit;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -25,8 +27,10 @@ class LocalDataUnavailableApp extends StatefulWidget {
     required this.detail,
     this.kind,
     this.isWeb = kIsWeb,
+    this.isDesktop,
     this.resetStore = destroyDatabaseStore,
     this.reload = reloadApp,
+    this.quit = _quitApp,
     super.key,
   });
 
@@ -50,6 +54,16 @@ class LocalDataUnavailableApp extends StatefulWidget {
 
   /// Reloads the page — web only. Injectable for tests.
   final void Function() reload;
+
+  /// Whether to offer Quit: a desktop window, which on Windows and Linux has
+  /// no close button of its own here — the app draws those, and this screen
+  /// is not the app. Null resolves from the platform; on a phone the app
+  /// switcher closes the app, and app review rejects one that quits itself.
+  final bool? isDesktop;
+
+  /// Ends the process — nothing is open to save, the store never opened.
+  /// Injectable for tests.
+  final void Function() quit;
 
   @override
   State<LocalDataUnavailableApp> createState() =>
@@ -83,6 +97,13 @@ class _LocalDataUnavailableAppState extends State<LocalDataUnavailableApp> {
                 'data. Free up some space, then try again.'
           : 'Your device has run out of storage for Invoice Ninja\'s local '
                 'data. Free up some space, then relaunch the app.',
+    DbOpenFailureKind.inUse =>
+      isWeb
+          ? 'Invoice Ninja is already open in another tab. Close it, then '
+                'try again.'
+          : 'Invoice Ninja is already open in another window, and only one '
+                'copy can use its local data at a time. Switch to that '
+                'window, or quit it and open Invoice Ninja again.',
     DbOpenFailureKind.transient || DbOpenFailureKind.unknown =>
       isWeb
           ? 'Invoice Ninja is probably open in another tab, or a tab that '
@@ -98,6 +119,18 @@ class _LocalDataUnavailableAppState extends State<LocalDataUnavailableApp> {
 
   @override
   Widget build(BuildContext context) {
+    // No Reset while another copy of the app has the store open: it would
+    // move the store out from under that copy, which keeps writing to it.
+    // `destroyDatabaseStore` refuses anyway; the button would only fail.
+    final canReset = widget.kind != DbOpenFailureKind.inUse;
+    final canQuit =
+        widget.isDesktop ??
+        (!widget.isWeb &&
+            const {
+              TargetPlatform.macOS,
+              TargetPlatform.windows,
+              TargetPlatform.linux,
+            }.contains(defaultTargetPlatform));
     // Nothing here is localized on purpose: this screen renders before
     // `Services` exists, so there is no `Localization` to read from.
     return MaterialApp(
@@ -130,28 +163,32 @@ class _LocalDataUnavailableAppState extends State<LocalDataUnavailableApp> {
                         _explanation(widget.kind, isWeb: widget.isWeb),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 12),
-                      // Honest about what a reset costs. This used to promise that
-                      // "everything is re-downloaded from the server", which is
-                      // true of the cache and false of the outbox: changes made on
-                      // this device that never reached the server exist nowhere
-                      // else. Native keeps the old store and carries those tables
-                      // into the new one on relaunch (`readQuarantinedStore`) when
-                      // it can still be read; web has no salvage yet.
-                      Text(
-                        widget.isWeb
-                            ? 'Resetting deletes this device\'s copy of your data. '
-                                  'Everything already synced downloads again, but '
-                                  'changes made on this device that haven\'t '
-                                  'synced yet are lost.'
-                            : 'Resetting starts this device\'s copy of your data '
-                                  'over, and everything already synced downloads '
-                                  'again. Changes that haven\'t synced yet are '
-                                  'carried over if the old copy can still be read, '
-                                  'and lost if it can\'t.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13),
-                      ),
+                      if (canReset) ...[
+                        const SizedBox(height: 12),
+                        // Honest about what a reset costs. This used to
+                        // promise that "everything is re-downloaded from the
+                        // server", which is true of the cache and false of the
+                        // outbox: changes made on this device that never
+                        // reached the server exist nowhere else. Native keeps
+                        // the old store and carries those tables into the new
+                        // one on relaunch (`readQuarantinedStore`) when it can
+                        // still be read; web has no salvage yet.
+                        Text(
+                          widget.isWeb
+                              ? 'Resetting deletes this device\'s copy of '
+                                    'your data. Everything already synced '
+                                    'downloads again, but changes made on this '
+                                    'device that haven\'t synced yet are lost.'
+                              : 'Resetting starts this device\'s copy of your '
+                                    'data over, and everything already synced '
+                                    'downloads again. Changes that haven\'t '
+                                    'synced yet are carried over if the old '
+                                    'copy can still be read, and lost if it '
+                                    'can\'t.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       // Paired side-by-side, never stacked (§ Design system) —
                       // as long as they fit. A `Wrap`, not a `Row`: on a phone
@@ -171,18 +208,28 @@ class _LocalDataUnavailableAppState extends State<LocalDataUnavailableApp> {
                               // i18n-exempt: renders before localization exists.
                               child: const Text('Try again'),
                             ),
-                          OutlinedButton(
-                            onPressed: _busy ? null : _resetAndReload,
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(64, 40),
+                          if (canReset)
+                            OutlinedButton(
+                              onPressed: _busy ? null : _resetAndReload,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(64, 40),
+                              ),
+                              child: Text(
+                                _busy ? 'Resetting…' : 'Reset local data',
+                              ),
                             ),
-                            child: Text(
-                              _busy ? 'Resetting…' : 'Reset local data',
+                          if (canQuit)
+                            OutlinedButton(
+                              onPressed: _busy ? null : widget.quit,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(64, 40),
+                              ),
+                              // i18n-exempt: renders before localization exists.
+                              child: const Text('Quit'),
                             ),
-                          ),
                         ],
                       ),
-                      if (!widget.isWeb) ...[
+                      if (!widget.isWeb && canReset) ...[
                         const SizedBox(height: 12),
                         const Text(
                           'Then relaunch the app.',
@@ -209,3 +256,5 @@ class _LocalDataUnavailableAppState extends State<LocalDataUnavailableApp> {
     );
   }
 }
+
+void _quitApp() => exit(0);

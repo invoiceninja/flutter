@@ -143,7 +143,12 @@ Five things fail silently if you change this:
    unrelated background refresh. `main.dart` merges `credentials` first into the
    router's own `refreshListenable` for the same reason. And a held link is
    dropped on logout (`deepLinks.reset()` from `onBeforeLogout`) — it belongs to
-   the account that was signed in when it arrived.
+   the account that was signed in when it arrived. **The replay waits for the
+   frame after the gate opens.** On that frame the router swaps out the page the
+   gate kept up (`/lock`, `/login`). A company switch's prompt pushed before the
+   swap landed on that page and went with it. The switch then read as cancelled,
+   and the link did nothing. `deep_link_router_test.dart` pins this with a real
+   router.
 4. **A company switch goes through `switchCompanyGuarded`**
    (`lib/ui/features/shell/widgets/switch_company_guarded.dart`, shared with
    `CompanyPicker`), never `auth.switchCompany` directly — the unsaved-changes

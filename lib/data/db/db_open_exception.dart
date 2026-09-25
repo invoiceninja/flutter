@@ -32,6 +32,24 @@ class DatabaseKeyLostException implements Exception {
       'gone from the keychain';
 }
 
+/// Another copy of the app has the local store open: a second instance on
+/// Linux, whose runner is `G_APPLICATION_NON_UNIQUE`, `open -n` on macOS, or
+/// two launches racing Windows' single-instance check. Thrown before the key
+/// is read, so that copy neither opens the store nor touches the keychain
+/// item that encrypts it (`holdStoreLock`).
+///
+/// Two copies on one store used to both drain its outbox — each change sent
+/// twice — and the second copy's boot screen offered a Reset that moved the
+/// store out from under the first, which kept writing to it.
+class DatabaseInUseException implements Exception {
+  const DatabaseInUseException();
+
+  @override
+  String toString() =>
+      'DatabaseInUseException: the local data is open in another copy of '
+      'the app';
+}
+
 /// Thrown by `openAppDatabase()` when recovery ran but did not produce a
 /// usable database: the store was destroyed (or abandoned) and reopened, and
 /// the result is *still* missing tables or columns the generated code needs.
@@ -68,6 +86,11 @@ enum DbOpenFailureKind {
   /// process, a stale browser context), an I/O hiccup, the web open timing
   /// out behind a lock.
   transient,
+
+  /// Another copy of the app has the store open ([DatabaseInUseException]).
+  /// A reset would move the store out from under it, and the boot screen
+  /// offers none.
+  inUse,
 
   /// The disk or the browser's storage quota is full. Deleting the store
   /// would "work" only by destroying the data that was taking the space.

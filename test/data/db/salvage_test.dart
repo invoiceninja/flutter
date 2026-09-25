@@ -12,12 +12,15 @@ import 'package:sqlite3/sqlite3.dart' as raw;
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/database_opener_io.dart'
     show
+        openDatabaseExecutorAt,
         pruneBrokenDbFiles,
         quarantineDatabaseFile,
         readPendingSalvage,
         readQuarantinedStoreFrom,
+        readQuarantinedStoreIn,
         retainQuarantinedStore;
 import 'package:admin/data/db/db_open_exception.dart';
+import 'package:admin/data/db/store_lock.dart';
 import 'package:admin/data/db/nav_state_prefs_carry.dart';
 import 'package:admin/data/db/salvage.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
@@ -199,6 +202,26 @@ void main() {
       expect(result.incompleteTables, ['outbox']);
       expect((await fresh.outboxDao.byId(1))?.idempotencyKey, 'k1');
       expect((await fresh.outboxDao.byId(7))?.idempotencyKey, 'k7');
+    });
+
+    test('a row refused on an id the store already holds is reported, even '
+        'when the table ends up as full as the snapshot', () async {
+      // Completeness was judged by the table's total afterwards: a row
+      // already there made up for the one refused, and the import said it
+      // carried everything across.
+      await seedOutbox(fresh, key: 'live');
+      await seedOutbox(old);
+      await seedOutbox(old, key: 'k2');
+      final store = QuarantinedStore(
+        source: 's',
+        tables: {'outbox': await rowsOf(old, 'outbox')},
+      );
+
+      final result = await importSalvaged(fresh, store);
+
+      expect(result.rowsByTable['outbox'], 1, reason: 'rows carried in');
+      expect(result.incompleteTables, ['outbox']);
+      expect((await fresh.outboxDao.byId(1))?.idempotencyKey, 'live');
     });
 
     test('a store older than v12 has its nav_state preferences carried into '
@@ -482,7 +505,10 @@ void main() {
       dir = Directory.systemTemp.createTempSync('quarantine_');
       file = File(p.join(dir.path, 'invoiceninja.sqlite'));
     });
-    tearDown(() => dir.delete(recursive: true));
+    tearDown(() async {
+      await releaseStoreLockForTesting(dir);
+      await dir.delete(recursive: true);
+    });
 
     /// The same three pragmas `openDatabaseExecutor` runs.
     QueryExecutor encrypted(File f, String k) => NativeDatabase(
@@ -499,6 +525,67 @@ void main() {
       await seedDurableAndCache(db);
       await db.close();
     }
+
+    test('a salvage reads the snapshot with the key the store was opened '
+        'with — the keychain is asked once', () async {
+      // A second keychain read that came back empty minted a new key and
+      // wrote it over the one the live store had just been opened with: the
+      // snapshot read as unrecoverable, and the live store as corrupt on the
+      // next launch.
+      await seedEncryptedStore();
+      var fetches = 0;
+      Future<({String key, bool minted})> fetchKey() async {
+        fetches++;
+        return fetches == 1
+            ? (key: key, minted: false)
+            : (key: otherKey, minted: true);
+      }
+
+      final opened = AppDatabase(
+        await openDatabaseExecutorAt(file, fetchKey: fetchKey),
+      );
+      await opened.customSelect('SELECT 1').get();
+      await opened.close();
+      await quarantineDatabaseFile(file);
+
+      final store = await readQuarantinedStoreIn(dir);
+
+      expect(fetches, 1);
+      expect(store?.readable, isTrue, reason: '${store?.error}');
+      expect(store?.tables['outbox'], hasLength(1));
+    });
+
+    test('the reset\'s reopen uses that key too — the keychain is asked once '
+        'per process, not once per open', () async {
+      // Open, quarantine, reopen: what `openAppDatabase` does on a reset. The
+      // reopen read the keychain again, and a read that came back empty minted
+      // a key over the one the snapshot is encrypted with.
+      await seedEncryptedStore();
+      var fetches = 0;
+      Future<({String key, bool minted})> fetchKey() async {
+        fetches++;
+        return fetches == 1
+            ? (key: key, minted: false)
+            : (key: otherKey, minted: true);
+      }
+
+      final opened = AppDatabase(
+        await openDatabaseExecutorAt(file, fetchKey: fetchKey),
+      );
+      await opened.customSelect('SELECT 1').get();
+      await opened.close();
+      await quarantineDatabaseFile(file);
+      final reopened = AppDatabase(
+        await openDatabaseExecutorAt(file, fetchKey: fetchKey),
+      );
+      await reopened.customSelect('SELECT 1').get();
+      await reopened.close();
+
+      final store = await readQuarantinedStoreIn(dir);
+
+      expect(fetches, 1);
+      expect(store?.readable, isTrue, reason: '${store?.error}');
+    });
 
     test('reads the durable and anchor tables of an encrypted store, and '
         'nothing else', () async {

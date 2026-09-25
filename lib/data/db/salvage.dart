@@ -123,9 +123,8 @@ final class LocalDataUnrecoverable extends LocalDataRecovery {
 /// constraints refuse does not cost the rest. Every company's `last_sync_at`
 /// is reset afterwards: the cache it described is gone.
 ///
-/// Returns the rows now present per imported table, and the tables that came
-/// across short — unreadable in the store, skipped, or with fewer rows than
-/// the store held.
+/// Returns the rows carried in per imported table, and the tables that came
+/// across short — unreadable in the store, skipped, or with a row refused.
 Future<({Map<String, int> rowsByTable, List<String> incompleteTables})>
 importSalvaged(AppDatabase db, QuarantinedStore store) async {
   final imported = <String, int>{};
@@ -160,18 +159,22 @@ importSalvaged(AppDatabase db, QuarantinedStore store) async {
           'INSERT OR IGNORE INTO "$name" '
           '(${columns.map((c) => '"$c"').join(', ')}) '
           'VALUES (${List.filled(columns.length, '?').join(', ')})';
+      // Counted row by row — `OR IGNORE` reports a refused row as 0 rows
+      // changed. The table's total afterwards also counted rows already in
+      // it, so one of those made up for a refused one and the import claimed
+      // it had carried everything across.
+      var inserted = 0;
       for (final row in rows) {
-        await db.customStatement(sql, [for (final c in columns) row[c]]);
+        inserted += await db.customUpdate(
+          sql,
+          variables: [for (final c in columns) Variable(row[c])],
+        );
       }
-      final count =
-          (await db
-                  .customSelect('SELECT COUNT(*) AS n FROM "$name"')
-                  .getSingle())
-              .read<int>('n');
-      imported[name] = count;
-      if (count < rows.length) {
+      imported[name] = inserted;
+      if (inserted < rows.length) {
         _log.severe(
-          'Salvaged $count of ${rows.length} $name rows; the rest were refused',
+          'Salvaged $inserted of ${rows.length} $name rows; the rest were '
+          'refused',
         );
         incomplete.add(name);
       }

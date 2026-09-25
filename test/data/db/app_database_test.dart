@@ -498,6 +498,11 @@ void main() {
         DbOpenFailureKind.storageFull,
       ),
       ('an unrecognised error', StateError('?'), DbOpenFailureKind.unknown),
+      (
+        'another copy of the app holding the store',
+        const DatabaseInUseException(),
+        DbOpenFailureKind.inUse,
+      ),
     ]) {
       test('$label leaves the store untouched', () async {
         var destroyed = 0;

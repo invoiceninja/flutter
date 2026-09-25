@@ -521,6 +521,28 @@ class InvoiceNinjaApp extends StatefulWidget {
 }
 
 class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
+  /// What to tell the user about this launch's reset, taken once. Held here,
+  /// above the notice, so a remount of it can't tell them twice.
+  late final LocalDataNoticeSlot _localDataNotice = LocalDataNoticeSlot(
+    wasReset: widget.dbWasReset,
+    recovery: widget.localDataRecovery,
+  );
+
+  /// The wipe hook this state chained onto, put back on dispose.
+  Future<void> Function()? _priorBeforeDataWipe;
+
+  /// Keeps the reset notice back behind the lock screen and while no one is
+  /// signed in (see [LocalDataNoticeHold]).
+  late final LocalDataNoticeHold _localDataNoticeHold = LocalDataNoticeHold(
+    triggers: Listenable.merge([
+      widget.services.auth.requiresBiometricUnlock,
+      widget.services.auth.credentials,
+    ]),
+    held: () =>
+        widget.services.auth.requiresBiometricUnlock.value ||
+        !(widget.services.auth.credentials.value?.isAuthenticated ?? false),
+  );
+
   // Owned for the app's lifetime: router, nav-state persister, and lifecycle
   // observers. All four are `late final` so they're built once on first access
   // and torn down in `dispose`.
@@ -601,6 +623,16 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
       contextOf: () => _router.routerDelegate.navigatorKey.currentContext,
     );
     _appDeepLinks;
+    // A wipe of the local data before the reset notice could show — a
+    // sign-out, or a sign-in by someone else — makes its toast untrue: it
+    // counts unsynced changes as kept. The lock screen's Sign out showed it on
+    // `/login` for changes that had just gone. A dialog about lost work stays.
+    final auth = widget.services.auth;
+    final prior = _priorBeforeDataWipe = auth.onBeforeDataWipe;
+    auth.onBeforeDataWipe = () async {
+      _localDataNotice.forgetKeptChanges();
+      await prior?.call();
+    };
     WidgetsBinding.instance.addObserver(_passwordCacheObserver);
     WidgetsBinding.instance.addObserver(_syncObserver);
     WidgetsBinding.instance.addObserver(_idleTimeout);
@@ -628,6 +660,8 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     _navHistory.dispose();
     _appDeepLinks.dispose();
     widget.services.deepLinks.dispose();
+    widget.services.auth.onBeforeDataWipe = _priorBeforeDataWipe;
+    _localDataNoticeHold.dispose();
     super.dispose();
   }
 
@@ -812,8 +846,8 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                         // unsynced work may not have. Needs a context inside
                         // the router's Navigator, like the prompter above.
                         LocalDataRecoveryNotice(
-                          wasReset: widget.dbWasReset,
-                          recovery: widget.localDataRecovery,
+                          slot: _localDataNotice,
+                          holdWhile: _localDataNoticeHold,
                           toasts: widget.services.toasts,
                           contextOf: () => _router
                               .routerDelegate

@@ -20,14 +20,17 @@ const _sqliteNotADb = 26;
 
 /// `SqliteException.toString()` starts with `SqliteException(<extended code>)`.
 /// A remote error that crossed a web worker (or a serializing isolate channel)
-/// arrives as that string, so the code has to be read back out of it.
+/// arrives as that string, so the code has to be read back out of it — and so
+/// does one inside a wrapper that only carries it as text
+/// (`CouldNotRollBackException`).
 final _sqliteCodeInText = RegExp(r'SqliteException\((\d+)\)');
 
 /// Classify an error thrown while opening, probing or migrating the database.
 ///
 /// Unwraps drift's [DriftRemoteException] (errors from the background isolate
 /// on native and from the web worker arrive wrapped) and reads the SQLite
-/// result code from either a live [SqliteException] or its serialized text.
+/// result code from either a live [SqliteException] or its serialized text
+/// — every code in that text, when it carries several.
 DbOpenFailureKind classifyDbOpenFailure(Object error) {
   var e = error;
   // Nested wrappers are possible (an isolate relaying a worker's error);
@@ -46,22 +49,11 @@ DbOpenFailureKind classifyDbOpenFailure(Object error) {
   }
   if (e is TimeoutException) return DbOpenFailureKind.transient;
 
-  final code = switch (e) {
-    SqliteException(:final resultCode) => resultCode,
-    _ => _codeFromText(e.toString()),
+  final kind = switch (e) {
+    SqliteException(:final resultCode) => _kindOfCode(resultCode),
+    _ => _kindFromText(e.toString()),
   };
-  switch (code) {
-    case _sqliteBusy ||
-        _sqliteLocked ||
-        _sqliteReadOnly ||
-        _sqliteIoErr ||
-        _sqliteCantOpen:
-      return DbOpenFailureKind.transient;
-    case _sqliteFull:
-      return DbOpenFailureKind.storageFull;
-    case _sqliteCorrupt || _sqliteNotADb:
-      return DbOpenFailureKind.corrupt;
-  }
+  if (kind != null) return kind;
 
   // Browser storage errors carry no SQLite code at all.
   final text = e.toString();
@@ -75,11 +67,43 @@ DbOpenFailureKind classifyDbOpenFailure(Object error) {
   return DbOpenFailureKind.unknown;
 }
 
-/// Primary result code from a serialized `SqliteException(<extended>)`, or
-/// null when [text] carries none.
-int? _codeFromText(String text) {
-  final match = _sqliteCodeInText.firstMatch(text);
-  if (match == null) return null;
-  final extended = int.tryParse(match.group(1)!);
-  return extended == null ? null : extended & 0xFF;
+/// What a SQLite result [code] — primary or extended — says about the store,
+/// or null when it says nothing (a plain SQL error, say).
+DbOpenFailureKind? _kindOfCode(int code) => switch (code & 0xFF) {
+  _sqliteBusy ||
+  _sqliteLocked ||
+  _sqliteReadOnly ||
+  _sqliteIoErr ||
+  _sqliteCantOpen => DbOpenFailureKind.transient,
+  _sqliteFull => DbOpenFailureKind.storageFull,
+  _sqliteCorrupt || _sqliteNotADb => DbOpenFailureKind.corrupt,
+  _ => null,
+};
+
+/// What the serialized `SqliteException(<extended>)`s in [text] say, or null
+/// when none of them says anything.
+///
+/// drift's `CouldNotRollBackException` leads with its failed ROLLBACK — after
+/// a full disk or an I/O error SQLite has already rolled back, so that is "no
+/// transaction is active" — and names the error that failed the transaction
+/// after it. So a later code may make the verdict one that leaves the store
+/// alone (full disk first, then transient), but never a reset: corruption
+/// counts only from the first code, as it always did. Destroying the store is
+/// the one outcome that can't be taken back.
+DbOpenFailureKind? _kindFromText(String text) {
+  final kinds = [
+    for (final match in _sqliteCodeInText.allMatches(text))
+      switch (int.tryParse(match.group(1)!)) {
+        final int code => _kindOfCode(code),
+        null => null,
+      },
+  ];
+  if (kinds.contains(DbOpenFailureKind.storageFull)) {
+    return DbOpenFailureKind.storageFull;
+  }
+  if (kinds.contains(DbOpenFailureKind.transient)) {
+    return DbOpenFailureKind.transient;
+  }
+  final first = kinds.isEmpty ? null : kinds.first;
+  return first == DbOpenFailureKind.corrupt ? first : null;
 }

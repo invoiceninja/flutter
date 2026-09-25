@@ -59,9 +59,18 @@ Future<void> carryNavStatePrefs(AppDatabase db) async {
       [column],
     );
   }
-  await db.customStatement(
-    'INSERT OR IGNORE INTO device_prefs ("key", "value", "updated_at") '
-    'VALUES (?, ?, ?)',
-    [kPrefsCarriedFromNavState, '1', DateTime.now().millisecondsSinceEpoch],
-  );
+  await markNavStatePrefsCarried(db);
 }
+
+/// Record [carryNavStatePrefs] as done without copying anything.
+///
+/// For a salvaged store whose `device_prefs` could not be read: the table
+/// exists, so the store is v12 or newer and its columns were carried long
+/// ago — along with the marker, into the table that was lost. Copying them
+/// now, or on any later salvage of this store, would bring back the values
+/// as they stood at the upgrade over whatever the user chose since.
+Future<void> markNavStatePrefsCarried(AppDatabase db) => db.customStatement(
+  'INSERT OR IGNORE INTO device_prefs ("key", "value", "updated_at") '
+  'VALUES (?, ?, ?)',
+  [kPrefsCarriedFromNavState, '1', DateTime.now().millisecondsSinceEpoch],
+);

@@ -105,6 +105,70 @@ void main() {
       expect(of(_sqlite(5)), DbOpenFailureKind.transient);
     });
 
+    test('a step that failed on a full disk is not filed under the failed '
+        'rollback after it', () {
+      // On a full disk or an I/O error SQLite rolls the transaction back
+      // itself, so drift's own ROLLBACK then fails ("no transaction is
+      // active") and it throws CouldNotRollBackException — whose text leads
+      // with that rollback error. Read first-code-only, a full disk mid-upgrade
+      // was a failed upgrade, and the store was reset.
+      Object failedRollback(Object cause, Object rollback) =>
+          CouldNotRollBackException(cause, StackTrace.empty, rollback);
+      DbOpenFailureKind of(Object cause) => classifyDbOpenFailure(
+        DatabaseMigrationException(from: 11, to: 12, cause: cause),
+      );
+
+      expect(
+        of(failedRollback(_sqlite(13), _sqlite(1))),
+        DbOpenFailureKind.storageFull,
+      );
+      expect(
+        of(failedRollback(_sqlite(266), _sqlite(1))),
+        DbOpenFailureKind.transient,
+      );
+      expect(
+        classifyDbOpenFailure(
+          _Serialized(
+            DatabaseMigrationException(
+              from: 11,
+              to: 12,
+              cause: failedRollback(_sqlite(13), _sqlite(1)),
+            ).toString(),
+          ),
+        ),
+        DbOpenFailureKind.storageFull,
+        reason: 'the same failure, crossed the web worker as text',
+      );
+      expect(
+        classifyDbOpenFailure(failedRollback(_sqlite(10), _sqlite(1))),
+        DbOpenFailureKind.transient,
+        reason: 'outside an upgrade too',
+      );
+      expect(
+        of(failedRollback(StateError('step'), _sqlite(10))),
+        DbOpenFailureKind.transient,
+        reason: 'a rollback that hit an I/O error is the disk failing',
+      );
+      expect(
+        of(failedRollback(StateError('step'), _sqlite(1))),
+        DbOpenFailureKind.migrationFailed,
+      );
+      expect(
+        classifyDbOpenFailure(failedRollback(_sqlite(11), _sqlite(1))),
+        DbOpenFailureKind.unknown,
+        reason: 'a later code never makes it a reset — only the first did',
+      );
+      expect(
+        classifyDbOpenFailure(
+          _Serialized(
+            'SqliteException(1): x QuotaExceededError SqliteException(26): y',
+          ),
+        ),
+        DbOpenFailureKind.storageFull,
+        reason: 'as before: no code in it decided, so the quota does',
+      );
+    });
+
     test('reads the code back out of a serialized (web worker) error', () {
       expect(
         classifyDbOpenFailure(

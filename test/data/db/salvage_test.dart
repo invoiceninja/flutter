@@ -18,6 +18,7 @@ import 'package:admin/data/db/database_opener_io.dart'
         readQuarantinedStoreFrom,
         retainQuarantinedStore;
 import 'package:admin/data/db/db_open_exception.dart';
+import 'package:admin/data/db/nav_state_prefs_carry.dart';
 import 'package:admin/data/db/salvage.dart';
 import 'package:admin/data/prefs/device_pref_keys.dart';
 import 'package:admin/data/prefs/device_prefs_store.dart';
@@ -253,6 +254,31 @@ void main() {
         isNull,
         reason: 'the user put the Tasks layout back on the list after v12',
       );
+    });
+
+    test('a v12 store whose device_prefs could not be read brings back no '
+        'stale nav_state column — now or on a later reset', () async {
+      // The carry's once-per-store marker is a device_prefs row, so here it
+      // is in the table that could not be read: the carry copied the columns
+      // as they stood at the v12 upgrade over whatever the user chose since.
+      final store = QuarantinedStore(
+        source: 's',
+        tables: {
+          'nav_state': [
+            {'id': 0, 'tasks_view': 'kanban', 'updated_at': 1},
+          ],
+        },
+        unreadableTables: const ['device_prefs'],
+      );
+
+      final result = await importSalvaged(fresh, store);
+      // What a salvage of this store would run next time.
+      await carryNavStatePrefs(fresh);
+
+      expect(result.incompleteTables, ['device_prefs']);
+      final prefs = DevicePrefsStore(fresh);
+      await prefs.load();
+      expect(prefs.read(DevicePrefKeys.tasksView), isNull);
     });
   });
 

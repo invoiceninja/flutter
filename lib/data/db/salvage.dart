@@ -182,9 +182,15 @@ importSalvaged(AppDatabase db, QuarantinedStore store) async {
     // A store older than v12 kept its preferences in `nav_state` columns,
     // which came across above; copy them into `device_prefs`. Once per store
     // (a v12 store's marker came across with its rows), and best-effort —
-    // preferences are not worth failing the import of the outbox.
+    // preferences are not worth failing the import of the outbox. A v12 store
+    // whose `device_prefs` could not be read lost that marker with it, so the
+    // carry is marked done instead of run.
     try {
-      await carryNavStatePrefs(db);
+      if (store.unreadableTables.contains('device_prefs')) {
+        await markNavStatePrefsCarried(db);
+      } else {
+        await carryNavStatePrefs(db);
+      }
     } catch (e, st) {
       _log.warning('Copying the salvaged nav_state preferences failed', e, st);
     }

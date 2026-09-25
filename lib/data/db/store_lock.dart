@@ -80,8 +80,10 @@ Future<void> _hold(Directory dir, String os) async {
     // Held by this very process: a hot restart reruns `main` while the
     // previous isolate's handle is still open. POSIX lets a process take its
     // own lock again, so only Windows, whose locks belong to the handle, gets
-    // here.
-    if (await _holderPid(path) == pid) return;
+    // here — and only there is it asked. On POSIX a refusal is always another
+    // process, even one whose id matches the file's (a stale id, or a copy
+    // in another pid namespace, as two sandboxed instances can be).
+    if (os == 'windows' && await _holderPid(path) == pid) return;
     throw const DatabaseInUseException();
   }
   // Which process holds it, for the check above. The lock is what counts:

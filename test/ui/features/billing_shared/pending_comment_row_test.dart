@@ -188,8 +188,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    // The drain claims it while the prompt is up.
-    await f.db.outboxDao.markInFlight(row.id);
+    // The drain claims it while the prompt is up. Written directly: the
+    // fixture's own drain has already had a go at the row, and
+    // `markInFlight` claims only a `pending` one.
+    await (f.db.update(f.db.outbox)..where((o) => o.id.equals(row.id))).write(
+      const OutboxCompanion(state: Value('in_flight')),
+    );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Delete').last);
     await tester.pump();

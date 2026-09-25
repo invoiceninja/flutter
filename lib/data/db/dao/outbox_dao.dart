@@ -441,10 +441,15 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         ),
       );
 
-  Future<void> markInFlight(int id) =>
-      (update(outbox)..where((o) => o.id.equals(id))).write(
-        const OutboxCompanion(state: Value('in_flight')),
-      );
+  /// Claim `pending` row [id] for dispatch. Whether it was still pending —
+  /// a Discard, or a save that replaced it, can land between the drain's
+  /// re-read and this write, and a row that is gone or no longer pending must
+  /// not be sent.
+  Future<bool> markInFlight(int id) async =>
+      await (update(outbox)
+            ..where((o) => o.id.equals(id) & o.state.equals('pending')))
+          .write(const OutboxCompanion(state: Value('in_flight'))) ==
+      1;
 
   /// Re-arm rows orphaned in `in_flight` — left there when a drain was
   /// interrupted (process death) between [markInFlight] and the catch handler
@@ -1057,6 +1062,31 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
                 o.id.isSmallerThanValue(beforeId),
           ))
           .go();
+
+  /// The failed saves [deleteOlderDeadSaves] would remove with
+  /// `includeCreates: true` once a create of the record lands, in id order —
+  /// so the create can salvage the SAVE-PARAM action one of them carried
+  /// (`BaseEntityRepository.dedupPendingMutations`).
+  Future<List<OutboxRow>> deadSavesForEntity({
+    required String companyId,
+    required String entityType,
+    required String entityId,
+  }) =>
+      (select(outbox)
+            ..where(
+              (o) =>
+                  o.companyId.equals(companyId) &
+                  o.entityType.equals(entityType) &
+                  o.entityId.equals(entityId) &
+                  o.mutationKind.isIn([
+                    MutationKind.update.wireName,
+                    MutationKind.create.wireName,
+                  ]) &
+                  _isDocumentUpload(o).not() &
+                  o.state.equals('dead'),
+            )
+            ..orderBy([(o) => OrderingTerm.asc(o.id)]))
+          .get();
 
   /// Rewrite tmp ids inside payloads of pending, unconfirmed AND dead rows
   /// once a `create` lands and produces a real id. The repository / sync engine

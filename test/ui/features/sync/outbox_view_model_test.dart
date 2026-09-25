@@ -68,12 +68,13 @@ void main() {
     String idempotencyKey = 'k',
     int createdAt = 0,
     String state = 'pending',
+    String mutationKind = 'update',
   }) => db.outboxDao.enqueue(
     OutboxCompanion.insert(
       companyId: 'co',
       entityType: 'client',
       entityId: entityId,
-      mutationKind: 'update',
+      mutationKind: mutationKind,
       payload: jsonEncode({'id': entityId}),
       idempotencyKey: idempotencyKey,
       nextAttemptAt: 0,
@@ -239,6 +240,29 @@ void main() {
 
     expect(await vm.retry(row), isFalse);
     expect((await db.outboxDao.byId(id))!.state, 'unconfirmed');
+    expect(sync.drains, isEmpty);
+  });
+
+  test('retry on a create a newer create replaced sends nothing', () async {
+    // The edit form re-sent the failed create with the fix. Retrying the old
+    // one would land its stale content first and get the fix refused.
+    const tmp = 'tmp_00000000-0000-4000-8000-0000000000a1';
+    final old = await enqueue(
+      entityId: tmp,
+      idempotencyKey: 'k1',
+      state: 'dead',
+      mutationKind: 'create',
+    );
+    await enqueue(entityId: tmp, idempotencyKey: 'k2', mutationKind: 'create');
+    final sync = _FakeSync(onDiscard: (_) async {});
+    final vm = build(sync);
+    addTearDown(vm.dispose);
+    await pumpEventQueue();
+    final row = vm.rows.firstWhere((r) => r.id == old);
+
+    expect(isReplacedCreate(row, vm.rows), isTrue);
+    expect(await vm.retry(row), isFalse);
+    expect((await db.outboxDao.byId(old))!.state, 'dead');
     expect(sync.drains, isEmpty);
   });
 

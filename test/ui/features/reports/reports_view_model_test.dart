@@ -1109,6 +1109,23 @@ void main() {
       expect(vm.periodColumn, isNull);
     });
 
+    test('a new split starts by month, whatever an earlier date grouping '
+        'used', () async {
+      final repo = _FakeRepo();
+      repo.queue(
+        _Trigger()..release(),
+        clientPreview(['client.country', 'client.created_at']),
+      );
+      final vm = ReportsViewModel(repo: repo, statics: statics);
+      vm.setIncludeDateColumn(true);
+      await vm.runReport();
+      vm.setGroup('client.created_at', subgroup: ReportSubgroup.day);
+      vm.setGroup('client.country');
+
+      vm.setPeriodColumn('client.created_at');
+      expect(vm.subgroup, ReportSubgroup.month);
+    });
+
     test('regrouping keeps the period across non-date columns only', () async {
       final repo = _FakeRepo();
       repo.queue(

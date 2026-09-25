@@ -289,15 +289,21 @@ void main() {
       },
     );
 
-    test('a lock held under this process\'s own id is not another copy — '
-        'on Windows a hot restart finds its previous isolate\'s lock, which '
-        'is still open', () async {
-      // A second process posing as this one: the refusal a Windows hot
-      // restart meets, where the lock belongs to the old isolate's handle.
+    test('on POSIX a lock held under this process\'s own id is still another '
+        'copy', () async {
+      // A second process posing as this one. Only Windows, where a hot
+      // restart finds its previous isolate's lock still open on the old
+      // handle, takes that id as its own; POSIX lets a process take its own
+      // lock again, so there the refusal is always another process — a
+      // stale id, or a copy in another pid namespace.
+      if (Platform.isWindows) return;
       final earlier = await startOther('hold', posingAs: pid);
       if (earlier == null) return;
       expect(await earlier.verdict(), 'held');
-      await holdStoreLock(dir);
+      await expectLater(
+        holdStoreLock(dir),
+        throwsA(isA<DatabaseInUseException>()),
+      );
     });
 
     test('nothing that tidies the store directory touches the lock', () async {

@@ -346,6 +346,24 @@ change that had not reached the server.
   again would resurrect them and send them twice. Deleting after the commit risks exactly
   that on a crash in between; deleting first risks only losing the import, with the snapshot
   still on disk.
+- **A full disk or a lock puts the salvage off; it does not lose it.** The import is one
+  transaction, so SQLITE_FULL or a busy/I-O error mid-import leaves nothing behind — but the
+  marker was already gone, and the snapshot went to `.unrecovered.<ts>`. Freeing space and
+  relaunching never retried it, and Device Settings → Data can only delete a kept copy. Now
+  `_salvageInto` asks `salvageRetries` (`salvage.dart`: `storageFull` or `transient` per
+  `classifyDbOpenFailure`); for those, `requeueSalvage` writes the marker again, with an
+  attempt count on its second line, and the open fails with `DatabaseUnavailableException` —
+  the boot screen's "Try again" and Reset, as for any failure that leaves the store alone.
+  The same applies to a snapshot whose *read* failed that way (`readPendingSalvage` leaves it
+  `.broken` for the caller). Two things make this safe:
+  - **It re-marks only after a rollback,** so the marker-first rule above still holds.
+  - **The app never starts on the fresh store while a salvage is pending.** Started, it
+    would queue new changes under outbox ids 1…n, which the snapshot's rows also hold: a
+    later import would refuse them (`OR IGNORE`) or drain them after the newer ones.
+  After `kMaxSalvageAttempts` (3) the snapshot is kept and reported as before, so an error
+  that never clears cannot keep the app from starting. Any other import error (an
+  unbindable value, a constraint) is not put off. Pinned by `salvage_test.dart` § a full disk
+  mid-import (a real SQLITE_FULL from an in-memory store capped by `max_page_count`).
 - **A file, not process state.** Every successful open looks for the marker (`finish` in
   `openAppDatabase`), not only a reset in the same process: the launch that quarantined may
   have died before importing, and the boot screen's Reset — a bare `destroyDatabaseStore` —

@@ -216,6 +216,9 @@ Future<bool> destroyDatabaseStore() async {
 /// test it in.
 Future<QuarantinedStore?> readQuarantinedStore() async => null;
 
+/// Web half of [requeueSalvage]: there is no salvage to put off.
+Future<bool> requeueSalvage(QuarantinedStore store) async => false;
+
 /// Web half of [readQuarantinedStore]'s retention: nothing to rename.
 Future<String> retainQuarantinedStore(String source) async => source;
 

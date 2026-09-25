@@ -560,6 +560,7 @@ Future<OpenedDatabase> openAppDatabase({
   Future<QueryExecutor> Function()? openExecutor,
   Future<bool> Function()? destroyStore,
   Future<QuarantinedStore?> Function()? readQuarantined,
+  Future<bool> Function(QuarantinedStore store)? requeueQuarantined,
   int? transientRetries,
   Duration transientRetryDelay = const Duration(seconds: 2),
 }) async {
@@ -572,14 +573,32 @@ Future<OpenedDatabase> openAppDatabase({
       (openExecutor == null && destroyStore == null
           ? readQuarantinedStore
           : () async => null);
+  final requeue =
+      requeueQuarantined ??
+      (readQuarantined == null && openExecutor == null && destroyStore == null
+          ? requeueSalvage
+          : (_) async => false);
   // Every successful open takes a pending salvage, not only a reset in this
   // process: the one before may have died between quarantine and import, or
-  // the boot screen's Reset asked for it before a relaunch.
+  // the boot screen's Reset asked for it before a relaunch. A salvage put off
+  // fails the open ([_salvageInto]) with the store closed, like any open
+  // failure that leaves the data alone.
   Future<OpenedDatabase> finish(
     AppDatabase db, {
     required bool wasReset,
-  }) async =>
-      (db: db, wasReset: wasReset, recovery: await _salvageInto(db, readOld));
+  }) async {
+    try {
+      return (
+        db: db,
+        wasReset: wasReset,
+        recovery: await _salvageInto(db, readOld, requeue),
+      );
+    } on DatabaseUnavailableException {
+      await _closeQuietly(db);
+      rethrow;
+    }
+  }
+
   final retries = transientRetries ?? (kIsWeb ? 0 : 1);
   Future<AppDatabase> openFresh() async => AppDatabase(await openStore());
 
@@ -635,6 +654,10 @@ Future<OpenedDatabase> openAppDatabase({
       _log.severe('Drift schema drift detected; resetting local data');
       await _closeQuietly(db);
       break;
+    } on DatabaseUnavailableException {
+      // A salvage put off ([finish]). Retrying here would take its marker
+      // again and spend another of its attempts on the same failure.
+      rethrow;
     } on KeyringUnavailableException {
       // The OS secret store is unreachable, so we couldn't get the encryption
       // key. Resetting can't help (destroying the DB file then reopening
@@ -691,12 +714,26 @@ typedef OpenedDatabase = ({
 
 /// Carry the durable and anchor rows of the store a reset just quarantined
 /// into the fresh [db]. Null when the platform has no salvage (web, for now)
-/// or there was nothing quarantined; never throws — a salvage failure is
-/// reported, and the fresh database is still usable.
+/// or there was nothing quarantined. A salvage failure is reported, and the
+/// fresh database is still usable — except one a later open may not hit
+/// ([salvageRetries]: a full disk, a lock): that one is marked again
+/// ([requeue]) and throws [DatabaseUnavailableException], so the app never
+/// starts on a store the user's unsynced work did not reach. Once [requeue]
+/// declines (after [kMaxSalvageAttempts]), it is reported like the rest.
 Future<LocalDataRecovery?> _salvageInto(
   AppDatabase db,
   Future<QuarantinedStore?> Function() readOld,
+  Future<bool> Function(QuarantinedStore store) requeue,
 ) async {
+  Future<void> putOff(QuarantinedStore store, Object error) async {
+    if (!salvageRetries(error) || !await requeue(store)) return;
+    _log.severe(
+      'Salvaging ${store.source} failed; it is marked for the next open',
+      error,
+    );
+    throw DatabaseUnavailableException(classifyDbOpenFailure(error), error);
+  }
+
   final QuarantinedStore? store;
   try {
     store = await readOld();
@@ -706,13 +743,15 @@ Future<LocalDataRecovery?> _salvageInto(
   }
   if (store == null) return null;
   if (!store.readable) {
+    await putOff(store, store.error!);
     _log.severe(
       'The quarantined store at ${store.source} is unreadable: '
       '${store.error}',
     );
     return LocalDataUnrecoverable(
       reason: '${store.error}',
-      retainedAt: store.source,
+      // Kept already, unless the reader left it for [putOff].
+      retainedAt: await retainQuarantinedStore(store.source),
     );
   }
   try {
@@ -732,6 +771,8 @@ Future<LocalDataRecovery?> _salvageInto(
       incompleteTables: incompleteTables,
     );
   } catch (e, st) {
+    // One transaction: whatever failed it left nothing in [db].
+    await putOff(store, e);
     _log.severe('Importing the salvaged rows failed', e, st);
     return LocalDataUnrecoverable(
       reason: 'import failed: $e',

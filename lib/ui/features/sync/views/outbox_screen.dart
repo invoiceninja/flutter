@@ -9,7 +9,7 @@ import 'package:admin/app/services.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart'
-    show isCreateOfExistingRecord, kOldFailureAge;
+    show isCreateOfExistingRecord, isReplacedCreate, kOldFailureAge;
 import 'package:admin/data/services/api_exception.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/l10n/localization.dart';
@@ -291,6 +291,7 @@ class _OutboxBodyState extends State<_OutboxBody> {
               child: _OutboxTile(
                 row: row,
                 canSend: widget.canSend,
+                replaced: isReplacedCreate(row, rows),
                 onDiscard: () => _discard(row),
                 onRetry: () => _retry(row),
                 onCheck: () => checkUnconfirmedRow(context, row),
@@ -308,6 +309,7 @@ class _OutboxTile extends StatelessWidget {
   const _OutboxTile({
     required this.row,
     required this.canSend,
+    required this.replaced,
     required this.onDiscard,
     required this.onRetry,
     required this.onCheck,
@@ -316,6 +318,9 @@ class _OutboxTile extends StatelessWidget {
 
   final OutboxRow row;
   final bool canSend;
+
+  /// A newer create of the same record replaced this one ([isReplacedCreate]).
+  final bool replaced;
   final Future<void> Function() onDiscard;
   final Future<void> Function() onRetry;
   final Future<void> Function() onCheck;
@@ -398,6 +403,7 @@ class _OutboxTile extends StatelessWidget {
                     row: row,
                     handlers: handlers,
                     canSend: canSend,
+                    replaced: replaced,
                     onDiscard: onDiscard,
                     onRetry: onRetry,
                     onCheck: onCheck,
@@ -694,6 +700,7 @@ class _RowMenu extends StatelessWidget {
     required this.row,
     required this.handlers,
     required this.canSend,
+    required this.replaced,
     required this.onDiscard,
     required this.onRetry,
     required this.onCheck,
@@ -705,6 +712,9 @@ class _RowMenu extends StatelessWidget {
   /// False over another company's queue: Check, Resend, Retry and Open act
   /// on the active company, so only Copy and Discard are offered.
   final bool canSend;
+
+  /// No Retry: a newer create of the record replaced this one.
+  final bool replaced;
 
   // Retry / Discard are owned by `_OutboxBodyState`: a discarded tile is
   // pulled from the list as soon as the action starts, so this widget's
@@ -802,7 +812,8 @@ class _RowMenu extends StatelessWidget {
             row.state != 'in_flight' &&
             row.state != 'unconfirmed' &&
             !isRecordDeletedRejection(row.lastStatusCode, row.lastError) &&
-            !isCreateOfExistingRecord(row))
+            !isCreateOfExistingRecord(row) &&
+            !replaced)
           PopupMenuItem<String>(
             value: 'retry',
             child: Row(

@@ -323,7 +323,7 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         throw UnconfirmedPriorMutationException(unconfirmed.id);
       }
     }
-    final superseded = [
+    final pending = [
       for (final k in [
         kind,
         if (kind == MutationKind.create) MutationKind.update,
@@ -335,6 +335,21 @@ abstract class BaseEntityRepository<TDomain, TApi> {
           mutationKind: k.wireName,
         ),
     ]..sort((a, b) => a.id.compareTo(b.id));
+    final superseded = [
+      // A re-create of a record whose create failed replaces the failed
+      // saves too: once it lands, `recordCreateSuccess` deletes them. One of
+      // them may be the only record of the action the user saved with (an
+      // offline "Save & Mark Paid" rejected for a taken number), and the
+      // fixed re-save is usually a plain Save — so their action comes along,
+      // ahead of the pending rows' so a newer choice still wins.
+      if (kind == MutationKind.create && entityId.startsWith('tmp_'))
+        ...await _outbox.deadSavesForEntity(
+          companyId: companyId,
+          entityType: entityTypeName,
+          entityId: entityId,
+        ),
+      ...pending,
+    ];
     await _outbox.deletePendingForEntity(
       companyId: companyId,
       entityType: entityTypeName,

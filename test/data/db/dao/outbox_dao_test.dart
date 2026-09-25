@@ -112,6 +112,24 @@ void main() {
     );
   });
 
+  group('markInFlight', () {
+    test('claims a pending row, and nothing else', () async {
+      // A Discard can land between the drain's re-read and the claim; a row
+      // that is gone or no longer pending must not go out.
+      final pending = await enqueue(entityId: 'a', idempotencyKey: 'k1');
+      final dead = await enqueue(entityId: 'b', idempotencyKey: 'k2');
+      await db.outboxDao.markDead(id: dead, error: '422');
+      final gone = await enqueue(entityId: 'c', idempotencyKey: 'k3');
+      await db.outboxDao.deleteRow(gone);
+
+      expect(await db.outboxDao.markInFlight(pending), isTrue);
+      expect(await db.outboxDao.markInFlight(pending), isFalse);
+      expect(await db.outboxDao.markInFlight(dead), isFalse);
+      expect(await db.outboxDao.markInFlight(gone), isFalse);
+      expect((await db.outboxDao.byId(dead))!.state, 'dead');
+    });
+  });
+
   group('liveCreateRowFor', () {
     test('a create on the wire wins over a newer one still queued — the '
         'record lands with it', () async {

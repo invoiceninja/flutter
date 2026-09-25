@@ -75,6 +75,21 @@ bool isCreateOfExistingRecord(OutboxRow row) =>
     (!row.entityId.startsWith('tmp_') ||
         isAlreadyCreatedRejection(row.lastError));
 
+/// Whether [row] is a `create` that a newer create of the same record, also
+/// in [queue], replaced — the fixed re-save from its edit form. Sending it
+/// first would put its stale content on the server, and the fix would then
+/// be refused as a create of an existing record.
+bool isReplacedCreate(OutboxRow row, Iterable<OutboxRow> queue) =>
+    row.mutationKind == MutationKind.create.wireName &&
+    queue.any(
+      (o) =>
+          o.id > row.id &&
+          o.companyId == row.companyId &&
+          o.entityType == row.entityType &&
+          o.entityId == row.entityId &&
+          o.mutationKind == MutationKind.create.wireName,
+    );
+
 /// Terminal state observed by [SyncRepository.awaitRow] for one outbox row.
 enum SyncRowOutcome {
   /// Row was successfully drained (server returned 2xx; the row was deleted).
@@ -364,8 +379,8 @@ class SyncRepository {
     return discardOutboxRow(id);
   }
 
-  /// Drop the failed save [id] once a newer save of the same record has gone
-  /// through: its payload is stale. Only a `dead` create / update is
+  /// Drop the failed save [id], and the older failed saves of the same record,
+  /// once a newer save of it has gone through: their payloads are stale. Only a `dead` create / update is
   /// superseded by a save — anything else on the record (a rejected email,
   /// a payment) is separate work the save did not replace, and stays.
   ///
@@ -390,6 +405,18 @@ class SyncRepository {
       );
       if (newest == null || newest.id <= row.id) return false;
     }
+    // The older failed saves are staler still — as in [discardFailedSave].
+    // Kept, the oldest one's error came back on the next open, and an Outbox
+    // Retry would have put its content over the save that just went through.
+    // A never-synced record's failed create stays unless a create replaced it.
+    await db.outboxDao.deleteOlderDeadSaves(
+      companyId: row.companyId,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      beforeId: row.id,
+      includeCreates:
+          kind == MutationKind.create || !row.entityId.startsWith('tmp_'),
+    );
     await db.outboxDao.deleteRow(id);
     return true;
   }
@@ -1493,7 +1520,10 @@ class SyncRepository {
       return false;
     }
 
-    await db.outboxDao.markInFlight(row.id);
+    if (!await db.outboxDao.markInFlight(row.id)) {
+      _log.fine('Not sending ${row.entityType} ${row.id}: no longer pending');
+      return false;
+    }
     // Every request the dispatch makes is bound to this row's company, and
     // the scope records whether a write has committed — see `RequestScope`.
     final scope = RequestScope(

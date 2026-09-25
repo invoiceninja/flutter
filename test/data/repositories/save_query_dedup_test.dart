@@ -103,6 +103,44 @@ void main() {
     });
   });
 
+  group('re-sending a create that failed with an action', () {
+    Future<(InvoiceRepository, String)> failedCreate() async {
+      await seedCompany();
+      final repo = invoices();
+      final first = await repo.create(
+        companyId: 'co',
+        draft: Invoice.fromApi(const InvoiceApi(id: '', statusId: '1')),
+        extraQuery: const {'paid': 'true'},
+      );
+      await db.outboxDao.markDead(id: first.outboxRowId, error: 'taken');
+      return (repo, first.entity.id);
+    }
+
+    test('a plain re-save keeps the action of the failed create', () async {
+      // Offline "Save & Mark Paid", rejected for a taken number, fixed and
+      // re-saved with a plain Save. The failed create is deleted once the
+      // re-create lands, so it must not take the action with it.
+      final (repo, tmpId) = await failedCreate();
+      await repo.create(
+        companyId: 'co',
+        draft: Invoice.fromApi(InvoiceApi(id: tmpId, statusId: '1')),
+        existingTempId: tmpId,
+      );
+      expect(await savedQuery(), {'paid': 'true'});
+    });
+
+    test('an action on the re-save replaces it', () async {
+      final (repo, tmpId) = await failedCreate();
+      await repo.create(
+        companyId: 'co',
+        draft: Invoice.fromApi(InvoiceApi(id: tmpId, statusId: '1')),
+        existingTempId: tmpId,
+        extraQuery: const {'mark_sent': 'true'},
+      );
+      expect(await savedQuery(), {'mark_sent': 'true'});
+    });
+  });
+
   group('a superseding save carries the earlier action forward', () {
     test('offline Mark Sent then a plain Save keeps mark_sent', () async {
       await seedCompany();

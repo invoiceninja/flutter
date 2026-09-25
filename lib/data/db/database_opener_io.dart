@@ -181,7 +181,20 @@ Future<bool> destroyDatabaseStoreAt(File file) async {
 /// quarantined since the last successful open — an older one was imported by
 /// that open, and reading it again would resurrect outbox rows delivered
 /// since; a later one never held work ([quarantineDatabaseFile]).
+///
+/// The marker holds the snapshot's file name and, once an open has put the
+/// salvage off ([requeueSalvage]), how many times on a second line.
 const _kSalvageMarkerName = '$_kDbFileName.salvage';
+
+/// The snapshot name and attempt count in a salvage marker's [text]. A
+/// marker from before the count reads as attempt 0.
+({String name, int attempt}) _parseSalvageMarker(String text) {
+  final lines = text.split('\n');
+  return (
+    name: lines.first.trim(),
+    attempt: lines.length > 1 ? int.tryParse(lines[1].trim()) ?? 0 : 0,
+  );
+}
 
 /// The file name of the snapshot the salvage marker in [dir] names, when that
 /// snapshot is still on disk — or null: no marker, a marker naming a snapshot
@@ -190,7 +203,9 @@ Future<String?> _pendingSalvageSnapshot(Directory dir) async {
   try {
     final marker = File(p.join(dir.path, _kSalvageMarkerName));
     if (!await marker.exists()) return null;
-    final name = (await marker.readAsString()).trim();
+    final (:name, attempt: _) = _parseSalvageMarker(
+      await marker.readAsString(),
+    );
     if (name.isEmpty) return null;
     return await File(p.join(dir.path, name)).exists() ? name : null;
   } catch (e) {
@@ -230,11 +245,31 @@ Future<String?> quarantineDatabaseFile(File file) async {
       p.join(dir.path, _kSalvageMarkerName),
     ).writeAsString(p.basename(snapshot), flush: true);
   }
+  final movedSidecars = <String>[];
   for (final suffix in _kSidecarSuffixes) {
     final sidecar = File('${file.path}$suffix');
-    if (await sidecar.exists()) await sidecar.rename('$snapshot$suffix');
+    if (await sidecar.exists()) {
+      await sidecar.rename('$snapshot$suffix');
+      movedSidecars.add(suffix);
+    }
   }
-  if (moved) await file.rename(snapshot);
+  if (moved) {
+    try {
+      await file.rename(snapshot);
+    } catch (_) {
+      // The store stays (a Windows sharing violation, say), so its journal
+      // and WAL go back with it: without its hot journal an interrupted
+      // transaction in it can never be rolled back.
+      for (final suffix in movedSidecars) {
+        try {
+          await File('$snapshot$suffix').rename('${file.path}$suffix');
+        } catch (e) {
+          _log.severe('Could not put ${file.path}$suffix back: $e');
+        }
+      }
+      rethrow;
+    }
+  }
   // Keep at most the two most-recent `.broken.*` snapshots so a device that
   // hits repeated corruption doesn't accumulate encrypted PII forever. Two
   // is enough for support to compare "this failure" against "the previous
@@ -337,7 +372,7 @@ Future<QuarantinedStore?> readPendingSalvage(
 }) async {
   final marker = File(p.join(dir.path, _kSalvageMarkerName));
   if (!await marker.exists()) return null;
-  final name = (await marker.readAsString()).trim();
+  final (:name, :attempt) = _parseSalvageMarker(await marker.readAsString());
   // Taken before the import, never after it: a crash between the import's
   // commit and the marker's removal would import these rows again on the
   // next launch, resurrecting outbox rows delivered in between. Losing the
@@ -355,8 +390,16 @@ Future<QuarantinedStore?> readPendingSalvage(
       error: e,
     );
   }
-  final store = readQuarantinedStoreFrom(snapshot, key: secret);
-  if (store.readable) return store;
+  final store = readQuarantinedStoreFrom(
+    snapshot,
+    key: secret,
+    attempt: attempt,
+  );
+  // A read that a full disk or a lock failed is left where it is: the caller
+  // may put the salvage off ([requeueSalvage]), and retains it otherwise.
+  if (store.readable || (!keyLost && salvageRetries(store.error!))) {
+    return store;
+  }
   return QuarantinedStore(
     source: await retainQuarantinedStore(snapshot.path),
     error: keyLost ? const DatabaseKeyLostException() : store.error,
@@ -365,12 +408,16 @@ Future<QuarantinedStore?> readPendingSalvage(
 
 /// [readQuarantinedStore]'s read of one file with an explicit [key] (null
 /// for an unencrypted store) — exposed for tests.
-QuarantinedStore readQuarantinedStoreFrom(File snapshot, {String? key}) {
+QuarantinedStore readQuarantinedStoreFrom(
+  File snapshot, {
+  String? key,
+  int attempt = 0,
+}) {
   final raw.Database db;
   try {
     db = raw.sqlite3.open(snapshot.path);
   } catch (e) {
-    return QuarantinedStore(source: snapshot.path, error: e);
+    return QuarantinedStore(source: snapshot.path, error: e, attempt: attempt);
   }
   try {
     if (key != null) {
@@ -408,9 +455,10 @@ QuarantinedStore readQuarantinedStoreFrom(File snapshot, {String? key}) {
       source: snapshot.path,
       tables: tables,
       unreadableTables: unreadable,
+      attempt: attempt,
     );
   } catch (e) {
-    return QuarantinedStore(source: snapshot.path, error: e);
+    return QuarantinedStore(source: snapshot.path, error: e, attempt: attempt);
   } finally {
     db.close();
   }
@@ -466,11 +514,44 @@ Future<void> deleteRetainedStore(String path) async {
   }
 }
 
+/// Mark [store]'s snapshot for salvage again, after an open took the marker
+/// ([readPendingSalvage]) but the salvage failed in a way the next open may
+/// not ([salvageRetries]). Whether it did: not past [kMaxSalvageAttempts],
+/// and only a `.broken` snapshot still on disk with no other marker in its
+/// place — the one [readPendingSalvage] took.
+///
+/// Only after a failure that left nothing behind: the marker is taken before
+/// the import so that an import that committed is never read twice, and a
+/// failed one rolled back.
+Future<bool> requeueSalvage(QuarantinedStore store) async {
+  final attempt = store.attempt + 1;
+  if (attempt >= kMaxSalvageAttempts) return false;
+  final name = p.basename(store.source);
+  if (_brokenSnapshotName.firstMatch(name) == null ||
+      _kSidecarSuffixes.any(name.endsWith)) {
+    return false;
+  }
+  try {
+    if (!await File(store.source).exists()) return false;
+    final marker = File(p.join(p.dirname(store.source), _kSalvageMarkerName));
+    if (await marker.exists()) return false;
+    await marker.writeAsString('$name\n$attempt', flush: true);
+    return true;
+  } catch (e) {
+    _log.warning('Could not mark ${store.source} for salvage again: $e');
+    return false;
+  }
+}
+
 /// Rename a quarantined snapshot (and its sidecars) to `.unrecovered.<ts>`,
 /// out of reach of [pruneBrokenDbFiles]. Returns the new path — or the old
 /// one if the rename failed.
 Future<String> retainQuarantinedStore(String source) async {
-  final target = source.replaceFirst('.broken.', '.unrecovered.');
+  // The file name only: a directory above it could hold `.broken.` too.
+  final name = p.basename(source);
+  final target =
+      source.substring(0, source.length - name.length) +
+      name.replaceFirst('.broken.', '.unrecovered.');
   if (target == source) return source;
   try {
     for (final suffix in _kSidecarSuffixes) {

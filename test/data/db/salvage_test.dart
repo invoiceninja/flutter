@@ -18,6 +18,7 @@ import 'package:admin/data/db/database_opener_io.dart'
         readPendingSalvage,
         readQuarantinedStoreFrom,
         readQuarantinedStoreIn,
+        requeueSalvage,
         retainQuarantinedStore;
 import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/db/store_lock.dart';
@@ -449,6 +450,120 @@ void main() {
       },
     );
 
+    group('a full disk mid-import', () {
+      // The import is one transaction, so SQLITE_FULL leaves nothing behind —
+      // but the marker was taken before it. Kept as `.unrecovered`, the
+      // user's unsynced work was stranded for good once space was freed, and
+      // the app went on queueing new changes under the ids the snapshot's
+      // outbox rows hold.
+
+      /// A fresh store capped at [pages] pages: room for the schema, none
+      /// for a large import.
+      Future<QueryExecutor> Function() cappedStore(int pages) =>
+          () async => NativeDatabase.memory(
+            setup: (raw) => raw.execute('PRAGMA max_page_count = $pages'),
+          );
+
+      Future<QuarantinedStore> bulkyStore(File snapshot) async {
+        final old = await freshDb();
+        await seedOutbox(old);
+        final outbox = await rowsOf(old, 'outbox');
+        await old.close();
+        return QuarantinedStore(
+          source: snapshot.path,
+          tables: {
+            'outbox': [
+              {...outbox.single, 'payload': 'x' * (4 << 20)},
+            ],
+          },
+        );
+      }
+
+      test('puts the salvage off and fails the open', () async {
+        final snapshot = snapshotFile(7);
+        final store = await bulkyStore(snapshot);
+        final requeued = <QuarantinedStore>[];
+
+        await expectLater(
+          openAppDatabase(
+            openExecutor: cappedStore(400),
+            destroyStore: () async => true,
+            readQuarantined: () async => store,
+            requeueQuarantined: (s) async {
+              requeued.add(s);
+              return true;
+            },
+          ),
+          throwsA(
+            isA<DatabaseUnavailableException>().having(
+              (e) => e.kind,
+              'kind',
+              DbOpenFailureKind.storageFull,
+            ),
+          ),
+        );
+        expect(requeued, [store]);
+        expect(
+          snapshot.existsSync(),
+          isTrue,
+          reason: 'still a `.broken` snapshot for the next open',
+        );
+      });
+
+      test(
+        'once it can no longer be put off, it is kept and reported',
+        () async {
+          final snapshot = snapshotFile(8);
+          final opened = await openAppDatabase(
+            openExecutor: cappedStore(400),
+            destroyStore: () async => true,
+            readQuarantined: () async => bulkyStore(snapshot),
+            requeueQuarantined: (_) async => false,
+          );
+
+          expect(
+            opened.recovery,
+            isA<LocalDataUnrecoverable>().having(
+              (r) => r.retainedAt,
+              'retainedAt',
+              p.join(dir.path, 'invoiceninja.sqlite.unrecovered.8'),
+            ),
+          );
+          await opened.db.close();
+        },
+      );
+
+      test('an import that fails any other way is not put off', () async {
+        final old = await freshDb();
+        await seedOutbox(old);
+        final outbox = await rowsOf(old, 'outbox');
+        await old.close();
+        final snapshot = snapshotFile(9);
+        var requeues = 0;
+        final opened = await openAppDatabase(
+          openExecutor: corruptThenFresh(),
+          destroyStore: () async => true,
+          readQuarantined: () async => QuarantinedStore(
+            source: snapshot.path,
+            tables: {
+              'outbox': [
+                // Unbindable — an error the next open would hit again.
+                {...outbox.single, 'payload': Object()},
+              ],
+            },
+          ),
+          requeueQuarantined: (_) async {
+            requeues++;
+            return true;
+          },
+        );
+
+        expect(requeues, 0);
+        expect(opened.recovery, isA<LocalDataUnrecoverable>());
+        await opened.db.close();
+      });
+    });
+
     test(
       'a store that opens with nothing pending reports no recovery',
       () async {
@@ -652,6 +767,75 @@ void main() {
           await readPendingSalvage(dir, key: () async => key),
           isNull,
           reason: 'a second import would resurrect rows delivered since',
+        );
+      },
+    );
+
+    test(
+      'a salvage put off is marked again, a limited number of times',
+      () async {
+        await seedEncryptedStore();
+        await quarantineDatabaseFile(file);
+
+        var store = await readPendingSalvage(dir, key: () async => key);
+        expect(store?.attempt, 0);
+        for (var attempt = 1; attempt < kMaxSalvageAttempts; attempt++) {
+          expect(await requeueSalvage(store!), isTrue);
+          expect(marker().existsSync(), isTrue);
+          store = await readPendingSalvage(dir, key: () async => key);
+          expect(store?.attempt, attempt);
+          expect(store?.tables['outbox'], hasLength(1));
+        }
+
+        expect(
+          await requeueSalvage(store!),
+          isFalse,
+          reason:
+              'an error that never clears must not keep the app from '
+              'starting',
+        );
+        expect(marker().existsSync(), isFalse);
+      },
+    );
+
+    test('a salvage is never marked over another one', () async {
+      await seedEncryptedStore();
+      await quarantineDatabaseFile(file);
+      final store = await readPendingSalvage(dir, key: () async => key);
+      marker().writeAsStringSync('invoiceninja.sqlite.broken.2');
+
+      expect(await requeueSalvage(store!), isFalse);
+      expect(marker().readAsStringSync(), 'invoiceninja.sqlite.broken.2');
+    });
+
+    test('a kept copy is never marked for salvage', () async {
+      final kept = File(p.join(dir.path, 'invoiceninja.sqlite.unrecovered.3'))
+        ..writeAsStringSync('old');
+
+      expect(
+        await requeueSalvage(QuarantinedStore(source: kept.path)),
+        isFalse,
+      );
+      expect(marker().existsSync(), isFalse);
+    });
+
+    test(
+      'keeping a snapshot renames the file, never a directory above it',
+      () async {
+        final nested = Directory(p.join(dir.path, 'backup.broken.1'))
+          ..createSync();
+        final snapshot = File(
+          p.join(nested.path, 'invoiceninja.sqlite.broken.2'),
+        )..writeAsStringSync('old');
+
+        final kept = await retainQuarantinedStore(snapshot.path);
+
+        expect(kept, p.join(nested.path, 'invoiceninja.sqlite.unrecovered.2'));
+        expect(File(kept).existsSync(), isTrue);
+        expect(
+          await retainQuarantinedStore(kept),
+          kept,
+          reason: 'a kept copy stays where it is',
         );
       },
     );

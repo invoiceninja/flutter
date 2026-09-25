@@ -700,6 +700,52 @@ void main() {
       expect(view.groups.map((g) => g.key), everyElement(isNot(contains(sep))));
     });
 
+    test('money groups that share an amount stay together across periods', () {
+      // "$1,000" and "€1,000" sort equal on the amount; before the tie-break
+      // on the display string the split interleaved them month by month.
+      const amountCol = ReportColumn(
+        identifier: 'invoice.amount',
+        displayLabel: 'Amount',
+        type: ReportColumnType.money,
+      );
+      List<ReportCell> row(String shown, String currencyId, String date) => [
+        ReportNumberCell(
+          value: Decimal.fromInt(1000),
+          isMoney: true,
+          currencyId: currencyId,
+          displayValue: shown,
+        ),
+        ReportDateCell(value: Date.tryParse(date)),
+      ];
+      final view = engine.compute(
+        preview: ReportPreview(
+          columns: const [amountCol, startCol],
+          rows: [
+            for (final cells in [
+              row('\$1,000', '1', '2026-08-03'),
+              row('€1,000', '3', '2026-08-04'),
+              row('\$1,000', '1', '2026-09-03'),
+              row('€1,000', '3', '2026-09-04'),
+            ])
+              ReportRow(cells: cells),
+          ],
+        ),
+        ui: const ReportUiState(
+          group: 'invoice.amount',
+          periodColumn: 'task.start_date',
+          subgroup: ReportSubgroup.month,
+        ),
+        exchangeRates: const {},
+        companyCurrencyId: '1',
+      );
+      expect(view.groups.map((g) => splitReportGroupKey(g.key).$1), [
+        '\$1,000',
+        '\$1,000',
+        '€1,000',
+        '€1,000',
+      ]);
+    });
+
     test('periodColumn participates in value equality', () {
       expect(
         byUserMonth,

@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/domain/sync/mutation.dart';
 import 'package:admin/ui/core/widgets/notify.dart' show formatNotifyError;
 
 final _log = Logger('OutboxViewModel');
@@ -146,6 +147,17 @@ class OutboxViewModel extends ChangeNotifier {
       // discard from another surface), or `unconfirmed`, which only Resend
       // may send again. `retryDead` then matches nothing, and the tap must
       // not claim "Sync has started".
+      // A create the edit form has since re-sent is stale: sent first, it
+      // would land its old content and get the fix refused. The menu hides
+      // Retry for it; this covers a row replaced while the menu was open.
+      if (row.mutationKind == MutationKind.create.wireName) {
+        final newest = await dao.findNewestCreateForEntity(
+          companyId: row.companyId,
+          entityType: row.entityType,
+          entityId: row.entityId,
+        );
+        if (newest != null && newest.id > row.id) return false;
+      }
       final rearmed = await dao.retryDead(
         id: row.id,
         now: DateTime.now().millisecondsSinceEpoch,

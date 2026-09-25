@@ -776,12 +776,15 @@ class ReportsViewModel extends ChangeNotifier {
   }
 
   /// Split the current non-date grouping by [columnId]'s date (null to stop
-  /// splitting). Defaults the granularity to month.
+  /// splitting). A new split starts by month; switching the split to another
+  /// date column keeps the granularity chosen for it.
   void setPeriodColumn(String? columnId) {
     final id = (columnId == null || columnId.isEmpty) ? null : columnId;
     if (id == _periodColumn) return;
+    // Not `??=`: a Day or Week left over from an earlier date grouping is not
+    // a choice anyone made for this split.
+    if (id != null && _periodColumn == null) _subgroup = ReportSubgroup.month;
     _periodColumn = id;
-    if (id != null) _subgroup ??= ReportSubgroup.month;
     // A drill names a bucket of the old key shape, which no longer exists.
     _selectedGroup = null;
     _invalidateMemo();

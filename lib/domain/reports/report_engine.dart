@@ -632,13 +632,16 @@ class ReportEngine {
     // "$200", "10" before "9") — so order by each bucket's representative
     // typed sort key instead.
     int compareGroupPart(String a, String b) {
-      if (!numeric) {
-        return splitReportGroupKey(a).$1.compareTo(splitReportGroupKey(b).$1);
-      }
-      return _compareSortKeys(
+      final ga = splitReportGroupKey(a).$1;
+      final gb = splitReportGroupKey(b).$1;
+      if (!numeric) return ga.compareTo(gb);
+      final bySortKey = _compareSortKeys(
         buckets[a]!.first.cells[groupIdx].sortKey,
         buckets[b]!.first.cells[groupIdx].sortKey,
       );
+      // Two groups can share a sort key ($1,000 and €1,000), and split by
+      // period they would otherwise interleave month by month.
+      return bySortKey != 0 ? bySortKey : ga.compareTo(gb);
     }
 
     keys.sort((a, b) {

@@ -630,6 +630,44 @@ void main() {
       );
       expect(await engine.supersedeDeadSave(create), isTrue);
     });
+
+    test('drops the older failed saves it replaced too', () async {
+      // Two rejected saves, then one that goes through: the form is linked to
+      // the newer failure only. The older one used to stay — its error came
+      // back on the next open, and a Retry would PUT stale content.
+      final engine = makeEngine(_ProgrammableDispatcher());
+      final older = await enqueueClient(entityId: 'c1', idempotencyKey: 'k1');
+      await db.outboxDao.markDead(id: older, error: '422');
+      final newer = await enqueueClient(entityId: 'c1', idempotencyKey: 'k2');
+      await db.outboxDao.markDead(id: newer, error: '422');
+      final other = await enqueueClient(entityId: 'c2', idempotencyKey: 'k3');
+      await db.outboxDao.markDead(id: other, error: '422');
+
+      expect(await engine.supersedeDeadSave(newer), isTrue);
+
+      expect(await db.outboxDao.byId(older), isNull);
+      expect(await db.outboxDao.byId(newer), isNull);
+      expect(await db.outboxDao.byId(other), isNotNull);
+    });
+
+    test(
+      'an update of a never-synced record keeps its failed create',
+      () async {
+        final engine = makeEngine(_ProgrammableDispatcher());
+        const tmp = 'tmp_00000000-0000-4000-8000-0000000000f3';
+        final create = await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.create,
+          idempotencyKey: 'k1',
+        );
+        await db.outboxDao.markDead(id: create, error: '422');
+        final update = await enqueueClient(entityId: tmp, idempotencyKey: 'k2');
+        await db.outboxDao.markDead(id: update, error: '422');
+
+        expect(await engine.supersedeDeadSave(update), isTrue);
+        expect(await db.outboxDao.byId(create), isNotNull);
+      },
+    );
   });
 
   group('an outcome the server never confirmed', () {

@@ -2,7 +2,9 @@ import 'package:drift/drift.dart';
 import 'package:logging/logging.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/db_open_exception.dart';
 import 'package:admin/data/db/nav_state_prefs_carry.dart';
+import 'package:admin/data/db/open_failure.dart';
 import 'package:admin/data/db/table_retention.dart';
 
 final _log = Logger('Salvage');
@@ -23,6 +25,7 @@ class QuarantinedStore {
     this.tables = const {},
     this.unreadableTables = const [],
     this.error,
+    this.attempt = 0,
   });
 
   /// Where the store now lives (a `.broken.<ts>` / `.unrecovered.<ts>` file
@@ -44,6 +47,30 @@ class QuarantinedStore {
   final Object? error;
 
   bool get readable => error == null;
+
+  /// How many earlier opens put this salvage off ([salvageRetries]).
+  final int attempt;
+}
+
+/// How many opens may put one salvage off before its snapshot is kept as
+/// `.unrecovered` like any other failure — so an error that never clears
+/// can't keep the app from starting.
+const kMaxSalvageAttempts = 3;
+
+/// Whether a salvage that failed with [error] is worth another open: a full
+/// disk or a lock / I/O hiccup, which changes nothing in the snapshot and
+/// clears once space is freed or the other holder lets go. The import runs in
+/// one transaction, so a failure like that left nothing behind.
+///
+/// Put off, never let go: the salvage is marked again and the open fails
+/// ([DatabaseUnavailableException]), so the app does not start on a fresh
+/// store the user's work never reached. Started, it would queue new changes
+/// under the outbox ids the snapshot's rows hold, and a later import would
+/// refuse those rows or send them out of order.
+bool salvageRetries(Object error) {
+  final kind = classifyDbOpenFailure(error);
+  return kind == DbOpenFailureKind.storageFull ||
+      kind == DbOpenFailureKind.transient;
 }
 
 /// An old copy of the local database still on this device: a `.broken`

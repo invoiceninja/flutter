@@ -28,6 +28,14 @@ jobs:
     name: Build and Upload macOS to TestFlight
     runs-on: macos-26
     timeout-minutes: 80
+    # Job-level, not just on the --config-only step: `xcodebuild archive` runs
+    # the Runner scheme's pre-action (tools/xcode_inject_sentry_dsn.sh), which
+    # re-resolves the DSN from the environment (then dev.json, absent here) and
+    # patches it into the generated xcconfig the compile reads. With it unset
+    # the pre-action used to DROP the entry --config-only had written, so every
+    # CI archive shipped with Sentry off.
+    env:
+      IN_SENTRY_DSN: ${{ secrets.IN_SENTRY_DSN }}
     steps:
       - uses: actions/checkout@v5
 
@@ -107,7 +115,7 @@ jobs:
       # baked into the AOT binary even though the compile happens under xcodebuild
       # below. Empty/unset secret is a safe no-op (Sentry stays disabled).
       - name: Configure macOS release build
-        run: flutter build macos --release --config-only --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
+        run: flutter build macos --release --config-only --dart-define=IN_SENTRY_DSN="$IN_SENTRY_DSN"
 
       # Real distribution signing — the INVERSE of the unsigned CI gate (which
       # forces CODE_SIGN_IDENTITY="-" / CODE_SIGNING_ALLOWED=NO). The tracked
@@ -129,6 +137,39 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM=NPC44Y2C98 \
             PROVISIONING_PROFILE_SPECIFIER="Invoice Ninja macOS App Store"
+
+      # Prove the DSN reached the shipped binary — see the same step in
+      # appstore-ios.yml. The xcconfig decode is a quick pointed diagnosis; the
+      # binary grep is the authoritative check. Skipped when the secret is unset.
+      - name: Verify the Sentry DSN in the archived binary
+        run: |
+          set -euo pipefail
+          if [ -z "${IN_SENTRY_DSN:-}" ]; then
+            echo "IN_SENTRY_DSN is not set — nothing to verify."
+            exit 0
+          fi
+          archive=build/macos-release/Runner.xcarchive
+          app_bin=$(find "$archive/Products/Applications" -path '*/App.framework/App' \( -type f -o -type l \) | head -n1)
+          if [ -z "$app_bin" ]; then
+            echo "::error::No App.framework/App in $archive." >&2
+            exit 1
+          fi
+          defines=$(grep -E '^DART_DEFINES=' macos/Flutter/ephemeral/Flutter-Generated.xcconfig | head -n1 | sed 's/^DART_DEFINES=//' || true)
+          found=0
+          IFS=',' read -ra entries <<< "$defines"
+          for e in ${entries[@]+"${entries[@]}"}; do
+            if [ "$(printf '%s' "$e" | /usr/bin/base64 -D 2>/dev/null || true)" = "IN_SENTRY_DSN=$IN_SENTRY_DSN" ]; then
+              found=1
+            fi
+          done
+          if [ "$found" -ne 1 ]; then
+            echo "::warning::IN_SENTRY_DSN is missing from DART_DEFINES in macos/Flutter/ephemeral/Flutter-Generated.xcconfig."
+          fi
+          if ! grep -qaF -- "$IN_SENTRY_DSN" "$app_bin"; then
+            echo "::error::IN_SENTRY_DSN is set but not in the archived $app_bin — the build would ship with Sentry disabled." >&2
+            exit 1
+          fi
+          echo "The Sentry DSN is in the archived binary."
 
       # method=app-store on a macOS archive emits a signed Mac App Store .pkg
       # (installer-signed) via the committed macos/ExportOptions.plist, which

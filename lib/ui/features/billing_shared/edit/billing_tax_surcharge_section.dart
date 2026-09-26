@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -73,7 +75,12 @@ class BillingTaxSurchargeSection extends StatefulWidget {
 
 class _BillingTaxSurchargeSectionState
     extends State<BillingTaxSurchargeSection> {
-  int? _visibleTaxRows;
+  /// Tax tiers on screen. Grow-only — the card has no way to remove a tier —
+  /// and recomputed on every build: it used to be latched on the FIRST build,
+  /// which on a new document ran before the company row arrived, so a company
+  /// with document taxes enabled got zero tiers and (with no surcharges) no
+  /// card at all — and with it no inclusive-tax switch.
+  int _visibleTaxRows = 0;
 
   int _draftPopulated() {
     final r = widget.taxRows;
@@ -112,14 +119,18 @@ class _BillingTaxSurchargeSectionState
   Widget build(BuildContext context) {
     return StreamBuilder<Company?>(
       stream: _company,
+      // The last company this session saw, so the first frame already knows
+      // the enabled tiers instead of drawing none and growing a beat later.
+      initialData: context.read<Services>().company.peek(
+        companyId: widget.companyId,
+        id: widget.companyId,
+      ),
       builder: (context, snapshot) {
         final company = snapshot.data;
         final companyEnabled = (company?.enabledTaxRates ?? 0).clamp(0, 3);
         final populated = _draftPopulated();
-        _visibleTaxRows ??= companyEnabled > populated
-            ? companyEnabled
-            : populated;
-        final visible = _visibleTaxRows!;
+        _visibleTaxRows = max(_visibleTaxRows, max(companyEnabled, populated));
+        final visible = _visibleTaxRows;
 
         final surchargeLabels = <int, String>{};
         for (var i = 0; i < 4; i++) {
@@ -177,8 +188,17 @@ class _BillingTaxSurchargeSectionState
         }
 
         // Nothing to show (no enabled taxes, none populated, no surcharge
-        // labels) → collapse entirely rather than render a lone toggle.
-        if (visible == 0 && surchargeLabels.isEmpty && populated == 0) {
+        // labels) → collapse entirely rather than render a lone toggle. Not
+        // while the inclusive-tax switch means something: the lines are
+        // taxed (`enabled_item_tax_rates`), or the document is inclusive —
+        // this card is the only place that switch lives.
+        final inclusiveMatters =
+            (company?.enabledItemTaxRates ?? 0) > 0 ||
+            widget.usesInclusiveTaxes;
+        if (visible == 0 &&
+            surchargeLabels.isEmpty &&
+            populated == 0 &&
+            !inclusiveMatters) {
           return const SizedBox.shrink();
         }
 

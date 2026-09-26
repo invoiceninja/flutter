@@ -42,6 +42,7 @@ abstract class GenericBillingDocEditViewModel<T>
     super.connectivity,
     super.companyId,
     super.useCommaAsDecimalPlace,
+    super.prefilled,
     this.currencyPrecision = 2,
   }) {
     // Stamp the computed totals onto the draft right before every save so the
@@ -705,6 +706,7 @@ abstract class GenericBillingDocEditViewModel<T>
 /// setters, which is how their parsing and defaults could drift apart.
 final class BillingDocWriter<T> {
   const BillingDocWriter({
+    required this.empty,
     required this.lineItems,
     required this.invitations,
     required this.clientId,
@@ -744,6 +746,9 @@ final class BillingDocWriter<T> {
     required this.terms,
     required this.footer,
   });
+
+  /// The blank document a new form opens on (`emptyInvoice`, …).
+  final T Function() empty;
 
   final T Function(T, List<LineItem>) lineItems;
   final T Function(T, List<Invitation>) invitations;
@@ -804,9 +809,53 @@ abstract class BillingDocEditViewModel<T extends BillingDocFields>
     super.companyId,
     super.useCommaAsDecimalPlace,
     super.currencyPrecision,
+    super.prefilled,
   });
 
   final BillingDocWriter<T> writer;
+
+  /// Dirty is "differs from what the untouched form held", for every field
+  /// at once. The five documents each listed the fields they thought mattered,
+  /// and every field off the list — dates, taxes, surcharges, the design, the
+  /// assignee, tags, custom values, the exchange rate — left a new document
+  /// without the Discard prompt. A form opened on a staged draft (a clone, a
+  /// "New Invoice" from a client) holds unsaved content from the start.
+  @override
+  bool draftIsNonEmpty() => draft != createBaseline || prefilled;
+
+  /// Discard: back to a blank document, with the defaults seeded since the
+  /// form opened ([seedCreateDefault]).
+  void resetToEmpty() => reset(emptyDraft: writer.empty());
+
+  @override
+  void reset({required T emptyDraft}) {
+    _userTouchedInclusive = false;
+    super.reset(emptyDraft: emptyDraft);
+  }
+
+  bool _userTouchedInclusive = false;
+
+  /// Whether the document's inclusive-tax mode may still follow the settings
+  /// cascade: a create form whose switch the user never touched and whose
+  /// lines were not priced yet. A line's cost means a net or a gross amount
+  /// depending on the mode it was entered in, so once there is one the mode
+  /// is the user's to change, not a late settings answer's.
+  bool get canSeedInclusiveTaxes =>
+      isCreate &&
+      !_userTouchedInclusive &&
+      !draft.lineItems.any((li) => !li.isBlank);
+
+  /// Seed the inclusive-tax mode from the settings cascade (`inclusive_taxes`)
+  /// under [canSeedInclusiveTaxes] — see `seedBillingCreateDefaults`.
+  /// [companyLevel]: the value came from the company layer alone, so a
+  /// Discard (which clears the client) re-applies it.
+  void seedUsesInclusiveTaxes(bool value, {required bool companyLevel}) {
+    if (!canSeedInclusiveTaxes) return;
+    seedCreateDefault(
+      (d) => writer.usesInclusiveTaxes(d, value),
+      rememberForReset: companyLevel,
+    );
+  }
 
   /// The company the document belongs to.
   String get companyId;
@@ -912,7 +961,11 @@ abstract class BillingDocEditViewModel<T extends BillingDocFields>
     ),
   );
 
-  void setUsesInclusiveTaxes(bool v) => setBool(writer.usesInclusiveTaxes, v);
+  void setUsesInclusiveTaxes(bool v) {
+    _userTouchedInclusive = true;
+    setBool(writer.usesInclusiveTaxes, v);
+  }
+
   void setTaxName1(String v) => setStr(writer.taxName1, v);
   void setTaxName2(String v) => setStr(writer.taxName2, v);
   void setTaxName3(String v) => setStr(writer.taxName3, v);

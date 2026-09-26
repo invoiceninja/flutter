@@ -286,17 +286,10 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     required String companyId,
     required Project project,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(project.id);
-    if (resolvedId != project.id) project = project.copyWith(id: resolvedId);
-
-    // Same rebind for the tags it references — see `canonicalizeTagIds`.
-    // Unconditional: a `!=` here would be List *identity*, correct only by an
-    // invariant nothing enforces, and the copy is free when nothing changed.
+    // The rebind the record's id gets below, for the tags it references —
+    // see `canonicalizeTagIds`. Unconditional: a `!=` here would be List
+    // *identity*, correct only by an invariant nothing enforces, and the copy
+    // is free when nothing changed.
     project = project.copyWith(
       tagIds: await canonicalizeTagIds(project.tagIds),
     );
@@ -305,6 +298,16 @@ class ProjectRepository extends BaseEntityRepository<Project, ProjectApi>
     final tagNames = await resolveTagNames(companyId, project.tagIds);
     var rowId = 0;
     await db.transaction(() async {
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write. (The tags above stay outside:
+      // see TagNameResolver.)
+      final resolvedId = await resolveId(project.id);
+      if (resolvedId != project.id) project = project.copyWith(id: resolvedId);
       final companion = _domainToCompanion(
         project,
         companyId,

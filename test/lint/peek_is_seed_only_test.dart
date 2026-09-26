@@ -107,6 +107,9 @@ void main() {
       'resolvedIfReady': {
         'lib/data/repositories/settings_repository.dart',
         'lib/domain/billing/invoice_lock.dart',
+        // The first-frame guess of a new document's inclusive-tax mode. The
+        // `resolved()` it always runs next corrects it — the answer that wins.
+        'lib/ui/features/billing_shared/seed_billing_create_defaults.dart',
       },
       'peekInvoiceLockReason': {
         'lib/domain/billing/invoice_lock.dart',

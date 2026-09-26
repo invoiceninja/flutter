@@ -31,8 +31,14 @@ set -euo pipefail
 #
 # Wired in as the first BuildAction pre-action in BOTH shared schemes
 # (macos|ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme).
-# Command-line `xcodebuild` / `flutter build` do NOT run scheme actions, so CLI
-# + CI are unaffected. See docs/setup.md § "Release builds with Sentry".
+# NOT IDE-only: command-line `xcodebuild -scheme Runner` runs scheme actions
+# too, so this also fires under `flutter build ios|ipa|macos` and under the CI
+# archives (appstore-ios.yml / appstore-macos.yml), which put the values in
+# their job env for it. That is why it never drops an entry it has no
+# replacement for: when a key resolves empty here, whatever `flutter build
+# --config-only --dart-define=…` already wrote is kept. (It used to be dropped,
+# which shipped every CI archive with Sentry disabled.) See docs/setup.md
+# § "Release builds with Sentry".
 #
 # Usage (invoked by Xcode; also runnable by hand to test):
 #   tools/xcode_inject_sentry_dsn.sh <macos|ios>
@@ -87,10 +93,8 @@ fi
 dsn="$(resolve_define IN_SENTRY_DSN)"
 # Google Sign-In's iOS client ID (Env.googleIosClientId) is lost the same way
 # the DSN is. macOS has no Google sign-in, so it is only managed on iOS.
-managed_keys=(IN_SENTRY_DSN)
 google_ios_client_id=""
 if [[ "$platform" == "ios" ]]; then
-  managed_keys+=(IN_GOOGLE_IOS_CLIENT_ID)
   google_ios_client_id="$(resolve_define IN_GOOGLE_IOS_CLIENT_ID)"
 fi
 
@@ -108,9 +112,16 @@ if [[ ! -f "$xcconfig" ]] || ! /usr/bin/grep -q '^DART_DEFINES=' "$xcconfig"; th
 fi
 
 # DART_DEFINES is a comma-separated list of base64("KEY=VALUE") entries. Rebuild
-# it: keep every entry except a prior managed key, then append a fresh one for
-# each key that has a value (an empty value drops it -> the feature stays off,
-# no blank entry baked).
+# it: a managed key that resolved to a value replaces its prior entry; one that
+# resolved EMPTY leaves any prior entry alone (it was written by a `flutter
+# build --config-only` that knew the value — the CI case, and
+# `tools/prepare_ios_archive.sh` with a DSN in the env). Only a key with no
+# value anywhere stays off, with no blank entry baked.
+replace_keys=()
+[[ -n "$dsn" ]] && replace_keys+=(IN_SENTRY_DSN)
+[[ -n "$google_ios_client_id" ]] && replace_keys+=(IN_GOOGLE_IOS_CLIENT_ID)
+kept_dsn=0
+kept_google=0
 current="$(/usr/bin/grep -E '^DART_DEFINES=' "$xcconfig" | head -n1 | sed 's/^DART_DEFINES=//')"
 rebuilt=""
 saved_ifs="$IFS"
@@ -120,11 +131,15 @@ for entry in $current; do
   if [[ -n "$entry" ]]; then
     decoded="$(printf '%s' "$entry" | /usr/bin/base64 -D 2>/dev/null || true)"
     keep=1
-    for key in "${managed_keys[@]}"; do
+    # `${arr[@]+…}`: an empty array under `set -u` is an unbound-variable error
+    # in the bash 3.2 Xcode runs this with.
+    for key in ${replace_keys[@]+"${replace_keys[@]}"}; do
       [[ "$decoded" == "$key="* ]] && keep=0
     done
     if [[ "$keep" -eq 1 ]]; then
       rebuilt="${rebuilt:+$rebuilt,}$entry"
+      [[ "$decoded" == "IN_SENTRY_DSN="?* ]] && kept_dsn=1
+      [[ "$decoded" == "IN_GOOGLE_IOS_CLIENT_ID="?* ]] && kept_google=1
     fi
   fi
   IFS=','
@@ -148,16 +163,20 @@ mv "$tmp" "$xcconfig"
 
 if [[ -n "$dsn" ]]; then
   echo "==> [sentry-dsn] Baked Sentry DSN into the $platform build (source: $dsn_source)."
+elif [[ "$kept_dsn" -eq 1 ]]; then
+  echo "==> [sentry-dsn] IN_SENTRY_DSN is not in the environment or dev.json — kept the one already in DART_DEFINES (from flutter build --config-only)."
 else
   # Loud but non-fatal: an archive with Sentry disabled is a safe no-op, and we
   # must not block a developer who simply hasn't configured a DSN. `warning:`
   # makes Xcode surface it in the Issue navigator.
-  echo "warning: [sentry-dsn] IN_SENTRY_DSN is empty (not in environment or dev.json)." >&2
+  echo "warning: [sentry-dsn] IN_SENTRY_DSN is empty (not in environment, dev.json or DART_DEFINES)." >&2
   echo "warning: [sentry-dsn] This $platform build will ship with Sentry DISABLED." >&2
 fi
 if [[ "$platform" == "ios" ]]; then
   if [[ -n "$google_ios_client_id" ]]; then
     echo "==> [google] Baked the Google Sign-In iOS client ID into the build."
+  elif [[ "$kept_google" -eq 1 ]]; then
+    echo "==> [google] IN_GOOGLE_IOS_CLIENT_ID is not in the environment or dev.json — kept the one already in DART_DEFINES."
   else
     echo "warning: [google] IN_GOOGLE_IOS_CLIENT_ID is empty — Sign in with Google is hidden in this build." >&2
   fi

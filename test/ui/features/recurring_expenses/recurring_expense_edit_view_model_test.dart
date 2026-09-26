@@ -166,4 +166,37 @@ void main() {
     expect(vm.draftIsNonEmpty(), isFalse);
     expect(vm.draft.amount, Decimal.zero);
   });
+
+  // A new expense takes the company's `expense_inclusive_taxes` (React
+  // parity); `empty*()` hard-codes false, which the app then sent.
+  group('the company inclusive-tax default', () {
+    test('seeds an untouched new expense without dirtying it', () {
+      final vm = createVm()..seedCompanyInclusiveTaxes(true);
+      expect(vm.draft.usesInclusiveTaxes, isTrue);
+      expect(vm.isDirty, isFalse);
+    });
+
+    test('never over a switch the user touched', () {
+      final vm = createVm()
+        ..setUsesInclusiveTaxes(false)
+        ..seedCompanyInclusiveTaxes(true);
+      expect(vm.draft.usesInclusiveTaxes, isFalse);
+    });
+
+    test('never once an amount was typed in the other mode', () {
+      final vm = createVm()
+        ..setAmount('120')
+        ..seedCompanyInclusiveTaxes(true);
+      expect(vm.draft.usesInclusiveTaxes, isFalse);
+    });
+
+    test('survives a discard', () {
+      final vm = createVm()
+        ..seedCompanyInclusiveTaxes(true)
+        ..setUsesInclusiveTaxes(false)
+        ..resetToEmpty();
+      expect(vm.draft.usesInclusiveTaxes, isTrue);
+      expect(vm.isDirty, isFalse);
+    });
+  });
 }

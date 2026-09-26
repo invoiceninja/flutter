@@ -141,6 +141,14 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
   /// Enqueue an outbox row that PUTs the auth user's own profile.
   /// Collapses pending updates for the same `(companyId, userId)` so a user
   /// spamming Save doesn't pile up duplicate requests.
+  ///
+  /// A collapse replaces the queued body, so it happens only between two
+  /// profile saves: a body with an `_action` (an OAuth connect, a mailer
+  /// disconnect) is a different request, and folding either into the other
+  /// dropped one of them. A password the queued save carried comes along
+  /// with the flag that sends it — the form clears it once saved, so the
+  /// next save has none — and a row the drain has already claimed is left
+  /// to its request ([OutboxDao.updatePayload]).
   Future<void> enqueueUpdate({
     required String companyId,
     required User draft,
@@ -157,28 +165,55 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
         entityType: entityTypeName,
         entityId: draft.id,
       );
-      if (existing != null) {
-        await db.outboxDao.updatePayload(
-          id: existing.id,
-          payload: jsonEncode(body),
-        );
-      } else {
-        await db.outboxDao.enqueue(
-          OutboxCompanion.insert(
-            companyId: companyId,
-            entityType: entityTypeName,
-            entityId: draft.id,
-            mutationKind: MutationKind.update.wireName,
-            payload: jsonEncode(body),
-            idempotencyKey: uuid.v4(),
-            nextAttemptAt: nowMs,
-            createdAt: nowMs,
-            requiresPassword: Value(requiresPassword),
-          ),
-        );
+      if (existing != null &&
+          await _collapse(existing, body, requiresPassword)) {
+        return;
       }
+      await db.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: companyId,
+          entityType: entityTypeName,
+          entityId: draft.id,
+          mutationKind: MutationKind.update.wireName,
+          payload: jsonEncode(body),
+          idempotencyKey: uuid.v4(),
+          nextAttemptAt: nowMs,
+          createdAt: nowMs,
+          requiresPassword: Value(requiresPassword),
+        ),
+      );
     });
     onEnqueued?.call(companyId);
+  }
+
+  /// Fold profile save [body] into the queued one, [existing]. Whether it
+  /// did — never for an `_action` on either side, or a row no longer queued.
+  Future<bool> _collapse(
+    OutboxRow existing,
+    Map<String, dynamic> body,
+    bool requiresPassword,
+  ) async {
+    Object? queued;
+    try {
+      queued = jsonDecode(existing.payload);
+    } catch (_) {
+      return false;
+    }
+    if (queued is! Map ||
+        queued.containsKey('_action') ||
+        body.containsKey('_action')) {
+      return false;
+    }
+    final merged = Map<String, dynamic>.of(body);
+    final password = queued['password'];
+    if (!merged.containsKey('password') && password != null) {
+      merged['password'] = password;
+    }
+    return db.outboxDao.updatePayload(
+      id: existing.id,
+      payload: jsonEncode(merged),
+      requiresPassword: existing.requiresPassword || requiresPassword,
+    );
   }
 
   // ── Management-list reads ───────────────────────────────────────────
@@ -307,18 +342,21 @@ class UserRepository extends BaseEntityRepository<User, UserApi> {
     required String companyId,
     required User user,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(user.id);
-    if (resolvedId != user.id) user = user.copyWith(id: resolvedId);
-
-    final stored = user.copyWith(isDirty: true);
-    final companion = _domainToCompanion(stored, companyId, isDirty: true);
     var rowId = 0;
+    late User stored;
     await db.transaction(() async {
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write.
+      final resolvedId = await resolveId(user.id);
+      if (resolvedId != user.id) user = user.copyWith(id: resolvedId);
+
+      stored = user.copyWith(isDirty: true);
+      final companion = _domainToCompanion(stored, companyId, isDirty: true);
       await db.userDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,

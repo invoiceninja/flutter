@@ -30,6 +30,7 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
          initialDraft: cloneFrom ?? existing ?? emptyQuote(),
          original: existing,
          companyId: companyId,
+         prefilled: existing == null && cloneFrom != null,
        );
 
   final QuoteRepository repo;
@@ -57,21 +58,6 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
   }
 
   @override
-  bool draftIsNonEmpty() {
-    final d = draft;
-    return d.clientId.isNotEmpty ||
-        d.number.isNotEmpty ||
-        d.poNumber.isNotEmpty ||
-        d.publicNotes.isNotEmpty ||
-        d.privateNotes.isNotEmpty ||
-        d.terms.isNotEmpty ||
-        d.footer.isNotEmpty ||
-        d.lineItems.isNotEmpty ||
-        d.amount != Decimal.zero ||
-        d.discount != Decimal.zero;
-  }
-
-  @override
   Future<SaveResult<Quote>> createDocument(
     Quote draft, {
     Map<String, String>? extraQuery,
@@ -88,8 +74,6 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
     Quote draft, {
     Map<String, String>? extraQuery,
   }) => repo.save(companyId: companyId, quote: draft, extraQuery: extraQuery);
-
-  void resetToEmpty() => reset(emptyDraft: emptyQuote());
 
   @override
   Quote copyWithStampedTotals(
@@ -117,6 +101,7 @@ class QuoteEditViewModel extends BillingDocEditViewModel<Quote>
 
 /// The shared fields, written onto a [Quote] — see [BillingDocWriter].
 final _quoteWriter = BillingDocWriter<Quote>(
+  empty: emptyQuote,
   lineItems: (d, v) => d.copyWith(lineItems: v),
   invitations: (d, v) => d.copyWith(invitations: v),
   clientId: (d, v) => d.copyWith(clientId: v),

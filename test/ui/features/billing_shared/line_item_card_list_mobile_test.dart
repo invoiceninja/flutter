@@ -46,6 +46,7 @@ void main() {
     WidgetTester tester, {
     bool withPicker = true,
     double minHeight = 0,
+    Map<int, Map<String, String>>? rowErrors,
   }) {
     return tester.pumpWidget(
       MaterialApp(
@@ -67,6 +68,7 @@ void main() {
                     config: const LineItemColumnConfig(),
                     currencyId: '1',
                     onPickItems: withPicker ? () => pickerTaps++ : null,
+                    rowErrors: rowErrors,
                   ),
                 ),
               ),
@@ -223,5 +225,35 @@ void main() {
       await pump(tester, minHeight: 220);
       expect(tester.takeException(), isNull);
     });
+  });
+
+  // A 422 on `line_items.1.cost` used to highlight nothing on a phone: the
+  // cards took no row errors at all.
+  testWidgets('a row the server rejected says so, on its own card', (
+    tester,
+  ) async {
+    items = [
+      emptyLineItem().copyWith(productKey: 'First'),
+      emptyLineItem().copyWith(productKey: 'Second'),
+    ];
+    await pump(
+      tester,
+      rowErrors: {
+        1: {'cost': 'The cost must be a number.'},
+      },
+    );
+    expect(find.text('The cost must be a number.'), findsOneWidget);
+    final card = find.ancestor(
+      of: find.text('The cost must be a number.'),
+      matching: find.byType(Container),
+    );
+    expect(
+      find.descendant(of: card.first, matching: find.text('Second')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: card.first, matching: find.text('First')),
+      findsNothing,
+    );
   });
 }

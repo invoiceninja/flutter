@@ -107,7 +107,7 @@ class LineItemEditor extends StatefulWidget {
   /// Per-row server validation errors keyed by line-item index. Keys
   /// inside each map mirror the API field names (`cost`, `quantity`,
   /// `product_key`, `notes`). Values are localized error messages.
-  /// Surfaced inline in the desktop table and in the mobile dialog.
+  /// Surfaced inline in the desktop table and on the mobile cards.
   final Map<int, Map<String, String>>? rowErrors;
 
   /// Opens the bulk products / tasks / expenses picker.
@@ -263,6 +263,7 @@ class _LineItemEditorState extends State<LineItemEditor> {
           currencyId: currencyId,
           onPickItems: widget.onPickItems,
           onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
+          rowErrors: widget.rowErrors,
         );
       },
     );

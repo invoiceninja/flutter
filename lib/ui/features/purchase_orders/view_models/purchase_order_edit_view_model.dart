@@ -29,6 +29,7 @@ class PurchaseOrderEditViewModel
          initialDraft: cloneFrom ?? existing ?? emptyPurchaseOrder(),
          original: existing,
          companyId: companyId,
+         prefilled: existing == null && cloneFrom != null,
        );
 
   final PurchaseOrderRepository repo;
@@ -43,21 +44,6 @@ class PurchaseOrderEditViewModel
   Map<String, List<String>> validate() => {
     if (draft.vendorId.isEmpty) 'vendor_id': [vendorRequiredMessage],
   };
-
-  @override
-  bool draftIsNonEmpty() {
-    final d = draft;
-    return d.vendorId.isNotEmpty ||
-        d.number.isNotEmpty ||
-        d.poNumber.isNotEmpty ||
-        d.publicNotes.isNotEmpty ||
-        d.privateNotes.isNotEmpty ||
-        d.terms.isNotEmpty ||
-        d.footer.isNotEmpty ||
-        d.lineItems.isNotEmpty ||
-        d.amount != Decimal.zero ||
-        d.discount != Decimal.zero;
-  }
 
   @override
   Future<SaveResult<PurchaseOrder>> createDocument(
@@ -80,8 +66,6 @@ class PurchaseOrderEditViewModel
     purchaseOrder: draft,
     extraQuery: extraQuery,
   );
-
-  void resetToEmpty() => reset(emptyDraft: emptyPurchaseOrder());
 
   @override
   PurchaseOrder copyWithStampedTotals(
@@ -114,6 +98,7 @@ class PurchaseOrderEditViewModel
 
 /// The shared fields, written onto a [PurchaseOrder] — see [BillingDocWriter].
 final _purchaseOrderWriter = BillingDocWriter<PurchaseOrder>(
+  empty: emptyPurchaseOrder,
   lineItems: (d, v) => d.copyWith(lineItems: v),
   invitations: (d, v) => d.copyWith(invitations: v),
   clientId: (d, v) => d.copyWith(clientId: v),

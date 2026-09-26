@@ -30,6 +30,7 @@ class RecurringInvoiceEditViewModel
          initialDraft: cloneFrom ?? existing ?? emptyRecurringInvoice(),
          original: existing,
          companyId: companyId,
+         prefilled: existing == null && cloneFrom != null,
        );
 
   final RecurringInvoiceRepository repo;
@@ -46,33 +47,6 @@ class RecurringInvoiceEditViewModel
     if (draft.clientId.isEmpty) 'client_id': [clientRequiredMessage],
     ...validateCrossClient(crossClientLineItemsMessage),
   };
-
-  @override
-  bool draftIsNonEmpty() {
-    final d = draft;
-    // The schedule is measured against the new form's own defaults, so a
-    // default is not input and a change is. The frequency was tested with
-    // `isNotEmpty`, which the monthly default always passed — every untouched
-    // new form asked to discard its changes — and the rest of the schedule
-    // not at all, so a form holding only a next send date left without
-    // asking.
-    final blank = emptyRecurringInvoice();
-    return d.clientId.isNotEmpty ||
-        d.number.isNotEmpty ||
-        d.poNumber.isNotEmpty ||
-        d.publicNotes.isNotEmpty ||
-        d.privateNotes.isNotEmpty ||
-        d.terms.isNotEmpty ||
-        d.footer.isNotEmpty ||
-        d.lineItems.isNotEmpty ||
-        d.amount != Decimal.zero ||
-        d.discount != Decimal.zero ||
-        d.frequencyId != blank.frequencyId ||
-        d.nextSendDate != blank.nextSendDate ||
-        d.remainingCycles != blank.remainingCycles ||
-        d.dueDateDays != blank.dueDateDays ||
-        d.autoBill != blank.autoBill;
-  }
 
   @override
   Future<SaveResult<RecurringInvoice>> createDocument(
@@ -95,8 +69,6 @@ class RecurringInvoiceEditViewModel
     recurringInvoice: draft,
     extraQuery: extraQuery,
   );
-
-  void resetToEmpty() => reset(emptyDraft: emptyRecurringInvoice());
 
   @override
   RecurringInvoice copyWithStampedTotals(
@@ -130,6 +102,7 @@ class RecurringInvoiceEditViewModel
 
 /// The shared fields, written onto a [RecurringInvoice] — see [BillingDocWriter].
 final _recurringInvoiceWriter = BillingDocWriter<RecurringInvoice>(
+  empty: emptyRecurringInvoice,
   lineItems: (d, v) => d.copyWith(lineItems: v),
   invitations: (d, v) => d.copyWith(invitations: v),
   clientId: (d, v) => d.copyWith(clientId: v),

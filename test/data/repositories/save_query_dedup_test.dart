@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -101,6 +102,33 @@ void main() {
       expect(rows.single.mutationKind, MutationKind.create.wireName);
       expect(await savedQuery(), {'mark_sent': 'true'});
     });
+  });
+
+  test('a re-create takes the failed updates of its record with their '
+      'action — the failed create stays until it lands', () async {
+    await seedCompany();
+    final repo = invoices();
+    final first = await repo.create(
+      companyId: 'co',
+      draft: Invoice.fromApi(const InvoiceApi(id: '', statusId: '1')),
+    );
+    final edit = await repo.save(
+      companyId: 'co',
+      invoice: first.entity,
+      extraQuery: const {'mark_sent': 'true'},
+    );
+    await db.outboxDao.markDead(id: first.outboxRowId, error: 'bad');
+    await db.outboxDao.markDead(id: edit.outboxRowId, error: 'bad');
+
+    await repo.create(
+      companyId: 'co',
+      draft: first.entity,
+      existingTempId: first.entity.id,
+    );
+
+    expect(await savedQuery(), {'mark_sent': 'true'});
+    expect(await db.outboxDao.byId(edit.outboxRowId), isNull);
+    expect(await db.outboxDao.byId(first.outboxRowId), isNotNull);
   });
 
   group('re-sending a create that failed with an action', () {
@@ -238,5 +266,132 @@ void main() {
         expect(await savedQuery(), {'approve': 'true'});
       },
     );
+  });
+
+  group('a save replaces the failed update it re-sends', () {
+    Future<List<OutboxRow>> allRows() => db.select(db.outbox).get();
+
+    Future<int> rawRow({
+      required String kind,
+      required String state,
+      required Map<String, dynamic> payload,
+      String key = 'raw',
+    }) => db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'invoice',
+        entityId: 'inv1',
+        mutationKind: kind,
+        payload: jsonEncode(payload),
+        idempotencyKey: key,
+        createdAt: 0,
+        nextAttemptAt: 0,
+        state: Value(state),
+      ),
+    );
+
+    test('a plain re-save of a failed "Mark Paid" keeps paid, and leaves one '
+        'row — even after it fails again', () async {
+      // "Save & Mark Paid" rejected for a taken number, fixed, re-saved with
+      // a plain Save: it landed without `paid`, and the cleanup of the failed
+      // row then deleted the only record of the action.
+      await seedCompany();
+      final repo = invoices();
+      final first = await repo.save(
+        companyId: 'co',
+        invoice: draftInvoice(),
+        extraQuery: const {'paid': 'true'},
+      );
+      await db.outboxDao.markDead(id: first.outboxRowId, error: 'taken');
+
+      final second = await repo.save(companyId: 'co', invoice: draftInvoice());
+      expect(await savedQuery(), {'paid': 'true'});
+      expect(await allRows(), hasLength(1), reason: 'the failed row is gone');
+
+      await db.outboxDao.markDead(id: second.outboxRowId, error: 'taken');
+      await repo.save(companyId: 'co', invoice: draftInvoice());
+      expect(await savedQuery(), {'paid': 'true'});
+      expect(await allRows(), hasLength(1));
+    });
+
+    test('the newest action wins across failed and queued saves', () async {
+      await seedCompany();
+      final repo = invoices();
+      final failed = await repo.save(
+        companyId: 'co',
+        invoice: draftInvoice(),
+        extraQuery: const {'paid': 'true'},
+      );
+      await db.outboxDao.markDead(id: failed.outboxRowId, error: 'taken');
+      await rawRow(
+        kind: 'update',
+        state: 'pending',
+        payload: {
+          'id': 'inv1',
+          kSaveQueryPayloadKey: {'cancel': 'true'},
+        },
+      );
+
+      await repo.save(companyId: 'co', invoice: draftInvoice());
+
+      expect(await savedQuery(), {'cancel': 'true'});
+    });
+
+    test('a failed create under the real id is not carried, and stays for '
+        'the form to supersede', () async {
+      await seedCompany();
+      final repo = invoices();
+      final create = await rawRow(
+        kind: 'create',
+        state: 'dead',
+        payload: {
+          'id': 'inv1',
+          kSaveQueryPayloadKey: {'paid': 'true'},
+        },
+      );
+
+      await repo.save(companyId: 'co', invoice: draftInvoice());
+
+      expect(await savedQuery(), isNull);
+      expect(await db.outboxDao.byId(create), isNotNull);
+    });
+
+    test('a save that may already have gone through is neither carried nor '
+        'replaced — it waits for the user', () async {
+      await seedCompany();
+      final repo = invoices();
+      final held = await rawRow(
+        kind: 'update',
+        state: 'unconfirmed',
+        payload: {
+          'id': 'inv1',
+          kSaveQueryPayloadKey: {'paid': 'true'},
+        },
+      );
+
+      await repo.save(companyId: 'co', invoice: draftInvoice());
+
+      expect(await savedQuery(), isNull);
+      expect((await db.outboxDao.byId(held))?.state, 'unconfirmed');
+    });
+
+    test('a failed row carrying an `_action` is no save of the record, and '
+        'is left alone', () async {
+      await seedCompany();
+      final repo = invoices();
+      final action = await rawRow(
+        kind: 'update',
+        state: 'dead',
+        payload: {
+          '_action': 'upload_document',
+          kSaveQueryPayloadKey: {'paid': 'true'},
+        },
+      );
+
+      await repo.save(companyId: 'co', invoice: draftInvoice());
+
+      expect(await savedQuery(), isNull);
+      expect(await db.outboxDao.byId(action), isNotNull);
+    });
   });
 }

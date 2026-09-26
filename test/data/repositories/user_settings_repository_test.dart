@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:admin/data/db/app_database.dart';
@@ -198,6 +199,95 @@ void main() {
         );
       },
     );
+
+    test(
+      'two toggles at once both land — each reads what the other wrote',
+      () async {
+        // Each read the stored columns before its transaction, so the second
+        // write put back the first's stale copy and its change was lost.
+        await Future.wait([
+          repo.setColumns(
+            companyId: companyId,
+            entityType: EntityType.client,
+            columns: const ['name'],
+          ),
+          repo.setColumns(
+            companyId: companyId,
+            entityType: EntityType.invoice,
+            columns: const ['number'],
+          ),
+        ]);
+        final stored = jsonDecode(
+          (await db.userSettingsDao.get(companyId))!.tableColumnsJson,
+        );
+        expect(stored, {
+          'EntityType.client': ['name'],
+          'EntityType.invoice': ['number'],
+        });
+        final rows = await db.outboxDao.nextReady(
+          companyId: companyId,
+          now: DateTime.now().millisecondsSinceEpoch,
+        );
+        expect(rows, hasLength(1));
+        final body = jsonDecode(rows.single.payload) as Map<String, dynamic>;
+        expect(
+          (body['company_user']
+              as Map<String, dynamic>)['settings']['table_columns'],
+          stored,
+        );
+      },
+    );
+
+    test('a change while the queued PUT is on the wire queues a new one — '
+        'the drain sends the body it claimed', () async {
+      await repo.setColumns(
+        companyId: companyId,
+        entityType: EntityType.client,
+        columns: const ['name'],
+      );
+      final first = (await db.outboxDao.nextReady(
+        companyId: companyId,
+        now: DateTime.now().millisecondsSinceEpoch,
+      )).single;
+      await db.outboxDao.markInFlight(first.id);
+
+      await repo.setColumns(
+        companyId: companyId,
+        entityType: EntityType.client,
+        columns: const ['name', 'balance'],
+      );
+
+      final queued = await db.outboxDao.nextReady(
+        companyId: companyId,
+        now: DateTime.now().millisecondsSinceEpoch,
+      );
+      expect(queued, hasLength(1));
+      expect(queued.single.id, isNot(first.id));
+    });
+
+    test('the drain is kicked once the write has committed', () async {
+      final seen = <int>[];
+      final kicked = Completer<void>();
+      final kicking = UserSettingsRepository(
+        db: db,
+        onEnqueued: (c) async {
+          seen.add(
+            (await db.outboxDao.nextReady(
+              companyId: c,
+              now: DateTime.now().millisecondsSinceEpoch,
+            )).length,
+          );
+          kicked.complete();
+        },
+      );
+      await kicking.setColumns(
+        companyId: companyId,
+        entityType: EntityType.client,
+        columns: const ['name'],
+      );
+      await kicked.future;
+      expect(seen, [1]);
+    });
 
     test('a genuine column change still enqueues exactly one row', () async {
       await repo.setColumns(

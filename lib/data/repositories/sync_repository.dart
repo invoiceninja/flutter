@@ -362,21 +362,43 @@ class SyncRepository {
   /// own failed create stays when a later edit is discarded: it is the
   /// record. The Outbox's Discard still takes one row, via
   /// [discardOutboxRow].
-  Future<bool> discardFailedSave(int id) async {
-    final row = await db.outboxDao.byId(id);
-    if (row == null) return false;
-    final kind = MutationKind.tryParse(row.mutationKind);
-    if ((kind == MutationKind.create || kind == MutationKind.update) &&
-        row.state != 'in_flight') {
-      await db.outboxDao.deleteOlderDeadSaves(
-        companyId: row.companyId,
-        entityType: row.entityType,
-        entityId: row.entityId,
-        beforeId: row.id,
-        includeCreates: !row.entityId.startsWith('tmp_'),
-      );
-    }
-    return discardOutboxRow(id);
+  ///
+  /// [onlyIdle] is the leave-page Discard of a form whose save failed on
+  /// screen: it acts only on a row still `pending` or `dead` — one on the
+  /// wire, or waiting on the user as `unconfirmed`, is left alone. With
+  /// [keepRecord] it also leaves a create whose discard would take its
+  /// record (the ghost path), which only the banner's confirmation may do.
+  ///
+  /// One transaction, like [discardOutboxRow]: the drain's claim cannot land
+  /// between the read and the deletes.
+  Future<bool> discardFailedSave(
+    int id, {
+    bool onlyIdle = false,
+    bool keepRecord = false,
+  }) async {
+    String? drainFor;
+    final taken = await db.transaction(() async {
+      final row = await db.outboxDao.byId(id);
+      if (row == null) return false;
+      if (onlyIdle && row.state != 'pending' && row.state != 'dead') {
+        return false;
+      }
+      if (keepRecord && await _discardTakesRecord(row)) return false;
+      final kind = MutationKind.tryParse(row.mutationKind);
+      if ((kind == MutationKind.create || kind == MutationKind.update) &&
+          row.state != 'in_flight') {
+        await db.outboxDao.deleteOlderDeadSaves(
+          companyId: row.companyId,
+          entityType: row.entityType,
+          entityId: row.entityId,
+          beforeId: row.id,
+          includeCreates: !row.entityId.startsWith('tmp_'),
+        );
+      }
+      return _discardRow(row, (companyId) => drainFor = companyId);
+    });
+    if (drainFor != null) unawaited(drainOnce(companyId: drainFor!));
+    return taken;
   }
 
   /// Drop the failed save [id], and the older failed saves of the same record,
@@ -485,9 +507,33 @@ class SyncRepository {
   /// confirmed gone, so a caller showing that entity can navigate away. A
   /// ghost discard whose local delete failed still drops the outbox rows but
   /// returns `false` — the record is still on screen, so don't pop it.
+  ///
+  /// The read, the decision and the deletes are one transaction: the drain
+  /// claims a row by flipping it to `in_flight` (`markInFlight`), and a claim
+  /// landing between the read and the delete sent the row as its discard
+  /// went through — or, on the ghost path, sent the create of a record
+  /// being deleted. A claim now waits for the commit and finds no row. The
+  /// drain this may kick starts after the commit, outside the transaction.
   Future<bool> discardOutboxRow(int id) async {
-    final row = await db.outboxDao.byId(id);
-    if (row == null) return false;
+    String? drainFor;
+    final taken = await db.transaction(() async {
+      final row = await db.outboxDao.byId(id);
+      if (row == null) return false;
+      return _discardRow(row, (companyId) => drainFor = companyId);
+    });
+    if (drainFor != null) unawaited(drainOnce(companyId: drainFor!));
+    return taken;
+  }
+
+  /// [discardOutboxRow]'s body, run inside its caller's transaction. A drain
+  /// it wants is handed to [kickDrain] for the caller to start once the
+  /// transaction commits: started inside it, the drain would run in the
+  /// transaction's zone.
+  Future<bool> _discardRow(
+    OutboxRow row,
+    void Function(String companyId) kickDrain,
+  ) async {
+    final id = row.id;
     if (row.state == 'in_flight') {
       await db.outboxDao.deleteRow(id);
       // Reconcile the optimistic is_dirty flag on an in_flight UPDATE/reorder:
@@ -511,9 +557,7 @@ class SyncRepository {
         // What it held goes now, as after a Resend — for the active company
         // only: another one's drain can't send, and would surface its events
         // here.
-        if (_isActive(row.companyId)) {
-          unawaited(drainOnce(companyId: row.companyId));
-        }
+        if (_isActive(row.companyId)) kickDrain(row.companyId);
       }
       return false;
     }
@@ -1520,10 +1564,23 @@ class SyncRepository {
       return false;
     }
 
-    if (!await db.outboxDao.markInFlight(row.id)) {
+    // Claim the row and re-read it in one transaction: the row this pass
+    // read before the claim may be stale. A save that collapses into a
+    // queued row (`OutboxDao.updatePayload` — a profile save, a column
+    // toggle) changed its body in that window, and sending the old one then
+    // deleting the row lost the new body for good. A row no longer pending
+    // was discarded, superseded or claimed by whoever moved it, and they
+    // settled it: nothing to do here.
+    final claimed = await db.transaction(
+      () async => await db.outboxDao.markInFlight(row.id)
+          ? await db.outboxDao.byId(row.id)
+          : null,
+    );
+    if (claimed == null) {
       _log.fine('Not sending ${row.entityType} ${row.id}: no longer pending');
       return false;
     }
+    row = claimed;
     // Every request the dispatch makes is bound to this row's company, and
     // the scope records whether a write has committed — see `RequestScope`.
     final scope = RequestScope(
@@ -1537,12 +1594,112 @@ class SyncRepository {
       await db.outboxDao.deleteRow(row.id);
       return true;
     } catch (e, st) {
+      // Discarded while on the wire: the discard settled the row, and left
+      // the record for this attempt's outcome to settle.
+      if (await db.outboxDao.byId(row.id) == null) {
+        return _settleDiscardedInFlight(row, kind, scope, e);
+      }
       // Settled by what reached the server before the exception says what
       // failed: once a write has committed, nothing that goes wrong after it
       // may send the row again.
       if (scope.committed) return _settleCommitted(row, kind, e, st);
       return _settleFailed(row, handlers, kind, scope, e, st);
     }
+  }
+
+  /// [row] failed after the user discarded it mid-attempt. The discard
+  /// already dropped the row and released an edit's dirty flag, so an edit
+  /// needs nothing more (the record is not re-fetched: nothing of the user's
+  /// is left to protect, and the next refresh brings it). A create is the
+  /// case the discard could not finish: it leaves the record of an `in_flight`
+  /// create for the attempt to settle (`discardOutboxRow`), and a failure
+  /// used to leave that `tmp_` record and what was made for it as a ghost no
+  /// row could ever send. So, unless the create landed (`id_remap`) or
+  /// another attempt at it is queued, the record goes the ghost path — what
+  /// was made for it kept, dead, when the attempt may have made it on the
+  /// server ([_ParentGone.discardedUnconfirmed], the same judgement as
+  /// [_settleFailed]'s `unconfirmed`), deleted when it cannot have. No event:
+  /// the user asked for it.
+  Future<bool> _settleDiscardedInFlight(
+    OutboxRow row,
+    MutationKind kind,
+    RequestScope scope,
+    Object error,
+  ) async {
+    _log.info(
+      'Row ${row.id} (${row.entityType} ${row.mutationKind}) was discarded '
+      'while in flight; its attempt failed: $error',
+    );
+    if (kind != MutationKind.create || !row.entityId.startsWith('tmp_')) {
+      return false;
+    }
+    await db.transaction(() async {
+      if (await db.idRemapDao.resolve(
+                entityType: row.entityType,
+                tempId: row.entityId,
+              ) !=
+              null ||
+          await db.outboxDao.findNewestCreateForEntity(
+                companyId: row.companyId,
+                entityType: row.entityType,
+                entityId: row.entityId,
+              ) !=
+              null) {
+        return;
+      }
+      final mayExist =
+          scope.committed || _wouldAwaitUser(row, kind, scope, error);
+      await _deleteGhostRecord(
+        companyId: row.companyId,
+        entityType: row.entityType,
+        entityId: row.entityId,
+      );
+      await db.outboxDao.deleteAllForEntity(
+        companyId: row.companyId,
+        entityType: row.entityType,
+        entityId: row.entityId,
+      );
+      await _failTmpDependents(
+        row.companyId,
+        row.entityId,
+        mayExist ? _ParentGone.discardedUnconfirmed : _ParentGone.discarded,
+      );
+    });
+    return false;
+  }
+
+  /// Whether [_settleFailed] would hold [row] for the user as `unconfirmed`
+  /// after [error] — its arms, in its order: a write went out with no answer
+  /// and a replay would repeat it.
+  bool _wouldAwaitUser(
+    OutboxRow row,
+    MutationKind kind,
+    RequestScope scope,
+    Object error,
+  ) {
+    if (error is CompanySwitchedException ||
+        error is ValidationException ||
+        error is RecordDeletedException ||
+        error is ConflictException ||
+        error is PlanRequiredException ||
+        error is PasswordRequiredException ||
+        error is RateLimitedException ||
+        error is UnauthorizedException ||
+        error is RequestNotSentException) {
+      return false;
+    }
+    if (error is ServerException) {
+      return kOutcomeUnknownStatuses.contains(error.statusCode) &&
+          _unknownOutcome(row, kind, scope);
+    }
+    if (error is ClientTooOldException) {
+      final code = error.statusCode;
+      return code != null &&
+          kOutcomeUnknownStatuses.contains(code) &&
+          _unknownOutcome(row, kind, scope);
+    }
+    // A plain NetworkException, and anything unclassified.
+    return _unknownOutcome(row, kind, scope);
   }
 
   /// The server accepted this row's write, and something after it failed —

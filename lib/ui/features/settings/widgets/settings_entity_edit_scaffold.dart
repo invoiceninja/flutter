@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -320,6 +321,14 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     // may be stale (a later save replaced it) or simply not the one in view.
     final heldRowId = vm.unconfirmedIsSave ? vm.unconfirmedRowId : null;
     var rowId = heldRowId ?? vm.deadOutboxRowId;
+    // A cached failed save that is gone was replaced by a later save, which
+    // took its place (`dedupPendingMutations`): discard that one instead.
+    if (rowId != null &&
+        rowId != heldRowId &&
+        await services.db.outboxDao.byId(rowId) == null) {
+      rowId = null;
+    }
+    if (!mounted) return;
     // Fall back to a dao lookup when the VM has no cached id — the contract
     // `save_failed_banner.dart` documents ("the screen's discard handler does
     // the fallback dao lookup") and `EntityEditScreenScaffold` shares.
@@ -396,6 +405,29 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     }
   }
 
+  /// The Discard of the unsaved-changes guard: [SettingsEntityEditScaffold.
+  /// onDiscard], and the save that failed on this visit with it
+  /// (`failedAttemptRowId`) — the draft thrown away is that save's payload,
+  /// and a 5xx left it `pending` to go out anyway. Runs whether or not the
+  /// screen passes an `onDiscard`. Only a row still `pending` or `dead`, and
+  /// an edit form keeps its record, as in `EntityEditScaffold`. Read before
+  /// the reset, which clears the id.
+  void _discardDraft(VM vm) {
+    final rowId = vm.failedAttemptRowId;
+    final sync = rowId != null && mounted
+        ? context.read<Services>().sync
+        : null;
+    widget.onDiscard?.call(vm);
+    if (rowId == null || sync == null) return;
+    unawaited(
+      sync.discardFailedSave(
+        rowId,
+        onlyIdle: true,
+        keepRecord: widget.existingId != null,
+      ),
+    );
+  }
+
   /// Back to what opened the form when there is one — a design editor is a
   /// pushed route — else to [SettingsEntityEditScaffold.backRoute].
   void _leave() {
@@ -468,6 +500,13 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
   Future<void> _cleanupPriorDeadRow(VM vm) async {
     final services = context.read<Services>();
     var priorDeadId = vm.deadOutboxRowId;
+    final linked = priorDeadId != null;
+    // Gone when this save replaced it (`dedupPendingMutations` takes the
+    // failed updates it re-sends): look again for another failed save.
+    if (priorDeadId != null &&
+        await services.db.outboxDao.byId(priorDeadId) == null) {
+      priorDeadId = null;
+    }
     final existingId = widget.existingId;
     if (priorDeadId == null && existingId != null) {
       final companyId = services.auth.session.value?.currentCompanyId;
@@ -478,8 +517,8 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
         entityId: existingId,
       ))?.id;
     }
-    if (priorDeadId == null) return;
-    await services.sync.supersedeDeadSave(priorDeadId);
+    if (priorDeadId == null && !linked) return;
+    if (priorDeadId != null) await services.sync.supersedeDeadSave(priorDeadId);
     vm.clearFailedSync();
   }
 
@@ -578,14 +617,14 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
           return UnsavedChangesScope(
             isDirty: () => vm.isDirty,
             source: vm,
-            onDiscard: () => widget.onDiscard?.call(vm),
+            onDiscard: () => _discardDraft(vm),
             child: PopScope(
               canPop: !vm.isDirty,
               onPopInvokedWithResult: (didPop, _) async {
                 if (didPop) return;
                 final shouldPop = await showDiscardChangesDialog(context);
                 if (!shouldPop || !context.mounted) return;
-                widget.onDiscard?.call(vm);
+                _discardDraft(vm);
                 Navigator.of(context).pop();
               },
               child: scaffold,

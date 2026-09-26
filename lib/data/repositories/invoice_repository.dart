@@ -371,14 +371,6 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
     required Invoice invoice,
     Map<String, String>? extraQuery,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(invoice.id);
-    if (resolvedId != invoice.id) invoice = invoice.copyWith(id: resolvedId);
-
     // Backstop for the `lock_invoices` setting. The UI hard-blocks at the
     // edit-entry point (invoice_actions.dart) before reaching here; this
     // guarantees no locked-invoice field edit can enter the outbox via any
@@ -400,10 +392,21 @@ class InvoiceRepository extends BaseEntityRepository<Invoice, InvoiceApi>
         throw InvoiceLockedException(reason);
       }
     }
-    final companion = _domainToCompanion(invoice, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
-      await db.invoiceDao.upsert(companion);
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write. (The lock check above stays
+      // outside — it awaits the settings cascade — and reads no id.)
+      final resolvedId = await resolveId(invoice.id);
+      if (resolvedId != invoice.id) invoice = invoice.copyWith(id: resolvedId);
+      await db.invoiceDao.upsert(
+        _domainToCompanion(invoice, companyId, isDirty: true),
+      );
       final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: invoice.id,

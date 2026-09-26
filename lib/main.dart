@@ -28,6 +28,7 @@ import 'package:admin/app/sentry_gate.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/app/text_scale_controller.dart';
 import 'package:admin/app/theme.dart';
+import 'package:admin/app/user_activity_notification.dart';
 import 'package:admin/app/version.dart';
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/db/db_open_exception.dart';
@@ -765,96 +766,109 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
                 ),
                 // Feed user activity to the idle-timeout enforcer. Translucent
                 // so it never intercepts gestures; `poke()` is a cheap clock
-                // stamp read by the controller's periodic check.
-                child: Listener(
-                  behavior: HitTestBehavior.translucent,
-                  onPointerDown: (_) => _idleTimeout.poke(),
-                  onPointerMove: (_) => _idleTimeout.poke(),
-                  onPointerSignal: (_) => _idleTimeout.poke(),
-                  onPointerHover: (_) => _idleTimeout.poke(),
-                  // iOS: layer an animated splash overlay above all routes so
-                  // the storyboard → Flutter handoff has a gentle exit instead
-                  // of a hard cut. Passthrough on every other platform.
-                  child: NativeSplash.wrap(
-                    // Global toast host (top layer) over the app. A later
-                    // sibling in this Stack paints ABOVE every route AND modal
-                    // dialog/sheet (they live inside `child` on the root
-                    // navigator's overlay), so toasts are never hidden behind a
-                    // password/conflict sheet. `Positioned.fill` gives the host
-                    // tight constraints; it lays out only a small corner column,
-                    // so taps outside a toast fall through to the app/barrier.
-                    // Excluded from the screenshot RepaintBoundary on purpose —
-                    // a transient toast shouldn't bleed into store captures.
-                    child: Stack(
-                      children: [
-                        // Root capture boundary for the Debug Panel's screenshot
-                        // button: snapshotting this yields the full window at
-                        // exactly `physicalSize`. Inside `NativeSplash.wrap` so
-                        // the iOS splash overlay is excluded; below the
-                        // textScaler MediaQuery so the shot reflects the user's
-                        // text scale.
-                        RepaintBoundary(
-                          key: widget.services.screenshotWindow.boundaryKey,
-                          // Frameless Windows/Linux only: paints the app's own
-                          // title bar above every route (a passthrough on macOS,
-                          // mobile and web). It must wrap the router rather than
-                          // live in the shell — `/login`, `/lock` and the route
-                          // error screen have no sidebar, and a frameless window
-                          // with no chrome there could not be moved or closed.
-                          // Inside the boundary so store captures match the app.
-                          child: WindowFrame(
-                            screenshotWindow: widget.services.screenshotWindow,
-                            railCollapsed: widget.services.sidebar,
-                            shellMounted: widget.services.shellMounted,
-                            child: child ?? const SizedBox.shrink(),
+                // stamp read by the controller's periodic check. The
+                // notification carries edits in a `MarkdownTextField`, which
+                // neither a pointer nor (on a soft keyboard) a key event
+                // reports; plain text fields and hardware keys are fed by the
+                // controller itself.
+                child: NotificationListener<UserActivityNotification>(
+                  onNotification: (_) {
+                    _idleTimeout.poke();
+                    return true;
+                  },
+                  child: Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (_) => _idleTimeout.poke(),
+                    onPointerMove: (_) => _idleTimeout.poke(),
+                    onPointerSignal: (_) => _idleTimeout.poke(),
+                    onPointerHover: (_) => _idleTimeout.poke(),
+                    // iOS: layer an animated splash overlay above all routes so
+                    // the storyboard → Flutter handoff has a gentle exit instead
+                    // of a hard cut. Passthrough on every other platform.
+                    child: NativeSplash.wrap(
+                      // Global toast host (top layer) over the app. A later
+                      // sibling in this Stack paints ABOVE every route AND modal
+                      // dialog/sheet (they live inside `child` on the root
+                      // navigator's overlay), so toasts are never hidden behind a
+                      // password/conflict sheet. `Positioned.fill` gives the host
+                      // tight constraints; it lays out only a small corner column,
+                      // so taps outside a toast fall through to the app/barrier.
+                      // Excluded from the screenshot RepaintBoundary on purpose —
+                      // a transient toast shouldn't bleed into store captures.
+                      child: Stack(
+                        children: [
+                          // Root capture boundary for the Debug Panel's screenshot
+                          // button: snapshotting this yields the full window at
+                          // exactly `physicalSize`. Inside `NativeSplash.wrap` so
+                          // the iOS splash overlay is excluded; below the
+                          // textScaler MediaQuery so the shot reflects the user's
+                          // text scale.
+                          RepaintBoundary(
+                            key: widget.services.screenshotWindow.boundaryKey,
+                            // Frameless Windows/Linux only: paints the app's own
+                            // title bar above every route (a passthrough on macOS,
+                            // mobile and web). It must wrap the router rather than
+                            // live in the shell — `/login`, `/lock` and the route
+                            // error screen have no sidebar, and a frameless window
+                            // with no chrome there could not be moved or closed.
+                            // Inside the boundary so store captures match the app.
+                            child: WindowFrame(
+                              screenshotWindow:
+                                  widget.services.screenshotWindow,
+                              railCollapsed: widget.services.sidebar,
+                              shellMounted: widget.services.shellMounted,
+                              child: child ?? const SizedBox.shrink(),
+                            ),
                           ),
-                        ),
-                        Positioned.fill(
-                          child: ToastHost(controller: widget.services.toasts),
-                        ),
-                        // Slack-style hint bar: holding ⌘/Ctrl reveals the
-                        // modifier shortcuts available in the current context.
-                        // A sibling of ToastHost so it too paints above every
-                        // route and modal; non-interactive so taps fall
-                        // through.
-                        Positioned.fill(
-                          child: ShortcutHintOverlay(
-                            controller: widget.services.shortcutHints,
+                          Positioned.fill(
+                            child: ToastHost(
+                              controller: widget.services.toasts,
+                            ),
                           ),
-                        ),
-                        // Paints nothing — it watches the app lifecycle and
-                        // raises the "log this call?" toast when the user comes
-                        // back from the dialer (invoiceninja/flutter#120). A
-                        // widget rather than a fourth `WidgetsBindingObserver`
-                        // above, because the offer opens a form and enqueues
-                        // through the repositories, so it needs a context under
-                        // the providers.
-                        CallLogPrompter(
-                          services: widget.services,
-                          // A context inside the router's Navigator — this
-                          // widget's own sits above it, so a sheet pushed from
-                          // there would find no Navigator at all. Same supplier
-                          // `deepLinks.attach` takes, for the same reason.
-                          contextOf: () => _router
-                              .routerDelegate
-                              .navigatorKey
-                              .currentContext,
-                        ),
-                        // Paints nothing — once the app is up, it tells the
-                        // user what a reset of their local data did: a toast
-                        // when everything came across, a dialog when their
-                        // unsynced work may not have. Needs a context inside
-                        // the router's Navigator, like the prompter above.
-                        LocalDataRecoveryNotice(
-                          slot: _localDataNotice,
-                          holdWhile: _localDataNoticeHold,
-                          toasts: widget.services.toasts,
-                          contextOf: () => _router
-                              .routerDelegate
-                              .navigatorKey
-                              .currentContext,
-                        ),
-                      ],
+                          // Slack-style hint bar: holding ⌘/Ctrl reveals the
+                          // modifier shortcuts available in the current context.
+                          // A sibling of ToastHost so it too paints above every
+                          // route and modal; non-interactive so taps fall
+                          // through.
+                          Positioned.fill(
+                            child: ShortcutHintOverlay(
+                              controller: widget.services.shortcutHints,
+                            ),
+                          ),
+                          // Paints nothing — it watches the app lifecycle and
+                          // raises the "log this call?" toast when the user comes
+                          // back from the dialer (invoiceninja/flutter#120). A
+                          // widget rather than a fourth `WidgetsBindingObserver`
+                          // above, because the offer opens a form and enqueues
+                          // through the repositories, so it needs a context under
+                          // the providers.
+                          CallLogPrompter(
+                            services: widget.services,
+                            // A context inside the router's Navigator — this
+                            // widget's own sits above it, so a sheet pushed from
+                            // there would find no Navigator at all. Same supplier
+                            // `deepLinks.attach` takes, for the same reason.
+                            contextOf: () => _router
+                                .routerDelegate
+                                .navigatorKey
+                                .currentContext,
+                          ),
+                          // Paints nothing — once the app is up, it tells the
+                          // user what a reset of their local data did: a toast
+                          // when everything came across, a dialog when their
+                          // unsynced work may not have. Needs a context inside
+                          // the router's Navigator, like the prompter above.
+                          LocalDataRecoveryNotice(
+                            slot: _localDataNotice,
+                            holdWhile: _localDataNoticeHold,
+                            toasts: widget.services.toasts,
+                            contextOf: () => _router
+                                .routerDelegate
+                                .navigatorKey
+                                .currentContext,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

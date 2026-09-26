@@ -11,6 +11,8 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/billing_shared/seed_client_invitations.dart';
 import 'package:admin/ui/features/recurring_invoices/view_models/recurring_invoice_edit_view_model.dart';
 import 'package:admin/ui/features/recurring_invoices/widgets/edit/recurring_invoice_edit_layout.dart';
@@ -89,6 +91,13 @@ class RecurringInvoiceEditScreen extends StatelessWidget {
           seedClientInvitationsFromPrefill(
             services: services,
             companyId: companyId,
+            vm: vm,
+          );
+          // The inclusive-tax mode the server would give it.
+          seedBillingCreateDefaults(
+            settings: services.settings,
+            companyId: companyId,
+            type: BillingDocType.recurringInvoice,
             vm: vm,
           );
         }

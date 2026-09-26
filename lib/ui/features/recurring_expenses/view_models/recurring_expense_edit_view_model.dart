@@ -59,6 +59,25 @@ class RecurringExpenseEditViewModel
 
   void resetToEmpty() => reset(emptyDraft: emptyRecurringExpense());
 
+  @override
+  void reset({required RecurringExpense emptyDraft}) {
+    _userTouchedInclusive = false;
+    super.reset(emptyDraft: emptyDraft);
+  }
+
+  bool _userTouchedInclusive = false;
+
+  /// Seed a new expense's inclusive-tax mode from the company's
+  /// `expense_inclusive_taxes` (React parity — `empty*()` hard-codes false,
+  /// which the app then sent). Only on a create whose switch the user never
+  /// touched and whose amount is still zero: an amount is net or gross by the
+  /// mode it was typed in. Through [seedCreateDefault], so it neither dirties
+  /// an untouched form nor lands after a save or a discard.
+  void seedCompanyInclusiveTaxes(bool value) {
+    if (_userTouchedInclusive || draft.amount != Decimal.zero) return;
+    seedCreateDefault((d) => d.copyWith(usesInclusiveTaxes: value));
+  }
+
   // ── Identity / links ──────────────────────────────────────────────
 
   void setVendorId(String v) => updateDraft(draft.copyWith(vendorId: v));
@@ -211,8 +230,11 @@ class RecurringExpenseEditViewModel
           Decimal.zero,
     ),
   );
-  void setUsesInclusiveTaxes(bool v) =>
-      updateDraft(draft.copyWith(usesInclusiveTaxes: v));
+  void setUsesInclusiveTaxes(bool v) {
+    _userTouchedInclusive = true;
+    updateDraft(draft.copyWith(usesInclusiveTaxes: v));
+  }
+
   void setCalculateTaxByAmount(bool v) =>
       updateDraft(draft.copyWith(calculateTaxByAmount: v));
 

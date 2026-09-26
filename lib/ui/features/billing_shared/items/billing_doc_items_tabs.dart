@@ -27,9 +27,10 @@ import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_vi
 /// All three editor instances are mounted (offstage when their tab isn't
 /// active) so cell focus / cursor position / drag state survive tab
 /// switching. Each editor's desktop `LineItemTableDesktopController` is
-/// registered with `vm.addBeforeSaveHook(...)` so a Save click flushes
-/// every editor's debounced text-field edits regardless of which tab is
-/// active. The wrapper registers `vm.stripEmptyLineItems` exactly once.
+/// registered with `vm.addFlushHook(...)` so a Save click — or opening the
+/// line-item picker — flushes every editor's debounced text-field edits
+/// regardless of which tab is active. The wrapper registers
+/// `vm.stripEmptyLineItems` exactly once, as a save-only before-save hook.
 ///
 /// **Invariant: [onChanged] must write through to [vm]'s draft.** The merge-back
 /// reads `vm.lineItemsOf(vm.draft)` rather than [lineItems] so that a Save —
@@ -38,13 +39,9 @@ import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_vi
 /// pairs `lineItems: vm.draft.lineItems` with `onChanged: vm.replaceLineItems`,
 /// which is what makes the two the same list.
 ///
-/// Row-error highlighting (`rowErrors`) is keyed by *full-list* index in
-/// the VM but the filtered editor renders with local subset indices, so
-/// the highlight wouldn't align. The wrapper passes `null` for
-/// `rowErrors` to the per-tab editors — the existing field-error UI on
-/// the validation banner still surfaces the cross-client error from the
-/// VM. (Server-side `cost` / `quantity` row errors are rare enough that
-/// dropping the inline tint in tabbed mode is an acceptable trade.)
+/// Row errors (`rowErrors`) are keyed by *full-list* index in the VM; each
+/// per-tab editor gets them re-keyed to its own subset through
+/// [subsetRowErrors].
 class BillingDocItemsTabs extends StatefulWidget {
   const BillingDocItemsTabs({
     super.key,
@@ -59,7 +56,7 @@ class BillingDocItemsTabs extends StatefulWidget {
     this.onCreateTaskFromLineItem,
   });
 
-  /// For `addBeforeSaveHook` + `stripEmptyLineItems`. Type-erased to keep
+  /// For `addFlushHook` + `stripEmptyLineItems`. Type-erased to keep
   /// this widget reusable across invoice/quote/credit/recurring layouts.
   final GenericBillingDocEditViewModel<dynamic> vm;
   final String companyId;
@@ -141,11 +138,33 @@ List<LineItem> mergeBackByType({
   return result;
 }
 
+/// Re-key [rowErrors] — keyed by index in the FULL line-item list, which is
+/// how the server names them (`line_items.3.cost`) — to the index each row has
+/// in the subset [inSubset] keeps, in list order (the order the per-tab
+/// editors render). Rows outside the subset drop out. Exported (top-level) so
+/// the mapping can be unit-tested without a widget pump.
+Map<int, Map<String, String>> subsetRowErrors({
+  required List<LineItem> lineItems,
+  required Map<int, Map<String, String>>? rowErrors,
+  required bool Function(LineItem) inSubset,
+}) {
+  if (rowErrors == null || rowErrors.isEmpty) return const {};
+  final out = <int, Map<String, String>>{};
+  var subsetIndex = 0;
+  for (var i = 0; i < lineItems.length; i++) {
+    if (!inSubset(lineItems[i])) continue;
+    final errors = rowErrors[i];
+    if (errors != null && errors.isNotEmpty) out[subsetIndex] = errors;
+    subsetIndex++;
+  }
+  return out;
+}
+
 class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     with TickerProviderStateMixin {
   // One controller per type. Each is registered with the VM's
-  // `addBeforeSaveHook` so Save flushes debounced text-field edits across
-  // all three editors regardless of which tab is currently visible.
+  // `addFlushHook` so Save flushes debounced text-field edits across all
+  // three editors regardless of which tab is currently visible.
   final _productsCtl = LineItemTableDesktopController();
   final _tasksCtl = LineItemTableDesktopController();
   final _expensesCtl = LineItemTableDesktopController();
@@ -166,11 +185,13 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     _hasTasks = widget.lineItems.any(_isTaskLine);
     _hasExpenses = widget.lineItems.any(_isExpenseLine);
     _rebuildTabController(jumpTo: 0);
-    _unregisterProductsFlush = widget.vm.addBeforeSaveHook(
+    // Flush hooks, not before-save hooks: the line-item picker commits them
+    // too before it reads the list. Stripping blank rows stays save-only.
+    _unregisterProductsFlush = widget.vm.addFlushHook(
       _productsCtl.flushPending,
     );
-    _unregisterTasksFlush = widget.vm.addBeforeSaveHook(_tasksCtl.flushPending);
-    _unregisterExpensesFlush = widget.vm.addBeforeSaveHook(
+    _unregisterTasksFlush = widget.vm.addFlushHook(_tasksCtl.flushPending);
+    _unregisterExpensesFlush = widget.vm.addFlushHook(
       _expensesCtl.flushPending,
     );
     _unregisterStrip = widget.vm.addBeforeSaveHook(
@@ -295,10 +316,11 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
       // Stock count is a product-selection affordance — only the products
       // tab's typeahead surfaces it (and only on invoices, via the host).
       showStockQuantity: widget.showStockQuantity && kind == _LineKind.products,
-      // Row-error indices key off the full list; per-tab indices won't
-      // line up. The cross-client error still surfaces in the validation
-      // banner, so the per-row tint is just a polish loss in tabbed mode.
-      rowErrors: null,
+      rowErrors: subsetRowErrors(
+        lineItems: widget.lineItems,
+        rowErrors: widget.rowErrors,
+        inSubset: (li) => _predicate(kind, li),
+      ),
       onPickItems: widget.onPickItems,
       onCreateTaskFromLineItem: widget.onCreateTaskFromLineItem,
     );

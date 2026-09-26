@@ -274,20 +274,31 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// CREATE the stale row would otherwise produce a server-side duplicate;
   /// for UPDATE it would waste an HTTP round-trip with stale data. `in_flight`
   /// rows are left alone — their HTTP request may already be landing, so
-  /// deleting them would race the dispatcher's `applyCreateResponse`. `dead`
-  /// rows are left alone too — the existing `onSaved` cleanup deletes them
-  /// after a successful re-save.
+  /// deleting them would race the dispatcher's `applyCreateResponse` — and so
+  /// are `unconfirmed` ones, which wait for the user.
   ///
-  /// Returns the SAVE-PARAM query carried by the rows it removed, merged
-  /// oldest-first. That salvage is load-bearing: the billing repos fold an
-  /// action (`mark_sent`, `paid`, `cancel`, `auto_bill`) into an ordinary
-  /// `update` row's payload under [kSaveQueryPayloadKey], and this predicate
-  /// keys only on `(company, type, id, kind)` — so it cannot tell an
-  /// action-bearing save from a plain one. Without carrying the query forward,
-  /// an offline "Mark Sent" followed by an offline typo-fix Save silently
-  /// dropped the action: the invoice synced with the edit and stayed a draft,
-  /// with nothing in the Outbox to show for it. Callers that build a payload
-  /// merge this in via [mergeSaveQuery].
+  /// An `update` also replaces the record's failed (`dead`) updates, and
+  /// deletes them here: the new save carries the whole record, and a failed
+  /// save the form re-saved is what the user fixed. Their action comes along
+  /// — a "Save & Mark Paid" rejected for a taken number and re-saved with a
+  /// plain Save used to land without `paid`, the failed row's cleanup then
+  /// deleting the only record of it. So an action that itself caused the
+  /// rejection goes with every re-save, failing it again, until the user
+  /// discards it. A row carrying a company / user `_action` is no save of
+  /// the record and stays.
+  ///
+  /// Returns the SAVE-PARAM query this save carries forward: that of the
+  /// newest replaced row (by row id) that had one. That salvage is
+  /// load-bearing: the billing repos fold an action (`mark_sent`, `paid`,
+  /// `cancel`, `auto_bill`) into an ordinary `update` row's payload under
+  /// [kSaveQueryPayloadKey], and this predicate keys only on
+  /// `(company, type, id, kind)` — so it cannot tell an action-bearing save
+  /// from a plain one. Without carrying the query forward, an offline "Mark
+  /// Sent" followed by an offline typo-fix Save silently dropped the action:
+  /// the invoice synced with the edit and stayed a draft, with nothing in the
+  /// Outbox to show for it. The newest one, never a union, for the reason in
+  /// [mergeSaveQuery]. Callers that build a payload merge this in via
+  /// [mergeSaveQuery].
   ///
   /// A `create` whose earlier create of the same record is `unconfirmed`
   /// throws [UnconfirmedPriorMutationException] instead: the server may
@@ -300,7 +311,9 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// A `create` also replaces the record's queued `update` rows: the record
   /// was never created, so they wait for a create to land, while a create
   /// queued after them waited behind them — neither ever sent. The create
-  /// carries the whole record, and their save queries come with it.
+  /// carries the whole record, and their save queries come with it. A
+  /// re-create under a `tmp_` id carries its failed saves' action as well;
+  /// the failed updates go now, the failed creates once it lands.
   @protected
   Future<Map<String, String>> dedupPendingMutations({
     required String companyId,
@@ -334,21 +347,22 @@ abstract class BaseEntityRepository<TDomain, TApi> {
           entityId: entityId,
           mutationKind: k.wireName,
         ),
-    ]..sort((a, b) => a.id.compareTo(b.id));
-    final superseded = [
-      // A re-create of a record whose create failed replaces the failed
-      // saves too: once it lands, `recordCreateSuccess` deletes them. One of
-      // them may be the only record of the action the user saved with (an
-      // offline "Save & Mark Paid" rejected for a taken number), and the
-      // fixed re-save is usually a plain Save — so their action comes along,
-      // ahead of the pending rows' so a newer choice still wins.
-      if (kind == MutationKind.create && entityId.startsWith('tmp_'))
-        ...await _outbox.deadSavesForEntity(
+    ];
+    // The failed saves this one replaces. A re-create of a record whose
+    // create failed replaces them all: once it lands, `recordCreateSuccess`
+    // deletes the failed creates. An update replaces the failed updates.
+    // Either way one of them may be the only record of the action the user
+    // saved with, and the fixed re-save is usually a plain Save.
+    final dead = [
+      if (kind == MutationKind.update ||
+          (kind == MutationKind.create && entityId.startsWith('tmp_')))
+        for (final row in await _outbox.deadSavesForEntity(
           companyId: companyId,
           entityType: entityTypeName,
           entityId: entityId,
-        ),
-      ...pending,
+          includeCreates: kind == MutationKind.create,
+        ))
+          if (!_carriesRecordAction(row.payload)) row,
     ];
     await _outbox.deletePendingForEntity(
       companyId: companyId,
@@ -364,11 +378,30 @@ abstract class BaseEntityRepository<TDomain, TApi> {
         mutationKind: MutationKind.update.wireName,
       );
     }
-    final carried = <String, String>{};
-    for (final row in superseded) {
-      carried.addAll(saveQueryOf(row.payload));
+    for (final row in dead) {
+      if (row.mutationKind == MutationKind.update.wireName) {
+        await _outbox.deleteRow(row.id);
+      }
     }
-    return carried;
+    var carried = const <String, String>{};
+    for (final row in [...dead, ...pending]..sort((a, b) => a.id - b.id)) {
+      final query = saveQueryOf(row.payload);
+      if (query.isNotEmpty) carried = query;
+    }
+    return {...carried};
+  }
+
+  /// Whether a raw outbox payload carries a company / user `_action` (an
+  /// upload, an OAuth connect…) — not a save of the record's fields. An
+  /// undecodable one counts: a salvage step must never take a row it can't
+  /// read.
+  static bool _carriesRecordAction(String rawPayload) {
+    try {
+      final decoded = jsonDecode(rawPayload);
+      return decoded is! Map || decoded.containsKey('_action');
+    } catch (_) {
+      return true;
+    }
   }
 
   /// The SAVE-PARAM query stored in a raw outbox payload, or empty. Tolerant
@@ -807,6 +840,12 @@ abstract class BaseEntityRepository<TDomain, TApi> {
   /// Drift's `watchById(tempId)` goes blank when the sync engine deletes the
   /// tmp row mid-swap. To keep the detail screen alive, we listen to
   /// `id_remap` in parallel and re-subscribe to the new id when it lands.
+  ///
+  /// A listener that cancels while the first `resolveId` is still reading
+  /// subscribes to nothing: `onListen` used to carry on after the await and
+  /// open a row watch and a remap watch that `onCancel` had already run past,
+  /// and nothing ever closed them. A throw there reaches the stream, not the
+  /// zone.
   @protected
   Stream<TDomain?> watchByTempId({
     required String companyId,
@@ -816,9 +855,10 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     StreamSubscription<TDomain?>? rowSub;
     StreamSubscription<String?>? remapSub;
     String? currentId;
+    var cancelled = false;
 
     void subscribeToRow(String resolved) {
-      if (resolved == currentId) return;
+      if (cancelled || resolved == currentId) return;
       currentId = resolved;
       rowSub?.cancel();
       rowSub = watchByRealId(
@@ -828,15 +868,21 @@ abstract class BaseEntityRepository<TDomain, TApi> {
     }
 
     controller.onListen = () async {
-      final initial = await resolveId(tempId);
-      subscribeToRow(initial);
-      remapSub = _idRemap
-          .watchRealId(entityType: entityTypeName, tempId: tempId)
-          .listen((realId) {
-            if (realId != null) subscribeToRow(realId);
-          });
+      try {
+        final initial = await resolveId(tempId);
+        if (cancelled) return;
+        subscribeToRow(initial);
+        remapSub = _idRemap
+            .watchRealId(entityType: entityTypeName, tempId: tempId)
+            .listen((realId) {
+              if (realId != null) subscribeToRow(realId);
+            }, onError: controller.addError);
+      } catch (e, st) {
+        if (!cancelled) controller.addError(e, st);
+      }
     };
     controller.onCancel = () async {
+      cancelled = true;
       await rowSub?.cancel();
       await remapSub?.cancel();
     };

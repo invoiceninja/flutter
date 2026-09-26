@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:admin/data/db/app_database.dart';
@@ -1197,6 +1198,92 @@ void main() {
     });
   });
 
+  group('a create landing while a save resolves its id', () {
+    test(
+      'leaves one record, under the real id — no temp row comes back',
+      () async {
+        // `save` read `resolveId` before its transaction: the create landing in
+        // between deleted the temp row and wrote the remap, and the save then
+        // wrote the temp row back — a duplicate of the real record.
+        final repo = _HookedClientRepo(db: db);
+        final created = await repo.create(
+          companyId: 'co',
+          draft: Client.fromApi(apiClient('', name: 'Acme')),
+        );
+        final tmpId = created.entity.id;
+        Future<void>? landing;
+        repo.afterResolve = () {
+          // The drain's landing, from outside the save. With the read in the
+          // save's transaction it waits for the commit (the timeout lets the
+          // save go on); without, it lands here, before the save's write.
+          landing = Zone.root.run(
+            () =>
+                RequestScope(
+                  'co',
+                  sourceRowId: created.outboxRowId,
+                  sourceEntityType: 'client',
+                  sourceEntityId: tmpId,
+                ).run(
+                  () => repo.applyCreateResponse(
+                    companyId: 'co',
+                    tempId: tmpId,
+                    serverResponse: apiClient('c_real', name: 'Acme'),
+                  ),
+                ),
+          );
+          return landing!.timeout(
+            const Duration(milliseconds: 200),
+            onTimeout: () {},
+          );
+        };
+
+        await repo.save(
+          companyId: 'co',
+          client: created.entity.copyWith(name: 'Acme Edited'),
+        );
+        await landing;
+
+        final rows = await db.select(db.clients).get();
+        expect(rows.map((r) => r.id), ['c_real']);
+        final real = await repo.watch(companyId: 'co', id: 'c_real').first;
+        expect(real!.name, 'Acme Edited', reason: 'the edit is kept');
+        final update = (await db.outboxDao.nextReady(
+          companyId: 'co',
+          now: 1 << 60,
+        )).firstWhere((r) => r.mutationKind == MutationKind.update.wireName);
+        expect(update.entityId, 'c_real');
+      },
+    );
+  });
+
+  group('watch on a temp id', () {
+    test(
+      'a listener gone before the id resolves leaves no watch open',
+      () async {
+        // `onListen` carried on after its `resolveId` await and opened watches
+        // that `onCancel` had already run past — nothing ever closed them.
+        final repo = _HookedClientRepo(db: db)..gate = Completer<void>();
+        final sub = repo.watch(companyId: 'co', id: 'tmp_x').listen((_) {});
+        await Future<void>.delayed(Duration.zero);
+        await sub.cancel();
+
+        repo.gate!.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(repo.openRowWatches, 0);
+      },
+    );
+
+    test('a failing lookup reaches the stream', () async {
+      final repo = _HookedClientRepo(db: db)
+        ..gate = (Completer<void>()..completeError(StateError('db closed')));
+      await expectLater(
+        repo.watch(companyId: 'co', id: 'tmp_x'),
+        emitsError(isA<StateError>()),
+      );
+    });
+  });
+
   group('optimistic delete/archive overlay (#15/#47)', () {
     // Seed a synced (clean) row, then run the offline lifecycle action and
     // read the domain back through watch → _fromRow. The optimistic flip lives
@@ -2308,4 +2395,46 @@ void main() {
       expect(api.fetched, ['boom']);
     });
   });
+}
+
+/// A [ClientRepository] whose `resolveId` can be held ([gate]) or followed by
+/// [afterResolve], and which counts the row watches it opens.
+class _HookedClientRepo extends ClientRepository {
+  _HookedClientRepo({required super.db})
+    : super(api: _FakeClientsApi(const {}));
+
+  Completer<void>? gate;
+  Future<void> Function()? afterResolve;
+  int openRowWatches = 0;
+
+  @override
+  Future<String> resolveId(String maybeTempId) async {
+    await gate?.future;
+    final id = await super.resolveId(maybeTempId);
+    final hook = afterResolve;
+    afterResolve = null;
+    if (hook != null) await hook();
+    return id;
+  }
+
+  @override
+  Stream<Client?> watchByRealId({
+    required String companyId,
+    required String id,
+  }) {
+    final inner = super.watchByRealId(companyId: companyId, id: id);
+    late StreamSubscription<Client?> sub;
+    late StreamController<Client?> out;
+    out = StreamController<Client?>(
+      onListen: () {
+        openRowWatches++;
+        sub = inner.listen(out.add, onError: out.addError);
+      },
+      onCancel: () {
+        openRowWatches--;
+        return sub.cancel();
+      },
+    );
+    return out.stream;
+  }
 }

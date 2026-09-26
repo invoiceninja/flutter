@@ -153,17 +153,19 @@ class DesignRepository extends BaseEntityRepository<Design, DesignApi> {
     required String companyId,
     required Design design,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(design.id);
-    if (resolvedId != design.id) design = design.copyWith(id: resolvedId);
-
-    final companion = _domainToCompanion(design, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write.
+      final resolvedId = await resolveId(design.id);
+      if (resolvedId != design.id) design = design.copyWith(id: resolvedId);
+
+      final companion = _domainToCompanion(design, companyId, isDirty: true);
       await db.designDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,

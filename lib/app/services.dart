@@ -1300,9 +1300,11 @@ class Services implements SidebarBadgeContext {
       // `onSessionReset` and `onBeforeLogout` (which carries the
       // `clearPeekCache` / `invalidateAllFormatters` fan-out below) both run
       // on the preserve path too. Only `onBeforeDataWipe` is
-      // destructive-path-only — contacts sync, which should survive a
-      // re-lock — and so is forgetting the account preferences (menu, Tasks
-      // layout, hide-empty-panels), which only the wipe does.
+      // destructive-path-only — contacts sync and the recently-viewed list,
+      // which should survive a re-lock and which a DIFFERENT user's sign-in
+      // still clears through `_wipeIfIdentityChanged` — and so is forgetting
+      // the account preferences (menu, Tasks layout, hide-empty-panels),
+      // which only the wipe does.
       // `logout()` still writes the re-lock gate, so re-entry requires
       // re-auth.
       onUnauthorized: () async => auth.logout(data: LocalDataPolicy.keep),
@@ -1735,13 +1737,10 @@ class Services implements SidebarBadgeContext {
       refreshScheduler.stop();
       services.toasts.clearAll();
       services.shortcutHints.reset();
-      // App-lifetime recents survive a logout otherwise: the map is only ever
-      // cleared inside `restore()` (boot), and it is keyed by company — which
-      // makes cross-company isolation structural but does nothing for the
-      // cross-user case, where the company id is the same. Without this, the
-      // next user's command palette lists the previous user's records and
-      // re-persists them into the just-wiped nav_state.
-      services.recentlyViewed.reset();
+      // Recently-viewed is NOT reset here but in `onBeforeDataWipe` below:
+      // this hook also runs on the 401 / idle re-lock path, where the same
+      // user comes straight back and their recents (still in the kept
+      // nav_state) should be there when they do.
       // A deep link held at the signed-out / locked gate belongs to the
       // account that was signed in when it arrived. Replaying it into the next
       // session would navigate the new user by the old one's ids.
@@ -1780,10 +1779,22 @@ class Services implements SidebarBadgeContext {
       services.settings.clearResolvedCache();
       if (priorOnBeforeLogout != null) await priorOnBeforeLogout();
     };
-    // Only on the destructive logout path — an idle-timeout re-lock keeps the
-    // database (and therefore the link table), so the user's synced cards
+    // Only on the destructive paths (a destroy logout, a different identity's
+    // wipe at sign-in) — an idle-timeout re-lock keeps the database (and
+    // therefore the link table and the recents), so the user's synced cards
     // should survive it rather than being deleted and rebuilt on re-entry.
     auth.onBeforeDataWipe = () async {
+      // First, and unconditionally: App-lifetime recents survive a logout
+      // otherwise — the map is only ever cleared inside `restore()` (boot), and
+      // it is keyed by company, which makes cross-company isolation structural
+      // but does nothing for the cross-user case, where the company id is the
+      // same. Without this, the next user's command palette lists the previous
+      // user's records and re-persists them into the just-wiped nav_state.
+      // Here rather than in `onBeforeLogout` because this hook runs exactly
+      // when the data goes — a destructive sign-out, or a different identity
+      // signing in over kept data — and not on a 401 re-login by the same
+      // user, which used to lose their recents for nothing.
+      services.recentlyViewed.reset();
       // Needs the link table, which the wipe is about to destroy. (The account
       // preferences — the main menu, the Tasks layout, … — need no hook: the
       // wipe forgets them in the store, and each controller follows it.)

@@ -17,10 +17,22 @@ const String kAuthCurrentCompanyIdKey = 'invoiceninja.current_company.v1';
 /// device. Cross-user isolation used to be in-memory cache clearing alone,
 /// which the UI never reads from; this covers the store it does read from.
 ///
-/// Cleared by a destructive `logout()` (the DB is already gone at that point,
-/// so a stale identity would only cause a redundant wipe).
+/// Cleared by a destructive `logout()` only once its wipe has SUCCEEDED (the
+/// DB is gone at that point, so a stale identity would only cause a redundant
+/// wipe). A wipe that throws leaves them — with `kAuthBaseUrlKey` — on disk,
+/// so the next different sign-in can still see whose data is there.
 const String kAuthUserIdKey = 'invoiceninja.user_id.v1';
 const String kAuthAccountIdKey = 'invoiceninja.account_id.v1';
+
+/// Set by a destructive `logout()` after it deletes the tokens and before it
+/// wipes the database; deleted once the wipe and the identity deletes have
+/// succeeded. Present at sign-in means a sign-out's wipe never finished, so
+/// the database may still hold the signed-out user's data: the next login
+/// wipes unconditionally — even for the SAME identity, since the user asked
+/// for it gone — and deletes the marker after its own successful wipe (left
+/// behind, it would wipe a later kept-work re-login's queued rows).
+/// Persisted as `'true'` / absent.
+const String kAuthWipePendingKey = 'invoiceninja.wipe_pending.v1';
 
 /// Whether the user has opted in to biometric (FaceID / TouchID) gating on
 /// cold launch. Persisted as `'true'` / absent; any other value is treated as

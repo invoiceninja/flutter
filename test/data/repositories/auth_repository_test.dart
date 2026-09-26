@@ -6,6 +6,7 @@ import 'package:admin/data/models/api/login_response_api_model.dart';
 import 'package:admin/data/models/api/user_api_model.dart';
 import 'package:admin/data/repositories/auth/auth_helpers.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
+import 'package:admin/data/repositories/local_data_disposer.dart';
 import 'package:admin/data/repositories/user_repository.dart';
 import 'package:admin/data/services/api_client.dart';
 import 'package:admin/data/services/auth_service.dart';
@@ -67,6 +68,50 @@ class _FakeAuthService implements AuthService {
 class _FakeUsersApi implements UsersApi {
   @override
   Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Parks every write of [gatedKey] once [armed], until [release] completes —
+/// the shape of a Keychain write still in flight when a logout lands.
+class _GatedTokenStorage extends InMemoryTokenStorage {
+  final String gatedKey = kAuthTokensKey;
+  bool armed = false;
+  int entered = 0;
+  final Completer<void> release = Completer<void>();
+
+  @override
+  Future<void> write(String key, String value) async {
+    if (armed && key == gatedKey) {
+      entered++;
+      await release.future;
+    }
+    return super.write(key, value);
+  }
+
+  /// Pump until [n] writes are parked (bounded, so a regression fails
+  /// instead of hanging).
+  Future<void> untilEntered(int n) async {
+    for (var i = 0; i < 200 && entered < n; i++) {
+      await pumpEventQueue();
+    }
+    expect(entered, n, reason: 'expected $n parked secure-storage writes');
+  }
+}
+
+/// A [LocalDataDisposer] whose next [failuresLeft] whole-database wipes throw
+/// — a full disk, a locked file — before touching anything.
+class _FlakyDisposer extends LocalDataDisposer {
+  _FlakyDisposer(super.db);
+
+  int failuresLeft = 0;
+
+  @override
+  Future<void> wipeAll(DisposalReason reason) async {
+    if (failuresLeft > 0) {
+      failuresLeft--;
+      throw StateError('wipe failed');
+    }
+    await super.wipeAll(reason);
+  }
 }
 
 LoginResponseApi _envelope({
@@ -1989,6 +2034,197 @@ void main() {
         );
       },
     );
+
+    // The generation guards stop a stale refresh from STARTING its commit, but
+    // one already past the final guard used to run its secure-storage writes
+    // to completion regardless: a logout that deleted the tokens in between
+    // had them written straight back, so the next cold start restored into
+    // the session the user had just signed out of.
+    group('a logout during the commit\'s secure-storage writes', () {
+      late _GatedTokenStorage gated;
+
+      Future<void> loginGated() async {
+        gated = _GatedTokenStorage();
+        repo = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: gated,
+          passwordCache: passwordCache,
+        );
+        authService.queueLogin(_envelope());
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        repo.apiClient = gatedClient(
+          MockClient((req) async {
+            if (req.url.path == '/api/v1/refresh') {
+              return http.Response(jsonEncode(_envelope().toJson()), 200);
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+        gated.armed = true;
+      }
+
+      Future<bool> restoresOnColdStart() async {
+        final next = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: gated,
+          passwordCache: PasswordCache(),
+        );
+        await next.restore();
+        return next.isAuthenticated;
+      }
+
+      test('a destroy logout leaves the keychain clean', () async {
+        await loginGated();
+        final refreshFuture = repo.refresh(fullSync: true);
+        await gated.untilEntered(1);
+
+        final logoutFuture = repo.logout(data: LocalDataPolicy.destroy);
+        await pumpEventQueue();
+        gated.release.complete();
+        await refreshFuture;
+        await logoutFuture;
+        await pumpEventQueue();
+
+        expect(repo.isAuthenticated, isFalse);
+        expect(repo.session.value, isNull);
+        expect(await gated.read(kAuthTokensKey), isNull);
+        expect(await gated.read(kAuthBaseUrlKey), isNull);
+        expect(await gated.read(kAuthUserIdKey), isNull);
+        expect(
+          await restoresOnColdStart(),
+          isFalse,
+          reason: 'the signed-out session must not come back on relaunch',
+        );
+      });
+
+      test('a keep logout keeps its re-lock flag', () async {
+        await loginGated();
+        final refreshFuture = repo.refresh(fullSync: true);
+        await gated.untilEntered(1);
+
+        final logoutFuture = repo.logout(data: LocalDataPolicy.keep);
+        await pumpEventQueue();
+        gated.release.complete();
+        await refreshFuture;
+        await logoutFuture;
+        await pumpEventQueue();
+
+        expect(repo.isAuthenticated, isFalse);
+        expect(repo.session.value, isNull);
+        expect(
+          await gated.read(kAuthSessionLockedKey),
+          'true',
+          reason:
+              'the refresh used to clear the flag after logout had set it, '
+              'so the next launch re-entered with no re-auth',
+        );
+        expect(await restoresOnColdStart(), isFalse);
+      });
+
+      test('two overlapping refreshes are both waited for', () async {
+        await loginGated();
+        final first = repo.refresh(fullSync: true);
+        final second = repo.refresh(fullSync: true);
+        await gated.untilEntered(2);
+
+        final logoutFuture = repo.logout(data: LocalDataPolicy.destroy);
+        await pumpEventQueue();
+        gated.release.complete();
+        await Future.wait([first, second, logoutFuture]);
+        await pumpEventQueue();
+
+        expect(repo.isAuthenticated, isFalse);
+        expect(await gated.read(kAuthTokensKey), isNull);
+        expect(await restoresOnColdStart(), isFalse);
+      });
+
+      test('the delta branch stops too', () async {
+        await loginGated();
+        // Login stamped `lastSyncAt`, so a plain refresh is a delta — the
+        // branch that reads the picker list from Drift during the commit.
+        final refreshFuture = repo.refresh();
+        await gated.untilEntered(1);
+
+        final logoutFuture = repo.logout(data: LocalDataPolicy.destroy);
+        await pumpEventQueue();
+        gated.release.complete();
+        await refreshFuture;
+        await logoutFuture;
+        await pumpEventQueue();
+
+        expect(repo.isAuthenticated, isFalse);
+        expect(repo.session.value, isNull);
+        expect(await gated.read(kAuthTokensKey), isNull);
+      });
+
+      test('a 401 rollback\'s token write is waited for, and the rollback '
+          'stops', () async {
+        gated = _GatedTokenStorage();
+        repo = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: gated,
+          passwordCache: passwordCache,
+        );
+        authService.queueLogin(
+          _envelope(
+            companies: [
+              (
+                id: 'co_a',
+                name: 'Acme',
+                token: 'tok_a',
+                isAdmin: false,
+                isOwner: false,
+              ),
+              (
+                id: 'co_b',
+                name: 'Beta',
+                token: 'tok_b',
+                isAdmin: false,
+                isOwner: false,
+              ),
+            ],
+          ),
+        );
+        await repo.login(
+          baseUrl: 'https://test',
+          isHosted: false,
+          email: 'a',
+          password: 'b',
+        );
+        repo.apiClient = gatedClient(
+          MockClient((req) async => http.Response('not found', 404)),
+        );
+        expect(await repo.switchCompany('co_b'), SwitchCompanyResult.ok);
+        gated.armed = true;
+
+        final rollback = repo.handleUnauthorized(repo.credentials.value!);
+        await gated.untilEntered(1);
+        final logoutFuture = repo.logout(data: LocalDataPolicy.destroy);
+        await pumpEventQueue();
+        gated.release.complete();
+
+        expect(
+          await rollback,
+          isFalse,
+          reason: 'the session is already ending; no second logout is owed',
+        );
+        await logoutFuture;
+        await pumpEventQueue();
+
+        expect(repo.session.value, isNull);
+        expect(repo.credentials.value, isNull);
+        expect(await gated.read(kAuthTokensKey), isNull);
+        expect(await restoresOnColdStart(), isFalse);
+      });
+    });
   });
 
   group('restore', () {
@@ -3950,6 +4186,158 @@ void main() {
       // the next sign-in do a redundant wipe.
       expect(await storage.read(kAuthUserIdKey), isNull);
       expect(await storage.read(kAuthAccountIdKey), isNull);
+      expect(await storage.read(kAuthWipePendingKey), isNull);
+    });
+
+    // A destructive sign-out used to delete the stored identity BEFORE its
+    // wipe. A wipe that threw (full disk, locked file) then left user A's rows
+    // on disk with no identity describing them, so user B's
+    // `_wipeIfIdentityChanged` compared against an empty side and kept it all.
+    group('a sign-out whose wipe fails', () {
+      late _FlakyDisposer disposer;
+
+      setUp(() {
+        disposer = _FlakyDisposer(db);
+        repo = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: storage,
+          passwordCache: passwordCache,
+          disposer: disposer,
+        );
+      });
+
+      Future<void> loginAs(String userId, {String baseUrl = 'https://x'}) {
+        authService.queueLogin(_envelope(user: UserSummaryApi(id: userId)));
+        return repo.login(
+          baseUrl: baseUrl,
+          isHosted: true,
+          email: '$userId@example.com',
+          password: 'pw',
+        );
+      }
+
+      Future<void> failedSignOut() async {
+        disposer.failuresLeft = 1;
+        await expectLater(
+          repo.logout(data: LocalDataPolicy.destroy),
+          throwsStateError,
+        );
+      }
+
+      test('keeps the identity and marks the wipe pending', () async {
+        await loginAs('user_a');
+        await seedQueuedWork();
+        await failedSignOut();
+
+        expect(await storage.read(kAuthTokensKey), isNull);
+        expect(await storage.read(kAuthUserIdKey), 'user_a');
+        expect(await storage.read(kAuthAccountIdKey), 'acct_1');
+        expect(await storage.read(kAuthBaseUrlKey), 'https://x');
+        expect(await storage.read(kAuthWipePendingKey), 'true');
+      });
+
+      test('does not come back on the next cold start', () async {
+        await loginAs('user_a');
+        await failedSignOut();
+
+        final next = AuthRepository(
+          db: db,
+          authService: authService,
+          tokenStorage: storage,
+          passwordCache: PasswordCache(),
+        );
+        await next.restore();
+        expect(next.isAuthenticated, isFalse);
+      });
+
+      test('the next DIFFERENT user\'s login wipes it', () async {
+        await loginAs('user_a');
+        await seedQueuedWork();
+        await failedSignOut();
+
+        await loginAs('user_b');
+        expect(await outboxRows(), 0);
+        expect(await storage.read(kAuthWipePendingKey), isNull);
+      });
+
+      test('the identity still names the server, so a different one is '
+          'detected without the marker', () async {
+        // The shape of a crash between the token deletes and the marker
+        // write: only the retained identity stands between A's rows and B.
+        await loginAs('user_a', baseUrl: 'https://alpha.example.com');
+        await seedQueuedWork();
+        await failedSignOut();
+        await storage.delete(kAuthWipePendingKey);
+
+        await loginAs('user_a', baseUrl: 'https://beta.example.com');
+        expect(await outboxRows(), 0);
+      });
+
+      test('the identity keys are still there for onBeforeDataWipe', () async {
+        await loginAs('user_a');
+        final seen = <String?>[];
+        repo.onBeforeDataWipe = () async {
+          seen
+            ..add(await storage.read(kAuthUserIdKey))
+            ..add(await storage.read(kAuthAccountIdKey))
+            ..add(await storage.read(kAuthBaseUrlKey));
+        };
+        await repo.logout(data: LocalDataPolicy.destroy);
+
+        expect(seen, ['user_a', 'acct_1', 'https://x']);
+        expect(await storage.read(kAuthUserIdKey), isNull);
+        expect(await storage.read(kAuthBaseUrlKey), isNull);
+      });
+
+      test('an identity wipe that throws fails the login', () async {
+        await loginAs('user_a');
+        await seedQueuedWork();
+        await repo.logout(data: LocalDataPolicy.keep);
+
+        disposer.failuresLeft = 1;
+        await expectLater(loginAs('user_b'), throwsStateError);
+        expect(
+          repo.credentials.value,
+          isNull,
+          reason: 'B must not be activated over A\'s surviving rows',
+        );
+        expect(repo.session.value, isNull);
+      });
+
+      test('the SAME user signing back in still gets the wipe, and the '
+          'marker is cleared', () async {
+        await loginAs('user_a');
+        await seedQueuedWork();
+        await failedSignOut();
+
+        await loginAs('user_a');
+        expect(
+          await outboxRows(),
+          0,
+          reason: 'the user asked for this data gone',
+        );
+        expect(await storage.read(kAuthWipePendingKey), isNull);
+      });
+
+      test(
+        'a cleared marker does not wipe a later kept-work re-login',
+        () async {
+          await loginAs('user_a');
+          await failedSignOut();
+          await loginAs('user_a'); // finishes the owed wipe
+
+          await seedQueuedWork();
+          await repo.logout(data: LocalDataPolicy.keep);
+          await loginAs('user_a');
+
+          expect(
+            await outboxRows(),
+            1,
+            reason: 'a marker left behind would wipe this queued work',
+          );
+        },
+      );
     });
   });
 }

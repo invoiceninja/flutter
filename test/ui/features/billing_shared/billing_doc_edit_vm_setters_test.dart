@@ -14,6 +14,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/models/domain/billing/line_item.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/credit_repository.dart';
 import 'package:admin/data/repositories/invoice_repository.dart';
@@ -103,10 +104,224 @@ final _viewModels = <String, _Make>{
   ),
 };
 
+/// One edit through a shared setter and the call that puts the field back
+/// to the new form's default — `restore` gets the value the field held.
+typedef _Edit = ({
+  String field,
+  void Function(dynamic vm) edit,
+  void Function(dynamic vm, dynamic draft) restore,
+});
+
+final _edits = <_Edit>[
+  (
+    field: 'client',
+    edit: (vm) => vm.setClientId('c1'),
+    restore: (vm, _) => vm.setClientId(''),
+  ),
+  (
+    field: 'vendor',
+    edit: (vm) => vm.setVendorId('v1'),
+    restore: (vm, _) => vm.setVendorId(''),
+  ),
+  (
+    field: 'project',
+    edit: (vm) => vm.setProjectId('p1'),
+    restore: (vm, _) => vm.setProjectId(''),
+  ),
+  (
+    field: 'assigned user',
+    edit: (vm) => vm.setAssignedUserId('u1'),
+    restore: (vm, _) => vm.setAssignedUserId(''),
+  ),
+  (
+    field: 'design',
+    edit: (vm) => vm.setDesignId('d1'),
+    restore: (vm, _) => vm.setDesignId(''),
+  ),
+  (
+    field: 'number',
+    edit: (vm) => vm.setNumber('0042'),
+    restore: (vm, _) => vm.setNumber(''),
+  ),
+  (
+    field: 'PO number',
+    edit: (vm) => vm.setPoNumber('PO-7'),
+    restore: (vm, _) => vm.setPoNumber(''),
+  ),
+  (
+    field: 'tags',
+    edit: (vm) => vm.setTagIds(['t1']),
+    restore: (vm, _) => vm.setTagIds(<String>[]),
+  ),
+  (
+    field: 'date',
+    edit: (vm) => vm.setDate(const Date(2020, 1, 1)),
+    restore: (vm, draft) => vm.setDate(draft.date),
+  ),
+  (
+    field: 'due date',
+    edit: (vm) => vm.setDueDate(const Date(2020, 2, 1)),
+    restore: (vm, draft) => vm.setDueDate(draft.dueDate),
+  ),
+  (
+    field: 'exchange rate',
+    edit: (vm) => vm.setExchangeRate('1.5'),
+    restore: (vm, _) => vm.setExchangeRate(''),
+  ),
+  (
+    field: 'discount',
+    edit: (vm) => vm.setDiscount('5', isAmount: true),
+    restore: (vm, _) => vm.setDiscount('', isAmount: false),
+  ),
+  (
+    field: 'inclusive taxes',
+    edit: (vm) => vm.setUsesInclusiveTaxes(true),
+    restore: (vm, _) => vm.setUsesInclusiveTaxes(false),
+  ),
+  for (final n in [1, 2, 3]) ...[
+    (
+      field: 'tax name $n',
+      edit: (vm) => switch (n) {
+        1 => vm.setTaxName1('VAT'),
+        2 => vm.setTaxName2('VAT'),
+        _ => vm.setTaxName3('VAT'),
+      },
+      restore: (vm, _) => switch (n) {
+        1 => vm.setTaxName1(''),
+        2 => vm.setTaxName2(''),
+        _ => vm.setTaxName3(''),
+      },
+    ),
+    (
+      field: 'tax rate $n',
+      edit: (vm) => switch (n) {
+        1 => vm.setTaxRate1('20'),
+        2 => vm.setTaxRate2('20'),
+        _ => vm.setTaxRate3('20'),
+      },
+      restore: (vm, _) => switch (n) {
+        1 => vm.setTaxRate1(''),
+        2 => vm.setTaxRate2(''),
+        _ => vm.setTaxRate3(''),
+      },
+    ),
+  ],
+  for (final n in [1, 2, 3, 4]) ...[
+    (
+      field: 'surcharge $n',
+      edit: (vm) => switch (n) {
+        1 => vm.setCustomSurcharge1('3'),
+        2 => vm.setCustomSurcharge2('3'),
+        3 => vm.setCustomSurcharge3('3'),
+        _ => vm.setCustomSurcharge4('3'),
+      },
+      restore: (vm, _) => switch (n) {
+        1 => vm.setCustomSurcharge1(''),
+        2 => vm.setCustomSurcharge2(''),
+        3 => vm.setCustomSurcharge3(''),
+        _ => vm.setCustomSurcharge4(''),
+      },
+    ),
+    (
+      field: 'surcharge $n taxed',
+      edit: (vm) => switch (n) {
+        1 => vm.setCustomTaxes1(true),
+        2 => vm.setCustomTaxes2(true),
+        3 => vm.setCustomTaxes3(true),
+        _ => vm.setCustomTaxes4(true),
+      },
+      restore: (vm, _) => switch (n) {
+        1 => vm.setCustomTaxes1(false),
+        2 => vm.setCustomTaxes2(false),
+        3 => vm.setCustomTaxes3(false),
+        _ => vm.setCustomTaxes4(false),
+      },
+    ),
+    (
+      field: 'custom value $n',
+      edit: (vm) => switch (n) {
+        1 => vm.setCustomValue1('x'),
+        2 => vm.setCustomValue2('x'),
+        3 => vm.setCustomValue3('x'),
+        _ => vm.setCustomValue4('x'),
+      },
+      restore: (vm, _) => switch (n) {
+        1 => vm.setCustomValue1(''),
+        2 => vm.setCustomValue2(''),
+        3 => vm.setCustomValue3(''),
+        _ => vm.setCustomValue4(''),
+      },
+    ),
+  ],
+  (
+    field: 'public notes',
+    edit: (vm) => vm.setPublicNotes('n'),
+    restore: (vm, _) => vm.setPublicNotes(''),
+  ),
+  (
+    field: 'private notes',
+    edit: (vm) => vm.setPrivateNotes('n'),
+    restore: (vm, _) => vm.setPrivateNotes(''),
+  ),
+  (
+    field: 'terms',
+    edit: (vm) => vm.setTerms('n'),
+    restore: (vm, _) => vm.setTerms(''),
+  ),
+  (
+    field: 'footer',
+    edit: (vm) => vm.setFooter('n'),
+    restore: (vm, _) => vm.setFooter(''),
+  ),
+  (
+    field: 'line items',
+    edit: (vm) => vm.addLineItem(emptyLineItem()),
+    restore: (vm, _) => vm.removeLineItemAt(0),
+  ),
+];
+
 void main() {
   late AppDatabase db;
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() async => db.close());
+
+  // A new document is dirty exactly when it differs from what the untouched
+  // form held. The five documents each used to list the fields they thought
+  // mattered; everything off the list (dates, taxes, surcharges, the design,
+  // tags, custom values, …) left a new document without the Discard prompt.
+  for (final MapEntry(key: name, value: make) in _viewModels.entries) {
+    group('$name: a new document', () {
+      test('opens clean', () {
+        final dynamic vm = make(db, comma: false);
+        addTearDown(() => vm.dispose());
+        expect(vm.isDirty, isFalse);
+      });
+
+      for (final e in _edits) {
+        test('${e.field}: an edit is dirty, and undoing it is clean', () {
+          final dynamic vm = make(db, comma: false);
+          addTearDown(() => vm.dispose());
+          final opened = vm.draft;
+          e.edit(vm);
+          expect(vm.isDirty, isTrue);
+          e.restore(vm, opened);
+          expect(vm.isDirty, isFalse);
+        });
+      }
+
+      test('discard → clean; an edit after it, undone, is clean', () {
+        final dynamic vm = make(db, comma: false);
+        addTearDown(() => vm.dispose());
+        vm.setNumber('0042');
+        vm.resetToEmpty();
+        expect(vm.isDirty, isFalse);
+        vm.setTerms('t');
+        expect(vm.isDirty, isTrue);
+        vm.setTerms('');
+        expect(vm.isDirty, isFalse);
+      });
+    });
+  }
 
   for (final MapEntry(key: name, value: make) in _viewModels.entries) {
     for (final comma in [false, true]) {

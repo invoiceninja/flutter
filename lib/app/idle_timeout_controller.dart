@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:admin/data/repositories/auth_repository.dart';
@@ -14,10 +15,17 @@ import 'package:admin/data/repositories/sync_repository.dart';
 ///
 /// Design mirrors [SyncLifecycleObserver]/[PasswordCacheLifecycleObserver]:
 /// the controller owns only timing state; the actual work delegates to
-/// [AuthRepository.logout]. Activity is fed in via [poke] (wired to a
-/// root-level `Listener` in `main.dart`); a low-frequency periodic check
-/// compares elapsed-since-last-activity against the timeout so pointer
-/// events stay cheap. App-resume runs the check immediately so time spent
+/// [AuthRepository.logout]. Activity is fed in via [poke] from four sources:
+/// the root-level pointer `Listener` in `main.dart`; every hardware key event
+/// ([HardwareKeyboard]); edits to the focused text field's
+/// `TextEditingController` — a soft keyboard sends no key events, so typing a
+/// long note on a phone used to count as idle; and the
+/// `UserActivityNotification` a `MarkdownTextField` bubbles up to `main.dart`
+/// for its `super_editor` document, which is not a `TextEditingController`.
+/// Deliberately NOT the unsaved-changes guard: background Drift re-emits flip
+/// it too, and would keep an unattended session alive. A low-frequency
+/// periodic check compares elapsed-since-last-activity against the timeout so
+/// each event stays cheap. App-resume runs the check immediately so time spent
 /// backgrounded counts toward the timeout.
 class IdleTimeoutController with WidgetsBindingObserver {
   IdleTimeoutController({
@@ -29,6 +37,9 @@ class IdleTimeoutController with WidgetsBindingObserver {
     _lastActivity = _now();
     auth.session.addListener(_onSessionChanged);
     _onSessionChanged();
+    HardwareKeyboard.instance.addHandler(_onKey);
+    FocusManager.instance.addListener(_onFocusChanged);
+    _onFocusChanged();
   }
 
   final AuthRepository auth;
@@ -42,9 +53,35 @@ class IdleTimeoutController with WidgetsBindingObserver {
   int _timeoutMs = 0;
   String? _watchedCompanyId;
 
+  /// The focused text field's controller, listened to so each edit pokes.
+  TextEditingController? _watchedText;
+
   /// Record user activity. Cheap — just stamps the clock; the periodic
   /// [_check] reads it. Safe to call on every pointer event.
   void poke() => _lastActivity = _now();
+
+  /// Every hardware key event is activity. Returns false so the event carries
+  /// on to the shortcut layer and the focused field untouched.
+  bool _onKey(KeyEvent _) {
+    poke();
+    return false;
+  }
+
+  /// Follow the primary focus to the [EditableText] it sits in (the focus
+  /// node's context is below `EditableTextState`) and listen to that field's
+  /// controller, so soft-keyboard typing — which produces no key events —
+  /// still counts.
+  void _onFocusChanged() {
+    final next = FocusManager.instance.primaryFocus?.context
+        ?.findAncestorStateOfType<EditableTextState>()
+        ?.widget
+        .controller;
+    if (identical(next, _watchedText)) return;
+    // Removing from a controller its owner already disposed is allowed.
+    _watchedText?.removeListener(poke);
+    _watchedText = next;
+    next?.addListener(poke);
+  }
 
   void _onSessionChanged() {
     final id = auth.session.value?.currentCompanyId;
@@ -145,6 +182,10 @@ class IdleTimeoutController with WidgetsBindingObserver {
   }
 
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    FocusManager.instance.removeListener(_onFocusChanged);
+    _watchedText?.removeListener(poke);
+    _watchedText = null;
     auth.session.removeListener(_onSessionChanged);
     _companySub?.cancel();
     _ticker?.cancel();

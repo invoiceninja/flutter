@@ -312,10 +312,14 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// Resolve the dead row id for the current entity. Prefers the VM's
   /// cached id; falls back to a dao lookup so the right row is targeted
   /// even when a 422 landed after the form opened but before the VM
-  /// learned its id.
+  /// learned its id — or when the cached row is gone: a save replaces the
+  /// failed updates it re-sends (`dedupPendingMutations`), and a stale link
+  /// left another failed save of the record, a create say, behind.
   Future<int?> _resolveDeadRowId(Services services, VM vm) async {
     final cached = vm.deadOutboxRowId;
-    if (cached != null) return cached;
+    if (cached != null && await services.db.outboxDao.byId(cached) != null) {
+      return cached;
+    }
     final entityId = widget.existingId;
     if (entityId == null) return null;
     final row = await services.db.outboxDao.findDeadSaveForEntity(
@@ -358,9 +362,10 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
   /// ([SyncRepository.supersedeDeadSave]) — a failed create that has not
   /// landed stays unless a newer create replaced it.
   Future<void> _cleanupPriorDeadRow(Services services, VM vm) async {
+    final linked = vm.deadOutboxRowId != null;
     final priorDeadId = await _resolveDeadRowId(services, vm);
-    if (priorDeadId == null) return;
-    await services.sync.supersedeDeadSave(priorDeadId);
+    if (priorDeadId == null && !linked) return;
+    if (priorDeadId != null) await services.sync.supersedeDeadSave(priorDeadId);
     vm.clearFailedSync();
   }
 
@@ -372,6 +377,14 @@ class _EntityEditScreenScaffoldState<T, VM extends GenericEditViewModel<T>>
     // may be stale (a later save replaced it) or simply not the one in view.
     final heldRowId = vm.unconfirmedIsSave ? vm.unconfirmedRowId : null;
     var rowId = heldRowId ?? vm.deadOutboxRowId;
+    // A cached failed save that is gone was replaced by a later save, which
+    // took its place (`dedupPendingMutations`): discard that one instead.
+    if (rowId != null &&
+        rowId != heldRowId &&
+        await services.db.outboxDao.byId(rowId) == null) {
+      rowId = null;
+    }
+    if (!mounted) return;
     if (rowId == null) {
       final row = await _findDiscardableRow(services, vm);
       if (row != null &&

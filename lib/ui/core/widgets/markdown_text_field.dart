@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:super_editor/super_editor.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/user_activity_notification.dart';
 import 'package:admin/domain/email_template_variables.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/utils/text_input_focus.dart';
@@ -573,6 +574,10 @@ class _MarkdownTextFieldState extends State<MarkdownTextField> {
     _reportEditing(true);
     _debounce?.cancel();
     _debounce = Timer(widget.debounce, _emitNow);
+    // Typing here is activity the idle timeout cannot otherwise see: the
+    // document is no `TextEditingController`, and a soft keyboard sends no
+    // key events. Same `_isApplyingExternal` gate — a reseed is not the user.
+    if (mounted) const UserActivityNotification().dispatch(context);
   }
 
   void _reportEditing(bool editing) {

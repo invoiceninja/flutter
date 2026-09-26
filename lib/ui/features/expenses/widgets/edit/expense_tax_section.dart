@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -85,10 +87,12 @@ class ExpenseTaxSection extends StatefulWidget {
 }
 
 class _ExpenseTaxSectionState extends State<ExpenseTaxSection> {
-  /// `null` until the first frame after the company stream emits — we adopt
-  /// the larger of the company's enabled count and the draft's populated
-  /// rows. After that the user can add more via the "Add tax" button.
-  int? _visibleTaxRows;
+  /// Tax tiers on screen: the larger of the company's enabled count and the
+  /// draft's populated rows, plus any the user added via "Add tax". Grow-only
+  /// and recomputed on every build — it used to be latched on the first
+  /// build, which on a new expense ran before the company row arrived, so the
+  /// company's enabled tiers never appeared and the tax-settings hint stayed.
+  int _visibleTaxRows = 0;
 
   int get _draftPopulated {
     for (var slot = 3; slot >= 1; slot--) {
@@ -105,8 +109,7 @@ class _ExpenseTaxSectionState extends State<ExpenseTaxSection> {
   /// Reveal one more tax tier (up to 3) via the "Add tax" button.
   void _addTaxRow() {
     setState(() {
-      final v = _visibleTaxRows ?? 0;
-      if (v < 3) _visibleTaxRows = v + 1;
+      if (_visibleTaxRows < 3) _visibleTaxRows++;
     });
   }
 
@@ -131,13 +134,20 @@ class _ExpenseTaxSectionState extends State<ExpenseTaxSection> {
     final services = context.read<Services>();
     return StreamBuilder<Company?>(
       stream: services.company.watchCompany(widget.companyId),
+      // The last company this session saw, so the first frame already knows
+      // the enabled tiers.
+      initialData: services.company.peek(
+        companyId: widget.companyId,
+        id: widget.companyId,
+      ),
       builder: (context, snapshot) {
         final companyEnabled = (snapshot.data?.enabledExpenseTaxRates ?? 0)
             .clamp(0, 3);
-        _visibleTaxRows ??= companyEnabled > _draftPopulated
-            ? companyEnabled
-            : _draftPopulated;
-        final visible = _visibleTaxRows!;
+        _visibleTaxRows = max(
+          _visibleTaxRows,
+          max(companyEnabled, _draftPopulated),
+        );
+        final visible = _visibleTaxRows;
 
         return DashboardCardShell(
           title: context.tr('amount'),

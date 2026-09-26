@@ -157,17 +157,19 @@ class WebhookRepository extends BaseEntityRepository<Webhook, WebhookApi> {
     required String companyId,
     required Webhook webhook,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(webhook.id);
-    if (resolvedId != webhook.id) webhook = webhook.copyWith(id: resolvedId);
-
-    final companion = _domainToCompanion(webhook, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write.
+      final resolvedId = await resolveId(webhook.id);
+      if (resolvedId != webhook.id) webhook = webhook.copyWith(id: resolvedId);
+
+      final companion = _domainToCompanion(webhook, companyId, isDirty: true);
       await db.webhookDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,

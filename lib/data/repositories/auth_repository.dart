@@ -279,6 +279,38 @@ class AuthRepository {
   /// clobber the new session's token.
   int _sessionGeneration = 0;
 
+  /// Secure-storage writes that activate a session and are still in flight —
+  /// [_persistAndActivate]'s commit and [handleUnauthorized]'s token prune.
+  ///
+  /// The generation guards stop a stale refresh from STARTING its writes, but
+  /// not one that passed the final guard and is mid-way through them: a logout
+  /// landing there would delete the tokens, then the refresh's remaining
+  /// writes put them (and the identity) back and cleared the re-lock flag —
+  /// so the next cold start restored straight into the signed-out session.
+  /// [logout] therefore awaits this set right after bumping
+  /// [_sessionGeneration], and each writer re-checks the generation once its
+  /// writes land and stops before touching in-memory state. A set, not one
+  /// field: the refresh scheduler, the boot heal and a dozen other callers can
+  /// overlap. No deadlock: a gated section only calls [TokenStorage], which
+  /// never re-enters [logout].
+  final Set<Future<void>> _activationWrites = {};
+
+  /// Run [writes] registered in [_activationWrites]. Must be called in the
+  /// same synchronous segment as the caller's generation check, so a logout
+  /// either bumps the generation first (and the caller never starts) or sees
+  /// the registration (and waits for it).
+  Future<void> _gatedActivationWrites(Future<void> Function() writes) async {
+    final done = Completer<void>();
+    final future = done.future;
+    _activationWrites.add(future);
+    try {
+      await writes();
+    } finally {
+      done.complete();
+      _activationWrites.remove(future);
+    }
+  }
+
   /// Ask the server which credentials [email] needs before showing the form's
   /// optional fields. Pure read — touches no session state. Returns null when
   /// the precheck can't be answered (older server, offline, rate-limited);
@@ -338,11 +370,30 @@ class AuthRepository {
   /// signing in destroys the previous user's queued rows — correct, since those
   /// rows can never be sent under the new token, and the same trade a deliberate
   /// sign-out already makes.
+  ///
+  /// The one unconditional case is [kAuthWipePendingKey]: a destructive
+  /// `logout()` whose wipe never finished (it threw, or the app died mid-way).
+  /// Whoever signs in next — the same user included, who asked for the data
+  /// gone — gets the wipe the sign-out owed. The marker is deleted only after
+  /// THIS wipe succeeds; left behind, it would wipe the queued work of a later
+  /// `LocalDataPolicy.keep` re-login. A wipe that throws propagates, so the
+  /// login fails before `_persistAndActivate` rather than activating over the
+  /// previous user's rows.
   Future<void> _wipeIfIdentityChanged(
     LoginResponseApi response, {
     required String baseUrl,
   }) async {
     if (response.data.isEmpty) return;
+    final wipePending = (await _secure.read(kAuthWipePendingKey)) == 'true';
+    if (wipePending) {
+      _log.warning(
+        'A previous sign-out did not finish wiping local data — '
+        'wiping it before activating the new session.',
+      );
+      await _wipeForIncomingIdentity(DisposalReason.sessionEnded);
+      await _secure.delete(kAuthWipePendingKey);
+      return;
+    }
     final incomingUserId = response.data.first.user.id;
     final incomingAccountId = response.data.first.account.id;
     final storedUserId = await _secure.read(kAuthUserIdKey) ?? '';
@@ -367,17 +418,28 @@ class AuthRepository {
       'server changed: $serverChanged) — '
       'wiping local data before activating the new session.',
     );
+    await _wipeForIncomingIdentity(DisposalReason.identityChanged);
+    // Harmless when absent; keeps "a successful wipe clears the marker" true
+    // on this path too.
+    await _secure.delete(kAuthWipePendingKey);
+  }
+
+  /// The wipe half of [_wipeIfIdentityChanged]: the in-memory fan-out, the
+  /// out-of-database cleanup, the Drift wipe and the token map. Throws if the
+  /// Drift wipe does.
+  Future<void> _wipeForIncomingIdentity(DisposalReason reason) async {
     // The cross-user in-memory fan-out, the same one a destructive `logout()`
-    // runs. Needed here for one specific cold-start shape: `restore()`'s
+    // runs. The in-memory recently-viewed list is the sharpest case, and it is
+    // cleared by `onBeforeDataWipe` below, not by this hook — which also runs
+    // on the 401 / idle re-lock, where the same user's recents should
+    // survive. Both are needed here: a kept-data logout (401, idle timeout)
+    // leaves the outgoing user's recents in memory, and `restore()`'s
     // `sessionLocked && !biometricEnabled` bail returns WITHOUT calling
-    // `logout()`, while boot has already run `recentlyViewed.restore()`
-    // unconditionally — so the outgoing user's recents sit in memory with no
-    // logout having cleared them, survive the Drift wipe below (they are not
-    // in Drift), and the incoming user's first `record()` re-persists them
-    // into the freshly-wiped `nav_state`. Everything else the hook drops
-    // (deep links, the activity cache, peek caches) is
-    // already empty on a cold start; running the whole fan-out rather than
-    // cherry-picking recents is what keeps this correct as that list grows.
+    // `logout()` after boot has already run `recentlyViewed.restore()` — so
+    // without the wipe hook they survive the Drift wipe (they are not in
+    // Drift) and the incoming user's first `record()` re-persists them into
+    // the freshly-wiped `nav_state`. Running both whole fan-outs rather than
+    // cherry-picking recents is what keeps this correct as the lists grow.
     //
     // Best-effort, like the wipe hook: a throwing listener must not block the
     // wipe, or the leak it exists to prevent survives.
@@ -401,7 +463,7 @@ class AuthRepository {
         _log.warning('onBeforeDataWipe failed', e, st);
       }
     }
-    await _disposer.wipeAll(DisposalReason.identityChanged);
+    await _disposer.wipeAll(reason);
     // The per-company token map lives in secure storage, not Drift, so
     // `_db.wipe()` does not touch it and the incoming user would otherwise
     // activate over the outgoing user's tokens.
@@ -714,6 +776,7 @@ class AuthRepository {
   /// swallows on its own. Make the rollback lazy and the next 401 logs the
   /// user out anyway.
   Future<bool> handleUnauthorized(ApiCredentials creds) async {
+    final generation = _sessionGeneration;
     final s = _session.value;
     final probation = _unprovenActivation;
     if (s == null || probation == null) return true;
@@ -736,10 +799,21 @@ class AuthRepository {
     // Drop the dead token and persist that, so a restart doesn't reinstall it
     // and the next switchCompany takes its existing heal path at the top of
     // [switchCompany]. Safe even if the 401 was a transient server hiccup.
+    //
+    // Gated like `_persistAndActivate`'s commit: a logout landing during this
+    // write would otherwise delete the tokens first and have this write put
+    // the (pruned) map back. Nothing above awaits, so [generation] (read on
+    // entry) is still current here, in the segment that registers the write.
     final pruned = Map<String, String>.from(_tokensByCompany)
       ..remove(creds.companyId);
     _tokensByCompany = pruned;
-    await _secure.write(kAuthTokensKey, jsonEncode(pruned));
+    await _gatedActivationWrites(
+      () => _secure.write(kAuthTokensKey, jsonEncode(pruned)),
+    );
+    // The session ended while the write was in flight — there is nothing left
+    // to roll back into, and a `logout()` is already under way (it waited for
+    // this write), so absorb the 401 rather than asking for a second one.
+    if (generation != _sessionGeneration) return false;
     // `provisional: false` — we came from there, that token was working.
     await _activateCompany(s, fallbackId, fallbackToken);
     if (probation.healed) {
@@ -1096,6 +1170,14 @@ class AuthRepository {
     // [_sessionGeneration] and the guards in [_refreshSession] /
     // [_persistAndActivate].
     _sessionGeneration++;
+    // A refresh (or a 401 rollback) already past its generation guard may be
+    // mid-way through its secure-storage writes; let them land now so the
+    // deletes below — or the re-lock flag on the keep path — come after them
+    // and not before. The writer re-checks the generation afterwards and
+    // stops. See [_activationWrites].
+    if (_activationWrites.isNotEmpty) {
+      await Future.wait(_activationWrites.toList());
+    }
     // Let any in-flight outbox drain settle BEFORE we wipe the DB — without
     // this, a successful send racing logout could mutate server state on
     // behalf of the user who just logged out.
@@ -1146,16 +1228,16 @@ class AuthRepository {
       }
       return;
     }
+    // Tokens first: with them gone `restore()` returns before activating
+    // anything, whatever happens to the wipe below.
     await _secure.delete(kAuthTokensKey);
-    await _secure.delete(kAuthBaseUrlKey);
     await _secure.delete(kAuthIsHostedKey);
     await _secure.delete(kAuthCurrentCompanyIdKey);
-    // The database goes with this logout, so the identity that described it is
-    // meaningless; leaving it would only make the next sign-in do a redundant
-    // wipe. (The preserve path returns above and deliberately KEEPS these, which
-    // is what lets a different user's login detect the leftover data.)
-    await _secure.delete(kAuthUserIdKey);
-    await _secure.delete(kAuthAccountIdKey);
+    // From here until the identity deletes at the end, a crash or a throwing
+    // wipe leaves the signed-out user's data on disk. The marker makes the
+    // next sign-in finish the job even for the SAME identity — see
+    // [kAuthWipePendingKey] and [_wipeIfIdentityChanged].
+    await _secure.write(kAuthWipePendingKey, 'true');
     // A logged-out session has nothing left to unlock; leaving the flag on
     // disk would surface a lock prompt on next launch with no session behind
     // it. Clear it alongside the tokens.
@@ -1173,6 +1255,18 @@ class AuthRepository {
       }
     }
     await _disposer.wipeAll(DisposalReason.sessionEnded);
+    // Only now is the identity that described the database meaningless;
+    // leaving it would only make the next sign-in do a redundant wipe. Deleted
+    // AFTER the wipe, never before: a wipe that throws must leave the identity
+    // (base URL included) on disk, or the next DIFFERENT user's
+    // `_wipeIfIdentityChanged` sees an empty stored side and returns without
+    // wiping — handing user A's surviving rows to user B. (The preserve path
+    // returns above and deliberately KEEPS these, which is what lets a
+    // different user's login detect the leftover data.)
+    await _secure.delete(kAuthBaseUrlKey);
+    await _secure.delete(kAuthUserIdKey);
+    await _secure.delete(kAuthAccountIdKey);
+    await _secure.delete(kAuthWipePendingKey);
   }
 
   /// Persist the user's biometric preference and reflect it in the active
@@ -2135,6 +2229,23 @@ class AuthRepository {
       }
     }
 
+    // Everything the commit below needs from storage is read HERE, ahead of
+    // the final guard, so that from the guard to the end of this method the
+    // only awaits are the gated secure-storage writes. An await between the
+    // re-check after those writes and the assignments would reopen the window
+    // a logout could land in.
+    //
+    // Preserve the user's biometric preference across `/refresh` calls.
+    // Fresh logins see no value (logout cleared it) so this resolves to false;
+    // a background `_refreshSessionQuietly` after `restore` reads whatever the
+    // user set on a previous launch. Never touch `_requiresBiometricUnlock` —
+    // that flag is owned by `restore` / `completeBiometricUnlock`.
+    final biometricEnabled =
+        (await _secure.read(kAuthBiometricEnabledKey)) == 'true';
+    // A delta is scoped to the active company, so the picker list is sourced
+    // from the Drift table instead (see `companiesList` below).
+    final deltaCompanyRows = isFullSync ? null : await _db.companiesDao.all();
+
     // Final guard before anything observable is committed. This sits ahead of
     // the secure-storage writes, the `_session`/`_credentials` assignments, AND
     // the `_attachCompaniesWatcher` / `_fireActiveCompanyChanged` tail below —
@@ -2169,30 +2280,35 @@ class AuthRepository {
       );
       currentId = liveCompanyId;
     }
-    await _secure.write(kAuthTokensKey, jsonEncode(tokens));
-    await _secure.write(kAuthBaseUrlKey, baseUrl);
-    await _secure.write(kAuthIsHostedKey, isHosted ? 'true' : 'false');
-    await _secure.write(kAuthCurrentCompanyIdKey, currentId);
-    // Remember whose data is now on disk, so a DIFFERENT user signing in on this
-    // device gets a clean database instead of inheriting this one's cached rows
-    // (see [_wipeIfIdentityChanged]). Re-written on every refresh, which is what
-    // heals an install upgrading from a build that never wrote these keys.
-    await _secure.write(kAuthUserIdKey, response.data.first.user.id);
-    await _secure.write(kAuthAccountIdKey, firstAccount.id);
-    // A fresh sign-in / token activation is a re-auth — clear any idle-timeout
-    // re-lock flag. (A no-op on a normal authenticated refresh, where it's
-    // already absent.) Biometric-OFF locked sessions only reach here via an
-    // explicit login; biometric-ON sessions stay gated by
-    // `_requiresBiometricUnlock` regardless, so clearing here is safe.
-    await _secure.delete(kAuthSessionLockedKey);
-
-    // Preserve the user's biometric preference across `/refresh` calls.
-    // Fresh logins see no value (logout cleared it) so this resolves to false;
-    // a background `_refreshSessionQuietly` after `restore` reads whatever the
-    // user set on a previous launch. Never touch `_requiresBiometricUnlock` —
-    // that flag is owned by `restore` / `completeBiometricUnlock`.
-    final biometricEnabled =
-        (await _secure.read(kAuthBiometricEnabledKey)) == 'true';
+    // Registered in [_activationWrites] in this same synchronous segment as the
+    // guard above, so a `logout()` that bumps the generation from here on waits
+    // for these writes before deleting anything — see [_activationWrites].
+    await _gatedActivationWrites(() async {
+      await _secure.write(kAuthTokensKey, jsonEncode(tokens));
+      await _secure.write(kAuthBaseUrlKey, baseUrl);
+      await _secure.write(kAuthIsHostedKey, isHosted ? 'true' : 'false');
+      await _secure.write(kAuthCurrentCompanyIdKey, currentId);
+      // Remember whose data is now on disk, so a DIFFERENT user signing in on
+      // this device gets a clean database instead of inheriting this one's
+      // cached rows (see [_wipeIfIdentityChanged]). Re-written on every
+      // refresh, which is what heals an install upgrading from a build that
+      // never wrote these keys.
+      await _secure.write(kAuthUserIdKey, response.data.first.user.id);
+      await _secure.write(kAuthAccountIdKey, firstAccount.id);
+      // A fresh sign-in / token activation is a re-auth — clear any
+      // idle-timeout re-lock flag. (A no-op on a normal authenticated refresh,
+      // where it's already absent.) Biometric-OFF locked sessions only reach
+      // here via an explicit login; biometric-ON sessions stay gated by
+      // `_requiresBiometricUnlock` regardless, so clearing here is safe.
+      await _secure.delete(kAuthSessionLockedKey);
+    });
+    // A logout arrived while the writes were in flight. It waited for them and
+    // then deleted (or re-locked) what they wrote; committing the in-memory
+    // session now would re-activate a signed-out user. Nothing below awaits.
+    if (expectedGeneration != null &&
+        expectedGeneration != _sessionGeneration) {
+      return;
+    }
 
     _tokensByCompany = tokens;
     // A 200 from /refresh proves whatever token carried it; nothing on
@@ -2231,7 +2347,7 @@ class AuthRepository {
           .toList(growable: false);
     } else {
       companiesList = [
-        for (final c in await _db.companiesDao.all()) _authCompanyFromRow(c),
+        for (final c in deltaCompanyRows!) _authCompanyFromRow(c),
       ];
     }
     _session.value = AuthSession(

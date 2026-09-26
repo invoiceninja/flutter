@@ -39,9 +39,9 @@ Future<void> openLineItemPicker(
   required String clientId,
   required bool showTasksAndExpenses,
   required bool invoiceInclusive,
-  required List<LineItem> currentLineItems,
-  required String currentProjectId,
-  required String currentClientId,
+  required List<LineItem> Function() readLineItems,
+  required String Function() readProjectId,
+  required String Function() readClientId,
   required bool isCreate,
   required void Function(List<LineItem> next) replaceLineItems,
   required void Function(String projectId) setProjectId,
@@ -54,6 +54,9 @@ Future<void> openLineItemPicker(
   bool showStockQuantity = false,
 }) async {
   final services = context.read<Services>();
+  // What to exclude is decided now; what to append to is read again once the
+  // sheet closes (below).
+  final currentLineItems = readLineItems();
   final excludedTaskIds = currentLineItems
       .map((li) => li.taskId)
       .whereType<String>()
@@ -90,9 +93,15 @@ Future<void> openLineItemPicker(
   );
   if (result == null || result.lineItems.isEmpty) return;
 
+  // The draft as it is NOW, not as it was when the sheet opened: an edit that
+  // landed meanwhile — a debounced cell, a client picked — must survive.
+  final lineItemsNow = readLineItems();
+  final currentClientId = readClientId();
+  final currentProjectId = readProjectId();
+
   // Drop any trailing blanks / ghost rows so the new additions land at the
   // end of the real list; the line-item editor will re-add its own ghost.
-  final base = currentLineItems.where((i) => !i.isBlank).toList();
+  final base = lineItemsNow.where((i) => !i.isBlank).toList();
   replaceLineItems(<LineItem>[...base, ...result.lineItems]);
 
   // Prime the host VM's cross-client validation cache with the picked

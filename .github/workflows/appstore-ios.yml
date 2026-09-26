@@ -29,6 +29,15 @@ jobs:
     # but a release dispatch is deliberate and infrequent.
     runs-on: macos-26
     timeout-minutes: 80
+    # Job-level, not just on the --config-only step: `xcodebuild archive`
+    # runs the Runner scheme's pre-action (tools/xcode_inject_sentry_dsn.sh),
+    # which re-resolves both values from the environment (then dev.json, absent
+    # here) and patches them into the generated xcconfig the compile reads.
+    # With neither set it used to DROP the entries --config-only had written,
+    # so every CI archive shipped with Sentry off and no Google client ID.
+    env:
+      IN_SENTRY_DSN: ${{ secrets.IN_SENTRY_DSN }}
+      IN_GOOGLE_IOS_CLIENT_ID: ${{ secrets.IN_GOOGLE_IOS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v5
 
@@ -88,8 +97,60 @@ jobs:
       - name: Configure iOS release build
         run: >-
           flutter build ios --release --config-only
-          --dart-define=IN_SENTRY_DSN=${{ secrets.IN_SENTRY_DSN }}
-          --dart-define=IN_GOOGLE_IOS_CLIENT_ID=${{ secrets.IN_GOOGLE_IOS_CLIENT_ID }}
+          --dart-define=IN_SENTRY_DSN="$IN_SENTRY_DSN"
+          --dart-define=IN_GOOGLE_IOS_CLIENT_ID="$IN_GOOGLE_IOS_CLIENT_ID"
+
+      # Google Sign-In on iOS needs the client ID's REVERSED form registered as
+      # a URL scheme, or the SDK throws before showing the account chooser. The
+      # client ID is a secret here and not committed, so the scheme is added to
+      # ios/Runner/Info.plist on the runner (idempotent — a scheme already
+      # committed is left alone). Committing it is still the preferred fix, and
+      # the only one a local Product → Archive gets (docs/setup.md § Google
+      # Sign-In client IDs). Unset secret = Google stays hidden = nothing to add.
+      - name: Register the Google Sign-In URL scheme
+        run: |
+          set -euo pipefail
+          if [ -z "${IN_GOOGLE_IOS_CLIENT_ID:-}" ]; then
+            echo "IN_GOOGLE_IOS_CLIENT_ID is not set — Sign in with Google stays hidden; no URL scheme needed."
+            exit 0
+          fi
+          suffix=".apps.googleusercontent.com"
+          prefix="${IN_GOOGLE_IOS_CLIENT_ID%"$suffix"}"
+          if [ "$prefix" = "$IN_GOOGLE_IOS_CLIENT_ID" ] || [ -z "$prefix" ]; then
+            echo "::error::IN_GOOGLE_IOS_CLIENT_ID must be an iOS OAuth client ID ending in $suffix." >&2
+            exit 1
+          fi
+          scheme="com.googleusercontent.apps.$prefix"
+          plist=ios/Runner/Info.plist
+          pb=/usr/libexec/PlistBuddy
+          if plutil -extract CFBundleURLTypes json -o - "$plist" 2>/dev/null | grep -qF "\"$scheme\""; then
+            echo "The Google Sign-In URL scheme is already registered."
+            exit 0
+          fi
+          if ! "$pb" -c "Print :CFBundleURLTypes" "$plist" >/dev/null 2>&1; then
+            "$pb" -c "Add :CFBundleURLTypes array" "$plist"
+          fi
+          i=0
+          while "$pb" -c "Print :CFBundleURLTypes:$i" "$plist" >/dev/null 2>&1; do
+            i=$((i + 1))
+          done
+          "$pb" -c "Add :CFBundleURLTypes:$i dict" "$plist"
+          "$pb" -c "Add :CFBundleURLTypes:$i:CFBundleURLName string com.invoiceninja.google-sign-in" "$plist"
+          "$pb" -c "Add :CFBundleURLTypes:$i:CFBundleURLSchemes array" "$plist"
+          "$pb" -c "Add :CFBundleURLTypes:$i:CFBundleURLSchemes:0 string $scheme" "$plist"
+          echo "Registered the Google Sign-In URL scheme as CFBundleURLTypes[$i]."
+
+      # Guard: a build that shows "Sign in with Google" (the secret is set) but
+      # has no reversed-client-ID scheme crashes on the first tap.
+      - name: Check the Google Sign-In URL scheme
+        run: |
+          set -euo pipefail
+          if [ -z "${IN_GOOGLE_IOS_CLIENT_ID:-}" ]; then exit 0; fi
+          scheme="com.googleusercontent.apps.${IN_GOOGLE_IOS_CLIENT_ID%.apps.googleusercontent.com}"
+          if ! plutil -extract CFBundleURLTypes json -o - ios/Runner/Info.plist | grep -qF "\"$scheme\""; then
+            echo "::error::IN_GOOGLE_IOS_CLIENT_ID is set but ios/Runner/Info.plist has no $scheme URL scheme — Sign in with Google would fail." >&2
+            exit 1
+          fi
 
       # Archive with MANUAL signing overrides on the command line so the tracked
       # pbxproj (Automatic / "Apple Development") is untouched. No
@@ -108,6 +169,43 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM=NPC44Y2C98 \
             PROVISIONING_PROFILE_SPECIFIER="Invoice Ninja Admin App Store"
+
+      # Prove the compile-time values reached the shipped binary. The pre-action
+      # above is exactly the kind of thing that drops them silently (it did),
+      # and a TestFlight build without the DSN reports nothing. The xcconfig
+      # decode is a quick pointed diagnosis (what the compile was handed); the
+      # binary grep is the authoritative check (a Dart string constant is stored
+      # verbatim in the AOT snapshot). Skipped when a secret is unset.
+      - name: Verify compile-time values in the archived binary
+        run: |
+          set -euo pipefail
+          archive=build/ios/archive/Runner.xcarchive
+          app_bin=$(find "$archive/Products/Applications" -path '*/App.framework/App' \( -type f -o -type l \) | head -n1)
+          if [ -z "$app_bin" ]; then
+            echo "::error::No App.framework/App in $archive." >&2
+            exit 1
+          fi
+          defines=$(grep -E '^DART_DEFINES=' ios/Flutter/Generated.xcconfig | head -n1 | sed 's/^DART_DEFINES=//' || true)
+          decoded=""
+          IFS=',' read -ra entries <<< "$defines"
+          for e in ${entries[@]+"${entries[@]}"}; do
+            decoded="$decoded$(printf '%s' "$e" | /usr/bin/base64 -D 2>/dev/null || true)"$'\n'
+          done
+          for key in IN_SENTRY_DSN IN_GOOGLE_IOS_CLIENT_ID; do
+            value="${!key:-}"
+            if [ -z "$value" ]; then
+              echo "$key is not set — nothing to verify."
+              continue
+            fi
+            if ! printf '%s' "$decoded" | grep -qxF -- "$key=$value"; then
+              echo "::warning::$key is missing from DART_DEFINES in ios/Flutter/Generated.xcconfig."
+            fi
+            if ! grep -qaF -- "$value" "$app_bin"; then
+              echo "::error::$key is set but not in the archived $app_bin — the build would ship without it." >&2
+              exit 1
+            fi
+            echo "$key is in the archived binary."
+          done
 
       # Export a signed App Store .ipa via the committed secret-free
       # ios/ExportOptions.plist (method=app-store, signingStyle=manual, the

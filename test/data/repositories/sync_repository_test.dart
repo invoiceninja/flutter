@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:admin/data/db/app_database.dart';
+import 'package:admin/data/db/dao/outbox_dao.dart';
 import 'package:admin/data/repositories/base_entity_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/services/api_exception.dart';
@@ -1165,6 +1166,44 @@ void main() {
         now: 1 << 60,
       );
       expect(remaining, isEmpty);
+    });
+
+    test('a body collapsed into a row just before its claim is the body '
+        'sent', () async {
+      // The pass re-reads a row, awaits its checks, then claims it. A profile
+      // save or a column toggle collapsing into the row in that window
+      // changed its body — and the stale copy the pass held was sent, then
+      // the row deleted: the new body never went.
+      final hooked = _ClaimHookDb();
+      addTearDown(hooked.close);
+      final id = await hooked.outboxDao.enqueue(
+        OutboxCompanion.insert(
+          companyId: 'co',
+          entityType: 'client',
+          entityId: 'c1',
+          mutationKind: MutationKind.update.wireName,
+          payload: jsonEncode({'id': 'c1', 'name': 'older'}),
+          idempotencyKey: 'k1',
+          nextAttemptAt: 0,
+          createdAt: 0,
+        ),
+      );
+      hooked.outboxDao.beforeClaim = () => hooked.outboxDao.updatePayload(
+        id: id,
+        payload: jsonEncode({'id': 'c1', 'name': 'newer'}),
+      );
+      String? sent;
+      final engine = SyncRepository(
+        db: hooked,
+        registry: _registryWith(
+          _CallbackDispatcher((row) async => sent = row.payload),
+        ),
+        now: () => DateTime.fromMillisecondsSinceEpoch(1000),
+      );
+
+      await engine.drainOnce(companyId: 'co');
+
+      expect(jsonDecode(sent!), {'id': 'c1', 'name': 'newer'});
     });
   });
 
@@ -2364,6 +2403,94 @@ void main() {
       );
     });
 
+    group('discardFailedSave for a form left with Discard', () {
+      test('onlyIdle acts on a pending or dead row only', () async {
+        final repo = _TestRepo(db: db);
+        final engine = engineWith(repo);
+        for (final state in ['in_flight', 'unconfirmed']) {
+          final id = await enqueueClient(entityId: 'c1', idempotencyKey: state);
+          if (state == 'in_flight') {
+            await db.outboxDao.markInFlight(id);
+          } else {
+            await db.outboxDao.markUnconfirmed(id: id, error: 'Reset');
+          }
+          expect(await engine.discardFailedSave(id, onlyIdle: true), isFalse);
+          expect((await rawRow(id))?.state, state);
+        }
+        final pending = await enqueueClient(
+          entityId: 'c2',
+          idempotencyKey: 'p',
+        );
+        await engine.discardFailedSave(pending, onlyIdle: true);
+        expect(await rawRow(pending), isNull);
+      });
+
+      test('keepRecord leaves a create whose discard would take its record, '
+          'and still drops an edit', () async {
+        final repo = _TestRepo(db: db);
+        final engine = engineWith(repo);
+        final create = await enqueueClient(
+          entityId: 'tmp_g',
+          kind: MutationKind.create,
+          idempotencyKey: 'k1',
+        );
+        expect(
+          await engine.discardFailedSave(
+            create,
+            onlyIdle: true,
+            keepRecord: true,
+          ),
+          isFalse,
+        );
+        expect(await rawRow(create), isNotNull);
+        expect(repo.localDeletes, isEmpty);
+
+        final edit = await enqueueClient(
+          entityId: 'tmp_g',
+          idempotencyKey: 'k2',
+        );
+        await engine.discardFailedSave(edit, onlyIdle: true, keepRecord: true);
+        expect(await rawRow(edit), isNull);
+        expect(await rawRow(create), isNotNull);
+      });
+    });
+
+    group('the drain cannot claim a row mid-discard', () {
+      // The drain's `markInFlight` runs outside the discard: it used to be
+      // able to claim the row between the discard's read and its delete, and
+      // send it — here, the create of a record the discard was deleting.
+      for (final viaFailedSave in [false, true]) {
+        test(
+          viaFailedSave ? 'discardFailedSave' : 'discardOutboxRow',
+          () async {
+            final repo = _TestRepo(db: db);
+            final engine = engineWith(repo);
+            final createId = await enqueueClient(
+              entityId: 'tmp_g',
+              kind: MutationKind.create,
+            );
+            Future<bool>? claim;
+            repo.onLocalDelete = () => claim = Zone.root.run(
+              () => db.outboxDao.markInFlight(createId),
+            );
+
+            final removed = viaFailedSave
+                ? await engine.discardFailedSave(createId)
+                : await engine.discardOutboxRow(createId);
+
+            expect(removed, isTrue);
+            expect(claim, isNotNull, reason: 'the claim fired mid-discard');
+            expect(
+              await claim,
+              isFalse,
+              reason: 'it waited for the discard to commit, and found no row',
+            );
+            expect(await rawRow(createId), isNull);
+          },
+        );
+      }
+    });
+
     test('discardFailedSave drops the failed save the discarded one '
         'replaced, first — so the record is released', () async {
       // The form opened on dead D; the re-save queued P, which failed again.
@@ -2599,6 +2726,106 @@ void main() {
         repo.dirtyCleared,
         isEmpty,
         reason: 'an in_flight create keeps its flag — its request may land',
+      );
+    });
+
+    group('a create discarded while in flight, whose attempt then', () {
+      // The discard drops the in-flight row and leaves the record for the
+      // attempt to settle. A failure used to settle nothing — the row was
+      // gone — so the never-synced record, and what was made for it, stayed
+      // as a ghost no row could send.
+      const tmp = 'tmp_00000000-0000-4000-8000-0000000000e1';
+      late _TestRepo repo;
+      late SyncRepository engine;
+      late int createId;
+      late int childId;
+
+      Future<void> run(Future<void> Function(OutboxRow row) attempt) async {
+        repo = _TestRepo(db: db);
+        engine = SyncRepository(
+          db: db,
+          registry: _registryWith(
+            _DiscardingDispatcher(repo, (row) async {
+              await engine.discardOutboxRow(row.id);
+              await attempt(row);
+            }),
+          ),
+          now: () => DateTime.fromMillisecondsSinceEpoch(1000),
+        );
+        createId = await enqueueClient(
+          entityId: tmp,
+          kind: MutationKind.create,
+        );
+        childId = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: 'tmp_child',
+            mutationKind: 'create',
+            payload: jsonEncode({'id': 'tmp_child', 'parent': tmp}),
+            idempotencyKey: 'k-child',
+            nextAttemptAt: 1 << 40,
+            createdAt: 0,
+          ),
+        );
+        await engine.drainOnce(companyId: 'co');
+      }
+
+      test('is rejected takes the record and what was made for it', () async {
+        await run((_) async => throw const ValidationException('bad', {}));
+
+        expect(repo.localDeletes, contains(('co', tmp)));
+        expect(await rawRow(createId), isNull);
+        expect(await rawRow(childId), isNull, reason: 'a ghost made for it');
+      });
+
+      test('went out with no answer takes the record, and keeps what was made '
+          'for it — the record may exist on the server', () async {
+        await run((_) async {
+          RequestScope.current!.markWriteSent();
+          throw const ServerException(500, 'Server Error');
+        });
+
+        expect(repo.localDeletes, [('co', tmp)]);
+        final child = await rawRow(childId);
+        expect(child?.state, 'dead');
+        expect(child?.lastError, contains('may already exist on the server'));
+      });
+
+      test('succeeds leaves the record it made', () async {
+        await run((_) async {});
+
+        expect(repo.localDeletes, isEmpty);
+        expect(await rawRow(childId), isNotNull);
+      });
+
+      test(
+        'fails leaves a re-create queued meanwhile, and its record',
+        () async {
+          await run((row) async {
+            await db.outboxDao.enqueue(
+              OutboxCompanion.insert(
+                companyId: 'co',
+                entityType: 'client',
+                entityId: tmp,
+                mutationKind: 'create',
+                payload: jsonEncode({'id': tmp}),
+                idempotencyKey: 'k-recreate',
+                nextAttemptAt: 1 << 40,
+                createdAt: 0,
+              ),
+            );
+            throw const ValidationException('bad', {});
+          });
+
+          expect(repo.localDeletes, isEmpty);
+          final recreate = await db.outboxDao.findNewestCreateForEntity(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: tmp,
+          );
+          expect(recreate?.state, 'pending');
+        },
       );
     });
 
@@ -3865,12 +4092,17 @@ class _TestRepo extends BaseEntityRepository<Object, Object> {
   /// delete while the primary row's delete succeeds.
   String? throwOnLocalDeleteOf;
 
+  /// Runs inside `deleteLocalById` — the middle of a ghost discard, between
+  /// its read of the row and its delete.
+  void Function()? onLocalDelete;
+
   @override
   Future<void> deleteLocalById({
     required String companyId,
     required String id,
   }) async {
     localDeletes.add((companyId, id));
+    onLocalDelete?.call();
     if (throwOnLocalDelete || id == throwOnLocalDeleteOf) {
       throw UnsupportedError('no deleteLocalById');
     }
@@ -3889,4 +4121,54 @@ class _TestRepo extends BaseEntityRepository<Object, Object> {
     required String companyId,
     required String id,
   }) => const Stream<Object?>.empty();
+}
+
+/// A database whose outbox runs [_ClaimHookOutboxDao.beforeClaim] once, just
+/// before the drain's claim — a write landing in the window between the
+/// pass's read of a row and its `markInFlight`.
+class _ClaimHookDb extends AppDatabase {
+  _ClaimHookDb() : super(NativeDatabase.memory());
+
+  late final _ClaimHookOutboxDao _hookedOutbox = _ClaimHookOutboxDao(this);
+
+  @override
+  _ClaimHookOutboxDao get outboxDao => _hookedOutbox;
+}
+
+class _ClaimHookOutboxDao extends OutboxDao {
+  _ClaimHookOutboxDao(super.db);
+
+  Future<void> Function()? beforeClaim;
+
+  @override
+  Future<bool> markInFlight(int id) async {
+    final hook = beforeClaim;
+    beforeClaim = null;
+    if (hook != null) await hook();
+    return super.markInFlight(id);
+  }
+}
+
+/// Runs [onDispatch] as the attempt, and forwards `deleteLocalRecord` to a
+/// repo the way `BaseEntitySyncDispatcher` does.
+class _DiscardingDispatcher implements SyncDispatcher {
+  _DiscardingDispatcher(this.repo, this.onDispatch);
+  final BaseEntityRepository<dynamic, dynamic> repo;
+  final Future<void> Function(OutboxRow row) onDispatch;
+
+  @override
+  Future<void> dispatch({required OutboxRow row, required MutationKind kind}) =>
+      onDispatch(row);
+
+  @override
+  Future<void> deleteLocalRecord({
+    required String companyId,
+    required String id,
+  }) => repo.deleteLocalById(companyId: companyId, id: id);
+
+  @override
+  Future<void> clearLocalDirty({
+    required String companyId,
+    required String id,
+  }) => repo.clearLocalDirty(companyId: companyId, id: id);
 }

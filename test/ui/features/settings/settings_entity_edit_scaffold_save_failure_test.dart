@@ -25,6 +25,8 @@
 //      vanished, and the outbox row survived to apply the write they had just
 //      discarded.
 
+import 'dart:async';
+
 import 'package:admin/app/confirm_actions_controller.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
@@ -36,6 +38,9 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/connectivity_watcher.dart';
+import 'package:admin/domain/entity_registry.dart';
+import 'package:admin/ui/core/unsaved_changes/unsaved_changes_guard.dart';
 import 'package:admin/ui/core/edit/generic_edit_view_model.dart';
 import 'package:admin/ui/features/settings/state/settings_level_controller.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
@@ -82,7 +87,11 @@ class _FakeSync implements SyncRepository {
   bool removesRecord = false;
 
   @override
-  Future<bool> discardFailedSave(int id) async {
+  Future<bool> discardFailedSave(
+    int id, {
+    bool onlyIdle = false,
+    bool keepRecord = false,
+  }) async {
     discarded.add(id);
     return removesRecord;
   }
@@ -121,6 +130,8 @@ class _FakeServices implements Services {
   final AuthRepository auth;
   @override
   final SyncRepository sync;
+  @override
+  final UnsavedChangesGuard unsavedChangesGuard = UnsavedChangesGuard();
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -206,6 +217,61 @@ class _CreateVm extends GenericEditViewModel<String> {
     );
     rememberCreateTempId(tmpId);
     throw failureFor?.call(rowId!) ?? failure!;
+  }
+}
+
+/// A real engine whose `awaitRow` reports a 503 instead of draining — the
+/// failure a save on screen meets, with its row left `pending`.
+class _AwaitFailSync extends SyncRepository {
+  _AwaitFailSync(AppDatabase db)
+    : super(db: db, registry: EntityRegistry(const {}));
+
+  @override
+  Future<SyncRowResult> awaitRow({
+    required int rowId,
+    required String companyId,
+    Duration timeout = const Duration(seconds: 30),
+    Duration pollInterval = const Duration(milliseconds: 200),
+    bool callerWillDisplayFailure = true,
+  }) async => const SyncRowResult(
+    outcome: SyncRowOutcome.serverError,
+    statusCode: 503,
+    message: 'Down',
+  );
+}
+
+/// An existing record whose save queues its update and waits on it, as the
+/// view models do in production — so the failure names the row.
+class _AwaitedVm extends GenericEditViewModel<String> {
+  _AwaitedVm({required this.db, required SyncRepository sync})
+    : super(
+        initialDraft: 'seed',
+        original: 'seed',
+        sync: sync,
+        connectivity: ConnectivityWatcher.fixed(online: true),
+        companyId: 'co',
+      );
+
+  final AppDatabase db;
+  int? rowId;
+
+  void edit(String value) => updateDraft(value);
+
+  @override
+  Future<SaveResult<String>> performSave() async {
+    rowId = await db.outboxDao.enqueue(
+      OutboxCompanion.insert(
+        companyId: 'co',
+        entityType: 'tax_rates',
+        entityId: 'tr1',
+        mutationKind: 'update',
+        payload: '{}',
+        idempotencyKey: 'idem-save',
+        createdAt: 0,
+        nextAttemptAt: 0,
+      ),
+    );
+    return SaveResult(entity: draft, outboxRowId: rowId!);
   }
 }
 
@@ -564,6 +630,141 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(sync.discarded, [vm.rowId]);
+    });
+  });
+
+  /// The discard guard's Discard on a screen that asks before leaving
+  /// (`guardUnsavedChanges`) — not the banner's. It left the save that had
+  /// failed on screen queued, and the edit thrown away still went out.
+  group('leaving with Discard', () {
+    late _AwaitFailSync engine;
+    late _AwaitedVm awaited;
+    final discards = <String>[];
+
+    Future<void> pumpGuarded(
+      WidgetTester tester, {
+      required bool withOnDiscard,
+    }) async {
+      engine = _AwaitFailSync(db);
+      awaited = _AwaitedVm(db: db, sync: engine);
+      discards.clear();
+      final guarded = _FakeServices(
+        db: db,
+        auth: _FakeAuth(companyId),
+        sync: engine,
+      );
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<Services>.value(value: guarded),
+            ChangeNotifierProvider<SettingsLevelController>.value(
+              value: levelController,
+            ),
+          ],
+          child: MaterialApp(
+            theme: buildInTheme(InTheme.light),
+            localizationsDelegates: kTestLocalizationsDelegates,
+            supportedLocales: kTestSupportedLocales,
+            home: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        SettingsEntityEditScaffold<String, _AwaitedVm>(
+                          existingId: entityId,
+                          backRoute: '/settings/tax_rates',
+                          createTitleKey: 'new_tax_rate',
+                          editTitleKey: 'edit_tax_rate',
+                          wireName: wireName,
+                          watchById: (_) => Stream<String?>.value('seed'),
+                          refreshAll: () async {},
+                          onArchive: (_) async {},
+                          onRestore: (_) async {},
+                          onDelete: (_) async {},
+                          vmFactory: ({String? existing}) => awaited,
+                          canSave: (_) => true,
+                          isArchivedOf: (_) => false,
+                          isDeletedOf: (_) => false,
+                          guardUnsavedChanges: true,
+                          onDiscard: withOnDiscard
+                              ? (_) => discards.add('reset')
+                              : null,
+                          bodyBuilder: (context, _) => const [
+                            SizedBox.shrink(),
+                          ],
+                        ),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> leaveWithDiscard(WidgetTester tester) async {
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      unawaited(navigator.maybePop());
+      await tester.pumpAndSettle();
+      expect(find.text('Discard changes?'), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PrimaryDialogAction),
+          matching: find.text('Discard'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('open'), findsOneWidget, reason: 'the form is gone');
+    }
+
+    for (final withOnDiscard in [true, false]) {
+      testWidgets('drops the save that failed on this visit '
+          '(${withOnDiscard ? 'with' : 'without'} an onDiscard)', (
+        tester,
+      ) async {
+        await pumpGuarded(tester, withOnDiscard: withOnDiscard);
+        awaited.edit('edited');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(awaited.failedAttemptRowId, awaited.rowId);
+        expect((await db.outboxDao.byId(awaited.rowId!))!.state, 'pending');
+
+        await leaveWithDiscard(tester);
+
+        expect(await db.outboxDao.byId(awaited.rowId!), isNull);
+        expect(discards, withOnDiscard ? ['reset'] : isEmpty);
+      });
+    }
+
+    testWidgets('keeps a save queued on an earlier visit', (tester) async {
+      final earlier = await enqueueRow(dead: false);
+      await pumpGuarded(tester, withOnDiscard: true);
+      awaited.edit('edited');
+      await tester.pumpAndSettle();
+
+      await leaveWithDiscard(tester);
+
+      expect(await db.outboxDao.byId(earlier), isNotNull);
+    });
+
+    testWidgets('keeps the failed save the form opened onto when nothing was '
+        'saved on this visit', (tester) async {
+      final dead = await enqueueRow(
+        dead: true,
+        error: 'The rate field must be a number.',
+        statusCode: 422,
+      );
+      await pumpGuarded(tester, withOnDiscard: true);
+      expect(awaited.deadOutboxRowId, dead, reason: 'linked on open');
+      awaited.edit('edited');
+      await tester.pumpAndSettle();
+
+      await leaveWithDiscard(tester);
+
+      expect(await db.outboxDao.byId(dead), isNotNull);
     });
   });
 

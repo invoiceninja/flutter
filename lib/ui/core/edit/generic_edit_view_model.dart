@@ -30,8 +30,11 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     ConnectivityWatcher? connectivity,
     String? companyId,
     Duration onlineSaveTimeout = const Duration(seconds: 30),
+    bool prefilled = false,
   }) : _original = original,
        _draft = initialDraft,
+       _createBaseline = initialDraft,
+       _prefilled = prefilled,
        _useCommaAsDecimalPlace = useCommaAsDecimalPlace,
        _sync = sync,
        _connectivity = connectivity,
@@ -40,6 +43,55 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
 
   final T? _original;
   T _draft;
+
+  /// What an untouched create form holds: the initial draft, plus every
+  /// default [seedCreateDefault] has applied since. A create-mode subclass
+  /// can define "dirty" as "differs from this" ([createBaseline]) instead of
+  /// listing the fields it thinks matter — a list that missed a field let a
+  /// form holding only that field leave without the Discard prompt.
+  T _createBaseline;
+
+  /// True when the create form opened on a draft somebody else staged — a
+  /// clone, a "New Invoice" from a client or a product — rather than the
+  /// blank factory. Such a form carries content the user has not saved, so it
+  /// is dirty from its first frame. Cleared by [reset].
+  bool _prefilled;
+
+  /// Defaults applied by [seedCreateDefault] that [reset] re-applies to the
+  /// blank draft it rebases onto.
+  final List<T Function(T)> _resetSeeds = [];
+
+  /// See [_createBaseline].
+  @protected
+  T get createBaseline => _createBaseline;
+
+  /// See [_prefilled].
+  @protected
+  bool get prefilled => _prefilled;
+
+  /// Apply a default the create form learns after it opened (a settings
+  /// cascade answer, say) to the draft AND to [createBaseline], so it lands
+  /// in the form without reading as an edit: an untouched form stays clean,
+  /// and a user edit made meanwhile is kept.
+  ///
+  /// No-op on an edit form, mid-save, or once the form was saved or
+  /// discarded ([_savedClean]) — the draft is then the saved record, or a
+  /// form on its way out. It never clears [_savedClean] itself.
+  ///
+  /// [rememberForReset]: re-apply [seed] when [reset] rebases the form onto a
+  /// blank draft. Pass false for a default that depends on something the
+  /// blank draft does not carry (the chosen client).
+  ///
+  /// Returns whether the seed was applied.
+  @protected
+  bool seedCreateDefault(T Function(T) seed, {bool rememberForReset = true}) {
+    if (!isCreate || _isSaving || _savedClean) return false;
+    _draft = seed(_draft);
+    _createBaseline = seed(_createBaseline);
+    if (rememberForReset) _resetSeeds.add(seed);
+    notifyListeners();
+    return true;
+  }
 
   /// Optional sync + connectivity wiring. When both are set (production
   /// path), [save] awaits the just-enqueued outbox row so 422 / 5xx errors
@@ -231,6 +283,18 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// affordance uses this to delete the right row from the outbox.
   int? get deadOutboxRowId => _deadOutboxRowId;
 
+  int? _failedAttemptRowId;
+
+  /// `outbox.id` of the row a save made on THIS visit to the form queued and
+  /// that then failed — a 422, a 5xx, a lost connection — or null. Unlike
+  /// [deadOutboxRowId] it is never a row the form merely opened onto: the
+  /// leave-page Discard (the unsaved-changes guard) abandons this row too,
+  /// since the user is throwing away the edit it carries. Without it a 5xx'd
+  /// save left `pending` went out after the user chose Discard. Cleared by a
+  /// successful save, [clearFailedSync] and [reset] — the scaffold reads it
+  /// before calling [reset].
+  int? get failedAttemptRowId => _failedAttemptRowId;
+
   int? _unconfirmedRowId;
   bool _unconfirmedIsSave = false;
   String? _unconfirmedMessage;
@@ -371,11 +435,13 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
         _submitError == null &&
         _recoveryTempId == null &&
         !_recreate &&
-        _unconfirmedRowId == null) {
+        _unconfirmedRowId == null &&
+        _failedAttemptRowId == null) {
       return;
     }
     _clearUnconfirmedState();
     _deadOutboxRowId = null;
+    _failedAttemptRowId = null;
     _fieldErrors = const {};
     _localValidationOnly = false;
     _submitError = null;
@@ -412,8 +478,20 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// just-discarded draft reports `isDirty == false` in every mode — the next
   /// real edit re-arms it via [updateDraft]. Without this the chained discard
   /// guards re-prompt on a create-mode form whose [draftIsNonEmpty] stays true.
+  ///
+  /// In create mode [emptyDraft] becomes the new [createBaseline], with the
+  /// remembered [seedCreateDefault] defaults re-applied — a discarded form is
+  /// a blank one, not a prefilled one.
   void reset({required T emptyDraft}) {
-    _draft = _original ?? emptyDraft;
+    if (_original == null) {
+      var baseline = emptyDraft;
+      for (final seed in _resetSeeds) {
+        baseline = seed(baseline);
+      }
+      _createBaseline = baseline;
+      _prefilled = false;
+    }
+    _draft = _original ?? _createBaseline;
     _savedClean = true;
     _clearUnconfirmedState();
     _submitError = null;
@@ -422,6 +500,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     _alreadyCreated = false;
     _recoveryTempId = null;
     _recreate = false;
+    _failedAttemptRowId = null;
     notifyListeners();
   }
 
@@ -503,12 +582,36 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     return q;
   }
 
+  final List<void Function()> _flushHooks = [];
+
+  /// Register a callback that commits an in-flight debounced edit onto the
+  /// draft — a line-item cell, a notes editor. Run by [flushPendingEdits]
+  /// and first thing in [save]. Unlike [addBeforeSaveHook], a flush hook must
+  /// only COMMIT what the user typed, never reshape the draft: anything that
+  /// reads the draft mid-edit (the line-item picker) runs them too.
+  /// Returns the unregister closure — call it in `dispose`.
+  VoidCallback addFlushHook(void Function() hook) {
+    _flushHooks.add(hook);
+    return () => _flushHooks.remove(hook);
+  }
+
+  /// Commit every debounced edit onto the draft now, so a reader of [draft]
+  /// sees what is on screen. Opening the line-item picker within the 250 ms
+  /// cell debounce otherwise rebuilt the list from the pre-keystroke draft
+  /// and the edit was lost.
+  void flushPendingEdits() {
+    for (final hook in List.of(_flushHooks)) {
+      hook();
+    }
+  }
+
   final List<void Function()> _beforeSaveHooks = [];
 
   /// Register a callback fired synchronously at the start of [save] before
-  /// [performSave] runs. Used by inline-edit widgets (e.g. the desktop
-  /// line-item table) to flush in-flight debounced text-field edits onto
-  /// the draft so a Save click never loses the last few keystrokes.
+  /// [performSave] runs, after the [addFlushHook] hooks. For work that
+  /// prepares the draft for the wire and only makes sense on a save — e.g.
+  /// stripping the line-item table's trailing blank rows, which run from the
+  /// picker would drop a blank row the user left there on Cancel.
   /// Returns the unregister closure — call it in `dispose`.
   VoidCallback addBeforeSaveHook(void Function() hook) {
     _beforeSaveHooks.add(hook);
@@ -530,6 +633,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
 
   Future<T?> save() async {
     if (_isSaving) return null;
+    flushPendingEdits();
     for (final hook in List.of(_beforeSaveHooks)) {
       hook();
     }
@@ -614,6 +718,11 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
                 'update',
               }.contains(outcome.unconfirmedMutationKind);
               _unconfirmedMessage = outcome.message;
+              // A dead row the form opened onto was replaced by this save
+              // (`dedupPendingMutations` carries a failed update's action
+              // into it and deletes it). Kept, the link sent Discard and
+              // the post-save cleanup to a row that is gone.
+              _deadOutboxRowId = null;
               return null;
           }
         }
@@ -627,6 +736,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       _savedClean = true;
       _recoveryTempId = null;
       _recreate = false;
+      _failedAttemptRowId = null;
       return result.entity;
     } on CreateAlreadyLandedException {
       // An earlier attempt at this record's create landed: another would make
@@ -651,6 +761,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       // row; this fresh failure superseded it. Drop it so the screen's
       // discard / onSaveRejected hooks act on the new row instead.
       _deadOutboxRowId = null;
+      _failedAttemptRowId = awaitedRowId ?? _failedAttemptRowId;
       _failedStatusCode = 422;
       // Keep the top-level message even when per-field errors exist. Rejected
       // keys often name no field this form renders, and nulling the message
@@ -659,6 +770,10 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
       _submitError = e.message;
       return null;
     } catch (e) {
+      // This visit's failed save, for the leave-page Discard. A throw before
+      // anything was queued keeps the earlier attempt's row, still this
+      // visit's.
+      _failedAttemptRowId = awaitedRowId ?? _failedAttemptRowId;
       // Surface a clean error message: `ApiException` subclasses' default
       // `toString()` prefixes with the runtime type (e.g. "ServerException:
       // Connection lost"), which leaks implementation detail into the toast

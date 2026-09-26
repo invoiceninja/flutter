@@ -71,50 +71,38 @@ class UserSettingsRepository {
   /// queueing a second one — settings updates are idempotent and the
   /// outbox should not pile up duplicates while the user is rapidly
   /// toggling columns.
+  ///
+  /// The read of the stored columns is inside the write's transaction: two
+  /// quick toggles read the same row outside it, and the second write lost
+  /// the first's change. The drain is kicked after the commit.
   Future<void> setColumns({
     required String companyId,
     required EntityType entityType,
     required List<String> columns,
   }) async {
-    final existing = await db.userSettingsDao.get(companyId);
-    if (existing == null) {
-      _log.warning(
-        'setColumns called before settings hydrated for $companyId; skipping.',
-      );
-      return;
-    }
+    final queued = await db.transaction(() async {
+      final existing = await db.userSettingsDao.get(companyId);
+      if (existing == null) {
+        _log.warning(
+          'setColumns called before settings hydrated for $companyId; '
+          'skipping.',
+        );
+        return false;
+      }
 
-    final key = _tableColumnsKey(entityType);
-    final tableColumns = _decodeTableColumns(existing.tableColumnsJson);
-    // Idempotent: bail before any local write or outbox enqueue when the
-    // column list is unchanged. Without this, applying a saved view (whose
-    // snapshot captured the current columns) — or the column picker
-    // re-selecting the same set — pushes a no-op `user_settings` PUT into
-    // the outbox.
-    if (_sameColumns(tableColumns[key], columns)) return;
-    tableColumns[key] = columns;
-    final newJson = jsonEncode(tableColumns);
-    final nowMs = _now().millisecondsSinceEpoch;
-
-    final body = _buildPutBody(
-      userId: existing.userId,
-      extraSettings: _decodeAny(existing.extraJson),
-      tableColumns: tableColumns,
-    );
-
-    await db.transaction(() async {
-      await db.userSettingsDao.writeTableColumns(
-        companyId: companyId,
-        tableColumnsJson: newJson,
-        now: nowMs,
-      );
-      await _enqueueOrCollapse(
-        companyId: companyId,
-        userId: existing.userId,
-        body: body,
-        nowMs: nowMs,
-      );
+      final key = _tableColumnsKey(entityType);
+      final tableColumns = _decodeTableColumns(existing.tableColumnsJson);
+      // Idempotent: bail before any local write or outbox enqueue when the
+      // column list is unchanged. Without this, applying a saved view (whose
+      // snapshot captured the current columns) — or the column picker
+      // re-selecting the same set — pushes a no-op `user_settings` PUT into
+      // the outbox.
+      if (_sameColumns(tableColumns[key], columns)) return false;
+      tableColumns[key] = columns;
+      await _writeAndEnqueue(companyId, existing, tableColumns);
+      return true;
     });
+    if (queued) onEnqueued?.call(companyId);
   }
 
   /// Restore the default column list (i.e. drop the entry from
@@ -123,32 +111,40 @@ class UserSettingsRepository {
     required String companyId,
     required EntityType entityType,
   }) async {
-    final existing = await db.userSettingsDao.get(companyId);
-    if (existing == null) return;
-    final key = _tableColumnsKey(entityType);
-    final tableColumns = _decodeTableColumns(existing.tableColumnsJson);
-    tableColumns.remove(key);
-    final newJson = jsonEncode(tableColumns);
-    final nowMs = _now().millisecondsSinceEpoch;
-    final body = _buildPutBody(
-      userId: existing.userId,
-      extraSettings: _decodeAny(existing.extraJson),
-      tableColumns: tableColumns,
-    );
-
-    await db.transaction(() async {
-      await db.userSettingsDao.writeTableColumns(
-        companyId: companyId,
-        tableColumnsJson: newJson,
-        now: nowMs,
-      );
-      await _enqueueOrCollapse(
-        companyId: companyId,
-        userId: existing.userId,
-        body: body,
-        nowMs: nowMs,
-      );
+    final queued = await db.transaction(() async {
+      final existing = await db.userSettingsDao.get(companyId);
+      if (existing == null) return false;
+      final tableColumns = _decodeTableColumns(existing.tableColumnsJson)
+        ..remove(_tableColumnsKey(entityType));
+      await _writeAndEnqueue(companyId, existing, tableColumns);
+      return true;
     });
+    if (queued) onEnqueued?.call(companyId);
+  }
+
+  /// Write [tableColumns] locally and queue (or collapse into) the PUT that
+  /// carries them. Inside the caller's transaction.
+  Future<void> _writeAndEnqueue(
+    String companyId,
+    UserSettingsRow existing,
+    Map<String, List<String>> tableColumns,
+  ) async {
+    final nowMs = _now().millisecondsSinceEpoch;
+    await db.userSettingsDao.writeTableColumns(
+      companyId: companyId,
+      tableColumnsJson: jsonEncode(tableColumns),
+      now: nowMs,
+    );
+    await _enqueueOrCollapse(
+      companyId: companyId,
+      userId: existing.userId,
+      body: _buildPutBody(
+        userId: existing.userId,
+        extraSettings: _decodeAny(existing.extraJson),
+        tableColumns: tableColumns,
+      ),
+      nowMs: nowMs,
+    );
   }
 
   /// Server replied to our PUT with the canonical UserCompany shape — write
@@ -208,12 +204,11 @@ class UserSettingsRepository {
       companyId: companyId,
       entityType: kUserSettingsWireName,
     );
-    if (existing != null) {
-      await db.outboxDao.updatePayload(
-        id: existing.id,
-        payload: jsonEncode(body),
-      );
-      onEnqueued?.call(companyId);
+    if (existing != null &&
+        await db.outboxDao.updatePayload(
+          id: existing.id,
+          payload: jsonEncode(body),
+        )) {
       return;
     }
     await db.outboxDao.enqueue(
@@ -228,7 +223,6 @@ class UserSettingsRepository {
         createdAt: nowMs,
       ),
     );
-    onEnqueued?.call(companyId);
   }
 
   /// Build the PUT body that mirrors what the old admin-portal sends — a

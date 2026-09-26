@@ -17,6 +17,7 @@ import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
 import 'package:admin/data/repositories/unconfirmed_prior_mutation_exception.dart';
 import 'package:admin/data/services/api_exception.dart';
+import 'package:admin/data/services/connectivity_watcher.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/domain/sync/mutation.dart';
@@ -66,7 +67,11 @@ class _FakeSync implements SyncRepository {
   final List<int> superseded = [];
 
   @override
-  Future<bool> discardFailedSave(int id) async {
+  Future<bool> discardFailedSave(
+    int id, {
+    bool onlyIdle = false,
+    bool keepRecord = false,
+  }) async {
     discarded.add(id);
     return removesRecord;
   }
@@ -220,6 +225,60 @@ class _EditVm extends GenericEditViewModel<String> {
     );
     final fail = failure;
     if (fail != null) throw fail;
+    return SaveResult(entity: draft, outboxRowId: rowId!);
+  }
+}
+
+/// A real engine whose `awaitRow` reports a 503 instead of draining — the
+/// failure a save on screen meets.
+class _AwaitFailSync extends SyncRepository {
+  _AwaitFailSync(AppDatabase db, SyncDispatcher disp)
+    : super(
+        db: db,
+        registry: _registry(disp),
+        now: () => DateTime.fromMillisecondsSinceEpoch(1000),
+      );
+
+  @override
+  Future<SyncRowResult> awaitRow({
+    required int rowId,
+    required String companyId,
+    Duration timeout = const Duration(seconds: 30),
+    Duration pollInterval = const Duration(milliseconds: 200),
+    bool callerWillDisplayFailure = true,
+  }) async => const SyncRowResult(
+    outcome: SyncRowOutcome.serverError,
+    statusCode: 503,
+    message: 'Down',
+  );
+}
+
+/// A form whose save queues its row and waits on it, as the view models do
+/// in production — so the failure it meets names the row.
+class _AwaitedVm extends GenericEditViewModel<String> {
+  _AwaitedVm({required this.db, required SyncRepository sync, this.entityId})
+    : super(
+        initialDraft: 'x',
+        original: entityId == null ? null : 'x',
+        sync: sync,
+        connectivity: ConnectivityWatcher.fixed(online: true),
+        companyId: 'co',
+      );
+
+  final AppDatabase db;
+  final String? entityId;
+  int? rowId;
+
+  @override
+  Future<SaveResult<String>> performSave() async {
+    rowId = await _enqueue(
+      db,
+      kind: savesAsCreate ? 'create' : 'update',
+      state: 'pending',
+      key: 'idem-save-$rowId',
+      entityId: savesAsCreate ? (recoveryTempId ?? _tmpId) : entityId!,
+    );
+    if (isCreate) rememberCreateTempId(_tmpId);
     return SaveResult(entity: draft, outboxRowId: rowId!);
   }
 }
@@ -559,6 +618,170 @@ void main() {
 
     expect(vm.savesAsCreate, isTrue);
     expect(vm.deadOutboxRowId, create);
+  });
+
+  /// The unsaved-changes guard's Discard — leaving the form, not the banner's
+  /// "Discard failed save". It reset the draft and left the save that had
+  /// failed on screen queued, so the edit the user threw away still went out.
+  group('leaving the form with Discard', () {
+    Future<void> leaveWithDiscard(WidgetTester tester, GoRouter router) async {
+      router.go('/clients');
+      await tester.pumpAndSettle();
+      expect(find.text('Discard changes?'), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PrimaryDialogAction),
+          matching: find.text('Discard'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(uriOf(router), '/clients');
+    }
+
+    testWidgets('drops the save that failed on this visit', (tester) async {
+      final disp = _NoopDispatcher();
+      final sync = _AwaitFailSync(db, disp);
+      final vm = _AwaitedVm(db: db, sync: sync, entityId: 'c1');
+      final router = await pump(
+        tester,
+        vm,
+        sync: sync,
+        disp: disp,
+        existingId: 'c1',
+      );
+      vm.updateDraftForTest('edited');
+      await tap(tester, 'Save');
+      expect(vm.failedAttemptRowId, vm.rowId);
+      expect((await db.outboxDao.byId(vm.rowId!))!.state, 'pending');
+
+      await leaveWithDiscard(tester, router);
+
+      expect(await db.outboxDao.byId(vm.rowId!), isNull);
+      expect(disp.clearedDirty, ['c1'], reason: 'the record is released');
+    });
+
+    testWidgets('keeps a save queued on an earlier visit — it is not the '
+        'draft being thrown away', (tester) async {
+      final disp = _NoopDispatcher();
+      final sync = _AwaitFailSync(db, disp);
+      final earlier = await _enqueue(
+        db,
+        kind: 'update',
+        state: 'pending',
+        entityId: 'c1',
+        key: 'idem-earlier',
+      );
+      final vm = _AwaitedVm(db: db, sync: sync, entityId: 'c1');
+      final router = await pump(
+        tester,
+        vm,
+        sync: sync,
+        disp: disp,
+        existingId: 'c1',
+      );
+      vm.updateDraftForTest('edited');
+      await tester.pumpAndSettle();
+
+      await leaveWithDiscard(tester, router);
+
+      expect(await db.outboxDao.byId(earlier), isNotNull);
+    });
+
+    testWidgets('keeps the failed save the form opened onto when nothing was '
+        'saved on this visit', (tester) async {
+      final disp = _NoopDispatcher();
+      final sync = _AwaitFailSync(db, disp);
+      final dead = await _enqueue(
+        db,
+        kind: 'update',
+        state: 'dead',
+        entityId: 'c1',
+        key: 'idem-dead',
+      );
+      final vm = _AwaitedVm(db: db, sync: sync, entityId: 'c1');
+      final router = await pump(
+        tester,
+        vm,
+        sync: sync,
+        disp: disp,
+        existingId: 'c1',
+      );
+      expect(vm.deadOutboxRowId, dead, reason: 'linked on open');
+      vm.updateDraftForTest('edited');
+      await tester.pumpAndSettle();
+
+      await leaveWithDiscard(tester, router);
+
+      expect(await db.outboxDao.byId(dead), isNotNull);
+    });
+
+    testWidgets('on a create form, drops the create and its ghost record', (
+      tester,
+    ) async {
+      final disp = _NoopDispatcher();
+      final sync = _AwaitFailSync(db, disp);
+      final vm = _AwaitedVm(db: db, sync: sync);
+      final router = await pump(tester, vm, sync: sync, disp: disp);
+      vm.updateDraftForTest('new client');
+      await tap(tester, 'Save');
+      expect(vm.failedAttemptRowId, vm.rowId);
+
+      await leaveWithDiscard(tester, router);
+
+      expect(await db.outboxDao.byId(vm.rowId!), isNull);
+    });
+
+    testWidgets('keeps the re-sent create of a record the server never saw — '
+        'discarding it takes the record, and only the banner asks first', (
+      tester,
+    ) async {
+      final disp = _NoopDispatcher();
+      final sync = _AwaitFailSync(db, disp);
+      await _enqueue(db, kind: 'create', state: 'dead');
+      final vm = _AwaitedVm(db: db, sync: sync, entityId: _tmpId);
+      final router = await pump(
+        tester,
+        vm,
+        sync: sync,
+        disp: disp,
+        existingId: _tmpId,
+      );
+      expect(vm.savesAsCreate, isTrue);
+      vm.updateDraftForTest('edited');
+      await tap(tester, 'Save');
+      final resent = vm.failedAttemptRowId!;
+
+      await leaveWithDiscard(tester, router);
+
+      expect(await db.outboxDao.byId(resent), isNotNull);
+    });
+
+    for (final state in ['in_flight', 'unconfirmed']) {
+      testWidgets('leaves a failed save that is now $state', (tester) async {
+        final disp = _NoopDispatcher();
+        final sync = _AwaitFailSync(db, disp);
+        final vm = _AwaitedVm(db: db, sync: sync, entityId: 'c1');
+        final router = await pump(
+          tester,
+          vm,
+          sync: sync,
+          disp: disp,
+          existingId: 'c1',
+        );
+        vm.updateDraftForTest('edited');
+        await tap(tester, 'Save');
+        final id = vm.failedAttemptRowId!;
+        if (state == 'in_flight') {
+          await db.outboxDao.markInFlight(id);
+        } else {
+          await db.outboxDao.markUnconfirmed(id: id, error: 'Reset');
+        }
+
+        await leaveWithDiscard(tester, router);
+
+        expect((await db.outboxDao.byId(id))?.state, state);
+      });
+    }
   });
 
   testWidgets('saving an edit still supersedes a dead create under the real '

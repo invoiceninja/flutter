@@ -258,28 +258,30 @@ class PaymentRepository extends BaseEntityRepository<Payment, PaymentApi>
     required Payment payment,
     required bool sendEmail,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(payment.id);
-    if (resolvedId != payment.id) payment = payment.copyWith(id: resolvedId);
-
-    final companion = _domainToCompanion(payment, companyId, isDirty: true);
-    // Never re-send allocations on an update. The server's
-    // PaymentRepository::applyPayment re-applies every `invoices`/`credits`
-    // entry on PUT with no dedupe, so echoing an existing payment's
-    // paymentables back double-applies it against the invoice (balance and
-    // paid_to_date corrupted) — or 422s outright once the payment is fully
-    // applied. Allocating funds is its own flow ([apply], a separate
-    // `MutationKind.applyPayment` PUT). React's edit hook deletes both keys
-    // before PUT for the same reason (useSave.ts).
-    final updateJson = payment.toApiJson(preserveTempId: true)
-      ..remove('invoices')
-      ..remove('credits');
     var rowId = 0;
     await db.transaction(() async {
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write.
+      final resolvedId = await resolveId(payment.id);
+      if (resolvedId != payment.id) payment = payment.copyWith(id: resolvedId);
+
+      final companion = _domainToCompanion(payment, companyId, isDirty: true);
+      // Never re-send allocations on an update. The server's
+      // PaymentRepository::applyPayment re-applies every `invoices`/`credits`
+      // entry on PUT with no dedupe, so echoing an existing payment's
+      // paymentables back double-applies it against the invoice (balance and
+      // paid_to_date corrupted) — or 422s outright once the payment is fully
+      // applied. Allocating funds is its own flow ([apply], a separate
+      // `MutationKind.applyPayment` PUT). React's edit hook deletes both keys
+      // before PUT for the same reason (useSave.ts).
+      final updateJson = payment.toApiJson(preserveTempId: true)
+        ..remove('invoices')
+        ..remove('credits');
       await db.paymentDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,

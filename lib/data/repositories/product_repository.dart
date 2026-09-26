@@ -286,46 +286,35 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
     required Product product,
     bool stockChanged = false,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(product.id);
-    if (resolvedId != product.id) product = product.copyWith(id: resolvedId);
-
-    // dedup deletes the prior pending update for this product and this save
-    // replaces it. If that pending row already carried the stock flag (e.g.
-    // an offline stock edit, then a navigate-away + non-stock edit), inherit
-    // it so the queued stock change isn't silently dropped. Online, the prior
-    // row has usually already drained, so there's nothing to inherit.
-    var includeStockParam = stockChanged;
-    if (!includeStockParam) {
-      final pending = await db.outboxDao
-          .watchPendingForEntity(
-            companyId: companyId,
-            entityType: entityTypeName,
-            entityId: product.id,
-            kind: MutationKind.update,
-          )
-          .first;
-      includeStockParam = pending.any(_carriesStockParam);
-    }
-    final payload = product.toApiJson(preserveTempId: true);
-    if (includeStockParam) {
-      payload[kSaveQueryPayloadKey] = const {
-        'update_in_stock_quantity': 'true',
-      };
-    }
-    final companion = _domainToCompanion(product, companyId, isDirty: true);
     var rowId = 0;
     await db.transaction(() async {
-      await db.productDao.upsert(companion);
-      await dedupPendingMutations(
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — inside the
+      // transaction, which the landing's remap commits in, so it can't land
+      // between this read and the write.
+      final resolvedId = await resolveId(product.id);
+      if (resolvedId != product.id) product = product.copyWith(id: resolvedId);
+      await db.productDao.upsert(
+        _domainToCompanion(product, companyId, isDirty: true),
+      );
+      // dedup deletes the prior pending update for this product (and a failed
+      // one) and this save replaces it. If that row carried the stock flag
+      // (e.g. an offline stock edit, then a navigate-away + non-stock edit),
+      // inherit it so the queued stock change isn't silently dropped.
+      final carried = await dedupPendingMutations(
         companyId: companyId,
         entityId: product.id,
         kind: MutationKind.update,
       );
+      final payload = product.toApiJson(preserveTempId: true);
+      if (stockChanged || carried['update_in_stock_quantity'] == 'true') {
+        payload[kSaveQueryPayloadKey] = const {
+          'update_in_stock_quantity': 'true',
+        };
+      }
       rowId = await enqueueMutation(
         companyId: companyId,
         entityId: product.id,
@@ -637,15 +626,4 @@ class ProductRepository extends BaseEntityRepository<Product, ProductApi>
             (e) => e.companyId.equals(companyId) & e.id.equals(entityId),
           ))
           .write(ProductsCompanion(documents: Value(json)));
-}
-
-/// True when a pending outbox row's payload carries the
-/// `update_in_stock_quantity` save-query flag. Used by [ProductRepository.save]
-/// to inherit the flag across a dedup so an offline stock edit isn't dropped
-/// by a later non-stock edit to the same product.
-bool _carriesStockParam(OutboxRow row) {
-  final decoded = jsonDecode(row.payload);
-  if (decoded is! Map) return false;
-  final saveQuery = decoded[kSaveQueryPayloadKey];
-  return saveQuery is Map && saveQuery['update_in_stock_quantity'] == 'true';
 }

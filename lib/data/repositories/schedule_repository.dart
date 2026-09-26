@@ -177,21 +177,26 @@ class ScheduleRepository extends BaseEntityRepository<Schedule, ScheduleApi> {
     required String companyId,
     required Schedule schedule,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(schedule.id);
-    if (resolvedId != schedule.id) schedule = schedule.copyWith(id: resolvedId);
-
-    // Clamp next_run to today — the server rejects past dates on every
-    // template (`next_run after_or_equal:today`). Covers payment_schedule
-    // (hidden field) and editing a schedule whose next_run already lapsed.
-    final clamped = schedule.withNextRunNotBefore(Date.today());
-    final companion = _domainToCompanion(clamped, companyId, isDirty: true);
     var rowId = 0;
+    late Schedule clamped;
     await db.transaction(() async {
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write.
+      final resolvedId = await resolveId(schedule.id);
+      if (resolvedId != schedule.id) {
+        schedule = schedule.copyWith(id: resolvedId);
+      }
+
+      // Clamp next_run to today — the server rejects past dates on every
+      // template (`next_run after_or_equal:today`). Covers payment_schedule
+      // (hidden field) and editing a schedule whose next_run already lapsed.
+      clamped = schedule.withNextRunNotBefore(Date.today());
+      final companion = _domainToCompanion(clamped, companyId, isDirty: true);
       await db.scheduleDao.upsert(companion);
       await dedupPendingMutations(
         companyId: companyId,

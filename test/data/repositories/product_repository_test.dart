@@ -496,6 +496,34 @@ void main() {
         'update_in_stock_quantity': 'true',
       });
     });
+
+    test('a re-save of a FAILED stock update keeps the stock flag, and '
+        'replaces the failed row', () async {
+      // The stock edit was rejected; the fixed re-save doesn't touch the
+      // count, so `stockChanged` is false — and the count the user set was
+      // silently dropped by the server.
+      final repo = await seededRepo();
+      final loaded = await repo.watch(companyId: 'co', id: 'prod_1').first;
+      final failed = await repo.save(
+        companyId: 'co',
+        product: loaded!.copyWith(inStockQuantity: Decimal.parse('20')),
+        stockChanged: true,
+      );
+      await db.outboxDao.markDead(id: failed.outboxRowId, error: 'bad');
+
+      final afterFail = await repo.watch(companyId: 'co', id: 'prod_1').first;
+      await repo.save(
+        companyId: 'co',
+        product: afterFail!.copyWith(productKey: 'Fixed'),
+      );
+
+      final updates = await _pendingUpdates(db);
+      expect(updates, hasLength(1));
+      expect(jsonDecode(updates.single.payload)[kSaveQueryPayloadKey], {
+        'update_in_stock_quantity': 'true',
+      });
+      expect(await db.outboxDao.byId(failed.outboxRowId), isNull);
+    });
   });
 
   test('refreshByIds re-fetches even a cached product — what Check on an '

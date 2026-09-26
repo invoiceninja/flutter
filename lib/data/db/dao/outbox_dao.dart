@@ -414,13 +414,28 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     return q.getSingleOrNull();
   }
 
-  /// Overwrite the payload of an existing outbox row (idempotency key stays
+  /// Overwrite the payload of a `pending` outbox row (idempotency key stays
   /// the same — server treats a retry with a fresher payload as equivalent
-  /// to the original).
-  Future<void> updatePayload({required int id, required String payload}) =>
-      (update(outbox)..where((o) => o.id.equals(id))).write(
-        OutboxCompanion(payload: Value(payload)),
-      );
+  /// to the original), and with [requiresPassword] its password flag.
+  /// Returns whether the row was still `pending` to change: one the drain
+  /// has claimed is being sent with the body it read, so a collapse into it
+  /// would be lost — the caller queues a new row instead.
+  Future<bool> updatePayload({
+    required int id,
+    required String payload,
+    bool? requiresPassword,
+  }) async =>
+      await (update(
+        outbox,
+      )..where((o) => o.id.equals(id) & o.state.equals('pending'))).write(
+        OutboxCompanion(
+          payload: Value(payload),
+          requiresPassword: requiresPassword == null
+              ? const Value.absent()
+              : Value(requiresPassword),
+        ),
+      ) ==
+      1;
 
   /// Replace a `pending` row's payload and make it due now, its error and
   /// status cleared — for a row whose wait has just ended with the reference
@@ -509,8 +524,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// be queued (and for CREATE would cause a server-side duplicate when both
   /// rows eventually drain). `in_flight` rows are left alone — their HTTP
   /// request may already be landing, so deleting them would race the
-  /// dispatcher's `applyCreateResponse`. `dead` rows are left alone too —
-  /// the existing `onSaved` cleanup deletes them after a successful re-save.
+  /// dispatcher's `applyCreateResponse`. `dead` rows are left alone too:
+  /// `BaseEntityRepository.dedupPendingMutations` deletes the failed updates
+  /// a save replaces itself, one by one, after carrying their action.
   Future<int> deletePendingForEntity({
     required String companyId,
     required String entityType,
@@ -1066,11 +1082,14 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// The failed saves [deleteOlderDeadSaves] would remove with
   /// `includeCreates: true` once a create of the record lands, in id order —
   /// so the create can salvage the SAVE-PARAM action one of them carried
-  /// (`BaseEntityRepository.dedupPendingMutations`).
+  /// (`BaseEntityRepository.dedupPendingMutations`). With [includeCreates]
+  /// false, only the failed updates: what a new update of the record
+  /// replaces.
   Future<List<OutboxRow>> deadSavesForEntity({
     required String companyId,
     required String entityType,
     required String entityId,
+    bool includeCreates = true,
   }) =>
       (select(outbox)
             ..where(
@@ -1080,7 +1099,7 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
                   o.entityId.equals(entityId) &
                   o.mutationKind.isIn([
                     MutationKind.update.wireName,
-                    MutationKind.create.wireName,
+                    if (includeCreates) MutationKind.create.wireName,
                   ]) &
                   _isDocumentUpload(o).not() &
                   o.state.equals('dead'),

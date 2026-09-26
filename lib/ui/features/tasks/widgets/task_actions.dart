@@ -29,6 +29,7 @@ import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/invoice_append_context.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
+import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
 import 'package:admin/utils/formatting.dart';
 
@@ -354,9 +355,16 @@ class TaskActions {
     final billable = _billableSelection(context, tasks);
     if (billable == null) return;
     final labels = TaskNoteLabels.of(context);
-    // `emptyInvoice()` is exclusive-tax; nothing here depends on that yet
-    // (tasks carry no tax of their own) but the context load is shared.
     final ctx = await _TaskInvoiceContext.load(services, companyId, billable);
+    // The client's inclusive-tax mode, staged on the draft: the edit screen
+    // seeds it only on a document with no priced line, and this one arrives
+    // with its lines. Tasks carry no tax of their own, so the lines don't
+    // change with it — but the document's taxes and totals do.
+    final inclusive = await resolveCreateInclusiveTaxes(
+      services.settings,
+      companyId: companyId,
+      clientId: ctx.clientId,
+    );
     if (!context.mounted) return;
     final lineItems = tasksToLineItems(
       billable,
@@ -381,6 +389,7 @@ class TaskActions {
       '/invoices',
       extra: emptyInvoice().copyWith(
         clientId: ctx.clientId,
+        usesInclusiveTaxes: inclusive,
         // One `project_id` per invoice: link it only when every task agrees,
         // else the document would be labelled with one project while carrying
         // another's lines. Matches the server, which leaves it null for a

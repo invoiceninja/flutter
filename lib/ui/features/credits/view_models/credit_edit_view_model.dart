@@ -31,6 +31,7 @@ class CreditEditViewModel extends BillingDocEditViewModel<Credit>
          initialDraft: cloneFrom ?? existing ?? emptyCredit(),
          original: existing,
          companyId: companyId,
+         prefilled: existing == null && cloneFrom != null,
        );
 
   final CreditRepository repo;
@@ -64,21 +65,6 @@ class CreditEditViewModel extends BillingDocEditViewModel<Credit>
   };
 
   @override
-  bool draftIsNonEmpty() {
-    final d = draft;
-    return d.clientId.isNotEmpty ||
-        d.number.isNotEmpty ||
-        d.poNumber.isNotEmpty ||
-        d.publicNotes.isNotEmpty ||
-        d.privateNotes.isNotEmpty ||
-        d.terms.isNotEmpty ||
-        d.footer.isNotEmpty ||
-        d.lineItems.isNotEmpty ||
-        d.amount != Decimal.zero ||
-        d.discount != Decimal.zero;
-  }
-
-  @override
   Future<SaveResult<Credit>> createDocument(
     Credit draft, {
     Map<String, String>? extraQuery,
@@ -95,8 +81,6 @@ class CreditEditViewModel extends BillingDocEditViewModel<Credit>
     Credit draft, {
     Map<String, String>? extraQuery,
   }) => repo.save(companyId: companyId, credit: draft, extraQuery: extraQuery);
-
-  void resetToEmpty() => reset(emptyDraft: emptyCredit());
 
   @override
   Credit copyWithStampedTotals(
@@ -123,6 +107,7 @@ class CreditEditViewModel extends BillingDocEditViewModel<Credit>
 
 /// The shared fields, written onto a [Credit] — see [BillingDocWriter].
 final _creditWriter = BillingDocWriter<Credit>(
+  empty: emptyCredit,
   lineItems: (d, v) => d.copyWith(lineItems: v),
   invitations: (d, v) => d.copyWith(invitations: v),
   clientId: (d, v) => d.copyWith(clientId: v),

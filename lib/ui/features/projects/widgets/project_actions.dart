@@ -17,6 +17,7 @@ import 'package:admin/ui/core/widgets/add_to_invoice_dialog.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/invoice_append_context.dart';
 import 'package:admin/ui/features/billing_shared/add_unbilled/unbilled_line_items.dart';
+import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
 import 'package:admin/ui/features/invoices/widgets/detail/run_template_dialog.dart';
@@ -305,14 +306,21 @@ class ProjectActions {
         // Mirrors admin-portal's "Invoice Project": pending project expenses
         // first, then stopped + uninvoiced tasks with logged time.
         final labels = TaskNoteLabels.of(context);
+        // The client's inclusive-tax mode, resolved before the lines: an
+        // expense line is billed net on an exclusive invoice (tax added on top
+        // by the calculator) and gross on an inclusive one — either way the
+        // line total lands on the expense's gross. Staged on the draft, since
+        // the edit screen never re-seeds a document that arrives with lines.
+        final inclusive = await resolveCreateInclusiveTaxes(
+          services.settings,
+          companyId: companyId,
+          clientId: project.clientId,
+        );
         final lineItems = await _projectLineItems(
           services,
           companyId,
           [project],
-          // Matches the seeded draft below: `emptyInvoice()` is exclusive-tax,
-          // so expense costs are billed net (tax added on top by the
-          // calculator) — the line total still lands on each expense's gross.
-          invoiceInclusive: false,
+          invoiceInclusive: inclusive,
           labels: labels,
         );
         if (!context.mounted) return;
@@ -326,6 +334,7 @@ class ProjectActions {
           extra: emptyInvoice().copyWith(
             clientId: project.clientId,
             projectId: project.id,
+            usesInclusiveTaxes: inclusive,
             lineItems: lineItems,
           ),
         );
@@ -454,13 +463,19 @@ class ProjectActions {
     final clientId = usable
         .map((p) => p.clientId)
         .firstWhere((c) => c.isNotEmpty, orElse: () => '');
+    final labels = TaskNoteLabels.of(context);
+    // Resolved before the lines — see [ProjectAction.invoiceProject].
+    final inclusive = await resolveCreateInclusiveTaxes(
+      services.settings,
+      companyId: companyId,
+      clientId: clientId,
+    );
     final lineItems = await _projectLineItems(
       services,
       companyId,
       usable,
-      // Matches the seeded draft below (`emptyInvoice()` = exclusive).
-      invoiceInclusive: false,
-      labels: TaskNoteLabels.of(context),
+      invoiceInclusive: inclusive,
+      labels: labels,
     );
     if (!context.mounted) return;
     if (lineItems.isEmpty) {
@@ -472,6 +487,7 @@ class ProjectActions {
       '/invoices',
       extra: emptyInvoice().copyWith(
         clientId: clientId,
+        usesInclusiveTaxes: inclusive,
         // Carry the project link only when invoicing a single project — an
         // invoice has one `project_id` and stamping it with the first of
         // several would mislabel the others' lines. Matches the server

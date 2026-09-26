@@ -238,6 +238,10 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
 
   void _openPicker(BuildContext context) {
     final vm = _vm;
+    // Commit a cell / notes edit still inside its debounce first: the picker
+    // rebuilds the line list from the draft, and opening it within 250 ms of
+    // a keystroke (⌘N, the FAB) otherwise dropped that edit.
+    vm.flushPendingEdits();
     // A vendor-side document has no client, so the picker collapses to the
     // Products tab (no Tasks / Expenses sourcing), and the client-cascade /
     // register-source callbacks are no-ops.
@@ -248,9 +252,11 @@ class _BillingDocEditLayoutState<T extends BillingDocFields>
       clientId: client ? vm.draft.clientId : '',
       showTasksAndExpenses: client,
       invoiceInclusive: vm.draft.usesInclusiveTaxes,
-      currentLineItems: vm.draft.lineItems,
-      currentProjectId: vm.draft.projectId,
-      currentClientId: client ? vm.draft.clientId : '',
+      // Getters, read once the sheet closes: the draft can change while it
+      // is open (a debounced edit landing, a client picked on another tab).
+      readLineItems: () => vm.draft.lineItems,
+      readProjectId: () => vm.draft.projectId,
+      readClientId: () => client ? vm.draft.clientId : '',
       isCreate: vm.isCreate,
       replaceLineItems: vm.replaceLineItems,
       setProjectId: vm.setProjectId,
@@ -813,10 +819,10 @@ class _DiscountRow<T extends BillingDocFields> extends StatelessWidget {
 /// The line-item editor, for BOTH layouts.
 ///
 /// A client document gets it from `BillingDocItemsTabs`, which owns the
-/// per-tab table controllers and registers the before-save hooks that commit
-/// a debounced cell edit and strip empty rows. A vendor document (the
-/// purchase order) cannot — that widget is client-only — so it hosts a
-/// `LineItemEditor` with the same two hooks. Its narrow Items tab used to
+/// per-tab table controllers and registers the hooks that commit a debounced
+/// cell edit (a flush hook) and strip empty rows (a before-save hook). A
+/// vendor document (the purchase order) cannot — that widget is client-only —
+/// so it hosts a `LineItemEditor` with the same two hooks. Its narrow Items tab used to
 /// host a bare editor instead, and on a tablet, where the wide table renders
 /// inside the tabbed layout, typing into a cell and saving within the
 /// debounce dropped the edit.
@@ -869,9 +875,7 @@ class _VendorItemsEditorState<T extends BillingDocFields>
   @override
   void initState() {
     super.initState();
-    _unregisterFlush = widget.vm.addBeforeSaveHook(
-      _tableController.flushPending,
-    );
+    _unregisterFlush = widget.vm.addFlushHook(_tableController.flushPending);
     _unregisterStrip = widget.vm.addBeforeSaveHook(
       widget.vm.stripEmptyLineItems,
     );
@@ -1042,7 +1046,7 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
               controller: _ctl,
               children: [
                 MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  registerBeforeSaveHook: vm.addFlushHook,
                   label: context.tr('terms'),
                   showLabel: false,
                   expand: true,
@@ -1056,7 +1060,7 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
                   ),
                 ),
                 MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  registerBeforeSaveHook: vm.addFlushHook,
                   label: context.tr('footer'),
                   showLabel: false,
                   expand: true,
@@ -1070,7 +1074,7 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
                   ),
                 ),
                 MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  registerBeforeSaveHook: vm.addFlushHook,
                   label: context.tr('public_notes'),
                   showLabel: false,
                   expand: true,
@@ -1078,7 +1082,7 @@ class _NotesTabsCardDesktopState<T extends BillingDocFields>
                   onChanged: vm.setPublicNotes,
                 ),
                 MarkdownNotesField(
-                  registerBeforeSaveHook: vm.addBeforeSaveHook,
+                  registerBeforeSaveHook: vm.addFlushHook,
                   label: context.tr('private_notes'),
                   showLabel: false,
                   expand: true,
@@ -1431,21 +1435,21 @@ class _NotesTab<T extends BillingDocFields> extends StatelessWidget {
         padding: EdgeInsets.all(InSpacing.lg(context)),
         children: [
           MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            registerBeforeSaveHook: vm.addFlushHook,
             label: context.tr('public_notes'),
             value: vm.draft.publicNotes,
             onChanged: vm.setPublicNotes,
           ),
           SizedBox(height: InSpacing.lg(context)),
           MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            registerBeforeSaveHook: vm.addFlushHook,
             label: context.tr('private_notes'),
             value: vm.draft.privateNotes,
             onChanged: vm.setPrivateNotes,
           ),
           SizedBox(height: InSpacing.lg(context)),
           MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            registerBeforeSaveHook: vm.addFlushHook,
             label: context.tr('terms'),
             value: vm.draft.terms,
             onChanged: vm.setTerms,
@@ -1453,7 +1457,7 @@ class _NotesTab<T extends BillingDocFields> extends StatelessWidget {
           ),
           SizedBox(height: InSpacing.lg(context)),
           MarkdownNotesField(
-            registerBeforeSaveHook: vm.addBeforeSaveHook,
+            registerBeforeSaveHook: vm.addFlushHook,
             label: context.tr('footer'),
             value: vm.draft.footer,
             onChanged: vm.setFooter,

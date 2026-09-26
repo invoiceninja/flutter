@@ -208,23 +208,25 @@ class PurchaseOrderRepository
     required PurchaseOrder purchaseOrder,
     Map<String, String>? extraQuery,
   }) async {
-    // If this entity's offline create already drained while the edit
-    // form was open, id_remap now points the tmp id at the real row (the
-    // tmp row was deleted). Saving under the stale tmp id would resurrect
-    // it as a ghost duplicate — and deleting that ghost would delete the
-    // real entity via the remap. Rebind to the real id first.
-    final resolvedId = await resolveId(purchaseOrder.id);
-    if (resolvedId != purchaseOrder.id) {
-      purchaseOrder = purchaseOrder.copyWith(id: resolvedId);
-    }
-
-    final companion = _domainToCompanion(
-      purchaseOrder,
-      companyId,
-      isDirty: true,
-    );
     var rowId = 0;
     await db.transaction(() async {
+      // If this entity's offline create already drained while the edit
+      // form was open, id_remap now points the tmp id at the real row (the
+      // tmp row was deleted). Saving under the stale tmp id would resurrect
+      // it as a ghost duplicate — and deleting that ghost would delete the
+      // real entity via the remap. Rebind to the real id first — in the
+      // transaction: the landing commits its remap in one, so it cannot
+      // land between this read and the write.
+      final resolvedId = await resolveId(purchaseOrder.id);
+      if (resolvedId != purchaseOrder.id) {
+        purchaseOrder = purchaseOrder.copyWith(id: resolvedId);
+      }
+
+      final companion = _domainToCompanion(
+        purchaseOrder,
+        companyId,
+        isDirty: true,
+      );
       await db.purchaseOrderDao.upsert(companion);
       final carried = await dedupPendingMutations(
         companyId: companyId,

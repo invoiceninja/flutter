@@ -11,6 +11,8 @@ import 'package:admin/ui/core/adaptive.dart';
 import 'package:admin/ui/core/edit/edit_action_filter.dart';
 import 'package:admin/ui/core/edit/entity_edit_screen_scaffold.dart';
 import 'package:admin/ui/core/list/master_detail_layout.dart';
+import 'package:admin/ui/features/billing_shared/billing_doc_type.dart';
+import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_edit_view_model.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/edit/purchase_order_edit_layout.dart';
 import 'package:admin/ui/features/purchase_orders/widgets/purchase_order_actions.dart';
@@ -56,7 +58,7 @@ class PurchaseOrderEditScreen extends StatelessWidget {
             (existing == null
                 ? services.takeCreateDraft<PurchaseOrder>('/purchase_orders')
                 : null);
-        return PurchaseOrderEditViewModel(
+        final vm = PurchaseOrderEditViewModel(
           repo: services.purchaseOrders,
           companyId: companyId,
           vendorRequiredMessage: ctx.tr('please_select_a_vendor'),
@@ -71,6 +73,16 @@ class PurchaseOrderEditScreen extends StatelessWidget {
           sync: services.sync,
           connectivity: services.connectivity,
         );
+        // The inclusive-tax mode the server would give it — the company's.
+        if (existing == null) {
+          seedBillingCreateDefaults(
+            settings: services.settings,
+            companyId: companyId,
+            type: BillingDocType.purchaseOrder,
+            vm: vm,
+          );
+        }
+        return vm;
       },
       titleWhileLoading: (ctx) =>
           existingId == null ? ctx.tr('new_purchase_order') : ctx.tr('edit'),

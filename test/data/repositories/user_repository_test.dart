@@ -254,6 +254,98 @@ void main() {
       },
     );
 
+    group(
+      'enqueueUpdate collapses only a profile save into a profile save',
+      () {
+        const user = User(id: 'u_1', firstName: 'Ann');
+
+        Future<List<OutboxRow>> rows() => db.outboxDao.watchAll('co_1').first;
+
+        test('a second profile save replaces the queued body, keeping the '
+            'password it carried and its flag', () async {
+          final repo = makeRepo();
+          await repo.enqueueUpdate(
+            companyId: 'co_1',
+            draft: user,
+            body: {'first_name': 'Ann', 'password': 'secret'},
+            requiresPassword: true,
+          );
+          await repo.enqueueUpdate(
+            companyId: 'co_1',
+            draft: user,
+            body: {'first_name': 'Anne'},
+          );
+          final all = await rows();
+          expect(all, hasLength(1));
+          expect(jsonDecode(all.single.payload), {
+            'first_name': 'Anne',
+            'password': 'secret',
+          });
+          expect(all.single.requiresPassword, isTrue);
+        });
+
+        test('an `_action` is never folded into a profile save, or the other '
+            'way round', () async {
+          final repo = makeRepo();
+          await repo.enqueueUpdate(
+            companyId: 'co_1',
+            draft: user,
+            body: {'first_name': 'Ann'},
+          );
+          await repo.enqueueUpdate(
+            companyId: 'co_1',
+            draft: user,
+            body: {'_action': 'disconnect_oauth'},
+          );
+          // Queued behind the disconnect, and folded into the first save — the
+          // oldest queued row — which it replaces.
+          await repo.enqueueUpdate(
+            companyId: 'co_1',
+            draft: user,
+            body: {'first_name': 'Anne'},
+          );
+          final payloads = [
+            for (final r in await rows()) jsonDecode(r.payload),
+          ];
+          expect(
+            payloads,
+            unorderedEquals([
+              {'first_name': 'Anne'},
+              {'_action': 'disconnect_oauth'},
+            ]),
+          );
+        });
+
+        test('a row the drain has claimed is not collapsed into — a new row '
+            'carries the save', () async {
+          final repo = makeRepo();
+          await repo.enqueueUpdate(
+            companyId: 'co_1',
+            draft: user,
+            body: {'first_name': 'Ann'},
+          );
+          final claimed = (await rows()).single;
+          await db.outboxDao.markInFlight(claimed.id);
+          expect(
+            await db.outboxDao.updatePayload(id: claimed.id, payload: '{}'),
+            isFalse,
+          );
+
+          await repo.enqueueUpdate(
+            companyId: 'co_1',
+            draft: user,
+            body: {'first_name': 'Anne'},
+          );
+          final all = await rows();
+          expect(all, hasLength(2));
+          expect(
+            jsonDecode(all.firstWhere((r) => r.id == claimed.id).payload),
+            {'first_name': 'Ann'},
+          );
+        });
+      },
+    );
+
     test('a resend for a different user is not collapsed away', () async {
       // The dedup is keyed by entity — one noisy row must not swallow a
       // genuine invite for someone else.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -40,7 +42,7 @@ class RecurringExpenseEditScreen extends StatelessWidget {
       fetchExisting: (ctx, services, companyId, id) =>
           services.recurringExpenses.watch(companyId: companyId, id: id).first,
       buildVm: (ctx, services, companyId, existing) {
-        return RecurringExpenseEditViewModel(
+        final vm = RecurringExpenseEditViewModel(
           repo: services.recurringExpenses,
           companyId: companyId,
           existing: existing,
@@ -54,6 +56,22 @@ class RecurringExpenseEditScreen extends StatelessWidget {
           sync: services.sync,
           connectivity: services.connectivity,
         );
+        // A new expense takes the company's expense inclusive-tax default.
+        if (existing == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            unawaited(
+              services.company
+                  .watchCompany(companyId)
+                  .first
+                  .then((company) {
+                    if (company == null || vm.isDisposed) return;
+                    vm.seedCompanyInclusiveTaxes(company.expenseInclusiveTaxes);
+                  })
+                  .catchError((Object _) {}),
+            );
+          });
+        }
+        return vm;
       },
       titleWhileLoading: (ctx) =>
           existingId == null ? ctx.tr('new_recurring_expense') : ctx.tr('edit'),

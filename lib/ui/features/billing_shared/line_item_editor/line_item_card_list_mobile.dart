@@ -37,6 +37,7 @@ class LineItemCardListMobile extends StatelessWidget {
     this.currencyId,
     this.onPickItems,
     this.onCreateTaskFromLineItem,
+    this.rowErrors,
   });
 
   /// Company scope used to look up the active [Formatter] so cost /
@@ -70,6 +71,12 @@ class LineItemCardListMobile extends StatelessWidget {
   /// table's equivalent lives in its per-row menu. Null on credit / recurring
   /// invoice / purchase order, where the button never renders.
   final ValueChanged<LineItem>? onCreateTaskFromLineItem;
+
+  /// Per-row server validation errors keyed by index in [items] — see
+  /// `LineItemEditor.rowErrors`. A card with any is outlined in the error
+  /// colour and names them, so a 422 on `line_items.2.cost` points at the
+  /// row on a phone too, not only in the desktop table.
+  final Map<int, Map<String, String>>? rowErrors;
 
   Future<void> _openEditor(BuildContext context, int index) async {
     final fmt = context.read<Services>().formatterIfReady(companyId);
@@ -188,6 +195,7 @@ class LineItemCardListMobile extends StatelessWidget {
           index: index,
           companyId: companyId,
           currencyId: currencyId,
+          errors: rowErrors?[index],
           onTap: () => _openEditor(context, index),
           onRemove: () => _remove(index),
           // A row that already IS a task can't be scheduled again.
@@ -292,6 +300,7 @@ class _ItemCard extends StatelessWidget {
     required this.index,
     required this.companyId,
     required this.currencyId,
+    required this.errors,
     required this.onTap,
     required this.onRemove,
     required this.onCreateTask,
@@ -301,6 +310,9 @@ class _ItemCard extends StatelessWidget {
   final int index;
   final String companyId;
   final String? currencyId;
+
+  /// This row's server errors (field → message), or null.
+  final Map<String, String>? errors;
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
@@ -326,10 +338,16 @@ class _ItemCard extends StatelessWidget {
         ? (summary.isEmpty ? context.tr('untitled') : summary)
         : item.productKey;
     final detail = '${fmt(item.cost)} × ${item.quantity}';
+    final errorText = errors == null || errors!.isEmpty
+        ? null
+        : errors!.values.join(' · ');
+    final errorColor = Theme.of(context).colorScheme.error;
     return Container(
       margin: EdgeInsets.only(bottom: InSpacing.md(context)),
       decoration: BoxDecoration(
-        border: Border.all(color: tokens.border),
+        border: Border.all(
+          color: errorText == null ? tokens.border : errorColor,
+        ),
         borderRadius: BorderRadius.circular(InRadii.r2),
         color: tokens.surface,
       ),
@@ -369,6 +387,15 @@ class _ItemCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: tokens.ink3, fontSize: 12),
                     ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        errorText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: errorColor, fontSize: 12),
+                      ),
+                    ],
                   ],
                 ),
               ),

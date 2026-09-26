@@ -33,6 +33,7 @@ class InvoiceEditViewModel extends BillingDocEditViewModel<Invoice>
          initialDraft: cloneFrom ?? existing ?? emptyInvoice(),
          original: existing,
          companyId: companyId,
+         prefilled: existing == null && cloneFrom != null,
        );
 
   final InvoiceRepository repo;
@@ -65,21 +66,6 @@ class InvoiceEditViewModel extends BillingDocEditViewModel<Invoice>
       errors['partial'] = [partialInvalidMessage];
     }
     return errors;
-  }
-
-  @override
-  bool draftIsNonEmpty() {
-    final d = draft;
-    return d.clientId.isNotEmpty ||
-        d.number.isNotEmpty ||
-        d.poNumber.isNotEmpty ||
-        d.publicNotes.isNotEmpty ||
-        d.privateNotes.isNotEmpty ||
-        d.terms.isNotEmpty ||
-        d.footer.isNotEmpty ||
-        d.lineItems.isNotEmpty ||
-        d.amount != Decimal.zero ||
-        d.discount != Decimal.zero;
   }
 
   @override
@@ -130,8 +116,6 @@ class InvoiceEditViewModel extends BillingDocEditViewModel<Invoice>
     }
   }
 
-  void resetToEmpty() => reset(emptyDraft: emptyInvoice());
-
   @override
   Invoice copyWithStampedTotals(
     Invoice draft, {
@@ -166,6 +150,7 @@ class InvoiceEditViewModel extends BillingDocEditViewModel<Invoice>
 
 /// The shared fields, written onto an [Invoice] — see [BillingDocWriter].
 final _invoiceWriter = BillingDocWriter<Invoice>(
+  empty: emptyInvoice,
   lineItems: (d, v) => d.copyWith(lineItems: v),
   invitations: (d, v) => d.copyWith(invitations: v),
   clientId: (d, v) => d.copyWith(clientId: v),

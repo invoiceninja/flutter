@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/app/shortcut_hint_controller.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/adaptive.dart';
@@ -163,6 +165,25 @@ class EntityEditScaffold<T> extends StatelessWidget {
   /// entity re-hydrates a false SaveFailedBanner on the next open. Awaited.
   final FutureOr<void> Function()? onSaveCleanup;
 
+  /// The Discard of the unsaved-changes guard: [resetToEmpty], and the save
+  /// that failed on this visit with it (`failedAttemptRowId`). The draft the
+  /// user threw away is that save's payload — a 5xx or a lost connection
+  /// leaves it `pending`, and it went out after Discard. Only a row still
+  /// `pending` or `dead`: one on the wire, or `unconfirmed`, waits for the
+  /// user in the Outbox. An edit form keeps its record — discarding the
+  /// failed create of a never-synced record takes it, and only the banner's
+  /// Discard asks first. Read before [resetToEmpty], which clears the id.
+  void _discardDraft(Services? services) {
+    final rowId = vm.failedAttemptRowId;
+    final keepRecord = !vm.isCreate;
+    resetToEmpty();
+    if (rowId == null || services == null) return;
+    final sync = services.sync;
+    unawaited(
+      sync.discardFailedSave(rowId, onlyIdle: true, keepRecord: keepRecord),
+    );
+  }
+
   Future<bool> _confirmDiscard(BuildContext context) async {
     if (!vm.isDirty) return true;
     return showDiscardChangesDialog(context);
@@ -312,11 +333,13 @@ class EntityEditScaffold<T> extends StatelessWidget {
     return UnsavedChangesScope(
       isDirty: () => vm.isDirty,
       source: vm,
-      onDiscard: resetToEmpty,
+      onDiscard: () =>
+          _discardDraft(context.mounted ? context.read<Services?>() : null),
       child: PopScope(
         canPop: !vm.isDirty,
         onPopInvokedWithResult: (didPop, _) async {
           if (didPop) return;
+          final services = context.read<Services?>();
           final shouldPop = await _confirmDiscard(context);
           if (!shouldPop) return;
           // Leave the VM clean before leaving: the navigation below re-enters
@@ -324,7 +347,7 @@ class EntityEditScaffold<T> extends StatelessWidget {
           // editor still-dirty and prompt a second time (the system-back /
           // Android twin of the chained-guard bug). Mirrors what
           // `_closePaneAnimated`'s up-front `confirmIfDirty` relies on.
-          if (vm.isDirty) resetToEmpty();
+          if (vm.isDirty) _discardDraft(services);
           if (!context.mounted) return;
           final router = GoRouter.of(context);
           if (router.canPop()) {

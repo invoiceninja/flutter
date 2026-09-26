@@ -13,6 +13,7 @@ import 'package:admin/ui/core/detail/standard_entity_action_items.dart';
 import 'package:admin/ui/core/detail/standard_entity_actions.dart';
 import 'package:admin/ui/core/sync/require_synced.dart';
 import 'package:admin/ui/core/widgets/notify.dart';
+import 'package:admin/ui/features/billing_shared/seed_billing_create_defaults.dart';
 import 'package:admin/ui/features/invoices/view_models/invoice_edit_view_model.dart';
 import 'package:admin/ui/features/products/widgets/tax_category_dialog.dart';
 import 'package:admin/ui/features/purchase_orders/view_models/purchase_order_edit_view_model.dart';
@@ -240,29 +241,49 @@ class ProductActions {
         if (!requireSynced(context, product.id)) return;
         // Stage a draft pre-seeded with a line item for this product. The
         // staged draft survives the cross-branch hop + create-screen reuse
-        // (a route `extra:`/query seed does not).
+        // (a route `extra:`/query seed does not). It carries the company's
+        // inclusive-tax mode: the edit screen seeds that only on a document
+        // with no priced line, and this one arrives with one.
+        final inclusive = await resolveCreateInclusiveTaxes(
+          services.settings,
+          companyId: companyId,
+        );
+        if (!context.mounted) return;
         goEntityCreateFullWidth(
           context,
           '/invoices',
           extra: emptyInvoice().copyWith(
+            usesInclusiveTaxes: inclusive,
             lineItems: [lineItemForProduct(product)],
           ),
         );
       case ProductAction.newQuote:
         if (!requireSynced(context, product.id)) return;
+        final inclusive = await resolveCreateInclusiveTaxes(
+          services.settings,
+          companyId: companyId,
+        );
+        if (!context.mounted) return;
         goEntityCreateFullWidth(
           context,
           '/quotes',
           extra: emptyQuote().copyWith(
+            usesInclusiveTaxes: inclusive,
             lineItems: [lineItemForProduct(product)],
           ),
         );
       case ProductAction.newPurchaseOrder:
         if (!requireSynced(context, product.id)) return;
+        final inclusive = await resolveCreateInclusiveTaxes(
+          services.settings,
+          companyId: companyId,
+        );
+        if (!context.mounted) return;
         goEntityCreateFullWidth(
           context,
           '/purchase_orders',
           extra: emptyPurchaseOrder().copyWith(
+            usesInclusiveTaxes: inclusive,
             lineItems: [lineItemForProduct(product)],
           ),
         );

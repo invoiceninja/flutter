@@ -87,6 +87,21 @@ class ExpenseEditScreen extends StatelessWidget {
             );
           });
         }
+        // A new expense takes the company's expense inclusive-tax default.
+        if (existing == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            unawaited(
+              services.company
+                  .watchCompany(companyId)
+                  .first
+                  .then((company) {
+                    if (company == null || vm.isDisposed) return;
+                    vm.seedCompanyInclusiveTaxes(company.expenseInclusiveTaxes);
+                  })
+                  .catchError((Object _) {}),
+            );
+          });
+        }
         return vm;
       },
       titleWhileLoading: (ctx) =>

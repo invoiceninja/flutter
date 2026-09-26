@@ -153,8 +153,10 @@ class RecentlyViewedController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Drop every company's recents from memory. Called from the logout fan-out
-  /// in `Services.build` (`onBeforeLogout`).
+  /// Drop every company's recents from memory. Called from `Services.build`'s
+  /// `onBeforeDataWipe` — i.e. only when the data goes (a destructive sign-out,
+  /// or a different identity signing in over kept data), never on a 401 /
+  /// idle re-lock, where the same user is coming back to the same nav_state.
   ///
   /// Storage being keyed by company makes cross-*company* isolation structural,
   /// which is why [_onSession] deliberately doesn't clear — but the cross-*user*

@@ -196,21 +196,35 @@ const _kSalvageMarkerName = '$_kDbFileName.salvage';
   );
 }
 
-/// The file name of the snapshot the salvage marker in [dir] names, when that
-/// snapshot is still on disk — or null: no marker, a marker naming a snapshot
-/// that never appeared, or one that can't be read.
-Future<String?> _pendingSalvageSnapshot(Directory dir) async {
+/// The salvage the marker in [dir] is holding for: the file name of the
+/// snapshot it names when that snapshot is still on disk, or — [unreadable] —
+/// a marker that exists but can't be read, so *some* snapshot is pending and
+/// which one is unknown. Neither when there is no marker, or it names a
+/// snapshot that never appeared.
+Future<({String? name, bool unreadable})> _pendingSalvageSnapshot(
+  Directory dir,
+) async {
+  const none = (name: null, unreadable: false);
+  final marker = File(p.join(dir.path, _kSalvageMarkerName));
+  final String text;
   try {
-    final marker = File(p.join(dir.path, _kSalvageMarkerName));
-    if (!await marker.exists()) return null;
-    final (:name, attempt: _) = _parseSalvageMarker(
-      await marker.readAsString(),
-    );
-    if (name.isEmpty) return null;
-    return await File(p.join(dir.path, name)).exists() ? name : null;
+    if (!await marker.exists()) return none;
+    text = await marker.readAsString();
   } catch (e) {
+    // Read as "nothing pending", a quarantine marked over it and the snapshot
+    // it named was left to the pruning.
     _log.warning('Could not read the salvage marker in ${dir.path}: $e');
-    return null;
+    return (name: null, unreadable: true);
+  }
+  try {
+    final (:name, attempt: _) = _parseSalvageMarker(text);
+    if (name.isEmpty) return none;
+    return await File(p.join(dir.path, name)).exists()
+        ? (name: name, unreadable: false)
+        : none;
+  } catch (e) {
+    _log.warning('Could not check the salvage snapshot in ${dir.path}: $e');
+    return none;
   }
 }
 
@@ -231,16 +245,17 @@ Future<String?> _pendingSalvageSnapshot(Directory dir) async {
 Future<String?> quarantineDatabaseFile(File file) async {
   final dir = file.parent;
   final pending = await _pendingSalvageSnapshot(dir);
+  final awaiting = pending.name != null || pending.unreadable;
   final snapshot = p.join(
     dir.path,
-    '$_kDbFileName.${pending == null ? 'broken' : 'unrecovered'}'
+    '$_kDbFileName.${awaiting ? 'unrecovered' : 'broken'}'
     '.${DateTime.now().millisecondsSinceEpoch}',
   );
   final moved = await file.exists();
   // Marked before the move: a crash in between leaves a marker naming a
   // snapshot that never appeared, which the reader drops — the other order
   // could leave a moved store nobody salvages.
-  if (moved && pending == null) {
+  if (moved && !awaiting) {
     await File(
       p.join(dir.path, _kSalvageMarkerName),
     ).writeAsString(p.basename(snapshot), flush: true);
@@ -298,7 +313,9 @@ final _brokenSnapshotName = RegExp(
 Future<void> pruneBrokenDbFiles(Directory dir, {int keep = 2}) async {
   try {
     if (!await dir.exists()) return;
-    final pending = await _pendingSalvageSnapshot(dir);
+    final (name: pending, :unreadable) = await _pendingSalvageSnapshot(dir);
+    // Which snapshot the marker holds for is unknown, so none of them may go.
+    if (unreadable) return;
     final snapshots = <int, List<File>>{};
     await for (final entity in dir.list()) {
       if (entity is! File) continue;
@@ -372,7 +389,13 @@ Future<QuarantinedStore?> readPendingSalvage(
 }) async {
   final marker = File(p.join(dir.path, _kSalvageMarkerName));
   if (!await marker.exists()) return null;
-  final (:name, :attempt) = _parseSalvageMarker(await marker.readAsString());
+  final String text;
+  try {
+    text = await marker.readAsString();
+  } catch (e) {
+    return _takeUnreadableMarker(dir, marker, e);
+  }
+  final (:name, :attempt) = _parseSalvageMarker(text);
   // Taken before the import, never after it: a crash between the import's
   // commit and the marker's removal would import these rows again on the
   // next launch, resurrecting outbox rows delivered in between. Losing the
@@ -404,6 +427,45 @@ Future<QuarantinedStore?> readPendingSalvage(
     source: await retainQuarantinedStore(snapshot.path),
     error: keyLost ? const DatabaseKeyLostException() : store.error,
   );
+}
+
+/// A marker that can't be read (not UTF-8, no permission) names a snapshot
+/// nobody can identify. Every `.broken` snapshot it could have named is kept
+/// out of the pruning, and the marker is taken, so the loss is reported once.
+/// Before, the read threw ahead of the marker's removal and every launch
+/// reported the same "couldn't be recovered" again.
+Future<QuarantinedStore?> _takeUnreadableMarker(
+  Directory dir,
+  File marker,
+  Object error,
+) async {
+  _log.warning('Could not read the salvage marker in ${dir.path}: $error');
+  final candidates = <int, String>{};
+  try {
+    await for (final entity in dir.list()) {
+      if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      final match = _brokenSnapshotName.firstMatch(name);
+      if (match == null || _kSidecarSuffixes.any(name.endsWith)) continue;
+      candidates[int.parse(match.group(1)!)] = entity.path;
+    }
+  } catch (e) {
+    _log.warning('Could not list the snapshots in ${dir.path}: $e');
+  }
+  // Kept before the marker goes: a crash in between leaves them kept and the
+  // marker to try again, never a marker gone with the snapshots prunable.
+  String? newest;
+  for (final ts in candidates.keys.toList()..sort()) {
+    newest = await retainQuarantinedStore(candidates[ts]!);
+  }
+  try {
+    await marker.delete();
+  } catch (e) {
+    // Reported now all the same: the next launch finds no `.broken` snapshot
+    // left to keep, so it says nothing rather than repeating this.
+    _log.warning('Could not remove the unreadable salvage marker: $e');
+  }
+  return newest == null ? null : QuarantinedStore(source: newest, error: error);
 }
 
 /// [readQuarantinedStore]'s read of one file with an explicit [key] (null

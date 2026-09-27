@@ -71,3 +71,6 @@ key.jks
 # store_services for its FOSS twin in the store build too.
 /pubspec_overrides.yaml
 /native/sqlite3mc/
+
+# Release notes drafts (CLAUDE.md § Release Notes)
+/release-notes-v*.md

@@ -443,6 +443,10 @@ class _SettingsEntityEditScaffoldState<T, VM extends GenericEditViewModel<T>>
     if (vm == null) return;
     final saved = await vm.save();
     if (!mounted) return;
+    if (saved == null && vm.lastSaveWasDiscarded) {
+      Notify.warning(context, context.tr('save_discarded_before_sent'));
+      return;
+    }
     if (saved == null) {
       // A rejected save used to be COMPLETELY silent here: the spinner
       // stopped, the button re-enabled, the row died in the outbox and the

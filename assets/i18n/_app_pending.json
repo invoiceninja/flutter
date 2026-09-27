@@ -1248,5 +1248,6 @@
   "local_data_copy_kept": "Kept :time \u00b7 :size",
   "local_data_copy_not_recovered": "Not fully recovered",
   "local_data_copy_delete_body": "This copy can't be recovered once it's deleted.",
-  "discard_unsaved_record_body": "This record was never saved to the server, so discarding its failed save removes it from this device, along with any unsynced changes that need it."
+  "discard_unsaved_record_body": "This record was never saved to the server, so discarding its failed save removes it from this device, along with any unsynced changes that need it.",
+  "save_discarded_before_sent": "This change was discarded before it was sent. Your edits are still here \u2014 save again to send them."
 }

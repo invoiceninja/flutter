@@ -736,7 +736,7 @@ When the user asks for "release notes" (or "releasenotes"), generate the notes f
    - Merge related commits into a single bullet.
    - When a commit references an issue/PR number (e.g. `#7`), link it inline: `[#7](https://github.com/invoiceninja/flutter/issues/7)`.
 
-4. **Output.** Print the version as the title followed by the bullet body, as markdown in chat, ready to paste into GitHub's release form.
+4. **Output.** Print the version as the title followed by the bullet body, as markdown in chat, ready to paste into GitHub's release form — **and** write the same text to `release-notes-vX.Y.Z.md` in the repo root (gitignored) so it can be copied.
 
 **Example output:**
 

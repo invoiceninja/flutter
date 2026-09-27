@@ -210,7 +210,9 @@ class EntityEditScaffold<T> extends StatelessWidget {
     final result = await vm.save();
     if (!context.mounted) return null;
     if (result == null) {
-      if (vm.fieldErrors.isNotEmpty) {
+      if (vm.lastSaveWasDiscarded) {
+        Notify.warning(context, context.tr('save_discarded_before_sent'));
+      } else if (vm.fieldErrors.isNotEmpty) {
         // Server rejected validation — let the screen pick up the freshly
         // created dead outbox row so the banner's Discard / Retry actions know
         // which row they act on. Fire-and-await; screen handles its own

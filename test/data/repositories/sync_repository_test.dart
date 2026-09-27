@@ -3178,6 +3178,54 @@ void main() {
       expect(result.message, contains('Connection lost'));
     });
 
+    group('a row discarded while on the wire', () {
+      /// Await an update whose dispatch blocks until [finish] completes, and
+      /// discard it once the request is out.
+      Future<SyncRowOutcome> discardMidAttempt(
+        Future<void> Function() finish,
+      ) async {
+        final onWire = Completer<void>();
+        final engine = makeEngine(
+          _CallbackDispatcher((row) async {
+            onWire.complete();
+            await finish();
+          }),
+        );
+        final rowId = await enqueueClient(entityId: 'c1');
+        final waiting = engine.awaitRow(
+          rowId: rowId,
+          companyId: 'co',
+          timeout: const Duration(seconds: 5),
+          pollInterval: const Duration(milliseconds: 5),
+        );
+        await onWire.future;
+        await engine.discardOutboxRow(rowId);
+        return (await waiting).outcome;
+      }
+
+      test('is a success when the attempt then lands — the change reached '
+          'the server', () async {
+        final release = Completer<void>();
+        final outcome = discardMidAttempt(() => release.future);
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        release.complete();
+
+        expect(await outcome, SyncRowOutcome.success);
+      });
+
+      test('is discarded when the attempt then fails', () async {
+        final release = Completer<void>();
+        final outcome = discardMidAttempt(() async {
+          await release.future;
+          throw const ServerException(500, 'boom');
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        release.complete();
+
+        expect(await outcome, SyncRowOutcome.discarded);
+      });
+    });
+
     group('a save parked behind an unsynced parent', () {
       const parent = 'tmp_00000000-0000-4000-8000-0000000000c1';
       const child = 'tmp_00000000-0000-4000-8000-0000000000c2';
@@ -3236,6 +3284,107 @@ void main() {
           expect(disp.dispatches, 0, reason: 'nothing was sent');
         },
       );
+
+      /// The parent create parked far ahead (on its way, never sent) and a
+      /// save that references it; returns (parent row, child row).
+      Future<(int, int)> queueParentAndChild() async {
+        final parentRow = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: parent,
+            mutationKind: 'create',
+            payload: jsonEncode({'id': parent}),
+            idempotencyKey: 'k-parent',
+            nextAttemptAt: 1 << 50,
+            createdAt: 0,
+          ),
+        );
+        final childRow = await db.outboxDao.enqueue(
+          OutboxCompanion.insert(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: child,
+            mutationKind: 'create',
+            payload: jsonEncode({'id': child, 'parent_id': parent}),
+            idempotencyKey: 'k-child',
+            nextAttemptAt: 0,
+            createdAt: 0,
+          ),
+        );
+        return (parentRow, childRow);
+      }
+
+      /// Await [rowId], run [meanwhile] once the wait is polling.
+      Future<SyncRowOutcome> awaitWhile(
+        SyncRepository engine,
+        int rowId,
+        Future<void> Function() meanwhile,
+      ) async {
+        final waiting = engine.awaitRow(
+          rowId: rowId,
+          companyId: 'co',
+          timeout: const Duration(seconds: 5),
+          pollInterval: const Duration(milliseconds: 5),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        await meanwhile();
+        return (await waiting).outcome;
+      }
+
+      test('is reported as discarded, not saved, when the user discards it '
+          'while it waits', () async {
+        // A row gone from the outbox read as landed, so a save discarded from
+        // the Outbox during the wait told its form "Saved".
+        final (_, rowId) = await queueParentAndChild();
+        final disp = _ProgrammableDispatcher();
+        final engine = makeEngine(disp);
+
+        final outcome = await awaitWhile(
+          engine,
+          rowId,
+          () => engine.discardOutboxRow(rowId),
+        );
+
+        expect(outcome, SyncRowOutcome.discarded);
+        expect(disp.dispatches, 0);
+      });
+
+      test('is reported as discarded when discarding its parent takes it '
+          'too', () async {
+        final (parentRow, rowId) = await queueParentAndChild();
+        final engine = makeEngine(_ProgrammableDispatcher());
+
+        final outcome = await awaitWhile(
+          engine,
+          rowId,
+          () => engine.discardOutboxRow(parentRow),
+        );
+
+        expect(await rowById(rowId), isNull, reason: 'the cascade took it');
+        expect(outcome, SyncRowOutcome.discarded);
+      });
+
+      test('is not reported as discarded when a newer save of the record '
+          'replaced it — that save carries it', () async {
+        final (_, rowId) = await queueParentAndChild();
+        final engine = makeEngine(_ProgrammableDispatcher());
+
+        // What `dedupPendingMutations` does to it when the record is saved
+        // again.
+        final outcome = await awaitWhile(
+          engine,
+          rowId,
+          () => db.outboxDao.deletePendingForEntity(
+            companyId: 'co',
+            entityType: 'client',
+            entityId: child,
+            mutationKind: 'create',
+          ),
+        );
+
+        expect(outcome, SyncRowOutcome.timeout);
+      });
 
       test('is not reported once the parent has just landed', () async {
         // Read before the landing, the save still carries the parent's temp

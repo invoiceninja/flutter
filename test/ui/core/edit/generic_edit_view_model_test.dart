@@ -400,6 +400,34 @@ void main() {
       },
     );
 
+    test('online + discarded → returns null with the draft kept, and says it '
+        'was discarded rather than saved', () async {
+      // The row left the outbox without landing — discarded from the Outbox
+      // while the form waited. It used to read as a success: "Saved", and the
+      // form popped on an edit that was never sent.
+      final vm = _FakeEditVM(
+        initialDraft: 'tmp_AAA',
+        sync: sync,
+        connectivity: ConnectivityWatcher.fixed(online: true),
+        companyId: 'co',
+      );
+      sync.handler = (_) =>
+          const SyncRowResult(outcome: SyncRowOutcome.discarded);
+
+      final result = await vm.save();
+
+      expect(result, isNull);
+      expect(vm.lastSaveWasDiscarded, isTrue);
+      expect(vm.submitError, isNull, reason: 'not a server rejection');
+      expect(vm.fieldErrors, isEmpty);
+      expect(vm.recoveryTempId, 'tmp_AAA', reason: 'saving again reuses it');
+
+      sync.handler = (_) =>
+          const SyncRowResult(outcome: SyncRowOutcome.timeout);
+      await vm.save();
+      expect(vm.lastSaveWasDiscarded, isFalse, reason: 'reset per attempt');
+    });
+
     test(
       'online + serverError → returns null, submitError has the bare message '
       '(no ApiException: prefix), recoveryTempId preserved',

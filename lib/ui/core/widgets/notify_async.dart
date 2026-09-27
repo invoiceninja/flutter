@@ -82,6 +82,9 @@ Future<void> runQueuedActionWithNotify(
       case SyncRowOutcome.success:
       case SyncRowOutcome.timeout:
         Notify.success(context, successMsg);
+      case SyncRowOutcome.discarded:
+        // Gone from the Outbox before it was sent: nothing happened.
+        Notify.warning(context, context.tr('save_discarded_before_sent'));
       case SyncRowOutcome.serverError:
       case SyncRowOutcome.validationFailed:
         break; // surfaced by the shell SyncEventListener (modal while online)

@@ -206,6 +206,11 @@ class _ClientCreateDialogState extends State<_ClientCreateDialog>
     final saved = await _vm.save();
     if (!mounted) return;
 
+    if (saved == null && _vm.lastSaveWasDiscarded) {
+      Notify.warning(context, context.tr('save_discarded_before_sent'));
+      return;
+    }
+
     if (saved == null && _vm.unconfirmedRowId != null) {
       // The create may already have gone through — the server can hold this
       // client under an id the device never learned. Saving again could make

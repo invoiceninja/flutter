@@ -297,7 +297,9 @@ class _UserEditBody extends StatelessWidget {
       // the inline errors are readable, but never end on silence: a 5xx or a
       // dropped connection has no field to hang itself on.
       if (saved == null) {
-        if (vm.fieldErrors.isEmpty) {
+        if (vm.lastSaveWasDiscarded) {
+          Notify.warning(context, context.tr('save_discarded_before_sent'));
+        } else if (vm.fieldErrors.isEmpty) {
           Notify.error(context, vm.submitError ?? context.tr('could_not_save'));
         }
         return;

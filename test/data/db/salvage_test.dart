@@ -861,6 +861,51 @@ void main() {
       expect(marker().existsSync(), isFalse);
     });
 
+    test('an unreadable mark is reported once, with every snapshot it could '
+        'name kept', () async {
+      // The read threw before the mark was taken, so every launch after it
+      // reported the same "couldn't be recovered" again.
+      await seedEncryptedStore();
+      final snapshot = await quarantineDatabaseFile(file);
+      marker().writeAsBytesSync(const [0xff, 0xfe, 0xfd]); // not UTF-8
+
+      final store = await readPendingSalvage(dir, key: () async => key);
+
+      expect(store?.readable, isFalse);
+      expect(p.basename(store!.source), contains('.unrecovered.'));
+      expect(File(store.source).existsSync(), isTrue);
+      expect(
+        File(snapshot!).existsSync(),
+        isFalse,
+        reason: 'moved out of the pruning, not left as a .broken copy',
+      );
+      expect(marker().existsSync(), isFalse);
+      expect(
+        await readPendingSalvage(dir, key: () async => key),
+        isNull,
+        reason: 'reported once, not on every launch',
+      );
+    });
+
+    test('a quarantine never marks over an unreadable mark', () async {
+      // Read as "nothing pending", the mark was overwritten with the new
+      // snapshot's name and the one it named was left to the pruning.
+      await seedEncryptedStore();
+      final first = await quarantineDatabaseFile(file);
+      const unreadable = [0xff, 0xfe, 0xfd];
+      marker().writeAsBytesSync(unreadable);
+      final fresh = AppDatabase(encrypted(file, key));
+      await fresh.customSelect('SELECT 1').get();
+      await fresh.close();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      final second = await quarantineDatabaseFile(file);
+
+      expect(marker().readAsBytesSync(), unreadable);
+      expect(p.basename(second!), contains('.unrecovered.'));
+      expect(File(first!).existsSync(), isTrue);
+    });
+
     test('an unreadable snapshot is kept, and a lost key says so', () async {
       await seedEncryptedStore();
       await quarantineDatabaseFile(file);
@@ -919,6 +964,25 @@ void main() {
 
       expect(File(marked!).existsSync(), isTrue);
       expect(newer.existsSync(), isFalse);
+    });
+
+    test('pruning deletes nothing while the mark is unreadable', () async {
+      // Which snapshot it holds for is unknown, so any of them may be the one.
+      await seedEncryptedStore();
+      final marked = await quarantineDatabaseFile(file);
+      marker().writeAsBytesSync(const [0xff, 0xfe, 0xfd]);
+      final newer = File(
+        p.join(
+          dir.path,
+          'invoiceninja.sqlite.broken.'
+          '${DateTime.now().millisecondsSinceEpoch + 60000}',
+        ),
+      )..writeAsStringSync('x');
+
+      await pruneBrokenDbFiles(dir, keep: 0);
+
+      expect(File(marked!).existsSync(), isTrue);
+      expect(newer.existsSync(), isTrue);
     });
 
     test('a table that fails to read is left behind, not taken for an empty '

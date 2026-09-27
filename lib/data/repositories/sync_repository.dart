@@ -114,6 +114,11 @@ enum SyncRowOutcome {
   /// checks and chooses Send again or Discard ([OutboxState.unconfirmed]).
   /// [SyncRowResult.unconfirmedRowId] names the row that needs them.
   unconfirmed,
+
+  /// The user discarded the row while it was awaited — from the Outbox, a
+  /// banner, or by discarding a parent it depended on — and it never landed.
+  /// Nothing was saved; the caller keeps the user's draft.
+  discarded,
 }
 
 /// Result of [SyncRepository.awaitRow]. [fieldErrors] is populated only for
@@ -225,6 +230,42 @@ class SyncRepository {
   /// online-save timeout popped the screen) is correctly treated as unhandled
   /// and does surface a modal.
   final Set<int> _callerDisplayedRows = {};
+
+  /// Rows an [awaitRow] is polling, whatever its `callerWillDisplayFailure`,
+  /// each with its record's [_entityKey] once a poll has read it.
+  final Map<int, String?> _awaitedRows = {};
+
+  /// Why an awaited row left the outbox. A row gone is otherwise just gone:
+  /// [awaitRow] read every disappearance as a success, so a save the user
+  /// discarded from the Outbox while its form waited said "Saved" and popped.
+  /// Both marks are made *before* the delete, so a poll reading the deleted
+  /// row finds them.
+  final Set<int> _landedAwaitedRows = {};
+  final Set<int> _discardedAwaitedRows = {};
+
+  /// Rows claimed and on the wire. One discarded mid-attempt is already gone
+  /// from the outbox, and whether it landed is the attempt's to say.
+  final Set<int> _dispatchingRows = {};
+
+  static String _entityKey(String companyId, String type, String id) =>
+      '$companyId\u0000$type\u0000$id';
+
+  void _noteLanded(int rowId) {
+    if (_awaitedRows.containsKey(rowId)) _landedAwaitedRows.add(rowId);
+  }
+
+  void _noteDiscarded(int rowId) {
+    if (_awaitedRows.containsKey(rowId)) _discardedAwaitedRows.add(rowId);
+  }
+
+  /// [_noteDiscarded] for every awaited row of one record, ahead of a
+  /// `deleteAllForEntity`.
+  void _noteDiscardedEntity(String companyId, String type, String id) {
+    final key = _entityKey(companyId, type, id);
+    for (final MapEntry(key: rowId, value: rowKey) in _awaitedRows.entries) {
+      if (rowKey == key) _discardedAwaitedRows.add(rowId);
+    }
+  }
 
   Future<void> dispose() => _events.close();
 
@@ -534,6 +575,7 @@ class SyncRepository {
     void Function(String companyId) kickDrain,
   ) async {
     final id = row.id;
+    _noteDiscarded(id);
     if (row.state == 'in_flight') {
       await db.outboxDao.deleteRow(id);
       // Reconcile the optimistic is_dirty flag on an in_flight UPDATE/reorder:
@@ -572,6 +614,7 @@ class SyncRepository {
       entityType: row.entityType,
       entityId: row.entityId,
     );
+    _noteDiscardedEntity(row.companyId, row.entityType, row.entityId);
     await db.outboxDao.deleteAllForEntity(
       companyId: row.companyId,
       entityType: row.entityType,
@@ -718,6 +761,7 @@ class SyncRepository {
           entityType: dep.entityType,
           entityId: dep.entityId,
         );
+        _noteDiscardedEntity(companyId, dep.entityType, dep.entityId);
         await db.outboxDao.deleteAllForEntity(
           companyId: companyId,
           entityType: dep.entityType,
@@ -925,8 +969,13 @@ class SyncRepository {
   ///     queued behind an `unconfirmed` row for the same record, which no
   ///     drain sends until the user decides. Returned at once rather than
   ///     after [timeout]: waiting cannot change it.
+  ///   * [SyncRowOutcome.discarded] — the user discarded the row, and it did
+  ///     not land.
   ///   * [SyncRowOutcome.timeout] — [timeout] elapsed with the row still
   ///     pending or in_flight; caller should fall back to background sync.
+  ///     Also a row a newer save of the record replaced
+  ///     (`dedupPendingMutations`): it goes with that save, which is still on
+  ///     its way.
   Future<SyncRowResult> awaitRow({
     required int rowId,
     required String companyId,
@@ -946,6 +995,8 @@ class SyncRepository {
     // return, so a *later* background death (e.g. after the online-save timeout
     // popped the screen) is treated as unhandled and does surface a modal.
     if (callerWillDisplayFailure) _callerDisplayedRows.add(rowId);
+    // Before the first drain kick, so no landing can slip past the mark.
+    _awaitedRows[rowId] = null;
     // Kick the drain right away so an idle company starts processing without
     // waiting for the first poll. Subsequent kicks happen inside the loop.
     unawaited(drainOnce(companyId: companyId));
@@ -953,8 +1004,26 @@ class SyncRepository {
       while (true) {
         final row = await db.outboxDao.byId(rowId);
         if (row == null) {
-          return const SyncRowResult(outcome: SyncRowOutcome.success);
+          if (_landedAwaitedRows.contains(rowId)) {
+            return const SyncRowResult(outcome: SyncRowOutcome.success);
+          }
+          // Discarded while on the wire: the attempt's outcome decides.
+          if (_dispatchingRows.contains(rowId) && stopwatch.elapsed < timeout) {
+            await Future<void>.delayed(pollInterval);
+            continue;
+          }
+          if (_discardedAwaitedRows.contains(rowId)) {
+            return const SyncRowResult(outcome: SyncRowOutcome.discarded);
+          }
+          // Replaced by a newer save of the record, which carries it and is
+          // still on its way — or the attempt outlived the deadline.
+          return const SyncRowResult(outcome: SyncRowOutcome.timeout);
         }
+        _awaitedRows[rowId] ??= _entityKey(
+          row.companyId,
+          row.entityType,
+          row.entityId,
+        );
         if (row.state == 'dead') {
           if (row.lastStatusCode == 422) {
             return SyncRowResult(
@@ -1033,6 +1102,9 @@ class SyncRepository {
       }
     } finally {
       _callerDisplayedRows.remove(rowId);
+      _awaitedRows.remove(rowId);
+      _landedAwaitedRows.remove(rowId);
+      _discardedAwaitedRows.remove(rowId);
     }
   }
 
@@ -1163,6 +1235,7 @@ class SyncRepository {
           'was left in flight after its response was applied; retiring it '
           'instead of re-sending a duplicate',
         );
+        _noteLanded(row.id);
         await db.outboxDao.deleteRow(row.id);
         continue;
       }
@@ -1589,8 +1662,10 @@ class SyncRepository {
       sourceEntityType: row.entityType,
       sourceEntityId: row.entityId,
     )..offlineBeforeSend = !await _probablyOnline();
+    _dispatchingRows.add(row.id);
     try {
       await scope.run(() => handlers.dispatcher.dispatch(row: row, kind: kind));
+      _noteLanded(row.id);
       await db.outboxDao.deleteRow(row.id);
       return true;
     } catch (e, st) {
@@ -1604,6 +1679,8 @@ class SyncRepository {
       // may send the row again.
       if (scope.committed) return _settleCommitted(row, kind, e, st);
       return _settleFailed(row, handlers, kind, scope, e, st);
+    } finally {
+      _dispatchingRows.remove(row.id);
     }
   }
 
@@ -1654,6 +1731,7 @@ class SyncRepository {
         entityType: row.entityType,
         entityId: row.entityId,
       );
+      _noteDiscardedEntity(row.companyId, row.entityType, row.entityId);
       await db.outboxDao.deleteAllForEntity(
         companyId: row.companyId,
         entityType: row.entityType,
@@ -1739,6 +1817,7 @@ class SyncRepository {
       );
       return false;
     }
+    _noteLanded(row.id);
     await db.outboxDao.deleteRow(row.id);
     await _reconcileDiscardedDirty(row);
     final handlers = registry.byWireName(row.entityType);

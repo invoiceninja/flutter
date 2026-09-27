@@ -157,6 +157,15 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
   /// later when the row finally 422s. Reset on every save attempt.
   bool get lastSaveWasOptimistic => _lastSaveWasOptimistic;
 
+  bool _lastSaveWasDiscarded = false;
+
+  /// True when the most recent `save()` returned null because its outbox row
+  /// was discarded (from the Outbox, or by a discarded parent's cascade) while
+  /// the online wait was polling it: nothing was saved, and the draft is kept
+  /// for the user to save again. It used to read as a success and pop the
+  /// form on "Saved". Reset on every save attempt.
+  bool get lastSaveWasDiscarded => _lastSaveWasDiscarded;
+
   bool _disposed = false;
 
   /// Latches in [dispose] so the `save()` finally block (which can run
@@ -650,6 +659,7 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
     _fieldErrors = const {};
     _localValidationOnly = false;
     _lastSaveWasOptimistic = false;
+    _lastSaveWasDiscarded = false;
     _clearUnconfirmedState();
     // Note: `_deadOutboxRowId` deliberately survives `save()` entry — the
     // screen's `onSaved` callback reads it to delete the prior dead row
@@ -692,6 +702,13 @@ abstract class GenericEditViewModel<T> extends ChangeNotifier {
           switch (outcome.outcome) {
             case SyncRowOutcome.success:
               break;
+            case SyncRowOutcome.discarded:
+              // Nothing was saved. The form stays open, dirty, on its draft.
+              // A dead row it opened onto went with this save's row, as in
+              // the unconfirmed arm below.
+              _lastSaveWasDiscarded = true;
+              _deadOutboxRowId = null;
+              return null;
             case SyncRowOutcome.timeout:
               // Optimistic fallback — local Drift row is the user's draft,
               // outbox keeps trying in the background. Flag for the scaffold

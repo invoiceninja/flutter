@@ -428,6 +428,16 @@ builder beside `CallLogPrompter`, now says it once, after the first frame:
 - **Once per launch, not once per widget.** `LocalDataNoticeSlot` is take-once, and it lives in
   `_InvoiceNinjaAppState`, so a remounted notice finds it already taken. The guard used to
   live in the notice's own State, and a remount replaced that State.
+- **Once per reset, not once per launch — even when the salvage marker can't be read.** The
+  marker (`invoiceninja.sqlite.salvage`) was read before it was taken, so a marker that threw
+  on the read (not UTF-8, no permission) stayed. Every later launch reported
+  `LocalDataUnrecoverable` again. `readPendingSalvage` now hands an unreadable marker to
+  `_takeUnreadableMarker`, which keeps every `.broken` snapshot it could have named as
+  `.unrecovered`, then takes the marker. While such a marker stands,
+  `_pendingSalvageSnapshot` reports it as `unreadable`: a quarantine never marks over it (the
+  store it moves goes straight to `.unrecovered`), and `pruneBrokenDbFiles` deletes nothing.
+  Read as "nothing pending", it let the snapshot holding the unsynced work be pruned. Pinned
+  by `test/data/db/salvage_test.dart` › an unreadable mark….
 
 **The copies a reset keeps leave the device only through the user.** Device Settings → Data
 lists every kept copy — the recent `.broken.<ts>` snapshots and every `.unrecovered.<ts>` one —

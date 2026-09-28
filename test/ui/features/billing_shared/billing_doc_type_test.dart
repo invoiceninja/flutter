@@ -134,6 +134,13 @@ void main() {
         p: false,
         r: false,
       });
+      expect(of((t) => t.offersTasksTable), {
+        i: true,
+        q: true,
+        c: false,
+        p: false,
+        r: true,
+      });
     });
 
     test('terms / footer defaults, and the recurring invoice has none', () {

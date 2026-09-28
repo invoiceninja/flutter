@@ -1,36 +1,49 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:admin/app/design_tokens.dart';
+import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_type.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_editor.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_table_desktop.dart';
 import 'package:admin/ui/features/billing_shared/view_models/billing_doc_edit_view_model.dart';
 
-/// Items-section wrapper that conditionally surfaces a TabBar over the
-/// `LineItemEditor` when the draft has task or expense lines. The user
-/// requested this on `invoice/quote/credit/recurring` edit screens so a
-/// mixed-type line-item list (some products, some tasks) can be browsed
-/// per type rather than as one long interleaved list.
+/// Items-section wrapper that surfaces a Products / Tasks / Expenses TabBar
+/// over the `LineItemEditor` on `invoice/quote/credit/recurring` edit screens,
+/// so a mixed-type line-item list can be browsed per type rather than as one
+/// long interleaved list — and so an hourly line can be typed at all.
 ///
 /// Modes:
-///   * **No tasks AND no expenses present** → pass-through to a single
-///     `LineItemEditor` over the full list. Today's UX, unchanged.
-///   * **Any task OR expense present** → renders a `TabBar` above an
-///     `IndexedStack` of three `LineItemEditor` instances (one per type).
-///     Each editor sees the filtered subset for its type. Edits are
-///     merged back into the full list (via [mergeBackByType]) preserving
-///     the relative position of rows in the other types — see the
-///     merge-back doctests below.
+///   * **Only products, and no Tasks tab on offer** → one `LineItemEditor`
+///     over the full list, no tab chrome.
+///   * **Any task or expense line present, or the company's "Show Tasks
+///     Table" setting on a document that [offerTasksTab]s** → a `TabBar`
+///     above one `LineItemEditor` per type. Each editor sees the filtered
+///     subset for its type. Edits are merged back into the full list (via
+///     [mergeBackByType]) preserving the relative position of rows in the
+///     other types — see the merge-back doctests below.
 ///
-/// All three editor instances are mounted (offstage when their tab isn't
-/// active) so cell focus / cursor position / drag state survive tab
-/// switching. Each editor's desktop `LineItemTableDesktopController` is
-/// registered with `vm.addFlushHook(...)` so a Save click — or opening the
-/// line-item picker — flushes every editor's debounced text-field edits
-/// regardless of which tab is active. The wrapper registers
-/// `vm.stripEmptyLineItems` exactly once, as a save-only before-save hook.
+/// A Tasks-tab row is **hourly**: its new rows are `type_id` 2, which is what
+/// puts it in the PDF's task table, and its columns read Service / Rate /
+/// Hours. Before `show_tasks_table` was read here the tab only appeared once
+/// a task had been picked, so a user who bills by the hour without the Tasks
+/// module had no way to write one — and flipping the setting did nothing.
+///
+/// Every visible tab's editor is mounted (offstage when its tab isn't active)
+/// so cell focus / cursor position / drag state survive tab switching. Each
+/// editor's desktop `LineItemTableDesktopController` is registered with
+/// `vm.addFlushHook(...)` so a Save click — or opening the line-item picker —
+/// flushes every editor's debounced text-field edits regardless of which tab
+/// is active. The wrapper registers `vm.stripEmptyLineItems` exactly once, as
+/// a save-only before-save hook.
 ///
 /// **Invariant: [onChanged] must write through to [vm]'s draft.** The merge-back
 /// reads `vm.lineItemsOf(vm.draft)` rather than [lineItems] so that a Save —
@@ -53,6 +66,7 @@ class BillingDocItemsTabs extends StatefulWidget {
     required this.rowErrors,
     required this.onPickItems,
     this.showStockQuantity = false,
+    this.offerTasksTab = false,
     this.onCreateTaskFromLineItem,
   });
 
@@ -70,6 +84,12 @@ class BillingDocItemsTabs extends StatefulWidget {
   /// tab's product typeahead. Forwarded to the products `LineItemEditor`.
   final bool showStockQuantity;
 
+  /// This document keeps a Tasks tab when the company's "Show Tasks Table"
+  /// (`show_tasks_table`) is on, even with no hourly line yet —
+  /// `BillingDocType.offersTasksTable`. A document that already has one shows
+  /// the tab whatever this says.
+  final bool offerTasksTab;
+
   /// Invoice / quote hosts only — schedule a line's work as a dated task
   /// (invoiceninja/flutter#88). Forwarded to ALL THREE tabs: an expense line is
   /// still schedulable, and the "already a task" gate lives at the row, so one
@@ -82,10 +102,18 @@ class BillingDocItemsTabs extends StatefulWidget {
 
 enum _LineKind { products, tasks, expenses }
 
-bool _isProductLine(LineItem li) =>
-    (li.taskId ?? '').isEmpty && (li.expenseId ?? '').isEmpty;
-bool _isTaskLine(LineItem li) => (li.taskId ?? '').isNotEmpty;
-bool _isExpenseLine(LineItem li) => (li.expenseId ?? '').isNotEmpty;
+// A strict partition — every line is exactly one kind, which `mergeBackByType`
+// relies on. Keyed on the TYPE as well as the link: a free-form hourly line
+// (`type_id` 2, no `task_id`) is a Tasks line — the server prints it in the
+// PDF's task table. Expense lines are `standard` + `expense_id`; the only
+// type-6 line this app makes is the desktop row-menu clone of one, which drops
+// the link and is stamped type 6 so it stays in the Expenses tab.
+bool _isExpenseLine(LineItem li) =>
+    (li.expenseId ?? '').isNotEmpty || li.typeId == LineItemType.expense;
+bool _isTaskLine(LineItem li) =>
+    !_isExpenseLine(li) &&
+    ((li.taskId ?? '').isNotEmpty || li.typeId == LineItemType.task);
+bool _isProductLine(LineItem li) => !_isExpenseLine(li) && !_isTaskLine(li);
 
 bool _predicate(_LineKind kind, LineItem li) {
   switch (kind) {
@@ -97,6 +125,13 @@ bool _predicate(_LineKind kind, LineItem li) {
       return _isExpenseLine(li);
   }
 }
+
+/// Non-blank lines per kind. Blank rows are the desktop table's placeholder
+/// and a just-added row nobody has typed into — neither is "a line was added".
+Map<_LineKind, int> _countByKind(List<LineItem> items) => {
+  for (final kind in _LineKind.values)
+    kind: items.where((li) => !li.isBlank && _predicate(kind, li)).length,
+};
 
 /// Pure helper: fold an edited subset back into the full list, dropping
 /// removed rows, preserving the rows of other kinds at their original
@@ -170,10 +205,38 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
   final _expensesCtl = LineItemTableDesktopController();
 
   TabController? _tabCtl;
+
+  /// The kinds [_tabCtl] was built for, in tab order. Compared as a LIST, not
+  /// a count: Tasks leaving as Expenses arrives keeps the length and changes
+  /// what every index means.
+  List<_LineKind> _tabs = const [_LineKind.products];
+
+  /// A remembered tab that isn't on offer yet — Tasks with no hourly line,
+  /// before the company's `show_tasks_table` has landed. Consumed by the first
+  /// company event, so it can't fire later as a surprise jump.
+  _LineKind? _restoreOnCompany;
   VoidCallback? _unregisterProductsFlush;
   VoidCallback? _unregisterTasksFlush;
   VoidCallback? _unregisterExpensesFlush;
   VoidCallback? _unregisterStrip;
+
+  /// The company's `show_tasks_table`. Read from a subscription rather than a
+  /// `StreamBuilder` because it changes the TAB SET, and the tab controller
+  /// is rebuilt in exactly one place ([_syncTabs]). Seeded from the repo's
+  /// first-frame `peek` so the tab bar is there on the first frame instead of
+  /// dropping everything below it a frame later; the subscription owns the
+  /// value from its first event. When there is no seed the row lands late, so
+  /// the widget tree keeps one shape either way (see [build]) — the tab bar
+  /// arriving must not remount the products editor under it.
+  StreamSubscription<Company?>? _companySub;
+  bool _showTasksTable = false;
+
+  /// Set when one of this widget's own editors changed the lines, and consumed
+  /// by the next [didUpdateWidget]. Only lines added from OUTSIDE — the picker
+  /// writes through `replaceLineItems` directly — move the view; an edit made
+  /// in a tab (a clone, a row whose debounce commits after the user already
+  /// switched tabs) must not yank them anywhere.
+  bool _ownEdit = false;
 
   // Cached so we can detect when the visible-tab set changes.
   bool _hasTasks = false;
@@ -184,7 +247,16 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     super.initState();
     _hasTasks = widget.lineItems.any(_isTaskLine);
     _hasExpenses = widget.lineItems.any(_isExpenseLine);
-    _rebuildTabController(jumpTo: 0);
+    _showTasksTable =
+        context
+            .read<Services>()
+            .company
+            .peek(companyId: widget.companyId, id: widget.companyId)
+            ?.showTasksTable ??
+        false;
+    _tabs = _visibleTabs();
+    _rebuildTabController(jumpTo: _tabs.indexOf(_initialKind()));
+    _listenToCompany();
     // Flush hooks, not before-save hooks: the line-item picker commits them
     // too before it reads the list. Stripping blank rows stays save-only.
     _unregisterProductsFlush = widget.vm.addFlushHook(
@@ -199,62 +271,127 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     );
   }
 
+  /// The tab to open on: the one this document last showed (the narrow
+  /// layout's `TabBarView` rebuilds this widget whenever the user comes back
+  /// from another tab), else Tasks for a document that bills only hours —
+  /// admin-portal's rule — else Products. Mount-time only: deleting the last
+  /// product line later must not yank the user across to Tasks.
+  _LineKind _initialKind() {
+    final remembered = _LineKind.values.asNameMap()[widget.vm.itemsTab];
+    if (remembered != null) {
+      if (_tabs.contains(remembered)) return remembered;
+      _restoreOnCompany = remembered;
+    }
+    if (_hasTasks && !widget.lineItems.any(_isProductLine)) {
+      return _LineKind.tasks;
+    }
+    return _LineKind.products;
+  }
+
+  void _listenToCompany() {
+    _companySub?.cancel();
+    _companySub = context
+        .read<Services>()
+        .company
+        .watchCompany(widget.companyId)
+        .listen((company) {
+          if (!mounted) return;
+          final restore = _restoreOnCompany;
+          _restoreOnCompany = null;
+          final show = company?.showTasksTable ?? false;
+          if (show == _showTasksTable) return;
+          setState(() {
+            _showTasksTable = show;
+            _syncTabs(follow: restore);
+          });
+        });
+  }
+
   @override
   void didUpdateWidget(BillingDocItemsTabs oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final hasTasksNow = widget.lineItems.any(_isTaskLine);
-    final hasExpensesNow = widget.lineItems.any(_isExpenseLine);
-    if (hasTasksNow != _hasTasks || hasExpensesNow != _hasExpenses) {
-      // Tab set changed (e.g. user deleted the last task line). Remap
-      // the controller so the count matches and clamp the active index
-      // into range.
-      final prevKind = _activeKindOrNull();
-      _hasTasks = hasTasksNow;
-      _hasExpenses = hasExpensesNow;
-      final visible = _visibleTabs();
-      var nextIdx = 0;
-      if (prevKind != null) {
-        final newIdx = visible.indexOf(prevKind);
-        if (newIdx >= 0) nextIdx = newIdx;
-      }
-      _rebuildTabController(jumpTo: nextIdx);
+    if (oldWidget.companyId != widget.companyId) _listenToCompany();
+    _hasTasks = widget.lineItems.any(_isTaskLine);
+    _hasExpenses = widget.lineItems.any(_isExpenseLine);
+    final ownEdit = _ownEdit;
+    _ownEdit = false;
+    _syncTabs(
+      follow: ownEdit
+          ? null
+          : _grownKind(oldWidget.lineItems, widget.lineItems),
+    );
+  }
+
+  /// The one kind that gained lines between [before] and [after], if exactly
+  /// one did. Picking tasks from the Products tab (the FAB, ⌘N, Add Items)
+  /// lands them in a tab the user isn't looking at; following them there is
+  /// what shows the pick worked. Two kinds growing at once — a document
+  /// loading, or a mixed pick — is no signal, and nothing moves.
+  _LineKind? _grownKind(List<LineItem> before, List<LineItem> after) {
+    if (identical(before, after)) return null;
+    final was = _countByKind(before);
+    final now = _countByKind(after);
+    final grown = [
+      for (final kind in _LineKind.values)
+        if (now[kind]! > was[kind]!) kind,
+    ];
+    return grown.length == 1 ? grown.single : null;
+  }
+
+  /// Reconcile the tab controller with the visible tab set, and move to
+  /// [follow] when it names a tab other than the active one. Every change to
+  /// the tab set — a line added or removed, the company's setting landing —
+  /// comes through here.
+  void _syncTabs({_LineKind? follow}) {
+    final prevKind = _activeKind();
+    final next = _visibleTabs();
+    final target = follow != null && next.contains(follow) ? follow : prevKind;
+    if (!listEquals(next, _tabs)) {
+      // Tab set changed (e.g. the setting landed, or the last task line was
+      // deleted). Remap the controller, staying on the same kind when it's
+      // still there.
+      _tabs = next;
+      final idx = next.indexOf(target);
+      _rebuildTabController(jumpTo: idx < 0 ? 0 : idx);
+    } else if (target != prevKind) {
+      _tabCtl!.animateTo(next.indexOf(target));
     }
   }
 
   void _rebuildTabController({required int jumpTo}) {
     _tabCtl?.dispose();
-    final length = _visibleTabs().length;
-    _tabCtl = TabController(length: length, vsync: this)
-      ..index = jumpTo.clamp(0, length - 1);
-    _tabCtl!.addListener(() => setState(() {}));
+    _tabCtl = TabController(length: _tabs.length, vsync: this)
+      ..index = jumpTo.clamp(0, _tabs.length - 1);
+    _tabCtl!.addListener(_onTabChanged);
+    // Not while a remembered tab waits for the company to offer it: recording
+    // the Products placeholder would forget it before it could be restored.
+    if (_restoreOnCompany == null) widget.vm.itemsTab = _activeKind().name;
   }
 
-  _LineKind? _activeKindOrNull() {
-    final visible = _visibleTabs();
-    if (_tabCtl == null) return null;
-    if (visible.isEmpty) return null;
-    return visible[_tabCtl!.index.clamp(0, visible.length - 1)];
+  void _onTabChanged() {
+    // A tab the user picked wins over one still waiting to be restored.
+    _restoreOnCompany = null;
+    widget.vm.itemsTab = _activeKind().name;
+    setState(() {});
   }
+
+  _LineKind _activeKind() {
+    final ctl = _tabCtl;
+    if (ctl == null) return _LineKind.products;
+    return _tabs[ctl.index.clamp(0, _tabs.length - 1)];
+  }
+
+  bool get _showTasks => _hasTasks || (widget.offerTasksTab && _showTasksTable);
 
   List<_LineKind> _visibleTabs() => <_LineKind>[
     _LineKind.products,
-    if (_hasTasks) _LineKind.tasks,
+    if (_showTasks) _LineKind.tasks,
     if (_hasExpenses) _LineKind.expenses,
   ];
 
-  int _stackIndexOf(_LineKind kind) {
-    switch (kind) {
-      case _LineKind.products:
-        return 0;
-      case _LineKind.tasks:
-        return 1;
-      case _LineKind.expenses:
-        return 2;
-    }
-  }
-
   @override
   void dispose() {
+    _companySub?.cancel();
     _unregisterProductsFlush?.call();
     _unregisterTasksFlush?.call();
     _unregisterExpensesFlush?.call();
@@ -281,6 +418,7 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
       updatedSubset: updatedSubset,
       inSubset: (li) => _predicate(kind, li),
     );
+    _ownEdit = true;
     widget.onChanged(next);
   }
 
@@ -295,23 +433,34 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
     }
   }
 
+  /// A new row in the Tasks tab is hourly (`type_id` 2) — otherwise the line
+  /// typed there would be a product line and jump straight out of the tab.
+  LineItem Function() _factoryFor(_LineKind kind) => kind == _LineKind.tasks
+      ? () => widget.newItemFactory().copyWith(typeId: LineItemType.task)
+      : widget.newItemFactory;
+
   Widget _editor(_LineKind kind) {
     return LineItemEditor(
       companyId: widget.companyId,
       clientId: widget.vm.clientIdOf(widget.vm.draft),
       items: _subset(kind),
       onChanged: (next) => _onSubsetChanged(kind, next),
-      newItemFactory: widget.newItemFactory,
+      newItemFactory: _factoryFor(kind),
       // What this host *wants* to show. `LineItemEditor` narrows it to what
-      // the company actually enables — it already watches the company row for
-      // the discount column, so the tax count rides that read rather than
-      // opening a second subscription (invoiceninja/flutter#85).
+      // the company actually enables — it watches the company row for the
+      // discount column, so the tax count rides that read rather than opening
+      // another subscription per editor (invoiceninja/flutter#85). The tabs'
+      // own read above is a different question — which tabs exist — asked once.
       //
       // One tax column, not zero: this is also what renders for the frame
       // before the company arrives, and starting at zero would pop the column
       // in a beat later. Same "keep the host's config until we know better"
       // rule the discount column has always used.
-      config: const LineItemColumnConfig(showDiscount: true, taxColumnCount: 1),
+      config: LineItemColumnConfig(
+        showDiscount: true,
+        taxColumnCount: 1,
+        isTaskTable: kind == _LineKind.tasks,
+      ),
       controller: _controllerFor(kind),
       // Stock count is a product-selection affordance — only the products
       // tab's typeahead surfaces it (and only on invoices, via the host).
@@ -328,35 +477,64 @@ class _BillingDocItemsTabsState extends State<BillingDocItemsTabs>
 
   @override
   Widget build(BuildContext context) {
-    final visible = _visibleTabs();
-    if (visible.length == 1) {
-      // No tasks AND no expenses present — pass-through, no tab chrome.
-      return _editor(_LineKind.products);
-    }
-
+    final tabbed = _tabs.length > 1;
+    final activeKind = _activeKind();
     final tokens = context.inTheme;
-    final activeKind = _activeKindOrNull() ?? _LineKind.products;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TabBar(
-          controller: _tabCtl,
-          isScrollable: false,
-          labelColor: tokens.ink,
-          unselectedLabelColor: tokens.ink3,
-          tabs: [for (final k in visible) Tab(text: _tabLabel(context, k))],
-        ),
-        Divider(height: 1, color: tokens.border),
-        SizedBox(height: InSpacing.md(context)),
-        IndexedStack(
-          index: _stackIndexOf(activeKind),
+    final tabBar = TabBar(
+      controller: _tabCtl,
+      isScrollable: false,
+      labelColor: tokens.ink,
+      unselectedLabelColor: tokens.ink3,
+      tabs: [for (final k in _tabs) Tab(text: _tabLabel(context, k))],
+    );
+    final gap = InSpacing.md(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // `BillingDocEditItemsBody` sets a viewport-high minHeight on the
+        // narrow branch so the phone empty state centres (#141), and 0 on the
+        // wide one so the table never stretches. The tab chrome spends part of
+        // it; the active editor gets the rest.
+        final chrome = tabbed ? tabBar.preferredSize.height + 1 + gap : 0.0;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _editor(_LineKind.products),
-            _editor(_LineKind.tasks),
-            _editor(_LineKind.expenses),
+            if (tabbed) ...[
+              tabBar,
+              Divider(height: 1, color: tokens.border),
+              SizedBox(height: gap),
+            ],
+            // Keyed, and always last, so the tab bar arriving after the first
+            // frame (the company row is async) inserts ABOVE the editors
+            // rather than remounting them — a remount disposes the desktop
+            // rows and drops a cell edit still inside its debounce.
+            Column(
+              key: const ValueKey('billing-items-editors'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Not an `IndexedStack`: that sizes to its TALLEST child, so a
+                // one-row Tasks table sat in a Products-tall box, and it
+                // loosens the minHeight the phone empty state centres in.
+                // `Visibility.maintainState` keeps a hidden tab's rows, typed
+                // text and flush hooks alive at zero height (and out of focus
+                // traversal). Only tabs that exist get an editor — each one
+                // opens its own company / currency / product watches.
+                for (final kind in tabbed ? _tabs : [activeKind])
+                  Visibility(
+                    key: ValueKey(kind),
+                    visible: kind == activeKind,
+                    maintainState: true,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: math.max(0, constraints.minHeight - chrome),
+                      ),
+                      child: _editor(kind),
+                    ),
+                  ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 

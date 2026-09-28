@@ -477,6 +477,73 @@ Duration? parseDurationInput(String raw) {
   return Duration(milliseconds: (asNum * 3600 * 1000).round());
 }
 
+/// Parse the Hours cell of an hourly (`type_id` 2) line item.
+///
+/// Without this, [parseDecimal] strips the colon and `1:30` bills **130**
+/// hours. Three duration shapes are recognised, each matched against the WHOLE
+/// input so a stray letter can't hijack a plain number:
+///   * `1:30`, `0:20`, `1:30:15` — `H:M[:S]`, the time log's colon form.
+///   * `1.5h`, `1h 15m`, `2 hrs`, `1 hour 30 minutes`, and `1h30`.
+///   * `90m`, `45 min`.
+/// A number inside them is read by [parseDecimal] with the company's
+/// comma-as-decimal setting, exactly as a plain number is — so `0,5h` is half
+/// an hour for a comma company. A leading `-` negates the whole. Only English
+/// unit words: `2 Std` is not a duration and stays the plain 2 it always was.
+///
+/// Anything else goes to [parseDecimal] unchanged. Input with a `:` that
+/// matches no shape (`1:2:3:4`) returns **null** — the caller keeps the line's
+/// previous hours — rather than the digits run together. Rounded to 3 dp, the
+/// precision `taskBillableHours` writes when a task is billed, so a typed
+/// `1:20` and a billed 80-minute task agree.
+Decimal? parseHoursInput(String? value, {bool useCommaAsDecimalPlace = false}) {
+  if (value == null) return Decimal.zero;
+  final input = value.trim();
+  Decimal number(String? token) => token == null || token.isEmpty
+      ? Decimal.zero
+      : parseDecimal(token, useCommaAsDecimalPlace: useCommaAsDecimalPlace) ??
+            Decimal.zero;
+  Decimal toHours(String sign, Decimal h, Decimal m, [Decimal? s]) {
+    final seconds =
+        h * Decimal.fromInt(3600) +
+        m * Decimal.fromInt(60) +
+        (s ?? Decimal.zero);
+    final hours = (seconds / Decimal.fromInt(3600))
+        .toDecimal(scaleOnInfinitePrecision: 10)
+        .round(scale: 3);
+    return sign == '-' ? -hours : hours;
+  }
+
+  final colon = _hoursColonForm.firstMatch(input);
+  if (colon != null) {
+    return toHours(
+      colon[1]!,
+      number(colon[2]),
+      number(colon[3]),
+      number(colon[4]),
+    );
+  }
+  final hoursUnit = _hoursUnitForm.firstMatch(input);
+  if (hoursUnit != null) {
+    return toHours(hoursUnit[1]!, number(hoursUnit[2]), number(hoursUnit[3]));
+  }
+  final minutesUnit = _minutesUnitForm.firstMatch(input);
+  if (minutesUnit != null) {
+    return toHours(minutesUnit[1]!, Decimal.zero, number(minutesUnit[2]));
+  }
+  if (input.contains(':')) return null;
+  return parseDecimal(value, useCommaAsDecimalPlace: useCommaAsDecimalPlace);
+}
+
+final _hoursColonForm = RegExp(r'^(-?)\s*(\d+):(\d+)(?::(\d+))?$');
+final _hoursUnitForm = RegExp(
+  r'^(-?)\s*([\d.,]+)\s*h(?:rs?|ours?)?(?:\s*([\d.,]+)\s*(?:m(?:ins?|inutes?)?)?)?$',
+  caseSensitive: false,
+);
+final _minutesUnitForm = RegExp(
+  r'^(-?)\s*([\d.,]+)\s*m(?:ins?|inutes?)?$',
+  caseSensitive: false,
+);
+
 /// Parse a user-typed date string. Returns the calendar date with no time
 /// component — the caller anchors it to whichever `TimeOfDay` makes sense
 /// (typically the existing entry's start time-of-day).

@@ -107,4 +107,27 @@ void main() {
     // would show the table, then reflow it a beat later.
     expect(host.forCompany(null), same(host));
   });
+
+  group('task table', () {
+    // The Tasks tab: the PDF's task table calls the three columns Service /
+    // Rate / Hours, and a company's Custom Label for THAT word applies.
+    const tasks = LineItemColumnConfig(isTaskTable: true);
+
+    test('renames the three product words, and nothing else', () {
+      expect(tasks.labelKey('item'), 'service');
+      expect(tasks.labelKey('product'), 'service');
+      expect(tasks.labelKey('unit_cost'), 'rate');
+      expect(tasks.labelKey('quantity'), 'hours');
+      expect(tasks.labelKey('description'), 'description');
+      expect(tasks.labelKey('discount'), 'discount');
+    });
+
+    test('a product table passes every key through', () {
+      expect(host.labelKey('unit_cost'), 'unit_cost');
+    });
+
+    test('survives forCompany narrowing', () {
+      expect(tasks.forCompany(company(taxRates: 2)).isTaskTable, isTrue);
+    });
+  });
 }

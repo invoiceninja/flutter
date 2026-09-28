@@ -524,7 +524,7 @@ class PurchaseOrderActions {
           // expense (else re-pointing the clone at another client dead-ends in
           // a `line_items` error with no field to fix) and drop any
           // server-generated unpaid-fee row (else the clone re-bills it).
-          lineItems: clonedLineItems(po.lineItems),
+          lineItems: clonedLineItems(po.lineItems, keepTaskType: false),
           archivedAt: null,
           isDeleted: false,
           isDirty: false,

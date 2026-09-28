@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/domain/credit_status.dart';
 import 'package:admin/data/models/domain/invoice_status.dart';
 import 'package:admin/data/models/domain/purchase_order_status.dart';
@@ -61,5 +62,27 @@ void main() {
     ); // client-contact invitations don't transfer
     expect(po.lineItems.single.productKey, 'WIDGET'); // content still carried
     expect(po.taxName1, 'GST');
+  });
+
+  test('an hourly line stays hourly on an invoice, but not on a PO', () {
+    // The server prints no task table on a purchase order, so a type-2 line
+    // there would count in the totals and print nowhere.
+    final hourly = source.copyWith(
+      lineItems: [
+        emptyLineItem().copyWith(
+          productKey: 'Consulting',
+          cost: Decimal.fromInt(50),
+          quantity: Decimal.fromInt(2),
+          typeId: LineItemType.task,
+          taskId: 'task_1',
+        ),
+      ],
+    );
+    final invoice = cloneToInvoice(billingCloneFromInvoice(hourly));
+    expect(invoice.lineItems.single.typeId, LineItemType.task);
+    expect(invoice.lineItems.single.taskId, isNull);
+
+    final po = cloneToPurchaseOrder(billingCloneFromInvoice(hourly));
+    expect(po.lineItems.single.typeId, LineItemType.standard);
   });
 }

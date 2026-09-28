@@ -12,6 +12,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/domain/product.dart';
 
 void main() {
@@ -163,6 +164,65 @@ void main() {
       expect(li.cost, Decimal.parse('19.99')); // product field overwritten
       expect(li.discount, Decimal.parse('3')); // preserved
       expect(li.taskId, 'task-9'); // preserved
+    });
+
+    test('a billed task keeps its hours, description and rate', () {
+      // Choosing the Service for a billed task must not reset its logged
+      // hours / time-log notes / task rate to the product's "1 × list price".
+      final base = emptyLineItem().copyWith(
+        notes: 'Mon 09:00 – 11:30',
+        cost: Decimal.parse('80'),
+        quantity: Decimal.parse('2.5'),
+        typeId: LineItemType.task,
+        taskId: 'task-1',
+      );
+      final li = lineItemFromProduct(
+        makeProduct(productKey: 'Consulting', price: Decimal.parse('100')),
+        base: base,
+        enableProductQuantity: true,
+      );
+      expect(li.productKey, 'Consulting');
+      expect(li.quantity, Decimal.parse('2.5'));
+      expect(li.notes, 'Mon 09:00 – 11:30');
+      expect(li.cost, Decimal.parse('80'));
+      expect(li.taxName1, 'VAT'); // the product's taxes still apply
+      expect(li.typeId, LineItemType.task);
+    });
+
+    test(
+      're-picking a service on a free-form hourly row corrects the rate',
+      () {
+        // Picked Design at 80, meant Development at 120: the money must follow
+        // the pick. Hours stay; the description stays (React / admin-portal).
+        final afterDesign = lineItemFromProduct(
+          makeProduct(productKey: 'Design', price: Decimal.parse('80')),
+          base: emptyLineItem().copyWith(
+            quantity: Decimal.parse('3'),
+            typeId: LineItemType.task,
+          ),
+        );
+        expect(afterDesign.cost, Decimal.parse('80'));
+
+        final afterDevelopment = lineItemFromProduct(
+          makeProduct(productKey: 'Development', price: Decimal.parse('120')),
+          base: afterDesign,
+        );
+        expect(afterDevelopment.productKey, 'Development');
+        expect(afterDevelopment.cost, Decimal.parse('120'));
+        expect(afterDevelopment.quantity, Decimal.parse('3'));
+        expect(afterDevelopment.notes, afterDesign.notes);
+      },
+    );
+
+    test('a blank hourly row takes the product rate and description', () {
+      final base = emptyLineItem().copyWith(typeId: LineItemType.task);
+      final li = lineItemFromProduct(
+        makeProduct(price: Decimal.parse('100')),
+        base: base,
+      );
+      expect(li.cost, Decimal.parse('100'));
+      expect(li.notes, 'A widget');
+      expect(li.quantity, Decimal.one);
     });
   });
 }

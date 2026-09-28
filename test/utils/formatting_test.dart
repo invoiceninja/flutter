@@ -560,6 +560,67 @@ void main() {
     });
   });
 
+  group('parseHoursInput', () {
+    // The Hours cell of an hourly line. `parseDecimal` alone strips the colon,
+    // so a user typing the time-log shape `1:30` billed 130 hours.
+    test('a duration is converted to decimal hours', () {
+      expect(parseHoursInput('1:30'), Decimal.parse('1.5'));
+      expect(parseHoursInput('90m'), Decimal.parse('1.5'));
+      expect(parseHoursInput('1h 15m'), Decimal.parse('1.25'));
+      expect(parseHoursInput('0:20'), Decimal.parse('0.333'));
+    });
+
+    test('a plain number is hours, and honours comma-as-decimal', () {
+      expect(parseHoursInput('2'), Decimal.fromInt(2));
+      expect(parseHoursInput('1.5'), Decimal.parse('1.5'));
+      expect(
+        parseHoursInput('1,5', useCommaAsDecimalPlace: true),
+        Decimal.parse('1.5'),
+      );
+    });
+
+    test('blank falls through to parseDecimal', () {
+      expect(parseHoursInput(''), Decimal.zero);
+      expect(parseHoursInput(null), Decimal.zero);
+    });
+
+    test('unit words, spaced or not, and the h-then-minutes shorthand', () {
+      expect(parseHoursInput('2 hrs'), Decimal.fromInt(2));
+      expect(parseHoursInput('1 hour 30 minutes'), Decimal.parse('1.5'));
+      expect(parseHoursInput('45m'), Decimal.parse('0.75'));
+      expect(parseHoursInput('1h30'), Decimal.parse('1.5'));
+    });
+
+    test('a comma company reads a comma inside a unit as the decimal', () {
+      // The duration parser this used to delegate to ignored the comma, so
+      // `0,5h` billed FIVE hours.
+      expect(
+        parseHoursInput('0,5h', useCommaAsDecimalPlace: true),
+        Decimal.parse('0.5'),
+      );
+      expect(
+        parseHoursInput('1,5 h', useCommaAsDecimalPlace: true),
+        Decimal.parse('1.5'),
+      );
+    });
+
+    test('the sign applies to the whole duration', () {
+      expect(parseHoursInput('-1.5h'), Decimal.parse('-1.5'));
+      expect(parseHoursInput('-1:30'), Decimal.parse('-1.5'));
+    });
+
+    test('a non-English unit word is still a plain number', () {
+      // `2 Std` matched a loose `\d\s*[dhms]` check and was read as two
+      // SECONDS. Only whole-input English shapes are durations.
+      expect(parseHoursInput('2 Std'), Decimal.fromInt(2));
+    });
+
+    test('a colon it cannot read is null, never the digits run together', () {
+      expect(parseHoursInput('1:2:3:4'), isNull);
+      expect(parseHoursInput('1:'), isNull);
+    });
+  });
+
   group('parseDateInput', () {
     test('ISO date wins (locale-independent)', () {
       expect(parseDateInput('2026-05-14'), DateTime(2026, 5, 14));

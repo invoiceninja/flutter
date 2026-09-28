@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/app/services.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/product.dart';
 import 'package:admin/data/models/domain/tax_rate.dart';
@@ -262,7 +263,13 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     for (var i = 0; i < base.length && i < _rows.length; i++) {
       next.add(_rows[i].buildItem(base[i], useComma: _useComma));
     }
-    final ghost = _rows.last.buildItem(emptyLineItem(), useComma: _useComma);
+    // The host's factory, not `emptyLineItem()`: in the Tasks tab it makes an
+    // hourly (`type_id` 2) row, and a ghost committed from here as `standard`
+    // would leave the tab it was typed into.
+    final ghost = _rows.last.buildItem(
+      widget.newItemFactory(),
+      useComma: _useComma,
+    );
     if (!ghost.isBlank) next.add(ghost);
     if (_listsEqual(next, base)) return base;
     _emitted = next;
@@ -360,7 +367,26 @@ class _LineItemTableDesktopState extends State<LineItemTableDesktop> {
     // props value. (This is the "same latent bug" `_createTask` warns about.)
     final next = List<LineItem>.from(_flushAll());
     if (index >= next.length) return;
-    next.insert(index + 1, next[index]);
+    // A copy of a billed task / expense line is not that task or expense —
+    // two lines claiming one task double-bills it. Drop the links and keep the
+    // type, so an hourly copy stays hourly (admin-portal's
+    // `InvoiceItemEntity.clone`). An expense line is `standard` + `expenseId`
+    // (`expenseInvoiceLineItem`), so losing the link would turn its copy into
+    // a product line and move it out of the Expenses tab it was cloned in;
+    // type 6 keeps it there, and the server prints type 6 in the same product
+    // table as its source. A task-linked row gets no such stamp: its type
+    // decides the PDF table, and the copy must print where its source does.
+    final source = next[index];
+    next.insert(
+      index + 1,
+      source.copyWith(
+        taskId: null,
+        expenseId: null,
+        typeId: (source.expenseId ?? '').isNotEmpty
+            ? LineItemType.expense
+            : source.typeId,
+      ),
+    );
     // See `_remove` for why the `_RowState` has to move too.
     _rows.insert(index + 1, _RowState());
     _emit(next);
@@ -765,7 +791,10 @@ class _ColumnHeader extends StatelessWidget {
       color: tokens.ink3,
       letterSpacing: 0.4,
     );
-    String label(String key) => config.labels.resolve(context, key);
+    // `labelKey` first: a task table reads Service / Rate / Hours, and a
+    // company's Custom Label for THAT word is the one that applies.
+    String label(String key) =>
+        config.labels.resolve(context, config.labelKey(key));
     Widget cell(
       String label, {
       int flex = 1,
@@ -912,9 +941,13 @@ class _RowState {
       cost:
           parseDecimal(cost.text, useCommaAsDecimalPlace: useComma) ??
           Decimal.zero,
-      quantity:
-          parseDecimal(quantity.text, useCommaAsDecimalPlace: useComma) ??
-          Decimal.one,
+      // An hourly row's Hours cell also takes a duration (`1:30`, `90m`); a
+      // colon it can't read keeps the hours the row already had.
+      quantity: base.typeId == LineItemType.task
+          ? parseHoursInput(quantity.text, useCommaAsDecimalPlace: useComma) ??
+                base.quantity
+          : parseDecimal(quantity.text, useCommaAsDecimalPlace: useComma) ??
+                Decimal.one,
       discount:
           parseDecimal(discount.text, useCommaAsDecimalPlace: useComma) ??
           Decimal.zero,
@@ -1067,9 +1100,14 @@ class _RowStateW extends State<_Row> {
       final cost =
           parseDecimal(row.cost.text, useCommaAsDecimalPlace: useComma) ??
           Decimal.zero;
-      final qty =
-          parseDecimal(row.quantity.text, useCommaAsDecimalPlace: useComma) ??
-          Decimal.one;
+      final qty = currentItem.typeId == LineItemType.task
+          ? parseHoursInput(
+                  row.quantity.text,
+                  useCommaAsDecimalPlace: useComma,
+                ) ??
+                currentItem.quantity
+          : parseDecimal(row.quantity.text, useCommaAsDecimalPlace: useComma) ??
+                Decimal.one;
       final gross = cost * qty;
       // Display via the company Formatter when available so the line
       // total honors currency, thousands separator, and decimal place
@@ -1144,7 +1182,9 @@ class _RowStateW extends State<_Row> {
                         (widget.company?.trackInventory ?? false),
                     controller: row.product,
                     focusNode: row.productFocus,
-                    hintKey: isGhost ? 'add_an_item' : 'product',
+                    hintKey: isGhost
+                        ? 'add_an_item'
+                        : config.labelKey('product'),
                     onSelected: onProductSelected,
                     onCreateRequested: onCreateProduct,
                     onCommitText: scheduleCommit,

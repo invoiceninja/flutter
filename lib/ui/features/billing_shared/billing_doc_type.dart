@@ -69,6 +69,20 @@ enum BillingDocType {
   /// only on `/invoices`). Other billing docs leave the count hidden.
   bool get showsProductStock => this == BillingDocType.invoice;
 
+  /// Whether the company's "Show Tasks Table" setting (`show_tasks_table`)
+  /// keeps a Tasks tab above this document's line items even before any
+  /// hourly line exists, so one can be typed. A document that already HAS an
+  /// hourly line shows the tab regardless. admin-portal offered it on invoice
+  /// and quote; React's create/edit pages add the recurring invoice, which
+  /// bills retainers by the hour just as often. Never a credit, and never the
+  /// purchase order — the server renders no task table for a PO at all.
+  bool get offersTasksTable => switch (this) {
+    BillingDocType.invoice ||
+    BillingDocType.quote ||
+    BillingDocType.recurringInvoice => true,
+    BillingDocType.credit || BillingDocType.purchaseOrder => false,
+  };
+
   // ── The edit layout's capability spec ───────────────────────────────
   //
   // What `BillingDocEditLayout` needs to know to be each document. Every

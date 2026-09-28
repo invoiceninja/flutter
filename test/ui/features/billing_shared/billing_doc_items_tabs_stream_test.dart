@@ -25,9 +25,11 @@ import '../../../_localization_helper.dart';
 /// stream per call — so a `StreamBuilder` built here would restart the Drift
 /// query each time.
 ///
-/// It resolves one level down instead, in `LineItemEditor`, which already
-/// watches the company for the discount column. This pins that: the whole
-/// subtree opens no *additional* subscription as the VM notifies.
+/// The columns resolve one level down, in `LineItemEditor`, which already
+/// watches the company for the discount column. The tabs widget reads it too —
+/// `show_tasks_table` decides whether a Tasks tab exists — but subscribes once
+/// in `initState`, never per build. This pins that: the whole subtree opens no
+/// *additional* subscription as the VM notifies.
 class _FakeInvoicesApi implements InvoicesApi {
   @override
   Object? noSuchMethod(Invocation i) => throw UnimplementedError();
@@ -38,6 +40,10 @@ class _CountingCompanyRepo implements CompanyRepository {
 
   final Company company;
   int watchCalls = 0;
+
+  // The tabs' first-frame seed. Not a subscription, so not counted.
+  @override
+  Company? peek({required String companyId, required String id}) => company;
 
   @override
   Stream<Company?> watchCompany(String companyId) {

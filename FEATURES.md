@@ -186,6 +186,7 @@ the honest default.
 | Invoice — detail | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Invoice — edit (line items, dates, totals) | ✅ | ✅ | ✅ | ✅ | |
 | Line item — free-text row on phone (not only picked Products / Tasks / Expenses) | ✅ | ✅ | ✅ | ✅ | |
+| Billing-doc edit — Products / Tasks line-item tabs: Settings → Task Settings → Show Tasks Table keeps Tasks on offer before any hourly line (invoice / quote / recurring); new Tasks rows are hourly (`type_id` 2, the PDF task table) with Service / Rate / Hours columns, and Hours takes `1:30` / `90m` | ✅ | ✅ | ✅ | | |
 | Line item — tax columns follow `enabled_item_tax_rates` instead of always showing one | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — items-section FAB → tabbed multi-select picker (Products / Tasks / Expenses; tasks+expenses client-scoped to uninvoiced; exclude already-attached; Select All per tab; projectId carry-over) — invoice / quote / credit / recurring / PO | ✅ | ✅ | ✅ | ✅ | |
 | Billing-doc edit — picker Tasks tab grouped by project with per-project select-all | ❌ | ❌ | ✅ | | |
@@ -938,7 +939,7 @@ Field-level breakdown of every option under each settings panel. Source of truth
 | Round To Seconds (when "Custom" selected) | ✅ | ✅ | ✅ | ✅ | |
 | Configure Statuses (link) | ✅ | ✅ | ✅ | ✅ | |
 | Manage Tags (Settings → Tags; list / create / edit / recolor / archive, entity-type picker over all 14 tag-bearing types, admin-gated) | ✅ | — | ✅ | | |
-| Show Tasks Table | ✅ | ✅ | ✅ | ✅ | |
+| Show Tasks Table | ✅ | ✅ | ✅ | | |
 | Invoice Task Datelog | ✅ | ✅ | ✅ | ✅ | |
 | Invoice Task Timelog | ✅ | ✅ | ✅ | ✅ | |
 | Invoice Task Hours | ✅ | ✅ | ✅ | ✅ | |

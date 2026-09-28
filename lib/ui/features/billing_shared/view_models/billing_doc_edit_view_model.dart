@@ -61,6 +61,14 @@ abstract class GenericBillingDocEditViewModel<T>
   /// use 0 — e.g. JPY). Drives `computeTotals`'s rounding scale.
   final int currencyPrecision;
 
+  /// Which line-item tab (Products / Tasks / Expenses) `BillingDocItemsTabs`
+  /// last showed, by name. UI memory, not draft state: it never notifies,
+  /// never saves and never dirties the form. It lives here because the
+  /// narrow layout's `TabBarView` disposes the Items page when the user moves
+  /// to another tab, and this view model is what outlives that — so coming
+  /// back from Notes lands on the tab they left, not on Products.
+  String? itemsTab;
+
   // ── Subclass bridge ────────────────────────────────────────────────
   //
   // Concrete freezed types can't share a `copyWith` interface, so the
@@ -219,18 +227,21 @@ abstract class GenericBillingDocEditViewModel<T>
     return out;
   }
 
-  /// Drop trailing blank rows from the line items array. Wired to the
-  /// pre-save hook by the desktop inline-editable table so the
-  /// always-visible trailing empty row never reaches the server.
+  /// Drop every blank row from the line items array, wherever it sits. A
+  /// pre-save hook (after the flush hooks, so a just-typed row isn't blank).
+  ///
+  /// Not just the trailing ones: `BillingDocItemsTabs` appends each tab's new
+  /// rows to the END of the full list, so a blank row added in the Tasks tab
+  /// followed by a typed row in Products leaves the blank one mid-list — and
+  /// it reached the server as an empty line printed in the PDF's task table.
+  /// admin-portal drops all empty items on save too.
   void stripEmptyLineItems() {
     final items = lineItemsOf(draft);
-    if (items.isEmpty) return;
-    var end = items.length;
-    while (end > 0 && items[end - 1].isBlank) {
-      end--;
-    }
-    if (end == items.length) return;
-    replaceLineItems(items.sublist(0, end));
+    if (!items.any((li) => li.isBlank)) return;
+    replaceLineItems([
+      for (final li in items)
+        if (!li.isBlank) li,
+    ]);
   }
 
   // ── Cross-client validation ──────────────────────────────────────────

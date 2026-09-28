@@ -44,6 +44,9 @@ class _StubCompanyRepo implements CompanyRepository {
       Stream<Company?>.value(const Company(id: 'co')).asBroadcastStream();
 
   @override
+  Company? peek({required String companyId, required String id}) => null;
+
+  @override
   dynamic noSuchMethod(Invocation i) =>
       throw UnimplementedError(i.memberName.toString());
 }
@@ -129,8 +132,8 @@ void main() {
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() async => db.close());
 
-  // Distinct notes per row: all three editors are mounted at once inside the
-  // IndexedStack, so a shared string would let a finder match the wrong cell.
+  // Distinct notes per row: every tab's editor stays mounted (offstage when
+  // hidden), so a shared string would let a finder match the wrong cell.
   LineItem productRow() =>
       emptyLineItem().copyWith(productKey: 'WIDGET', notes: 'product note');
   LineItem taskRow() =>

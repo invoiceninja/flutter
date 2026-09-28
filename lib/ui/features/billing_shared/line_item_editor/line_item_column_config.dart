@@ -19,6 +19,7 @@ class LineItemColumnConfig {
     this.showDiscount = false,
     this.useTaxCategories = false,
     this.labels = const CompanyLabels.empty(),
+    this.isTaskTable = false,
   });
 
   /// Show the four invoice-line custom-value columns. Each is independent.
@@ -44,6 +45,26 @@ class LineItemColumnConfig {
   /// [forCompany] fills it in, so a header always has the bundled string to
   /// fall back on.
   final CompanyLabels labels;
+
+  /// The table holds hourly (`type_id` 2) lines — the Tasks tab of
+  /// `BillingDocItemsTabs`. Only the words change: [labelKey] renames Item /
+  /// Unit Cost / Quantity to Service / Rate / Hours, the columns admin-portal
+  /// and the server's PDF task table use for the same three fields.
+  final bool isTaskTable;
+
+  /// The label key to show for the column / field named [key]. A task table
+  /// swaps the three product words for their hourly counterparts; every other
+  /// key passes through. Resolve the result through [labels], so a company's
+  /// Custom Label for `service` / `rate` / `hours` wins, as it does on the PDF.
+  String labelKey(String key) {
+    if (!isTaskTable) return key;
+    return switch (key) {
+      'item' || 'product' => 'service',
+      'unit_cost' => 'rate',
+      'quantity' => 'hours',
+      _ => key,
+    };
+  }
 
   /// Default minimal config — qty/cost/total only, one tax column hidden.
   /// Used as a safe fallback when company settings haven't loaded yet.
@@ -83,6 +104,7 @@ class LineItemColumnConfig {
     bool? showDiscount,
     bool? useTaxCategories,
     CompanyLabels? labels,
+    bool? isTaskTable,
   }) => LineItemColumnConfig(
     showCustom1: showCustom1 ?? this.showCustom1,
     showCustom2: showCustom2 ?? this.showCustom2,
@@ -92,5 +114,6 @@ class LineItemColumnConfig {
     showDiscount: showDiscount ?? this.showDiscount,
     useTaxCategories: useTaxCategories ?? this.useTaxCategories,
     labels: labels ?? this.labels,
+    isTaskTable: isTaskTable ?? this.isTaskTable,
   );
 }

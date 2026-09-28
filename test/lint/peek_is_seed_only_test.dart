@@ -32,6 +32,12 @@ void main() {
     // Same shape: stashes the company in `_seed`, which `build` hands to
     // `initialData:` on the StreamBuilder below.
     'lib/ui/features/billing_shared/billing_doc_overview.dart': '_seed =',
+    // Seeds `_showTasksTable` so a "Show Tasks Table" company gets its tab bar
+    // on the FIRST frame rather than dropping the whole edit form a frame
+    // later. The `watchCompany` subscription beside it owns the value from its
+    // first event on, which is the same contract as `initialData:`.
+    'lib/ui/features/billing_shared/items/billing_doc_items_tabs.dart':
+        '_showTasksTable =',
   };
 
   test('lib/ only uses repository peek() as a StreamBuilder seed', () {

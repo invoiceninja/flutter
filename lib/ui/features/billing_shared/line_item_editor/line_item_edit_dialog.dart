@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:admin/app/design_tokens.dart';
 import 'package:admin/data/models/domain/billing/line_item.dart';
+import 'package:admin/data/models/domain/billing/line_item_type.dart';
 import 'package:admin/l10n/localization.dart';
 import 'package:admin/ui/core/widgets/primary_dialog_action.dart';
 import 'package:admin/ui/features/billing_shared/line_item_editor/line_item_column_config.dart';
@@ -132,9 +133,19 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
     productKey: _productKey.text.trim(),
     notes: _notes.text,
     cost: _parseOrZero(_cost),
-    quantity:
-        parseDecimal(_quantity.text, useCommaAsDecimalPlace: widget.useComma) ??
-        Decimal.one,
+    // An hourly line's Hours field also takes a duration (`1:30`, `90m`); a
+    // colon it can't read keeps the hours the line already had.
+    quantity: _draft.typeId == LineItemType.task
+        ? parseHoursInput(
+                _quantity.text,
+                useCommaAsDecimalPlace: widget.useComma,
+              ) ??
+              _draft.quantity
+        : parseDecimal(
+                _quantity.text,
+                useCommaAsDecimalPlace: widget.useComma,
+              ) ??
+              Decimal.one,
     discount: _parseOrZero(_discount),
     customValue1: _custom1.text,
     customValue2: _custom2.text,
@@ -154,8 +165,10 @@ class _LineItemEditDialogState extends State<_LineItemEditDialog> {
   Widget build(BuildContext context) {
     final config = widget.config;
     // Field labels resolve the company's Custom Labels before the bundled
-    // string, matching the desktop table header.
-    String label(String key) => config.labels.resolve(context, key);
+    // string, matching the desktop table header — after `labelKey`, so an
+    // hourly line reads Service / Rate / Hours.
+    String label(String key) =>
+        config.labels.resolve(context, config.labelKey(key));
     return AlertDialog(
       title: Text(context.tr(widget.titleKey)),
       content: SizedBox(

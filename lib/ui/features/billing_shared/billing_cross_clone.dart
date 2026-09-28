@@ -474,5 +474,6 @@ PurchaseOrder cloneToPurchaseOrder(BillingCloneData data) =>
       customValue2: data.customValue2,
       customValue3: data.customValue3,
       customValue4: data.customValue4,
-      lineItems: clonedLineItems(data.lineItems),
+      // No hourly lines on a PO: the server prints no task table for one.
+      lineItems: clonedLineItems(data.lineItems, keepTaskType: false),
     );

@@ -25,10 +25,19 @@ void main() {
   );
 
   group('freshClone', () {
-    test('drops the source links and demotes the row to standard', () {
+    test('drops the source links but keeps an hourly row hourly', () {
+      // The type is what puts the line in the PDF's task table; the link is
+      // what `validateCrossClient` objects to. Only the link has to go —
+      // admin-portal's `InvoiceItemEntity.clone` keeps the type too.
       final clone = taskLine().freshClone();
       expect(clone.taskId, isNull);
       expect(clone.expenseId, isNull);
+      expect(clone.typeId, LineItemType.task);
+    });
+
+    test('keepTaskType: false demotes an hourly row to standard', () {
+      final clone = taskLine().freshClone(keepTaskType: false);
+      expect(clone.taskId, isNull);
       expect(clone.typeId, LineItemType.standard);
     });
 
@@ -78,6 +87,14 @@ void main() {
       expect(cloned.every((i) => i.taskId == null), isTrue);
       expect(cloned.every((i) => i.expenseId == null), isTrue);
       expect(cloned.any((i) => i.typeId == LineItemType.unpaidFee), isFalse);
+    });
+
+    test('keepTaskType: false (a purchase order) demotes hourly rows', () {
+      // The server renders no task table on a PO, so a type-2 line there
+      // counts in the totals and prints nowhere.
+      final cloned = clonedLineItems([taskLine()], keepTaskType: false);
+      expect(cloned.single.typeId, LineItemType.standard);
+      expect(clonedLineItems([taskLine()]).single.typeId, LineItemType.task);
     });
 
     test('an empty list stays empty', () {

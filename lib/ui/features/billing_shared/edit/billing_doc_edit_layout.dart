@@ -852,6 +852,7 @@ class _ItemsEditor<T extends BillingDocFields> extends StatelessWidget {
       rowErrors: vm.lineItemRowErrors,
       onPickItems: onPickItems,
       showStockQuantity: type.showsProductStock,
+      offerTasksTab: type.offersTasksTable,
       onCreateTaskFromLineItem: onCreateTask,
     );
   }

@@ -143,14 +143,30 @@ LineItem emptyLineItem() => LineItem(
 ///   * `productCost` = the product's `cost` (markup/profit reporting).
 ///   * `quantity` follows the company toggles: quantity disabled → always 1;
 ///     otherwise `default_quantity` → 1, else the product's stored quantity
-///     (a 0/blank product quantity falls back to 1). This deliberately
-///     overwrites any quantity already on [base] — filling a product resets the
-///     line to the product's defaults, matching React's `useHandleProductChange`.
-///   * notes, taxes, tax category and custom values are copied from the product.
+///     (a 0/blank product quantity falls back to 1). On a product row this
+///     deliberately overwrites any quantity already on [base] — filling a
+///     product resets the line to the product's defaults, matching React's
+///     `useHandleProductChange`. An hourly row keeps its hours (below).
+///   * notes, taxes, tax category and custom values are copied from the
+///     product — except an hourly row's non-blank notes (below).
 ///
 /// When [base] is supplied the product-derived fields overwrite it while the
 /// row's own discount / task / expense links are preserved; otherwise the row
 /// starts from [emptyLineItem].
+///
+/// **An hourly [base] (`type_id` 2) is the Service for work already
+/// measured**, so a pick fills the product key, taxes and customs but:
+///   * the **hours** always stay (admin-portal) — for a billed task they are
+///     its logged time, and a pick must not reset them to 1;
+///   * a non-blank **description** stays — React's task table and admin-portal
+///     both do this; a billed task's is its time log. So re-picking a service
+///     keeps the first one's description, as it does in both;
+///   * the **rate** stays only on a row linked to a task (`taskId`), which was
+///     billed at the task's own rate (admin-portal). A free-form hourly row
+///     takes the product's price like any row, so correcting a wrong service
+///     corrects the money — the Service cell commits the typed search text as
+///     `productKey` before the pick, so "was a product picked before?" can't be
+///     read off [base] and isn't used.
 LineItem lineItemFromProduct(
   Product product, {
   LineItem? base,
@@ -166,12 +182,14 @@ LineItem lineItemFromProduct(
   } else {
     quantity = product.quantity > Decimal.zero ? product.quantity : Decimal.one;
   }
+  final hourly = base != null && base.typeId == LineItemType.task;
+  final billedTask = hourly && (base.taskId ?? '').isNotEmpty;
   return (base ?? emptyLineItem()).copyWith(
     productKey: product.productKey,
-    notes: product.notes,
-    cost: unitPrice,
+    notes: hourly && base.notes.isNotEmpty ? base.notes : product.notes,
+    cost: billedTask && base.cost != Decimal.zero ? base.cost : unitPrice,
     productCost: product.cost,
-    quantity: quantity,
+    quantity: hourly ? base.quantity : quantity,
     taxName1: product.taxName1,
     taxRate1: product.taxRate1,
     taxName2: product.taxName2,
@@ -211,8 +229,11 @@ Decimal? _parseQuantity(Object? raw) {
 extension LineItemClone on LineItem {
   /// A line-item copy suitable for a *cloned* billing doc: keeps what the user
   /// typed (product, description, cost, quantity, taxes, custom values) but
-  /// drops the links back to the source records — `taskId` / `expenseId` — and
-  /// resets a task/expense-derived row to a plain `standard` line.
+  /// drops the links back to the source records — `taskId` / `expenseId`. An
+  /// expense-derived row becomes a plain `standard` line; an hourly row stays
+  /// hourly (`task`) unless [keepTaskType] is false, so a cloned hourly invoice
+  /// still prints its lines in the PDF's task table. admin-portal keeps the
+  /// type too. The purchase order is the exception — see [clonedLineItems].
   ///
   /// Without this, cloning an invoice that billed task T and then re-pointing
   /// the clone at a different client — the canonical "same work, new client"
@@ -221,10 +242,12 @@ extension LineItemClone on LineItem {
   /// error, and `save()` hard-returns. The message names no field the form can
   /// fix, so the only way out is deleting and retyping the line. admin-portal
   /// clears both ids for exactly this reason (`InvoiceItemEntity.clone`).
-  LineItem freshClone() => copyWith(
+  LineItem freshClone({bool keepTaskType = true}) => copyWith(
     taskId: null,
     expenseId: null,
-    typeId: typeId == LineItemType.task || typeId == LineItemType.expense
+    typeId:
+        (typeId == LineItemType.task && !keepTaskType) ||
+            typeId == LineItemType.expense
         ? LineItemType.standard
         : typeId,
   );
@@ -235,9 +258,18 @@ extension LineItemClone on LineItem {
 /// entirely — those are a gateway fee the server added to the ORIGINAL
 /// document, and carrying one into a new draft re-bills it. Mirrors
 /// admin-portal `InvoiceEntity.clone`.
-List<LineItem> clonedLineItems(List<LineItem> items) => [
+///
+/// Pass `keepTaskType: false` when the clone is a purchase order: the server
+/// renders no task table for a PO (`PdfBuilder::taskTable`) and its product
+/// table takes only types 1/4/5/6, so an hourly line would count in the
+/// totals and print nowhere.
+List<LineItem> clonedLineItems(
+  List<LineItem> items, {
+  bool keepTaskType = true,
+}) => [
   for (final item in items)
-    if (item.typeId != LineItemType.unpaidFee) item.freshClone(),
+    if (item.typeId != LineItemType.unpaidFee)
+      item.freshClone(keepTaskType: keepTaskType),
 ];
 
 extension LineItemPayload on LineItem {

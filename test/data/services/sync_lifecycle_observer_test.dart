@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/sync_repository.dart';
+import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/refresh_scheduler.dart';
 import 'package:admin/data/services/sync_lifecycle_observer.dart';
 
@@ -54,20 +55,36 @@ class _SpyScheduler extends RefreshScheduler {
   Future<void> triggerNow() async => triggers++;
 }
 
+class _SpyRealtime implements RealtimeService {
+  int pauses = 0;
+  int resumes = 0;
+
+  @override
+  void pause() => pauses++;
+  @override
+  void resume() => resumes++;
+
+  @override
+  Object? noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 void main() {
   late _FakeAuth auth;
   late _FakeSync sync;
   late _SpyScheduler scheduler;
+  late _SpyRealtime realtime;
   late SyncLifecycleObserver obs;
 
   setUp(() {
     auth = _FakeAuth();
     sync = _FakeSync();
     scheduler = _SpyScheduler();
+    realtime = _SpyRealtime();
     obs = SyncLifecycleObserver(
       auth: auth,
       sync: sync,
       refreshScheduler: scheduler,
+      realtime: realtime,
     );
   });
 
@@ -105,5 +122,14 @@ void main() {
     expect(sync.drained, isEmpty);
     expect(scheduler.triggers, 0);
     expect(scheduler.starts, 0);
+  });
+
+  test('the real-time socket closes in the background, reopens in front', () {
+    obs.didChangeAppLifecycleState(AppLifecycleState.inactive);
+    expect(realtime.pauses, 0, reason: 'a transient blip keeps it open');
+    obs.didChangeAppLifecycleState(AppLifecycleState.paused);
+    expect(realtime.pauses, 1);
+    obs.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    expect(realtime.resumes, 1);
   });
 }

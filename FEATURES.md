@@ -367,7 +367,7 @@ the honest default.
 | Project — time summary | ✅ | ✅ | ✅ | ✅ | |
 | Project — budget / hours-worked tracking | ✅ | ✅ | ✅ | ✅ | |
 | Project — budgeted amount (money budget) | ❌ | ❌ | ✅ | | |
-| Project — analytics tab (server burn-up + budget/invoice/profit/health) | ❌ | ❌ | 🟡 | | |
+| Project — analytics tab (server burn-up + budget/invoice/profit/health) — React splits it into Time / Expenses / Profit tabs with a forecast; v2 is one tab | ✅ | ❌ | 🟡 | | |
 | Project — documents / attachments | ✅ | ✅ | ✅ | ✅ | |
 | Project — activities | ✅ | ✅ | ✅ | ✅ | |
 | Project — custom fields | ✅ | ✅ | ✅ | ✅ | |
@@ -389,7 +389,7 @@ the honest default.
 | Task — calendar view | ✅ | ❌ | ✅ |  | |
 | Task — calendar month window fetched from the server (`date_range` on `calculated_start_date`), shared by the calendar view and the dashboard panel | — | — | ✅ |  | |
 | Task — remembers the chosen view (list / daily / weekly / calendar / kanban) | ❌ | 🟡 | ✅ |  | |
-| Task — connect Google/Microsoft calendar + convert event to task | ✅ | ❌ | 🟡 |  | |
+| Task — connect Google/Microsoft calendar + convert event to task (hosted only; the native callback shipped server-side 2026-07-24) | ✅ | ❌ | ✅ |  | |
 | Task — detail | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Task — edit | ✅ | ✅ | ✅ | ✅ | |
 | Task — create | ✅ | ✅ | ✅ | ✅ | 🟡 |
@@ -554,7 +554,7 @@ the honest default.
 | Bank transaction — create | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — edit / categorize | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — import (CSV) | ✅ | ✅ | ✅ | ✅ | |
-| Bank transaction — import (OFX / QIF / QFX) | ✅ | ✅ | ❌ |  | |
+| Bank transaction — import (OFX / QIF / QFX) — neither React nor v1 has it; both import CSV only | ❌ | ❌ | ❌ |  | |
 | Bank transaction — match to invoice (Create Payment) | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — link existing payment | ✅ | ✅ | ✅ | ✅ | |
 | Bank transaction — match to expense | ✅ | ✅ | ✅ | ✅ | |
@@ -584,7 +584,7 @@ the honest default.
 | Product — stock / inventory tracking | ✅ | 🟡 | ✅ | ✅ | |
 | Product — stock shown when selecting products (invoice line items) | ✅ | ✅ | ✅ | | |
 | Reserved date keywords (`[MONTHYEAR\|MONTHYEAR+12]`, `:MONTH`, `:QUARTER`, `:WEEK`, `:MONTH_BEFORE`/`_AFTER`, `:YEAR_BEFORE`/`_AFTER`, `:WEEK_BEFORE`/`_AHEAD`) rendered as dates on read-only surfaces — product list / detail / pickers, billing-doc line items, terms + public notes | ❌ | ❌ | ✅ | ✅ | |
-| Reserved date keyword **arithmetic** (`:MONTH+2`, `:QUARTER-1`) rendered rather than left raw | ❌ | ❌ | ❌ | | |
+| Reserved date keyword **arithmetic** (`:MONTH+2`, `:QUARTER-1`) rendered rather than left raw — `±n` on `:MONTHYEAR` / `:MONTH` / `:YEAR` / `:QUARTER`; `:WEEK±n`, `:*_BEFORE/_AFTER±n` and `*` / `/` stay raw (still wrong upstream) | ❌ | ❌ | 🟡 | | |
 | Reserved date keywords expanded in **custom field values** (server does this at PDF render for every non-date/switch custom field) | ❌ | ❌ | ❌ | | |
 | Product — low-stock / out-of-stock list filter + row highlight | — | — | ✅ | | |
 | Product — stock value (qty × price) column + detail row | — | — | ✅ | | |
@@ -1576,9 +1576,9 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Keyboard-shortcut discoverability — hold ⌘/Ctrl hint bar · Enter hint on dialog primaries · hover shortcut tooltips | — | — | ✅ | | |
 | Browser-style back/forward history (Cmd/Alt+←/→ · sidebar arrow buttons · mouse back/forward thumb buttons · Android system back gesture) | — | — | ✅ | ✅ | |
 | Recently-viewed entities (command palette "Recent" group, persisted, company-scoped) | ❌ | ✅ | ✅ | ✅ | |
-| Real-time WebSocket / Pusher notifications | ✅ | ✅ | ❌ |  | |
-| Live UI refresh on server-side change | ✅ | ✅ | ❌ |  | |
-| Push notifications (FCM / APNs) | 🟡 | ✅ | ❌ |  | |
+| Real-time WebSocket / Pusher notifications (v1's `web_socket_refresh.dart` returns before doing anything; v2 is hosted-only like React, and turns each event into a delta refresh — no in-app notification bell yet) | ✅ | ❌ | ✅ |  | |
+| Live UI refresh on server-side change (hosted: lists, detail screens and dashboard KPIs follow a broadcast change within seconds — docs/realtime-updates.md) | ✅ | ❌ | ✅ |  | |
+| Push notifications (FCM / APNs) | 🟡 | ❌ | ❌ |  | |
 | Deep links (open a record from a shared link — https or `invoiceninja://`) | — | ❌ | ✅ |  | v1 has no incoming-link handling at all — its only URL scheme is the Google OAuth callback |
 | Copy Link on a record — shareable deep link, auto-switches company | — | — | ✅ | | https link (`/app/…`) on touch shares via the system sheet; #144 |
 | View client / vendor from a record's actions menu | ✅ | ✅ | ✅ | | Replaced the narrow row's tappable client name (#128); permission-gated, excluded from edit screens |
@@ -1637,7 +1637,7 @@ Field-level breakdown of every option under each advanced settings panel. Source
 | Feature | React | Flutter v1 | Flutter v2 | AI review | Live E2E |
 |---|---|---|---|---|---|
 | Biometric lock (Touch ID / Face ID / fingerprint) | — | ✅ | ✅ | ✅ | |
-| Push notifications (FCM / APNs) | — | ✅ | ❌ |  | |
+| Push notifications (FCM / APNs) | — | ❌ | ❌ |  | |
 | Native share sheet | — | ✅ | ✅ | ✅ | v2: PDFs via `Printing.sharePdf`, record links via `share_plus` on touch |
 | OS deep links (custom scheme) | — | ❌ | ✅ | ✅ | `invoiceninja://app/…`, now the fallback behind the https form; v1 registers a scheme for Google OAuth only |
 | Universal / App Links (https) | — | ❌ | 🟡 | | client side done (`/app/` claim + shims); 🟡 until the server's `.well-known` routes deploy and the Apple capability is enabled — see `APP_LINKS.md` |

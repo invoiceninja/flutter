@@ -249,10 +249,10 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
     ListStatusTabSpec('unpaid'),
   ],
 
-  // Plain `whereIn` on `RecurringInvoiceFilters::client_status`. NOTE this is
-  // `client_status`, not the `status_id` the list's own chip writes —
-  // `status_id` is implemented ONLY on `InvoiceFilters`, so that chip is
-  // silently ignored server-side today (see BACKEND.md).
+  // Plain `whereIn` on `RecurringInvoiceFilters::client_status`. The list's own
+  // chip stores `status_id`, which is implemented ONLY on `InvoiceFilters`, so
+  // `RecurringInvoiceListViewModel._toServerFilters` rewrites it onto this same
+  // param at fetch time — and lets a selected tab's keyword win.
   EntityType.recurringInvoice: [
     ListStatusTabSpec(
       'draft',
@@ -318,7 +318,8 @@ const Map<EntityType, List<ListStatusTabSpec>> kListStatusTabs = {
   ],
 
   // Plain `whereIn` on `BankTransactionFilters::client_status`. Same
-  // `status_id`-is-invoice-only caveat as recurring invoices above.
+  // `status_id`-is-invoice-only rewrite as recurring invoices above, in
+  // `TransactionListViewModel._toServerFilters`.
   EntityType.transaction: [
     ListStatusTabSpec(
       'unmatched',

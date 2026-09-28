@@ -98,6 +98,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // key (invoiceninja/flutter#162). Passed here, the single construction
     // site, so the company-switch rebuild in `_onSessionChanged` keeps it.
     resyncCompletions: _services.resync.lastCompletion,
+    // A pushed server change refetches the same sections, rate-limited.
+    realtimeRefreshes: _services.realtime.lastRefresh,
     // Sync best-effort: if the formatter is already cached (e.g. navigating
     // back to the dashboard) we get the real fiscal year immediately;
     // otherwise _loadFormatter pushes it in once it resolves.

@@ -20,6 +20,19 @@ class Env {
     'IN_HOSTED_API_SECRET',
   );
 
+  /// Hosted real-time updates (docs/realtime-updates.md): the Pusher-protocol
+  /// socket host and app key the hosted React app connects with. The key is
+  /// not a secret — every browser client receives it, and React ships this
+  /// same `ninja-key` in its bundle. An empty key switches the feature off.
+  static const String pusherHost = String.fromEnvironment(
+    'IN_PUSHER_HOST',
+    defaultValue: 'socket.invoicing.co',
+  );
+  static const String pusherAppKey = String.fromEnvironment(
+    'IN_PUSHER_APP_KEY',
+    defaultValue: 'ninja-key',
+  );
+
   /// Demo mode short-circuits all non-GET requests with a friendly toast.
   /// See `web_client.dart:31,266` in admin-portal for the precedent.
   static const bool demoMode = bool.fromEnvironment('IN_DEMO_MODE');

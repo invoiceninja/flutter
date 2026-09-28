@@ -17,6 +17,7 @@ import 'package:admin/data/models/value/dashboard_filter.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/domain/entity_type.dart';
 import 'package:admin/ui/features/dashboard/view_models/async_section.dart';
 
@@ -39,19 +40,35 @@ class DashboardViewModel extends ChangeNotifier {
     required this.navStateDao,
     required this.statics,
     ValueListenable<ResyncCompletion?>? resyncCompletions,
+    ValueListenable<RealtimeRefresh?>? realtimeRefreshes,
+    Duration realtimeRefetchGap = kRealtimeRefetchGap,
     int firstMonthOfYear = 1,
     Duration persistDebounce = const Duration(milliseconds: 500),
     DateTime Function()? now,
     Date Function()? today,
   }) : _resyncCompletions = resyncCompletions,
+       _realtimeRefreshes = realtimeRefreshes,
+       _realtimeRefetchGap = realtimeRefetchGap,
        _fiscalYearStart = firstMonthOfYear,
        _persistDebounce = persistDebounce,
        _now = now ?? DateTime.now,
        _today = today ?? Date.today {
     _filter = _filter.copyWith(firstMonthOfYear: _fiscalYearStart);
     resyncCompletions?.addListener(_onResyncCompleted);
+    realtimeRefreshes?.addListener(_onRealtimeRefresh);
     unawaited(_init());
   }
+
+  /// Floor between two refetches a pushed server change sets off. A full
+  /// refetch is about seven requests, and a busy account can announce a change
+  /// every few seconds; the KPIs don't need to move faster than this.
+  static const Duration kRealtimeRefetchGap = Duration(seconds: 30);
+
+  /// `Services.realtime.lastRefresh` — see [_onRealtimeRefresh].
+  final ValueListenable<RealtimeRefresh?>? _realtimeRefreshes;
+  final Duration _realtimeRefetchGap;
+  DateTime? _lastRealtimeRefetch;
+  Timer? _realtimeRefetchTimer;
 
   /// `Services.resync.lastCompletion` — see [_onResyncCompleted]. Optional so a
   /// test that isn't about Sync can leave it out.
@@ -505,6 +522,39 @@ class DashboardViewModel extends ChangeNotifier {
       return;
     }
     unawaited(_runRefresh(reportGlobalError: false, rearmPanels: rearmPanels));
+  }
+
+  /// A pushed server change has been folded into Drift by a delta refresh
+  /// (hosted real-time updates, `RealtimeService`). The lists and the two
+  /// Drift-backed panels follow on their own; the KPI row, the chart and the
+  /// server-computed cards don't, so refetch them — at most once per
+  /// [kRealtimeRefetchGap] (injectable for tests), trailing, so the last
+  /// change in a burst still lands. Same company check and boot deferral as
+  /// [_onResyncCompleted].
+  void _onRealtimeRefresh() {
+    final done = _realtimeRefreshes?.value;
+    if (_disposed || done == null || done.companyId != companyId) return;
+    if (!_bootRefreshDone) {
+      _refetchAfterBoot = true;
+      return;
+    }
+    if (_realtimeRefetchTimer != null) return;
+    final last = _lastRealtimeRefetch;
+    final wait = last == null
+        ? Duration.zero
+        : _realtimeRefetchGap - _now().difference(last);
+    if (wait <= Duration.zero) {
+      _runRealtimeRefetch();
+      return;
+    }
+    _realtimeRefetchTimer = Timer(wait, _runRealtimeRefetch);
+  }
+
+  void _runRealtimeRefetch() {
+    _realtimeRefetchTimer = null;
+    if (_disposed) return;
+    _lastRealtimeRefetch = _now();
+    unawaited(_runRefresh(reportGlobalError: false, rearmPanels: false));
   }
 
   /// The downloads the two Drift-backed panels read. A pass that failed one of
@@ -1017,6 +1067,8 @@ class DashboardViewModel extends ChangeNotifier {
     // First: `Services.resync` outlives every view model, and a company switch
     // disposes this one while the pass for its company may still be running.
     _resyncCompletions?.removeListener(_onResyncCompleted);
+    _realtimeRefreshes?.removeListener(_onRealtimeRefresh);
+    _realtimeRefetchTimer?.cancel();
     _disposed = true;
     _persistTimer?.cancel();
     for (final sub in _subs.values) {

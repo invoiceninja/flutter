@@ -100,6 +100,7 @@ import 'package:admin/data/services/documents_api.dart';
 import 'package:admin/data/services/emails_api.dart';
 import 'package:admin/data/services/password_cache.dart';
 import 'package:admin/data/services/project_charts_api.dart';
+import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/refresh_scheduler.dart';
 import 'package:admin/data/services/reports_api.dart';
 import 'package:admin/data/services/search_api.dart';
@@ -293,6 +294,7 @@ class Services implements SidebarBadgeContext {
     required this.documents,
     required this.sync,
     required this.refreshScheduler,
+    required this.realtime,
     required this.entityRegistry,
     required this.connectivity,
     required this.passwordCache,
@@ -577,6 +579,10 @@ class Services implements SidebarBadgeContext {
   /// Foreground delta-refresh pump (periodic + on-resume). Lifecycle
   /// transitions are routed in by `SyncLifecycleObserver`.
   final RefreshScheduler refreshScheduler;
+
+  /// Hosted real-time updates — a pushed "something changed" becomes a
+  /// [refreshScheduler] delta. Inert unless `Services.build` was asked for it.
+  final RealtimeService realtime;
 
   /// Per-entity dispatchers + metadata. The sync engine, outbox screen,
   /// permissions checks, router branches, and shell navigation all read
@@ -1254,6 +1260,9 @@ class Services implements SidebarBadgeContext {
     DeviceContactsService? deviceContactsService,
     ConnectivityWatcher? connectivityWatcher,
     http.Client? httpClient,
+    // Off unless the app asks: a test or harness that builds the graph must
+    // never open a socket to the hosted server (docs/realtime-updates.md).
+    bool realtimeUpdates = false,
     DiagnosticsLog? diagnosticsLog,
     DebugCaptureStore? debugCaptureStore,
   }) {
@@ -1722,6 +1731,17 @@ class Services implements SidebarBadgeContext {
         if (companyId != null && companyId.isNotEmpty) kickDrain(companyId);
       },
     );
+    // Follows `auth.credentials` on its own (login, switch, rollback, logout);
+    // the lifecycle observer pauses it in the background.
+    final realtime = RealtimeService(
+      auth: auth,
+      api: apiClient,
+      scheduler: refreshScheduler,
+      companyKeys: (companyId) =>
+          companyRepo.watchCompany(companyId).map((c) => c?.companyKey ?? ''),
+      enabled: realtimeUpdates,
+    );
+    connectivity.onOnline.listen((_) => realtime.onOnline());
     final priorOnBeforeLogout = auth.onBeforeLogout;
     auth.onBeforeLogout = () async {
       // Logout wipes every Drift table, and the remaining entities of an
@@ -1918,6 +1938,7 @@ class Services implements SidebarBadgeContext {
       documents: documentsApi,
       sync: sync,
       refreshScheduler: refreshScheduler,
+      realtime: realtime,
       entityRegistry: registry,
       connectivity: connectivity,
       passwordCache: passwordCache,

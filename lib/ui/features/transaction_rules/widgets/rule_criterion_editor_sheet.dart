@@ -15,18 +15,6 @@ const _stringOperators = <String>[
   kRuleOperatorIsEmpty,
 ];
 
-// DEBIT string criteria omit `is_empty`: the DEBIT path saves `value: ''`, which
-// the server 422-rejects (`rules.*.value` is required + ConvertEmptyStringsToNull
-// nulls it) even though its matcher supports the operator — so the save parks in
-// the outbox forever. CREDIT keeps `is_empty`: its `value` carries a non-empty
-// `$invoice.*`/`$payment.*`/`$client.*` placeholder the server accepts. (Review
-// U2 — BACKEND.md tracks the server-side relaxation.)
-const _debitStringOperators = <String>[
-  kRuleOperatorIs,
-  kRuleOperatorContains,
-  kRuleOperatorStartsWith,
-];
-
 // No `is_empty` here: the server's matchNumberOperator (ProcessBankRules) only
 // handles =,<,<=,>,>= and returns false for anything else, so a numeric
 // `is_empty` criterion silently never matches. Mirrors React's numberOperators.
@@ -39,13 +27,13 @@ const _numberOperators = <String>[
 ];
 
 /// The operators offered for a rule criterion on [key]. Numeric keys get the
-/// comparison set; string keys get the text set — minus `is_empty` for DEBIT
-/// criteria, which the server rejects (see [_debitStringOperators]).
+/// comparison set; string keys get the text set, `is_empty` included for DEBIT
+/// too — a DEBIT `is_empty` saves `value: ''`, which the server has accepted
+/// since `fd8cd8ad6c` (`required_unless:rules.*.operator,is_empty`). A
+/// self-hosted server older than that 422s the save, which surfaces on the form.
 @visibleForTesting
-List<String> ruleOperatorsFor(String key, {required bool isCredit}) {
-  if (isNumericSearchKey(key)) return _numberOperators;
-  return isCredit ? _stringOperators : _debitStringOperators;
-}
+List<String> ruleOperatorsFor(String key) =>
+    isNumericSearchKey(key) ? _numberOperators : _stringOperators;
 
 /// Modal sheet for editing one [RuleCriterion]. Returns the modified
 /// criterion on save, or null on cancel.
@@ -104,7 +92,7 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
     _creditValueKey = kRuleCreditSearchKeys.contains(widget.initial.value)
         ? widget.initial.value
         : kRuleCreditSearchKeys.first;
-    final operators = _operatorsFor(_operatorKey);
+    final operators = ruleOperatorsFor(_operatorKey);
     _operator =
         widget.initial.operator.isNotEmpty &&
             operators.contains(widget.initial.operator)
@@ -122,9 +110,6 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
     super.dispose();
   }
 
-  List<String> _operatorsFor(String key) =>
-      ruleOperatorsFor(key, isCredit: widget.isCredit);
-
   /// The key whose type (string vs numeric) drives the operator set. For
   /// CREDIT that's the matched placeholder (the server picks its comparator
   /// from `value`); for DEBIT it's the bank-transaction field in `search_key`.
@@ -132,7 +117,7 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final operators = _operatorsFor(_operatorKey);
+    final operators = ruleOperatorsFor(_operatorKey);
     final hideValue = !widget.isCredit && _operator == kRuleOperatorIsEmpty;
     // Save is only meaningful when a value is present (or `is_empty` is
     // selected, which deliberately omits the value field). Without this
@@ -269,7 +254,7 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
         if (v == null) return;
         setState(() {
           _searchKey = v;
-          final next = _operatorsFor(_operatorKey);
+          final next = ruleOperatorsFor(_operatorKey);
           if (!next.contains(_operator)) _operator = next.first;
         });
       },
@@ -292,7 +277,7 @@ class _RuleCriterionSheetState extends State<_RuleCriterionSheet> {
         setState(() {
           _creditValueKey = v;
           // Operator type follows the placeholder for credit.
-          final next = _operatorsFor(_operatorKey);
+          final next = ruleOperatorsFor(_operatorKey);
           if (!next.contains(_operator)) _operator = next.first;
         });
       },

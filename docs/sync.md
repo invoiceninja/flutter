@@ -1,6 +1,6 @@
 # Sync — the non-obvious rules, with evidence
 
-Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states all 36 rules, one line each — it is the most-cited anchor in the repo. This doc carries the evidence behind the twenty-seven that needed more than a line: the status-code map, the cursor and paging gates, the company-token guard, the offline-retry policy, and what a retry may safely repeat.
+Companion to CLAUDE.md § Sync — non-obvious rules. The main file still states all 37 rules, one line each — it is the most-cited anchor in the repo. This doc carries the evidence behind the twenty-seven that needed more than a line: the status-code map, the cursor and paging gates, the company-token guard, the offline-retry policy, and what a retry may safely repeat.
 
 ## A discard abandons the row, not the entity
 

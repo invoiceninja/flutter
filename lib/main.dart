@@ -217,7 +217,11 @@ Future<void> _bootstrap() async {
       'Local data recovery (reset this launch: ${opened.wasReset}): $recovery',
     );
   }
-  final services = Services.build(db: opened.db, diagnosticsLog: diag);
+  final services = Services.build(
+    db: opened.db,
+    diagnosticsLog: diag,
+    realtimeUpdates: true,
+  );
   // Subscribe to the desktop runner's window pushes (fullscreen enter/exit) and
   // seed the current state. No-op off desktop; nothing downstream awaits it, so
   // it never gates the first frame.
@@ -598,6 +602,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     auth: widget.services.auth,
     sync: widget.services.sync,
     refreshScheduler: widget.services.refreshScheduler,
+    realtime: widget.services.realtime,
   );
 
   late final IdleTimeoutController _idleTimeout = IdleTimeoutController(
@@ -657,6 +662,7 @@ class _InvoiceNinjaAppState extends State<InvoiceNinjaApp> {
     WidgetsBinding.instance.removeObserver(_passwordCacheObserver);
     _idleTimeout.dispose();
     widget.services.refreshScheduler.dispose();
+    widget.services.realtime.dispose();
     _navPersister.dispose();
     _navHistory.dispose();
     _appDeepLinks.dispose();

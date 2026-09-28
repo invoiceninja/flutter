@@ -87,6 +87,10 @@ dependencies:
   url_launcher: ^6.3.0
   uuid: ^4.4.0
   web: ^1.1.0
+  # Hosted real-time updates speak the Pusher protocol over a plain websocket
+  # (docs/realtime-updates.md). Pure Dart on every platform, so the F-Droid
+  # build needs no swap. Was already in the lockfile transitively.
+  web_socket_channel: ^3.0.3
   webview_flutter: ^4.10.0
 
 dev_dependencies:

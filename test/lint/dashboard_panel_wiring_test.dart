@@ -156,6 +156,15 @@ void main() {
       isTrue,
       reason: '_buildVm must pass the completion signal',
     );
+    // Same shape for hosted real-time updates: optional, so a dropped argument
+    // compiles and leaves the KPIs frozen after a pushed change.
+    expect(
+      read(
+        registrars['wide body']!,
+      ).contains('realtimeRefreshes: _services.realtime.lastRefresh'),
+      isTrue,
+      reason: '_buildVm must pass the real-time refresh signal',
+    );
   });
 
   test('the Drift-backed panels re-arm off panelRefreshNonce', () {

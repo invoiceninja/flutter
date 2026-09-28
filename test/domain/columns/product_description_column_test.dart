@@ -98,7 +98,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Hosting '), findsOneWidget);
     expect(find.textContaining('[MONTHYEAR'), findsNothing);
-    expect(find.textContaining(' to '), findsOneWidget);
+    expect(find.textContaining(' - '), findsOneWidget);
   });
 
   testWidgets('the empty-locale fallback formatter does not throw', (

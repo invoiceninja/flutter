@@ -1,5 +1,6 @@
 import 'package:admin/data/db/dao/recurring_invoice_dao.dart';
 import 'package:admin/data/models/domain/recurring_invoice.dart';
+import 'package:admin/data/models/domain/recurring_invoice_status.dart';
 import 'package:admin/data/repositories/recurring_invoice_repository.dart';
 import 'package:admin/domain/columns/column_definition.dart';
 import 'package:admin/domain/columns/recurring_invoice_columns.dart';
@@ -89,7 +90,7 @@ class RecurringInvoiceListViewModel
     required Map<String, Set<String>> extraFilters,
     required bool ignoreCursor,
   }) {
-    final base = extraFilters;
+    final base = _toServerFilters(extraFilters);
     final filters = clientId == null
         ? base
         : {
@@ -104,6 +105,40 @@ class RecurringInvoiceListViewModel
       extraFilters: filters,
       ignoreCursor: ignoreCursor,
     );
+  }
+
+  /// Move the status chip's `status_id` (`1`..`4`) onto the server's
+  /// `client_status` keywords (`draft` / `active` / `paused` / `completed`).
+  /// `status_id` is an `InvoiceFilters`-only method, and `QueryFilters::apply`
+  /// silently skips a param with no matching method, so without this the chip
+  /// narrowed nothing server-side and a rare status on a large account paged
+  /// in only by luck. `TransactionListViewModel._toServerFilters` is the twin.
+  ///
+  /// A status tab's own `client_status` (`list_status_tabs.dart`) wins: it is
+  /// exact, and the chip still narrows locally, so the list shows the honest
+  /// intersection — the same first-writer rule as `_serverExtraFilters`'
+  /// `putIfAbsent`. A value with no keyword sends no status at all rather than
+  /// a narrower list. Returns a fresh map; the VM's stored sets are untouched.
+  static Map<String, Set<String>> _toServerFilters(
+    Map<String, Set<String>> extraFilters,
+  ) {
+    final ids = extraFilters['status_id'];
+    if (ids == null) return extraFilters;
+    final out = {
+      for (final e in extraFilters.entries)
+        if (e.key != 'status_id') e.key: {...e.value},
+    };
+    if (ids.isEmpty || out.containsKey('client_status')) return out;
+    final keywords = <String>{};
+    for (final id in ids) {
+      final status = RecurringInvoiceStatus.values
+          .where((s) => s.wireId == id)
+          .firstOrNull;
+      if (status == null) return out;
+      keywords.add(status.name);
+    }
+    out['client_status'] = keywords;
+    return out;
   }
 
   @override

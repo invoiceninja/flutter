@@ -11,10 +11,11 @@
 //
 // Blanking the trailing token is not an available fix: German and Japanese put
 // the second `:user` mid-string ("… がユーザー :user を作成しました。"), where a
-// trim can't clean up after it. So the formatter swaps in an actor-only
-// phrasing, and does it by *counting tokens* rather than hardcoding the swap —
-// once the server moves the target into `:notes` the count drops to one and
-// the translated template comes back with no change here.
+// trim can't clean up after it. Since fd8cd8ad6c the server writes the
+// target's name to `notes`, so the formatter fills the second `:user` from
+// there; a row written before that has no `notes` and gets an actor-only
+// phrasing instead. The swap is decided by *counting tokens* rather than
+// hardcoded, so a template fixed upstream is used as-is.
 
 import 'dart:convert';
 import 'dart:io';
@@ -125,6 +126,22 @@ void main() {
               'fix may have landed; see BACKEND.md',
         );
       }
+    });
+
+    testWidgets('the target named in notes fills the second slot', (
+      tester,
+    ) async {
+      final r = await render(tester, _row(48, notes: 'Ivy Invited'));
+      expect(r.title, 'Alice Admin created user Ivy Invited');
+      final archived = await render(tester, _row(50, notes: 'Ivy Invited'));
+      expect(archived.title, 'Alice Admin archived user Ivy Invited');
+    });
+
+    testWidgets('blank notes still fall back to the actor-only phrasing', (
+      tester,
+    ) async {
+      final r = await render(tester, _row(49, notes: '   '));
+      expect(RegExp('Alice Admin').allMatches(r.title).length, 1);
     });
 
     testWidgets('a single-token template is used verbatim', (tester) async {

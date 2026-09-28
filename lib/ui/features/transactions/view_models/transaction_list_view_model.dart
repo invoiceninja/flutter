@@ -172,10 +172,18 @@ class TransactionListViewModel extends GenericListViewModel<BankTransaction> {
     final out = {
       for (final e in extraFilters.entries) e.key: {...e.value},
     };
-    final clientStatus = <String>{};
+    // A status tab has already put its own keyword here
+    // (`_serverExtraFilters`); it is exact for the status dimension, so it
+    // wins that dimension (the chip still narrows locally) and the type chip
+    // is added alongside it. Overwriting it dropped the tab from the wire.
+    final tab = out['client_status'] ?? const <String>{};
+    final tabHasStatus = tab.any(
+      (k) => const {'unmatched', 'matched', 'converted'}.contains(k),
+    );
+    final clientStatus = <String>{...tab};
     for (final s in out.remove('status_id') ?? const <String>{}) {
       final keyword = _statusKeyword(s);
-      if (keyword != null) clientStatus.add(keyword);
+      if (keyword != null && !tabHasStatus) clientStatus.add(keyword);
     }
     for (final b in out.remove('base_type') ?? const <String>{}) {
       final keyword = _baseTypeKeyword(b);

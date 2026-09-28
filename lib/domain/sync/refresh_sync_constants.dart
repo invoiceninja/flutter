@@ -31,3 +31,16 @@ const Duration kRefreshInterval = Duration(minutes: 5);
 /// after the previous completion). The interval itself is the cadence
 /// throttle, mirroring v1's timer.
 const Duration kMinRefreshGap = Duration(minutes: 1);
+
+/// Quiet period before a pushed "something changed" event (hosted real-time
+/// updates, `RealtimeService`) becomes a delta refresh, so a burst of events —
+/// a bulk action, a payment that marks three invoices paid — costs one request.
+const Duration kPushRefreshDebounce = Duration(seconds: 2);
+
+/// Floor between two push-driven refreshes. Under [kMinRefreshGap] — a push is
+/// a *reason* to refresh — but each one is a full `/refresh` (company envelope,
+/// reference bundles and roster rewritten in one transaction), so a busy
+/// account's stream of portal views must not become one per event. 30 s caps
+/// an open client at two a minute, matching the dashboard's own refetch gap;
+/// the first change after a quiet spell still lands in about the debounce.
+const Duration kMinPushRefreshGap = Duration(seconds: 30);

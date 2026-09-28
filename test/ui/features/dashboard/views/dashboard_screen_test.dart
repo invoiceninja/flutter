@@ -17,6 +17,7 @@ import 'package:admin/data/models/domain/enabled_modules.dart';
 import 'package:admin/data/repositories/auth_repository.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -97,6 +98,10 @@ class _FakeServices implements Services {
         const <String>[],
   );
 
+  /// `_buildVm` hands the view model the real-time signal too. Never fires.
+  @override
+  final RealtimeService realtime = _IdleRealtime();
+
   /// Never completes, so `_formatter` stays null and the data body — the only
   /// part that touches Drift watch streams — is never built.
   @override
@@ -133,6 +138,16 @@ class _FakeServices implements Services {
   @override
   void stageCreateDraft(String basePath, Object? draft) =>
       staged.add((basePath, draft));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError(invocation.memberName.toString());
+}
+
+class _IdleRealtime implements RealtimeService {
+  @override
+  final ValueListenable<RealtimeRefresh?> lastRefresh =
+      ValueNotifier<RealtimeRefresh?>(null);
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

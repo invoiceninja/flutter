@@ -32,8 +32,8 @@ class ActivityRender {
 enum ActivityTone { paid, sent, viewed, draft, expense, neutral }
 
 /// `activity_type_id`s whose template names both an actor and a target user
-/// (`CREATE_USER` 48 … `RESTORE_USER` 52). Only the actor survives the wire —
-/// see the fallback in [ActivityFormatter.format].
+/// (`CREATE_USER` 48 … `RESTORE_USER` 52). The actor arrives as the row's
+/// `user`, the target only as `notes` — see [ActivityFormatter.format].
 const Set<int> kUserLifecycleActivityTypes = {48, 49, 50, 51, 52};
 
 /// Deliberately a plain `RegExp` and not a `const {':user': …}` rename map:
@@ -72,20 +72,26 @@ class ActivityFormatter {
         raw = raw.replaceAll(':user', ':contact');
       }
       // The user-lifecycle templates name two different people
-      // (":user created user :user") but the server persists only the actor:
-      // `ActivityRepository::save()` returns early for a User entity, and the
-      // `activities` table has no second user column, so `activity_string()`
-      // emits a single `user` object. The substitution below would stamp the
-      // actor into both slots — "Alice created user Alice". Fall back to an
-      // actor-only phrasing while the template still carries the duplicate
-      // token; if the server ever moves the target into `:notes` (BACKEND.md
-      // § F6) the count drops to one and the translated template is used
-      // again, with no change here.
-      if (kUserLifecycleActivityTypes.contains(a.activityTypeId) &&
-          _userToken.allMatches(raw).length > 1) {
-        final actorOnly = l?.lookup('${key}_actor_only') ?? '';
-        if (actorOnly.isNotEmpty && actorOnly != '${key}_actor_only') {
-          raw = actorOnly;
+      // (":user created user :user") but the row carries only the actor as a
+      // `user` object: `ActivityRepository::save()` returns early for a User
+      // entity, and the `activities` table has no second user column. The
+      // substitution below would stamp the actor into both slots — "Alice
+      // created user Alice". Since fd8cd8ad6c the server writes the target's
+      // name to `notes` (`app/Listeners/User/*UserActivity.php`), so the second
+      // slot is filled from there; every bundled locale puts the actor first
+      // and the target second. A row written before that has no `notes` and
+      // falls back to an actor-only phrasing (BACKEND.md § F6).
+      if (kUserLifecycleActivityTypes.contains(a.activityTypeId)) {
+        final users = _userToken.allMatches(raw).toList();
+        if (users.length > 1) {
+          if (a.notes.trim().isNotEmpty) {
+            raw = raw.replaceRange(users[1].start, users[1].end, ':notes');
+          } else {
+            final actorOnly = l?.lookup('${key}_actor_only') ?? '';
+            if (actorOnly.isNotEmpty && actorOnly != '${key}_actor_only') {
+              raw = actorOnly;
+            }
+          }
         }
       }
       resolved = raw.replaceAllMapped(RegExp(r':([a-z_]+)'), (m) {

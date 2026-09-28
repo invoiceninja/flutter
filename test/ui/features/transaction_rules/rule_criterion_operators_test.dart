@@ -4,37 +4,32 @@ import 'package:admin/data/models/domain/transaction_rule.dart';
 import 'package:admin/ui/features/transaction_rules/widgets/rule_criterion_editor_sheet.dart';
 
 void main() {
-  // U2: a DEBIT rule using `is_empty` saves `value: ''`, which the server
-  // 422-rejects (`rules.*.value` required + ConvertEmptyStringsToNull), parking
-  // the save in the outbox forever. The operator is no longer offered for DEBIT
-  // criteria. CREDIT keeps it — its value carries a non-empty placeholder the
-  // server accepts.
-  group('ruleOperatorsFor (U2: is_empty gating)', () {
-    test('DEBIT string criteria do NOT offer is_empty', () {
-      final ops = ruleOperatorsFor(kRuleSearchKeyDescription, isCredit: false);
-      expect(ops, isNot(contains(kRuleOperatorIsEmpty)));
+  // A DEBIT `is_empty` criterion saves `value: ''`. The server used to 422 it
+  // (`rules.*.value` required + ConvertEmptyStringsToNull), so the operator was
+  // withheld for DEBIT (review U2); since fd8cd8ad6c the rule is
+  // `required_unless:rules.*.operator,is_empty` and it is offered again.
+  group('ruleOperatorsFor', () {
+    test('DEBIT string criteria offer is_empty', () {
+      final ops = ruleOperatorsFor(kRuleSearchKeyDescription);
+      expect(ops, contains(kRuleOperatorIsEmpty));
+      expect(ops, contains(kRuleOperatorContains));
+    });
+
+    test('CREDIT string criteria offer is_empty', () {
       expect(
-        ops,
-        contains(kRuleOperatorContains),
-        reason: 'the other string operators still apply',
+        ruleOperatorsFor(r'$invoice.number'),
+        contains(kRuleOperatorIsEmpty),
       );
     });
 
-    test(
-      'CREDIT string criteria keep is_empty (value carries a placeholder)',
-      () {
-        final ops = ruleOperatorsFor(r'$invoice.number', isCredit: true);
-        expect(ops, contains(kRuleOperatorIsEmpty));
-      },
-    );
-
-    test('numeric criteria never offer is_empty (either scope)', () {
+    test('numeric criteria never offer is_empty', () {
+      // The server's matchNumberOperator only handles =,<,<=,>,>=.
       expect(
-        ruleOperatorsFor(kRuleSearchKeyAmount, isCredit: false),
+        ruleOperatorsFor(kRuleSearchKeyAmount),
         isNot(contains(kRuleOperatorIsEmpty)),
       );
       expect(
-        ruleOperatorsFor(r'$invoice.amount', isCredit: true),
+        ruleOperatorsFor(r'$invoice.amount'),
         allOf(
           isNot(contains(kRuleOperatorIsEmpty)),
           contains(kRuleOperatorGreaterThan),

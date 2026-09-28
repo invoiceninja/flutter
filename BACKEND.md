@@ -27,7 +27,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - `users.email_verified_at` — the only per-user verification signal, and it conflates four states, so no client can render a true "pending invite" (**O**, § F4; caused flutter#47, client now under-claims instead).
 - `last_login` never means "last login" — `Carbon::parse(null)` reports **now**, and `UserFactory` seeds the column at creation (**SHIPPED** 2026-09-08, § F5; both halves fixed, but the transformer emits `0` rather than `null` for "never").
 - `POST /api/v1/activities/entity` has **no notes filter** and its `rows` window covers all activity for the record, so a comment can fall out of it entirely (**O**, § F3b); it **narrows by user instead of 403-ing**, so a restricted user silently sees only their own (**R**, § F3c); a note can never be **edited or deleted** (**O**, § F3d — [flutter#123](https://github.com/invoiceninja/flutter/issues/123)); and adding one **notifies nobody** (**O**, § F3e — [flutter#121](https://github.com/invoiceninja/flutter/issues/121)).
-- Activity types 48–52 (user lifecycle) discard the acted-upon user, so `":user created user :user"` can only ever name the actor twice (**O**, § F6; client now renders an actor-only sentence).
+- Activity types 48–52 (user lifecycle) — the target's name now lands in `notes` (`fd8cd8ad6c`), but the template still reads `":user created user :user"` (**half shipped**, § F6; the client fills the second slot from `notes`).
 - `TaskAssigned` is **dead code** — `TaskRepository::save` runs `fill()` before the `assigned_user_id` comparison that guards the dispatch, so assigning (or reassigning) a task has never notified anyone (**O**, § F7 — [flutter#148](https://github.com/invoiceninja/flutter/issues/148)).
 - App Links — the two `.well-known` documents and the `/app/{path}` bridge page that make a shared record link open the app (**R**, PR written in the fork, unmerged; § App Links).
 - Client / vendor contacts — portal login **persists** a `Str::random(6|15) . '@example.com'` address onto a contact that had none, so the user sees an email they never typed (**O**; client now hides it, and a forward fix needs a backfill).
@@ -38,6 +38,7 @@ the Flutter app) so they are explicitly **out of scope** here.
 - **Calendar connect native callback** — `platform=flutter_native` on `/one_time_token`; both sides done.
 - **Multi-rate inclusive tax** — server adopted the additive `InclusiveTax::backout` model 2026-07-09 (two small client-side residuals noted in that section).
 - **`last_login`** (§ F5), **PEPPOL Singapore `government`**, and **`documents_public_by_default`** — all three landed server-side by 2026-09-08; see each section for the one client-visible caveat (`last_login` emits `0`, not `null`, for "never").
+- **Found shipped 2026-09-28** (all released by v5.13.37, 2026-09-02): the PO PDF's vendor currency (`47fa071e6d`), `/refresh` minting the `is_system` token per (company, user) (`878b080b60`), bank-rule `is_empty` validation (§ U2) and five of the six reserved-date-keyword defects (§ Reserved date keywords), both in `fd8cd8ad6c`. The optional CORS `Access-Control-Expose-Headers: X-MINIMUM-CLIENT-VERSION` is also live (`app/Http/Middleware/Cors.php`).
 
 **Provenance**
 - **2026-05-15** — empirical curl probe vs `demo.invoiceninja.com`.
@@ -598,7 +599,15 @@ Until then the field is unusable and the v2 client renders it nowhere — which
 also rules it out as a "has never acted, so the empty activity log is real"
 signal for § F4.
 
-### F6. Activity types 48–52 discard the acted-upon user — **O** (client now works around it)
+### F6. Activity types 48–52 discard the acted-upon user — **half shipped** (client consumes it)
+
+> **STATUS 2026-09-28.** `fd8cd8ad6c` did the first half: each
+> `app/Listeners/User/*UserActivity.php` now sets `$fields->notes` to the
+> target's name. The retemplate did not happen — `lang/en/texts.php:771-775`
+> still read `":user created user :user"` — so the server's own renderer still
+> names the actor twice. The client fills the second `:user` from `notes`
+> (`ActivityFormatter`); rows written before the fix have no `notes` and keep
+> the actor-only fallback. Remaining ask: retemplate to `:user … :notes`.
 
 `texts.activity_48..52` (`lang/en/texts.php:770-774`) are
 `":user created user :user"`, `":user updated user :user"`, … — two different
@@ -1115,7 +1124,10 @@ work; only writes are blocked.
 `Access-Control-Allow-Headers` list (the middleware/config that produces
 the header set above; mirror how `X-API-TOKEN` is registered).
 
-**Optional, same change site** — add
+**Optional, same change site — already live** (`Cors.php` sets
+`Access-Control-Expose-Headers: X-APP-VERSION,X-MINIMUM-CLIENT-VERSION,Content-Disposition`
+on every non-OPTIONS response; the probe below only looked at the preflight).
+The original ask, for the record: add
 `Access-Control-Expose-Headers: X-MINIMUM-CLIENT-VERSION`. There is no
 `Access-Control-Expose-Headers` in the response today, so the
 `x-minimum-client-version` response header (read on every request to throw
@@ -1758,7 +1770,12 @@ additive — the net derivation stays as-is (→ 833.34). React must adopt the s
 documents — needs a migration/reporting review, not a silent swap. Single-rate
 inclusive (the common case) is unaffected — all models already agree there.
 
-## Purchase-order PDF renders line items in the attached client's currency instead of the vendor's — **R (PDF correctness)**
+## Purchase-order PDF renders line items in the attached client's currency instead of the vendor's — **SHIPPED**
+
+> **STATUS 2026-09-28.** `47fa071e6d` (2026-07-17) makes
+> `PdfConfiguration::setCurrencyForPdf()` return the vendor's currency for every
+> purchase order before the client branch is reached. The PO's own
+> `currency_id` is still not consulted — the vendor's currency is.
 
 **Provenance** — 2026-07-17, user report (PO/2026/0006) + source-read of
 `~/Code/invoiceninja` (`v5-develop`), verified against actual line numbers.
@@ -1866,7 +1883,12 @@ invoice menu. (The `/api/v1/templates` route is a design-preview engine, a
 different feature.) If "run template" should exist for recurring invoices, add a
 server action/endpoint.
 
-### Bank-rule `is_empty` operator: save 422s (review U2)
+### Bank-rule `is_empty` operator: save 422s (review U2) — **SHIPPED**
+
+> **STATUS 2026-09-28.** `fd8cd8ad6c` relaxed both requests to
+> `required_unless:rules.*.operator,is_empty` (with a feature test), and the
+> client offers `is_empty` for DEBIT criteria again. A self-hosted server older
+> than that still 422s the save, which surfaces on the form.
 `ProcessBankRules::matchStringOperator` supports `'is_empty' => empty($bt_value)` (matches on the transaction's empty field, ignoring the rule value), but the store/update request validates `rules.*.value` as required, and `ConvertEmptyStringsToNull` turns the empty value → null, so saving a rule that uses `is_empty` 422s and parks in the outbox. The engine supports the operator; the request validation should allow an empty/absent `value` when the operator is `is_empty` (e.g. `required_unless:rules.*.operator,is_empty`). **Client mitigation:** the `is_empty` operator is no longer offered for DEBIT (bank-transaction-field) rule criteria, since it always 422'd. CREDIT criteria keep it (their `value` carries a non-empty `$invoice.*`/`$payment.*`/`$client.*` placeholder the server accepts). Re-add the DEBIT option once the request validation is relaxed.
 
 ### Dashboard `totals_v2` exposes no overdue count/amount (review U7)
@@ -2023,7 +2045,13 @@ outbox row. Its Email History tab on a recurring invoice reads "No emails have
 been sent", which is accurate today; the generated invoices carry their own
 history on their own tabs. No client change is needed when this ships.
 
-## `status_id` is implemented only on invoices — recurring-invoice + bank-transaction status filters are silently ignored — **O (client filters narrow locally only)**
+## `status_id` is implemented only on invoices — recurring-invoice + bank-transaction status filters are silently ignored — **fixed client-side**
+
+> **STATUS 2026-09-28.** Both lists now rewrite the chip onto `client_status`
+> at fetch time — `TransactionListViewModel._toServerFilters` (status and
+> `base_type`) and `RecurringInvoiceListViewModel._toServerFilters` — and a
+> selected status tab's own keyword wins the status dimension. Nothing server-side
+> is needed; § F (`status_id` parity) stays optional.
 
 Found while auditing filter semantics for the list status tabs (invoiceninja/flutter#98).
 
@@ -2050,7 +2078,12 @@ semantics that match the app's local predicates exactly:
 `client_status`, so the two surfaces currently disagree about which param to send. Worth
 its own PR; tracked here so the next person auditing filter coverage doesn't re-derive it.
 
-## `/refresh` mints the `is_system` token per **company**, not per (company, user) — **R (drops a company from multi-company clients)**
+## `/refresh` mints the `is_system` token per **company**, not per (company, user) — **SHIPPED**
+
+> **STATUS 2026-09-28.** `878b080b60` (2026-09-01) rewrote both `refresh` and
+> `refreshReact` to walk the user's own `company_user` rows and check
+> `$company_user->tokens()` (keyed on `user_id`) per `company_id` — the
+> (company, user) pair this section asked for. The client's tolerance stays.
 
 **Provenance** — 2026-08-11, tracing
 [flutter#16](https://github.com/invoiceninja/flutter/issues/16) ("Couldn't switch
@@ -2235,7 +2268,19 @@ Details → Documents):
   "Saved" toast. Nothing to fix client-side; it resolves the moment steps 1–2
   land.
 
-## Reserved date keywords in descriptions / terms — six defects in `processReservedKeywords` — **O (PDF correctness, one data-loss)**
+## Reserved date keywords in descriptions / terms — six defects in `processReservedKeywords` — **five shipped; defect 4 open**
+
+> **STATUS 2026-09-28.** `fd8cd8ad6c` (2026-09-01, released in v5.13.37)
+> fixed defects 1 (`Str::replaceFirst`, so `/2` no longer erases the field),
+> 2 (`[MONTHYEAR|MONTHYEAR-n]`), 3 (`:QUARTER±n` → `Qn`), 5 (one untranslated
+> `-` separator for ranges and windows alike) and 6 (`startOfMonth()` anchor),
+> each pinned in `tests/Unit/HelpersTest.php`. Still open: **4** (`:YEAR/n` is a
+> float), and `:WEEK±n` / `:*_BEFORE/_AFTER±n` still render a bare number
+> (`strtr` has no raw entry for those keys). The client now mirrors the new
+> output — the `-` separator, subtracted ranges, and `±n` on `:MONTHYEAR`,
+> `:MONTH`, `:YEAR`, `:QUARTER` — and leaves the rest raw
+> (`lib/domain/date_placeholders.dart`). The two related gaps below are
+> untouched.
 
 Found while implementing client-side rendering of these keywords for
 [flutter#93](https://github.com/invoiceninja/flutter/issues/93). All line
@@ -2301,11 +2346,12 @@ on the real wall clock even when `$currentDateTime` was supplied explicitly.
 ### Client status
 
 No server change is required for the client to be correct. `admin` (v2) renders
-`[MONTHYEAR|MONTHYEAR(+n)]`, the four bare literals, and the seven fixed-window
-literals (`lib/domain/date_placeholders.dart`) for *display only*, matching the
-server where the server is right and deliberately leaving every arithmetic form
-as the raw token rather than reproducing defects 2–4. If 1–6 ship, the client's
-`_rangePattern` / `_literalPattern` can widen to match.
+the keywords for *display only* (`lib/domain/date_placeholders.dart`), matching
+the server where the server is right and leaving the raw token where it is not.
+Since the 2026-09-28 status note above that covers ranges (`±n`), the bare and
+fixed-window literals, and `±n` arithmetic on `:MONTHYEAR` / `:MONTH` / `:YEAR`
+/ `:QUARTER`; if defect 4 and the `:WEEK±n` family ship, the client's
+`_arithmeticPattern` can widen to match.
 
 ---
 

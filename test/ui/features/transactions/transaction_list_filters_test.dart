@@ -276,6 +276,25 @@ void main() {
         expect(parts, containsAll(<String>['unmatched', 'converted']));
       });
 
+      test("a status tab's keyword survives a type chip", () async {
+        // `_serverExtraFilters` splices the tab's exact keyword in first; the
+        // chip translation used to overwrite it.
+        final sent = await sentFor({
+          'client_status': {'unmatched'},
+          'base_type': {'DEBIT'},
+        });
+        final parts = (sent['client_status'] ?? '').split(',');
+        expect(parts, containsAll(<String>['unmatched', 'withdrawals']));
+      });
+
+      test('a status tab wins the status dimension over the chip', () async {
+        final sent = await sentFor({
+          'client_status': {'unmatched'},
+          'status_id': {'2'},
+        });
+        expect(sent['client_status'], 'unmatched');
+      });
+
       test('no status/type filter → no client_status key', () async {
         final sent = await sentFor(const {});
         expect(sent.containsKey('client_status'), isFalse);

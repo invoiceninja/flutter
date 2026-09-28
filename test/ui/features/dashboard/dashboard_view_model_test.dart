@@ -12,6 +12,7 @@ import 'package:admin/data/models/domain/dashboard/dashboard_list_rows.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/dashboard_repository.dart';
 import 'package:admin/data/repositories/statics_repository.dart';
+import 'package:admin/data/services/realtime/realtime_service.dart';
 import 'package:admin/data/services/statics_service.dart';
 import 'package:admin/ui/features/dashboard/view_models/dashboard_view_model.dart';
 
@@ -1133,6 +1134,76 @@ void main() {
       own.value = pass();
       await settle();
       expect(repo.refreshAllCalls, 0);
+    });
+  });
+
+  group('a pushed server change (hosted real-time)', () {
+    const gap = Duration(milliseconds: 150);
+    late ValueNotifier<RealtimeRefresh?> pushes;
+    late DashboardViewModel live;
+    var liveDisposed = false;
+
+    Future<void> settle([Duration d = const Duration(milliseconds: 20)]) =>
+        Future<void>.delayed(d);
+
+    RealtimeRefresh landed({String companyId = 'co'}) =>
+        RealtimeRefresh(companyId: companyId, at: DateTime.now());
+
+    setUp(() async {
+      pushes = ValueNotifier<RealtimeRefresh?>(null);
+      liveDisposed = false;
+      live = DashboardViewModel(
+        repo: repo,
+        companyId: 'co',
+        navStateDao: db.navStateDao,
+        statics: StaticsRepository(
+          db: db,
+          service: StaticsService(dummyDashboardClient),
+        ),
+        realtimeRefreshes: pushes,
+        realtimeRefetchGap: gap,
+      );
+      await settle();
+      repo.refreshAllCalls = 0;
+    });
+
+    tearDown(() {
+      if (!liveDisposed) live.dispose();
+      pushes.dispose();
+    });
+
+    test('refetches the server-computed sections', () async {
+      pushes.value = landed();
+      await settle();
+      expect(repo.refreshAllCalls, 1);
+    });
+
+    test('a burst inside the gap becomes one trailing refetch', () async {
+      pushes.value = landed();
+      await settle();
+      pushes.value = landed();
+      pushes.value = landed();
+      await settle();
+      expect(repo.refreshAllCalls, 1, reason: 'inside the gap');
+
+      await settle(gap);
+      expect(repo.refreshAllCalls, 2, reason: 'the last change still lands');
+    });
+
+    test('another company is ignored', () async {
+      pushes.value = landed(companyId: 'other');
+      await settle();
+      expect(repo.refreshAllCalls, 0);
+    });
+
+    test('dispose cancels a pending trailing refetch', () async {
+      pushes.value = landed();
+      await settle();
+      pushes.value = landed();
+      live.dispose();
+      liveDisposed = true;
+      await settle(gap * 2);
+      expect(repo.refreshAllCalls, 1);
     });
   });
 }

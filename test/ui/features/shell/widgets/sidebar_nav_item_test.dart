@@ -10,6 +10,7 @@ import 'package:admin/app/design_tokens.dart';
 import 'package:admin/domain/sidebar_badge_modes.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_badge.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_row_icon_button.dart';
 
 /// Theme that supplies the `InTheme` extension `SidebarNavItem` reads via
 /// `context.inTheme`.
@@ -24,20 +25,22 @@ Widget _wrap(Widget child, {InTheme tokens = InTheme.light}) => MaterialApp(
   home: Scaffold(body: child),
 );
 
-/// Stands in for the private `_SavedViewMenuButton` (`in_sidebar.dart`) in its
-/// touch configuration. Kept structurally identical — `iconSize`, zero padding,
-/// `shrinkWrap`, no `visualDensity`, and the same `constraints` — because every
-/// one of those participates in the final size; a plain `SizedBox` would prove
-/// the row arithmetic while hiding the Material sizing rules that actually bite.
-Widget _savedViewMenuButtonLookalike() => IconButton(
-  iconSize: 16,
-  padding: EdgeInsets.zero,
-  style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-  constraints: const BoxConstraints.tightFor(
-    width: InSizes.touchTarget,
-    height: 30,
-  ),
-  icon: const Icon(Icons.more_vert),
+/// The sidebar's real row button, as `_SavedViewMenuButton` (touch) and the
+/// hover `+` (`touchTarget: false`) build it in `in_sidebar.dart`. Always the
+/// real widget, never a lookalike or a `SizedBox`: its `iconSize`, padding,
+/// tap-target size, density and `constraints` all participate in the final
+/// size, and a stand-in proves the row arithmetic while hiding the Material
+/// sizing rules that actually bite (invoiceninja/flutter#171 shipped behind a
+/// `SizedBox` stand-in).
+Widget _rowButton({
+  required IconData icon,
+  bool touchTarget = false,
+  Key? key,
+}) => SidebarRowIconButton(
+  key: key,
+  icon: icon,
+  tooltip: 'Action',
+  touchTarget: touchTarget,
   onPressed: () {},
 );
 
@@ -175,10 +178,9 @@ void main() {
               active: false,
               count: 7,
               onTap: () {},
-              trailingHover: const SizedBox(
-                key: Key('trailing'),
-                width: 18,
-                height: 18,
+              trailingHover: _rowButton(
+                key: const Key('trailing'),
+                icon: Icons.add_circle_outline,
               ),
             ),
           ),
@@ -215,6 +217,14 @@ void main() {
       expect(find.text('7'), findsOneWidget);
       expect(find.byKey(const Key('trailing')), findsNothing);
     },
+    // macOS is the real pointer config (`shrinkWrap` theme, `compact`
+    // density). android is flutter_test's own default platform, and there the
+    // theme is `padded` — the half of the matrix #171 shipped through, where a
+    // button without `shrinkWrap` lays out at 40 px and grows the row.
+    variant: TargetPlatformVariant({
+      TargetPlatform.android,
+      TargetPlatform.macOS,
+    }),
   );
 
   testWidgets('disabled rows do not surface the hover trailing', (
@@ -421,7 +431,7 @@ void main() {
             icon: Icons.bookmark_outline,
             active: false,
             touch: true,
-            trailing: _savedViewMenuButtonLookalike(),
+            trailing: _rowButton(icon: Icons.more_vert, touchTarget: true),
             onTap: () {},
           ),
         );
@@ -445,6 +455,68 @@ void main() {
         // visual-density defaults governing this button differ from desktop —
         // measure on a real touch platform, not the test host's.
       }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+      // invoiceninja/flutter#171: an iPad with a trackpad (or an Android
+      // device with a mouse) *hovers*, so the hover `+` mounts on a touch row
+      // under the `padded` touch theme. Without `shrinkWrap` it laid out at
+      // 40 px and every hover-in turned the 44-px row into a 54-px one,
+      // shoving each row below it down by 10 px.
+      testWidgets(
+        'hovering a touch row with a pointer does not grow or move it '
+        '@ ${width.toInt()}px (invoiceninja/flutter#171)',
+        (tester) async {
+          await pumpAtWidth(
+            tester,
+            width,
+            SidebarNavItem(
+              label: longLabel,
+              icon: Icons.receipt_long_outlined,
+              active: false,
+              touch: true,
+              count: 7,
+              onTap: () {},
+              trailingHover: _rowButton(
+                key: const Key('hover-add'),
+                icon: Icons.add_circle_outline,
+              ),
+            ),
+          );
+          expect(tester.getSize(find.byType(SidebarNavItem)).height, 44);
+          final badgeBefore = tester.getTopLeft(find.text('7'));
+
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await gesture.addPointer(location: Offset.zero);
+          addTearDown(gesture.removePointer);
+          await gesture.moveTo(tester.getCenter(find.byType(SidebarNavItem)));
+          await tester.pump();
+
+          expect(find.byKey(const Key('hover-add')), findsOneWidget);
+          expect(
+            tester.getSize(find.byType(IconButton)).height,
+            lessThanOrEqualTo(30),
+            reason:
+                'the hover button must fit the touch row\'s 30-px content '
+                'box (44 floor − 7/7 padding)',
+          );
+          expect(
+            tester.getSize(find.byType(SidebarNavItem)).height,
+            44,
+            reason: 'hovering must not change the row height',
+          );
+          expect(
+            tester.getTopLeft(find.text('7')),
+            badgeBefore,
+            reason: 'hovering must not move anything already on the row',
+          );
+          expect(tester.takeException(), isNull);
+        },
+        variant: TargetPlatformVariant({
+          TargetPlatform.iOS,
+          TargetPlatform.android,
+        }),
+      );
     }
   });
 
@@ -580,6 +652,24 @@ void main() {
               'that row keeps the dense height on phones.',
         );
       }
+    });
+
+    // invoiceninja/flutter#171 was three private copies of one button, two of
+    // which had dropped the `shrinkWrap` the third carried. `\b` keeps
+    // `SidebarRowIconButton(` itself from matching; the optional `.name`
+    // catches `IconButton.filled(` and friends, which take the same `padded`
+    // tap target.
+    test('every row button in the sidebar is a SidebarRowIconButton', () {
+      final bare = RegExp(r'\bIconButton(\.\w+)?\(').allMatches(sidebar).length;
+      expect(
+        bare,
+        0,
+        reason:
+            'in_sidebar.dart builds $bare bare IconButton(s). A row button '
+            'sits inside the row\'s Row, so without SidebarRowIconButton\'s '
+            'shrinkWrap it lays out at 40-48 px on iOS/Android and grows the '
+            'row — on hover, for a hover-revealed one (issue #171).',
+      );
     });
   });
 
@@ -920,8 +1010,8 @@ void main() {
     ) async {
       // `_BadgeModeMenuTarget` (private to in_sidebar.dart) wraps each entity
       // row in exactly this gesture detector. Replicated rather than imported
-      // for the same reason `_savedViewMenuButtonLookalike` is: the shape is
-      // what participates in the arena, and that is what is under test.
+      // because it is private to in_sidebar.dart, and the shape is what
+      // participates in the arena, which is what is under test.
       //
       // The tile's own tooltip registers a competing LongPressGestureRecognizer
       // *below* this one unless its trigger mode is manual, and being deeper it

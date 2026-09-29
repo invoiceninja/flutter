@@ -114,6 +114,10 @@ class SidebarNavItem extends StatefulWidget {
   /// Secondary action revealed at the row's right edge when the mouse
   /// hovers over this row. Ignored in [compact] mode (no horizontal room)
   /// and on [disabled] rows (no real action to invoke).
+  ///
+  /// Not gated on [touch]: an iPad with a trackpad hovers. Whatever goes here
+  /// must fit the row's content box (30 px on touch) or the row grows on every
+  /// hover — pass a `SidebarRowIconButton` (invoiceninja/flutter#171).
   final Widget? trailingHover;
 
   /// Always-visible secondary action at the row's right edge (no hover

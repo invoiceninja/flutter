@@ -29,6 +29,7 @@ import 'package:admin/ui/features/shell/widgets/sidebar_footer_actions.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_menu_entries.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_grid.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_nav_item.dart';
+import 'package:admin/ui/features/shell/widgets/sidebar_row_icon_button.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_search_box.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_sync_button.dart';
 import 'package:admin/ui/features/shell/widgets/sidebar_header.dart';
@@ -1305,13 +1306,9 @@ class _HoverAddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return SidebarRowIconButton(
       tooltip: context.tr('add_new'),
-      iconSize: 16,
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 18, height: 18),
-      icon: Icon(Icons.add_circle_outline, color: context.inTheme.ink3),
+      icon: Icons.add_circle_outline,
       onPressed: () async {
         final guard = context.read<Services>().unsavedChangesGuard;
         if (!await guard.confirmIfDirty(context)) return;
@@ -1330,13 +1327,9 @@ class _DashboardRowSearchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return SidebarRowIconButton(
       tooltip: context.tr('search'),
-      iconSize: 16,
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 18, height: 18),
-      icon: Icon(Icons.search, color: context.inTheme.ink3),
+      icon: Icons.search,
       onPressed: () => showCommandPalette(context),
     );
   }
@@ -1582,8 +1575,8 @@ class _SavedViewNavItem extends StatelessWidget {
 }
 
 /// Always-visible (subdued) `⋮` on saved-view rows opening the Choose icon /
-/// Rename / Delete menu. An `IconButton` (not `PopupMenuButton`): its
-/// `constraints` sizes the *button* so it fits the 18-px row exactly like
+/// Rename / Delete menu. An `IconButton` (not `PopupMenuButton`): the shared
+/// [SidebarRowIconButton] sizes the *button* so it fits the row exactly like
 /// the peer `_HoverAddButton`, and it opens the menu via the shared
 /// `showMenu` path (correctly sized — `PopupMenuButton.constraints` sizes
 /// the menu and clipped it). Still keyboard-focusable.
@@ -1610,49 +1603,12 @@ class _SavedViewMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    // Always visible rather than hover-gated, so on touch it is a real target
+    // and widens to the full 44 — see `SidebarRowIconButton` for the sizing.
+    return SidebarRowIconButton(
       tooltip: context.tr('view_options'),
-      iconSize: 16,
-      padding: EdgeInsets.zero,
-      // Without this the `constraints` below are advisory on touch platforms:
-      // `ThemeData.materialTapTargetSize` is `padded` on android/iOS, which
-      // wraps the button in `_InputPadding` and inflates its *layout* size
-      // (not just its hit area) to `kMinInteractiveDimension` = 48 — so the row
-      // would be 48 + 14 padding = 62 px. Matches the explicit `shrinkWrap` the
-      // sibling `_CollapseToggleButton` and `_HistoryButton` already carry.
-      // No-op on desktop, where the theme default is already `shrinkWrap`.
-      style: IconButton.styleFrom(
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      // Deliberately unset on touch. Under Material 3 `IconButton` converts
-      // `constraints` into ButtonStyle `minimumSize`/`maximumSize`, and
-      // `ButtonStyleButton` runs *those* through
-      // `visualDensity.effectiveConstraints` — so `compact`'s -8 would turn the
-      // width below into a 36..44 range that the 16-px icon collapses back to
-      // 36, silently undoing the bigger target. (The `effectiveConstraints`
-      // call inside `icon_button.dart` is on the legacy pre-M3 branch and never
-      // runs here.) Unset falls back to `ThemeData.visualDensity`, which is
-      // `standard` — zero adjustment — on exactly the platforms `touch` covers.
-      visualDensity: touch ? null : VisualDensity.compact,
-      // `constraints` here sizes the IconButton itself — matching the proven
-      // `_HoverAddButton` footprint against the row's 18-px icon. `ink3` is the
-      // established weight for sidebar trailing affordances (the entity-row
-      // `+`). This one is always visible rather than hover-gated, so on touch
-      // it is a real target and widens to the full 44.
-      //
-      // Height stays at the row's *content* box (44 floor − 7/7 padding = 30),
-      // not 44: `trailing` sits inside the row's Row, so a 44-tall button would
-      // drive the Row to 44 and the row's own padding would stack on top for a
-      // 58-px row — 32% taller than every other row in the sidebar. Width is
-      // the axis a thumb misses on in a vertical list anyway, and the row's own
-      // 44-px floor still governs what the finger lands in.
-      constraints: touch
-          ? const BoxConstraints.tightFor(
-              width: InSizes.touchTarget,
-              height: 30,
-            )
-          : const BoxConstraints.tightFor(width: 18, height: 18),
-      icon: Icon(Icons.more_vert, color: context.inTheme.ink3),
+      icon: Icons.more_vert,
+      touchTarget: touch,
       onPressed: () => _open(context),
     );
   }

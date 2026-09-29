@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/recurring_expense_api_model.dart';
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/data/repositories/recurring_expense_repository.dart';
 import 'package:admin/data/services/recurring_expenses_api.dart';
@@ -145,14 +146,31 @@ void main() {
       expect((createVm()..setVendorId('v1')).draftIsNonEmpty(), isTrue);
     });
 
-    test('picking a frequency alone does NOT count as user input', () {
-      // The schedule fields are seeded with defaults, so they are deliberately
-      // excluded from the dirty check — only real content counts.
+    // Dirty is "differs from the untouched form" (the billing view models'
+    // rule). The schedule defaults are in that baseline, so an untouched form
+    // stays clean — but a frequency the user picked is their input, as it is
+    // on a recurring invoice. The old hand-kept list excluded it outright.
+    test('the seeded schedule is clean; a picked frequency is input', () {
+      expect(createVm().draftIsNonEmpty(), isFalse);
       expect(
         (createVm()..setFrequencyId(kRecurringFrequencyWeekly))
             .draftIsNonEmpty(),
-        isFalse,
+        isTrue,
       );
+    });
+
+    test('a typed number or a picked assignee marks it dirty', () {
+      expect((createVm()..setNumber('R-9')).draftIsNonEmpty(), isTrue);
+      expect((createVm()..setAssignedUserId('u1')).draftIsNonEmpty(), isTrue);
+    });
+
+    test('a form opened on a staged draft is dirty from the start', () {
+      final vm = RecurringExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        cloneFrom: emptyRecurringExpense().copyWith(vendorId: 'v1'),
+      );
+      expect(vm.draftIsNonEmpty(), isTrue);
     });
   });
 
@@ -167,32 +185,49 @@ void main() {
     expect(vm.draft.amount, Decimal.zero);
   });
 
-  // A new expense takes the company's `expense_inclusive_taxes` (React
-  // parity); `empty*()` hard-codes false, which the app then sent.
-  group('the company inclusive-tax default', () {
-    test('seeds an untouched new expense without dirtying it', () {
-      final vm = createVm()..seedCompanyInclusiveTaxes(true);
+  // A new recurring expense takes the company's Expense Settings, minus
+  // "mark paid" — the server applies that itself to every expense the cron
+  // generates.
+  group('the company Expense Settings defaults', () {
+    test('seed an untouched new record without dirtying it', () {
+      final vm = createVm()
+        ..seedCompanyDefaults(
+          const Company(
+            expenseInclusiveTaxes: true,
+            calculateExpenseTaxByAmount: true,
+            markExpensesInvoiceable: true,
+            invoiceExpenseDocuments: true,
+            markExpensesPaid: true,
+          ),
+        );
       expect(vm.draft.usesInclusiveTaxes, isTrue);
+      expect(vm.draft.calculateTaxByAmount, isTrue);
+      expect(vm.draft.shouldBeInvoiced, isTrue);
+      expect(vm.draft.invoiceDocuments, isTrue);
+      expect(vm.draft.paymentDate, isNull);
       expect(vm.isDirty, isFalse);
     });
 
     test('never over a switch the user touched', () {
       final vm = createVm()
         ..setUsesInclusiveTaxes(false)
-        ..seedCompanyInclusiveTaxes(true);
+        ..setInvoiceDocuments(true)
+        ..seedCompanyDefaults(const Company(expenseInclusiveTaxes: true));
       expect(vm.draft.usesInclusiveTaxes, isFalse);
+      expect(vm.draft.invoiceDocuments, isTrue);
     });
 
-    test('never once an amount was typed in the other mode', () {
+    test('the inclusive mode never once an amount was typed in the other '
+        'mode', () {
       final vm = createVm()
         ..setAmount('120')
-        ..seedCompanyInclusiveTaxes(true);
+        ..seedCompanyDefaults(const Company(expenseInclusiveTaxes: true));
       expect(vm.draft.usesInclusiveTaxes, isFalse);
     });
 
-    test('survives a discard', () {
+    test('survive a discard', () {
       final vm = createVm()
-        ..seedCompanyInclusiveTaxes(true)
+        ..seedCompanyDefaults(const Company(expenseInclusiveTaxes: true))
         ..setUsesInclusiveTaxes(false)
         ..resetToEmpty();
       expect(vm.draft.usesInclusiveTaxes, isTrue);

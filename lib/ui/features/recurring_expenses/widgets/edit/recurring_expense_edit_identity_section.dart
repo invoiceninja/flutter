@@ -10,17 +10,23 @@ import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/currency.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/entity_picker_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/recurring_expenses/view_models/recurring_expense_edit_view_model.dart';
 
-/// Identity & links section — mirrors `ExpenseEditIdentitySection`
-/// field-for-field. Kept as a duplicate (per task spec) instead of
-/// lifting Expense's section into a shared widget; the two diverge once
-/// recurring-specific assignments (next vendor, last sent vendor, etc.)
-/// land.
+/// Identity & links section — mirrors `ExpenseEditIdentitySection` except
+/// for one field: there is **no Date**. `RecurringExpenseToExpenseFactory`
+/// stamps every generated expense with `date = now()` and never reads the
+/// template's `date`, so a Date control here would edit a value nothing uses
+/// (the schedule card's next-send date is what decides when one is made). The
+/// assignee does carry over to each generated expense, so it is here. Kept as
+/// a duplicate (per task spec) instead of lifting Expense's section into a
+/// shared widget; the two diverge once recurring-specific assignments (next
+/// vendor, last sent vendor, etc.) land.
 class RecurringExpenseEditIdentitySection extends StatelessWidget {
   const RecurringExpenseEditIdentitySection({super.key, required this.vm});
   final RecurringExpenseEditViewModel vm;
@@ -33,10 +39,23 @@ class RecurringExpenseEditIdentitySection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
+          EntityEditField(
+            label: context.tr('number'),
+            initial: vm.draft.number,
+            onChanged: vm.setNumber,
+            errorText: vm.fieldErrorFor('number'),
+            hintText: vm.isCreate ? context.tr('auto_generated') : null,
+            autocorrect: false,
+          ),
           _VendorPicker(vm: vm),
           _ClientPicker(vm: vm),
           _ProjectPicker(vm: vm),
           _CategoryPicker(vm: vm),
+          AssignedUserPickerField(
+            companyId: vm.companyId,
+            selectedId: vm.draft.assignedUserId,
+            onChanged: vm.setAssignedUserId,
+          ),
           _CurrencyPicker(vm: vm),
           SizedBox(height: InSpacing.md(context)),
           EntityTagsField(

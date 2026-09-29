@@ -532,10 +532,14 @@ void goEntityEditWithDraft(
 /// `_kEditDefaultsToSlide` in `master_detail_layout.dart`). For those,
 /// plain `context.go('$basePath/new', extra: …)` is correct so the
 /// sidebar default is preserved.
+///
+/// [isClone]: [extra] copies an existing record — see
+/// `Services.stageCreateDraft`.
 void goEntityCreateFullWidth(
   BuildContext context,
   String basePath, {
   Object? extra,
+  bool isClone = false,
 }) {
   // Stage the seed draft on `Services` (immune to the cross-branch jump that
   // drops route `extra:`/query) and bump the route generation so the keyed
@@ -543,7 +547,7 @@ void goEntityCreateFullWidth(
   // go_router reuses an already-mounted create screen otherwise. `extra:` is
   // still passed on the route for create screens not yet migrated to read the
   // staged draft (transitional; works same-branch only).
-  context.read<Services>().stageCreateDraft(basePath, extra);
+  context.read<Services>().stageCreateDraft(basePath, extra, isClone: isClone);
   GoRouter.of(context).go('$basePath/new?view=full', extra: extra);
 }
 

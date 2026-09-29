@@ -136,8 +136,11 @@ class _FakeServices implements Services {
   final staged = <(String, Object?)>[];
 
   @override
-  void stageCreateDraft(String basePath, Object? draft) =>
-      staged.add((basePath, draft));
+  void stageCreateDraft(
+    String basePath,
+    Object? draft, {
+    bool isClone = false,
+  }) => staged.add((basePath, draft));
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

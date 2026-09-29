@@ -505,6 +505,9 @@ the honest default.
 | Expense — list | ✅ | ✅ | ✅ | ✅ | 🟡 |
 | Expense — detail | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Expense — edit | ✅ | ✅ | ✅ | ✅ | |
+| Expense — edit date / number / assigned user (the form had none of the three until flutter#172) | ✅ | ✅ | ✅ | | |
+| Expense — new expense takes the company's Expense Settings defaults (mark paid + default payment type, invoiceable, invoice documents, tax by amount; not on a clone) | ✅ | ✅ | ✅ | | |
+| Expense — mark paid defaults the payment date to the expense date, which follows date changes until edited | — | — | ✅ | | |
 | Expense — create | ✅ | ✅ | ✅ | ✅ | |
 | Expense — clone | ✅ | ✅ | ✅ | ✅ | |
 | Expense — clone to recurring expense | ✅ | ✅ | ✅ | ✅ | |
@@ -531,6 +534,8 @@ the honest default.
 | Recurring expense — list | ✅ | ✅ | ✅ | ✅ | 🟡 |
 | Recurring expense — detail | ✅ | ✅ | ✅ | ✅ | 🟡 |
 | Recurring expense — edit | ✅ | ✅ | ✅ | ✅ | |
+| Recurring expense — edit number / assigned user (no date: the server stamps each generated expense with the run day) | ✅ | ✅ | ✅ | | |
+| Recurring expense — new one takes the company's Expense Settings defaults (invoiceable, invoice documents, tax by amount; the server marks generated expenses paid itself) | ✅ | ✅ | ✅ | | |
 | Recurring expense — create | ✅ | ✅ | ✅ | ✅ | |
 | Recurring expense — clone | ✅ | ✅ | ✅ | ✅ | |
 | Recurring expense — clone to single expense | ✅ | ✅ | ✅ | ✅ | |

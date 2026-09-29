@@ -6,7 +6,6 @@ import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/models/domain/product.dart';
-import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/data/models/domain/payment_link.dart';
 import 'package:admin/domain/entity_registry.dart';
 import 'package:admin/domain/entity_type.dart';
@@ -485,7 +484,7 @@ final kWiredEntityModules = <EntityModuleSpec>[
         vendorId: vendorId == null || vendorId.isEmpty ? null : vendorId,
       );
     },
-    // Create-mode seed comes from `Services.takeCreateDraft('/expenses')`.
+    // Create-mode seed comes from `Services.takeCreateSeed('/expenses')`.
     createBuilder: (context, state) => const ExpenseEditScreen(),
     detailBuilder: (context, state) =>
         ExpenseDetailScreen(id: state.pathParameters['id']!),
@@ -797,11 +796,9 @@ final kWiredEntityModules = <EntityModuleSpec>[
         vendorId: vendorId == null || vendorId.isEmpty ? null : vendorId,
       );
     },
-    createBuilder: (context, state) => RecurringExpenseEditScreen(
-      cloneFrom: state.extra is RecurringExpense
-          ? state.extra as RecurringExpense
-          : null,
-    ),
+    // Create-mode seed comes from
+    // `Services.takeCreateSeed('/recurring_expenses')`.
+    createBuilder: (context, state) => const RecurringExpenseEditScreen(),
     detailBuilder: (context, state) =>
         RecurringExpenseDetailScreen(id: state.pathParameters['id']!),
     editBuilder: (context, state) =>

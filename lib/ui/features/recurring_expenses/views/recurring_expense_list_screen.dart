@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:admin/app/router.dart';
@@ -43,8 +42,9 @@ class RecurringExpenseListScreen extends StatelessWidget {
       newLabelKey: 'new_recurring_expense',
       embeddedNewOverride: vid == null
           ? null
-          : (ctx) => ctx.go(
-              '/recurring_expenses/new',
+          : (ctx) => goEntityCreateFullWidth(
+              ctx,
+              '/recurring_expenses',
               extra: emptyRecurringExpense().copyWith(vendorId: vid),
             ),
       emptyIcon: Icons.event_repeat_outlined,

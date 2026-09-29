@@ -12,11 +12,13 @@ import 'package:admin/ui/core/widgets/entity_picker_field.dart';
 ///
 /// One home for a query that was written out in six places in two incompatible
 /// shapes — five hand-rolling a linear scan of a window for the selection, and
-/// `task_filter_bar.dart` getting it right. All six assignment call sites are
-/// on this leaf now. It reads [Services] directly rather than taking streams,
-/// which is the trade `UserNameLabel` and `UserAvatar` in this same directory
-/// already make: the leaf property [EntityPickerField] guards is worth one line
-/// at a call site only while the projections differ per entity, and for the
+/// `task_filter_bar.dart` getting it right. All six of those assignment call
+/// sites are on this leaf now, and so are the two expense Details cards that
+/// gained the field with invoiceninja/flutter#172. It reads [Services]
+/// directly rather than taking streams, which is the trade `UserNameLabel` and
+/// `UserAvatar` in this same directory already make: the leaf property
+/// [EntityPickerField] guards is worth one line at a call site only while the
+/// projections differ per entity, and for the
 /// roster they never do. (A consequence for tests: a `noSuchMethod`
 /// `implements Services` fake under a widget that mounts this must answer
 /// `user`, `auth` **and** `hideUnverifiedUsers`.)

@@ -4,7 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:admin/data/db/app_database.dart';
 import 'package:admin/data/models/api/expense_api_model.dart';
+import 'package:admin/data/models/domain/company.dart';
+import 'package:admin/data/models/domain/company_settings.dart';
 import 'package:admin/data/models/domain/expense.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/expense_repository.dart';
 import 'package:admin/data/services/expenses_api.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
@@ -217,6 +220,27 @@ void main() {
 
       expect(vm.draftIsNonEmpty(), isFalse);
     });
+
+    // The hand-kept field list this replaced had none of these three, so a
+    // new expense holding only them left without the Discard prompt.
+    test('a typed number, a picked assignee or a changed date marks it '
+        'dirty', () {
+      expect((createVm()..setNumber('EXP-9')).draftIsNonEmpty(), isTrue);
+      expect((createVm()..setAssignedUserId('u1')).draftIsNonEmpty(), isTrue);
+      expect(
+        (createVm()..setDate(Date(2020, 3, 14))).draftIsNonEmpty(),
+        isTrue,
+      );
+    });
+
+    test('a form opened on a staged draft is dirty from the start', () {
+      final vm = ExpenseEditViewModel(
+        repo: repo,
+        companyId: 'co',
+        cloneFrom: emptyExpense().copyWith(vendorId: 'v1'),
+      );
+      expect(vm.draftIsNonEmpty(), isTrue);
+    });
   });
 
   test('resetToEmpty clears the draft', () {
@@ -230,36 +254,191 @@ void main() {
     expect(vm.draft.amount, Decimal.zero);
   });
 
-  // A new expense takes the company's `expense_inclusive_taxes` (React
-  // parity); `empty*()` hard-codes false, which the app then sent.
-  group('the company inclusive-tax default', () {
-    test('seeds an untouched new expense without dirtying it', () {
-      final vm = createVm()..seedCompanyInclusiveTaxes(true);
+  // A new expense takes the company's Expense Settings (React `Create.tsx`,
+  // admin-portal's `ExpenseEntity` constructor). The server applies none of
+  // them to a manual create, so without this every one of those toggles was
+  // inert.
+  group('the company Expense Settings defaults', () {
+    const everything = Company(
+      expenseInclusiveTaxes: true,
+      calculateExpenseTaxByAmount: true,
+      markExpensesInvoiceable: true,
+      invoiceExpenseDocuments: true,
+    );
+
+    test('seed an untouched new expense without dirtying it', () {
+      final vm = createVm()..seedCompanyDefaults(everything);
       expect(vm.draft.usesInclusiveTaxes, isTrue);
+      expect(vm.draft.calculateTaxByAmount, isTrue);
+      expect(vm.draft.shouldBeInvoiced, isTrue);
+      expect(vm.draft.invoiceDocuments, isTrue);
+      expect(vm.draft.paymentDate, isNull);
       expect(vm.isDirty, isFalse);
     });
 
     test('never over a switch the user touched', () {
       final vm = createVm()
         ..setUsesInclusiveTaxes(false)
-        ..seedCompanyInclusiveTaxes(true);
+        ..setShouldBeInvoiced(true)
+        ..seedCompanyDefaults(const Company(expenseInclusiveTaxes: true));
       expect(vm.draft.usesInclusiveTaxes, isFalse);
+      // The company says "not invoiceable"; the user already said yes.
+      expect(vm.draft.shouldBeInvoiced, isTrue);
     });
 
-    test('never once an amount was typed in the other mode', () {
+    test('the inclusive mode never once an amount was typed in the other '
+        'mode', () {
       final vm = createVm()
         ..setAmount('120')
-        ..seedCompanyInclusiveTaxes(true);
+        ..seedCompanyDefaults(const Company(expenseInclusiveTaxes: true));
       expect(vm.draft.usesInclusiveTaxes, isFalse);
     });
 
-    test('survives a discard', () {
+    test('tax-by-amount never once a tax was entered by rate', () {
       final vm = createVm()
-        ..seedCompanyInclusiveTaxes(true)
+        ..setTaxRate1('10')
+        ..seedCompanyDefaults(const Company(calculateExpenseTaxByAmount: true));
+      expect(vm.draft.calculateTaxByAmount, isFalse);
+    });
+
+    test('are a no-op on an existing expense', () {
+      final existing = Expense.fromApi(
+        const ExpenseApi(id: 'e1', updatedAt: 1700000000),
+      );
+      final vm = editVm(existing)
+        ..seedCompanyDefaults(
+          const Company(markExpensesInvoiceable: true, markExpensesPaid: true),
+        );
+      expect(vm.draft.shouldBeInvoiced, isFalse);
+      expect(vm.draft.paymentDate, isNull);
+      expect(vm.isDirty, isFalse);
+    });
+
+    test('mark paid fills the payment date from the expense date and the '
+        'default payment type, still clean', () {
+      final vm = createVm()
+        ..seedCompanyDefaults(
+          const Company(
+            markExpensesPaid: true,
+            settings: CompanySettings(defaultExpensePaymentTypeId: '4'),
+          ),
+        );
+      expect(vm.draft.paymentDate, vm.draft.date);
+      expect(vm.draft.paymentTypeId, '4');
+      expect(vm.isDirty, isFalse);
+    });
+
+    test("'0' is the server's \"no default payment type\"", () {
+      final vm = createVm()
+        ..seedCompanyDefaults(
+          const Company(
+            markExpensesPaid: true,
+            settings: CompanySettings(defaultExpensePaymentTypeId: '0'),
+          ),
+        );
+      expect(vm.draft.paymentDate, isNotNull);
+      expect(vm.draft.paymentTypeId, isEmpty);
+    });
+
+    test('a seeded payment date follows the expense date', () {
+      final vm = createVm()
+        ..seedCompanyDefaults(const Company(markExpensesPaid: true))
+        ..setDate(Date(2026, 9, 1));
+      expect(vm.draft.paymentDate, Date(2026, 9, 1));
+    });
+
+    test('survive a discard, including the payment date following', () {
+      final vm = createVm()
+        ..seedCompanyDefaults(
+          const Company(expenseInclusiveTaxes: true, markExpensesPaid: true),
+        )
         ..setUsesInclusiveTaxes(false)
+        ..unmarkPaid()
         ..resetToEmpty();
       expect(vm.draft.usesInclusiveTaxes, isTrue);
+      expect(vm.draft.paymentDate, isNotNull);
       expect(vm.isDirty, isFalse);
+
+      vm.setDate(Date(2026, 9, 1));
+      expect(vm.draft.paymentDate, Date(2026, 9, 1));
+    });
+  });
+
+  // A receipt back-dated to last week was paid last week far more often than
+  // today, so "Mark paid" takes the expense's date — and keeps following it
+  // until the user sets the payment date themselves.
+  group('mark paid', () {
+    test('takes the expense date, not today', () {
+      final vm = createVm()
+        ..setDate(Date(2026, 9, 1))
+        ..markPaid();
+      expect(vm.draft.paymentDate, Date(2026, 9, 1));
+    });
+
+    test('falls back to today when the expense has no date', () {
+      final vm = createVm()
+        ..setDate(null)
+        ..markPaid();
+      expect(vm.draft.paymentDate, Date.today());
+    });
+
+    test('fills the default payment type, never over a picked one', () {
+      expect(
+        (createVm()..markPaid(defaultPaymentTypeId: '4')).draft.paymentTypeId,
+        '4',
+      );
+      expect(
+        (createVm()
+              ..setPaymentTypeId('2')
+              ..markPaid(defaultPaymentTypeId: '4'))
+            .draft
+            .paymentTypeId,
+        '2',
+      );
+    });
+
+    test('the payment date follows the expense date until the user edits '
+        'it', () {
+      final vm = createVm()
+        ..markPaid()
+        ..setDate(Date(2026, 8, 3));
+      expect(vm.draft.paymentDate, Date(2026, 8, 3));
+
+      vm
+        ..setPaymentDate(Date(2026, 8, 10))
+        ..setDate(Date(2026, 8, 1));
+      expect(vm.draft.paymentDate, Date(2026, 8, 10));
+    });
+
+    test("an existing expense's stored payment date never follows", () {
+      final existing = Expense.fromApi(
+        const ExpenseApi(
+          id: 'e1',
+          date: '2026-08-03',
+          paymentDate: '2026-08-03',
+          updatedAt: 1700000000,
+        ),
+      );
+      final vm = editVm(existing)..setDate(Date(2026, 8, 1));
+      expect(vm.draft.paymentDate, Date(2026, 8, 3));
+
+      // Nor after a discard restores the stored record.
+      vm
+        ..resetToEmpty()
+        ..setDate(Date(2026, 8, 1));
+      expect(vm.draft.paymentDate, Date(2026, 8, 3));
+    });
+
+    test('unmark clears the whole triple, and a date change after it sets '
+        'no payment date', () {
+      final vm = createVm()
+        ..markPaid(defaultPaymentTypeId: '4')
+        ..setTransactionReference('REF-1')
+        ..unmarkPaid()
+        ..setDate(Date(2026, 8, 1));
+      expect(vm.draft.paymentDate, isNull);
+      expect(vm.draft.paymentTypeId, isEmpty);
+      expect(vm.draft.transactionReference, isEmpty);
     });
   });
 }

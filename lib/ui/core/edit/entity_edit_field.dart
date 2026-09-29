@@ -27,6 +27,7 @@ class EntityEditField extends StatefulWidget {
     this.autofocus = false,
     this.keyboardType,
     this.errorText,
+    this.hintText,
     this.readOnly = false,
     this.prefixText,
     this.textCapitalization = TextCapitalization.none,
@@ -98,6 +99,11 @@ class EntityEditField extends StatefulWidget {
   /// When non-null, the field renders in its error state and displays this
   /// message beneath. Pass `vm.fieldErrorFor('name')` etc.
   final String? errorText;
+
+  /// Placeholder shown inside an empty field once its label has floated —
+  /// i.e. while it has focus. `tr('auto_generated')` on a number the server
+  /// assigns when left blank, as the billing-doc number fields do.
+  final String? hintText;
 
   /// Read-only mode — the field renders its content normally but the
   /// keyboard never opens and selection-without-editing is allowed.
@@ -195,6 +201,7 @@ class _EntityEditFieldState extends State<EntityEditField> {
         controller: _controller,
         decoration: InputDecoration(
           labelText: widget.label,
+          hintText: widget.hintText,
           prefixText: widget.prefixText,
           // Reveal toggle — a bare IconButton, matching `AuthPasswordField`.
           // Deliberately NOT wrapped in `Focus(canRequestFocus: false)`:

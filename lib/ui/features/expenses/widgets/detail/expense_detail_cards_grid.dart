@@ -20,6 +20,7 @@ import 'package:admin/ui/core/detail/entity_link_card.dart';
 import 'package:admin/ui/core/widgets/centered_form_column.dart';
 import 'package:admin/ui/core/widgets/copyable_value.dart';
 import 'package:admin/ui/core/widgets/entity_tags_view.dart';
+import 'package:admin/ui/core/widgets/user_name_label.dart';
 import 'package:admin/ui/core/widgets/watch_builder.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expenses/widgets/expense_status_pill.dart';
@@ -356,6 +357,11 @@ class _SummaryCard extends StatelessWidget {
               copyValue: e.number,
             ),
           _Row(label: context.tr('date'), value: Text(dateText)),
+          if (e.assignedUserId.isNotEmpty)
+            _Row(
+              label: context.tr('assigned_user'),
+              value: UserNameLabel(userId: e.assignedUserId),
+            ),
           _Row(label: context.tr('amount'), value: Text(amountText)),
           // Net (amount minus tax) is only distinct from amount for inclusive
           // taxes; gross (amount plus tax) for exclusive.

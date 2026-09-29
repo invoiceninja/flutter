@@ -29,6 +29,13 @@ class RecurringExpenseEditScreen extends StatelessWidget {
   });
 
   final String? existingId;
+
+  /// Edit-mode override draft (parallels ExpenseEditScreen). Null for a normal
+  /// edit and for create, which reads the staged draft via
+  /// `Services.takeCreateSeed` — route `extra:` is dropped on the cross-branch
+  /// jump from a vendor or an expense, which is how those seeds used to go
+  /// missing. A non-null value is treated as a clone, so the company's
+  /// new-expense defaults are not applied over it.
   final RecurringExpense? cloneFrom;
 
   @override
@@ -42,11 +49,18 @@ class RecurringExpenseEditScreen extends StatelessWidget {
       fetchExisting: (ctx, services, companyId, id) =>
           services.recurringExpenses.watch(companyId: companyId, id: id).first,
       buildVm: (ctx, services, companyId, existing) {
+        final seed = cloneFrom != null
+            ? (draft: cloneFrom!, isClone: true)
+            : (existing == null
+                  ? services.takeCreateSeed<RecurringExpense>(
+                      '/recurring_expenses',
+                    )
+                  : null);
         final vm = RecurringExpenseEditViewModel(
           repo: services.recurringExpenses,
           companyId: companyId,
           existing: existing,
-          cloneFrom: cloneFrom,
+          cloneFrom: seed?.draft,
           useCommaAsDecimalPlace:
               services
                   .formatterIfReady(companyId)
@@ -56,8 +70,9 @@ class RecurringExpenseEditScreen extends StatelessWidget {
           sync: services.sync,
           connectivity: services.connectivity,
         );
-        // A new expense takes the company's expense inclusive-tax default.
-        if (existing == null) {
+        // A new recurring expense takes the company's Expense Settings
+        // defaults; a clone copies its source instead.
+        if (existing == null && !(seed?.isClone ?? false)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             unawaited(
               services.company
@@ -65,7 +80,7 @@ class RecurringExpenseEditScreen extends StatelessWidget {
                   .first
                   .then((company) {
                     if (company == null || vm.isDisposed) return;
-                    vm.seedCompanyInclusiveTaxes(company.expenseInclusiveTaxes);
+                    vm.seedCompanyDefaults(company);
                   })
                   .catchError((Object _) {}),
             );

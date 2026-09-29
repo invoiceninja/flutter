@@ -9,18 +9,27 @@ import 'package:admin/data/models/domain/expense_category.dart';
 import 'package:admin/data/models/domain/project.dart';
 import 'package:admin/data/models/domain/vendor.dart';
 import 'package:admin/data/models/value/currency.dart';
+import 'package:admin/data/models/value/date.dart';
 import 'package:admin/l10n/localization.dart';
+import 'package:admin/ui/core/edit/entity_edit_field.dart';
+import 'package:admin/ui/core/widgets/assigned_user_picker_field.dart';
 import 'package:admin/ui/core/widgets/entity_tags_field.dart';
 import 'package:admin/ui/core/widgets/entity_picker_field.dart';
+import 'package:admin/ui/core/widgets/formatter_host_mixin.dart';
+import 'package:admin/ui/core/widgets/in_date_field.dart';
 import 'package:admin/ui/core/widgets/searchable_dropdown_field.dart';
 import 'package:admin/ui/features/dashboard/widgets/card_shell.dart';
 import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.dart';
 
-/// Identity & links section — vendor, client, project (narrowed by client),
-/// category, and currency. All pickers go through [SearchableDropdownField]
-/// so long lists stay searchable per CLAUDE.md § Forms. The category picker
-/// uses the dropdown's `footerBuilder` to surface a "Manage categories" link
-/// inside the popover.
+/// Identity & links section — date, number, vendor, client, project (narrowed
+/// by client), category, assigned user, and currency. All pickers go through
+/// [SearchableDropdownField] so long lists stay searchable per CLAUDE.md
+/// § Forms. The category picker uses the dropdown's `footerBuilder` to surface
+/// a "Manage categories" link inside the popover.
+///
+/// Date and Number lead the card: the date is the expense's primary fact (it
+/// was missing from the form entirely until invoiceninja/flutter#172), and the
+/// number the server assigns when left blank.
 class ExpenseEditIdentitySection extends StatelessWidget {
   const ExpenseEditIdentitySection({super.key, required this.vm});
   final ExpenseEditViewModel vm;
@@ -33,10 +42,24 @@ class ExpenseEditIdentitySection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
+          _DateField(vm: vm),
+          EntityEditField(
+            label: context.tr('number'),
+            initial: vm.draft.number,
+            onChanged: vm.setNumber,
+            errorText: vm.fieldErrorFor('number'),
+            hintText: vm.isCreate ? context.tr('auto_generated') : null,
+            autocorrect: false,
+          ),
           _VendorPicker(vm: vm),
           _ClientPicker(vm: vm),
           _ProjectPicker(vm: vm),
           _CategoryPicker(vm: vm),
+          AssignedUserPickerField(
+            companyId: vm.companyId,
+            selectedId: vm.draft.assignedUserId,
+            onChanged: vm.setAssignedUserId,
+          ),
           _CurrencyPicker(vm: vm),
           SizedBox(height: InSpacing.md(context)),
           EntityTagsField(
@@ -45,6 +68,43 @@ class ExpenseEditIdentitySection extends StatelessWidget {
             onChanged: vm.setTagIds,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The expense date. Not clearable: `StoreExpenseRequest` validates `date` as
+/// `date:Y-m-d` with no `nullable`, so a blank date would 422 on create — an
+/// emptied field reverts instead. Stateful only to host the company
+/// [Formatter] that renders the date in the company's `date_format_id`.
+class _DateField extends StatefulWidget {
+  const _DateField({required this.vm});
+  final ExpenseEditViewModel vm;
+
+  @override
+  State<_DateField> createState() => _DateFieldState();
+}
+
+class _DateFieldState extends State<_DateField> with FormatterHostMixin {
+  @override
+  void initState() {
+    super.initState();
+    loadFormatter(context.read<Services>(), widget.vm.companyId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = widget.vm;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: InSpacing.xs),
+      child: InDateField(
+        labelText: context.tr('date'),
+        value: vm.draft.date?.toDateTime(),
+        formatter: formatter,
+        onChanged: (picked) {
+          if (picked == null) return;
+          vm.setDate(Date(picked.year, picked.month, picked.day));
+        },
       ),
     );
   }

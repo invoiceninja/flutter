@@ -64,6 +64,11 @@ void main() {
     'lib/ui/features/clients/widgets/edit/client_edit_settings_section.dart',
     'lib/ui/features/payment_links/widgets/edit/payment_link_overview_tab.dart',
     'lib/ui/features/billing_shared/edit/billing_doc_settings_tab.dart',
+    // The expense forms had no Assigned User field at all until
+    // invoiceninja/flutter#172 surfaced it on the leaf.
+    'lib/ui/features/expenses/widgets/edit/expense_edit_identity_section.dart',
+    'lib/ui/features/recurring_expenses/widgets/edit/'
+        'recurring_expense_edit_identity_section.dart',
   ];
 
   late final String edit = codeOf(editLayout);

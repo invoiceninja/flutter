@@ -211,17 +211,25 @@ class ExpenseActions {
           updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
           createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
         );
-        goEntityCreateFullWidth(context, '/expenses', extra: draft);
+        // A clone copies its source, so the create form skips the company's
+        // new-expense defaults for it.
+        goEntityCreateFullWidth(
+          context,
+          '/expenses',
+          extra: draft,
+          isClone: true,
+        );
       case ExpenseAction.cloneToRecurring:
         // Convert to a real [RecurringExpense] clone seed (default monthly
         // schedule) before navigating. Expense and RecurringExpense are
-        // distinct Freezed types, so the recurring create form's
-        // `state.extra is RecurringExpense` guard silently drops an Expense —
-        // handing it the converted object preserves the data.
+        // distinct Freezed types, so the recurring create form's typed
+        // `takeCreateSeed<RecurringExpense>` would drop an Expense — handing it
+        // the converted object preserves the data.
         goEntityCreateFullWidth(
           context,
           '/recurring_expenses',
           extra: expense.toRecurringExpenseClone(),
+          isClone: true,
         );
       case ExpenseAction.logCall:
         await promptLogCallFor(

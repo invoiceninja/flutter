@@ -27,8 +27,9 @@ class ExpenseEditScreen extends StatelessWidget {
   final String? existingId;
 
   /// Edit-mode override draft (parallels InvoiceEditScreen). Null for a normal
-  /// edit and for create (which reads the staged draft via
-  /// `Services.takeCreateDraft`).
+  /// edit and for create (which reads the staged draft, and whether it is a
+  /// clone, via `Services.takeCreateSeed`). A non-null value is treated as a
+  /// clone, so the company's new-expense defaults are not applied over it.
   final Expense? cloneFrom;
 
   @override
@@ -43,11 +44,12 @@ class ExpenseEditScreen extends StatelessWidget {
         // cross-branch + on screen reuse); the keyed `/new` route recreates the
         // screen on each stage so buildVm re-reads it. `cloneFrom` is the
         // edit-mode override.
-        final clone =
-            cloneFrom ??
-            (existing == null
-                ? services.takeCreateDraft<Expense>('/expenses')
-                : null);
+        final seed = cloneFrom != null
+            ? (draft: cloneFrom!, isClone: true)
+            : (existing == null
+                  ? services.takeCreateSeed<Expense>('/expenses')
+                  : null);
+        final clone = seed?.draft;
         final vm = ExpenseEditViewModel(
           repo: services.expenses,
           companyId: companyId,
@@ -87,8 +89,9 @@ class ExpenseEditScreen extends StatelessWidget {
             );
           });
         }
-        // A new expense takes the company's expense inclusive-tax default.
-        if (existing == null) {
+        // A new expense takes the company's Expense Settings defaults; a clone
+        // copies its source instead.
+        if (existing == null && !(seed?.isClone ?? false)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             unawaited(
               services.company
@@ -96,7 +99,7 @@ class ExpenseEditScreen extends StatelessWidget {
                   .first
                   .then((company) {
                     if (company == null || vm.isDisposed) return;
-                    vm.seedCompanyInclusiveTaxes(company.expenseInclusiveTaxes);
+                    vm.seedCompanyDefaults(company);
                   })
                   .catchError((Object _) {}),
             );

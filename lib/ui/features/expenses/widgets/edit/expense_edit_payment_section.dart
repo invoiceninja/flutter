@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,8 +17,10 @@ import 'package:admin/ui/features/expenses/view_models/expense_edit_view_model.d
 import 'package:admin/utils/formatting.dart';
 
 /// "Mark paid" toggle revealing the payment-metadata triple (date + type +
-/// transaction reference). Per the UX spec § Mark paid toggle: ticking the
-/// switch defaults `payment_date = today`; unticking clears all three.
+/// transaction reference). Ticking the switch defaults the payment date to the
+/// expense's own date (and keeps it following that date until the user edits
+/// it) and the payment type to the company's default expense payment type —
+/// see [ExpenseEditViewModel.markPaid]. Unticking clears all three.
 class ExpenseEditPaymentSection extends StatefulWidget {
   const ExpenseEditPaymentSection({super.key, required this.vm});
   final ExpenseEditViewModel vm;
@@ -30,11 +34,25 @@ class _ExpenseEditPaymentSectionState extends State<ExpenseEditPaymentSection>
     with FormatterHostMixin {
   late final Services _services;
 
+  /// `company.settings.default_expense_payment_type_id`, read once — it only
+  /// changes from Settings, which this form is not open over.
+  String? _defaultPaymentTypeId;
+
   @override
   void initState() {
     super.initState();
     _services = context.read<Services>();
     loadFormatter(_services, widget.vm.companyId);
+    unawaited(
+      _services.company
+          .watchCompany(widget.vm.companyId)
+          .first
+          .then((company) {
+            _defaultPaymentTypeId =
+                company?.settings.defaultExpensePaymentTypeId;
+          })
+          .catchError((Object _) {}),
+    );
   }
 
   bool get _isPaid =>
@@ -45,12 +63,9 @@ class _ExpenseEditPaymentSectionState extends State<ExpenseEditPaymentSection>
   void _onMarkPaidToggled(bool next) {
     final vm = widget.vm;
     if (next) {
-      // Default payment_date to today when first ticked.
-      if (vm.draft.paymentDate == null) vm.setPaymentDate(Date.today());
+      vm.markPaid(defaultPaymentTypeId: _defaultPaymentTypeId);
     } else {
-      vm.setPaymentDate(null);
-      vm.setPaymentTypeId('');
-      vm.setTransactionReference('');
+      vm.unmarkPaid();
     }
     setState(() {});
   }

@@ -33,6 +33,7 @@ void main() {
     Iterable<String>? autofillHints,
     bool autocorrect = true,
     bool obscureText = false,
+    String? hintText,
   }) => EntityEditField(
     label: 'Field',
     initial: 'value',
@@ -42,6 +43,7 @@ void main() {
     autofillHints: autofillHints,
     autocorrect: autocorrect,
     obscureText: obscureText,
+    hintText: hintText,
   );
 
   group('defaults reproduce Flutter', () {
@@ -124,6 +126,16 @@ void main() {
       await pump(tester, build(autocorrect: false));
       expect(inner(tester).autocorrect, isFalse);
       expect(inner(tester).enableSuggestions, isFalse);
+    });
+
+    testWidgets('hintText reaches the decoration, and stays null when unset', (
+      tester,
+    ) async {
+      await pump(tester, build(hintText: 'Auto-generated'));
+      expect(inner(tester).decoration?.hintText, 'Auto-generated');
+
+      await pump(tester, build());
+      expect(inner(tester).decoration?.hintText, isNull);
     });
   });
 

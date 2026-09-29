@@ -1,5 +1,6 @@
 import 'package:decimal/decimal.dart';
 
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/recurring_expense.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
@@ -25,23 +26,17 @@ class RecurringExpenseEditViewModel
          initialDraft: cloneFrom ?? existing ?? emptyRecurringExpense(),
          original: existing,
          companyId: companyId,
+         prefilled: existing == null && cloneFrom != null,
        );
 
   final RecurringExpenseRepository repo;
   final String companyId;
 
+  /// Dirty is "differs from what the untouched form held" — see
+  /// `ExpenseEditViewModel.draftIsNonEmpty`, which had the same hand-kept
+  /// field list missing the number, the assignee and the schedule.
   @override
-  bool draftIsNonEmpty() {
-    final d = draft;
-    return d.vendorId.isNotEmpty ||
-        d.clientId.isNotEmpty ||
-        d.projectId.isNotEmpty ||
-        d.categoryId.isNotEmpty ||
-        d.amount != Decimal.zero ||
-        d.publicNotes.isNotEmpty ||
-        d.privateNotes.isNotEmpty ||
-        d.transactionReference.isNotEmpty;
-  }
+  bool draftIsNonEmpty() => draft != createBaseline || prefilled;
 
   @override
   Future<SaveResult<RecurringExpense>> performSave() async {
@@ -67,16 +62,48 @@ class RecurringExpenseEditViewModel
 
   bool _userTouchedInclusive = false;
 
-  /// Seed a new expense's inclusive-tax mode from the company's
-  /// `expense_inclusive_taxes` (React parity — `empty*()` hard-codes false,
-  /// which the app then sent). Only on a create whose switch the user never
-  /// touched and whose amount is still zero: an amount is net or gross by the
-  /// mode it was typed in. Through [seedCreateDefault], so it neither dirties
-  /// an untouched form nor lands after a save or a discard.
-  void seedCompanyInclusiveTaxes(bool value) {
-    if (_userTouchedInclusive || draft.amount != Decimal.zero) return;
-    seedCreateDefault((d) => d.copyWith(usesInclusiveTaxes: value));
+  /// Seed a new recurring expense from the company's Expense Settings — the
+  /// same defaults as `ExpenseEditViewModel.seedCompanyDefaults`, minus
+  /// "mark paid": `RecurringExpensesCron::generateExpense` applies
+  /// `mark_expenses_paid` itself to every expense it generates, so the
+  /// template carries no payment date. Called only for a genuine new record,
+  /// never a clone; each default is skipped once the user changed its field.
+  void seedCompanyDefaults(Company company) {
+    final base = createBaseline;
+    // An amount is net or gross by the mode it was typed in.
+    if (!_userTouchedInclusive && draft.amount == Decimal.zero) {
+      seedCreateDefault(
+        (d) => d.copyWith(usesInclusiveTaxes: company.expenseInclusiveTaxes),
+      );
+    }
+    if (draft.calculateTaxByAmount == base.calculateTaxByAmount &&
+        !_hasTaxEntered(draft)) {
+      seedCreateDefault(
+        (d) => d.copyWith(
+          calculateTaxByAmount: company.calculateExpenseTaxByAmount,
+        ),
+      );
+    }
+    if (draft.shouldBeInvoiced == base.shouldBeInvoiced) {
+      seedCreateDefault(
+        (d) => d.copyWith(shouldBeInvoiced: company.markExpensesInvoiceable),
+      );
+    }
+    if (draft.invoiceDocuments == base.invoiceDocuments) {
+      seedCreateDefault(
+        (d) => d.copyWith(invoiceDocuments: company.invoiceExpenseDocuments),
+      );
+    }
   }
+
+  static bool _hasTaxEntered(RecurringExpense d) => [
+    d.taxRate1,
+    d.taxRate2,
+    d.taxRate3,
+    d.taxAmount1,
+    d.taxAmount2,
+    d.taxAmount3,
+  ].any((v) => v != Decimal.zero);
 
   // ── Identity / links ──────────────────────────────────────────────
 

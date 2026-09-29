@@ -825,6 +825,7 @@ class Services implements SidebarBadgeContext {
   /// recreated (and re-reads the seed) on every stage.
   Object? _stagedDraft;
   String? _stagedDraftBasePath;
+  bool _stagedDraftIsClone = false;
   final Map<String, int> _seedGen = {};
 
   /// Bumps whenever a create draft is staged. The `/new` route watches this so
@@ -838,9 +839,19 @@ class Services implements SidebarBadgeContext {
   /// go_router drops route `extra:`/query on the cross-branch jump and reuses
   /// an already-mounted create screen, so the seed rides on this singleton
   /// instead. Pass null for a blank create (still bumps, clearing a stale seed).
-  void stageCreateDraft(String basePath, Object? draft) {
+  ///
+  /// [isClone]: the draft is a copy of an existing record rather than a
+  /// prefilled new one ("New expense" from a vendor). A create screen that
+  /// seeds company defaults skips them for a clone, which copies its source —
+  /// read it back through [takeCreateSeed].
+  void stageCreateDraft(
+    String basePath,
+    Object? draft, {
+    bool isClone = false,
+  }) {
     _stagedDraft = draft;
     _stagedDraftBasePath = draft == null ? null : basePath;
+    _stagedDraftIsClone = draft != null && isClone;
     _seedGen[basePath] = (_seedGen[basePath] ?? 0) + 1;
     seedGenTick.value++;
   }
@@ -851,16 +862,18 @@ class Services implements SidebarBadgeContext {
 
   /// One-shot read of the staged draft for [basePath] as [T], clearing it.
   /// Null when nothing is staged or it was staged for a different route / type.
-  T? takeCreateDraft<T>(String basePath) {
+  T? takeCreateDraft<T>(String basePath) => takeCreateSeed<T>(basePath)?.draft;
+
+  /// [takeCreateDraft] plus whether the draft was staged as a clone
+  /// ([stageCreateDraft]'s `isClone`).
+  ({T draft, bool isClone})? takeCreateSeed<T>(String basePath) {
     final draft = _stagedDraft;
-    final result = (_stagedDraftBasePath == basePath && draft is T)
-        ? draft
-        : null;
-    if (result != null) {
-      _stagedDraft = null;
-      _stagedDraftBasePath = null;
-    }
-    return result;
+    if (_stagedDraftBasePath != basePath || draft is! T) return null;
+    final isClone = _stagedDraftIsClone;
+    _stagedDraft = null;
+    _stagedDraftBasePath = null;
+    _stagedDraftIsClone = false;
+    return (draft: draft, isClone: isClone);
   }
 
   // -- SidebarBadgeContext -------------------------------------------------

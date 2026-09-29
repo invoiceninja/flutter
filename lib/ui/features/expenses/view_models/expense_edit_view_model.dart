@@ -1,5 +1,6 @@
 import 'package:decimal/decimal.dart';
 
+import 'package:admin/data/models/domain/company.dart';
 import 'package:admin/data/models/domain/expense.dart';
 import 'package:admin/data/models/value/date.dart';
 import 'package:admin/data/repositories/_repository_helpers.dart';
@@ -23,23 +24,20 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
          initialDraft: cloneFrom ?? existing ?? emptyExpense(),
          original: existing,
          companyId: companyId,
+         prefilled: existing == null && cloneFrom != null,
        );
 
   final ExpenseRepository repo;
   final String companyId;
 
+  /// Dirty is "differs from what the untouched form held", for every field
+  /// at once — the billing view models' rule. The hand-kept list this
+  /// replaced missed the date, the number and the assignee, so a new expense
+  /// holding only those left without the Discard prompt. A form opened on a
+  /// staged draft (a clone, a "New expense" from a vendor) holds unsaved
+  /// content from the start.
   @override
-  bool draftIsNonEmpty() {
-    final d = draft;
-    return d.vendorId.isNotEmpty ||
-        d.clientId.isNotEmpty ||
-        d.projectId.isNotEmpty ||
-        d.categoryId.isNotEmpty ||
-        d.amount != Decimal.zero ||
-        d.publicNotes.isNotEmpty ||
-        d.privateNotes.isNotEmpty ||
-        d.transactionReference.isNotEmpty;
-  }
+  bool draftIsNonEmpty() => draft != createBaseline || prefilled;
 
   @override
   Future<SaveResult<Expense>> performSave() async {
@@ -61,20 +59,115 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
   void reset({required Expense emptyDraft}) {
     _userTouchedInclusive = false;
     super.reset(emptyDraft: emptyDraft);
+    // The only way a rebased blank draft carries a payment date is the
+    // company's mark-paid default being re-applied, which follows the date.
+    // An edit form's reset restores the stored record, whose payment date is
+    // the user's and never follows.
+    _paymentDateFollowsDate = isCreate && draft.paymentDate != null;
   }
 
   bool _userTouchedInclusive = false;
 
-  /// Seed a new expense's inclusive-tax mode from the company's
-  /// `expense_inclusive_taxes` (React parity — `empty*()` hard-codes false,
-  /// which the app then sent). Only on a create whose switch the user never
-  /// touched and whose amount is still zero: an amount is net or gross by the
-  /// mode it was typed in. Through [seedCreateDefault], so it neither dirties
-  /// an untouched form nor lands after a save or a discard.
-  void seedCompanyInclusiveTaxes(bool value) {
-    if (_userTouchedInclusive || draft.amount != Decimal.zero) return;
-    seedCreateDefault((d) => d.copyWith(usesInclusiveTaxes: value));
+  /// Whether [setDate] also moves the payment date. Set whenever the app fills
+  /// the payment date in from the expense date — [markPaid], the company's
+  /// mark-paid default in [seedCompanyDefaults], and that default's
+  /// re-application on Discard ([reset]) — so never for a stored payment date
+  /// on an existing expense. Cleared the moment the user edits the payment
+  /// date themselves ([setPaymentDate]) or unticks Mark paid.
+  bool _paymentDateFollowsDate = false;
+
+  /// Seed a new expense from the company's Expense Settings — what React's
+  /// `Create.tsx` and admin-portal's `ExpenseEntity` constructor do, and what
+  /// the server does NOT do for a manually created expense (it applies these
+  /// only in bank matching and the recurring cron). Without it every one of
+  /// those settings toggles was inert here.
+  ///
+  /// The edit screen calls this only for a genuine new expense — never for a
+  /// clone, which copies its source. Each default goes through
+  /// [seedCreateDefault], so an untouched form stays clean and a Discard
+  /// re-applies it, and each is skipped once the user has changed the field
+  /// it would set.
+  void seedCompanyDefaults(Company company) {
+    final base = createBaseline;
+    // An amount is net or gross by the mode it was typed in, so the mode is
+    // the user's once there is one.
+    if (!_userTouchedInclusive && draft.amount == Decimal.zero) {
+      seedCreateDefault(
+        (d) => d.copyWith(usesInclusiveTaxes: company.expenseInclusiveTaxes),
+      );
+    }
+    // Same reasoning for rate vs amount entry: once a tax is entered, the
+    // mode it was entered in is what it means.
+    if (draft.calculateTaxByAmount == base.calculateTaxByAmount &&
+        !_hasTaxEntered(draft)) {
+      seedCreateDefault(
+        (d) => d.copyWith(
+          calculateTaxByAmount: company.calculateExpenseTaxByAmount,
+        ),
+      );
+    }
+    if (draft.shouldBeInvoiced == base.shouldBeInvoiced) {
+      seedCreateDefault(
+        (d) => d.copyWith(shouldBeInvoiced: company.markExpensesInvoiceable),
+      );
+    }
+    if (draft.invoiceDocuments == base.invoiceDocuments) {
+      seedCreateDefault(
+        (d) => d.copyWith(invoiceDocuments: company.invoiceExpenseDocuments),
+      );
+    }
+    if (company.markExpensesPaid && !draft.isPaid) {
+      final typeId = _usablePaymentTypeId(
+        company.settings.defaultExpensePaymentTypeId,
+      );
+      final applied = seedCreateDefault((d) => _markedPaid(d, typeId));
+      if (applied) _paymentDateFollowsDate = true;
+    }
   }
+
+  /// Tick "Mark paid": the payment date defaults to the expense's own date
+  /// (today when it has none) — a receipt back-dated to last week was paid
+  /// last week far more often than today — and the payment type to the
+  /// company's default expense payment type. Until the user edits the
+  /// payment date, changing the expense date moves it too ([setDate]).
+  void markPaid({String? defaultPaymentTypeId}) {
+    if (draft.paymentDate == null) _paymentDateFollowsDate = true;
+    updateDraft(_markedPaid(draft, _usablePaymentTypeId(defaultPaymentTypeId)));
+  }
+
+  /// Untick "Mark paid": clears the whole payment-metadata triple.
+  void unmarkPaid() {
+    _paymentDateFollowsDate = false;
+    updateDraft(
+      draft.copyWith(
+        paymentDate: null,
+        paymentTypeId: '',
+        transactionReference: '',
+      ),
+    );
+  }
+
+  static Expense _markedPaid(Expense d, String defaultPaymentTypeId) =>
+      d.copyWith(
+        paymentDate: d.paymentDate ?? d.date ?? Date.today(),
+        paymentTypeId: d.paymentTypeId.isEmpty
+            ? defaultPaymentTypeId
+            : d.paymentTypeId,
+      );
+
+  /// The server's "no default" is `'0'` (`CompanySettings::
+  /// $default_expense_payment_type_id`), not an empty string.
+  static String _usablePaymentTypeId(String? id) =>
+      (id == null || id.isEmpty || id == '0') ? '' : id;
+
+  static bool _hasTaxEntered(Expense d) => [
+    d.taxRate1,
+    d.taxRate2,
+    d.taxRate3,
+    d.taxAmount1,
+    d.taxAmount2,
+    d.taxAmount3,
+  ].any((v) => v != Decimal.zero);
 
   // ── Field setters ──────────────────────────────────────────────────
 
@@ -108,8 +201,21 @@ class ExpenseEditViewModel extends GenericEditViewModel<Expense> {
   void setAssignedUserId(String v) =>
       updateDraft(draft.copyWith(assignedUserId: v));
   void setNumber(String v) => updateDraft(draft.copyWith(number: v));
-  void setDate(Date? d) => updateDraft(draft.copyWith(date: d));
-  void setPaymentDate(Date? d) => updateDraft(draft.copyWith(paymentDate: d));
+  void setDate(Date? d) {
+    var next = draft.copyWith(date: d);
+    if (_paymentDateFollowsDate && d != null && next.paymentDate != null) {
+      next = next.copyWith(paymentDate: d);
+    }
+    updateDraft(next);
+  }
+
+  /// The user's own payment date — from here on it no longer follows the
+  /// expense date.
+  void setPaymentDate(Date? d) {
+    _paymentDateFollowsDate = false;
+    updateDraft(draft.copyWith(paymentDate: d));
+  }
+
   void setPaymentTypeId(String v) =>
       updateDraft(draft.copyWith(paymentTypeId: v));
   void setTransactionReference(String v) =>
